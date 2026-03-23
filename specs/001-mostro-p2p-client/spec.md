@@ -371,6 +371,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-020a**: The Settings screen MUST provide a language selector, currency selector, default Lightning address input, wallet connection status, relay management, notification settings, dev tools access, and Mostro node selector.
 - **FR-020b**: The About screen MUST display app version, GitHub repository link, commit hash, and MIT license. The license MUST be viewable in a dialog.
 - **FR-020c**: The About screen MUST display Mostro node information including: public key (copyable), order limits, service fee, fiat currencies accepted, daemon version, and Lightning node details. Each field MUST have an info button with explanation.
+- **FR-020d**: The app MUST ship with support for the following languages in the initial release: English (en), Spanish (es), Italian (it), French (fr), and German (de). Additional languages may be added in future releases.
 - **FR-021**: The system MUST notify users of trade events (new taker, payment received, trade complete, dispute updates).
 - **FR-022**: The system MUST provide QR code scanning for Lightning invoices, with a paste/upload fallback on platforms without camera access.
 - **FR-023**: Users MUST be able to cancel their own unpublished or untaken orders.
