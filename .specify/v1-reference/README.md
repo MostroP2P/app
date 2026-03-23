@@ -1,5 +1,15 @@
 # V1 Reference Documentation
 
+> 🔴 **CRITICAL: Read the Protocol First!**
+> 
+> Before diving into these docs, understand the **Mostro Protocol**:
+> - **Protocol Repository**: https://github.com/MostroP2P/protocol
+> - **Local Reference**: [../PROTOCOL.md](../PROTOCOL.md)
+> 
+> The protocol defines ALL communication between clients and mostrod. It is the source of truth.
+
+---
+
 > ⚠️ **IMPORTANT: These documents are from Mostro Mobile v1 (Dart/Flutter implementation)**
 >
 > Use these as **REFERENCE ONLY** for understanding the business logic, protocols, and flows.
