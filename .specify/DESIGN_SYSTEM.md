@@ -277,21 +277,30 @@ Colors Kept
 
 • ✅ All colors in Section 2 of this document
 
+## 11. Theme Support
 
----
+### Dark/Light Mode
 
-## Cómo agregarlo
+The app supports both dark and light themes, switchable by user preference or system setting.
 
-No hay comando especial de spec-kit para esto. Simplemente:
+#### Theme Detection
+- Default: Follow system setting (MediaQuery.platformBrightness)
+- User override: Stored in local preferences
+- Persist across sessions
 
-1. Crea el archivo manualmente:
-```bash
-# En el directorio del repo app
-mkdir -p .specify
-nano .specify/DESIGN_SYSTEM.md
-# (pega el contenido)
+#### Color Mapping
 
-2. Y agrega referencia en el spec principal. Cuando crees el specify, incluye al final:
+| Semantic Color | Dark Theme | Light Theme |
+|---------------|------------|-------------|
+| background | `#171A23` | `#FFFFFF` |
+| backgroundCard | `#1E2230` | `#F5F5F5` |
+| backgroundInput | `#252A3A` | `#EEEEEE` |
+| textPrimary | `#FFFFFF` | `#1A1A1A` |
+| textSecondary | `#CCCCCC` | `#666666` |
+| mostroGreen | `#8CC63F` | `#8CC63F` (same) |
+| sellColor | `#FF8A8A` | `#FF8A8A` (same) |
 
-See also:- CURRENT_FEATURES.md for v1 feature reference
-- DESIGN_SYSTEM.md for color palette and UI guidelines
+#### Implementation
+- Use `ThemeData` with `ColorScheme`
+- Wrap app in `ThemeProvider` (Riverpod)
+- All colors via `Theme.of(context)` — never hardcoded
