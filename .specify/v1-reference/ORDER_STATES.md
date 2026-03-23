@@ -633,7 +633,13 @@ class OrderStatusChip extends StatelessWidget {
 
 ## Appendix A: Action-to-Status Mapping
 
-Mostro communicates with the app via encrypted gift wrap messages (NIP-59). Each message contains an `action` that determines the new status. This mapping is action-driven, not role-specific — role differentiation happens because Mostro sends different actions to buyer and seller.
+Mostro communicates with the app via encrypted gift wrap messages (NIP-59). Each message contains an `action` that either:
+1. **Changes the order status** — e.g., `holdInvoicePaymentAccepted` → `active`
+2. **Notifies without changing status** — e.g., `cooperativeCancelInitiatedByYou` keeps current status
+
+This mapping documents status-changing actions. Role differentiation happens because Mostro sends different actions to buyer and seller.
+
+> ⚠️ **Not all actions change status:** Actions like `cooperativeCancelInitiatedByYou`, `cooperativeCancelInitiatedByPeer`, and `disputeInitiatedByPeer` are **notifications only** — the order remains in its current status.
 
 ### Seller Actions (Seller's Perspective)
 
