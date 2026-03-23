@@ -58,7 +58,7 @@ A buy or sell offer on the Mostro network.
 - If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`.
 - `premium` is a signed float (negative = discount).
 
-**State machine** (15 states):
+**State machine** (15 states per mostro-core):
 ```text
 Pending
 ├─→ WaitingBuyerInvoice
@@ -66,14 +66,21 @@ Pending
 │           ├─→ Active
 │           │     ├─→ FiatSent
 │           │     │     └─→ SettledHoldInvoice → Success
-│           │     │                            → PaymentFailed (buyer resubmits invoice)
+│           │     │           (if LN payment fails: Action::PaymentFailed notification,
+│           │     │            then Action::AddInvoice - status stays SettledHoldInvoice)
 │           │     └─→ Dispute
-│           │           ├─→ CanceledByAdmin
-│           │           ├─→ SettledByAdmin
-│           │           └─→ CompletedByAdmin
-│           └─→ Expired (protocol-enforced inactivity timeout, e.g., buyer never paid within deadline)
+│           │           ├─→ InProgress (admin took dispute)
+│           │           │     ├─→ CanceledByAdmin
+│           │           │     ├─→ SettledByAdmin
+│           │           │     └─→ CompletedByAdmin
+│           │           └─→ (direct admin resolution without InProgress)
+│           └─→ Expired (protocol-enforced inactivity timeout)
 ├─→ Canceled (explicit user action: creator cancels own untaken order)
 └─→ CooperativelyCanceled
+
+Full status list: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent,
+SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, InProgress,
+SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired
 ```
 
 ---
