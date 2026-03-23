@@ -54,7 +54,7 @@ A buy or sell offer on the Mostro network.
 
 **Validation rules**:
 - `fiat_code` MUST be a valid ISO 4217 code.
-- Either `fiat_amount` OR both `fiat_amount_min` and `fiat_amount_max` MUST be provided.
+- Either `fiat_amount` OR both `fiat_amount_min` and `fiat_amount_max` MUST be provided, but NOT both. If `fiat_amount` is present, `fiat_amount_min` and `fiat_amount_max` MUST be absent; if `fiat_amount_min`/`fiat_amount_max` are present, `fiat_amount` MUST be absent.
 - If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`.
 - `premium` is a signed float (negative = discount).
 

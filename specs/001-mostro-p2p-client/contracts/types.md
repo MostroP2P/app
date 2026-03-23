@@ -189,7 +189,9 @@ last_error: String?
 ```text
 id: String
 order_kind: OrderKind
-fiat_amount: f64
+fiat_amount: f64?
+fiat_amount_min: f64?
+fiat_amount_max: f64?
 fiat_code: String
 amount_sats: u64?
 payment_method: String
