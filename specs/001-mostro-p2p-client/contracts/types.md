@@ -19,6 +19,8 @@ Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
 | CooperativelyCanceled | CanceledByAdmin | SettledByAdmin
 | CompletedByAdmin | Dispute | InProgress
 ```
+> Note: `PaymentFailed` is NOT a status - it's an Action notification sent when
+> Lightning payment to buyer fails. Order remains in `SettledHoldInvoice` status.
 
 > Note: `PaymentFailed` is NOT a status — it's an Action notification sent when
 > the LN payment fails. The order remains in `SettledHoldInvoice`.
@@ -51,6 +53,8 @@ Buyer(BuyerStep) | Seller(SellerStep) | Disputed
 ```text
 Success | Canceled | Expired | DisputeWon | DisputeLost
 ```
+> Note: `PaymentFailed` removed - LN payment failures are transient and retried,
+> not a final trade outcome.
 
 > Note: `PaymentFailed` removed — LN payment failures are transient and retried,
 > not a terminal trade outcome. The order stays in `SettledHoldInvoice`.

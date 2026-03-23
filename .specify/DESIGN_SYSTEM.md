@@ -1,306 +1,656 @@
 # Mostro Mobile v2 — Design System
 
-**Status:** Reference document from v1 + v2 additions
-**Based on:** Mobile v1 DESIGN_SYSTEM.md (January-February 2026)
+> ⚠️ **CRITICAL**: v2 must look like v1. This document contains exact visual specifications
+> extracted from v1 screenshots. Follow these specs precisely.
+
+**Status:** Reference document from v1 screenshots + v2 additions
+**Visual Reference:** Screenshots from `https://github.com/MostroP2P/mobile/tree/main/assets/images/`
 
 ---
 
 ## 1. Core Principles
 
-### 1.1 Single Source of Truth
+### 1.1 Visual Continuity
+v2 must be visually indistinguishable from v1. Same colors, same spacing, same feel.
+
+### 1.2 Single Source of Truth
 ALL colors must be defined in a central theme file. Zero hardcoded colors in widgets.
 
-### 1.2 Semantic Naming
+### 1.3 Semantic Naming
 Use names that describe purpose, not appearance:
 - ✅ `mostroGreen`, `backgroundCard`, `statusError`
 - ❌ `lightGreen`, `darkGray`, `red2`
 
-### 1.3 No Duplication
-Use aliases instead of duplicate values:
-```dart
-static const Color mostroGreen = Color(0xFF8CC63F);
-static const Color buyColor = mostroGreen;  // Alias, not duplicate
+---
 
-───
+## 2. Color Palette (Exact from v1)
 
-2. Final Color Palette
+### 2.1 Background Hierarchy
 
-2.1 Brand Colors
+| Level | Name | Hex | RGB | Usage |
+|-------|------|-----|-----|-------|
+| 0 | backgroundDark | `#1B1E28` | (27, 30, 40) | Main screen background |
+| 1 | backgroundCard | `#1E2230` | (30, 34, 48) | Cards, elevated surfaces |
+| 2 | backgroundInput | `#252A3A` | (37, 42, 58) | Input fields, interactive |
+| 3 | backgroundElevated | `#2A2D35` | (42, 45, 53) | Modals, dialogs, message input |
 
-| Name        | Hex     | RGB            | Usage                               |
-| ----------- | ------- | -------------- | ----------------------------------- |
-| mostroGreen | #8CC63F | (140, 198, 63) | Primary brand, buy actions, success |
+### 2.2 Brand & Action Colors
 
-2.2 Action Colors
+| Name | Hex | RGB | Usage |
+|------|-----|-----|-------|
+| mostroGreen | `#8CC63F` | (140, 198, 63) | Primary brand, buy, success, FAB |
+| mostroGreenBright | `#A5FF00` | (165, 255, 0) | Highlighted active states |
+| sellColor | `#FF8A8A` | (255, 138, 138) | Sell actions, negative |
+| destructiveRed | `#D84D4D` | (216, 77, 77) | Cancel, dispute, errors |
+| purpleButton | `#8359C2` | (131, 89, 194) | Submit buttons, sent messages |
+| tealAccent | `#2DA69D` | (45, 166, 157) | "Taken by you" badge |
+| blueAccent | `#35485E` | (53, 72, 94) | "Active" badge background |
 
-| Name         | Hex     | RGB             | Usage                                 |
-| ------------ | ------- | --------------- | ------------------------------------- |
-| buyColor     | #8CC63F | (140, 198, 63)  | Buy buttons, positive actions         |
-| sellColor    | #FF8A8A | (255, 138, 138) | Sell buttons, negative premiums       |
-| red1         | #D84D4D | (216, 77, 77)   | Destructive actions (cancel, dispute) |
-| purpleButton | #7856AF | (120, 86, 175)  | Submit buttons, accents               |
+### 2.3 Text Colors
 
-2.3 Status Colors
+| Name | Hex | Opacity | Usage |
+|------|-----|---------|-------|
+| textPrimary | `#FFFFFF` | 100% | Headings, primary content |
+| textSecondary | `#B0B3C6` | 100% | Labels, supporting text |
+| textSubtle | `#9A9A9C` | 100% | Timestamps, hints, placeholders |
+| textDisabled | `#6C757D` | 100% | Disabled states |
+| textLink | `#8CC63F` | 100% | Links, interactive text |
 
-| Name          | Hex     | RGB             | Usage                      |
-| ------------- | ------- | --------------- | -------------------------- |
-| statusSuccess | #8CC63F | (140, 198, 63)  | Success messages           |
-| statusWarning | #F3CA29 | (243, 202, 41)  | Warnings, pending          |
-| statusError   | #EF6A6A | (239, 106, 106) | Error messages, validation |
-| statusInfo    | #2A7BD6 | (42, 123, 214)  | Informational              |
+### 2.4 Chat Colors
 
-2.4 Background Hierarchy (4 levels)
+| Element | Hex | Usage |
+|---------|-----|-------|
+| messageSent | `#8359C2` | Sent message bubbles (purple) |
+| messageReceived | `#4B6349` | Received message bubbles (dark green) |
+| systemMessage | `#2A2D35` | System/info messages |
 
-| Level | Name               | Hex     | Usage                                |
-| ----- | ------------------ | ------- | ------------------------------------ |
-| 0     | backgroundDark     | #171A23 | Main screen background (darkest)     |
-| 1     | backgroundCard     | #1E2230 | Cards, list items, elevated surfaces |
-| 2     | backgroundInput    | #252A3A | Input fields, interactive elements   |
-| 3     | backgroundElevated | #303544 | Modals, dialogs (lightest)           |
+### 2.5 Status Chip Colors
 
-2.5 Text Colors
+| Status | Background | Text |
+|--------|------------|------|
+| Pending | `#854D0E` | `#FCD34D` |
+| Waiting | `#7C2D12` | `#FED7AA` |
+| Active | `#1E3A8A` | `#93C5FD` |
+| Success | `#065F46` | `#6EE7B7` |
+| Dispute | `#7F1D1D` | `#FCA5A5` |
+| Settled | `#581C87` | `#C084FC` |
+| Inactive | `#1F2937` | `#D1D5DB` |
 
-| Name          | Value          | Usage                   |
-| ------------- | -------------- | ----------------------- |
-| textPrimary   | Colors.white   | Primary content         |
-| textSecondary | #CCCCCC        | Supporting text, labels |
-| textSubtle    | Colors.white60 | Timestamps, hints       |
-| textDisabled  | #8A8D98        | Disabled text           |
+### 2.6 Role Chip Colors
 
-2.6 Status Chip Colors
+| Role | Background | Text |
+|------|------------|------|
+| Created by you | `#1565C0` | white |
+| Taken by you | `#2DA69D` | white |
+| Positive premium | `#388E3C` | white |
+| Negative premium | `#C62828` | white |
 
-| Status   | Background | Text    |
-| -------- | ---------- | ------- |
-| Pending  | #854D0E    | #FCD34D |
-| Waiting  | #7C2D12    | #FED7AA |
-| Active   | #1E3A8A    | #93C5FD |
-| Success  | #065F46    | #6EE7B7 |
-| Dispute  | #7F1D1D    | #FCA5A5 |
-| Settled  | #581C87    | #C084FC |
-| Inactive | #1F2937    | #D1D5DB |
+---
 
-2.7 Role Chip Colors
+## 3. Typography
 
-| Role             | Hex     | Usage              |
-| ---------------- | ------- | ------------------ |
-| createdByYouChip | #1565C0 | Orders you created |
-| takenByYouChip   | #00796B | Orders you took    |
-| premiumPositive  | #388E3C | Positive premium   |
-| premiumNegative  | #C62828 | Negative premium   |
+### 3.1 Font Family
+- **Primary:** System sans-serif (SF Pro on iOS, Roboto on Android)
+- **Fallback:** Roboto Condensed
+- **Weights:** 400 (Regular), 500 (Medium), 700 (Bold)
 
-───
+### 3.2 Text Scale
 
-3. Responsive Design
+| Style | Size | Weight | Line Height | Usage |
+|-------|------|--------|-------------|-------|
+| displayLarge | 32sp | Bold | 1.2 | Hero amounts |
+| headingLarge | 24sp | Bold | 1.3 | Screen titles |
+| headingMedium | 20sp | Bold | 1.3 | Section headers |
+| headingSmall | 18sp | Medium | 1.4 | Card titles, prices |
+| bodyLarge | 16sp | Regular | 1.5 | Primary body text |
+| bodyMedium | 14sp | Regular | 1.5 | Secondary body, labels |
+| bodySmall | 12sp | Regular | 1.4 | Captions, timestamps |
+| labelLarge | 14sp | Medium | 1.3 | Button text |
+| labelSmall | 11sp | Medium | 1.2 | Chip text, badges |
 
-3.1 Breakpoints
+### 3.3 Amount Display
 
-| Name  | Widt
-h      | Layout                      |
-| ------- | ---------- | --------------------------- |
-| Mobile  | < 600px    | Single column, BottomNav    |
-| Tablet  | 600-1200px | Master-detail optional      |
-| Desktop | > 1200px   | Multi-panel, NavigationRail |
+```text
+┌─────────────────────────────────────┐
+│  1,500 - 80,000                     │  ← headingSmall, bold, textPrimary
+│  🇻🇪 VES                            │  ← bodySmall, flag + currency code
+│  Market price: 0.12% above          │  ← bodySmall, textSecondary, mostroGreen for %
+└─────────────────────────────────────┘
+```
 
-3.2 Layout Components
+---
 
+## 4. Component Specifications
+
+### 4.1 Order Card (from v1 screenshots)
+
+```text
+┌─────────────────────────────────────────────────────┐
+│  ┌─────────┐                                        │
+│  │BUY BTC  │  ← Chip: mostroGreen bg, white text    │
+│  └─────────┘                                        │
+│                                                     │
+│  1,500 - 80,000     🇻🇪                             │
+│  ← headingSmall     ← Flag icon (16x12)             │
+│                                                     │
+│  VES · Market price 0.12% ↑                         │
+│  ← bodySmall, textSecondary, mostroGreen for %      │
+│                                                     │
+│  ⭐ 4.8 (12)  ·  15 trades                          │
+│  ← Rating + trade count, bodySmall                  │
+│                                                     │
+│  └── Payment methods: Mercado Pago, Zinli...        │
+│      ← bodySmall, textSubtle, truncated             │
+└─────────────────────────────────────────────────────┘
+
+Specs:
+- Background: backgroundCard (#1E2230)
+- Border radius: 12px
+- Padding: 16px
+- Margin between cards: 12px
+- Shadow: none (flat design)
+```
+
+### 4.2 Buttons
+
+| Type | Background | Text | Border Radius | Height | Padding |
+|------|------------|------|---------------|--------|---------|
+| Primary (Buy) | `#8CC63F` | white | 8px | 48px | 16px horizontal |
+| Primary (Sell) | `#FF8A8A` | white | 8px | 48px | 16px horizontal |
+| Secondary | `#8359C2` | white | 8px | 48px | 16px horizontal |
+| Destructive | `#D84D4D` | white | 8px | 48px | 16px horizontal |
+| Ghost | transparent | textSecondary | 8px | 40px | 12px horizontal |
+| FAB | `#8CC63F` | white icon | 50% (circle) | 56px | centered |
+
+### 4.3 Input Fields
+
+#### 4.3.1 Text Input (Underline Style)
+
+```text
+┌─────────────────────────────────────┐
+│  Amount                             │  ← Label: bodySmall, textSecondary
+│  ┌─────────────────────────────────┐│
+│  │ 50,000                          ││  ← Input: bodyLarge, textPrimary
+│  │ _____________________________   ││  ← Underline: mostroGreen when focused
+│  └─────────────────────────────────┘│
+└─────────────────────────────────────┘
+
+Specs:
+- Background: backgroundInput (#252A3A)
+- Border: none (underline style)
+- Underline color: mostroGreen when focused, textSubtle when unfocused
+- Border radius: 8px top only
+- Padding: 12px
+- Height: 56px
+```
+
+#### 4.3.2 Dropdown Select (Underline Style)
+
+```text
+┌─────────────────────────────────────┐
+│  Currency                           │  ← Label: bodySmall, textSecondary
+│  ┌─────────────────────────────────┐│
+│  │ VES                           ▼ ││  ← Selected value + dropdown caret
+│  │ _____________________________   ││  ← Underline: mostroGreen when focused
+│  └─────────────────────────────────┘│
+└─────────────────────────────────────┘
+
+Specs:
+- Same as Text Input
+- Caret icon: 16px, textSubtle, right-aligned
+- Tap opens bottom sheet or dropdown menu
+```
+
+### 4.4 Chips/Badges
+
+```text
+┌──────────────┐
+│  BUY BTC     │
+└──────────────┘
+
+Specs:
+- Background: varies by type (see colors)
+- Text: labelSmall, bold
+- Border radius: 6px
+- Padding: 4px 8px
+- Height: 24px
+```
+
+### 4.5 Bottom Navigation Bar
+
+```text
+┌─────────────────────────────────────────────────────┐
+│                                                     │
+│   📖          📋          💬                        │
+│  Order Book   My Trades   Chat                      │
+│                                                     │
+│  (inactive)   (active)    (inactive)                │
+│  textDisabled mostroGreen textDisabled              │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+
+Specs:
+- Background: backgroundDark (#1B1E28)
+- Height: 64px
+- Icon size: 24px
+- Label: bodySmall
+- Active color: mostroGreen (#8CC63F)
+- Inactive color: textDisabled (#6C757D)
+- Border top: 1px solid backgroundCard
+
+Note: Chat tab appears when inside a trade. On main screens (Order Book, My Trades),
+the third tab is Settings. See Section 6.1 for navigation context rules.
+```
+
+### 4.6 App Bar
+
+```text
+┌─────────────────────────────────────────────────────┐
+│  ☰                              🔔                  │
+│  (hamburger)                    (notifications)     │
+└─────────────────────────────────────────────────────┘
+
+Specs:
+- Background: backgroundDark (#1B1E28)
+- Height: 56px
+- Icon size: 24px
+- Icon color: textPrimary
+- Elevation: 0 (flat)
+```
+
+### 4.7 Chat Message Bubbles
+
+```text
+Sent (right-aligned):
+                    ┌─────────────────────┐
+                    │ Payment sent! ✓     │
+                    └─────────────────────┘
+                    Background: #8359C2 (purple)
+                    Border radius: 16px 16px 4px 16px
+                    Max width: 75% of screen
+                    Padding: 12px 16px
+
+Received (left-aligned):
+┌─────────────────────┐
+│ Got it, releasing   │
+└─────────────────────┘
+Background: #4B6349 (dark green)
+Border radius: 16px 16px 16px 4px
+Max width: 75% of screen
+Padding: 12px 16px
+```
+
+### 4.8 List Items (Settings)
+
+```text
+┌─────────────────────────────────────────────────────┐
+│  🌐  Language                                    ▼  │
+│      English                                        │
+├─────────────────────────────────────────────────────┤
+│  💱  Currency                                    ▼  │
+│      VES                                            │
+└─────────────────────────────────────────────────────┘
+
+Specs:
+- Icon: 24px, colored (mostroGreen for language, blueAccent for currency)
+- Title: bodyLarge, textPrimary
+- Subtitle: bodyMedium, textSecondary
+- Chevron: 16px, textSubtle
+- Divider: 1px, backgroundCard
+- Height: 64px
+- Padding: 16px horizontal
+```
+
+---
+
+## 5. Layout & Spacing
+
+### 5.1 Spacing Scale
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| xs | 4px | Tight spacing, between badge elements |
+| sm | 8px | Compact spacing, chip padding |
+| md | 12px | Default between list items |
+| lg | 16px | Card padding, section spacing |
+| xl | 24px | Between major sections |
+| xxl | 32px | Screen edge padding on tablets |
+
+### 5.2 Screen Padding
+
+| Breakpoint | Horizontal Padding |
+|------------|-------------------|
+| Mobile (<600px) | 16px |
+| Tablet (600-1200px) | 24px |
+| Desktop (>1200px) | 32px |
+
+### 5.3 Card Grid
+
+```text
+Mobile (single column):
+┌─────────────────────────┐
+│         Card 1          │
+└─────────────────────────┘
+         12px gap
+┌─────────────────────────┐
+│         Card 2          │
+└─────────────────────────┘
+
+Tablet (2 columns):
+┌───────────┐  12px  ┌───────────┐
+│   Card 1  │  gap   │   Card 2  │
+└───────────┘        └───────────┘
+
+Desktop (3 columns):
+┌─────────┐ 12px ┌─────────┐ 12px ┌─────────┐
+│  Card 1 │ gap  │  Card 2 │ gap  │  Card 3 │
+└─────────┘      └─────────┘      └─────────┘
+```
+
+---
+
+## 6. Navigation Patterns
+
+### 6.1 Bottom Navigation (Mobile)
+
+**Context-dependent tabs:**
+
+| Context | Tab 1 | Tab 2 | Tab 3 |
+|---------|-------|-------|-------|
+| Global screens | Order Book | My Trades | Settings |
+| Inside a trade | Order Book | My Trades | Chat |
+
+- **Order Book**: Browse buy/sell orders (always visible)
+- **My Trades**: Active and past trades (always visible)
+- **Settings**: Profile, preferences, about (shown on global screens)
+- **Chat**: Trade conversation (replaces Settings when inside an active trade)
+
+The third tab changes based on navigation context. When user is viewing
+a specific trade, Chat becomes available. On main screens, Settings is shown.
+
+### 6.2 Drawer Menu (Mobile)
+
+Accessed via hamburger icon. Contains:
+- Profile info
+- Settings
+- About
+- Logout
+
+### 6.3 Navigation Rail (Desktop)
+
+Same 3 sections as bottom nav, but vertical on left side.
+
+---
+
+## 7. Responsive Breakpoints
+
+| Name | Width | Layout |
+|------|-------|--------|
+| Mobile | <600px | Single column, BottomNav |
+| Tablet | 600-1200px | Master-detail optional |
+| Desktop | >1200px | Multi-panel, NavigationRail |
+
+### 7.1 Layout Shells
+
+```text
 Mobile:
+┌─────────────────────────┐
+│        AppBar           │
+├─────────────────────────┤
+│                         │
+│        Content          │
+│                         │
+├─────────────────────────┤
+│      BottomNav          │
+└─────────────────────────┘
 
-┌─────────────┐
-│   AppBar    │
-├─────────────┤
-│   Content   │
-├─────────────┤
-│  BottomNav  │
-└─────────────┘
+Tablet:
+┌─────────────────────────────────────┐
+│              AppBar                  │
+├──────────────┬──────────────────────┤
+│   List       │      Detail          │
+│   Panel      │      Panel           │
+├──────────────┴──────────────────────┤
+│           BottomNav                  │
+└─────────────────────────────────────┘
 
 Desktop:
+┌─────────────────────────────────────────────────┐
+│                   TopBar                         │
+├─────────┬───────────────┬───────────────────────┤
+│         │               │                        │
+│  Nav    │   Order List  │    Trade Detail        │
+│  Rail   │               │                        │
+│         │               │                        │
+└─────────┴───────────────┴───────────────────────┘
+```
 
-┌─────────────────────────────────────────┐
-│              TopBar                      │
-├──────────┬──────────────┬───────────────┤
-│ NavRail  │  Order List  │  Trade Panel  │
-└──────────┴──────────────┴───────────────┘
+---
 
-3.3 Responsive Utilities
+## 8. Iconography
 
-// Use LayoutBuilder or MediaQuery
-bool isMobile(BuildContext context) => 
-    MediaQuery.of(context).size.width < 600;
+### 8.1 Icon Library
+- **Primary:** Lucide Icons (`lucide_icons` package)
+- **Flags:** Country flag emojis or `flag_icons` package
 
-bool isDesktop(BuildContext context) => 
-    MediaQuery.of(context).size.width > 1200;
+### 8.2 Icon Sizes
 
-───
+| Context | Size |
+|---------|------|
+| Navigation | 24px |
+| Inline with text | 16px |
+| Large buttons | 20px |
+| FAB | 24px |
+| List item leading | 24px |
 
-4. Component Patterns
+### 8.3 Icon Colors
+- Active nav: mostroGreen
+- Inactive nav: textSubtle
+- Action buttons: textPrimary (white)
+- Info icons: mostroGreen, blueAccent, etc. (match semantic tokens)
 
-4.1 Buttons
+---
 
-| Type           | Background   | Text          | Usage                 |
-| -------------- | ------------ | ------------- | --------------------- |
-| Primary (Buy)  | mostroGreen  | textPrimary   | Main positive actions |
-| Primary (Sell) | sellColor    | textPrimary   | Sell actions          |
-| Destructive    | red1         | textPrimary   | Cancel, dispute       |
-| Secondary      | purpleButton | textPrimary   | Submit, confirm       |
-| Ghost          | transparent  | textSecondary | Low-emphasis          |
+## 9. Loading States
 
-4.2 Cards
+### 9.1 Skeleton Loading (Shimmer Effect)
 
-Container(
-  decoration: BoxDecoration(
-    color: AppTheme.backgroundCard,
-    borderRadius: BorderRadius.circular(12),
-  ),
-)
+Use skeleton placeholders instead of spinners. Shows content structure while loading.
 
-4.3 Input Fields
+```text
+Loading:                          Loaded:
+┌─────────────────────────┐      ┌─────────────────────────┐
+│ ░░░░░░░░░░░░            │      │ BUY BTC                 │
+│ ░░░░░░░░░░░░░░░░░░░░░░  │  →   │ 1,500 - 80,000 🇻🇪      │
+│ ░░░░░░░░░░              │      │ VES · 0.12% above       │
+└─────────────────────────┘      └─────────────────────────┘
 
-TextField(
-  decoration: InputDecoration(
-    fillColor: AppTheme.backgroundInput,
-    filled: true,
-  ),
-)
+(shimmer animation sweeps left→right)
+```
 
-4.4 Trade Progress Stepper
+**Implementation:**
 
-// Horizontal on desktop, vertical on mobile
-Stepper(
-  type: isMobile(context) 
-      ? StepperType.vertical 
-      : StepperType.horizontal,
-  currentStep: currentTradeStep,
-  steps: [...],
-)
+```yaml
+# pubspec.yaml
+dependencies:
+  shimmer: ^3.0.0
+```
 
-───
+```dart
+import 'package:shimmer/shimmer.dart';
 
-5. Typography
+// Order card skeleton
+Widget buildOrderCardSkeleton() {
+  return Shimmer.fromColors(
+    baseColor: Color(0xFF1E2230),      // backgroundCard
+    highlightColor: Color(0xFF2A2D35), // backgroundElevated
+    child: Container(
+      height: 100,
+      margin: EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+  );
+}
 
-5.1 Font Family
+// List of skeletons while loading
+Widget buildOrderListSkeleton() {
+  return ListView.builder(
+    itemCount: 5, // Show 5 placeholder cards
+    itemBuilder: (_, __) => buildOrderCardSkeleton(),
+  );
+}
+```
 
-• Primary: Roboto Condensed
-• Weights: 400 (Regular), 500 (Medium), 700 (Bold)
+**Skeleton Colors:**
 
-5.2 Text Styles
+| Element | Color | Hex |
+|---------|-------|-----|
+| Base (static) | backgroundCard | `#1E2230` |
+| Highlight (shimmer) | backgroundElevated | `#2A2D35` |
+| Animation duration | — | 1500ms |
 
-| Style          | Size | Weight  | Color         |
-| -------------- | ---- | ------- | ------------- |
-| Heading 1      | 24sp | Bold    | textPrimary   |
-| Heading 2      | 20sp | Medium  | textPrimary   |
-| Body           | 16sp | Regular | textPrimary   |
-| Body Secondary | 14sp | Regular | textSecondary |
-| Caption        | 12sp | Regular | textSubtle    |
+**When to Use:**
+- ✅ Order book loading
+- ✅ Trade list loading
+- ✅ Profile/settings loading
+- ✅ Chat history loading
+- ❌ Button loading (use disabled state + spinner)
+- ❌ Form submission (use button spinner)
 
-───
+### 9.2 Other Loading States
 
-6. Iconography
+| Context | Pattern |
+|---------|---------|
+| Initial app load | Splash screen with logo |
+| Button action | Disabled + CircularProgressIndicator inside |
+| Pull-to-refresh | RefreshIndicator (standard Flutter) |
+| Infinite scroll | Skeleton row at bottom |
+| Image loading | Shimmer placeholder → fade in |
 
-• Primary: Lucide Icons (lucide_icons package)
-• Secondary: Heroicons for specific cases
-• Size: 24px default, 20px compact, 32px large
+---
 
-───
+## 10. Animation & Motion
 
-7. Animation & Motion
+### 10.1 Durations
 
-7.1 Durations
+| Type | Duration | Curve |
+|------|----------|-------|
+| Micro (hover, press) | 100ms | easeOut |
+| Fast (toggles, chips) | 150ms | easeInOut |
+| Normal (page transitions) | 300ms | easeInOut |
+| Slow (modals, drawers) | 400ms | easeInOut |
 
-• Fast: 150ms (micro-interactions)
-• Normal: 300ms (transitions)
-• Slow: 500ms (complex animations)
+### 9.2 Transitions
+- Page transitions: Slide from right (forward), slide from left (back)
+- Modal: Fade + scale up from center
+- Bottom sheet: Slide up from bottom
+- List items: Staggered fade in (50ms delay between items)
 
-7.2 Curves
+---
 
-• Default: Curves.easeInOut
-• Enter: Curves.easeOut
-• Exit: Curves.easeIn
+## 11. Accessibility
 
-───
+### 10.1 Contrast Ratios
+- Text on backgrounds: Minimum 4.5:1 ✓
+- Large text (>18sp): Minimum 3:1 ✓
+- Interactive elements: Minimum 3:1 ✓
 
-8. Accessibility
+### 10.2 Touch Targets
+- Minimum: 44x44px
+- Recommended: 48x48px
+- FAB: 56x56px
 
-8.1 Contrast Ratios
+### 10.3 Screen Reader Support
+- All interactive elements have semantic labels
+- Images have alt text
+- Focus order follows visual order
+- Announcements for state changes
 
-• Text on backgrounds: Minimum 4.5:1
-• Large text: Minimum 3:1
-• Interactive elements: Minimum 3:1
+---
 
-8.2 Touch Targets
+## 12. Theme Support
 
-• Minimum: 44x44px
-• Recommended: 48x48px
+### 11.1 Dark Mode (Default)
+All colors in this document are for dark mode, which is the primary theme.
 
-8.3 Screen Readers
+### 11.2 Light Mode (Optional)
 
-• All interactive elements have semantic labels
-• Images have alt text
-• Focus order is logical
-
-───
-
-9. Platform Considerations
-
-9.1 Web
-
-• QR scanning: WebRTC camera or file upload fallback
-• No haptic feedback
-• Hover states for interactive elements
-
-9.2 Desktop
-
-• Keyboard navigation support
-• Right-click context menus (future)
-• Window resize handling
-
-9.3 Mobile
-
-• Haptic feedback on key actions
-• Native camera for QR
-• Pull-to-refresh patterns
-
-───
-
-10. Migration from v1
-
-Colors Removed (do not use)
-
-• ❌ green2 (unused)
-• ❌ red2 (duplicate of statusError)
-• ❌ purpleAccent (merged into purpleButton)
-• ❌ backgroundNavBar (use backgroundDark)
-• ❌ backgroundInactive (use backgroundInput)
-• ❌ dark1 (use backgroundCard)
-• ❌ dark2 (renamed to backgroundElevated)
-
-Colors Kept
-
-• ✅ All colors in Section 2 of this document
-
-## 11. Theme Support
-
-### Dark/Light Mode
-
-The app supports both dark and light themes, switchable by user preference or system setting.
-
-#### Theme Detection
-- Default: Follow system setting (MediaQuery.platformBrightness)
-- User override: Stored in local preferences
-- Persist across sessions
-
-#### Color Mapping
-
-| Semantic Color | Dark Theme | Light Theme |
-|---------------|------------|-------------|
-| background | `#171A23` | `#FFFFFF` |
+| Semantic Color | Dark | Light |
+|----------------|------|-------|
+| backgroundDark | `#1B1E28` | `#FFFFFF` |
 | backgroundCard | `#1E2230` | `#F5F5F5` |
 | backgroundInput | `#252A3A` | `#EEEEEE` |
 | textPrimary | `#FFFFFF` | `#1A1A1A` |
-| textSecondary | `#CCCCCC` | `#666666` |
-| mostroGreen | `#8CC63F` | `#8CC63F` (same) |
-| sellColor | `#FF8A8A` | `#FF8A8A` (same) |
+| textSecondary | `#B0B3C6` | `#666666` |
+| mostroGreen | `#8CC63F` | `#8CC63F` |
+| sellColor | `#FF8A8A` | `#FF8A8A` |
 
-#### Implementation
-- Use `ThemeData` with `ColorScheme`
+### 11.3 Implementation
 - Wrap app in `ThemeProvider` (Riverpod)
-- All colors via `Theme.of(context)` — never hardcoded
+- All colors via `Theme.of(context).extension<AppColors>()`
+- Never hardcode colors in widgets
+- System preference detection via `MediaQuery.platformBrightness`
+
+---
+
+## 13. v1 Screenshot Reference
+
+The following screenshots from v1 should be used as the visual reference:
+
+| Screen | Description | Key Elements |
+|--------|-------------|--------------|
+| Order Book | Main list of buy/sell orders | Order cards, filter button, FAB |
+| Order Detail | Single order expanded | Price, payment methods, rating |
+| Create Order | Form for new order | Inputs, dropdowns, submit button |
+| Settings | Profile and preferences | List items, icons, toggles |
+| About | App information | Links, version, documentation |
+| My Trades | User's active trades | Trade cards, status badges |
+| Chat | Trade conversation | Message bubbles, input field |
+| Invoice Entry | Lightning invoice input | Text input, amount display |
+
+---
+
+## 14. Quick Reference Card
+
+```
+COLORS (copy-paste ready)
+─────────────────────────
+Background:     #1B1E28
+Card:           #1E2230
+Input:          #252A3A
+Elevated:       #2A2D35
+
+Brand Green:    #8CC63F
+Sell Red:       #FF8A8A
+Purple:         #8359C2
+Destructive:    #D84D4D
+
+Text Primary:   #FFFFFF
+Text Secondary: #B0B3C6
+Text Subtle:    #9A9A9C
+
+Chat Sent:      #8359C2
+Chat Received:  #4B6349
+
+SPACING
+─────────────────────────
+xs: 4px   sm: 8px   md: 12px
+lg: 16px  xl: 24px  xxl: 32px
+
+RADIUS
+─────────────────────────
+Cards: 12px
+Buttons: 8px
+Chips: 6px
+Bubbles: 16px
+
+TYPOGRAPHY
+─────────────────────────
+Display: 32sp bold
+Heading: 20sp bold
+Body: 16sp regular
+Caption: 12sp regular
+```

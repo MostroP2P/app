@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Flutter** 3.x+ with Dart 3.x+
-- **Rust** stable 1.75+ (`rustup install stable`)
+- **Rust** stable (latest, currently 1.94+) (`rustup install stable`)
 - **flutter_rust_bridge codegen**: `dart pub global activate flutter_rust_bridge`
 - **WASM target** (for web): `rustup target add wasm32-unknown-unknown`
 - **wasm-pack** (for web): `cargo install wasm-pack`

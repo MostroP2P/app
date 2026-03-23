@@ -9,7 +9,7 @@ Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Li
 
 ## Technical Context
 
-**Language/Version**: Rust stable 1.75+ (core logic); Dart 3.x / Flutter 3.x (UI)
+**Language/Version**: Rust stable (latest, currently 1.94+) (core logic); Dart 3.x / Flutter 3.x (UI)
 **Primary Dependencies**: nostr-sdk 0.44+, mostro-core, flutter_rust_bridge 2.x, Riverpod (state management), go_router (navigation), sqlx (SQLite), indexed_db_futures (web), bip32/bip39 (key derivation), chacha20poly1305 (file encryption)
 **Storage**: SQLite via sqlx (native platforms), IndexedDB (web)
 **Testing**: `cargo test` + `cargo clippy -- -D warnings` (Rust); `flutter test` + `flutter analyze` (Dart)
@@ -25,7 +25,7 @@ Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Li
 
 | Principle | Status | Evidence |
 |-----------|--------|----------|
-| I. Rust Core, Flutter Shell | **PASS** | All Nostr logic, crypto, protocol, and network calls in Rust via nostr-sdk. Flutter handles only UI. flutter_rust_bridge is the sole bridge. Zero crypto in Dart. |
+| I. Rust Core, Flutter Shell | **PASS** | All Nostr logic, crypto, protocol, and network calls in Rust via nostr-sdk. Flutter handles only UI. flutter_rust_bridge is the sole bridge. Zero crypto in Dart. See [ARCHITECTURE.md](../../.specify/ARCHITECTURE.md) for boundary rules, forbidden patterns, and platform feature matrix. |
 | II. Privacy by Design | **PASS** | NIP-59 Gift Wrap for all Mostro communication. No analytics/telemetry. Keys encrypted at rest via platform secure storage. Ephemeral trade data cleared post-completion. No phone-home to non-relay servers (push server sends zero content). |
 | III. Protocol Compliance | **PASS** | Uses mostro-core crate for type-safe protocol messages. Kind 38383 for public orders, Kind 1059 for private communication. Works with any conforming Mostro daemon. |
 | IV. Offline-First Architecture | **PASS** | SQLite/IndexedDB as source of truth. MessageQueue entity for offline outbox. Sync on reconnection. Trade state persisted locally across force-close. |
@@ -40,7 +40,7 @@ Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Li
 |-----------|--------|-------|
 | I. Rust Core, Flutter Shell | **PASS** | All contracts define Rust-side APIs exposed via flutter_rust_bridge. No Dart crypto or network calls in any contract. |
 | II. Privacy by Design | **PASS** | File attachments use ChaCha20-Poly1305 in Rust. Push notifications carry zero content. NWC credentials encrypted at rest. |
-| III. Protocol Compliance | **PASS** | Order state machine matches mostro-core exactly (15 states: Pending through Expired + InProgress). PaymentFailed is an Action not a Status. CooperativelyCanceled is client-side UI only. All actions mapped in contracts. |
+| III. Protocol Compliance | **PASS** | Order state machine matches Mostro protocol exactly (15 states per mostro-core: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent, SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired, InProgress). Note: PaymentFailed is an Action, not a Status. |
 | IV. Offline-First Architecture | **PASS** | MessageQueue contract handles offline outbox. Orders cached locally with `cached_at` timestamp. |
 | V. Multi-Platform from Day One | **PASS** | Storage trait with SQLite/IndexedDB backends. Async runtime feature-gated for WASM vs native. |
 | VI. Simplicity Over Features | **PASS** | Contracts expose focused APIs per domain. No multipurpose interfaces. |
