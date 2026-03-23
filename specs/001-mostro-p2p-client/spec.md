@@ -13,6 +13,47 @@
 >
 > - **Protocol Repository**: https://github.com/MostroP2P/protocol
 > - **Local Reference**: [../../.specify/PROTOCOL.md](../../.specify/PROTOCOL.md)
+
+### Order State Machine
+
+The protocol defines 15 order states that the client must support:
+
+```text
+pending → waitingBuyerInvoice → waitingPayment → active → fiatSent → settledHoldInvoice → success
+                                                    ↓          ↓                              ↑
+                                                 dispute → settledByAdmin / completedByAdmin ─┘
+                                                    ↓
+                                               canceledByAdmin
+Any state → canceled (timeout/explicit) / cooperativelyCanceled / expired
+waitingPayment → paymentFailed (buyer may resubmit invoice)
+```
+
+### Protocol Actions
+
+| Category | Actions |
+|----------|---------|
+| Order creation | new-order, take-sell, take-buy |
+| Trade flow | pay-invoice, add-invoice, fiat-sent, release |
+| Cancellation | cancel, cooperative-cancel-initiated-by-you, cooperative-cancel-initiated-by-peer, cooperative-cancel-accepted |
+| Disputes | dispute, admin-take-dispute, admin-settle, admin-cancel |
+| Rating | rate, rate-received |
+| Session management | restore, orders, last-trade-index |
+
+### NIP-59 Three-Layer Encryption
+
+All Mostro messages use NIP-59 Gift Wrap for privacy:
+
+```text
+Layer 1: Rumor (kind 38383) — original Mostro message
+  ↓ encrypted
+Layer 2: Seal (kind 13) — authentication layer (signed by identity key or trade key)
+  ↓ encrypted
+Layer 3: Gift Wrap (kind 1059) — outer envelope (ephemeral key, no metadata leak)
+```
+
+### Protocol Versioning
+
+The protocol may evolve. The client must handle version negotiation from Mostro daemon announcements and be aware of backward compatibility and deprecation warnings.
 >
 > The protocol defines:
 > - Message formats and actions (new-order, take-sell, release, etc.)
@@ -55,7 +96,7 @@ A seller creates a new sell order (or has one taken by a buyer), receives the bu
 
 **Acceptance Scenarios**:
 
-1. **Given** a seller on the home screen, **When** they tap "Create Order" and select "Sell", **Then** they can enter amount (sats or fiat equivalent), price type (market or fixed), and accepted payment method.
+1. **Given** a seller on the home screen, **When** they tap "Create Order" and select "Sell", **Then** they can enter amount (fixed or min/max range, in sats or fiat equivalent), price type (market or fixed), and accepted payment method.
 2. **Given** a seller has published an order, **When** a buyer takes it, **Then** the seller receives a notification and the progress indicator advances to "Taker Found".
 3. **Given** the buyer has paid the hold invoice, **When** the seller sees "Payment Locked" on the progress indicator, **Then** they know funds are in escrow and they should wait for fiat.
 4. **Given** the seller receives fiat payment outside the app, **When** they tap "Confirm Fiat Received", **Then** the escrowed Bitcoin is released to the buyer and the trade completes.
@@ -115,6 +156,7 @@ During an active trade, both parties can exchange encrypted messages to coordina
 4. **Given** messages are exchanged, **When** either party or any third party inspects network traffic, **Then** message contents are not readable (encrypted end-to-end).
 5. **Given** a user in an active trade, **When** they attach a file (image, document, or video up to 25MB), **Then** the file is encrypted, uploaded to a decentralized storage server, and the counterparty can download and view it.
 6. **Given** a user receives an image attachment, **When** it downloads, **Then** an inline preview is shown automatically. Non-image files show a download button.
+7. **Given** a user closes and reopens the app during an active trade, **When** they view the chat history, **Then** previously received messages are available (loaded from encrypted local storage) without requiring re-download from relays.
 
 ---
 
@@ -149,10 +191,12 @@ A user can manage their relay connections, view and export their identity, confi
 1. **Given** a user navigates to settings, **When** they view the relay list, **Then** they see connected relays with health status indicators.
 2. **Given** a user in relay settings, **When** they add a new relay URL, **Then** the app connects to it and it appears in the active relay list.
 3. **Given** a user in identity settings, **When** they tap "Export Backup", **Then** they receive an encrypted backup of their identity (mnemonic or key file).
-4. **Given** a user in preferences, **When** they switch between dark and light theme, **Then** the app immediately reflects the change.
-5. **Given** a user in preferences, **When** they change the language, **Then** all UI text updates to the selected language.
-6. **Given** a user in wallet settings, **When** they paste a NWC URI, **Then** the app connects to their wallet and shows connection status and optional balance.
-7. **Given** a user has connected relays, **When** the Mostro daemon publishes updated relay lists (kind 10002), **Then** the app auto-syncs new relays without disconnecting existing ones.
+4. **Given** a user in preferences, **When** they switch between System, Dark, and Light theme options, **Then** the app immediately reflects the change with a smooth transition and no flash.
+5. **Given** a user has not changed any theme setting, **When** the OS is in dark mode, **Then** the app displays in dark theme; when the OS switches to light mode, the app follows automatically without restart.
+6. **Given** a user in preferences, **When** they change the language, **Then** all UI text updates to the selected language.
+7. **Given** a user in wallet settings, **When** they paste a NWC URI, **Then** the app connects to their wallet and shows connection status and optional balance.
+8. **Given** a user has connected relays, **When** the Mostro daemon publishes updated relay lists (kind 10002), **Then** the app auto-syncs new relays without disconnecting existing ones.
+9. **Given** a user in developer tools, **When** they enable diagnostic logging and perform actions, **Then** events are captured in memory. They can view, filter, and export logs. Logs contain no sensitive data (keys, tokens, mnemonics). On app restart, logging is disabled and the buffer is empty.
 
 ---
 
@@ -204,6 +248,7 @@ A returning user who lost their device or reinstalled the app can enter their mn
 2. **Given** the daemon responds with active order IDs and disputes, **When** the app processes the response, **Then** all active trades and disputes are reconstructed locally with correct state.
 3. **Given** recovery completes, **When** the user views their trade list, **Then** they see all active and historical trades with accurate progress indicators.
 4. **Given** the user is in privacy mode (no reputation), **When** they attempt recovery, **Then** the app explains that session recovery is unavailable in privacy mode.
+5. **Given** recovery completes successfully, **When** the app processes daemon responses, **Then** the trade key index is synchronized so that new trades use the correct next key index without collisions.
 
 ---
 
@@ -270,6 +315,11 @@ During an active trade, either party can request a cooperative cancellation. The
 - **NWC wallet disconnects during invoice payment**: The app detects the disconnect, shows the invoice QR/copy-paste as fallback, and notifies the user to pay manually.
 - **Recovery in privacy mode**: The app clearly explains that session recovery is not available in privacy mode (by design — no server-side history).
 - **Cooperative cancel after fiat sent**: If the buyer has already marked "Fiat Sent", cooperative cancel still works but displays a strong warning that funds may already be in transit.
+- **Payment failed after release**: The Lightning payment to the buyer can fail after the seller releases funds. The client must show a distinct "payment failed" state and allow the buyer to resubmit a new invoice.
+- **Admin dispute resolution outcomes**: An admin may settle a dispute (releasing funds to one party) or cancel it (returning funds). The client must display settledByAdmin, completedByAdmin, and canceledByAdmin as distinct final states from normal success/cancel.
+- **Mostro instance change**: When the user switches to a different Mostro daemon in settings, all non-default relays must be reset. The client must warn the user before proceeding.
+- **NWC wallet reconnection failure**: If the wallet connection drops and auto-reconnect fails within the trade timeout, the client must fall back to manual invoice payment and notify the user.
+- **Theme switch during active modal**: If the user or OS triggers a theme change while a modal, dialog, or form is open, the theme must transition without closing the modal or losing user input.
 
 ## Requirements *(mandatory)*
 
@@ -279,7 +329,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-002**: Users MUST be able to import an existing identity using a mnemonic phrase or private key.
 - **FR-003**: Users MUST be able to browse available orders from the Mostro network with key details (type, amount, price, payment method).
 - **FR-004**: Users MUST be able to filter orders by type (buy/sell), fiat currency, and payment method.
-- **FR-005**: Users MUST be able to create new buy or sell orders specifying amount, price type (market/fixed), and payment method.
+- **FR-005**: Users MUST be able to create new buy or sell orders specifying amount (fixed or min/max range), price type (market/fixed), and payment method.
 - **FR-006**: Users MUST be able to take an existing order, initiating a trade.
 - **FR-007**: The system MUST guide the buyer through the complete buy flow: take order, pay invoice, send fiat, mark sent, receive Bitcoin.
 - **FR-008**: The system MUST guide the seller through the complete sell flow: publish order, receive taker, lock payment, confirm fiat, release Bitcoin.
@@ -293,7 +343,13 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-016**: Users MUST be able to configure relay connections (add, remove, view status).
 - **FR-017**: Users MUST be able to export an encrypted backup of their identity.
 - **FR-018**: Users MUST be able to set a PIN or enable biometric device unlock.
-- **FR-019**: The system MUST support dark and light themes.
+- **FR-019**: The system MUST support dark and light themes with a complete set of semantic color tokens that adapt to the active theme, covering backgrounds, text, actions, status indicators, and brand colors.
+- **FR-019a**: The system MUST default to following the operating system's theme preference on first launch.
+- **FR-019b**: Users MUST be able to override the theme in settings with three options: System (follow OS, default), Dark, or Light.
+- **FR-019c**: Theme preference MUST be stored locally on the device and MUST NOT be tied to the user's identity or synced across devices.
+- **FR-019d**: Theme transitions (both manual and OS-triggered) MUST be smooth with no flash of the wrong theme on app launch or theme switch.
+- **FR-019e**: Both themes MUST meet WCAG AA contrast requirements: minimum 4.5:1 for normal text and 3:1 for large text and interactive elements.
+- **FR-019f**: Brand and action colors (buy/sell indicators, status chips, submit buttons) MUST remain visually consistent and recognizable across both themes.
 - **FR-020**: The system MUST support multiple languages (internationalization).
 - **FR-021**: The system MUST notify users of trade events (new taker, payment received, trade complete, dispute updates).
 - **FR-022**: The system MUST provide QR code scanning for Lightning invoices, with a paste/upload fallback on platforms without camera access.
@@ -317,18 +373,28 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-040**: The system MUST display countdown timers for time-limited trade states.
 - **FR-041**: The system MUST support background notifications for trade events on mobile (even when app is killed).
 - **FR-042**: For sell orders, the buyer MUST be able to submit a Lightning invoice for receiving payment.
+- **FR-043**: The system MUST display all 15 protocol-defined order states (pending, waitingBuyerInvoice, waitingPayment, active, fiatSent, settledHoldInvoice, success, paymentFailed, canceled, cooperativelyCanceled, dispute, settledByAdmin, completedByAdmin, canceledByAdmin, expired) with visually distinct indicators for each.
+- **FR-044**: The system MUST support both standard privacy mode (reputation-linked identity) and full privacy mode (trade-key-only identity with no cross-trade linking) as a global toggle in settings. The selected mode applies to all future trades; existing trades retain the mode they were started with.
+- **FR-045**: Chat messages MUST be stored encrypted at rest and decrypted only in active memory, never persisted in plaintext.
+- **FR-046**: The NWC wallet connection MUST auto-reconnect on failure with backoff, and MUST fall back to manual invoice payment if the wallet remains unreachable.
+- **FR-047**: File attachment uploads MUST fall back across multiple decentralized storage servers if the primary server is unreachable.
+- **FR-048**: The system MUST handle the paymentFailed order state by displaying a distinct status and allowing the buyer to resubmit a Lightning invoice.
+- **FR-049**: Push notifications MUST NOT expose trade content or message text; notification payloads MUST be silent/contentless on platforms that support push.
+- **FR-050**: The system MUST provide an opt-in diagnostic logging mode accessible from a developer/debug section in settings. Logging MUST capture events in an in-memory buffer (not persisted to disk), strip all sensitive data (keys, tokens, mnemonics), and reset to disabled on each app restart.
+- **FR-051**: Users MUST be able to view, filter, search, and export diagnostic logs from within the app. Exported logs MUST be shareable via the system share sheet or saved to a file.
 
 ### Key Entities
 
-- **Identity**: The user's cryptographic identity — includes public/private keypair and mnemonic backup. One identity per app installation. Used to sign and decrypt all communications.
-- **Order**: A buy or sell offer on the Mostro network — includes type (buy/sell), amount, price, fiat currency, payment method, status, and creator identity. Orders transition through states: Pending, Active, Completed, Canceled, Disputed.
+- **Identity**: The user's cryptographic identity — includes public/private keypair and mnemonic backup. One identity per app installation. Supports two privacy modes: standard mode (identity key signs the encryption seal, enabling reputation linking across trades) and privacy mode (trade key signs the seal, preventing cross-trade reputation linking). Key derivation follows a deterministic hierarchical path from the master mnemonic (identity key at index 0, trade keys at index ≥ 1).
+- **Order**: A buy or sell offer on the Mostro network — includes type (buy/sell), amount (fixed or min/max range), price, fiat currency, payment method, status, and creator identity. Orders transition through 15 protocol-defined states: pending, waitingBuyerInvoice, waitingPayment, active, fiatSent, settledHoldInvoice, success, paymentFailed, canceled, cooperativelyCanceled, dispute, settledByAdmin, completedByAdmin, canceledByAdmin, expired.
 - **Trade**: An active transaction between a buyer and seller — links an order, both parties' identities, the current progress step, and associated messages. Only one trade active at a time (v2.0 scope).
-- **Message**: An encrypted communication between two parties (or between a party and admin during disputes) — includes sender, recipient, content, timestamp, and read status. Persisted locally.
-- **Relay**: A connection endpoint the app communicates through — includes URL, connection status, and health metrics. Users can add/remove relays.
-- **Dispute**: An exception flow on an active trade — includes initiator, evidence submissions, admin communications, and resolution outcome.
-- **NWC Wallet**: A Nostr Wallet Connect connection — includes wallet pubkey, relay URL, secret, connection status, and optional balance. Used for automatic invoice payment.
-- **File Attachment**: An encrypted file sent in trade chat — includes file type, size, encryption metadata, Blossom server URL, and download status. Linked to a message.
+- **Message**: An encrypted communication between two parties (or between a party and admin during disputes). Uses three-layer NIP-59 encryption (Rumor inside Seal inside Gift Wrap). P2P chat messages use a shared key derived via ECDH between trade keys; admin/dispute messages use the trade key directly. Messages are stored encrypted on disk and decrypted only in active memory. Includes sender, recipient, content, timestamp, and read status.
+- **Relay**: A connection endpoint the app communicates through — includes URL, connection status, health metrics, and source classification (default, Mostro-discovered, user-added). Users can add, remove, and blacklist relays. Blacklisted relays are not re-added even if the daemon announces them.
+- **Dispute**: An exception flow on an active trade — includes initiator, evidence submissions, admin communications, and resolution outcome. Uses a separate chat channel from P2P chat, encrypted with the trade key.
+- **NWC Wallet**: A Nostr Wallet Connect connection — includes wallet pubkey, relay URL, secret, connection status, and optional balance. Uses a dedicated connection isolated from the main relay pool. Payment priority: automatic via connected wallet first, then manual fallback (QR/copy-paste). Must auto-reconnect with backoff on failure and provide periodic health monitoring.
+- **File Attachment**: An encrypted file sent in trade chat — includes file type, size, encryption metadata, Blossom server URL, and download status. Supported types: images (JPG, PNG, GIF, WEBP with auto-preview), documents (PDF, DOC, TXT, RTF), videos (MP4, MOV, AVI, WEBM). Maximum 25 MB per file. Linked to a message.
 - **Rating**: A post-trade counterparty rating — includes trade ID, score, and submission status. Only available in reputation mode.
+- **Theme Preference**: A device-local setting with three values: System (follow OS), Dark, or Light. Persisted across app restarts. Not tied to user identity or mnemonic backup.
 
 ## Success Criteria *(mandatory)*
 
@@ -352,6 +418,10 @@ During an active trade, either party can request a cooperative cancellation. The
 - **SC-016**: After a successful trade, both parties can rate their counterparty, and ratings are reflected in order listings.
 - **SC-017**: A shared order deep link opens the correct order detail screen when clicked on any supported platform.
 - **SC-018**: Cooperative cancellation completes within one interaction per party — requester taps "Request Cancel", counterparty taps "Accept".
+- **SC-019**: Both dark and light themes meet WCAG AA contrast requirements (4.5:1 normal text, 3:1 large text) across all screens, verified by automated contrast checking.
+- **SC-020**: The app follows the OS theme preference by default and responds to OS theme changes within 1 second without requiring a restart.
+- **SC-021**: All 15 protocol-defined order states are visually distinguishable in the trade progress indicator and trade history.
+- **SC-022**: Chat messages stored on disk cannot be read without the corresponding decryption key — verified by inspecting local storage directly.
 
 ### Assumptions
 
@@ -361,6 +431,18 @@ During an active trade, either party can request a cooperative cancellation. The
 - A built-in Lightning wallet is out of scope — users pay invoices via external wallet or connected NWC wallet.
 - Default relay connections are preconfigured so users can start trading immediately after onboarding.
 - Push notification availability varies by platform; the app gracefully falls back to in-app notifications where push is unavailable.
+- All protocol logic — NIP-59 encryption/decryption, key derivation, order state machine enforcement, message serialization/deserialization — MUST run in a shared core layer, not in the UI layer. The UI layer handles only rendering and platform-specific concerns (camera, notifications, biometrics, file system). Implementation details (language/runtime, bridging mechanism) are documented in the ADR.
+- The NIP-59 three-layer encryption model (Rumor inside Seal inside Gift Wrap) is a Mostro protocol requirement. All client-daemon and peer-to-peer communication must use this model.
+- The key derivation path m/44'/1237'/38383'/0/N (N=0 identity key, N≥1 trade keys) is fixed by the Mostro protocol for cross-client compatibility.
+
+## Clarifications
+
+### Session 2026-03-23
+
+- Q: Does this app include admin dispute management UI, or only the user side? → A: User-side only — this app shows dispute status and receives admin messages, but has no admin login or dispute management screens. Admins use a separate tool.
+- Q: When does the user choose between standard and privacy mode? → A: Global toggle in settings — user can switch mode anytime, applies to all future trades. Existing trades retain the mode they were started with.
+- Q: Does the app support range orders (min/max amount) or fixed amounts only? → A: Range orders supported — user can specify min/max amount; taker picks exact amount within range. This preserves v1 parity with the Mostro protocol.
+- Q: Should the app include a diagnostics/logging feature? → A: Yes — include as P3. Opt-in diagnostic logging with in-memory buffer, log viewer, export, privacy-safe (no keys/secrets), resets to off on each app restart.
 
 ### Non-Goals (v2.0 Scope)
 
@@ -368,3 +450,4 @@ During an active trade, either party can request a cooperative cancellation. The
 - Fiat payment integration or escrow
 - Built-in Lightning wallet (NWC integration is in scope; built-in node is not)
 - Order book aggregation across multiple Mostro daemons
+- Admin dispute management UI (admins use a separate tool; this app only displays the user side of disputes)
