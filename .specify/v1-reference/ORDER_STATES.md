@@ -324,7 +324,9 @@ Reserved status in mostro-core enum. Not implemented in the protocol (no `admin-
 - Label: "Expired"
 
 **Description:**
-Order expired without being taken within the configured time limit.
+Order was in `pending` status and was not taken before `expires_at` (determined by Mostro based on `expiration_hours` published in the instance event kind `38385`). When the order expires, Mostro updates the replaceable event (kind 38383) status to `canceled`.
+
+> **No direct notification:** Mostro does not send a message to the creator when an order expires. The client detects expiration by observing the updated replaceable event on relays.
 
 **Available Actions:**
 - None (terminal state)
