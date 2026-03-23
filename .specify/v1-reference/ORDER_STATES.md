@@ -224,34 +224,35 @@ Order was canceled by a party before completion. No funds were exchanged.
 - Label: "Canceling"
 
 **Description:**
-One party requested a cooperative cancellation; waiting for counterparty response. This is a **pending state** showing cancellation was requested but not yet agreed.
+`cooperativelyCanceled` is a **client-side UI state**, not a protocol-level order status change.
 
-Unlike `canceled`, this state allows the trade to continue normally:
+> ⚠️ **Important:** The Mostro protocol does NOT change the order status when a cooperative cancel is requested. The order remains in its current status (`active`, `fiatSent`, etc.). Mostro only sends notification actions (`cooperative-cancel-initiated-by-you` / `cooperative-cancel-initiated-by-peer`) to inform both parties.
 
-| Aspect | `cooperativelyCanceled` | `canceled` |
-|--------|------------------------|------------|
-| Meaning | Cancel requested, awaiting response | Trade definitively ended |
-| UI label | "Canceling" (orange) | "Cancel" (gray) |
-| Terminal? | No — trade can proceed | Yes — no further actions |
+**Protocol Flow:**
+1. One party sends `action: "cancel"` to Mostro
+2. Mostro sends `cooperative-cancel-initiated-by-you` to the requester
+3. Mostro sends `cooperative-cancel-initiated-by-peer` to the counterparty
+4. **Order status does NOT change** — if it was `active`, it stays `active`
 
-**Available Actions (from `cooperativelyCanceled`):**
+**What Happens Next:**
 
-| Action | By | Result |
-|--------|----|--------|
-| `cooperativeCancelAccepted` | Counterparty | Order → `canceled` |
-| `fiatSent` | Buyer | Order → `fiatSent` — trade continues normally |
-| `release` | Seller | Order → `settledHoldInvoice` — trade completes |
-| `dispute` | Either | Order → `dispute` — escalate to admin |
-| No action | Counterparty | Trade remains cancelable but can proceed |
+| Counterparty Action | Result |
+|---------------------|--------|
+| Accepts cancel (sends `cancel`) | Mostro sends `cooperative-cancel-accepted` → order → `canceled` |
+| Sends `fiatSent` | Trade continues normally → order → `fiatSent` |
+| Sends `release` | Trade completes → order → `settledHoldInvoice` |
+| Opens `dispute` | Escalated → order → `dispute` |
+| Does nothing | Trade remains in current state, cancel request is pending |
 
-**Source States:** Any non-terminal state, most commonly:
-- `active` — during active trading
-- `fiatSent` — after buyer sent fiat
+**UI Display:**
+The app shows the "Canceling" chip as a **visual overlay** on the current state to indicate a cancel was requested, but the underlying order status has not changed.
 
-**Key Insight:** Cooperative cancellation is a **request**, not a requirement. The counterparty can:
-1. Accept → cancel completes
-2. Ignore/requester resumes → trade continues (order stays `cooperativelyCanceled` while active)
-3. Continue normal trade (fiatSent, release, dispute) — state progresses from `cooperativelyCanceled`
+| Aspect | Cooperative Cancel Request | `canceled` (terminal) |
+|--------|---------------------------|----------------------|
+| Protocol status change? | **No** — order keeps its current status | **Yes** — status is `canceled` |
+| UI label | "Canceling" (orange overlay) | "Cancel" (gray) |
+| Trade can continue? | **Yes** — all normal actions available | **No** — terminal state |
+| Both parties agree? | Required for cancel to complete | Already completed |
 
 ---
 
