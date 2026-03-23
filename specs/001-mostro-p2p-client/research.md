@@ -106,7 +106,7 @@ dependency ensures type-level compatibility with any conforming daemon.
 4. The `p` tag on Gift Wrap points to recipient; sender identity is hidden.
 5. Relays only see ephemeral keys, not real participants.
 
-**Order state machine**:
+**Order state machine** (15 states):
 ```text
 Pending
   → WaitingBuyerInvoice (buy order taken, awaiting buyer invoice)
@@ -115,10 +115,11 @@ Pending
       → FiatSent (buyer marked fiat sent)
         → SettledHoldInvoice (seller confirmed, funds released)
           → Success (trade complete)
+          → PaymentFailed (LN payment to buyer failed, buyer may resubmit invoice)
       → Dispute (either party disputes)
-        → CanceledByAdmin | SettledByAdmin
+        → CanceledByAdmin | SettledByAdmin | CompletedByAdmin
     → Expired (buyer never paid, timeout)
-  → Canceled (creator canceled before taker)
+  → Canceled (creator canceled or timeout)
   → CooperativelyCanceled (both parties agreed)
 ```
 
