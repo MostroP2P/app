@@ -63,7 +63,7 @@ When the app receives a gift wrap message from Mostro, `_getStatusFromAction()` 
 | Action | Status | When |
 |---|---|---|
 | `waitingBuyerInvoice` | `waitingBuyerInvoice` | Buyer must provide a Lightning invoice |
-| `addInvoice` | `waitingBuyerInvoice` | Buyer receives request to add invoice (unless in paymentFailed state) |
+| `addInvoice` | `waitingBuyerInvoice` | Buyer receives request to add invoice (or stays `settledHoldInvoice` if after payment failure) |
 | `takeBuy` | `waitingBuyerInvoice` | Buyer takes a sell order |
 
 ### Active
@@ -99,13 +99,15 @@ This is an intermediate status for the **buyer only**. It means the seller relea
 | `rate` | `success` | User receives a rating prompt |
 | `rateReceived` | `success` | Rating confirmation received |
 
-### Payment Failed
+### Payment Failed (Action, Not Status)
+
+> ⚠️ **v2 Note:** `paymentFailed` is NOT a status change. See protocol note above.
 
 | Action | Status | When |
 |---|---|---|
-| `paymentFailed` | `paymentFailed` | Lightning payment to buyer failed |
+| `paymentFailed` | (no change) | Lightning payment to buyer failed — order stays `settledHoldInvoice` |
 
-When `addInvoice` is received while in `paymentFailed` status, the status is preserved (stays `paymentFailed`) for UI consistency, so the user sees the payment failed context while providing a new invoice.
+When `paymentFailed` action is received, the order remains in `settled-hold-invoice` status. The app should display a notification that payment failed and Mostro is retrying. When `addInvoice` follows (after all retries fail), prompt the buyer for a new invoice while remaining in `settled-hold-invoice`.
 
 ### Canceled
 
@@ -194,18 +196,23 @@ The seller's part is done when they release, so they see success right away. The
 
 ### Payment Failure Cycle (Buyer Only)
 
+> ⚠️ **v2 Note:** `paymentFailed` is an Action notification, NOT a status. The order remains in `settled-hold-invoice` throughout this cycle.
+
 ```text
 Action.released → settledHoldInvoice ("Paying sats")
     │
     └── LN payment fails
         │
-        Action.paymentFailed → paymentFailed ("Payment failed")
+        Action.paymentFailed → settledHoldInvoice (status unchanged, show notification)
             │
-            Action.addInvoice → paymentFailed (preserved, buyer adds new invoice)
+            └── Mostro retries automatically (up to N times)
                 │
-                └── LN payment retried
-                    ├── Success: Action.purchaseCompleted → success
-                    └── Fails again: cycle repeats
+                ├── Success: Action.purchaseCompleted → success
+                │
+                └── All retries fail:
+                    Action.addInvoice → settledHoldInvoice (buyer provides new invoice)
+                        │
+                        └── Mostro pays new invoice → success
 ```
 
 ### Buyer Takes a Sell Order
@@ -264,7 +271,7 @@ When the app restores sessions after restart, it receives orders with a status b
 | `completedByAdmin` | `adminSettled` | `adminSettled` |
 | `dispute` | `disputeInitiatedByPeer` | `disputeInitiatedByPeer` |
 | `expired` | `canceled` | `canceled` |
-| `paymentFailed` | `paymentFailed` | `paymentFailed` |
+
 | `inProgress` | `buyerTookOrder` | `buyerTookOrder` |
 
 The role differentiation in restore is critical for `settledHoldInvoice`: the buyer sees the intermediate "Paying sats" state, while the seller sees success.
@@ -283,7 +290,7 @@ The status chips in the trades list use short labels for compact display:
 | `pending` | Pending | Yellow |
 | `waitingPayment` | Waiting payment | Orange |
 | `waitingBuyerInvoice` | Waiting invoice | Orange |
-| `paymentFailed` | Payment Failed | Gray |
+
 | `fiatSent` | Fiat-sent | Green |
 | `canceled` | Cancel | Gray |
 | `cooperativelyCanceled` | Canceling | Orange |
@@ -305,7 +312,7 @@ The Order Details screen shows descriptive, user-friendly labels:
 | `pending` | Pending order |
 | `waitingPayment` | Waiting for seller payment |
 | `waitingBuyerInvoice` | Waiting for buyer invoice |
-| `paymentFailed` | Payment failed |
+
 | `fiatSent` | Fiat sent |
 | `canceled` | Order canceled |
 | `cooperativelyCanceled` | Cooperative cancellation |
@@ -329,9 +336,11 @@ When the seller releases sats, the Lightning payment to the buyer has not yet co
 
 The seller sees `success` immediately because they receive `holdInvoicePaymentSettled`, not `released`. Their part of the trade is complete.
 
-### Why `addInvoice` Preserves `paymentFailed` Status
+### Handling `paymentFailed` Action (v2 Note)
 
-When a Lightning payment fails, the buyer receives `paymentFailed` followed by `addInvoice` to provide a new invoice. Without preservation, `addInvoice` would change the status to `waitingBuyerInvoice`, losing the payment failure context. By checking the current status, the app keeps `paymentFailed` visible so the UI can show an appropriate message explaining why a new invoice is needed.
+> ⚠️ **v1 behavior (deprecated):** v1 created a UI-only `paymentFailed` status and preserved it when `addInvoice` arrived.
+>
+> **v2 behavior:** `paymentFailed` is an Action notification, not a status change. The order remains in `settled-hold-invoice`. When the buyer receives `paymentFailed`, display a notification explaining the payment failed and Mostro is retrying. When `addInvoice` arrives after all retries fail, prompt for a new invoice while remaining in `settled-hold-invoice`.
 
 ### Why `cooperativelyCanceled` Has a Distinct Chip
 
