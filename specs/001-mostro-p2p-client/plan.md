@@ -43,7 +43,7 @@ Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Li
 | III. Protocol Compliance | **PASS** | Order state machine matches Mostro protocol exactly (15 states per mostro-core: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent, SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired, InProgress). Note: PaymentFailed is an Action, not a Status. |
 | IV. Offline-First Architecture | **PASS** | MessageQueue contract handles offline outbox. Orders cached locally with `cached_at` timestamp. |
 | V. Multi-Platform from Day One | **PASS** | Storage trait with SQLite/IndexedDB backends. Async runtime feature-gated for WASM vs native. |
-| VI. Simplicity Over Features | **PASS** | Contracts expose focused APIs per domain. No multipurpose interfaces. |
+| VI. Simplicity Over Features | **PASS** | Contracts expose focused APIs per domain. No multipurpose interfaces. New settings.md contract added for FR-054/FR-055; nym identity added to identity.md; node selector and About data added to nostr.md. |
 
 ## Project Structure
 
@@ -63,6 +63,7 @@ specs/001-mostro-p2p-client/
 │   ├── nwc.md           # Nostr Wallet Connect integration
 │   ├── disputes.md      # Dispute lifecycle
 │   ├── reputation.md    # Rating system, privacy mode
+│   ├── settings.md      # App preferences, node selector, Lightning Address
 │   └── types.md         # Shared enums and structs
 └── tasks.md             # Phase 2 output (via /speckit.tasks)
 ```
@@ -158,6 +159,6 @@ web/                          # Web platform project
 |----------|------|--------|
 | Research | `specs/001-mostro-p2p-client/research.md` | Complete (12 decisions) |
 | Data Model | `specs/001-mostro-p2p-client/data-model.md` | Complete (11 entities) |
-| Contracts | `specs/001-mostro-p2p-client/contracts/` | Complete (8 contracts) |
+| Contracts | `specs/001-mostro-p2p-client/contracts/` | Complete (9 contracts) |
 | Quickstart | `specs/001-mostro-p2p-client/quickstart.md` | Complete |
 | Tasks | `specs/001-mostro-p2p-client/tasks.md` | Exists (generated separately via /speckit.tasks) |

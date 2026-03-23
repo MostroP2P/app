@@ -77,17 +77,44 @@ specified pubkey.
 
 ---
 
-### get_mostro_settings() → MostroSettings?
-Fetch Mostro daemon configuration from its published events.
+### get_mostro_info() → MostroNodeInfo?
+Fetch full Mostro daemon information from its published events. Used by
+the About screen and node selector (FR-056–FR-058).
 
 **Returns**:
 ```text
-MostroSettings {
-  mostro_pubkey: String
-  expiration_hours: u32       # Pending order lifetime (default 24h)
-  expiration_seconds: u32     # Waiting state timeout (default 900s)
+MostroNodeInfo {
+  pubkey: String
+  name: String?
+  version: String?                    # Daemon software version
+  expiration_hours: u32               # Pending order lifetime (default 24h)
+  expiration_seconds: u32             # Waiting state timeout (default 900s)
+  fee_pct: f64?                       # Maker/taker fee percentage
+  max_order_amount: u64?              # Maximum order size in sats
+  min_order_amount: u64?              # Minimum order size in sats
+  supported_currencies: Vec<String>?  # Fiat currency codes supported
+  ln_node_id: String?                 # Lightning node public key
+  ln_node_alias: String?              # Lightning node alias
+  is_active: bool
 }
 ```
+
+---
+
+### get_known_mostro_nodes() → Vec<MostroNodeInfo>
+Return the list of known Mostro nodes (hardcoded defaults + any
+user-added nodes). Used by the node selector screen (FR-056).
+
+---
+
+### set_active_mostro(pubkey: String) → ()
+Switch the active Mostro daemon. All future orders and messages will
+route to this node.
+
+**Side effects**: Updates stored active node. Re-subscribes to the
+new node's relay list (kind 10002).
+
+**Errors**: `InvalidPublicKey`, `NodeUnreachable`.
 
 ---
 
