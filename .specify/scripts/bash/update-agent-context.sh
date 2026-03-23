@@ -511,7 +511,11 @@ update_existing_agent_file() {
         echo "" >> "$temp_file"
         echo "## Recent Changes" >> "$temp_file"
         echo "$new_change_entry" >> "$temp_file"
-        changes_entries_added=true
+     if [[ $has_recent_changes -eq 0 ]] && [[ -n "$new_change_entry" ]]; then
+         echo "" >> "$temp_file"
+         echo "## Recent Changes" >> "$temp_file"
+         echo "$new_change_entry" >> "$temp_file"
+     fi
     fi
     
     # Ensure Cursor .mdc files have YAML frontmatter for auto-inclusion
