@@ -17,7 +17,7 @@ This document provides a comprehensive explanation of how the Mostro mobile appl
 - [Logging and Debugging](#logging-and-debugging)
 
 ## Related Documentation
-- [Session Recovery Architecture](SESSION_RECOVERY_ARCHITECTURE.md) - Complete account recovery from mnemonic
+- [Session Recovery Architecture](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/SESSION_RECOVERY_ARCHITECTURE.md) (v1 repo) - Complete account recovery from mnemonic
 - [Architecture Overview](ARCHITECTURE.md) - High-level system architecture
 - [Nostr Integration](NOSTR.md) - Nostr protocol implementation details
 
@@ -57,7 +57,7 @@ This allows users to restore their trading state on new devices, including:
 - Trade index synchronization
 - Order state reconstruction
 
-For complete details, see [Session Recovery Architecture](SESSION_RECOVERY_ARCHITECTURE.md).
+For complete details, see [Session Recovery Architecture](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/SESSION_RECOVERY_ARCHITECTURE.md) (v1 repo).
 
 ## Identity Key System
 
@@ -154,7 +154,7 @@ await keyManager.setCurrentKeyIndex(lastTradeIndex + 1);
 ```
 
 This prevents key conflicts and ensures that new trades use the correct sequential index. 
-The recovery process is detailed in [Session Recovery Architecture](SESSION_RECOVERY_ARCHITECTURE.md#trade-index-synchronization).
+The recovery process is detailed in [Session Recovery Architecture](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/SESSION_RECOVERY_ARCHITECTURE.md#trade-index-synchronization).
 
 ## Session Management
 
@@ -247,7 +247,7 @@ for (final entry in ordersIds.entries) {
 ```
 
 **Important**: Current dispute initiator detection has limitations. 
-See [Session Recovery Architecture - Dispute Handling](SESSION_RECOVERY_ARCHITECTURE.md#dispute-handling) for details.
+See [Session Recovery Architecture - Dispute Handling](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/SESSION_RECOVERY_ARCHITECTURE.md#dispute-handling) for details.
 
 ### Session Lifecycle and Cleanup
 
@@ -502,7 +502,7 @@ Session and order data:
 
 **Account Recovery**: The mnemonic serves as the complete backup for account recovery. 
 Users can restore their entire trading state on new devices using only the mnemonic phrase. 
-Recovery process detailed in [Session Recovery Architecture](SESSION_RECOVERY_ARCHITECTURE.md).
+Recovery process detailed in [Session Recovery Architecture](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/SESSION_RECOVERY_ARCHITECTURE.md) (v1 repo).
 
 ### Storage Access Patterns
 
@@ -571,7 +571,7 @@ Account recovery follows a multi-stage process:
 await restoreService.importMnemonicAndRestore(mnemonic);
 ```
 
-For implementation details, see [Session Recovery Architecture](SESSION_RECOVERY_ARCHITECTURE.md).
+For implementation details, see [Session Recovery Architecture](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/SESSION_RECOVERY_ARCHITECTURE.md) (v1 repo).
 
 ### Recovery Limitations
 - **Dispute Initiator**: Current detection of dispute initiator has known limitations
@@ -588,7 +588,7 @@ When a range order is successfully completed via the `release` action, mostrod c
 
 #### Current Implementation Flow (Broken)
 
-```
+```text
 1. Parent Order Release
    → User completes range order (e.g., orderId: "parent-123", keyIndex: 7)
    → App calls KeyManager.getNextKeyIndex() → returns 8
@@ -1268,4 +1268,4 @@ backend data.
 
 *Last updated: November 25, 2025*  
 *Protocol version: 1.0*
-*Related: [Session Recovery Architecture](SESSION_RECOVERY_ARCHITECTURE.md)*
+*Related: [Session Recovery Architecture](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/SESSION_RECOVERY_ARCHITECTURE.md) (v1 repo)*

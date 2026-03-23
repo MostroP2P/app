@@ -29,7 +29,7 @@ The Mostro Mobile app is built on top of the Nostr protocol to provide a decentr
 
 ### High-Level Components
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    Mostro Mobile App                        │
 ├─────────────────────────────────────────────────────────────┤

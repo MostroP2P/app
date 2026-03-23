@@ -89,7 +89,7 @@ Based on complexity and dependencies:
 1. **Phase 1**: Identity & Keys (SESSION_AND_KEY_MANAGEMENT.md)
 2. **Phase 2**: Nostr Core (NOSTR.md, RELAY_SYNC_IMPLEMENTATION.md)
 3. **Phase 3**: Orders (ORDER_STATUS_HANDLING.md)
-4. **Phase 4**: Chat (P2P_CHAT_SYSTEM.md, ENCRYPTED_IMAGE_MESSAGING.md)
+4. **Phase 4**: Chat (P2P_CHAT_SYSTEM.md, ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md)
 5. **Phase 5**: NWC (NWC_ARCHITECTURE.md)
 6. **Phase 6**: Notifications (FCM_IMPLEMENTATION.md) - stays in Flutter
 

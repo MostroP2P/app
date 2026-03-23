@@ -32,7 +32,7 @@ The system maintains **real-time awareness** of relay list changes through persi
 
 From a user perspective, the system provides **seamless automatic connectivity** with complete override capabilities. Users never need to manually configure Mostro relays - they're discovered and configured automatically. However, users retain full control through an intuitive interface that allows blacklisting problematic relays, adding custom relays with full connectivity validation, and easily restoring previously blacklisted relays.
 
-The system also handles **instance transitions** gracefully. When a user switches to a different Mostro instance, the application performs a complete relay reset, clearing old Mostro relays while preserving user-added relays (when configured to do so), and immediately begins synchronization with the new instance.
+The system also handles **instance transitions** gracefully. When a user switches to a different Mostro instance, the application performs a **complete relay reset** — clearing ALL relays (including user-added ones) and resetting to only the default relay (`wss://relay.mostro.network`). This ensures a clean state when changing trading instances. User relays are NOT preserved on instance change.
 
 ### Technical Resilience
 
@@ -57,7 +57,7 @@ The system handles NIP-65 relay list events (kind 10002), implements dual storag
 
 ### Data Flow Architecture
 
-```
+```text
 ┌─────────────────┐    NIP-65 Events     ┌─────────────────┐
 │ Mostro Instance │ ──────────────────→  │ SubscriptionMgr │
 │   (kind 10002)  │                      │                 │
@@ -884,18 +884,20 @@ static RelayListEvent? fromEvent(NostrEvent event) {
 ```dart
 List<String> get validRelays {
   return relays
-      .where((url) => url.startsWith('wss://') || url.startsWith('ws://')) // Line 50
+      .where((url) => url.startsWith('wss://')) // Only secure WebSocket allowed in production
       .map((url) => url.trim())                             // Line 51
       .map((url) => url.endsWith('/') ? url.substring(0, url.length - 1) : url) // Line 52
       .toList();                                            // Line 53
 }
 ```
 
+> ⚠️ **Security Note:** Only `wss://` (secure WebSocket) URLs are accepted. The `ws://` protocol is unencrypted and rejected in production to prevent MITM attacks.
+
 **Technical Features**:
 - **NIP-65 Compliance**: Properly parses kind 10002 events
 - **Robust Tag Parsing**: Handles malformed or missing tags gracefully
 - **Timestamp Flexibility**: Supports both DateTime and int timestamp formats
-- **URL Normalization**: Removes trailing slashes and validates protocols
+- **URL Normalization**: Removes trailing slashes, validates secure protocol only
 
 ---
 
