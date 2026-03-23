@@ -182,7 +182,7 @@ If a trade goes wrong (e.g., fiat not received, payment disputes), either party 
 
 ### User Story 7 - Settings and Relay Management (Priority: P3)
 
-A user can manage their relay connections, view and export their identity, configure app preferences (theme, language), and manage device security settings.
+A user can manage their relay connections, view and export their identity, configure app preferences (theme, language), and manage device security settings. All settings are accessed through a drawer menu that slides from the left side of the screen.
 
 **Why this priority**: Settings are supporting functionality. Sensible defaults mean users can trade without ever visiting settings.
 
@@ -190,15 +190,21 @@ A user can manage their relay connections, view and export their identity, confi
 
 **Acceptance Scenarios**:
 
-1. **Given** a user navigates to settings, **When** they view the relay list, **Then** they see connected relays with health status indicators.
-2. **Given** a user in relay settings, **When** they add a new relay URL, **Then** the app connects to it and it appears in the active relay list.
-3. **Given** a user in identity settings, **When** they tap "Export Backup", **Then** they receive an encrypted backup of their identity (mnemonic or key file).
-4. **Given** a user in preferences, **When** they switch between System, Dark, and Light theme options, **Then** the app immediately reflects the change with a smooth transition and no flash.
-5. **Given** a user has not changed any theme setting, **When** the OS is in dark mode, **Then** the app displays in dark theme; when the OS switches to light mode, the app follows automatically without restart.
-6. **Given** a user in preferences, **When** they change the language, **Then** all UI text updates to the selected language.
-7. **Given** a user in wallet settings, **When** they paste a NWC URI, **Then** the app connects to their wallet and shows connection status and optional balance.
-8. **Given** a user has connected relays, **When** the Mostro daemon publishes updated relay lists (kind 10002), **Then** the app auto-syncs new relays without disconnecting existing ones.
-9. **Given** a user in developer tools, **When** they enable diagnostic logging and perform actions, **Then** events are captured in memory. They can view, filter, and export logs. Logs contain no sensitive data (keys, tokens, mnemonics). On app restart, logging is disabled and the buffer is empty.
+1. **Given** a user taps the hamburger menu icon, **When** the drawer opens, **Then** they see menu items for Account, Settings, and About.
+2. **Given** a user navigates to settings, **When** they view the relay list, **Then** they see connected relays with health status indicators.
+3. **Given** a user in relay settings, **When** they add a new relay URL, **Then** the app connects to it and it appears in the active relay list.
+4. **Given** a user in Account screen, **When** they view their mnemonic, **Then** they see the first 2 and last 2 words visible with the middle 8 words masked as dots. A "Show" button reveals all 12 words.
+5. **Given** a user in Account screen, **When** they tap "Generate New User", **Then** a confirmation dialog warns about losing the current identity. On confirm, a new mnemonic is generated and all stored data is cleared.
+6. **Given** a user in Account screen, **When** they tap "Import Mostro User", **Then** they can enter a 12 or 24 word mnemonic phrase. On valid import, the identity is restored and past trades are synced from relays.
+7. **Given** a user navigates to Settings, **When** they toggle between "Reputation Mode" and "Full Privacy Mode" in the global privacy settings, **Then** the selected mode applies to all future trades (per FR-044).
+8. **Given** a user in preferences, **When** they switch between System, Dark, and Light theme options, **Then** the app immediately reflects the change with a smooth transition and no flash.
+9. **Given** a user has not changed any theme setting, **When** the OS is in dark mode, **Then** the app displays in dark theme; when the OS switches to light mode, the app follows automatically without restart.
+10. **Given** a user in preferences, **When** they change the language, **Then** all UI text updates to the selected language.
+11. **Given** a user in wallet settings, **When** they paste a NWC URI, **Then** the app connects to their wallet and shows connection status and optional balance.
+12. **Given** a user has connected relays, **When** the Mostro daemon publishes updated relay lists (kind 10002), **Then** the app auto-syncs new relays without disconnecting existing ones.
+13. **Given** a user in developer tools, **When** they enable diagnostic logging and perform actions, **Then** events are captured in memory. They can view, filter, and export logs. Logs contain no sensitive data (keys, tokens, mnemonics). On app restart, logging is disabled and the buffer is empty.
+14. **Given** a user navigates to About screen, **When** they view app information, **Then** they see version, GitHub repository link, commit hash, and MIT license (tappable to view full text).
+15. **Given** a user in About screen, **When** viewing Mostro Node info, **Then** they see daemon public key, order limits, fee, version, and Lightning node details — each with info buttons explaining the field.
 
 ---
 
@@ -346,7 +352,13 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-014**: The system MUST display admin messages and dispute resolution outcomes.
 - **FR-015**: Users MUST be able to view a history of past trades with details.
 - **FR-016**: Users MUST be able to configure relay connections (add, remove, view status).
+- **FR-016a**: The system MUST provide a drawer menu accessible via hamburger icon with three items: Account, Settings, and About.
+- **FR-016b**: The drawer MUST slide in from the left (70% screen width) with a semi-transparent overlay and close on outside tap, swipe left, or back button.
 - **FR-017**: Users MUST be able to export an encrypted backup of their identity.
+- **FR-017a**: The Account screen MUST display the mnemonic phrase with the first 2 and last 2 words visible and the middle 8 words masked. A Show/Hide toggle MUST reveal/conceal all words.
+- **FR-017b**: The Account screen MUST provide a "Generate New User" button that, after confirmation dialog, clears all stored data and generates a new mnemonic.
+- **FR-017c**: The Account screen MUST provide an "Import Mostro User" button that accepts a 12 or 24 word mnemonic and initiates a restore/sync process.
+- **FR-017d**: The Settings screen MUST provide a global privacy mode toggle between "Reputation Mode" (identity key signs seal) and "Full Privacy Mode" (trade key signs seal). The Account screen MAY display the current mode read-only.
 - **FR-018**: Users MUST be able to set a PIN or enable biometric device unlock.
 - **FR-019**: The system MUST support dark and light themes with a complete set of semantic color tokens that adapt to the active theme, covering backgrounds, text, actions, status indicators, and brand colors.
 - **FR-019a**: The system MUST default to following the operating system's theme preference on first launch.
@@ -356,6 +368,9 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-019e**: Both themes MUST meet WCAG AA contrast requirements: minimum 4.5:1 for normal text and 3:1 for large text and interactive elements.
 - **FR-019f**: Brand and action colors (buy/sell indicators, status chips, submit buttons) MUST remain visually consistent and recognizable across both themes.
 - **FR-020**: The system MUST support multiple languages (internationalization).
+- **FR-020a**: The Settings screen MUST provide a language selector, currency selector, default Lightning address input, wallet connection status, relay management, notification settings, dev tools access, and Mostro node selector.
+- **FR-020b**: The About screen MUST display app version, GitHub repository link, commit hash, and MIT license. The license MUST be viewable in a dialog.
+- **FR-020c**: The About screen MUST display Mostro node information including: public key (copyable), order limits, service fee, fiat currencies accepted, daemon version, and Lightning node details. Each field MUST have an info button with explanation.
 - **FR-021**: The system MUST notify users of trade events (new taker, payment received, trade complete, dispute updates).
 - **FR-022**: The system MUST provide QR code scanning for Lightning invoices, with a paste/upload fallback on platforms without camera access.
 - **FR-023**: Users MUST be able to cancel their own unpublished or untaken orders.
