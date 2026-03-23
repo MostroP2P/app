@@ -478,12 +478,10 @@ The trade detail screen shows different action buttons based on the current stat
 ### WAITING_BUYER_INVOICE (as Buyer)
 - **Add Invoice** - Primary button
 - **Cancel** - Destructive
-- **Dispute** - Warning
 
 ### WAITING_PAYMENT (as Seller)
 - **Pay Hold Invoice** - Primary button (shows QR/invoice)
 - **Cancel** - Destructive
-- **Dispute** - Warning
 
 ### PAYMENT_FAILED (as Seller)
 - **Retry Payment** - Primary button
