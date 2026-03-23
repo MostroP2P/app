@@ -529,25 +529,27 @@ The trade detail screen shows different action buttons based on the current stat
 
 ### ACTIVE (as Buyer)
 - **Fiat Sent** - Success button (primary action)
+- **Contact** - Opens P2P chat with counterparty
 - **Cancel** - Destructive
 - **Dispute** - Warning
 
 ### ACTIVE (as Seller)
+- **Contact** - Opens P2P chat with counterparty
 - **Cancel** - Destructive
 - **Dispute** - Warning
 - (Waiting for buyer to mark fiat sent)
 
 ### FIAT_SENT (as Seller)
 - **Release Sats** - Success button (primary action)
+- **Contact** - Opens P2P chat with counterparty
 - **Dispute** - Warning
 
 ### FIAT_SENT (as Buyer)
-- (Waiting for seller to release)
+- **Contact** - Opens P2P chat with counterparty
 - **Dispute** - Warning (if seller doesn't release)
 
 ### DISPUTE (as Either)
-- (No actions - waiting for admin)
-- Chat available for submitting evidence
+- **Contact** - Opens P2P chat with counterparty
 
 ### SUCCESS / Terminal States
 - **Rate Counterparty** - Star rating component
@@ -566,12 +568,21 @@ The trade detail screen shows different action buttons based on the current stat
 | `waiting-payment` | `cancel` (buyer) | `pending` (taker) | `canceled` (creator) |
 | `waiting-payment` | `cancel` (seller) | `canceled` (creator) | `pending` (taker) |
 | `active` | `fiat-sent` | `fiat-sent` | `fiat-sent` |
-| `fiat-sent` | `release` | - | `settled-hold-invoice` |
-| `settled-hold-invoice` | (auto) | `success` | `success` |
+| `active` | `cancel` (one party) | `active` (cooperative cancel requested) | `active` (cooperative cancel requested) |
+| `active` | `cancel` (both parties) | `canceled` | `canceled` |
 | `active` | `dispute` | `dispute` | `dispute` |
+| `fiat-sent` | `release` | - | `settled-hold-invoice` |
+| `fiat-sent` | `cancel` (one party) | `fiat-sent` (cooperative cancel requested) | `fiat-sent` (cooperative cancel requested) |
+| `fiat-sent` | `cancel` (both parties) | `canceled` | `canceled` |
 | `fiat-sent` | `dispute` | `dispute` | `dispute` |
+| `settled-hold-invoice` | (auto) | `success` | `success` |
+| `settled-hold-invoice` | `rate` | - | `settled-hold-invoice` |
+| `settled-hold-invoice` | `add-invoice` | `settled-hold-invoice` | - |
 | `dispute` | `admin-settle` | `settled-by-admin` | `settled-by-admin` |
 | `dispute` | `admin-cancel` | `canceled-by-admin` | `canceled-by-admin` |
+| `dispute` | `release` | - | `settled-hold-invoice` (dispute auto-closed) |
+| `dispute` | `cancel` (one party) | `dispute` (cooperative cancel requested) | `dispute` (cooperative cancel requested) |
+| `dispute` | `cancel` (both parties) | `canceled` (dispute auto-closed) | `canceled` (dispute auto-closed) |
 
 ## Implementation Notes for v2
 
