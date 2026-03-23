@@ -419,9 +419,90 @@ Desktop:
 
 ---
 
-## 9. Animation & Motion
+## 9. Loading States
 
-### 9.1 Durations
+### 9.1 Skeleton Loading (Shimmer Effect)
+
+Use skeleton placeholders instead of spinners. Shows content structure while loading.
+
+```
+Loading:                          Loaded:
+┌─────────────────────────┐      ┌─────────────────────────┐
+│ ░░░░░░░░░░░░            │      │ BUY BTC                 │
+│ ░░░░░░░░░░░░░░░░░░░░░░  │  →   │ 1,500 - 80,000 🇻🇪      │
+│ ░░░░░░░░░░              │      │ VES · 0.12% above       │
+└─────────────────────────┘      └─────────────────────────┘
+
+(shimmer animation sweeps left→right)
+```
+
+**Implementation:**
+
+```yaml
+# pubspec.yaml
+dependencies:
+  shimmer: ^3.0.0
+```
+
+```dart
+import 'package:shimmer/shimmer.dart';
+
+// Order card skeleton
+Widget buildOrderCardSkeleton() {
+  return Shimmer.fromColors(
+    baseColor: Color(0xFF1E2230),      // backgroundCard
+    highlightColor: Color(0xFF2A2D35), // backgroundElevated
+    child: Container(
+      height: 100,
+      margin: EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+  );
+}
+
+// List of skeletons while loading
+Widget buildOrderListSkeleton() {
+  return ListView.builder(
+    itemCount: 5, // Show 5 placeholder cards
+    itemBuilder: (_, __) => buildOrderCardSkeleton(),
+  );
+}
+```
+
+**Skeleton Colors:**
+
+| Element | Color | Hex |
+|---------|-------|-----|
+| Base (static) | backgroundCard | `#1E2230` |
+| Highlight (shimmer) | backgroundElevated | `#2A2D35` |
+| Animation duration | — | 1500ms |
+
+**When to Use:**
+- ✅ Order book loading
+- ✅ Trade list loading
+- ✅ Profile/settings loading
+- ✅ Chat history loading
+- ❌ Button loading (use disabled state + spinner)
+- ❌ Form submission (use button spinner)
+
+### 9.2 Other Loading States
+
+| Context | Pattern |
+|---------|---------|
+| Initial app load | Splash screen with logo |
+| Button action | Disabled + CircularProgressIndicator inside |
+| Pull-to-refresh | RefreshIndicator (standard Flutter) |
+| Infinite scroll | Skeleton row at bottom |
+| Image loading | Shimmer placeholder → fade in |
+
+---
+
+## 10. Animation & Motion
+
+### 10.1 Durations
 
 | Type | Duration | Curve |
 |------|----------|-------|
@@ -438,7 +519,7 @@ Desktop:
 
 ---
 
-## 10. Accessibility
+## 11. Accessibility
 
 ### 10.1 Contrast Ratios
 - Text on backgrounds: Minimum 4.5:1 ✓
@@ -458,7 +539,7 @@ Desktop:
 
 ---
 
-## 11. Theme Support
+## 12. Theme Support
 
 ### 11.1 Dark Mode (Default)
 All colors in this document are for dark mode, which is the primary theme.
@@ -483,7 +564,7 @@ All colors in this document are for dark mode, which is the primary theme.
 
 ---
 
-## 12. v1 Screenshot Reference
+## 13. v1 Screenshot Reference
 
 The following screenshots from v1 should be used as the visual reference:
 
@@ -500,7 +581,7 @@ The following screenshots from v1 should be used as the visual reference:
 
 ---
 
-## 13. Quick Reference Card
+## 14. Quick Reference Card
 
 ```
 COLORS (copy-paste ready)
