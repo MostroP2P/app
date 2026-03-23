@@ -272,7 +272,6 @@ A dispute has been initiated by either party. An admin will review the case and 
 |--------|----|------------|
 | `admin-settle` | Admin | `settled-by-admin` |
 | `admin-cancel` | Admin | `canceled-by-admin` |
-| `admin-complete` | Admin | `completed-by-admin` |
 
 ---
 
@@ -311,10 +310,10 @@ Admin resolved the dispute in favor of the seller. Sats were returned to seller.
 - Label: "Completed"
 
 **Description:**
-Admin marked the trade as completed. This is a force-complete action.
+Reserved status in mostro-core enum. Not implemented in the protocol (no `admin-complete` action exists in mostrod or protocol docs). Mobile v1 treats it as equivalent to `settled-by-admin`.
 
 **Available Actions:**
-- None (terminal state)
+- None (terminal state, reserved/unused)
 
 ---
 
@@ -342,7 +341,7 @@ Order expired without being taken within the configured time limit.
 Internal status used during dispute handling. Indicates an admin has taken the dispute and is actively working on resolution.
 
 **Available Actions:**
-- Admin can settle, cancel, or complete the order
+- Admin can settle or cancel the order
 
 **Transitions:**
 
@@ -350,7 +349,6 @@ Internal status used during dispute handling. Indicates an admin has taken the d
 |--------|----|------------|
 | `admin-settle` | Admin | `settled-by-admin` |
 | `admin-cancel` | Admin | `canceled-by-admin` |
-| `admin-complete` | Admin | `completed-by-admin` |
 
 ---
 
