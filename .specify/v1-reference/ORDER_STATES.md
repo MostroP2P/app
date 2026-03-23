@@ -161,16 +161,20 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 - Label: "Settled"
 
 **Description:**
-Seller has released the sats. The hold invoice is being settled and sats are being routed to the buyer's invoice. This is a transient state before completion.
+Seller has released the sats. The hold invoice is being settled and sats are being routed to the buyer's invoice. This is normally a transient state before completion, but the buyer may need to act if the Lightning payment fails.
 
 **Available Actions:**
-- None (automatic transition)
+- **Seller**: None (already completed their part)
+- **Buyer**: `add-invoice` (only if payment fails and all retries are exhausted)
 
 **Transitions:**
 
 | Action | By | Next State |
 |--------|----|------------|
 | (automatic) | System | `success` |
+| `add-invoice` | Buyer | `settled-hold-invoice` (remains — new payment attempt) |
+
+> **Payment failure:** If the Lightning payment to the buyer's invoice fails, Mostro retries automatically. On first failure, the buyer receives `payment-failed` with remaining attempts. If all retries are exhausted, Mostro sends `add-invoice` and the buyer must provide a new invoice. The order remains in `settled-hold-invoice` throughout — see "Action: PAYMENT_FAILED" section for details.
 
 ---
 
