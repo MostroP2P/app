@@ -4,7 +4,7 @@
 > extracted from v1 screenshots. Follow these specs precisely.
 
 **Status:** Reference document from v1 screenshots + v2 additions
-**Visual Reference:** See `.specify/v1-screenshots/` for original images
+**Visual Reference:** Screenshots from `https://github.com/MostroP2P/mobile/tree/main/assets/images/`
 
 ---
 
@@ -110,11 +110,11 @@ Use names that describe purpose, not appearance:
 
 ### 3.3 Amount Display
 
-```
+```text
 ┌─────────────────────────────────────┐
-│  1,500 - 80,000                     │  ← headingSmall, bold, white
+│  1,500 - 80,000                     │  ← headingSmall, bold, textPrimary
 │  🇻🇪 VES                            │  ← bodySmall, flag + currency code
-│  Market price: 0.12% above          │  ← bodySmall, textSecondary, green % 
+│  Market price: 0.12% above          │  ← bodySmall, textSecondary, mostroGreen for %
 └─────────────────────────────────────┘
 ```
 
@@ -124,7 +124,7 @@ Use names that describe purpose, not appearance:
 
 ### 4.1 Order Card (from v1 screenshots)
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │  ┌─────────┐                                        │
 │  │BUY BTC  │  ← Chip: mostroGreen bg, white text    │
@@ -134,7 +134,7 @@ Use names that describe purpose, not appearance:
 │  ← headingSmall     ← Flag icon (16x12)             │
 │                                                     │
 │  VES · Market price 0.12% ↑                         │
-│  ← bodySmall, textSecondary                         │
+│  ← bodySmall, textSecondary, mostroGreen for %      │
 │                                                     │
 │  ⭐ 4.8 (12)  ·  15 trades                          │
 │  ← Rating + trade count, bodySmall                  │
@@ -164,12 +164,14 @@ Specs:
 
 ### 4.3 Input Fields
 
-```
+#### 4.3.1 Text Input (Underline Style)
+
+```text
 ┌─────────────────────────────────────┐
 │  Amount                             │  ← Label: bodySmall, textSecondary
 │  ┌─────────────────────────────────┐│
 │  │ 50,000                          ││  ← Input: bodyLarge, textPrimary
-│  │ _____________________________ ↓ ││  ← Underline: mostroGreen when focused
+│  │ _____________________________   ││  ← Underline: mostroGreen when focused
 │  └─────────────────────────────────┘│
 └─────────────────────────────────────┘
 
@@ -182,9 +184,26 @@ Specs:
 - Height: 56px
 ```
 
+#### 4.3.2 Dropdown Select (Underline Style)
+
+```text
+┌─────────────────────────────────────┐
+│  Currency                           │  ← Label: bodySmall, textSecondary
+│  ┌─────────────────────────────────┐│
+│  │ VES                           ▼ ││  ← Selected value + dropdown caret
+│  │ _____________________________   ││  ← Underline: mostroGreen when focused
+│  └─────────────────────────────────┘│
+└─────────────────────────────────────┘
+
+Specs:
+- Same as Text Input
+- Caret icon: 16px, textSubtle, right-aligned
+- Tap opens bottom sheet or dropdown menu
+```
+
 ### 4.4 Chips/Badges
 
-```
+```text
 ┌──────────────┐
 │  BUY BTC     │
 └──────────────┘
@@ -199,14 +218,14 @@ Specs:
 
 ### 4.5 Bottom Navigation Bar
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                                                     │
 │   📖          📋          💬                        │
 │  Order Book   My Trades   Chat                      │
 │                                                     │
 │  (inactive)   (active)    (inactive)                │
-│  textSubtle   mostroGreen textSubtle                │
+│  textDisabled mostroGreen textDisabled              │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 
@@ -215,14 +234,17 @@ Specs:
 - Height: 64px
 - Icon size: 24px
 - Label: bodySmall
-- Active color: mostroGreen
-- Inactive color: textSubtle (#6C757D)
+- Active color: mostroGreen (#8CC63F)
+- Inactive color: textDisabled (#6C757D)
 - Border top: 1px solid backgroundCard
+
+Note: Chat tab appears when inside a trade. On main screens (Order Book, My Trades),
+the third tab is Settings. See Section 6.1 for navigation context rules.
 ```
 
 ### 4.6 App Bar
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │  ☰                              🔔                  │
 │  (hamburger)                    (notifications)     │
@@ -238,7 +260,7 @@ Specs:
 
 ### 4.7 Chat Message Bubbles
 
-```
+```text
 Sent (right-aligned):
                     ┌─────────────────────┐
                     │ Payment sent! ✓     │
@@ -260,7 +282,7 @@ Padding: 12px 16px
 
 ### 4.8 List Items (Settings)
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │  🌐  Language                                    ▼  │
 │      English                                        │
@@ -270,7 +292,7 @@ Padding: 12px 16px
 └─────────────────────────────────────────────────────┘
 
 Specs:
-- Icon: 24px, colored (green for language, blue for currency)
+- Icon: 24px, colored (mostroGreen for language, blueAccent for currency)
 - Title: bodyLarge, textPrimary
 - Subtitle: bodyMedium, textSecondary
 - Chevron: 16px, textSubtle
@@ -304,7 +326,7 @@ Specs:
 
 ### 5.3 Card Grid
 
-```
+```text
 Mobile (single column):
 ┌─────────────────────────┐
 │         Card 1          │
@@ -331,10 +353,20 @@ Desktop (3 columns):
 
 ### 6.1 Bottom Navigation (Mobile)
 
-3 tabs:
-1. **Order Book** - Browse orders
-2. **My Trades** - Active/past trades
-3. **Settings** - Profile & settings
+**Context-dependent tabs:**
+
+| Context | Tab 1 | Tab 2 | Tab 3 |
+|---------|-------|-------|-------|
+| Global screens | Order Book | My Trades | Settings |
+| Inside a trade | Order Book | My Trades | Chat |
+
+- **Order Book**: Browse buy/sell orders (always visible)
+- **My Trades**: Active and past trades (always visible)
+- **Settings**: Profile, preferences, about (shown on global screens)
+- **Chat**: Trade conversation (replaces Settings when inside an active trade)
+
+The third tab changes based on navigation context. When user is viewing
+a specific trade, Chat becomes available. On main screens, Settings is shown.
 
 ### 6.2 Drawer Menu (Mobile)
 
@@ -360,7 +392,7 @@ Same 3 sections as bottom nav, but vertical on left side.
 
 ### 7.1 Layout Shells
 
-```
+```text
 Mobile:
 ┌─────────────────────────┐
 │        AppBar           │
@@ -415,7 +447,7 @@ Desktop:
 - Active nav: mostroGreen
 - Inactive nav: textSubtle
 - Action buttons: textPrimary (white)
-- Info icons: varies by section (green, blue, etc.)
+- Info icons: mostroGreen, blueAccent, etc. (match semantic tokens)
 
 ---
 
@@ -425,7 +457,7 @@ Desktop:
 
 Use skeleton placeholders instead of spinners. Shows content structure while loading.
 
-```
+```text
 Loading:                          Loaded:
 ┌─────────────────────────┐      ┌─────────────────────────┐
 │ ░░░░░░░░░░░░            │      │ BUY BTC                 │
