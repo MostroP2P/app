@@ -213,7 +213,7 @@ FirebaseMessaging.onMessage.listen((message) {
 ```toml
 [dependencies]
 flutter_rust_bridge = "2.x"
-nostr-sdk = "0.44+"
+nostr-sdk = "0.44"
 mostro-core = { git = "..." }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 sqlx = { version = "0.8", features = ["sqlite"] }
