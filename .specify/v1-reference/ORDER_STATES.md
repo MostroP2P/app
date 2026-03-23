@@ -26,8 +26,8 @@ Order has been created by a seller or buyer and is waiting for a counterparty to
 
 | Action | By | Next State |
 |--------|----|------------|
-| `takeSell` | Buyer | `waitingBuyerInvoice` |
-| `takeBuy` | Seller | `waitingPayment` |
+| `take-sell` | Buyer | `waiting-buyer-invoice` |
+| `take-buy` | Seller | `waiting-payment` |
 | `cancel` | Creator | `canceled` |
 
 ---
@@ -43,9 +43,9 @@ The buyer must provide a Lightning invoice where they want to receive the sats. 
 - **Sell order**: Immediately after buyer takes the order (buyer takes → waitingBuyerInvoice)
 - **Buy order**: After seller pays the hold invoice (seller pays → waitingBuyerInvoice)
 
-> ⚠️ **Order-type-dependent transitions**: The next state after `addInvoice` depends on the order type:
-> - **Sell order**: `addInvoice` → `waitingPayment` (seller still needs to pay hold invoice)
-> - **Buy order**: `addInvoice` → `active` (seller already paid hold invoice, trade is now active)
+> ⚠️ **Order-type-dependent transitions**: The next state after `add-invoice` depends on the order type:
+> - **Sell order**: `add-invoice` → `waiting-payment` (seller still needs to pay hold invoice)
+> - **Buy order**: `add-invoice` → `active` (seller already paid hold invoice, trade is now active)
 
 **Available Actions:**
 - Buyer can submit invoice
@@ -56,7 +56,7 @@ The buyer must provide a Lightning invoice where they want to receive the sats. 
 
 | Action | By | Next State (Sell Order) | Next State (Buy Order) |
 |--------|----|------------------------|------------------------|
-| `addInvoice` | Buyer | `waitingPayment` | `active` |
+| `add-invoice` | Buyer | `waiting-payment` | `active` |
 | `cancel` | Either | `canceled` | `canceled` |
 | `dispute` | Either | `dispute` | `dispute` |
 
@@ -71,9 +71,9 @@ The buyer must provide a Lightning invoice where they want to receive the sats. 
 **Description:**
 Seller must pay the hold invoice to lock the sats in escrow.
 
-> ⚠️ **Order-type-dependent transitions**: The next state after `payInvoice` depends on the order type:
-> - **Sell order** (seller created): `payInvoice` → `active` (hold invoice paid, buyer already provided invoice)
-> - **Buy order** (buyer created): `payInvoice` → `waitingBuyerInvoice` (hold invoice paid, now waiting for buyer to provide their LN receive invoice)
+> ⚠️ **Order-type-dependent transitions**: The next state after `pay-invoice` depends on the order type:
+> - **Sell order** (seller created): `pay-invoice` → `active` (hold invoice paid, buyer already provided invoice)
+> - **Buy order** (buyer created): `pay-invoice` → `waiting-buyer-invoice` (hold invoice paid, now waiting for buyer to provide their LN receive invoice)
 
 **Available Actions:**
 - Seller can pay the hold invoice
@@ -84,8 +84,8 @@ Seller must pay the hold invoice to lock the sats in escrow.
 
 | Action | By | Next State (Sell Order) | Next State (Buy Order) |
 |--------|----|------------------------|------------------------|
-| `payInvoice` | Seller | `active` | `waitingBuyerInvoice` |
-| `paymentFailed` | System | `paymentFailed` | `paymentFailed` |
+| `pay-invoice` | Seller | `active` | `waiting-buyer-invoice` |
+| `payment-failed` | System | `payment-failed` | `payment-failed` |
 | `cancel` | Either | `canceled` | `canceled` |
 | `dispute` | Either | `dispute` | `dispute` |
 
@@ -110,8 +110,8 @@ The seller failed to pay the hold invoice within the time window. The order is t
 
 | Action | By | Next State |
 |--------|----|------------|
-| `payInvoice` | Seller | `active` |
-| `addInvoice` | Buyer | `waitingPayment` |
+| `pay-invoice` | Seller | `active` |
+| `add-invoice` | Buyer | `waiting-payment` |
 | `cancel` | Either | `canceled` |
 | `dispute` | Either | `dispute` |
 
@@ -135,7 +135,7 @@ Sats are locked in escrow (hold invoice paid). The buyer must now send fiat to t
 
 | Action | By | Next State |
 |--------|----|------------|
-| `fiatSent` | Buyer | `fiatSent` |
+| `fiat-sent` | Buyer | `fiat-sent` |
 | `cancel` | Either | `canceled` |
 | `dispute` | Either | `dispute` |
 
@@ -158,7 +158,7 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 
 | Action | By | Next State |
 |--------|----|------------|
-| `release` | Seller | `settledHoldInvoice` |
+| `release` | Seller | `settled-hold-invoice` |
 | `dispute` | Either | `dispute` |
 
 ---
@@ -226,7 +226,7 @@ Order was canceled by a party before completion. No funds were exchanged.
 **Description:**
 `cooperativelyCanceled` is a **client-side UI state**, not a protocol-level order status change.
 
-> ⚠️ **Important:** The Mostro protocol does NOT change the order status when a cooperative cancel is requested. The order remains in its current status (`active`, `fiatSent`, etc.). Mostro only sends notification actions (`cooperative-cancel-initiated-by-you` / `cooperative-cancel-initiated-by-peer`) to inform both parties.
+> ⚠️ **Important:** The Mostro protocol does NOT change the order status when a cooperative cancel is requested. The order remains in its current status (`active`, `fiat-sent`, etc.). Mostro only sends notification actions (`cooperative-cancel-initiated-by-you` / `cooperative-cancel-initiated-by-peer`) to inform both parties.
 
 **Protocol Flow:**
 1. One party sends `action: "cancel"` to Mostro
@@ -239,8 +239,8 @@ Order was canceled by a party before completion. No funds were exchanged.
 | Counterparty Action | Result |
 |---------------------|--------|
 | Accepts cancel (sends `cancel`) | Mostro sends `cooperative-cancel-accepted` → order → `canceled` |
-| Sends `fiatSent` | Trade continues normally → order → `fiatSent` |
-| Sends `release` | Trade completes → order → `settledHoldInvoice` |
+| Sends `fiat-sent` | Trade continues normally → order → `fiat-sent` |
+| Sends `release` | Trade completes → order → `settled-hold-invoice` |
 | Opens `dispute` | Escalated → order → `dispute` |
 | Does nothing | Trade remains in current state, cancel request is pending |
 
@@ -274,9 +274,9 @@ A dispute has been initiated by either party. An admin will review the case and 
 
 | Action | By | Next State |
 |--------|----|------------|
-| `adminSettle` | Admin | `settledByAdmin` |
-| `adminCancel` | Admin | `canceledByAdmin` |
-| `adminComplete` | Admin | `completedByAdmin` |
+| `admin-settle` | Admin | `settled-by-admin` |
+| `admin-cancel` | Admin | `canceled-by-admin` |
+| `admin-complete` | Admin | `completed-by-admin` |
 
 ---
 
@@ -444,18 +444,18 @@ Order expired without being taken within the configured time limit.
 | State | Background | Text | Semantic Color Token |
 |-------|------------|------|----------------------|
 | `pending` | `#854D0E` (amber-900) | `#FCD34D` (amber-300) | `statusPending` |
-| `waitingBuyerInvoice` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
-| `waitingPayment` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
-| `paymentFailed` | `#1F2937` (gray-800) | `#D1D5DB` (gray-300) | `statusInactive` |
+| `waiting-buyer-invoice` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
+| `waiting-payment` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
+| `payment-failed` | `#1F2937` (gray-800) | `#D1D5DB` (gray-300) | `statusInactive` |
 | `active` | `#1E3A8A` (blue-900) | `#93C5FD` (blue-300) | `statusActive` |
-| `fiatSent` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
-| `settledHoldInvoice` | `#854D0E` (amber-900) | `#FCD34D` (amber-300) | `statusPending` |
+| `fiat-sent` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
+| `settled-hold-invoice` | `#854D0E` (amber-900) | `#FCD34D` (amber-300) | `statusPending` |
 | `success` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
-| `canceled` / `canceledByAdmin` | `#1F2937` (gray-800) | `#D1D5DB` (gray-300) | `statusInactive` |
+| `canceled` / `canceled-by-admin` | `#1F2937` (gray-800) | `#D1D5DB` (gray-300) | `statusInactive` |
 | `cooperativelyCanceled` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
 | `dispute` | `#7F1D1D` (red-900) | `#FCA5A5` (red-300) | `statusDispute` |
-| `settledByAdmin` | `#581C87` (purple-900) | `#C084FC` (purple-300) | `statusSettled` |
-| `completedByAdmin` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
+| `settled-by-admin` | `#581C87` (purple-900) | `#C084FC` (purple-300) | `statusSettled` |
+| `completed-by-admin` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
 | `expired` | `#1F2937` (gray-800) | `#D1D5DB` (gray-300) | `statusInactive` |
 
 ### Role Chips
@@ -518,22 +518,22 @@ The trade detail screen shows different action buttons based on the current stat
 
 | Current State | Action | Buyer Next State | Seller Next State |
 |---------------|--------|------------------|-------------------|
-| `pending` | `takeSell` | `waitingBuyerInvoice` | - |
-| `pending` | `takeBuy` | - | `waitingPayment` |
+| `pending` | `take-sell` | `waiting-buyer-invoice` | - |
+| `pending` | `take-buy` | - | `waiting-payment` |
 | `pending` | `cancel` | `canceled` | `canceled` |
-| `waitingBuyerInvoice` | `addInvoice` | `waitingPayment` | - |
-| `waitingBuyerInvoice` | `cancel` | `canceled` | `canceled` |
-| `waitingPayment` | `payInvoice` | - | `active` |
-| `waitingPayment` | `paymentFailed` | `paymentFailed` | `paymentFailed` |
-| `paymentFailed` | `payInvoice` | - | `active` |
-| `paymentFailed` | `addInvoice` | `waitingPayment` | - |
-| `active` | `fiatSent` | `fiatSent` | `fiatSent` |
-| `fiatSent` | `release` | - | `settledHoldInvoice` |
-| `settledHoldInvoice` | (auto) | `success` | `success` |
+| `waiting-buyer-invoice` | `add-invoice` | `waiting-payment` | - |
+| `waiting-buyer-invoice` | `cancel` | `canceled` | `canceled` |
+| `waiting-payment` | `pay-invoice` | - | `active` |
+| `waiting-payment` | `payment-failed` | `payment-failed` | `payment-failed` |
+| `payment-failed` | `pay-invoice` | - | `active` |
+| `payment-failed` | `add-invoice` | `waiting-payment` | - |
+| `active` | `fiat-sent` | `fiat-sent` | `fiat-sent` |
+| `fiat-sent` | `release` | - | `settled-hold-invoice` |
+| `settled-hold-invoice` | (auto) | `success` | `success` |
 | `active` | `dispute` | `dispute` | `dispute` |
-| `fiatSent` | `dispute` | `dispute` | `dispute` |
-| `dispute` | `adminSettle` | `settledByAdmin` | `settledByAdmin` |
-| `dispute` | `adminCancel` | `canceledByAdmin` | `canceledByAdmin` |
+| `fiat-sent` | `dispute` | `dispute` | `dispute` |
+| `dispute` | `admin-settle` | `settled-by-admin` | `settled-by-admin` |
+| `dispute` | `admin-cancel` | `canceled-by-admin` | `canceled-by-admin` |
 
 ## Implementation Notes for v2
 
@@ -580,7 +580,7 @@ pub fn possible_actions(
 ) -> Vec<Action> {
     // Return list of actions available to this role in this state
 }
-```
+```rust
 
 ### Flutter Side
 
@@ -615,7 +615,7 @@ class OrderStatusChip extends StatelessWidget {
     );
   }
 }
-```
+```dart
 
 ### State Persistence
 
@@ -634,49 +634,49 @@ class OrderStatusChip extends StatelessWidget {
 ## Appendix A: Action-to-Status Mapping
 
 Mostro communicates with the app via encrypted gift wrap messages (NIP-59). Each message contains an `action` that either:
-1. **Changes the order status** — e.g., `holdInvoicePaymentAccepted` → `active`
-2. **Notifies without changing status** — e.g., `cooperativeCancelInitiatedByYou` keeps current status
+1. **Changes the order status** — e.g., `hold-invoice-payment-accepted` → `active`
+2. **Notifies without changing status** — e.g., `cooperative-cancel-initiated-by-you` keeps current status
 
 This mapping documents status-changing actions. Role differentiation happens because Mostro sends different actions to buyer and seller.
 
-> ⚠️ **Not all actions change status:** Actions like `cooperativeCancelInitiatedByYou`, `cooperativeCancelInitiatedByPeer`, and `disputeInitiatedByPeer` are **notifications only** — the order remains in its current status.
+> ⚠️ **Not all actions change status:** Actions like `cooperative-cancel-initiated-by-you`, `cooperative-cancel-initiated-by-peer`, and `dispute-initiated-by-peer` are **notifications only** — the order remains in its current status.
 
 ### Seller Actions (Seller's Perspective)
 
 | Action | Status | When |
 |--------|--------|------|
-| `waitingSellerToPay` | `waitingPayment` | Seller must pay the hold invoice |
-| `payInvoice` | `waitingPayment` | Seller receives the invoice to pay |
-| `takeSell` | `waitingPayment` | Seller takes a buy order |
-| `buyerTookOrder` | `active` | Seller is notified a buyer took their order |
-| `fiatSentOk` | `fiatSent` | Seller is notified fiat was sent |
-| `holdInvoicePaymentSettled` | `success` | Seller's hold invoice settled (trade complete) |
-| `release` | `settledHoldInvoice` → `success` | Seller releases sats |
+| `waiting-seller-to-pay` | `waiting-payment` | Seller must pay the hold invoice |
+| `pay-invoice` | `waiting-payment` | Seller receives the invoice to pay |
+| `take-sell` | `waiting-payment` | Seller takes a buy order |
+| `buyer-took-order` | `active` | Seller is notified a buyer took their order |
+| `fiat-sent-ok` | `fiat-sent` | Seller is notified fiat was sent |
+| `hold-invoice-payment-settled` | `success` | Seller's hold invoice settled (trade complete) |
+| `release` | `settled-hold-invoice` → `success` | Seller releases sats |
 
 ### Buyer Actions (Buyer's Perspective)
 
 | Action | Status | When |
 |--------|--------|------|
-| `waitingBuyerInvoice` | `waitingBuyerInvoice` | Buyer must provide a Lightning invoice |
-| `addInvoice` | `waitingBuyerInvoice` | Buyer receives request to add invoice (see Status Preservation below) |
-| `takeBuy` | `waitingBuyerInvoice` | Buyer takes a sell order |
-| `holdInvoicePaymentAccepted` | `active` | Buyer is notified the seller paid the hold invoice |
-| `buyerInvoiceAccepted` | `active` | Buyer's invoice was accepted |
-| `fiatSent` | `fiatSent` | Buyer confirms fiat payment sent |
-| `fiatSentOk` | `fiatSent` | Counterpart is notified fiat was sent |
-| `released` | `settledHoldInvoice` | Buyer receives this when seller releases (intermediate state) |
-| `purchaseCompleted` | `success` | Buyer receives confirmation that the LN payment completed |
+| `waiting-buyer-invoice` | `waiting-buyer-invoice` | Buyer must provide a Lightning invoice |
+| `add-invoice` | `waiting-buyer-invoice` | Buyer receives request to add invoice (see Status Preservation below) |
+| `take-buy` | `waiting-buyer-invoice` | Buyer takes a sell order |
+| `hold-invoice-payment-accepted` | `active` | Buyer is notified the seller paid the hold invoice |
+| `buyer-invoice-accepted` | `active` | Buyer's invoice was accepted |
+| `fiat-sent` | `fiat-sent` | Buyer confirms fiat payment sent |
+| `fiat-sent-ok` | `fiat-sent` | Counterpart is notified fiat was sent |
+| `released` | `settled-hold-invoice` | Buyer receives this when seller releases (intermediate state) |
+| `purchase-completed` | `success` | Buyer receives confirmation that the LN payment completed |
 
 ### Dispute Actions
 
 | Action | Status | When |
 |--------|--------|------|
-| `disputeInitiatedByYou` | `dispute` | User opened a dispute |
-| `disputeInitiatedByPeer` | `dispute` | Counterpart opened a dispute |
+| `dispute-initiated-by-you` | `dispute` | User opened a dispute |
+| `dispute-initiated-by-peer` | `dispute` | Counterpart opened a dispute |
 | `dispute` | `dispute` | General dispute action |
-| `adminTakeDispute` / `adminTookDispute` | `dispute` | Admin took the dispute |
-| `adminSettle` / `adminSettled` | `settledByAdmin` | Admin resolved by releasing sats |
-| `adminCancel` / `adminCanceled` | `canceled` | Admin canceled the order |
+| `admin-take-dispute` / `admin-took-dispute` | `dispute` | Admin took the dispute |
+| `admin-settle` / `admin-settled` | `settled-by-admin` | Admin resolved by releasing sats |
+| `admin-cancel` / `admin-canceled` | `canceled-by-admin` | Admin canceled the order |
 
 ### Terminal Actions
 
@@ -684,14 +684,14 @@ This mapping documents status-changing actions. Role differentiation happens bec
 |--------|--------------|
 | `canceled` | `canceled` |
 | `cancel` | `canceled` |
-| `cooperativeCancelAccepted` | `canceled` |
-| `holdInvoicePaymentCanceled` | `canceled` |
-| `rate` / `rateUser` / `rateReceived` | Preserves current status (rating UI only) |
+| `cooperative-cancel-accepted` | `canceled` |
+| `hold-invoice-payment-canceled` | `canceled` |
+| `rate` / `rate-user` / `rate-received` | Preserves current status (rating UI only) |
 
 ### Status Preservation Edge Cases
 
 **paymentFailed + addInvoice:**
-When `addInvoice` is received while in `paymentFailed` status, the status is **preserved** (stays `paymentFailed`) for UI consistency. The user sees the payment failed context while providing a new invoice. If we changed to `waitingBuyerInvoice`, the user would lose the failure context.
+When `add-invoice` is received while in `payment-failed` status, the status is **preserved** (stays `payment-failed`) for UI consistency. The user sees the payment failed context while providing a new invoice. If we changed to `waiting-buyer-invoice`, the user would lose the failure context.
 
 **Restoring Sessions:**
 When restoring sessions after app restart, orders may have a status but no recent action. The app synthesizes the appropriate action based on status and role. See "Restore Flow" below.
@@ -704,7 +704,7 @@ Mostro sends different actions to buyer and seller for the same event. This crea
 
 ### Seller Releases Flow
 
-```
+```text
 Seller Action                Buyer Action
      │                            │
      │   (seller clicks Release)   │
@@ -713,13 +713,13 @@ Seller Action                Buyer Action
   (immediate)           ("Paying sats")
                         │
                         └── Later: purchaseCompleted → success
-```
+```text
 
-The seller sees `success` immediately because their part is done. The buyer sees `settledHoldInvoice` ("Paying sats") until the Lightning payment actually completes.
+The seller sees `success` immediately because their part is done. The buyer sees `settled-hold-invoice` ("Paying sats") until the Lightning payment actually completes.
 
 ### Why Not Map `released` Directly to `success`?
 
-Earlier versions mapped `Action.released` directly to `success`, but this gave buyers a false sense of completion. If the Lightning payment subsequently failed, the buyer had already seen "Success" which was incorrect. The intermediate `settledHoldInvoice` status accurately reflects: sats are being paid but not yet received.
+Earlier versions mapped `Action.released` directly to `success`, but this gave buyers a false sense of completion. If the Lightning payment subsequently failed, the buyer had already seen "Success" which was incorrect. The intermediate `settled-hold-invoice` status accurately reflects: sats are being paid but not yet received.
 
 ---
 
@@ -730,17 +730,17 @@ When restoring sessions after app restart, the app receives orders with a status
 | Status | Buyer Action | Seller Action |
 |--------|--------------|---------------|
 | `pending` | `newOrder` | `newOrder` |
-| `waitingBuyerInvoice` | `addInvoice` | `waitingBuyerInvoice` |
-| `waitingPayment` | `waitingSellerToPay` | `payInvoice` |
-| `active` | `holdInvoicePaymentAccepted` | `buyerTookOrder` |
-| `fiatSent` | `fiatSentOk` | `fiatSentOk` |
-| `settledHoldInvoice` | `released` | `holdInvoicePaymentSettled` |
-| `success` | `purchaseCompleted` | `purchaseCompleted` |
+| `waiting-buyer-invoice` | `add-invoice` | `waiting-buyer-invoice` |
+| `waiting-payment` | `waiting-seller-to-pay` | `pay-invoice` |
+| `active` | `hold-invoice-payment-accepted` | `buyer-took-order` |
+| `fiat-sent` | `fiat-sent-ok` | `fiat-sent-ok` |
+| `settled-hold-invoice` | `released` | `hold-invoice-payment-settled` |
+| `success` | `purchase-completed` | `purchase-completed` |
 | `canceled` | `canceled` | `canceled` |
-| `paymentFailed` | `paymentFailed` | `paymentFailed` |
-| `dispute` | `disputeInitiatedByPeer` | `disputeInitiatedByPeer` |
+| `payment-failed` | `payment-failed` | `payment-failed` |
+| `dispute` | `dispute-initiated-by-peer` | `dispute-initiated-by-peer` |
 
-**Critical for `settledHoldInvoice`:** The buyer sees the intermediate "Paying sats" state, while the seller sees `success`. This matches the live flow where buyers must wait for Lightning payment confirmation.
+**Critical for `settled-hold-invoice`:** The buyer sees the intermediate "Paying sats" state, while the seller sees `success`. This matches the live flow where buyers must wait for Lightning payment confirmation.
 
 ---
 
@@ -750,9 +750,9 @@ When an order with an active dispute reaches a terminal state through user actio
 
 | Order Reaches | Dispute Status | Dispute Action | Trigger |
 |---------------|----------------|----------------|---------|
-| `success` | `closed` | `user-completed` | Seller receives `holdInvoicePaymentSettled` |
-| `settledHoldInvoice` | `closed` | `user-completed` | Buyer receives `released` |
-| `canceled` | `closed` | `cooperative-cancel` | Both receive `cooperativeCancelAccepted` |
+| `success` | `closed` | `user-completed` | Seller receives `hold-invoice-payment-settled` |
+| `settled-hold-invoice` | `closed` | `user-completed` | Buyer receives `released` |
+| `canceled` | `closed` | `cooperative-cancel` | Both receive `cooperative-cancel-accepted` |
 
 The app infers dispute closure from order terminal state rather than subscribing to dispute resolution events (kind 38386), because:
 - No protocol expansion needed
@@ -773,30 +773,30 @@ The `dispute.action` field distinguishes closure reason:
 
 | Status | Short Label | Color |
 |--------|-------------|-------|
-| `active` | "Active" | Green |
+| `active` | "Active" | Blue |
 | `pending` | "Pending" | Yellow |
-| `waitingPayment` | "Waiting payment" | Orange |
-| `waitingBuyerInvoice` | "Waiting invoice" | Orange |
-| `paymentFailed` | "Payment Failed" | Gray |
-| `fiatSent` | "Fiat-sent" | Green |
-| `settledHoldInvoice` | "Paying sats" | Yellow |
+| `waiting-payment` | "Waiting payment" | Orange |
+| `waiting-buyer-invoice` | "Waiting invoice" | Orange |
+| `payment-failed` | "Payment Failed" | Gray |
+| `fiat-sent` | "Fiat-sent" | Green |
+| `settled-hold-invoice` | "Paying sats" | Yellow |
 | `success` | "Success" | Green |
 | `canceled` | "Cancel" | Gray |
-| `cooperativelyCanceled` | "Canceling" | Orange |
+| `cooperatively-canceled` | "Canceling" | Orange |
 | `dispute` | "Dispute" | Red |
-| `settledByAdmin` | "Settled" | Purple |
+| `settled-by-admin` | "Settled" | Purple |
 
 ### Order Details (Descriptive Labels)
 
 | Status | Descriptive Label |
 |--------|-------------------|
 | `active` | "Active order" |
-| `fiatSent` | "Fiat sent" |
-| `settledHoldInvoice` | "Paying sats" |
-| `paymentFailed` | "Payment failed" |
+| `fiat-sent` | "Fiat sent" |
+| `settled-hold-invoice` | "Paying sats" |
+| `payment-failed` | "Payment failed" |
 | `cooperativelyCanceled` | "Cooperative cancellation" |
-| `canceledByAdmin` | "Order canceled by an administrator" |
-| `settledByAdmin` | "Sats released by an administrator" |
+| `canceled-by-admin` | "Order canceled by an administrator" |
+| `settled-by-admin` | "Sats released by an administrator" |
 
 ---
 
@@ -842,7 +842,7 @@ fn test_invalid_transition() {
     );
     assert_eq!(status, None);
 }
-```
+```rust
 
 ### Widget Tests (Flutter)
 
@@ -861,4 +861,4 @@ testWidgets('status chip displays correctly', (tester) async {
     // Verify background color matches spec
   }
 });
-```
+```dart
