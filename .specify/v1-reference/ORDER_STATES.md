@@ -263,6 +263,8 @@ A dispute has been initiated by either party. An admin will review the case and 
 
 **Available Actions:**
 - Both parties can submit evidence via chat
+- Seller can `release` (resolves the trade and auto-closes the dispute)
+- Either party can request a cooperative cancel (see section 9)
 - Admin can settle (release to buyer)
 - Admin can cancel (return to seller)
 
@@ -272,6 +274,9 @@ A dispute has been initiated by either party. An admin will review the case and 
 |--------|----|------------|
 | `admin-settle` | Admin | `settled-by-admin` |
 | `admin-cancel` | Admin | `canceled-by-admin` |
+| `release` | Seller | `settled-hold-invoice` (dispute auto-closed) |
+| `cancel` | Either | `dispute` (cooperative cancel requested) |
+| `cancel` | Both parties | `canceled` (dispute auto-closed) |
 
 ---
 
@@ -340,10 +345,7 @@ Order was in `pending` status and was not taken before `expires_at` (determined 
 - Label: "In Progress"
 
 **Description:**
-Internal status used during dispute handling. Indicates an admin has taken the dispute and is actively working on resolution.
-
-**Available Actions:**
-- Admin can settle or cancel the order
+`in-progress` is a **dispute status** (event kind 38386), not an order status. It means an admin has taken the dispute via `admin-take-dispute`. The order itself remains in `dispute` status. While the dispute is in `initiated` or `in-progress`, users can still resolve it themselves via `release` or cooperative cancel, which auto-closes the dispute. See section 10 (DISPUTE) for all available transitions.
 
 **Transitions:**
 
