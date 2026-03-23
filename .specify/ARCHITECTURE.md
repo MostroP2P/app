@@ -182,6 +182,7 @@ MobileScanner(
   controller: controller,
   onDetect: (capture) {
     final code = capture.barcodes.first.rawValue;
+    if (code == null || code.isEmpty) return;
     // Pass to Rust for processing
     rustApi.parseInvoice(invoice: code);
   },
