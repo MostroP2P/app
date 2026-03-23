@@ -100,27 +100,39 @@ Color pickNymColor(String hexPubKey) {
 - Saturation: 0.6 (moderately saturated)
 - Value: 0.8 (bright but not blinding)
 
-### Widget Implementation
+### Widget Implementation (v2 corrected)
+
+> Note: The v1 implementation had a bug where the icon color matched the background,
+> making the icon invisible. The v2 implementation fixes this with proper contrast.
 
 ```dart
 class NymAvatar extends StatelessWidget {
-  final String pubkeyHex;
+  final String nym;        // From Rust: "shadowy-wizard"
+  final int iconIndex;     // From Rust: index into icon list
+  final int colorHue;      // From Rust: 0-359
+
+  const NymAvatar({
+    super.key,
+    required this.nym,
+    required this.iconIndex,
+    required this.colorHue,
+    this.size = 32.0,
+  });
+
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final icon = pickNymIcon(pubkeyHex);
-    final color = pickNymColor(pubkeyHex);
+    final icon = kPossibleIcons[iconIndex];
+    final bgColor = HSVColor.fromAHSV(1.0, colorHue.toDouble(), 0.6, 0.8).toColor();
 
     return CircleAvatar(
-      radius: size - 8,
-      backgroundColor: color,
-      child: CircleAvatar(
-        child: Icon(
-          icon,
-          size: size,
-          color: color,
-        ),
+      radius: size / 2,
+      backgroundColor: bgColor,
+      child: Icon(
+        icon,
+        size: size * 0.6,
+        color: Colors.white,  // Always white for contrast
       ),
     );
   }
@@ -132,23 +144,133 @@ class NymAvatar extends StatelessWidget {
 1. **No real identity exposure**: Users never see actual pubkeys in the UI
 2. **Deterministic but not reversible**: Given a nym, you cannot derive the pubkey
 3. **Collision possible**: With ~46 adjectives × ~85 nouns = ~3,910 combinations, collisions can occur across many users. This is acceptable since nyms are only used for visual distinction within a single trade, not for authentication.
-4. **Trade-key based**: Nyms are derived from trade keys, not identity keys. In privacy mode, each trade uses a different key, so the same user gets different nyms across trades.
+4. **Trade-key-based**: Nyms are derived from trade keys, not identity keys. In privacy mode, each trade uses a different key, so the same user gets different nyms across trades.
 
 ## v2 Implementation Notes
 
-### Rust Side
-The nym generation should be implemented in Rust for consistency:
-- Word lists defined as static arrays
-- Same algorithm as v1 (BigInt modulo)
-- Exposed via flutter_rust_bridge
+### Rust Side (All Deterministic Logic)
 
-### Dart Side
-Only the avatar widget needs Dart implementation:
-- Receives the generated nym string from Rust
-- Handles icon/color selection (can also be in Rust if preferred)
-- Renders the CircleAvatar widget
+All nym generation **must** be in Rust for cross-platform consistency:
+
+```rust
+// rust/src/api/nym.rs
+
+#[frb]
+pub struct NymIdentity {
+    pub pseudonym: String,    // "shadowy-wizard"
+    pub icon_index: u8,       // Index into icon list (0-36)
+    pub color_hue: u16,       // HSV hue (0-359)
+}
+
+#[frb]
+pub fn generate_nym(pubkey_hex: String) -> NymIdentity {
+    let pubkey_bigint = BigUint::parse_bytes(pubkey_hex.as_bytes(), 16)
+        .unwrap_or_default();
+    
+    let adj_index = (&pubkey_bigint % ADJECTIVES.len()).to_usize().unwrap();
+    let noun_index = ((&pubkey_bigint / ADJECTIVES.len()) % NOUNS.len())
+        .to_usize().unwrap();
+    let icon_index = (&pubkey_bigint % ICONS.len()).to_u8().unwrap();
+    let color_hue = (&pubkey_bigint % 360u32).to_u16().unwrap();
+    
+    NymIdentity {
+        pseudonym: format!("{}-{}", ADJECTIVES[adj_index], NOUNS[noun_index]),
+        icon_index,
+        color_hue,
+    }
+}
+```
+
+Exposed via flutter_rust_bridge:
+- `generateNym(pubkeyHex: String) -> NymIdentity`
+
+### Dart Side (Rendering Only)
+
+Dart only handles widget rendering — receives all values from Rust:
+
+```dart
+// lib/src/widgets/nym_avatar.dart
+
+class NymAvatar extends StatelessWidget {
+  final NymIdentity identity;  // From Rust
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = kPossibleIcons[identity.iconIndex];
+    final bgColor = HSVColor.fromAHSV(
+      1.0, 
+      identity.colorHue.toDouble(), 
+      0.6, 
+      0.8,
+    ).toColor();
+
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: bgColor,
+      child: Icon(icon, size: size * 0.6, color: Colors.white),
+    );
+  }
+}
+```
+
+### Why All Logic in Rust?
+
+1. **Cross-platform consistency**: Same pubkey produces identical nym on iOS, Android, Web, Desktop
+2. **Single source of truth**: Word lists and algorithm defined once
+3. **Testable**: Rust unit tests verify determinism
+4. **No divergence risk**: Dart and Rust can't produce different results
 
 ### Testing
-- Test that same pubkey always produces same nym
-- Test that different pubkeys produce different nyms (probabilistically)
-- Visual regression tests for avatar rendering
+
+#### Rust Unit Tests
+```rust
+#[test]
+fn test_nym_determinism() {
+    let pubkey = "a1b2c3..."; // Known test pubkey
+    let nym1 = generate_nym(pubkey.to_string());
+    let nym2 = generate_nym(pubkey.to_string());
+    assert_eq!(nym1.pseudonym, nym2.pseudonym);
+    assert_eq!(nym1.icon_index, nym2.icon_index);
+    assert_eq!(nym1.color_hue, nym2.color_hue);
+}
+
+#[test]
+fn test_known_nym_values() {
+    // Regression test with known pubkey -> known nym
+    let pubkey = "0000...0001";
+    let nym = generate_nym(pubkey.to_string());
+    assert_eq!(nym.pseudonym, "shadowy-wizard"); // Expected value
+    assert_eq!(nym.icon_index, 1);
+    assert_eq!(nym.color_hue, 1);
+}
+```
+
+#### Flutter Widget Tests
+```dart
+testWidgets('NymAvatar renders correctly', (tester) async {
+  final identity = NymIdentity(
+    pseudonym: 'test-nym',
+    iconIndex: 0,
+    colorHue: 180,
+  );
+  
+  await tester.pumpWidget(
+    MaterialApp(home: NymAvatar(identity: identity, size: 48)),
+  );
+  
+  expect(find.byType(CircleAvatar), findsOneWidget);
+  expect(find.byType(Icon), findsOneWidget);
+});
+```
+
+#### Visual Regression (Golden Tests)
+```dart
+testWidgets('NymAvatar golden test', (tester) async {
+  // Test multiple hues and icons for visual consistency
+  await expectLater(
+    find.byType(NymAvatar),
+    matchesGoldenFile('goldens/nym_avatar_hue_0.png'),
+  );
+});
+```
