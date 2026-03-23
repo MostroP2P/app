@@ -157,6 +157,8 @@ During an active trade, both parties can exchange encrypted messages to coordina
 5. **Given** a user in an active trade, **When** they attach a file (image, document, or video up to 25MB), **Then** the file is encrypted, uploaded to a decentralized storage server, and the counterparty can download and view it.
 6. **Given** a user receives an image attachment, **When** it downloads, **Then** an inline preview is shown automatically. Non-image files show a download button.
 7. **Given** a user closes and reopens the app during an active trade, **When** they view the chat history, **Then** previously received messages are available (loaded from encrypted local storage) without requiring re-download from relays.
+8. **Given** a trade becomes active, **When** the chat displays messages, **Then** each party is represented by a deterministic pseudonym and avatar derived from their trade pubkey (not their real identity), ensuring visual distinction without revealing identity.
+9. **Given** a user views the chat, **When** looking at their counterparty's messages, **Then** they see a pseudonym in the format "adjective-noun" (e.g., "shadowy-wizard", "noKYC-satoshi") and a colored icon avatar — both derived deterministically from the counterparty's pubkey so they remain consistent throughout the trade.
 
 ---
 
@@ -336,6 +338,9 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-009**: A visual trade progress indicator MUST show the current step, completed steps, and remaining steps at all times during an active trade.
 - **FR-010**: The progress indicator MUST differentiate between buyer flow steps and seller flow steps.
 - **FR-011**: Users MUST be able to exchange encrypted peer-to-peer messages during an active trade.
+- **FR-011a**: Each party in a trade chat MUST be displayed with a deterministic pseudonym (format: "adjective-noun") and avatar (colored icon) derived from their trade pubkey, ensuring consistent visual identification without revealing real identity.
+- **FR-011b**: Pseudonyms MUST be generated deterministically from the pubkey using a predefined list of adjectives and nouns, allowing the same pubkey to always produce the same pseudonym.
+- **FR-011c**: Avatars MUST consist of a deterministically selected icon and color derived from the pubkey, displayed as a colored circle with the icon inside.
 - **FR-012**: Users MUST be able to initiate a dispute during an active trade.
 - **FR-013**: Users MUST be able to submit text evidence during a dispute.
 - **FR-014**: The system MUST display admin messages and dispute resolution outcomes.
@@ -388,6 +393,8 @@ During an active trade, either party can request a cooperative cancellation. The
 - **Identity**: The user's cryptographic identity — includes public/private keypair and mnemonic backup. One identity per app installation. Supports two privacy modes: standard mode (identity key signs the encryption seal, enabling reputation linking across trades) and privacy mode (trade key signs the seal, preventing cross-trade reputation linking). Key derivation follows a deterministic hierarchical path from the master mnemonic (identity key at index 0, trade keys at index ≥ 1).
 - **Order**: A buy or sell offer on the Mostro network — includes type (buy/sell), amount (fixed or min/max range), price, fiat currency, payment method, status, and creator identity. Orders transition through 15 protocol-defined states: pending, waitingBuyerInvoice, waitingPayment, active, fiatSent, settledHoldInvoice, success, paymentFailed, canceled, cooperativelyCanceled, dispute, settledByAdmin, completedByAdmin, canceledByAdmin, expired.
 - **Trade**: An active transaction between a buyer and seller — links an order, both parties' identities, the current progress step, and associated messages. Only one trade active at a time (v2.0 scope).
+- **Nym (Pseudonym)**: A human-readable identifier for a trade participant, deterministically generated from their trade pubkey. Format: "adjective-noun" (e.g., "shadowy-wizard", "noKYC-satoshi"). Uses predefined word lists with Bitcoin/Nostr/privacy themes. The same pubkey always produces the same pseudonym, allowing consistent identification within and across trades without revealing real identity.
+- **Nym Avatar**: A visual representation of a trade participant, consisting of a colored circle with an icon inside. Both the icon (from a predefined list of ~37 icons) and the color (HSV-derived from pubkey) are deterministically selected from the trade pubkey. Displayed alongside the pseudonym in chat UI.
 - **Message**: An encrypted communication between two parties (or between a party and admin during disputes). Uses three-layer NIP-59 encryption (Rumor inside Seal inside Gift Wrap). P2P chat messages use a shared key derived via ECDH between trade keys; admin/dispute messages use the trade key directly. Messages are stored encrypted on disk and decrypted only in active memory. Includes sender, recipient, content, timestamp, and read status.
 - **Relay**: A connection endpoint the app communicates through — includes URL, connection status, health metrics, and source classification (default, Mostro-discovered, user-added). Users can add, remove, and blacklist relays. Blacklisted relays are not re-added even if the daemon announces them.
 - **Dispute**: An exception flow on an active trade — includes initiator, evidence submissions, admin communications, and resolution outcome. Uses a separate chat channel from P2P chat, encrypted with the trade key.
