@@ -141,8 +141,10 @@
 - [ ] T057 [P] [US5] Create chat bubble widget in lib/widgets/chat_bubble.dart: sender/receiver styling, timestamp, read status per spec US5
 - [ ] T058 [P] [US5] Create attachment preview widget in lib/widgets/attachment_preview.dart: inline image preview for images, download button for documents/videos per spec US5 scenarios 5-6
 - [ ] T059 [US5] Wire messages provider in lib/providers/messages_provider.dart: listen to Rust stream, manage chat state, handle file uploads per spec US5 scenarios 1-7
+- [ ] T059a [P] [US5] Implement nym identity generation in rust/src/crypto/nym.rs: derive pseudonym (adjective-noun String), icon_index (u8, 0–36), and color_hue (u16, 0–359) deterministically from public key per spec FR-052/FR-053
+- [ ] T059b [P] [US5] Create nym avatar widget in lib/widgets/nym_avatar.dart: render pseudonym, icon at icon_index, and avatar background from integer color_hue for chat participants per spec US5 scenario 8
 
-**Checkpoint**: Encrypted text and file messaging works during trades, persists across app restarts
+**Checkpoint**: Encrypted text and file messaging works during trades with nym pseudonyms, persists across app restarts
 
 ---
 
@@ -242,6 +244,10 @@
 - [ ] T080 [P] [US7] Implement NWC auto-pay integration in rust/src/api/nwc.rs: auto-reconnect with backoff, automatic hold invoice payment during trades, fallback to manual per spec FR-046 and contracts/nwc.md
 - [ ] T081 [P] [US7] Implement diagnostic logging in rust/src/api/diagnostics.rs: opt-in in-memory buffer (max 1000 FIFO), strip sensitive data, export to file, reset on restart per spec FR-050/FR-051
 - [ ] T082 [US7] Create log viewer screen in lib/screens/settings/log_viewer_screen.dart: filter by level, search, export/share per spec FR-051
+- [ ] T082a [P] [US7] Add default fiat currency selector to settings screen in lib/screens/settings/settings_screen.dart: searchable currency list, pre-fills order creation per spec FR-054 and US7 scenario 10
+- [ ] T082b [P] [US7] Add Lightning Address field to settings screen in lib/screens/settings/settings_screen.dart: name@domain validation, used as default sell invoice destination per spec FR-055 and US7 scenario 11
+- [ ] T082c [US7] Implement Mostro node selector in lib/screens/settings/settings_screen.dart: list of known nodes + custom entry, switch with relay reset warning per spec FR-056 and US7 scenario 12
+- [ ] T082d [US7] Create About screen in lib/screens/settings/about_screen.dart: app version, license, documentation links, Mostro node details (version, fees, limits, currencies) per spec FR-057/FR-058 and US7 scenario 13
 
 **Checkpoint**: Settings fully functional — relay management, NWC wallet, theme, diagnostics
 

@@ -58,30 +58,30 @@ A buy or sell offer on the Mostro network.
 - If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`.
 - `premium` is a signed float (negative = discount).
 
-**State machine** (15 states per mostro-core):
+**State machine** (15 mostro-core states):
 ```text
 Pending
-├─→ WaitingBuyerInvoice
-│     └─→ WaitingPayment
+├─→ WaitingBuyerInvoice (sell orders: buyer must provide invoice)
+│     └─→ WaitingPayment (buy orders skip WaitingBuyerInvoice, go here directly)
 │           ├─→ Active
 │           │     ├─→ FiatSent
 │           │     │     └─→ SettledHoldInvoice → Success
 │           │     │           (if LN payment fails: Action::PaymentFailed notification,
-│           │     │            then Action::AddInvoice - status stays SettledHoldInvoice)
+│           │     │            order stays SettledHoldInvoice, buyer resubmits invoice)
 │           │     └─→ Dispute
 │           │           ├─→ InProgress (admin took dispute)
-│           │           │     ├─→ CanceledByAdmin
-│           │           │     ├─→ SettledByAdmin
-│           │           │     └─→ CompletedByAdmin
+│           │           ├─→ CanceledByAdmin
+│           │           ├─→ SettledByAdmin
+│           │           ├─→ CompletedByAdmin
 │           │           └─→ (direct admin resolution without InProgress)
 │           └─→ Expired (protocol-enforced inactivity timeout)
 ├─→ Canceled (explicit user action: creator cancels own untaken order)
-└─→ CooperativelyCanceled
-
-Full status list: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent,
-SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, InProgress,
-SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired
+└─→ CooperativelyCanceled (in mostro-core Status enum; set client-side via action notifications — the daemon does not send a status update for this transition)
 ```
+
+**15 mostro-core statuses**: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent,
+SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, InProgress,
+SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired.
 
 ---
 

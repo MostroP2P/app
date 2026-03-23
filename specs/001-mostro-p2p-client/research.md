@@ -106,10 +106,10 @@ dependency ensures type-level compatibility with any conforming daemon.
 4. The `p` tag on Gift Wrap points to recipient; sender identity is hidden.
 5. Relays only see ephemeral keys, not real participants.
 
-**Order state machine** (15 states):
+**Order state machine** (15 mostro-core states):
 ```text
 Pending
-  → WaitingBuyerInvoice (buy order taken, awaiting buyer invoice)
+  → WaitingBuyerInvoice (sell orders: buyer must provide invoice; buy orders skip this)
   → WaitingPayment (hold invoice issued, awaiting buyer payment)
     → Active (funds locked in escrow)
       → FiatSent (buyer marked fiat sent)
@@ -117,11 +117,14 @@ Pending
           → Success (trade complete)
           (if LN payment fails: Action::PaymentFailed sent, then Action::AddInvoice)
       → Dispute (either party disputes)
+        → InProgress (admin took dispute)
         → CanceledByAdmin | SettledByAdmin | CompletedByAdmin
     → Expired (buyer never paid, timeout)
   → Canceled (creator canceled or timeout)
-  → CooperativelyCanceled (both parties agreed)
+  → CooperativelyCanceled (UI-only state — protocol sends action notifications, does not change status)
 ```
+
+> PaymentFailed is an Action, not a Status. CooperativelyCanceled is client-side UI only.
 
 **Reference implementations**:
 - Daemon: `github.com/MostroP2P/mostro` (Rust)

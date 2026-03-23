@@ -22,6 +22,11 @@ Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
 > Note: `PaymentFailed` is NOT a status - it's an Action notification sent when
 > Lightning payment to buyer fails. Order remains in `SettledHoldInvoice` status.
 
+> Note: `PaymentFailed` is NOT a status — it's an Action notification sent when
+> the LN payment fails. The order remains in `SettledHoldInvoice`.
+> `CooperativelyCanceled` is a **client-side UI state only** — the protocol
+> does not change order status for cooperative cancellation.
+
 ### TradeRole
 ```text
 Buyer | Seller
@@ -50,6 +55,9 @@ Success | Canceled | Expired | DisputeWon | DisputeLost
 ```
 > Note: `PaymentFailed` removed - LN payment failures are transient and retried,
 > not a final trade outcome.
+
+> Note: `PaymentFailed` removed — LN payment failures are transient and retried,
+> not a terminal trade outcome. The order stays in `SettledHoldInvoice`.
 
 ### MessageType
 ```text
@@ -212,6 +220,16 @@ privacy_mode: bool
 trade_key_index: u32
 created_at: i64
 ```
+
+### NymIdentity
+```text
+pseudonym: String         # Deterministic pseudonym (adjective-noun format)
+icon_index: u8            # Icon selector (0–36)
+color_hue: u16            # HSV hue (0–359) for avatar background
+```
+
+> All fields derived deterministically from the public key. The same key
+> always produces the same name, icon, and color across sessions and devices.
 
 ### LogEntry
 ```text

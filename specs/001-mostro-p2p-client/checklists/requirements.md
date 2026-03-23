@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-22
-**Updated**: 2026-03-23 (clarification pass — 4 questions resolved)
+**Updated**: 2026-03-23 (v1-reference enrichment — state machine corrections + new features)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -42,19 +42,26 @@
 - [x] Relay auto-sync — FR-039, Relay entity (source classification + blacklist)
 - [x] Countdown timers — FR-040
 - [x] Background notifications — FR-041, FR-049 (silent/contentless)
-- [x] Buyer invoice submission — FR-042, FR-048 (paymentFailed resubmit)
+- [x] Buyer invoice submission — FR-042, FR-048 (paymentFailed action handling)
 - [x] Diagnostic logging — FR-050, FR-051, US7.9
 - [x] Range orders — FR-005 (fixed or min/max range), US2.1, Order entity
+- [x] Nym identity (pseudonyms/avatars) — FR-052, FR-053, US5.8
+- [x] Default fiat currency — FR-054, US7.10
+- [x] Lightning Address — FR-055, US7.11
+- [x] Mostro node selector — FR-056, US7.12
+- [x] About screen — FR-057, FR-058, US7.13
 
 ## Protocol Enrichment Check
 
 - [x] Full 15-state order machine documented — Protocol Reference section, FR-043, Order entity
+- [x] State machine corrections: PaymentFailed is Action not Status; CooperativelyCanceled is UI-only; InProgress added
+- [x] Order-type-dependent transitions documented (sell→WaitingBuyerInvoice; buy→WaitingPayment)
 - [x] NIP-59 three-layer encryption documented — Protocol Reference section, Message entity
 - [x] Complete protocol action catalog — Protocol Reference section (table)
 - [x] Protocol versioning note — Protocol Reference section
 - [x] Privacy modes (standard vs full) — FR-044 (global toggle in settings), Identity entity
 - [x] Encrypted-at-rest chat storage — FR-045, Message entity, SC-022
-- [x] Cross-language core/UI architecture constraint documented — Assumptions section (stack details deferred to ADR)
+- [x] Cross-language core/UI architecture constraint documented — Assumptions section (details in ARCHITECTURE.md)
 - [x] Key derivation path (m/44'/1237'/38383'/0/N) — Assumptions section
 
 ## Dark/Light Theme Check
@@ -76,6 +83,6 @@
 
 ## Notes
 
-- All items pass. 4 clarifications resolved, all integrated into spec.
-- 13 user stories, 51 functional requirements, 22 success criteria, 15 edge cases.
-- No outstanding ambiguities blocking `/speckit.plan`.
+- All items pass. Spec updated with v1-reference enrichment (ORDER_STATES.md, NYM_IDENTITY.md, SETTINGS_SCREEN.md, ACCOUNT_SCREEN.md, ABOUT_SCREEN.md, DRAWER_MENU.md).
+- Critical corrections: PaymentFailed is an Action notification not a Status (moved out of the status enum); InProgress is a newly added 15th Status (admin took dispute); CooperativelyCanceled is in the mostro-core enum but set client-side via action notifications (not via a server status update).
+- 13 user stories, 58 functional requirements (up from 51), 22 success criteria, 15 edge cases.
