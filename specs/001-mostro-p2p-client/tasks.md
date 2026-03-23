@@ -88,13 +88,13 @@
 
 ### Implementation for User Stories 1+2
 
-- [ ] T033 [US1] Implement order creation API in rust/src/api/orders.rs: create_order() with NewOrderParams (fixed + range amounts), publish via NIP-59 per contracts/orders.md
+- [ ] T033 [US1] Implement order creation API in rust/src/api/orders.rs: create_order() with NewOrderParams (fixed + range amounts), publish via NIP-59 per contracts/orders.md. Validation: require either fiat_amount OR (fiat_amount_min + fiat_amount_max) but not both/neither; all amounts must be positive; fiat_amount_min < fiat_amount_max when range; return distinct errors per violation
 - [ ] T034 [US1] Implement order fetching API in rust/src/api/orders.rs: get_orders(), get_order(), stream on_orders_updated() from kind 38383 events per contracts/orders.md
 - [ ] T035 [US1] Implement take order API in rust/src/api/orders.rs: take_order() sends TakeBuy/TakeSell action, creates local Trade record per contracts/orders.md
 - [ ] T036 [US1] Implement trade action APIs in rust/src/api/orders.rs: submit_buyer_invoice(), mark_fiat_sent(), confirm_fiat_received() per contracts/orders.md
 - [ ] T037 [US1] Implement trade state streams in rust/src/api/orders.rs: on_trade_step_changed(), on_order_status_changed(), on_trade_timeout_tick() per contracts/orders.md
 - [ ] T038 [P] [US1] Implement cancel order API in rust/src/api/orders.rs: cancel_order() for own untaken orders per contracts/orders.md
-- [ ] T039 [US1] Create order list screen in lib/screens/home/home_screen.dart: display orders with OrderCard widgets, filter controls (buy/sell, currency, payment method) per spec US4 scenarios 1-3
+- [ ] T039 [US4] Create order list screen in lib/screens/home/home_screen.dart: display orders with OrderCard widgets, filter controls (buy/sell, currency, payment method) per spec US4 scenarios 1-3 (required by US1/US2 for order selection)
 - [ ] T040 [P] [US1] Create order card widget in lib/widgets/order_card.dart: show type, amount/range, price, payment method, premium, creator reputation per spec US1 scenario 1
 - [ ] T041 [US1] Create order detail screen in lib/screens/order_detail/order_detail_screen.dart: full order info + "Take Order" button per spec US1 scenario 1
 - [ ] T042 [US2] Create order creation screen in lib/screens/create_order/create_order_screen.dart: form for type, amount (fixed/range), currency, payment method, premium per spec US2 scenario 1
@@ -102,25 +102,25 @@
 - [ ] T044 [P] [US1] Create trade progress indicator widget in lib/widgets/trade_progress.dart: visual stepper showing BuyerStep/SellerStep with current/completed/remaining, responsive (vertical mobile, horizontal desktop) per spec US1 scenario 6
 - [ ] T045 [P] [US1] Create QR scanner widget in lib/widgets/qr_scanner.dart: camera scan on mobile, paste/upload fallback on web per spec FR-022
 - [ ] T046 [US1] Wire trade providers in lib/providers/trade_provider.dart: manage active trade state, listen to Rust streams, update UI per spec US1+US2 all scenarios
-- [ ] T047 [US1] Wire orders provider in lib/providers/orders_provider.dart: fetch/cache orders, apply filters, listen to Rust streams per spec US4 all scenarios
+- [ ] T047 [US4] Wire orders provider in lib/providers/orders_provider.dart: fetch/cache orders, apply filters, listen to Rust streams per spec US4 all scenarios (required by US1/US2 for order selection)
 
 **Checkpoint**: Full buy and sell trade flow works end-to-end with progress indicator. Orders can be created (fixed + range), browsed, filtered, and taken.
 
 ---
 
-## Phase 5: User Story 4 — Browse & Filter Orders (Priority: P2)
+## Phase 5: User Story 4 — Browse & Filter Orders, Offline Enhancements (Priority: P2)
 
-**Goal**: Users see order book with filtering, offline cache, detail view
+**Goal**: Enhance order browsing with offline cache and staleness indicators (base browsing/filtering built in Phase 4 via T039/T047)
 
-**Independent Test**: User opens app, sees orders, applies filters, views order detail
+**Independent Test**: User goes offline, sees cached orders with staleness badge, reconnects and sees fresh data
 
-### Implementation for User Story 4
+### Implementation for User Story 4 (incremental)
 
 - [ ] T048 [US4] Implement offline order cache in rust/src/api/orders.rs: return cached orders when offline with `cached_at` staleness indicator per spec US4 scenario 4
 - [ ] T049 [US4] Add offline indicator to home screen in lib/screens/home/home_screen.dart: show "offline" badge when ConnectionState is Offline, display cached orders per spec US4 scenario 4
-- [ ] T050 [US4] Add currency and payment method filter chips to lib/screens/home/home_screen.dart per spec US4 scenarios 2-3
+- [ ] T050 [US4] Add currency and payment method filter persistence to lib/screens/home/home_screen.dart: remember last-used filters across sessions per spec US4 scenarios 2-3
 
-**Checkpoint**: Order book works online and offline with filtering
+**Checkpoint**: Order book works online and offline with persistent filtering
 
 ---
 
