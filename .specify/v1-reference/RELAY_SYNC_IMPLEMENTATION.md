@@ -1147,20 +1147,20 @@ void _subscribeToRelayList(NostrFilter filter) {
 ### Data Flow Sequence Diagrams
 
 #### 1. Application Startup Sequence
-```
+```text
 App Launch → Settings Load → RelaysNotifier Init → Load Saved Relays → 
 Subscribe to Mostro Events → Wait for NostrService → Begin Sync
 ```
 
 #### 2. Mostro Relay List Update Sequence
-```
+```text
 NIP-65 Event Received → Author Validation → Timestamp Check → 
 Hash Deduplication → URL Normalization → Blacklist Filtering → 
 State Merging → Storage Persistence → NostrService Update
 ```
 
 #### 3. Manual Relay Addition Sequence
-```
+```text
 User Input → URL Normalization → Duplicate Check → 
 Connectivity Testing → Blacklist Removal → State Update → 
 Storage Persistence → UI Feedback

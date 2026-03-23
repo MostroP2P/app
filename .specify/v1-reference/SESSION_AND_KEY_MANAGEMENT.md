@@ -652,7 +652,7 @@ For child orders to work properly, when the app receives a `new-order` message f
 
 ### Expected Child Order Flow (Fixed)
 
-```
+```text
 1. Parent Order Release
    → User completes range order (orderId: "parent-123", keyIndex: 7)
    → App pre-generates child trade key (index 8)
@@ -785,7 +785,7 @@ Future<void> _maybeLinkChildOrder(MostroMessage message, Session session) async 
 
 The final flow:
 
-```
+```text
 1. releaseOrder()
    ├─ Detects range order
    ├─ Derives next trade key/index
@@ -811,7 +811,7 @@ The child order implementation must maintain proper key index synchronization:
 
 #### Parent-Child Key Relationship
 
-```
+```text
 Parent Order:
   - Order ID: "parent-order-123"
   - Key Index: 7
@@ -1066,7 +1066,7 @@ Future<void> _maybeLinkChildOrder(
 With the implemented solution, the complete child order flow works as follows:
 
 #### 1. Range Order Trigger (`MostroService._prepareChildOrderIfNeeded`)
-```
+```text
 User completes range order (orderId: "parent-123", keyIndex: 7)
 ├─ System detects range order (minAmount < maxAmount) ✅
 ├─ KeyManager.getNextKeyIndex() returns 8 ✅
@@ -1079,7 +1079,7 @@ User completes range order (orderId: "parent-123", keyIndex: 7)
 ```
 
 #### 2. Child Order Message Reception (`MostroService._onData` + `_maybeLinkChildOrder`)
-```
+```text
 Mostrod creates child order with ID "child-456"
 ├─ DM arrives encrypted to trade key index 8 ✅
 ├─ MostroService._onData() decrypts it ✅
