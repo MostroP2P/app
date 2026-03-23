@@ -196,7 +196,7 @@ A user can manage their relay connections, view and export their identity, confi
 4. **Given** a user in Account screen, **When** they view their mnemonic, **Then** they see the first 2 and last 2 words visible with the middle 8 words masked as dots. A "Show" button reveals all 12 words.
 5. **Given** a user in Account screen, **When** they tap "Generate New User", **Then** a confirmation dialog warns about losing the current identity. On confirm, a new mnemonic is generated and all stored data is cleared.
 6. **Given** a user in Account screen, **When** they tap "Import Mostro User", **Then** they can enter a 12 or 24 word mnemonic phrase. On valid import, the identity is restored and past trades are synced from relays.
-7. **Given** a user in Account screen, **When** they toggle between "Reputation Mode" and "Full Privacy Mode", **Then** the selected mode applies to all future trades.
+7. **Given** a user navigates to Settings, **When** they toggle between "Reputation Mode" and "Full Privacy Mode" in the global privacy settings, **Then** the selected mode applies to all future trades (per FR-044).
 8. **Given** a user in preferences, **When** they switch between System, Dark, and Light theme options, **Then** the app immediately reflects the change with a smooth transition and no flash.
 9. **Given** a user has not changed any theme setting, **When** the OS is in dark mode, **Then** the app displays in dark theme; when the OS switches to light mode, the app follows automatically without restart.
 10. **Given** a user in preferences, **When** they change the language, **Then** all UI text updates to the selected language.
@@ -358,7 +358,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-017a**: The Account screen MUST display the mnemonic phrase with the first 2 and last 2 words visible and the middle 8 words masked. A Show/Hide toggle MUST reveal/conceal all words.
 - **FR-017b**: The Account screen MUST provide a "Generate New User" button that, after confirmation dialog, clears all stored data and generates a new mnemonic.
 - **FR-017c**: The Account screen MUST provide an "Import Mostro User" button that accepts a 12 or 24 word mnemonic and initiates a restore/sync process.
-- **FR-017d**: The Account screen MUST provide a privacy mode toggle between "Reputation Mode" (identity key signs seal) and "Full Privacy Mode" (trade key signs seal).
+- **FR-017d**: The Settings screen MUST provide a global privacy mode toggle between "Reputation Mode" (identity key signs seal) and "Full Privacy Mode" (trade key signs seal). The Account screen MAY display the current mode read-only.
 - **FR-018**: Users MUST be able to set a PIN or enable biometric device unlock.
 - **FR-019**: The system MUST support dark and light themes with a complete set of semantic color tokens that adapt to the active theme, covering backgrounds, text, actions, status indicators, and brand colors.
 - **FR-019a**: The system MUST default to following the operating system's theme preference on first launch.

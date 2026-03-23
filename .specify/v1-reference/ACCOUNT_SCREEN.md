@@ -65,7 +65,10 @@ String _maskSeedPhrase(String seedPhrase) {
 
   final first = words.take(2).join(' ');
   final last = words.skip(words.length - 2).join(' ');
-  final masked = '••• ••• ••• •••';
+  
+  // Calculate number of middle words to mask
+  final middleWordCount = words.length - 4;
+  final masked = List.filled(middleWordCount, '•••').join(' ');
 
   return '$first $masked $last';
 }

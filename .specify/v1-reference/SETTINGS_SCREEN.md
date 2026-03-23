@@ -129,7 +129,7 @@
 **Input Field:**
 - Optional field
 - Placeholder: "Enter Lightning Address"
-- Format validation: user@domain.com
+- Format validation: `name@domain` — accepts any valid hostname or subdomain with any TLD (e.g., name@example, name@example.org, name@sub.example.co)
 - Auto-saves on change
 - Used as default when selling (auto-fills invoice destination)
 

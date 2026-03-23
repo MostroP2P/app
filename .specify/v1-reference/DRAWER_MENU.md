@@ -57,27 +57,49 @@ The drawer slides in from the left (70% screen width) with a semi-transparent ov
 
 ```dart
 class CustomDrawerOverlay extends ConsumerWidget {
+  final Widget child;
+  
+  const CustomDrawerOverlay({super.key, required this.child});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDrawerOpen = ref.watch(drawerProvider);
+    final screenWidth = MediaQuery.of(context).size.width;
     
     return Stack(
       children: [
-        child,  // Main content
+        // Main content
+        child,
         
         // Semi-transparent overlay
         if (isDrawerOpen)
           GestureDetector(
             onTap: () => ref.read(drawerProvider.notifier).closeDrawer(),
-            child: Container(color: Colors.black.withOpacity(0.3)),
+            child: Container(
+              color: Colors.black.withOpacity(0.3),
+              width: double.infinity,
+              height: double.infinity,
+            ),
           ),
         
         // Animated drawer
         AnimatedPositioned(
-          duration: Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
           left: isDrawerOpen ? 0 : -screenWidth * 0.7,
-          // ... drawer content
+          top: 0,
+          bottom: 0,
+          width: screenWidth * 0.7,
+          child: Container(
+            color: AppTheme.backgroundCard,
+            child: Column(
+              children: [
+                // Drawer content here
+                const SizedBox(height: 24),
+                // Logo, menu items, etc.
+              ],
+            ),
+          ),
         ),
       ],
     );
