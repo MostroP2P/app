@@ -23,6 +23,7 @@ Order has been created by a seller or buyer and is waiting for a counterparty to
 - Seller can take a buy order
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | `takeSell` | Buyer | `waitingBuyerInvoice` |
@@ -38,7 +39,13 @@ Order has been created by a seller or buyer and is waiting for a counterparty to
 - Label: "Waiting Invoice"
 
 **Description:**
-A buyer has taken a sell order. The buyer must provide a Lightning invoice where they want to receive the sats.
+The buyer must provide a Lightning invoice where they want to receive the sats. This state occurs at different points depending on order type:
+- **Sell order**: Immediately after buyer takes the order (buyer takes → waitingBuyerInvoice)
+- **Buy order**: After seller pays the hold invoice (seller pays → waitingBuyerInvoice)
+
+> ⚠️ **Order-type-dependent transitions**: The next state after `addInvoice` depends on the order type:
+> - **Sell order**: `addInvoice` → `waitingPayment` (seller still needs to pay hold invoice)
+> - **Buy order**: `addInvoice` → `active` (seller already paid hold invoice, trade is now active)
 
 **Available Actions:**
 - Buyer can submit invoice
@@ -46,11 +53,12 @@ A buyer has taken a sell order. The buyer must provide a Lightning invoice where
 - Either party can initiate dispute
 
 **Transitions:**
-| Action | By | Next State |
-|--------|----|------------|
-| `addInvoice` | Buyer | `waitingPayment` |
-| `cancel` | Either | `canceled` |
-| `dispute` | Either | `dispute` |
+
+| Action | By | Next State (Sell Order) | Next State (Buy Order) |
+|--------|----|------------------------|------------------------|
+| `addInvoice` | Buyer | `waitingPayment` | `active` |
+| `cancel` | Either | `canceled` | `canceled` |
+| `dispute` | Either | `dispute` | `dispute` |
 
 ---
 
@@ -61,9 +69,11 @@ A buyer has taken a sell order. The buyer must provide a Lightning invoice where
 - Label: "Waiting Payment"
 
 **Description:**
-Seller must pay the hold invoice to lock the sats in escrow. This happens after:
-- Buyer provided invoice (for sell orders)
-- Seller took a buy order
+Seller must pay the hold invoice to lock the sats in escrow.
+
+> ⚠️ **Order-type-dependent transitions**: The next state after `payInvoice` depends on the order type:
+> - **Sell order** (seller created): `payInvoice` → `active` (hold invoice paid, buyer already provided invoice)
+> - **Buy order** (buyer created): `payInvoice` → `waitingBuyerInvoice` (hold invoice paid, now waiting for buyer to provide their LN receive invoice)
 
 **Available Actions:**
 - Seller can pay the hold invoice
@@ -71,12 +81,13 @@ Seller must pay the hold invoice to lock the sats in escrow. This happens after:
 - Either party can initiate dispute
 
 **Transitions:**
-| Action | By | Next State |
-|--------|----|------------|
-| `payInvoice` | Seller | `active` |
-| `paymentFailed` | System | `paymentFailed` |
-| `cancel` | Either | `canceled` |
-| `dispute` | Either | `dispute` |
+
+| Action | By | Next State (Sell Order) | Next State (Buy Order) |
+|--------|----|------------------------|------------------------|
+| `payInvoice` | Seller | `active` | `waitingBuyerInvoice` |
+| `paymentFailed` | System | `paymentFailed` | `paymentFailed` |
+| `cancel` | Either | `canceled` | `canceled` |
+| `dispute` | Either | `dispute` | `dispute` |
 
 ---
 
@@ -96,6 +107,7 @@ The seller failed to pay the hold invoice within the time window. The order is t
 - Either party can initiate dispute
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | `payInvoice` | Seller | `active` |
@@ -120,6 +132,7 @@ Sats are locked in escrow (hold invoice paid). The buyer must now send fiat to t
 - Either party can initiate dispute
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | `fiatSent` | Buyer | `fiatSent` |
@@ -142,6 +155,7 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 - Either party can initiate dispute if something is wrong
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | `release` | Seller | `settledHoldInvoice` |
@@ -162,6 +176,7 @@ Seller has released the sats. The hold invoice is being settled and sats are bei
 - None (automatic transition)
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | (automatic) | System | `success` |
@@ -181,6 +196,7 @@ Trade completed successfully. Sats have been received by the buyer. Both parties
 - Either party can rate the counterparty
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | `rate` | Either | `success` (remains, but rated flag set) |
@@ -208,17 +224,36 @@ Order was canceled by a party before completion. No funds were exchanged.
 - Label: "Canceling"
 
 **Description:**
-One party requested a cooperative cancellation, waiting for the other party to accept. If accepted, goes to `canceled`. If ignored, trade continues.
+One party requested a cooperative cancellation; waiting for the counterparty to accept.
+
+This is a **transient pending state**, not a terminal one. It differs from `canceled`:
+
+| | `cooperativelyCanceled` | `canceled` |
+|-|------------------------|------------|
+| Meaning | Cancel requested, not yet agreed | Both parties (or system) confirmed cancel |
+| UI label | "Canceling" (orange) | "Cancel" (gray) |
+| Terminal? | No | Yes |
+| Requires agreement? | Yes | No |
+
+**Source States** (states that can transition into `cooperativelyCanceled`):
+- `active` — either party requests cooperative cancel while trading
+- `fiatSent` — seller requests cancel after buyer sent fiat (risky, requires buyer to accept)
+
+**Previous State Tracking:**
+When entering `cooperativelyCanceled`, the system records the `previous_state` field in the order. This allows the order to revert if the counterparty ignores the request.
 
 **Available Actions:**
-- Counterparty can accept cancellation
-- Counterparty can ignore (trade continues)
+- Counterparty can accept → goes to `canceled`
+- Counterparty can ignore → order reverts to `previous_state`
+- No timeout in protocol — the requesting party must wait
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | `cooperativeCancelAccepted` | Counterparty | `canceled` |
-| (timeout/ignore) | - | Returns to previous state |
+| `cooperativeCancelInitiatedByPeer` | System (notify) | Stays `cooperativelyCanceled` |
+| (peer ignores/resumes) | - | Reverts to `previous_state` |
 
 ---
 
@@ -237,6 +272,7 @@ A dispute has been initiated by either party. An admin will review the case and 
 - Admin can cancel (return to seller)
 
 **Transitions:**
+
 | Action | By | Next State |
 |--------|----|------------|
 | `adminSettle` | Admin | `settledByAdmin` |
@@ -305,7 +341,7 @@ Order expired without being taken within the configured time limit.
 
 ### Sell Order Flow (Seller Creates, Buyer Takes)
 
-```
+```text
 ┌──────────┐    takeSell     ┌──────────────────┐
 │  PENDING │ ───────────────▶ │ WAITING_BUYER_   │
 │          │                  │ INVOICE          │
@@ -341,11 +377,11 @@ Order expired without being taken within the configured time limit.
                               ┌──────────────────┐
                               │     SUCCESS      │
                               └──────────────────┘
-```
+```text
 
 ### Buy Order Flow (Buyer Creates, Seller Takes)
 
-```
+```text
 ┌──────────┐    takeBuy      ┌──────────────────┐
 │  PENDING │ ───────────────▶ │ WAITING_PAYMENT  │
 │          │                  │                  │
@@ -382,11 +418,11 @@ Order expired without being taken within the configured time limit.
                               ┌──────────────────┐
                               │     SUCCESS      │
                               └──────────────────┘
-```
+```text
 
 ## My Trades List Item Layout
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                                                     │
 │  Buying Bitcoin / Selling Bitcoin                   │  ← Role indicator
@@ -402,7 +438,7 @@ Order expired without being taken within the configured time limit.
 │                                                     │
 │                                            ▸      │  ← Navigate arrow
 └─────────────────────────────────────────────────────┘
-```
+```text
 
 ### Status Chip Colors
 
