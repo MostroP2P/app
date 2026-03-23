@@ -376,7 +376,7 @@ Order expired without being taken within the configured time limit.
                               ┌──────────────────┐
                               │     SUCCESS      │
                               └──────────────────┘
-```text
+```
 
 ### Buy Order Flow (Buyer Creates, Seller Takes)
 
@@ -417,7 +417,7 @@ Order expired without being taken within the configured time limit.
                               ┌──────────────────┐
                               │     SUCCESS      │
                               └──────────────────┘
-```text
+```
 
 ## My Trades List Item Layout
 
@@ -437,7 +437,7 @@ Order expired without being taken within the configured time limit.
 │                                                     │
 │                                            ▸      │  ← Navigate arrow
 └─────────────────────────────────────────────────────┘
-```text
+```
 
 ### Status Chip Colors
 
@@ -452,7 +452,7 @@ Order expired without being taken within the configured time limit.
 | `settled-hold-invoice` | `#854D0E` (amber-900) | `#FCD34D` (amber-300) | `statusPending` |
 | `success` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
 | `canceled` / `canceled-by-admin` | `#1F2937` (gray-800) | `#D1D5DB` (gray-300) | `statusInactive` |
-| `cooperativelyCanceled` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
+| `cooperatively-canceled` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
 | `dispute` | `#7F1D1D` (red-900) | `#FCA5A5` (red-300) | `statusDispute` |
 | `settled-by-admin` | `#581C87` (purple-900) | `#C084FC` (purple-300) | `statusSettled` |
 | `completed-by-admin` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
@@ -580,7 +580,7 @@ pub fn possible_actions(
 ) -> Vec<Action> {
     // Return list of actions available to this role in this state
 }
-```rust
+```
 
 ### Flutter Side
 
@@ -615,7 +615,7 @@ class OrderStatusChip extends StatelessWidget {
     );
   }
 }
-```dart
+```
 
 ### State Persistence
 
@@ -690,8 +690,8 @@ This mapping documents status-changing actions. Role differentiation happens bec
 
 ### Status Preservation Edge Cases
 
-**paymentFailed + addInvoice:**
-When `add-invoice` is received while in `payment-failed` status, the status is **preserved** (stays `payment-failed`) for UI consistency. The user sees the payment failed context while providing a new invoice. If we changed to `waiting-buyer-invoice`, the user would lose the failure context.
+**payment-failed + add-invoice:**
+When `add-invoice` is received while in `payment-failed` status, the order transitions to `waiting-payment`. This is consistent with the v1 FSM behavior where the buyer can provide a new invoice to retry the flow.
 
 **Restoring Sessions:**
 When restoring sessions after app restart, orders may have a status but no recent action. The app synthesizes the appropriate action based on status and role. See "Restore Flow" below.
@@ -713,7 +713,7 @@ Seller Action                Buyer Action
   (immediate)           ("Paying sats")
                         │
                         └── Later: purchaseCompleted → success
-```text
+```
 
 The seller sees `success` immediately because their part is done. The buyer sees `settled-hold-invoice` ("Paying sats") until the Lightning payment actually completes.
 
@@ -842,7 +842,7 @@ fn test_invalid_transition() {
     );
     assert_eq!(status, None);
 }
-```rust
+```
 
 ### Widget Tests (Flutter)
 
@@ -861,4 +861,4 @@ testWidgets('status chip displays correctly', (tester) async {
     // Verify background color matches spec
   }
 });
-```dart
+```
