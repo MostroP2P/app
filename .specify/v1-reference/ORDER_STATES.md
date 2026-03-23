@@ -224,36 +224,34 @@ Order was canceled by a party before completion. No funds were exchanged.
 - Label: "Canceling"
 
 **Description:**
-One party requested a cooperative cancellation; waiting for the counterparty to accept.
+One party requested a cooperative cancellation; waiting for counterparty response. This is a **pending state** showing cancellation was requested but not yet agreed.
 
-This is a **transient pending state**, not a terminal one. It differs from `canceled`:
+Unlike `canceled`, this state allows the trade to continue normally:
 
-| | `cooperativelyCanceled` | `canceled` |
-|-|------------------------|------------|
-| Meaning | Cancel requested, not yet agreed | Both parties (or system) confirmed cancel |
+| Aspect | `cooperativelyCanceled` | `canceled` |
+|--------|------------------------|------------|
+| Meaning | Cancel requested, awaiting response | Trade definitively ended |
 | UI label | "Canceling" (orange) | "Cancel" (gray) |
-| Terminal? | No | Yes |
-| Requires agreement? | Yes | No |
+| Terminal? | No — trade can proceed | Yes — no further actions |
 
-**Source States** (states that can transition into `cooperativelyCanceled`):
-- `active` — either party requests cooperative cancel while trading
-- `fiatSent` — seller requests cancel after buyer sent fiat (risky, requires buyer to accept)
+**Available Actions (from `cooperativelyCanceled`):**
 
-**Previous State Tracking:**
-When entering `cooperativelyCanceled`, the system records the `previous_state` field in the order. This allows the order to revert if the counterparty ignores the request.
+| Action | By | Result |
+|--------|----|--------|
+| `cooperativeCancelAccepted` | Counterparty | Order → `canceled` |
+| `fiatSent` | Buyer | Order → `fiatSent` — trade continues normally |
+| `release` | Seller | Order → `settledHoldInvoice` — trade completes |
+| `dispute` | Either | Order → `dispute` — escalate to admin |
+| No action | Counterparty | Trade remains cancelable but can proceed |
 
-**Available Actions:**
-- Counterparty can accept → goes to `canceled`
-- Counterparty can ignore → order reverts to `previous_state`
-- No timeout in protocol — the requesting party must wait
+**Source States:** Any non-terminal state, most commonly:
+- `active` — during active trading
+- `fiatSent` — after buyer sent fiat
 
-**Transitions:**
-
-| Action | By | Next State |
-|--------|----|------------|
-| `cooperativeCancelAccepted` | Counterparty | `canceled` |
-| `cooperativeCancelInitiatedByPeer` | System (notify) | Stays `cooperativelyCanceled` |
-| (peer ignores/resumes) | - | Reverts to `previous_state` |
+**Key Insight:** Cooperative cancellation is a **request**, not a requirement. The counterparty can:
+1. Accept → cancel completes
+2. Ignore/requester resumes → trade continues (order stays `cooperativelyCanceled` while active)
+3. Continue normal trade (fiatSent, release, dispute) — state progresses from `cooperativelyCanceled`
 
 ---
 
