@@ -50,7 +50,8 @@ The buyer must provide a Lightning invoice where they want to receive the sats. 
 **Available Actions:**
 - Buyer can submit invoice
 - Either party can cancel
-- Either party can initiate dispute
+
+> ⚠️ **Dispute not available:** Disputes can only be initiated when the order is in `active` or `fiat-sent` status.
 
 **Transitions:**
 
@@ -58,7 +59,6 @@ The buyer must provide a Lightning invoice where they want to receive the sats. 
 |--------|----|------------------------|------------------------|
 | `add-invoice` | Buyer | `waiting-payment` | `active` |
 | `cancel` | Either | `canceled` | `canceled` |
-| `dispute` | Either | `dispute` | `dispute` |
 
 ---
 
@@ -78,7 +78,8 @@ Seller must pay the hold invoice to lock the sats in escrow.
 **Available Actions:**
 - Seller can pay the hold invoice
 - Either party can cancel
-- Either party can initiate dispute
+
+> ⚠️ **Dispute not available:** Disputes can only be initiated when the order is in `active` or `fiat-sent` status.
 
 **Transitions:**
 
@@ -87,7 +88,6 @@ Seller must pay the hold invoice to lock the sats in escrow.
 | `pay-invoice` | Seller | `active` | `waiting-buyer-invoice` |
 | `payment-failed` | System | `payment-failed` | `payment-failed` |
 | `cancel` | Either | `canceled` | `canceled` |
-| `dispute` | Either | `dispute` | `dispute` |
 
 ---
 
@@ -104,7 +104,8 @@ The seller failed to pay the hold invoice within the time window. The order is t
 - Seller can retry payment
 - Buyer can provide new invoice (optional)
 - Either party can cancel
-- Either party can initiate dispute
+
+> ⚠️ **Dispute not available:** Disputes can only be initiated when the order is in `active` or `fiat-sent` status.
 
 **Transitions:**
 
@@ -113,7 +114,6 @@ The seller failed to pay the hold invoice within the time window. The order is t
 | `pay-invoice` | Seller | `active` |
 | `add-invoice` | Buyer | `waiting-payment` |
 | `cancel` | Either | `canceled` |
-| `dispute` | Either | `dispute` |
 
 ---
 
