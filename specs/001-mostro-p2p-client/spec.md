@@ -7,7 +7,7 @@
 
 ---
 
-## Mostro Protocol Reference
+## 🔴 Critical Reference: Mostro Protocol
 
 > **All client-server communication MUST follow the Mostro Protocol specification.**
 >
@@ -54,6 +54,14 @@ Layer 3: Gift Wrap (kind 1059) — outer envelope (ephemeral key, no metadata le
 ### Protocol Versioning
 
 The protocol may evolve. The client must handle version negotiation from Mostro daemon announcements and be aware of backward compatibility and deprecation warnings.
+>
+> The protocol defines:
+> - Message formats and actions (new-order, take-sell, release, etc.)
+> - Order lifecycle and state machine
+> - NIP-59 Gift Wrap encryption requirements
+> - Event kinds (38383) and tags
+>
+> **Read the protocol before implementing any Mostro interaction.**
 
 ---
 
