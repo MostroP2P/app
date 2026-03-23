@@ -58,7 +58,12 @@ The buyer must provide a Lightning invoice where they want to receive the sats. 
 | Action | By | Next State (Sell Order) | Next State (Buy Order) |
 |--------|----|------------------------|------------------------|
 | `add-invoice` | Buyer | `waiting-payment` | `active` |
-| `cancel` | Either | `canceled` | `canceled` |
+| `cancel` | Buyer | `pending` (taker) | `canceled` (creator) |
+| `cancel` | Seller | `canceled` (creator) | `pending` (taker) |
+
+> **Cancel behavior depends on role in the order:** When the taker cancels, the order returns to `pending` and is republished for a new counterparty. When the creator cancels, the order is `canceled` permanently.
+
+> **Timeout behavior:** If the expected party does not act within `expiration_seconds` (published in the Mostro instance event kind `38385`), Mostro automatically applies the same cancel logic: if the taker didn't respond, the order returns to `pending`; if the creator didn't respond, the order is `canceled`.
 
 ---
 
@@ -86,7 +91,12 @@ Seller must pay the hold invoice to lock the sats in escrow.
 | Action | By | Next State (Sell Order) | Next State (Buy Order) |
 |--------|----|------------------------|------------------------|
 | `pay-invoice` | Seller | `active` | `waiting-buyer-invoice` |
-| `cancel` | Either | `canceled` | `canceled` |
+| `cancel` | Buyer | `pending` (taker) | `canceled` (creator) |
+| `cancel` | Seller | `canceled` (creator) | `pending` (taker) |
+
+> **Cancel behavior depends on role in the order:** When the taker cancels, the order returns to `pending` and is republished for a new counterparty. When the creator cancels, the order is `canceled` permanently.
+
+> **Timeout behavior:** If the expected party does not act within `expiration_seconds` (published in the Mostro instance event kind `38385`), Mostro automatically applies the same cancel logic: if the taker didn't respond, the order returns to `pending`; if the creator didn't respond, the order is `canceled`.
 
 ---
 
@@ -535,8 +545,11 @@ The trade detail screen shows different action buttons based on the current stat
 | `pending` | `take-buy` | - | `waiting-payment` |
 | `pending` | `cancel` | `canceled` | `canceled` |
 | `waiting-buyer-invoice` | `add-invoice` | `waiting-payment` | - |
-| `waiting-buyer-invoice` | `cancel` | `canceled` | `canceled` |
+| `waiting-buyer-invoice` | `cancel` (buyer) | `pending` (taker) | `canceled` (creator) |
+| `waiting-buyer-invoice` | `cancel` (seller) | `canceled` (creator) | `pending` (taker) |
 | `waiting-payment` | `pay-invoice` | - | `active` |
+| `waiting-payment` | `cancel` (buyer) | `pending` (taker) | `canceled` (creator) |
+| `waiting-payment` | `cancel` (seller) | `canceled` (creator) | `pending` (taker) |
 | `active` | `fiat-sent` | `fiat-sent` | `fiat-sent` |
 | `fiat-sent` | `release` | - | `settled-hold-invoice` |
 | `settled-hold-invoice` | (auto) | `success` | `success` |
