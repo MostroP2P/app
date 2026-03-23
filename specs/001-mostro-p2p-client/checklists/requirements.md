@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-22
-**Updated**: 2026-03-23 (protocol enrichment + dark/light theme pass)
+**Updated**: 2026-03-23 (clarification pass — 4 questions resolved)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -32,7 +32,7 @@
 
 ## V1 Feature Parity Check
 
-- [x] NWC (Nostr Wallet Connect) — FR-027, FR-028, FR-046, US1.3, US7.6
+- [x] NWC (Nostr Wallet Connect) — FR-027, FR-028, FR-046, US1.3, US7.7
 - [x] Encrypted file messaging — FR-029, FR-030, FR-047, US5.5-7
 - [x] Session recovery — FR-031, US10 (5 scenarios including key index sync)
 - [x] BIP-32 key derivation — FR-032, Identity entity (index 0 / N≥1)
@@ -43,6 +43,8 @@
 - [x] Countdown timers — FR-040
 - [x] Background notifications — FR-041, FR-049 (silent/contentless)
 - [x] Buyer invoice submission — FR-042, FR-048 (paymentFailed resubmit)
+- [x] Diagnostic logging — FR-050, FR-051, US7.9
+- [x] Range orders — FR-005 (fixed or min/max range), US2.1, Order entity
 
 ## Protocol Enrichment Check
 
@@ -50,7 +52,7 @@
 - [x] NIP-59 three-layer encryption documented — Protocol Reference section, Message entity
 - [x] Complete protocol action catalog — Protocol Reference section (table)
 - [x] Protocol versioning note — Protocol Reference section
-- [x] Privacy modes (standard vs full) — FR-044, Identity entity
+- [x] Privacy modes (standard vs full) — FR-044 (global toggle in settings), Identity entity
 - [x] Encrypted-at-rest chat storage — FR-045, Message entity, SC-022
 - [x] Rust core + flutter_rust_bridge architecture — Assumptions section
 - [x] Key derivation path (m/44'/1237'/38383'/0/N) — Assumptions section
@@ -65,9 +67,15 @@
 - [x] Brand color consistency across themes — FR-019f
 - [x] Theme switch during active modal edge case — Edge Cases
 
+## Clarification Pass (2026-03-23)
+
+- [x] Admin role scoped to user-side only — Non-Goals updated
+- [x] Privacy mode is global toggle in settings — FR-044 updated
+- [x] Range orders supported — FR-005, US2.1, Order entity updated
+- [x] Diagnostic logging included — FR-050, FR-051, US7.9 added
+
 ## Notes
 
-- All items pass. Spec updated with protocol enrichment from `.specify/` reference docs and expanded dark/light theme support.
-- 13 user stories, 49 functional requirements (up from 42), 22 success criteria (up from 18), 16 edge cases (up from 10).
-- Architectural constraint (Rust core + flutter_rust_bridge) documented in Assumptions, not in functional requirements.
-- Domain-specific terms (NIP-59, BIP-39, NWC, ECDH) are inherent to the Mostro/Nostr/Bitcoin domain and not implementation details.
+- All items pass. 4 clarifications resolved, all integrated into spec.
+- 13 user stories, 51 functional requirements, 22 success criteria, 16 edge cases.
+- No outstanding ambiguities blocking `/speckit.plan`.
