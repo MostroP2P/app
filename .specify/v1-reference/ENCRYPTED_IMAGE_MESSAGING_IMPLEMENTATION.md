@@ -133,7 +133,7 @@ static Uint8List decryptChaCha20Poly1305({
 **Why ChaCha20-Poly1305?**
 - Better performance on mobile ARM processors vs AES-GCM
 - Authenticated encryption prevents tampering
-- Nonce-misuse resistant design
+- Requires strict nonce uniqueness per key (RFC 8439)
 - Industry standard (RFC 8439)
 
 **Key Management**:
@@ -152,7 +152,7 @@ static Uint8List decryptChaCha20Poly1305({
 - **Confidentiality**: File content hidden from servers and network
 - **Integrity**: Tampering detected via authentication tag
 - **Authenticity**: Only holders of shared key can decrypt
-- **Forward Secrecy**: Compromised key doesn't affect past messages
+- **Note on Forward Secrecy**: Long-lived shared session keys do NOT provide forward secrecy. True forward secrecy requires ephemeral per-message keys (e.g., via DH ratcheting)
 
 ## Blossom Server Integration
 

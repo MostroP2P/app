@@ -27,7 +27,9 @@ Parses `nostr+walletconnect://` URIs as defined in NIP-47, extracting:
 - **secret**: 32-byte hex secret used as the client's signing key
 - **lud16**: Optional lightning address
 
-Validates URI scheme, hex format (64-char for pubkey and secret), and relay URL protocol (`wss://` or `ws://`). Supports round-tripping via `toUri()`.
+Validates URI scheme, hex format (64-char for pubkey and secret), and relay URL protocol.
+
+> ⚠️ **Security Note:** Only `wss://` (secure WebSocket) should be used in production. The `ws://` protocol is unencrypted and should only be used for local development/testing. Production builds must reject `ws://` URLs.
 
 ### NwcClient
 

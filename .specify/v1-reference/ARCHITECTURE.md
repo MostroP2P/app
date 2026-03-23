@@ -18,7 +18,7 @@ Mostro Mobile is a sophisticated peer-to-peer Bitcoin trading application built 
 ## Project Structure Overview
 
 ### High-Level Directory Organization
-```
+```text
 lib/
 ├── core/                    # Central configuration and FSM
 │   ├── app.dart            # Main application configuration
@@ -69,7 +69,7 @@ lib/
 
 ### Feature Module Structure
 Each feature follows a consistent internal organization:
-```
+```text
 features/{feature}/
 ├── screens/              # UI screens for the feature
 ├── providers/            # Riverpod providers
@@ -95,7 +95,7 @@ The app follows a precise initialization sequence to ensure proper dependency or
 - **SubscriptionManager**: Sets up event subscriptions with `fireImmediately: false`
 
 **Critical Dependencies:**
-```
+```text
 NostrService → KeyManager → SessionNotifier → SubscriptionManager → Background Services
 ```
 
@@ -165,7 +165,7 @@ Complete account restoration from 12-word mnemonic seed phrases with full state 
 
 
 **Multi-Stage Process:**
-```
+```text
 Mnemonic Import → Data Cleanup → Backend Sync → Session Recreation → State Rebuild
 ```
 

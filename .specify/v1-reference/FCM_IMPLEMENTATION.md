@@ -13,9 +13,21 @@ This implementation follows the **MIP-05 (Marmot Push Notifications)** specifica
 - FCM notifications contain only `content-available` flag
 - App fetches and decrypts actual messages from Nostr relays when awakened
 
-#### 2. Encrypted Token Registration
-**What:** Device tokens are encrypted using ChaCha20-Poly1305 with ECDH key derivation
-**Why:** Prevents the notification server from linking tokens to user identities or correlating across groups
+#### 2. Token Registration
+
+##### Current (v1) — Plaintext Registration
+**Status:** ✅ IMPLEMENTED (Phase 3)
+**What:** Device tokens are registered directly over HTTPS without encryption
+**Why:** Simpler initial implementation; encryption deferred to Phase 5
+**Implementation:**
+- FCM token sent to push server via HTTPS POST
+- Server stores token associated with user's trade pubkey
+- Relies on TLS for transport security only
+
+##### Target (Phase 5) — Encrypted Token Registration
+**Status:** 🔜 FUTURE
+**What:** Device tokens encrypted using ChaCha20-Poly1305 with ECDH key derivation
+**Why:** Prevents the notification server from linking tokens to user identities
 **Implementation:**
 - Generate ephemeral secp256k1 keypair per token
 - Derive encryption key via ECDH + HKDF (salt: "mostro-fcm-v1", info: "mostro-token-encryption")
@@ -170,7 +182,7 @@ The custom server approach ([mostro-push-server](https://github.com/MostroP2P/mo
 
 ## Architecture
 
-```
+```text
 ┌─────────────────┐
 │  MostroP2P App  │
 │   (Flutter)     │

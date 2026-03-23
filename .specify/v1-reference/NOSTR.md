@@ -99,7 +99,7 @@ BIP-32 Seed (512 bits)
         ↓
 Master Extended Private Key
         ↓
-Derivation Path: m/44'/1237'/0'/0/trade_index
+Derivation Path: m/44'/1237'/38383'/0/N (where N=0 is identity key, N≥1 are trade keys)
         ↓
 Trade-Specific Key Pair
 ```
@@ -125,7 +125,7 @@ final seed = mnemonicToSeed(mnemonic);
 final masterKey = ExtendedPrivateKey.master(seed);
 
 // Derive trade-specific key
-final derivationPath = "m/44'/1237'/0'/0/$tradeIndex";
+final derivationPath = "m/44'/1237'/38383'/0/$tradeIndex";  // 38383 = Mostro-specific account
 final tradeKey = masterKey.derivePath(derivationPath);
 
 // Extract key pair for Nostr operations
