@@ -5,6 +5,25 @@
 **Status**: Draft
 **Input**: User description: "Multi-platform client for Mostro P2P Bitcoin/Lightning exchange with privacy-first design, offline capability, and responsive layouts across mobile, web, and desktop."
 
+---
+
+## 🔴 Critical Reference: Mostro Protocol
+
+> **All client-server communication MUST follow the Mostro Protocol specification.**
+>
+> - **Protocol Repository**: https://github.com/MostroP2P/protocol
+> - **Local Reference**: [../../.specify/PROTOCOL.md](../../.specify/PROTOCOL.md)
+>
+> The protocol defines:
+> - Message formats and actions (new-order, take-sell, release, etc.)
+> - Order lifecycle and state machine
+> - NIP-59 Gift Wrap encryption requirements
+> - Event kinds (38383) and tags
+>
+> **Read the protocol before implementing any Mostro interaction.**
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Complete a Buy Trade (Priority: P1)
