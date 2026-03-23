@@ -141,8 +141,8 @@
 - [ ] T057 [P] [US5] Create chat bubble widget in lib/widgets/chat_bubble.dart: sender/receiver styling, timestamp, read status per spec US5
 - [ ] T058 [P] [US5] Create attachment preview widget in lib/widgets/attachment_preview.dart: inline image preview for images, download button for documents/videos per spec US5 scenarios 5-6
 - [ ] T059 [US5] Wire messages provider in lib/providers/messages_provider.dart: listen to Rust stream, manage chat state, handle file uploads per spec US5 scenarios 1-7
-- [ ] T059a [P] [US5] Implement nym identity generation in rust/src/crypto/nym.rs: deterministic pseudonym (adjective-noun), icon name, and color hue from public key per spec FR-052/FR-053
-- [ ] T059b [P] [US5] Create nym avatar widget in lib/widgets/nym_avatar.dart: display generated name, icon, and color for chat participants per spec US5 scenario 8
+- [ ] T059a [P] [US5] Implement nym identity generation in rust/src/crypto/nym.rs: derive pseudonym (adjective-noun String), icon_index (u8, 0–36), and color_hue (u16, 0–359) deterministically from public key per spec FR-052/FR-053
+- [ ] T059b [P] [US5] Create nym avatar widget in lib/widgets/nym_avatar.dart: render pseudonym, icon at icon_index, and avatar background from integer color_hue for chat participants per spec US5 scenario 8
 
 **Checkpoint**: Encrypted text and file messaging works during trades with nym pseudonyms, persists across app restarts
 

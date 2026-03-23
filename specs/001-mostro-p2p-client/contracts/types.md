@@ -223,9 +223,9 @@ created_at: i64
 
 ### NymIdentity
 ```text
-name: String              # Deterministic pseudonym (adjective-noun format)
-icon_name: String         # Material icon identifier
-color_hue: f64            # HSV hue (0-360) for avatar background
+pseudonym: String         # Deterministic pseudonym (adjective-noun format)
+icon_index: u8            # Icon selector (0–36)
+color_hue: u16            # HSV hue (0–359) for avatar background
 ```
 
 > All fields derived deterministically from the public key. The same key

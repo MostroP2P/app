@@ -76,7 +76,7 @@ Pending
 │           │           └─→ (direct admin resolution without InProgress)
 │           └─→ Expired (protocol-enforced inactivity timeout)
 ├─→ Canceled (explicit user action: creator cancels own untaken order)
-└─→ CooperativelyCanceled (client-side UI state only — protocol sends action notifications, does not change order status)
+└─→ CooperativelyCanceled (in mostro-core Status enum; set client-side via action notifications — the daemon does not send a status update for this transition)
 ```
 
 **15 mostro-core statuses**: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent,

@@ -84,5 +84,5 @@
 ## Notes
 
 - All items pass. Spec updated with v1-reference enrichment (ORDER_STATES.md, NYM_IDENTITY.md, SETTINGS_SCREEN.md, ACCOUNT_SCREEN.md, ABOUT_SCREEN.md, DRAWER_MENU.md).
-- Critical corrections: PaymentFailed is an Action notification not a Status; CooperativelyCanceled is client-side UI only; InProgress replaces PaymentFailed in state list.
+- Critical corrections: PaymentFailed is an Action notification not a Status (moved out of the status enum); InProgress is a newly added 15th Status (admin took dispute); CooperativelyCanceled is in the mostro-core enum but set client-side via action notifications (not via a server status update).
 - 13 user stories, 58 functional requirements (up from 51), 22 success criteria, 15 edge cases.
