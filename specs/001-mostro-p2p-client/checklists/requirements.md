@@ -48,13 +48,13 @@
 
 ## Protocol Enrichment Check
 
-- [x] Full 14-state order machine documented — Protocol Reference section, FR-043, Order entity
+- [x] Full 15-state order machine documented — Protocol Reference section, FR-043, Order entity
 - [x] NIP-59 three-layer encryption documented — Protocol Reference section, Message entity
 - [x] Complete protocol action catalog — Protocol Reference section (table)
 - [x] Protocol versioning note — Protocol Reference section
 - [x] Privacy modes (standard vs full) — FR-044 (global toggle in settings), Identity entity
 - [x] Encrypted-at-rest chat storage — FR-045, Message entity, SC-022
-- [x] Rust core + flutter_rust_bridge architecture — Assumptions section
+- [x] Cross-language core/UI architecture constraint documented — Assumptions section (stack details deferred to ADR)
 - [x] Key derivation path (m/44'/1237'/38383'/0/N) — Assumptions section
 
 ## Dark/Light Theme Check
@@ -77,5 +77,5 @@
 ## Notes
 
 - All items pass. 4 clarifications resolved, all integrated into spec.
-- 13 user stories, 51 functional requirements, 22 success criteria, 16 edge cases.
+- 13 user stories, 51 functional requirements, 22 success criteria, 15 edge cases.
 - No outstanding ambiguities blocking `/speckit.plan`.
