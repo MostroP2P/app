@@ -596,6 +596,169 @@ class OrderStatusChip extends StatelessWidget {
 - Show error snackbar if transition is rejected by Mostro daemon
 - Animate state transitions (color fade, text change)
 
+## Appendix A: Action-to-Status Mapping
+
+Mostro communicates with the app via encrypted gift wrap messages (NIP-59). Each message contains an `action` that determines the new status. This mapping is action-driven, not role-specific — role differentiation happens because Mostro sends different actions to buyer and seller.
+
+### Seller Actions (Seller's Perspective)
+
+| Action | Status | When |
+|--------|--------|------|
+| `waitingSellerToPay` | `waitingPayment` | Seller must pay the hold invoice |
+| `payInvoice` | `waitingPayment` | Seller receives the invoice to pay |
+| `takeSell` | `waitingPayment` | Seller takes a buy order |
+| `buyerTookOrder` | `active` | Seller is notified a buyer took their order |
+| `fiatSentOk` | `fiatSent` | Seller is notified fiat was sent |
+| `holdInvoicePaymentSettled` | `success` | Seller's hold invoice settled (trade complete) |
+| `release` | `settledHoldInvoice` → `success` | Seller releases sats |
+
+### Buyer Actions (Buyer's Perspective)
+
+| Action | Status | When |
+|--------|--------|------|
+| `waitingBuyerInvoice` | `waitingBuyerInvoice` | Buyer must provide a Lightning invoice |
+| `addInvoice` | `waitingBuyerInvoice` | Buyer receives request to add invoice (see Status Preservation below) |
+| `takeBuy` | `waitingBuyerInvoice` | Buyer takes a sell order |
+| `holdInvoicePaymentAccepted` | `active` | Buyer is notified the seller paid the hold invoice |
+| `buyerInvoiceAccepted` | `active` | Buyer's invoice was accepted |
+| `fiatSent` | `fiatSent` | Buyer confirms fiat payment sent |
+| `fiatSentOk` | `fiatSent` | Counterpart is notified fiat was sent |
+| `released` | `settledHoldInvoice` | Buyer receives this when seller releases (intermediate state) |
+| `purchaseCompleted` | `success` | Buyer receives confirmation that the LN payment completed |
+
+### Dispute Actions
+
+| Action | Status | When |
+|--------|--------|------|
+| `disputeInitiatedByYou` | `dispute` | User opened a dispute |
+| `disputeInitiatedByPeer` | `dispute` | Counterpart opened a dispute |
+| `dispute` | `dispute` | General dispute action |
+| `adminTakeDispute` / `adminTookDispute` | `dispute` | Admin took the dispute |
+| `adminSettle` / `adminSettled` | `settledByAdmin` | Admin resolved by releasing sats |
+| `adminCancel` / `adminCanceled` | `canceled` | Admin canceled the order |
+
+### Terminal Actions
+
+| Action | Final Status |
+|--------|--------------|
+| `canceled` | `canceled` |
+| `cancel` | `canceled` |
+| `cooperativeCancelAccepted` | `canceled` |
+| `holdInvoicePaymentCanceled` | `canceled` |
+| `rate` / `rateUser` / `rateReceived` | Preserves current status (rating UI only) |
+
+### Status Preservation Edge Cases
+
+**paymentFailed + addInvoice:**
+When `addInvoice` is received while in `paymentFailed` status, the status is **preserved** (stays `paymentFailed`) for UI consistency. The user sees the payment failed context while providing a new invoice. If we changed to `waitingBuyerInvoice`, the user would lose the failure context.
+
+**Restoring Sessions:**
+When restoring sessions after app restart, orders may have a status but no recent action. The app synthesizes the appropriate action based on status and role. See "Restore Flow" below.
+
+---
+
+## Appendix B: Role-Specific Status Display
+
+Mostro sends different actions to buyer and seller for the same event. This creates natural role differentiation without explicit role checks in the status mapping.
+
+### Seller Releases Flow
+
+```
+Seller Action                Buyer Action
+     │                            │
+     │   (seller clicks Release)   │
+     ▼                            ▼
+  success               settledHoldInvoice
+  (immediate)           ("Paying sats")
+                        │
+                        └── Later: purchaseCompleted → success
+```
+
+The seller sees `success` immediately because their part is done. The buyer sees `settledHoldInvoice` ("Paying sats") until the Lightning payment actually completes.
+
+### Why Not Map `released` Directly to `success`?
+
+Earlier versions mapped `Action.released` directly to `success`, but this gave buyers a false sense of completion. If the Lightning payment subsequently failed, the buyer had already seen "Success" which was incorrect. The intermediate `settledHoldInvoice` status accurately reflects: sats are being paid but not yet received.
+
+---
+
+## Appendix C: Restore Flow
+
+When restoring sessions after app restart, the app receives orders with a status but no action history. The restore system synthesizes the appropriate action:
+
+| Status | Buyer Action | Seller Action |
+|--------|--------------|---------------|
+| `pending` | `newOrder` | `newOrder` |
+| `waitingBuyerInvoice` | `addInvoice` | `waitingBuyerInvoice` |
+| `waitingPayment` | `waitingSellerToPay` | `payInvoice` |
+| `active` | `holdInvoicePaymentAccepted` | `buyerTookOrder` |
+| `fiatSent` | `fiatSentOk` | `fiatSentOk` |
+| `settledHoldInvoice` | `released` | `holdInvoicePaymentSettled` |
+| `success` | `purchaseCompleted` | `purchaseCompleted` |
+| `canceled` | `canceled` | `canceled` |
+| `paymentFailed` | `paymentFailed` | `paymentFailed` |
+| `dispute` | `disputeInitiatedByPeer` | `disputeInitiatedByPeer` |
+
+**Critical for `settledHoldInvoice`:** The buyer sees the intermediate "Paying sats" state, while the seller sees `success`. This matches the live flow where buyers must wait for Lightning payment confirmation.
+
+---
+
+## Appendix D: Dispute Auto-Closure
+
+When an order with an active dispute reaches a terminal state through user action (not admin), the dispute is automatically closed:
+
+| Order Reaches | Dispute Status | Dispute Action | Trigger |
+|---------------|----------------|----------------|---------|
+| `success` | `closed` | `user-completed` | Seller receives `holdInvoicePaymentSettled` |
+| `settledHoldInvoice` | `closed` | `user-completed` | Buyer receives `released` |
+| `canceled` | `closed` | `cooperative-cancel` | Both receive `cooperativeCancelAccepted` |
+
+The app infers dispute closure from order terminal state rather than subscribing to dispute resolution events (kind 38386), because:
+- No protocol expansion needed
+- No backend changes required
+- Data already available in OrderState
+- Simple logic: "order finished = dispute finished"
+
+The `dispute.action` field distinguishes closure reason:
+- `user-completed` — trade finished normally
+- `cooperative-cancel` — parties agreed to cancel
+- `admin-settled` / `admin-canceled` — admin resolved
+
+---
+
+## Appendix E: UI Labels Reference
+
+### My Trades List (Compact Chips)
+
+| Status | Short Label | Color |
+|--------|-------------|-------|
+| `active` | "Active" | Green |
+| `pending` | "Pending" | Yellow |
+| `waitingPayment` | "Waiting payment" | Orange |
+| `waitingBuyerInvoice` | "Waiting invoice" | Orange |
+| `paymentFailed` | "Payment Failed" | Gray |
+| `fiatSent` | "Fiat-sent" | Green |
+| `settledHoldInvoice` | "Paying sats" | Yellow |
+| `success` | "Success" | Green |
+| `canceled` | "Cancel" | Gray |
+| `cooperativelyCanceled` | "Canceling" | Orange |
+| `dispute` | "Dispute" | Red |
+| `settledByAdmin` | "Settled" | Purple |
+
+### Order Details (Descriptive Labels)
+
+| Status | Descriptive Label |
+|--------|-------------------|
+| `active` | "Active order" |
+| `fiatSent` | "Fiat sent" |
+| `settledHoldInvoice` | "Paying sats" |
+| `paymentFailed` | "Payment failed" |
+| `cooperativelyCanceled` | "Cooperative cancellation" |
+| `canceledByAdmin` | "Order canceled by an administrator" |
+| `settledByAdmin` | "Sats released by an administrator" |
+
+---
+
 ## Testing Scenarios
 
 ### Unit Tests (Rust)
