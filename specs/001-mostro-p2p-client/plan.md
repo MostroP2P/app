@@ -25,7 +25,7 @@ Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Li
 
 | Principle | Status | Evidence |
 |-----------|--------|----------|
-| I. Rust Core, Flutter Shell | **PASS** | All Nostr logic, crypto, protocol, and network calls in Rust via nostr-sdk. Flutter handles only UI. flutter_rust_bridge is the sole bridge. Zero crypto in Dart. |
+| I. Rust Core, Flutter Shell | **PASS** | All Nostr logic, crypto, protocol, and network calls in Rust via nostr-sdk. Flutter handles only UI. flutter_rust_bridge is the sole bridge. Zero crypto in Dart. See [ARCHITECTURE.md](../../.specify/ARCHITECTURE.md) for boundary rules, forbidden patterns, and platform feature matrix. |
 | II. Privacy by Design | **PASS** | NIP-59 Gift Wrap for all Mostro communication. No analytics/telemetry. Keys encrypted at rest via platform secure storage. Ephemeral trade data cleared post-completion. No phone-home to non-relay servers (push server sends zero content). |
 | III. Protocol Compliance | **PASS** | Uses mostro-core crate for type-safe protocol messages. Kind 38383 for public orders, Kind 1059 for private communication. Works with any conforming Mostro daemon. |
 | IV. Offline-First Architecture | **PASS** | SQLite/IndexedDB as source of truth. MessageQueue entity for offline outbox. Sync on reconnection. Trade state persisted locally across force-close. |

@@ -431,7 +431,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - A built-in Lightning wallet is out of scope — users pay invoices via external wallet or connected NWC wallet.
 - Default relay connections are preconfigured so users can start trading immediately after onboarding.
 - Push notification availability varies by platform; the app gracefully falls back to in-app notifications where push is unavailable.
-- All protocol logic — NIP-59 encryption/decryption, key derivation, order state machine enforcement, message serialization/deserialization — MUST run in a shared core layer, not in the UI layer. The UI layer handles only rendering and platform-specific concerns (camera, notifications, biometrics, file system). Implementation details (language/runtime, bridging mechanism) are documented in the ADR.
+- All protocol logic — NIP-59 encryption/decryption, key derivation, order state machine enforcement, message serialization/deserialization — MUST run in a shared core layer, not in the UI layer. The UI layer handles only rendering and platform-specific concerns (camera, notifications, biometrics, file system). Implementation details (language/runtime, bridging mechanism) are documented in [ARCHITECTURE.md](../../.specify/ARCHITECTURE.md).
 - The NIP-59 three-layer encryption model (Rumor inside Seal inside Gift Wrap) is a Mostro protocol requirement. All client-daemon and peer-to-peer communication must use this model.
 - The key derivation path m/44'/1237'/38383'/0/N (N=0 identity key, N≥1 trade keys) is fixed by the Mostro protocol for cross-client compatibility.
 
