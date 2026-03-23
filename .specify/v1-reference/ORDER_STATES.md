@@ -111,7 +111,7 @@ Sats are locked in escrow (hold invoice paid). The buyer must now send fiat to t
 
 **Available Actions:**
 - Buyer can mark fiat as sent
-- Either party can cancel
+- Either party can request a cooperative cancel (see section 9)
 - Either party can initiate dispute
 
 **Transitions:**
@@ -119,8 +119,11 @@ Sats are locked in escrow (hold invoice paid). The buyer must now send fiat to t
 | Action | By | Next State |
 |--------|----|------------|
 | `fiat-sent` | Buyer | `fiat-sent` |
-| `cancel` | Either | `canceled` |
+| `cancel` | Either | `active` (cooperative cancel requested — see section 9) |
+| `cancel` | Both parties | `canceled` |
 | `dispute` | Either | `dispute` |
+
+> **Cooperative cancel:** In `active` status, cancel is not unilateral. When one party sends `cancel`, the order remains `active`. Only when the counterparty also sends `cancel`, the order transitions to `canceled`.
 
 ---
 
@@ -135,6 +138,7 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 
 **Available Actions:**
 - Seller can release sats
+- Either party can request a cooperative cancel (see section 9)
 - Either party can initiate dispute if something is wrong
 
 **Transitions:**
@@ -142,7 +146,11 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 | Action | By | Next State |
 |--------|----|------------|
 | `release` | Seller | `settled-hold-invoice` |
+| `cancel` | Either | `fiat-sent` (cooperative cancel requested — see section 9) |
+| `cancel` | Both parties | `canceled` |
 | `dispute` | Either | `dispute` |
+
+> **Cooperative cancel:** In `fiat-sent` status, cancel is not unilateral. When one party sends `cancel`, the order remains `fiat-sent`. Only when the counterparty also sends `cancel`, the order transitions to `canceled`.
 
 ---
 
