@@ -61,10 +61,10 @@ Encrypt and upload a file attachment, then send as a chat message.
 - Trade MUST be active.
 
 **Flow**:
-1. Encrypt file with ChaCha20-Poly1305 (random nonce, key from shared
-   trade key).
+1. Encrypt file with ChaCha20-Poly1305 (random nonce, key derived from
+   sharedKey for P2P messages or tradeKey for admin/dispute messages).
 2. Upload encrypted blob to Blossom server.
-3. Send Blossom URL + encryption metadata as NIP-59 message.
+3. Send Blossom URL + encryption metadata as NIP-59 Gift Wrapped message.
 
 **Returns**: ChatMessage with `has_attachment: true` and attachment metadata.
 
@@ -77,7 +77,7 @@ Encrypt and upload a file attachment, then send as a chat message.
 Download and decrypt a file attachment.
 
 **Returns**:
-```
+```text
 FileDownloadResult {
   local_path: String    # Path to decrypted file on device
   file_name: String
@@ -93,7 +93,7 @@ FileDownloadResult {
 ### get_attachment_status(message_id: String) → AttachmentStatus?
 Get download status of an attachment.
 
-## Streams
+## Attachment Streams
 
 ### on_attachment_progress(message_id: String) → Stream<f64>
 Emits download/upload progress (0.0 to 1.0).

@@ -384,7 +384,7 @@ T048: NWC integration (after T046)
 
 - [P] tasks = different files, no dependencies
 - [Story] label maps to user story for traceability
-- No test tasks generated (not requested in spec)
+- Test tasks T098–T103 defined for validation and quality gates
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Constitution compliance verified at each phase boundary

@@ -2,60 +2,48 @@
 
 **Branch**: `001-mostro-p2p-client` | **Date**: 2026-03-22 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `/specs/001-mostro-p2p-client/spec.md`
-**V1 Reference**: `.specify/CURRENT_FEATURES.md`
 
 ## Summary
 
-Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) client
-for the Mostro P2P Bitcoin/Lightning exchange. All Nostr protocol logic,
-cryptography, and data persistence live in Rust (via nostr-sdk and
-mostro-core). Flutter provides the UI shell with responsive layouts. NIP-59
-Gift Wrap ensures all Mostro communication is private. The app is
-offline-first with local SQLite storage (IndexedDB on web) and message
-queuing.
-
-Key v1 features preserved: NWC wallet integration for automatic invoice
-payment, encrypted file messaging via Blossom servers, session recovery
-from mnemonic, reputation system with privacy mode, deep links
-(`mostro://order/<id>`), cooperative cancel flow, BIP-32 key derivation
-with trade-specific keys, relay auto-sync from Mostro kind 10002 events,
-background push notifications via FCM, and separate P2P/admin chat
-encryption channels.
+Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Lightning exchange client for the Mostro protocol. Rust core handles all cryptography, Nostr protocol, and business logic via `nostr-sdk` and `mostro-core`. Flutter renders UI with responsive layouts across screen sizes. Communication uses NIP-59 Gift Wrap encryption. Local-first architecture with SQLite (native) / IndexedDB (web) storage, offline message queuing, and session recovery from mnemonic.
 
 ## Technical Context
 
-**Language/Version**: Rust (stable, 1.75+) for core; Dart 3.x / Flutter 3.x for UI
-**Primary Dependencies**: nostr-sdk 0.44+, mostro-core, flutter_rust_bridge 2.x, Riverpod, go_router
-**Storage**: SQLite via sqlx (native), IndexedDB (web)
-**Testing**: `cargo test` + `cargo clippy` (Rust), `flutter test` + `flutter analyze` (Dart)
-**Target Platform**: iOS, Android, Web (PWA), macOS, Windows, Linux
+**Language/Version**: Rust stable 1.75+ (core logic); Dart 3.x / Flutter 3.x (UI)
+**Primary Dependencies**: nostr-sdk 0.44+, mostro-core, flutter_rust_bridge 2.x, Riverpod (state management), go_router (navigation), sqlx (SQLite), indexed_db_futures (web), bip32/bip39 (key derivation), chacha20poly1305 (file encryption)
+**Storage**: SQLite via sqlx (native platforms), IndexedDB (web)
+**Testing**: `cargo test` + `cargo clippy -- -D warnings` (Rust); `flutter test` + `flutter analyze` (Dart)
+**Target Platform**: iOS, Android, Web (WASM), macOS, Windows, Linux
 **Project Type**: Multi-platform mobile/desktop/web app
-**Performance Goals**: <2s app launch, <1s order list load, <500ms message delivery
-**Constraints**: Offline-capable, zero crypto in Dart, NIP-59 for all Mostro comms, one active trade at a time
-**Scale/Scope**: 9 screens, 8 Rust API modules, ~42 functional requirements
+**Performance Goals**: App launch + order list < 2s; message delivery < 1s; 60 fps UI; queued messages sent < 5s after reconnection
+**Constraints**: Offline-capable, zero plaintext key storage, no analytics/telemetry, no network calls from Dart, all crypto in Rust only
+**Scale/Scope**: ~15 screens, one active trade at a time, single user identity per installation
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-| # | Principle | Gate | Status |
-|---|-----------|------|--------|
-| I | Rust Core, Flutter Shell | All Nostr, crypto, protocol, NWC, file encryption, and network logic in Rust. Flutter renders UI only. flutter_rust_bridge as sole bridge. | PASS |
-| II | Privacy by Design | NIP-59 Gift Wrap for all Mostro comms. ChaCha20-Poly1305 for file attachments. No analytics/telemetry. Keys encrypted at rest. Privacy mode available. Ephemeral data cleared post-trade. No phone-home. Push server transmits no message content. | PASS |
-| III | Protocol Compliance | Uses mostro-core types directly. Supports all v1 protocol actions (restore, cooperativeCancel, rate, addInvoice, etc.). Compatible with any Mostro daemon. BIP-32 key derivation at `m/44'/1237'/38383'/0/N`. | PASS |
-| IV | Offline-First | SQLite (native) / IndexedDB (web) as source of truth. Relay sync when connected. Message queue when offline. File uploads retry. No data loss. | PASS |
-| V | Multi-Platform Day One | All 6 targets from start. Responsive layouts (mobile/tablet/desktop). Platform features degrade gracefully. NWC works on all platforms. Deep links on mobile. | PASS |
-| VI | Simplicity Over Features | One screen, one purpose. Trade stepper always visible with countdown timers. Sensible defaults. Fast startup. One active trade (v2.0 scope). NWC auto-pay reduces manual steps. | PASS |
+| Principle | Status | Evidence |
+|-----------|--------|----------|
+| I. Rust Core, Flutter Shell | **PASS** | All Nostr logic, crypto, protocol, and network calls in Rust via nostr-sdk. Flutter handles only UI. flutter_rust_bridge is the sole bridge. Zero crypto in Dart. |
+| II. Privacy by Design | **PASS** | NIP-59 Gift Wrap for all Mostro communication. No analytics/telemetry. Keys encrypted at rest via platform secure storage. Ephemeral trade data cleared post-completion. No phone-home to non-relay servers (push server sends zero content). |
+| III. Protocol Compliance | **PASS** | Uses mostro-core crate for type-safe protocol messages. Kind 38383 for public orders, Kind 1059 for private communication. Works with any conforming Mostro daemon. |
+| IV. Offline-First Architecture | **PASS** | SQLite/IndexedDB as source of truth. MessageQueue entity for offline outbox. Sync on reconnection. Trade state persisted locally across force-close. |
+| V. Multi-Platform from Day One | **PASS** | Flutter targets all 6 platforms. Rust compiles to native + WASM. Responsive layouts at 3 breakpoints. Platform features degrade with fallbacks (QR → paste, push → in-app). |
+| VI. Simplicity Over Features | **PASS** | One screen per purpose. Progressive disclosure. Trade progress indicator always visible. Sensible defaults (preconfigured relays, skip-able security setup). One active trade at a time. |
 
-**Quality gates**:
-- `cargo clippy -- -D warnings` zero warnings
-- `cargo test` all green
-- `flutter analyze` zero issues
-- `flutter test` all green
-- All public Rust API documented
-- UI tested at mobile, tablet, desktop breakpoints
+**Gate result**: All principles satisfied. No violations to track.
 
-**All gates pass. Proceeding.**
+### Post-Phase 1 Re-check
+
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| I. Rust Core, Flutter Shell | **PASS** | All contracts define Rust-side APIs exposed via flutter_rust_bridge. No Dart crypto or network calls in any contract. |
+| II. Privacy by Design | **PASS** | File attachments use ChaCha20-Poly1305 in Rust. Push notifications carry zero content. NWC credentials encrypted at rest. |
+| III. Protocol Compliance | **PASS** | Order state machine matches Mostro protocol exactly. All actions (TakeSell, FiatSent, Release, Dispute, etc.) mapped in contracts. |
+| IV. Offline-First Architecture | **PASS** | MessageQueue contract handles offline outbox. Orders cached locally with `cached_at` timestamp. |
+| V. Multi-Platform from Day One | **PASS** | Storage trait with SQLite/IndexedDB backends. Async runtime feature-gated for WASM vs native. |
+| VI. Simplicity Over Features | **PASS** | Contracts expose focused APIs per domain. No multipurpose interfaces. |
 
 ## Project Structure
 
@@ -64,124 +52,112 @@ encryption channels.
 ```text
 specs/001-mostro-p2p-client/
 ├── plan.md              # This file
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
-├── contracts/           # Phase 1 output
-│   ├── identity.md
-│   ├── orders.md
-│   ├── messages.md
-│   ├── disputes.md
-│   ├── nostr.md
-│   ├── nwc.md
-│   ├── reputation.md
-│   └── types.md
-└── tasks.md             # Phase 2 output (/speckit.tasks)
+├── research.md          # Phase 0: technology research and decisions
+├── data-model.md        # Phase 1: entity definitions and relationships
+├── quickstart.md        # Phase 1: setup and development guide
+├── contracts/           # Phase 1: Rust-to-Flutter API contracts
+│   ├── identity.md      # Identity creation, import, key derivation
+│   ├── orders.md        # Order CRUD, trade lifecycle, deep links
+│   ├── messages.md      # P2P messaging, file attachments
+│   ├── nostr.md         # Relay management, connection state
+│   ├── nwc.md           # Nostr Wallet Connect integration
+│   ├── disputes.md      # Dispute lifecycle
+│   ├── reputation.md    # Rating system, privacy mode
+│   └── types.md         # Shared enums and structs
+└── tasks.md             # Phase 2 output (via /speckit.tasks)
 ```
 
 ### Source Code (repository root)
 
 ```text
-lib/                          # Flutter UI
-├── main.dart
-└── src/
-    ├── rust/                 # Generated flutter_rust_bridge bindings
-    ├── screens/              # UI screens (9 screens)
-    │   ├── splash_screen.dart
-    │   ├── onboarding_screen.dart
-    │   ├── home_screen.dart
-    │   ├── order_detail_screen.dart
-    │   ├── create_order_screen.dart
-    │   ├── active_trade_screen.dart
-    │   ├── dispute_screen.dart
-    │   ├── settings_screen.dart
-    │   └── history_screen.dart
-    ├── widgets/              # Reusable widgets
-    │   ├── trade_stepper.dart
-    │   ├── order_card.dart
-    │   ├── chat_panel.dart
-    │   ├── file_attachment.dart
-    │   ├── qr_scanner.dart
-    │   ├── rating_dialog.dart
-    │   ├── countdown_timer.dart
-    │   └── responsive_scaffold.dart
-    ├── providers/            # Riverpod state management
-    │   ├── identity_provider.dart
-    │   ├── orders_provider.dart
-    │   ├── active_trade_provider.dart
-    │   ├── messages_provider.dart
-    │   ├── connection_provider.dart
-    │   ├── nwc_provider.dart
-    │   ├── reputation_provider.dart
-    │   └── layout_provider.dart
-    ├── layouts/              # Responsive layout system
-    │   ├── mobile_layout.dart
-    │   ├── tablet_layout.dart
-    │   └── desktop_layout.dart
-    ├── routing/              # Deep links + navigation
-    │   └── app_router.dart
-    └── l10n/                 # Translations
+lib/                          # Flutter UI layer
+├── app.dart                  # App entry, MaterialApp, go_router setup
+├── providers/                # Riverpod providers (state management)
+│   ├── identity_provider.dart
+│   ├── orders_provider.dart
+│   ├── trade_provider.dart
+│   ├── messages_provider.dart
+│   ├── relay_provider.dart
+│   ├── wallet_provider.dart
+│   └── settings_provider.dart
+├── screens/                  # One screen per purpose
+│   ├── onboarding/           # Welcome, create/import identity, PIN setup
+│   ├── home/                 # Order list with filters
+│   ├── order_detail/         # Single order view + take action
+│   ├── create_order/         # New buy/sell order form
+│   ├── trade/                # Active trade with progress indicator + chat
+│   ├── dispute/              # Dispute view with evidence submission
+│   ├── history/              # Past trades list + detail
+│   ├── settings/             # Relay, identity, wallet, preferences
+│   └── shared/               # Deep link landing
+├── widgets/                  # Reusable UI components
+│   ├── trade_progress.dart   # Visual step indicator
+│   ├── order_card.dart       # Order list item
+│   ├── chat_bubble.dart      # Message display
+│   ├── qr_scanner.dart       # QR with platform fallback
+│   └── responsive_layout.dart # Breakpoint-aware scaffold
+├── theme/                    # Dark/light theme definitions
+├── l10n/                     # Internationalization strings
+└── router.dart               # go_router route definitions
 
-rust/                         # Rust core
+rust/                         # Rust core logic
 ├── Cargo.toml
-└── src/
-    ├── lib.rs
-    ├── api/                  # Flutter-exposed API (contracts)
-    │   ├── mod.rs
-    │   ├── identity.rs       # Key management + BIP-32 derivation
-    │   ├── orders.rs         # Order lifecycle
-    │   ├── messages.rs       # P2P chat + file attachments
-    │   ├── disputes.rs       # Dispute handling
-    │   ├── nostr.rs          # Relay management + auto-sync
-    │   ├── nwc.rs            # Nostr Wallet Connect
-    │   ├── reputation.rs     # Ratings + privacy mode
-    │   └── types.rs          # Shared types
-    ├── core/                 # Internal business logic
-    │   ├── mod.rs
-    │   ├── trade_state.rs    # Order state machine + timers
-    │   ├── gift_wrap.rs      # NIP-59 wrapping
-    │   ├── key_derivation.rs # BIP-32 m/44'/1237'/38383'/0/N
-    │   ├── file_crypto.rs    # ChaCha20-Poly1305 file encryption
-    │   ├── message_queue.rs  # Offline message queue
-    │   ├── blossom.rs        # Blossom server file upload/download
-    │   ├── nwc_client.rs     # NWC protocol implementation
-    │   ├── deep_links.rs     # URI scheme parsing
-    │   └── protocol.rs       # Mostro protocol handling
-    ├── db/                   # Storage layer
-    │   ├── mod.rs
-    │   ├── storage.rs        # Storage trait
-    │   ├── sqlite.rs         # Native SQLite impl
-    │   ├── indexeddb.rs      # Web IndexedDB impl
-    │   └── migrations/       # Schema migrations
-    └── platform/             # Platform-specific code
-        ├── mod.rs
-        ├── native.rs         # tokio runtime, native secure storage
-        ├── web.rs            # wasm-bindgen-futures, web storage
-        └── notifications.rs  # FCM + foreground service bridge
+├── src/
+│   ├── api/                  # flutter_rust_bridge exposed functions
+│   │   ├── identity.rs       # Identity management API
+│   │   ├── orders.rs         # Order + trade lifecycle API
+│   │   ├── messages.rs       # Messaging API
+│   │   ├── nostr.rs          # Relay management API
+│   │   ├── nwc.rs            # NWC wallet API
+│   │   ├── disputes.rs       # Dispute API
+│   │   └── reputation.rs     # Rating API
+│   ├── protocol/             # Mostro protocol handling
+│   │   ├── actions.rs        # Protocol action builders
+│   │   ├── gift_wrap.rs      # NIP-59 encryption/decryption
+│   │   └── state_machine.rs  # Order state transitions
+│   ├── storage/              # Persistence layer
+│   │   ├── mod.rs            # Storage trait definition
+│   │   ├── sqlite.rs         # SQLite implementation (native)
+│   │   ├── indexeddb.rs      # IndexedDB implementation (web)
+│   │   └── migrations/       # Schema migrations
+│   ├── crypto/               # Cryptographic operations
+│   │   ├── keys.rs           # BIP-32/39 key derivation
+│   │   ├── secure_store.rs   # Platform secure storage bridge
+│   │   └── file_encrypt.rs   # ChaCha20-Poly1305 for attachments
+│   ├── network/              # Network layer
+│   │   ├── relay_pool.rs     # Relay connection management
+│   │   ├── message_queue.rs  # Offline outbox
+│   │   └── blossom.rs        # Blossom file upload/download
+│   └── lib.rs                # Crate root
+└── tests/                    # Rust tests
+    ├── protocol_tests.rs
+    ├── storage_tests.rs
+    └── crypto_tests.rs
 
-rust_builder/                 # Cargokit build integration
-flutter_rust_bridge.yaml      # Bridge configuration
+rust_builder/                 # Cargokit build integration (flutter_rust_bridge)
 
-test/                         # Flutter tests
-├── widget/
-├── integration/
-└── providers/
+test/                         # Flutter widget and integration tests
 
-rust/tests/                   # Rust tests
-├── unit/
-└── integration/
+ios/                          # iOS platform project
+android/                      # Android platform project
+macos/                        # macOS platform project
+windows/                      # Windows platform project
+linux/                        # Linux platform project
+web/                          # Web platform project
 ```
 
-**Structure Decision**: Hybrid Flutter + Rust project. Flutter at repo root
-(`lib/`), Rust core in `rust/` subdirectory. Standard flutter_rust_bridge
-v2 layout. Expanded from initial plan with NWC, Blossom, reputation, deep
-links, and notification modules.
+**Structure Decision**: Flutter + Rust hybrid. Flutter project at repo root (`lib/`) with Rust crate at `rust/`. This follows flutter_rust_bridge v2 conventions. The `rust_builder/` directory contains Cargokit integration for native builds. Platform directories (`ios/`, `android/`, etc.) are standard Flutter platform projects. All 6 platforms share the same `lib/` and `rust/` source code.
 
 ## Complexity Tracking
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| Dual storage backend (SQLite + IndexedDB) | Web platform cannot use SQLite natively | Single backend impossible across all 6 targets |
-| Feature-gated async runtime (tokio + wasm-bindgen-futures) | tokio unavailable on WASM | Single runtime doesn't exist for native + web |
-| Dual chat encryption (sharedKey P2P + tradeKey admin) | Mostro protocol requires different keys for peer vs admin chat | Single key approach would break protocol compliance |
-| External push server dependency | Background notifications when app killed (FCM) | No alternative for reliable mobile push; server transmits no content (privacy OK) |
+> No constitution violations detected. No complexity justifications needed.
+
+## Generated Artifacts
+
+| Artifact | Path | Status |
+|----------|------|--------|
+| Research | `specs/001-mostro-p2p-client/research.md` | Complete (12 decisions) |
+| Data Model | `specs/001-mostro-p2p-client/data-model.md` | Complete (11 entities) |
+| Contracts | `specs/001-mostro-p2p-client/contracts/` | Complete (8 contracts) |
+| Quickstart | `specs/001-mostro-p2p-client/quickstart.md` | Complete |
+| Tasks | `specs/001-mostro-p2p-client/tasks.md` | Exists (generated separately via /speckit.tasks) |

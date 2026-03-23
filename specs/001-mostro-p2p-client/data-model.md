@@ -248,7 +248,8 @@ An encrypted file sent or received in trade chat.
 | file_size | u64 | Size in bytes (max 25MB) |
 | blossom_url | String | URL on Blossom server |
 | encryption_nonce | Bytes | 12-byte nonce for ChaCha20-Poly1305 |
-| encryption_key | Bytes | Symmetric key (derived from shared trade key) |
+| encryption_key_encrypted | Bytes | Symmetric key encrypted at rest (wrapped by the device master key; plaintext key is ephemeral and held only in memory during encrypt/decrypt) |
+| key_wrapping_id | String | Identifier of the wrapping key used to encrypt `encryption_key_encrypted` |
 | download_status | Enum | `Pending`, `Downloading`, `Downloaded`, `Failed` |
 | local_path | String? | Path to decrypted file on device (null if not downloaded) |
 | created_at | Timestamp | When attachment was created |

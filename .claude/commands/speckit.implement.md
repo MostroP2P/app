@@ -31,15 +31,15 @@ You **MUST** consider the user input before proceeding (if not empty).
 
     Prompt: {prompt}
     To execute: `/{command}`
-    ```
+    ```text
   - **Mandatory hook** (`optional: false`):
-    ```
+    ```text
     ## Extension Hooks
 
     **Automatic Pre-Hook**: {extension}
     Executing: `/{command}`
     EXECUTE_COMMAND: {command}
-    
+
     Wait for the result of the hook command before proceeding to the Outline.
     ```
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
@@ -132,7 +132,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Kubernetes/k8s**: `*.secret.yaml`, `secrets/`, `.kube/`, `kubeconfig*`, `*.key`, `*.crt`
 
 5. Parse tasks.md structure and extract:
-   - **Task phases**: Setup, Tests, Core, Integration, Polish
+   - **Task phases**: Detect dynamically by scanning tasks.md for markdown heading patterns (`/^#{1,6}\s*(.+)/`). Each matched heading text becomes a phase name, preserving document order. If no headings are found, fall back to a single implicit phase containing all tasks.
    - **Task dependencies**: Sequential vs parallel execution rules
    - **Task details**: ID, description, file paths, parallel markers [P]
    - **Execution flow**: Order and dependency requirements
@@ -177,7 +177,7 @@ Note: This command assumes a complete task breakdown exists in tasks.md. If task
       - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
     - For each executable hook, output the following based on its `optional` flag:
       - **Optional hook** (`optional: true`):
-        ```
+        ```text
         ## Extension Hooks
 
         **Optional Hook**: {extension}
@@ -188,7 +188,7 @@ Note: This command assumes a complete task breakdown exists in tasks.md. If task
         To execute: `/{command}`
         ```
       - **Mandatory hook** (`optional: false`):
-        ```
+        ```text
         ## Extension Hooks
 
         **Automatic Hook**: {extension}

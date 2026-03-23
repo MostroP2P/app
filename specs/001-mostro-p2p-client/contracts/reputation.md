@@ -46,7 +46,7 @@ Emits when a counterparty submits a rating for the current user.
 ## Types
 
 ### RatingInfo
-```
+```text
 trade_id: String
 score: u8
 is_mine: bool       # Did I submit this rating?
@@ -54,7 +54,7 @@ created_at: i64
 ```
 
 ### RatingReceivedEvent
-```
+```text
 trade_id: String
 score: u8
 from_pubkey: String

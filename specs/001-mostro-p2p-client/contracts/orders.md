@@ -12,7 +12,7 @@ Fetch available orders. Returns cached orders if offline, live orders
 if connected. Merges local cache with relay data.
 
 **Parameters**:
-```
+```text
 OrderFilters {
   kind: OrderKind?          # Buy or Sell
   fiat_code: String?        # ISO 4217 filter
@@ -34,7 +34,7 @@ from relay.
 Publish a new order to the Mostro network.
 
 **Parameters**:
-```
+```text
 NewOrderParams {
   kind: OrderKind             # Buy or Sell
   fiat_amount: f64            # Amount in fiat
@@ -144,7 +144,7 @@ Get completed trades ordered by completion time (newest first).
 Generate a shareable deep link and QR data for an order.
 
 **Returns**:
-```
+```text
 OrderShareInfo {
   deep_link: String     # mostro://order/<id>
   qr_data: String       # Data to encode in QR code
@@ -178,10 +178,10 @@ Payload is the trade ID.
 ### on_trade_timeout_tick() → Stream<TradeTimeoutInfo>
 Emits countdown updates for time-limited trade states.
 
-```
+```text
 TradeTimeoutInfo {
   trade_id: String
   seconds_remaining: u32
-  state: OrderStatus
+  state: TradeStep
 }
 ```

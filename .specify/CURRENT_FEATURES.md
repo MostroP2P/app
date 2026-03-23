@@ -30,7 +30,7 @@ This document captures features from the existing v1 implementation that must be
 ### Implementation
 - ChaCha20-Poly1305 AEAD encryption
 - Blossom servers for decentralized storage
-- Blob structure: [nonce:12][encrypted_data][auth_tag:16]
+- Blob structure: `[nonce:12][encrypted_data][auth_tag:16]`
 - Download-on-demand for non-images
 
 ### Blossom Servers

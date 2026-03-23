@@ -113,7 +113,7 @@ Given that feature description, do this:
 
 5. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
 
-6. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
+6. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria. This step creates `FEATURE_DIR/checklists/requirements.md` as part of the `/speckit.specify` command — it is not deferred to a separate command.
 
    a. **Create Spec Quality Checklist**: Generate a checklist file at `FEATURE_DIR/checklists/requirements.md` using the checklist template structure with these validation items:
 
@@ -243,7 +243,7 @@ Given that feature description, do this:
 - Focus on **WHAT** users need and **WHY**.
 - Avoid HOW to implement (no tech stack, APIs, code structure).
 - Written for business stakeholders, not developers.
-- DO NOT create any checklists that are embedded in the spec. That will be a separate command.
+- DO NOT embed checklist items inline in the spec. The `requirements.md` checklist is generated as a separate file in `FEATURE_DIR/checklists/` during Step 6. Domain-specific checklists (UX, security, etc.) can be created later via `/speckit.checklist`.
 
 ### Section Requirements
 

@@ -19,10 +19,10 @@ A buyer opens the app, browses available sell orders, takes one, pays the Lightn
 
 1. **Given** a buyer on the home screen, **When** they filter orders by "Buy" and select a sell order, **Then** they see order details (amount, price, payment method, seller reputation) and a "Take Order" button.
 2. **Given** a buyer has taken a sell order, **When** the hold invoice is presented, **Then** they can pay via a connected NWC wallet (automatic) or their external Lightning wallet (QR code or copy-paste).
-6. **Given** a buyer with a connected NWC wallet, **When** a hold invoice is presented, **Then** the app pays it automatically and advances the trade without manual copy-paste.
-3. **Given** a buyer has paid the hold invoice and sent fiat, **When** they tap "Fiat Sent", **Then** the trade progress indicator advances to "Awaiting Release" and the seller is notified.
-4. **Given** the seller confirms fiat receipt, **When** funds are released, **Then** the buyer sees the trade marked as "Complete" and the trade appears in their history.
-5. **Given** any step of the trade, **When** the buyer views the active trade screen, **Then** a progress indicator clearly shows the current step, completed steps, and remaining steps.
+3. **Given** a buyer with a connected NWC wallet, **When** a hold invoice is presented, **Then** the app pays it automatically and advances the trade without manual copy-paste.
+4. **Given** a buyer has paid the hold invoice and sent fiat, **When** they tap "Fiat Sent", **Then** the trade progress indicator advances to "Awaiting Release" and the seller is notified.
+5. **Given** the seller confirms fiat receipt, **When** funds are released, **Then** the buyer sees the trade marked as "Complete" and the trade appears in their history.
+6. **Given** any step of the trade, **When** the buyer views the active trade screen, **Then** a progress indicator clearly shows the current step, completed steps, and remaining steps.
 
 ---
 
@@ -282,7 +282,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-024**: The system MUST persist all trade state, messages, and orders locally so that data is never lost due to connectivity issues.
 - **FR-025**: The system MUST queue outgoing messages when offline and deliver them when connectivity resumes.
 - **FR-026**: The system MUST work with any conforming Mostro daemon, not a specific instance.
-- **FR-027**: Users MUST be able to connect a Nostr Wallet Connect (NWC) compatible wallet by pasting a NWC URI.
+- **FR-027**: Users MUST be able to connect a Nostr Wallet Connect (NWC-compatible) wallet by pasting a NWC URI.
 - **FR-028**: When a NWC wallet is connected, the system MUST pay hold invoices automatically during trades.
 - **FR-029**: Users MUST be able to send encrypted file attachments (images, documents, videos up to 25MB) during trade chat, stored on decentralized Blossom servers.
 - **FR-030**: Image attachments MUST show inline previews; non-image files MUST show a download button.

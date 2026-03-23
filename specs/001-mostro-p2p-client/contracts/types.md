@@ -8,98 +8,98 @@ data structures that cross the Rust/Dart boundary.
 ## Enums
 
 ### OrderKind
-```
+```text
 Buy | Sell
 ```
 
 ### OrderStatus
-```
+```text
 Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
 | SettledHoldInvoice | Success | Canceled | Expired
 | CooperativelyCanceled | CanceledByAdmin | SettledByAdmin | Dispute
 ```
 
 ### TradeRole
-```
+```text
 Buyer | Seller
 ```
 
 ### BuyerStep
-```
+```text
 OrderTaken | PayInvoice | PaymentLocked | FiatSent
 | AwaitingRelease | Complete
 ```
 
 ### SellerStep
-```
+```text
 OrderPublished | TakerFound | InvoiceCreated | PaymentLocked
 | AwaitingFiat | Complete
 ```
 
 ### TradeStep
-```
+```text
 Buyer(BuyerStep) | Seller(SellerStep) | Disputed
 ```
 
 ### TradeOutcome
-```
+```text
 Success | Canceled | Expired | DisputeWon | DisputeLost
 ```
 
 ### MessageType
-```
+```text
 Peer | Admin | System
 ```
 
 ### DisputeStatus
-```
+```text
 Open | InReview | Resolved
 ```
 
 ### DisputeResolution
-```
+```text
 FundsToMe | FundsToCounterparty | CooperativeCancel
 ```
 
 ### RelayStatus
-```
+```text
 Connected | Disconnected | Connecting | Error
 ```
 
 ### ConnectionState
-```
+```text
 Online | Offline | Reconnecting
 ```
 
 ### QueuedMessageStatus
-```
+```text
 Pending | Sent | Failed
 ```
 
 ### CooperativeCancelState
-```
+```text
 RequestedByMe | RequestedByPeer | Accepted
 ```
 
 ### FileType
-```
+```text
 Image | Document | Video
 ```
 
 ### DownloadStatus
-```
+```text
 Pending | Downloading | Downloaded | Failed
 ```
 
 ### WalletStatus
-```
+```text
 Connected | Disconnected | Connecting | Error
 ```
 
 ## Structs (Dart-visible)
 
 ### OrderInfo
-```
+```text
 id: String
 kind: OrderKind
 status: OrderStatus
@@ -115,7 +115,7 @@ is_mine: bool
 ```
 
 ### TradeInfo
-```
+```text
 id: String
 order: OrderInfo
 role: TradeRole
@@ -132,7 +132,7 @@ outcome: TradeOutcome?
 ```
 
 ### ChatMessage
-```
+```text
 id: String
 trade_id: String
 sender_pubkey: String
@@ -146,7 +146,7 @@ created_at: i64
 ```
 
 ### AttachmentInfo
-```
+```text
 file_name: String
 mime_type: String
 file_size: u64
@@ -156,7 +156,7 @@ local_path: String?
 ```
 
 ### RelayInfo
-```
+```text
 url: String
 is_active: bool
 is_default: bool
@@ -166,7 +166,7 @@ last_error: String?
 ```
 
 ### TradeHistoryEntry
-```
+```text
 id: String
 order_kind: OrderKind
 fiat_amount: f64
@@ -179,7 +179,7 @@ completed_at: i64
 ```
 
 ### IdentityInfo
-```
+```text
 public_key: String
 display_name: String?
 privacy_mode: bool
@@ -188,7 +188,7 @@ created_at: i64
 ```
 
 ### AppState
-```
+```text
 connection: ConnectionState
 has_identity: bool
 has_active_trade: bool

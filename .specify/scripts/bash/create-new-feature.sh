@@ -68,7 +68,7 @@ if [ -z "$FEATURE_DESCRIPTION" ]; then
 fi
 
 # Trim whitespace and validate description is not empty (e.g., user passed only whitespace)
-FEATURE_DESCRIPTION=$(echo "$FEATURE_DESCRIPTION" | xargs)
+FEATURE_DESCRIPTION="$(printf '%s' "$FEATURE_DESCRIPTION" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 if [ -z "$FEATURE_DESCRIPTION" ]; then
     echo "Error: Feature description cannot be empty or contain only whitespace" >&2
     exit 1
@@ -254,6 +254,16 @@ if [ -z "$BRANCH_NUMBER" ]; then
     fi
 fi
 
+# Validate BRANCH_NUMBER is a positive integer within 1..999
+if ! echo "$BRANCH_NUMBER" | grep -qE '^[0-9]+$'; then
+    echo "Error: Branch number must be a positive integer, got '$BRANCH_NUMBER'" >&2
+    exit 1
+fi
+if [ "$((10#$BRANCH_NUMBER))" -lt 1 ] || [ "$((10#$BRANCH_NUMBER))" -gt 999 ]; then
+    echo "Error: Branch number must be between 1 and 999, got '$BRANCH_NUMBER'" >&2
+    exit 1
+fi
+
 # Force base-10 interpretation to prevent octal conversion (e.g., 010 → 8 in octal, but should be 10 in decimal)
 FEATURE_NUM=$(printf "%03d" "$((10#$BRANCH_NUMBER))")
 BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
@@ -294,12 +304,28 @@ else
     >&2 echo "[specify] Warning: Git repository not detected; skipped branch creation for $BRANCH_NAME"
 fi
 
-FEATURE_DIR="$SPECS_DIR/$BRANCH_NAME"
-mkdir -p "$FEATURE_DIR"
+# Check for existing directory with the same numeric prefix
+EXISTING_DIR=""
+NUMERIC_PREFIX="${BRANCH_NAME%%-*}"
+for dir in "$SPECS_DIR"/"$NUMERIC_PREFIX"-*; do
+    if [ -d "$dir" ]; then
+        EXISTING_DIR="$dir"
+        break
+    fi
+done
+
+if [ -n "$EXISTING_DIR" ]; then
+    FEATURE_DIR="$EXISTING_DIR"
+else
+    FEATURE_DIR="$SPECS_DIR/$BRANCH_NAME"
+    mkdir -p "$FEATURE_DIR"
+fi
 
 TEMPLATE=$(resolve_template "spec-template" "$REPO_ROOT") || true
 SPEC_FILE="$FEATURE_DIR/spec.md"
-if [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ]; then
+if [ -f "$SPEC_FILE" ]; then
+    >&2 echo "Spec file already exists at $SPEC_FILE, skipping template copy"
+elif [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ]; then
     cp "$TEMPLATE" "$SPEC_FILE"
 else
     echo "Warning: Spec template not found; created empty spec file" >&2

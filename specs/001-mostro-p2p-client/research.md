@@ -107,7 +107,7 @@ dependency ensures type-level compatibility with any conforming daemon.
 5. Relays only see ephemeral keys, not real participants.
 
 **Order state machine**:
-```
+```text
 Pending
   → WaitingBuyerInvoice (buy order taken, awaiting buyer invoice)
   → WaitingPayment (hold invoice issued, awaiting buyer payment)

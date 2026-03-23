@@ -13,7 +13,7 @@ status. Supports session recovery via Mostro daemon.
 Create a new Nostr keypair with BIP-39 mnemonic.
 
 **Returns**:
-```
+```text
 IdentityCreationResult {
   public_key: String       # Hex-encoded public key
   mnemonic_words: Vec<String>  # 12-word BIP-39 mnemonic (show once, user must back up)
@@ -108,7 +108,7 @@ Derive a new trade-specific key for an order. Auto-increments the
 trade key index.
 
 **Returns**:
-```
+```text
 TradeKeyInfo {
   index: u32           # BIP-32 index N
   public_key: String   # Trade key public key (hex)
@@ -136,7 +136,7 @@ Emits when identity is created, imported, or deleted.
 ### on_recovery_progress() → Stream<RecoveryProgress>
 Emits during session recovery to update UI progress.
 
-```
+```text
 RecoveryProgress {
   phase: String          # "connecting", "fetching_orders", "syncing"
   current: u32           # Current item being processed

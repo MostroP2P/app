@@ -81,7 +81,7 @@ specified pubkey.
 Fetch Mostro daemon configuration from its published events.
 
 **Returns**:
-```
+```text
 MostroSettings {
   mostro_pubkey: String
   expiration_hours: u32       # Pending order lifetime (default 24h)

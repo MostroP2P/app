@@ -24,7 +24,9 @@ git config --get remote.origin.url
 > [!CAUTION]
 > ONLY PROCEED TO NEXT STEPS IF THE REMOTE IS A GITHUB URL
 
-1. For each task in the list, use the GitHub MCP server to create a new issue in the repository that is representative of the Git remote.
+1. **Filter tasks**: Only process unchecked tasks (`- [ ]`). Skip tasks already marked complete (`- [x]` or `- [X]`).
+1. **Deduplicate**: Before creating each issue, search existing GitHub issues (via `gh issue list`) for the task ID (e.g., T001) or task title text. Skip creation if a matching issue already exists.
+1. For each filtered task, use the GitHub MCP server to create a new issue in the repository that matches the Git remote.
 
 > [!CAUTION]
 > UNDER NO CIRCUMSTANCES EVER CREATE ISSUES IN REPOSITORIES THAT DO NOT MATCH THE REMOTE URL
