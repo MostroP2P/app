@@ -15,10 +15,15 @@ Buy | Sell
 ### OrderStatus
 ```text
 Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
-| SettledHoldInvoice | Success | PaymentFailed | Canceled | Expired
+| SettledHoldInvoice | Success | Canceled | Expired
 | CooperativelyCanceled | CanceledByAdmin | SettledByAdmin
-| CompletedByAdmin | Dispute
+| CompletedByAdmin | Dispute | InProgress
 ```
+
+> Note: `PaymentFailed` is NOT a status — it's an Action notification sent when
+> the LN payment fails. The order remains in `SettledHoldInvoice`.
+> `CooperativelyCanceled` is a **client-side UI state only** — the protocol
+> does not change order status for cooperative cancellation.
 
 ### TradeRole
 ```text
@@ -44,8 +49,11 @@ Buyer(BuyerStep) | Seller(SellerStep) | Disputed
 
 ### TradeOutcome
 ```text
-Success | PaymentFailed | Canceled | Expired | DisputeWon | DisputeLost
+Success | Canceled | Expired | DisputeWon | DisputeLost
 ```
+
+> Note: `PaymentFailed` removed — LN payment failures are transient and retried,
+> not a terminal trade outcome. The order stays in `SettledHoldInvoice`.
 
 ### MessageType
 ```text
@@ -208,6 +216,16 @@ privacy_mode: bool
 trade_key_index: u32
 created_at: i64
 ```
+
+### NymIdentity
+```text
+name: String              # Deterministic pseudonym (adjective-noun format)
+icon_name: String         # Material icon identifier
+color_hue: f64            # HSV hue (0-360) for avatar background
+```
+
+> All fields derived deterministically from the public key. The same key
+> always produces the same name, icon, and color across sessions and devices.
 
 ### LogEntry
 ```text

@@ -20,13 +20,17 @@ The protocol defines 15 order states that the client must support:
 
 ```text
 pending → waitingBuyerInvoice → waitingPayment → active → fiatSent → settledHoldInvoice → success
-                                                    ↓          ↓                              ↑
-                                                 dispute → settledByAdmin / completedByAdmin ─┘
-                                                    ↓
-                                               canceledByAdmin
-Any state → canceled (timeout/explicit) / cooperativelyCanceled / expired
-waitingPayment → paymentFailed (buyer may resubmit invoice)
+                                                    ↓          ↓
+                                                 dispute → inProgress (admin took dispute)
+                                                    ↓          ↓
+                                               canceledByAdmin / settledByAdmin / completedByAdmin
+Any state → canceled (timeout/explicit) / expired
 ```
+
+> **Important distinctions from mostro-core:**
+> - `cooperativelyCanceled` is a **client-side UI state only** — the protocol does not change order status on cooperative cancel; only action notifications are exchanged.
+> - `paymentFailed` is an **action notification**, not an order status — the order remains in `settledHoldInvoice` and the buyer may resubmit an invoice.
+> - Order-type-dependent transitions: sell orders pass through `waitingBuyerInvoice` (buyer must provide invoice); buy orders skip directly to `waitingPayment`.
 
 ### Protocol Actions
 
@@ -157,6 +161,7 @@ During an active trade, both parties can exchange encrypted messages to coordina
 5. **Given** a user in an active trade, **When** they attach a file (image, document, or video up to 25MB), **Then** the file is encrypted, uploaded to a decentralized storage server, and the counterparty can download and view it.
 6. **Given** a user receives an image attachment, **When** it downloads, **Then** an inline preview is shown automatically. Non-image files show a download button.
 7. **Given** a user closes and reopens the app during an active trade, **When** they view the chat history, **Then** previously received messages are available (loaded from encrypted local storage) without requiring re-download from relays.
+8. **Given** a trade is active, **When** the user views the chat, **Then** the counterparty is identified by a deterministic pseudonym and avatar (not their real public key), and the same counterparty always shows the same name and icon.
 
 ---
 
@@ -197,6 +202,10 @@ A user can manage their relay connections, view and export their identity, confi
 7. **Given** a user in wallet settings, **When** they paste a NWC URI, **Then** the app connects to their wallet and shows connection status and optional balance.
 8. **Given** a user has connected relays, **When** the Mostro daemon publishes updated relay lists (kind 10002), **Then** the app auto-syncs new relays without disconnecting existing ones.
 9. **Given** a user in developer tools, **When** they enable diagnostic logging and perform actions, **Then** events are captured in memory. They can view, filter, and export logs. Logs contain no sensitive data (keys, tokens, mnemonics). On app restart, logging is disabled and the buffer is empty.
+10. **Given** a user in preferences, **When** they set a default fiat currency, **Then** the order creation form pre-fills with that currency.
+11. **Given** a user in preferences, **When** they enter a Lightning Address (name@domain format), **Then** it is used as the default invoice destination when selling.
+12. **Given** a user in node settings, **When** they select a different Mostro daemon from the list or enter a custom node, **Then** the app switches to that daemon, warns about relay reset, and reconnects.
+13. **Given** a user navigates to About, **When** the screen loads, **Then** they see app version, license, documentation links, and connected Mostro node details (version, fees, limits, supported currencies).
 
 ---
 
@@ -315,7 +324,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - **NWC wallet disconnects during invoice payment**: The app detects the disconnect, shows the invoice QR/copy-paste as fallback, and notifies the user to pay manually.
 - **Recovery in privacy mode**: The app clearly explains that session recovery is not available in privacy mode (by design — no server-side history).
 - **Cooperative cancel after fiat sent**: If the buyer has already marked "Fiat Sent", cooperative cancel still works but displays a strong warning that funds may already be in transit.
-- **Payment failed after release**: The Lightning payment to the buyer can fail after the seller releases funds. The client must show a distinct "payment failed" state and allow the buyer to resubmit a new invoice.
+- **Payment failed after release**: The Lightning payment to the buyer can fail after the seller releases funds. The order remains in `settledHoldInvoice` and the client receives a `paymentFailed` action notification. The client must show a distinct alert and allow the buyer to resubmit a new invoice.
 - **Admin dispute resolution outcomes**: An admin may settle a dispute (releasing funds to one party) or cancel it (returning funds). The client must display settledByAdmin, completedByAdmin, and canceledByAdmin as distinct final states from normal success/cancel.
 - **Mostro instance change**: When the user switches to a different Mostro daemon in settings, all non-default relays must be reset. The client must warn the user before proceeding.
 - **NWC wallet reconnection failure**: If the wallet connection drops and auto-reconnect fails within the trade timeout, the client must fall back to manual invoice payment and notify the user.
@@ -373,20 +382,27 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-040**: The system MUST display countdown timers for time-limited trade states.
 - **FR-041**: The system MUST support background notifications for trade events on mobile (even when app is killed).
 - **FR-042**: For sell orders, the buyer MUST be able to submit a Lightning invoice for receiving payment.
-- **FR-043**: The system MUST display all 15 protocol-defined order states (pending, waitingBuyerInvoice, waitingPayment, active, fiatSent, settledHoldInvoice, success, paymentFailed, canceled, cooperativelyCanceled, dispute, settledByAdmin, completedByAdmin, canceledByAdmin, expired) with visually distinct indicators for each.
+- **FR-043**: The system MUST display all 15 protocol-defined order states (pending, waitingBuyerInvoice, waitingPayment, active, fiatSent, settledHoldInvoice, success, canceled, cooperativelyCanceled, dispute, inProgress, settledByAdmin, completedByAdmin, canceledByAdmin, expired) with visually distinct indicators for each. Note: `cooperativelyCanceled` is a client-side UI state (protocol sends action notifications only); `paymentFailed` is an action notification, not a status.
 - **FR-044**: The system MUST support both standard privacy mode (reputation-linked identity) and full privacy mode (trade-key-only identity with no cross-trade linking) as a global toggle in settings. The selected mode applies to all future trades; existing trades retain the mode they were started with.
 - **FR-045**: Chat messages MUST be stored encrypted at rest and decrypted only in active memory, never persisted in plaintext.
 - **FR-046**: The NWC wallet connection MUST auto-reconnect on failure with backoff, and MUST fall back to manual invoice payment if the wallet remains unreachable.
 - **FR-047**: File attachment uploads MUST fall back across multiple decentralized storage servers if the primary server is unreachable.
-- **FR-048**: The system MUST handle the paymentFailed order state by displaying a distinct status and allowing the buyer to resubmit a Lightning invoice.
+- **FR-048**: The system MUST handle the paymentFailed action notification (order remains in settledHoldInvoice) by displaying a distinct alert and allowing the buyer to resubmit a Lightning invoice.
 - **FR-049**: Push notifications MUST NOT expose trade content or message text; notification payloads MUST be silent/contentless on platforms that support push.
 - **FR-050**: The system MUST provide an opt-in diagnostic logging mode accessible from a developer/debug section in settings. Logging MUST capture events in an in-memory buffer (not persisted to disk), strip all sensitive data (keys, tokens, mnemonics), and reset to disabled on each app restart.
 - **FR-051**: Users MUST be able to view, filter, search, and export diagnostic logs from within the app. Exported logs MUST be shareable via the system share sheet or saved to a file.
+- **FR-052**: The system MUST generate deterministic pseudonyms (adjective-noun format) and visual avatars (icon + color) for chat participants, derived from their public key. No real public key or identity information is exposed in the chat UI.
+- **FR-053**: Pseudonyms MUST be deterministic — the same key MUST always produce the same name, icon, and color across sessions and devices.
+- **FR-054**: Users MUST be able to set a default fiat currency used to pre-fill new order creation.
+- **FR-055**: Users MUST be able to set an optional Lightning Address as the default invoice destination when selling.
+- **FR-056**: Users MUST be able to select which Mostro daemon instance to connect to, from a list of known nodes or by entering a custom node public key.
+- **FR-057**: Users MUST be able to view app version, license information, and documentation links from an About screen.
+- **FR-058**: Users MUST be able to view connected Mostro node details including version, fee structure, amount limits, supported currencies, and timeout configuration.
 
 ### Key Entities
 
 - **Identity**: The user's cryptographic identity — includes public/private keypair and mnemonic backup. One identity per app installation. Supports two privacy modes: standard mode (identity key signs the encryption seal, enabling reputation linking across trades) and privacy mode (trade key signs the seal, preventing cross-trade reputation linking). Key derivation follows a deterministic hierarchical path from the master mnemonic (identity key at index 0, trade keys at index ≥ 1).
-- **Order**: A buy or sell offer on the Mostro network — includes type (buy/sell), amount (fixed or min/max range), price, fiat currency, payment method, status, and creator identity. Orders transition through 15 protocol-defined states: pending, waitingBuyerInvoice, waitingPayment, active, fiatSent, settledHoldInvoice, success, paymentFailed, canceled, cooperativelyCanceled, dispute, settledByAdmin, completedByAdmin, canceledByAdmin, expired.
+- **Order**: A buy or sell offer on the Mostro network — includes type (buy/sell), amount (fixed or min/max range), price, fiat currency, payment method, status, and creator identity. Orders transition through 15 protocol-defined states: pending, waitingBuyerInvoice, waitingPayment, active, fiatSent, settledHoldInvoice, success, canceled, cooperativelyCanceled, dispute, inProgress, settledByAdmin, completedByAdmin, canceledByAdmin, expired. Note: `cooperativelyCanceled` is a client-side UI state; `paymentFailed` is an action notification (order stays in settledHoldInvoice).
 - **Trade**: An active transaction between a buyer and seller — links an order, both parties' identities, the current progress step, and associated messages. Only one trade active at a time (v2.0 scope).
 - **Message**: An encrypted communication between two parties (or between a party and admin during disputes). Uses three-layer NIP-59 encryption (Rumor inside Seal inside Gift Wrap). P2P chat messages use a shared key derived via ECDH between trade keys; admin/dispute messages use the trade key directly. Messages are stored encrypted on disk and decrypted only in active memory. Includes sender, recipient, content, timestamp, and read status.
 - **Relay**: A connection endpoint the app communicates through — includes URL, connection status, health metrics, and source classification (default, Mostro-discovered, user-added). Users can add, remove, and blacklist relays. Blacklisted relays are not re-added even if the daemon announces them.

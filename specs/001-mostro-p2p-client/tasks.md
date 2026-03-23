@@ -46,7 +46,7 @@
 - [ ] T014 Implement NIP-59 Gift Wrap in rust/src/protocol/gift_wrap.rs: three-layer encryption (Rumor kind 38383 → Seal kind 13 → Gift Wrap kind 1059) with NIP-44 per protocol reference
 - [ ] T015 [P] Implement Nostr relay pool in rust/src/network/relay_pool.rs: connect, subscribe (kind 38383, 1059, 10002), publish, reconnect with backoff per contracts/nostr.md
 - [ ] T016 [P] Implement offline message queue in rust/src/network/message_queue.rs: queue outgoing NIP-59 events when offline, send on reconnect per data-model.md MessageQueue entity
-- [ ] T017 Implement order state machine in rust/src/protocol/state_machine.rs: all 15 states (Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent, SettledHoldInvoice, Success, PaymentFailed, Canceled, Expired, CooperativelyCanceled, CanceledByAdmin, SettledByAdmin, CompletedByAdmin, Dispute), valid transitions, and action-to-state mapping per protocol reference
+- [ ] T017 Implement order state machine in rust/src/protocol/state_machine.rs: all 15 mostro-core states (Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent, SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, InProgress, SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired), valid transitions, action-to-state mapping, and order-type-dependent paths (sell→WaitingBuyerInvoice; buy→WaitingPayment). Note: PaymentFailed is an Action not a Status; CooperativelyCanceled is client-side UI only
 - [ ] T018 [P] Implement protocol action builders in rust/src/protocol/actions.rs: new-order, take-sell, take-buy, pay-invoice, add-invoice, fiat-sent, release, cancel, dispute, rate, restore per protocol actions table
 - [ ] T019 Create Riverpod providers skeleton in lib/providers/: identity_provider.dart, orders_provider.dart, trade_provider.dart, messages_provider.dart, relay_provider.dart, wallet_provider.dart, settings_provider.dart per plan.md
 - [ ] T020 [P] Implement responsive layout scaffold in lib/widgets/responsive_layout.dart: three breakpoints (<600px mobile + BottomNav, 600-1200px tablet, >1200px desktop + NavigationRail) per contracts/types.md and spec US9
@@ -141,8 +141,10 @@
 - [ ] T057 [P] [US5] Create chat bubble widget in lib/widgets/chat_bubble.dart: sender/receiver styling, timestamp, read status per spec US5
 - [ ] T058 [P] [US5] Create attachment preview widget in lib/widgets/attachment_preview.dart: inline image preview for images, download button for documents/videos per spec US5 scenarios 5-6
 - [ ] T059 [US5] Wire messages provider in lib/providers/messages_provider.dart: listen to Rust stream, manage chat state, handle file uploads per spec US5 scenarios 1-7
+- [ ] T059a [P] [US5] Implement nym identity generation in rust/src/crypto/nym.rs: deterministic pseudonym (adjective-noun), icon name, and color hue from public key per spec FR-052/FR-053
+- [ ] T059b [P] [US5] Create nym avatar widget in lib/widgets/nym_avatar.dart: display generated name, icon, and color for chat participants per spec US5 scenario 8
 
-**Checkpoint**: Encrypted text and file messaging works during trades, persists across app restarts
+**Checkpoint**: Encrypted text and file messaging works during trades with nym pseudonyms, persists across app restarts
 
 ---
 
@@ -242,6 +244,10 @@
 - [ ] T080 [P] [US7] Implement NWC auto-pay integration in rust/src/api/nwc.rs: auto-reconnect with backoff, automatic hold invoice payment during trades, fallback to manual per spec FR-046 and contracts/nwc.md
 - [ ] T081 [P] [US7] Implement diagnostic logging in rust/src/api/diagnostics.rs: opt-in in-memory buffer (max 1000 FIFO), strip sensitive data, export to file, reset on restart per spec FR-050/FR-051
 - [ ] T082 [US7] Create log viewer screen in lib/screens/settings/log_viewer_screen.dart: filter by level, search, export/share per spec FR-051
+- [ ] T082a [P] [US7] Add default fiat currency selector to settings screen in lib/screens/settings/settings_screen.dart: searchable currency list, pre-fills order creation per spec FR-054 and US7 scenario 10
+- [ ] T082b [P] [US7] Add Lightning Address field to settings screen in lib/screens/settings/settings_screen.dart: name@domain validation, used as default sell invoice destination per spec FR-055 and US7 scenario 11
+- [ ] T082c [US7] Implement Mostro node selector in lib/screens/settings/settings_screen.dart: list of known nodes + custom entry, switch with relay reset warning per spec FR-056 and US7 scenario 12
+- [ ] T082d [US7] Create About screen in lib/screens/settings/about_screen.dart: app version, license, documentation links, Mostro node details (version, fees, limits, currencies) per spec FR-057/FR-058 and US7 scenario 13
 
 **Checkpoint**: Settings fully functional — relay management, NWC wallet, theme, diagnostics
 
