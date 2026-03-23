@@ -15,8 +15,9 @@ Buy | Sell
 ### OrderStatus
 ```text
 Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
-| SettledHoldInvoice | Success | Canceled | Expired
-| CooperativelyCanceled | CanceledByAdmin | SettledByAdmin | Dispute
+| SettledHoldInvoice | Success | PaymentFailed | Canceled | Expired
+| CooperativelyCanceled | CanceledByAdmin | SettledByAdmin
+| CompletedByAdmin | Dispute
 ```
 
 ### TradeRole
@@ -43,7 +44,7 @@ Buyer(BuyerStep) | Seller(SellerStep) | Disputed
 
 ### TradeOutcome
 ```text
-Success | Canceled | Expired | DisputeWon | DisputeLost
+Success | PaymentFailed | Canceled | Expired | DisputeWon | DisputeLost
 ```
 
 ### MessageType
@@ -96,6 +97,16 @@ Pending | Downloading | Downloaded | Failed
 Connected | Disconnected | Connecting | Error
 ```
 
+### ThemeMode
+```text
+System | Dark | Light
+```
+
+### LogLevel
+```text
+Debug | Info | Warning | Error
+```
+
 ## Structs (Dart-visible)
 
 ### OrderInfo
@@ -104,7 +115,9 @@ id: String
 kind: OrderKind
 status: OrderStatus
 amount_sats: u64?
-fiat_amount: f64
+fiat_amount: f64?
+fiat_amount_min: f64?
+fiat_amount_max: f64?
 fiat_code: String
 payment_method: String
 premium: f64
@@ -155,11 +168,18 @@ download_status: DownloadStatus
 local_path: String?
 ```
 
+### RelaySource
+```text
+Default | MostroDiscovered | UserAdded
+```
+
 ### RelayInfo
 ```text
 url: String
 is_active: bool
 is_default: bool
+source: RelaySource
+is_blacklisted: bool
 status: RelayStatus
 last_connected_at: i64?
 last_error: String?
@@ -187,6 +207,15 @@ trade_key_index: u32
 created_at: i64
 ```
 
+### LogEntry
+```text
+id: u32
+level: LogLevel
+tag: String
+message: String
+timestamp: i64
+```
+
 ### AppState
 ```text
 connection: ConnectionState
@@ -195,4 +224,7 @@ has_active_trade: bool
 has_nwc_wallet: bool
 unread_messages: u32
 pending_queue_count: u32
+theme: ThemeMode
+privacy_mode: bool
+logging_enabled: bool
 ```

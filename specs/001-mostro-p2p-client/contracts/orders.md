@@ -37,7 +37,9 @@ Publish a new order to the Mostro network.
 ```text
 NewOrderParams {
   kind: OrderKind             # Buy or Sell
-  fiat_amount: f64            # Amount in fiat
+  fiat_amount: f64?           # Fixed amount in fiat (null if range)
+  fiat_amount_min: f64?       # Min amount for range orders (null if fixed)
+  fiat_amount_max: f64?       # Max amount for range orders (null if fixed)
   fiat_code: String           # ISO 4217 code
   payment_method: String      # Payment method description
   premium: f64                # Price premium/discount %
@@ -46,7 +48,8 @@ NewOrderParams {
 ```
 
 **Validation**:
-- `fiat_amount` MUST be > 0
+- Either `fiat_amount` OR both `fiat_amount_min` and `fiat_amount_max` MUST be provided (not both)
+- If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`
 - `fiat_code` MUST be valid ISO 4217
 - `payment_method` MUST not be empty
 

@@ -18,7 +18,7 @@ Represents the user's cryptographic identity. One per app installation.
 | created_at | Timestamp | When identity was created |
 | last_used_at | Timestamp | Last activity timestamp |
 | trade_key_index | u32 | Current BIP-32 trade key index (N in m/44'/1237'/38383'/0/N) |
-| privacy_mode | bool | Whether user is in privacy mode (no reputation) |
+| privacy_mode | bool | Whether user is in privacy mode (no reputation). Mirrors the global toggle in Settings; stored on Identity for quick access. |
 | derivation_path | String | BIP-32 base path: `m/44'/1237'/38383'/0` |
 
 **Validation rules**:
@@ -39,7 +39,9 @@ A buy or sell offer on the Mostro network.
 | kind | Enum | `Buy` or `Sell` |
 | status | Enum | See state machine below |
 | amount_sats | u64? | Amount in satoshis (null if fiat-defined) |
-| fiat_amount | f64 | Amount in fiat currency |
+| fiat_amount | f64? | Fixed amount in fiat (null if range order) |
+| fiat_amount_min | f64? | Min fiat amount for range orders (null if fixed) |
+| fiat_amount_max | f64? | Max fiat amount for range orders (null if fixed) |
 | fiat_code | String | ISO 4217 currency code (e.g., "USD", "EUR") |
 | payment_method | String | Fiat payment method description |
 | premium | f64 | Price premium/discount percentage |
@@ -52,22 +54,25 @@ A buy or sell offer on the Mostro network.
 
 **Validation rules**:
 - `fiat_code` MUST be a valid ISO 4217 code.
-- `amount_sats` or `fiat_amount` MUST be > 0.
+- Either `fiat_amount` OR both `fiat_amount_min` and `fiat_amount_max` MUST be provided.
+- If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`.
 - `premium` is a signed float (negative = discount).
 
-**State machine**:
-```
+**State machine** (15 states):
+```text
 Pending
 ├─→ WaitingBuyerInvoice
 │     └─→ WaitingPayment
 │           ├─→ Active
 │           │     ├─→ FiatSent
 │           │     │     └─→ SettledHoldInvoice → Success
+│           │     │                            → PaymentFailed (buyer resubmits invoice)
 │           │     └─→ Dispute
 │           │           ├─→ CanceledByAdmin
-│           │           └─→ SettledByAdmin
+│           │           ├─→ SettledByAdmin
+│           │           └─→ CompletedByAdmin
 │           └─→ Expired
-├─→ Canceled (by creator)
+├─→ Canceled (by creator or timeout)
 └─→ CooperativelyCanceled
 ```
 
@@ -144,6 +149,8 @@ A Nostr relay the app connects to.
 | url | String | WebSocket URL (wss://...) |
 | is_active | bool | Whether app should connect to this relay |
 | is_default | bool | Whether this is a preconfigured default |
+| source | Enum | `Default`, `MostroDiscovered`, `UserAdded` |
+| is_blacklisted | bool | If true, relay will not be auto-added even if daemon announces it |
 | status | Enum | `Connected`, `Disconnected`, `Connecting`, `Error` |
 | last_connected_at | Timestamp? | Last successful connection |
 | last_error | String? | Most recent error message |
@@ -189,7 +196,9 @@ User preferences stored locally.
 
 **Known keys**: `theme` (dark/light/system), `locale` (language code),
 `pin_enabled` (bool), `biometric_enabled` (bool),
-`default_fiat_currency` (ISO code), `notification_enabled` (bool).
+`default_fiat_currency` (ISO code), `notification_enabled` (bool),
+`privacy_mode` (bool — global toggle, applies to future trades),
+`logging_enabled` (bool — diagnostic logging, resets to false on restart).
 
 ---
 

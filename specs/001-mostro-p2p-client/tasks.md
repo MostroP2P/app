@@ -1,31 +1,33 @@
 # Tasks: Mostro Mobile v2 — P2P Exchange Client
 
 **Input**: Design documents from `/specs/001-mostro-p2p-client/`
-**Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md, contracts/
+**Prerequisites**: plan.md, spec.md, data-model.md, contracts/, research.md, quickstart.md
 
-**Organization**: Tasks grouped by user story to enable independent implementation and testing. US1+US2 share a phase because buy/sell flows share the same state machine, stepper, and order model.
+**Tests**: Not explicitly requested — test tasks omitted. Add via `/speckit.checklist` if needed.
+
+**Organization**: Tasks grouped by user story. US1+US2 (Buy+Sell) combined as they share the same trade lifecycle.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story (US1–US13)
-- Exact file paths from plan.md project structure
+- **[Story]**: Which user story this task belongs to
+- Include exact file paths in descriptions
 
 ---
 
 ## Phase 1: Setup
 
-**Purpose**: Project initialization and basic structure
+**Purpose**: Project initialization, Rust crate creation, Flutter scaffolding
 
-- [ ] T001 Create Flutter project structure with `lib/main.dart`, `lib/src/` directories per plan.md
-- [ ] T002 Create Rust workspace in `rust/` with `Cargo.toml` — dependencies: nostr-sdk 0.44+, mostro-core, sqlx (sqlite), serde, thiserror, tracing, tokio, chacha20poly1305, bip32
-- [ ] T003 Configure `flutter_rust_bridge.yaml` and `rust_builder/` (Cargokit integration)
-- [ ] T004 [P] Add Flutter dependencies to `pubspec.yaml`: flutter_rust_bridge, riverpod, go_router, flutter_secure_storage, local_auth, flutter_local_notifications, qr_code_scanner
-- [ ] T005 [P] Configure `rust/src/lib.rs` with module declarations for api/, core/, db/, platform/
-- [ ] T006 [P] Set up `wasm32-unknown-unknown` target support in `rust/Cargo.toml` with feature-gated deps (tokio native, wasm-bindgen-futures web)
-- [ ] T007 Run `flutter_rust_bridge_codegen generate` and verify Dart bindings compile
-- [ ] T008 [P] Set up linting: `clippy.toml` for Rust, `analysis_options.yaml` for Flutter
-- [ ] T009 [P] Create `lib/src/l10n/` with initial English ARB file and l10n configuration
+- [ ] T001 Initialize Flutter project at repo root with all 6 platform targets (ios/, android/, web/, macos/, windows/, linux/) per plan.md
+- [ ] T002 Create Rust crate at rust/ with Cargo.toml including dependencies: nostr-sdk 0.44+, mostro-core, bip32, bip39, chacha20poly1305, sqlx, serde, tokio
+- [ ] T003 [P] Configure flutter_rust_bridge v2 with rust_builder/ cargokit integration per quickstart.md
+- [ ] T004 [P] Configure linting: cargo clippy -D warnings, flutter analyze, rustfmt, dart format per constitution quality standards
+- [ ] T005 [P] Create lib/ directory structure: app.dart, providers/, screens/, widgets/, theme/, l10n/, router.dart per plan.md project structure
+- [ ] T006 [P] Create rust/src/ directory structure: api/, protocol/, storage/, crypto/, network/ per plan.md project structure
+- [ ] T007 Add Flutter dependencies to pubspec.yaml: flutter_riverpod, go_router, flutter_secure_storage, share_plus, mobile_scanner per plan.md
+
+**Checkpoint**: Project compiles on all platforms, bridge generates Dart bindings from empty Rust API
 
 ---
 
@@ -35,252 +37,257 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T010 Implement shared types in `rust/src/api/types.rs` — all enums (OrderKind, OrderStatus, TradeRole, BuyerStep, SellerStep, TradeStep, etc.) and structs (OrderInfo, TradeInfo, ChatMessage, RelayInfo, etc.) per contracts/types.md
-- [ ] T011 Implement storage trait in `rust/src/db/storage.rs` — async CRUD interface for all entities (Identity, Order, Trade, Message, Relay, Dispute, Settings, MessageQueue, NwcWallet, FileAttachment, Rating)
-- [ ] T012 [P] Implement SQLite storage backend in `rust/src/db/sqlite.rs` — implements storage trait using sqlx, all table creation and migrations in `rust/src/db/migrations/`
-- [ ] T013 [P] Implement IndexedDB storage backend in `rust/src/db/indexeddb.rs` — WASM-only implementation of storage trait using indexed_db_futures
-- [ ] T014 Implement platform runtime in `rust/src/platform/native.rs` (tokio) and `rust/src/platform/web.rs` (wasm-bindgen-futures) with feature-gated async spawning
-- [ ] T015 Implement NIP-59 Gift Wrap module in `rust/src/core/gift_wrap.rs` — create rumor, seal (Kind 13), wrap (Kind 1059), unwrap and decrypt
-- [ ] T016 Implement BIP-32 key derivation in `rust/src/core/key_derivation.rs` — path `m/44'/1237'/38383'/0/N`, derive master key (N=0) and trade keys (N≥1), ECDH shared key computation
-- [ ] T017 Implement Mostro protocol handler in `rust/src/core/protocol.rs` — message construction/parsing using mostro-core types, action enum mapping, message format `{"order": {"version": 1, ...}}`
-- [ ] T018 [P] Implement trade state machine in `rust/src/core/trade_state.rs` — order status transitions (Pending→WaitingBuyerInvoice→...→Success), timeout tracking, buyer/seller step mapping
-- [ ] T019 [P] Implement offline message queue in `rust/src/core/message_queue.rs` — queue events when offline, flush on reconnect, retry logic with max attempts
-- [ ] T020 Implement Nostr client API in `rust/src/api/nostr.rs` — initialize with relays, connect/disconnect, subscribe to Kind 38383 orders and Kind 1059 gift wraps, publish events, connection state stream
-- [ ] T021 Implement `rust/src/db/mod.rs` — feature-gated module that exports SQLite on native and IndexedDB on web
-- [ ] T022 [P] Create responsive scaffold widget in `lib/src/widgets/responsive_scaffold.dart` — breakpoints (<600px mobile, 600-1200px tablet, >1200px desktop), BottomNavigationBar vs NavigationRail
-- [ ] T023 [P] Create layout variants in `lib/src/layouts/mobile_layout.dart`, `lib/src/layouts/tablet_layout.dart`, `lib/src/layouts/desktop_layout.dart`
-- [ ] T024 Set up go_router navigation in `lib/src/routing/app_router.dart` — all 9 screens with routes, deep link support for `mostro://order/<id>`
-- [ ] T025 [P] Create connection provider in `lib/src/providers/connection_provider.dart` — wraps Rust on_connection_state_changed stream, exposes ConnectionState to UI
-- [ ] T026 [P] Create layout provider in `lib/src/providers/layout_provider.dart` — current breakpoint/layout mode from MediaQuery
+- [ ] T008 Implement storage trait in rust/src/storage/mod.rs with async CRUD operations for all entities from data-model.md
+- [ ] T009 [P] Implement SQLite storage backend in rust/src/storage/sqlite.rs with sqlx, all table schemas from data-model.md (Identity, Order, Trade, Message, Relay, Dispute, Settings, MessageQueue, NwcWallet, FileAttachment, Rating)
+- [ ] T010 [P] Implement IndexedDB storage backend in rust/src/storage/indexeddb.rs with indexed_db_futures for web platform, same trait interface
+- [ ] T011 Create database migrations in rust/src/storage/migrations/ for all 11 entities from data-model.md
+- [ ] T012 Implement BIP-32/39 key derivation in rust/src/crypto/keys.rs: mnemonic generation (12-word), seed derivation, hierarchical key path m/44'/1237'/38383'/0/N per contracts/identity.md
+- [ ] T013 [P] Implement platform secure storage bridge in rust/src/crypto/secure_store.rs for encrypted mnemonic/key persistence
+- [ ] T014 Implement NIP-59 Gift Wrap in rust/src/protocol/gift_wrap.rs: three-layer encryption (Rumor kind 38383 → Seal kind 13 → Gift Wrap kind 1059) with NIP-44 per protocol reference
+- [ ] T015 [P] Implement Nostr relay pool in rust/src/network/relay_pool.rs: connect, subscribe (kind 38383, 1059, 10002), publish, reconnect with backoff per contracts/nostr.md
+- [ ] T016 [P] Implement offline message queue in rust/src/network/message_queue.rs: queue outgoing NIP-59 events when offline, send on reconnect per data-model.md MessageQueue entity
+- [ ] T017 Implement order state machine in rust/src/protocol/state_machine.rs: all 15 states (Pending through Expired), valid transitions, action-to-state mapping per protocol reference
+- [ ] T018 [P] Implement protocol action builders in rust/src/protocol/actions.rs: new-order, take-sell, take-buy, pay-invoice, add-invoice, fiat-sent, release, cancel, dispute, rate, restore per protocol actions table
+- [ ] T019 Create Riverpod providers skeleton in lib/providers/: identity_provider.dart, orders_provider.dart, trade_provider.dart, messages_provider.dart, relay_provider.dart, wallet_provider.dart, settings_provider.dart per plan.md
+- [ ] T020 [P] Implement responsive layout scaffold in lib/widgets/responsive_layout.dart: three breakpoints (<600px mobile + BottomNav, 600-1200px tablet, >1200px desktop + NavigationRail) per contracts/types.md and spec US9
+- [ ] T021 [P] Implement dark/light theme definitions in lib/theme/: AppTheme with semantic color tokens for both themes, ThemeMode (System/Dark/Light), WCAG AA contrast per spec FR-019a-f and DESIGN_SYSTEM.md
+- [ ] T022 Configure go_router in lib/router.dart with routes for all screens: onboarding, home, order_detail, create_order, trade, dispute, history, settings per plan.md
 
-**Checkpoint**: Foundation ready — user story implementation can begin
+**Checkpoint**: Foundation ready — Rust core compiles, bridge generates bindings, storage works, NIP-59 encrypts/decrypts, relay connects, theme renders
 
 ---
 
-## Phase 3: User Story 3 — Onboarding & Identity Setup (P1)
+## Phase 3: User Story 3 — Onboarding & Identity Setup (Priority: P1) MVP
 
-**Goal**: New user creates/imports identity, sets up security, connects to relays, reaches home screen.
+**Goal**: New user creates identity or imports mnemonic, sets optional PIN/biometric, reaches home screen
 
-**Independent Test**: Install app → complete onboarding → arrive at home screen with working identity.
+**Independent Test**: Install app → complete onboarding → arrive at home screen with connected relays
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Implement identity API in `rust/src/api/identity.rs` — create_identity (BIP-39 mnemonic + BIP-32 derivation), import_from_mnemonic (with optional recovery flag), import_from_nsec, get_identity, delete_identity, derive_trade_key, get_trade_key per contracts/identity.md
-- [ ] T028 [US3] Implement set_pin, enable_biometric, unlock functions in `rust/src/api/identity.rs` — PIN validation (4-8 digits), biometric availability check, unlock with max attempts
-- [ ] T029 [US3] Implement export_encrypted_backup in `rust/src/api/identity.rs` — encrypt identity with passphrase, NIP-49 compatible format
-- [ ] T030 [US3] Create identity provider in `lib/src/providers/identity_provider.dart` — wraps Rust identity API, exposes IdentityInfo stream, manages onboarding state
-- [ ] T031 [US3] Create onboarding screen in `lib/src/screens/onboarding_screen.dart` — welcome page, "Create New" vs "Import Existing" choice, mnemonic display/confirmation, mnemonic input (import), optional PIN/biometric setup
-- [ ] T032 [US3] Create splash screen in `lib/src/screens/splash_screen.dart` — app loading, check for existing identity, PIN/biometric unlock if set, route to onboarding or home
-- [ ] T033 [US3] Wire relay initialization into onboarding flow — on identity creation/import, call initialize() with default relay list, verify connection before proceeding to home
+- [ ] T023 [US3] Implement identity creation API in rust/src/api/identity.rs: create_identity() generates mnemonic, derives master key, stores encrypted per contracts/identity.md
+- [ ] T024 [US3] Implement identity import API in rust/src/api/identity.rs: import_from_mnemonic(), import_from_private_key() per contracts/identity.md
+- [ ] T025 [P] [US3] Implement identity export API in rust/src/api/identity.rs: export_backup() returns encrypted backup per contracts/identity.md
+- [ ] T026 [P] [US3] Implement PIN/biometric unlock in rust/src/api/identity.rs: setup_pin(), enable_biometric(), verify_unlock() per contracts/identity.md
+- [ ] T027 [US3] Implement Nostr init API in rust/src/api/nostr.rs: initialize() connects to default relays, starts subscriptions per contracts/nostr.md
+- [ ] T028 [US3] Create welcome screen in lib/screens/onboarding/welcome_screen.dart: "Create New Identity" and "Import Existing" buttons per spec US3 scenario 1
+- [ ] T029 [US3] Create mnemonic display screen in lib/screens/onboarding/mnemonic_screen.dart: show 12-word phrase, confirm backup prompt per spec US3 scenario 2
+- [ ] T030 [US3] Create import screen in lib/screens/onboarding/import_screen.dart: mnemonic word input with validation, private key paste per spec US3 scenario 3
+- [ ] T031 [US3] Create PIN setup screen in lib/screens/onboarding/pin_screen.dart: optional PIN entry, biometric toggle, skip option per spec US3 scenario 4
+- [ ] T032 [US3] Wire onboarding flow in lib/providers/identity_provider.dart: manage onboarding state, call Rust APIs, navigate to home on completion per spec US3 scenario 5
 
-**Checkpoint**: User Story 3 complete — new users can onboard and reach the home screen
-
----
-
-## Phase 4: User Stories 1 + 2 + 4 — Buy/Sell Trades & Order Browsing (P1+P2)
-
-**Goal**: Users can browse orders, create orders, take orders, and complete buy/sell trade flows end-to-end with visual progress stepper.
-
-**Independent Test**: Browse orders → take/create order → complete full buy or sell flow → trade appears in history.
-
-### Implementation for User Stories 1, 2, 4
-
-- [ ] T034 [US4] Implement orders API in `rust/src/api/orders.rs` — get_orders (with filters), get_order, create_order, take_order, cancel_order, on_orders_updated stream, on_order_status_changed stream per contracts/orders.md
-- [ ] T035 [US1] Implement buyer trade actions in `rust/src/api/orders.rs` — submit_buyer_invoice (AddInvoice action), mark_fiat_sent (FiatSent action), on_trade_step_changed stream
-- [ ] T036 [US2] Implement seller trade actions in `rust/src/api/orders.rs` — confirm_fiat_received (Release action), on_trade_step_changed stream
-- [ ] T037 [US1] [US2] Implement trade timeout tracking in `rust/src/api/orders.rs` — on_trade_timeout_tick stream, countdown per state using Mostro expirationSeconds
-- [ ] T038 [P] [US4] Create orders provider in `lib/src/providers/orders_provider.dart` — wraps Rust orders API, exposes filtered order list, manages loading/error states
-- [ ] T039 [P] [US1] [US2] Create active trade provider in `lib/src/providers/active_trade_provider.dart` — wraps trade step stream, manages current trade state, countdown timer state
-- [ ] T040 [US4] Create order card widget in `lib/src/widgets/order_card.dart` — displays order summary (type, amount, price, currency, payment method, creator reputation)
-- [ ] T041 [US4] Create home screen in `lib/src/screens/home_screen.dart` — order list with pull-to-refresh, filter bar (buy/sell, currency, payment method), offline indicator, FAB for create order
-- [ ] T042 [US4] Create order detail screen in `lib/src/screens/order_detail_screen.dart` — full order details, "Take Order" button (for takers), "Cancel Order" button (for creators)
-- [ ] T043 [US2] Create order creation screen in `lib/src/screens/create_order_screen.dart` — buy/sell selector, amount input (sats/fiat), price type (market/fixed), payment method, premium, review + publish
-- [ ] T044 [US1] [US2] Create trade stepper widget in `lib/src/widgets/trade_stepper.dart` — horizontal (desktop) / vertical (mobile), buyer steps vs seller steps, current step highlight, completed checkmarks, tappable for details/timestamps, animated transitions, dispute red indicator
-- [ ] T045 [US1] [US2] Create countdown timer widget in `lib/src/widgets/countdown_timer.dart` — displays seconds remaining for current trade state, visual urgency at low time
-- [ ] T046 [US1] [US2] Create active trade screen in `lib/src/screens/active_trade_screen.dart` — trade stepper, countdown timer, action buttons (pay invoice / fiat sent / confirm received / cancel), invoice display (QR + copy), chat panel placeholder
-- [ ] T047 [US1] Create QR scanner widget in `lib/src/widgets/qr_scanner.dart` — native camera on mobile, paste-from-clipboard + file upload fallback on web/desktop
-- [ ] T048 [US1] [US2] Integrate NWC auto-pay into active trade screen — when hold invoice presented and NWC connected, auto-pay via `rust/src/api/nwc.rs` pay_invoice, fallback to manual QR/copy if NWC fails
-
-**Checkpoint**: US1+US2+US4 complete — users can browse, create, take orders and complete full trade flows
+**Checkpoint**: User can create/import identity, optionally set PIN, reach home screen with relays connected
 
 ---
 
-## Phase 5: User Story 5 — Encrypted P2P Chat (P2)
+## Phase 4: User Stories 1+2 — Buy & Sell Trade Lifecycle (Priority: P1) MVP
 
-**Goal**: Trade parties exchange encrypted messages and file attachments during active trades.
+**Goal**: Complete buy and sell flows end-to-end with progress indicator
 
-**Independent Test**: Two parties in a trade send/receive text messages and file attachments in real time.
+**Independent Test**: Two users complete a full trade from order creation/take to settlement
+
+### Implementation for User Stories 1+2
+
+- [ ] T033 [US1] Implement order creation API in rust/src/api/orders.rs: create_order() with NewOrderParams (fixed + range amounts), publish via NIP-59 per contracts/orders.md
+- [ ] T034 [US1] Implement order fetching API in rust/src/api/orders.rs: get_orders(), get_order(), stream on_orders_updated() from kind 38383 events per contracts/orders.md
+- [ ] T035 [US1] Implement take order API in rust/src/api/orders.rs: take_order() sends TakeBuy/TakeSell action, creates local Trade record per contracts/orders.md
+- [ ] T036 [US1] Implement trade action APIs in rust/src/api/orders.rs: submit_buyer_invoice(), mark_fiat_sent(), confirm_fiat_received() per contracts/orders.md
+- [ ] T037 [US1] Implement trade state streams in rust/src/api/orders.rs: on_trade_step_changed(), on_order_status_changed(), on_trade_timeout_tick() per contracts/orders.md
+- [ ] T038 [P] [US1] Implement cancel order API in rust/src/api/orders.rs: cancel_order() for own untaken orders per contracts/orders.md
+- [ ] T039 [US1] Create order list screen in lib/screens/home/home_screen.dart: display orders with OrderCard widgets, filter controls (buy/sell, currency, payment method) per spec US4 scenarios 1-3
+- [ ] T040 [P] [US1] Create order card widget in lib/widgets/order_card.dart: show type, amount/range, price, payment method, premium, creator reputation per spec US1 scenario 1
+- [ ] T041 [US1] Create order detail screen in lib/screens/order_detail/order_detail_screen.dart: full order info + "Take Order" button per spec US1 scenario 1
+- [ ] T042 [US2] Create order creation screen in lib/screens/create_order/create_order_screen.dart: form for type, amount (fixed/range), currency, payment method, premium per spec US2 scenario 1
+- [ ] T043 [US1] Create trade screen in lib/screens/trade/trade_screen.dart: active trade view with progress indicator, action buttons, countdown timer per spec US1 scenarios 2-6
+- [ ] T044 [P] [US1] Create trade progress indicator widget in lib/widgets/trade_progress.dart: visual stepper showing BuyerStep/SellerStep with current/completed/remaining, responsive (vertical mobile, horizontal desktop) per spec US1 scenario 6
+- [ ] T045 [P] [US1] Create QR scanner widget in lib/widgets/qr_scanner.dart: camera scan on mobile, paste/upload fallback on web per spec FR-022
+- [ ] T046 [US1] Wire trade providers in lib/providers/trade_provider.dart: manage active trade state, listen to Rust streams, update UI per spec US1+US2 all scenarios
+- [ ] T047 [US1] Wire orders provider in lib/providers/orders_provider.dart: fetch/cache orders, apply filters, listen to Rust streams per spec US4 all scenarios
+
+**Checkpoint**: Full buy and sell trade flow works end-to-end with progress indicator. Orders can be created (fixed + range), browsed, filtered, and taken.
+
+---
+
+## Phase 5: User Story 4 — Browse & Filter Orders (Priority: P2)
+
+**Goal**: Users see order book with filtering, offline cache, detail view
+
+**Independent Test**: User opens app, sees orders, applies filters, views order detail
+
+### Implementation for User Story 4
+
+- [ ] T048 [US4] Implement offline order cache in rust/src/api/orders.rs: return cached orders when offline with `cached_at` staleness indicator per spec US4 scenario 4
+- [ ] T049 [US4] Add offline indicator to home screen in lib/screens/home/home_screen.dart: show "offline" badge when ConnectionState is Offline, display cached orders per spec US4 scenario 4
+- [ ] T050 [US4] Add currency and payment method filter chips to lib/screens/home/home_screen.dart per spec US4 scenarios 2-3
+
+**Checkpoint**: Order book works online and offline with filtering
+
+---
+
+## Phase 6: User Story 5 — Encrypted P2P Chat (Priority: P2)
+
+**Goal**: Trade counterparties exchange encrypted messages and file attachments
+
+**Independent Test**: Two parties in an active trade send/receive text and image messages
 
 ### Implementation for User Story 5
 
-- [ ] T049 [US5] Implement messages API in `rust/src/api/messages.rs` — send_message (sharedKey ECDH encryption), get_messages, mark_as_read, get_unread_count, on_new_message stream per contracts/messages.md
-- [ ] T050 [US5] Implement file crypto in `rust/src/core/file_crypto.rs` — ChaCha20-Poly1305 encrypt/decrypt, blob structure [nonce:12][encrypted_data][auth_tag:16]
-- [ ] T051 [US5] Implement Blossom client in `rust/src/core/blossom.rs` — upload encrypted blob (HTTP PUT), download blob, server list (blossom.primal.net, blossom.band, nostr.media, etc.), retry logic
-- [ ] T052 [US5] Implement file attachment functions in `rust/src/api/messages.rs` — send_file (encrypt + upload + send URL), download_attachment (download + decrypt), get_attachment_status, on_attachment_progress stream per contracts/messages.md
-- [ ] T053 [P] [US5] Create messages provider in `lib/src/providers/messages_provider.dart` — wraps Rust messages API, exposes message list stream, unread count, attachment progress
-- [ ] T054 [US5] Create chat panel widget in `lib/src/widgets/chat_panel.dart` — message list, text input, send button, attachment button (file picker), inline image previews, download buttons for docs/videos
-- [ ] T055 [P] [US5] Create file attachment widget in `lib/src/widgets/file_attachment.dart` — image preview (auto-download), document/video download button, progress indicator, file type icon
-- [ ] T056 [US5] Integrate chat panel into active trade screen `lib/src/screens/active_trade_screen.dart` — alongside trade stepper, collapsible on mobile, side panel on desktop
+- [ ] T051 [US5] Implement messaging API in rust/src/api/messages.rs: send_message(), get_messages(), stream on_message_received() with NIP-59 encryption via shared ECDH key per contracts/messages.md
+- [ ] T052 [US5] Implement encrypted chat storage in rust/src/api/messages.rs: store messages encrypted at rest, decrypt only in memory per spec FR-045
+- [ ] T053 [US5] Implement file encryption in rust/src/crypto/file_encrypt.rs: ChaCha20-Poly1305 encrypt/decrypt for attachments per contracts/messages.md
+- [ ] T054 [P] [US5] Implement Blossom upload/download in rust/src/network/blossom.rs: upload encrypted blob, download by hash, fallback across multiple servers per contracts/messages.md and spec FR-047
+- [ ] T055 [US5] Implement file attachment API in rust/src/api/messages.rs: send_file(), download_file() with encrypt/upload and download/decrypt per contracts/messages.md
+- [ ] T056 [US5] Create chat interface in lib/screens/trade/chat_panel.dart: message list, text input, file attach button, integrated with trade screen per spec US5 scenarios 1-3
+- [ ] T057 [P] [US5] Create chat bubble widget in lib/widgets/chat_bubble.dart: sender/receiver styling, timestamp, read status per spec US5
+- [ ] T058 [P] [US5] Create attachment preview widget in lib/widgets/attachment_preview.dart: inline image preview for images, download button for documents/videos per spec US5 scenarios 5-6
+- [ ] T059 [US5] Wire messages provider in lib/providers/messages_provider.dart: listen to Rust stream, manage chat state, handle file uploads per spec US5 scenarios 1-7
 
-**Checkpoint**: US5 complete — trade parties can chat with text and encrypted file attachments
-
----
-
-## Phase 6: User Story 6 — Dispute Resolution (P2)
-
-**Goal**: Either party initiates dispute, submits evidence, receives admin messages, sees resolution.
-
-**Independent Test**: Open dispute → submit evidence → receive admin message → see resolution.
-
-### Implementation for User Story 6
-
-- [ ] T057 [US6] Implement disputes API in `rust/src/api/disputes.rs` — open_dispute, submit_evidence, get_dispute, on_dispute_updated stream per contracts/disputes.md. Dispute chat uses tradeKey (not sharedKey)
-- [ ] T058 [US6] Create dispute screen in `lib/src/screens/dispute_screen.dart` — dispute status indicator, evidence submission (text), admin chat (separate from P2P chat), resolution display
-- [ ] T059 [US6] Update trade stepper to show dispute state — red indicator, paused stepper, "Disputed" overlay on current step in `lib/src/widgets/trade_stepper.dart`
-- [ ] T060 [US6] Add "Open Dispute" button to active trade screen `lib/src/screens/active_trade_screen.dart` — confirmation dialog, navigate to dispute screen on initiation
-
-**Checkpoint**: US6 complete — dispute flow works end-to-end
+**Checkpoint**: Encrypted text and file messaging works during trades, persists across app restarts
 
 ---
 
-## Phase 7: User Story 13 — Cooperative Cancel (P2)
+## Phase 7: User Story 13 — Cooperative Cancel (Priority: P2)
 
-**Goal**: Either party requests cancel, counterparty accepts/ignores, trade canceled with funds returned.
+**Goal**: Either party can request cancellation, counterparty accepts or ignores
 
-**Independent Test**: Request cancel → counterparty accepts → trade shows as "Cooperatively Canceled".
+**Independent Test**: One party requests cancel, other accepts, trade is canceled with funds returned
 
 ### Implementation for User Story 13
 
-- [ ] T061 [US13] Implement cooperative cancel in `rust/src/api/orders.rs` — request_cooperative_cancel, accept_cooperative_cancel, on_cooperative_cancel_requested stream per contracts/orders.md
-- [ ] T062 [US13] Add cooperative cancel UI to active trade screen `lib/src/screens/active_trade_screen.dart` — "Request Cancel" button, incoming cancel request notification with "Accept" / "Ignore", warning dialog if fiat already sent
-- [ ] T063 [US13] Update trade stepper and history to show CooperativelyCanceled state in `lib/src/widgets/trade_stepper.dart`
+- [ ] T060 [US13] Implement cooperative cancel APIs in rust/src/api/orders.rs: request_cooperative_cancel(), accept_cooperative_cancel(), stream on_cooperative_cancel_requested() per contracts/orders.md
+- [ ] T061 [US13] Add cancel request UI to trade screen in lib/screens/trade/trade_screen.dart: "Request Cancel" button, incoming cancel request dialog, accept/ignore actions per spec US13 scenarios 1-4
+- [ ] T062 [US13] Add "Cooperatively Canceled" state display to trade progress indicator in lib/widgets/trade_progress.dart per spec US13 scenario 4
 
-**Checkpoint**: US13 complete — cooperative cancellation works
-
----
-
-## Phase 8: User Story 9 — Multi-Platform Responsive Experience (P2)
-
-**Goal**: App adapts layout to phone/tablet/desktop with graceful platform feature fallbacks.
-
-**Independent Test**: Same app renders correctly at all three breakpoints; QR fallback works on web.
-
-### Implementation for User Story 9
-
-- [ ] T064 [US9] Implement mobile layout in `lib/src/layouts/mobile_layout.dart` — single column, BottomNavigationBar, full-screen navigation
-- [ ] T065 [P] [US9] Implement tablet layout in `lib/src/layouts/tablet_layout.dart` — optional master-detail, adaptive navigation
-- [ ] T066 [P] [US9] Implement desktop layout in `lib/src/layouts/desktop_layout.dart` — multi-panel (NavRail + order list + trade panel), persistent navigation rail
-- [ ] T067 [US9] Update all screens to use responsive scaffold — wrap each screen with responsive_scaffold.dart, ensure content adapts to breakpoint
-- [ ] T068 [US9] Implement platform-aware QR scanner fallbacks in `lib/src/widgets/qr_scanner.dart` — WebRTC camera on web (if available), paste-from-clipboard fallback, image upload fallback
-- [ ] T069 [US9] Implement platform-aware notification handling in `rust/src/platform/notifications.rs` — FCM on Android, APNs on iOS, Service Worker on web, background process on desktop
-
-**Checkpoint**: US9 complete — app works on all platforms with correct layouts
+**Checkpoint**: Cooperative cancellation flow works end-to-end
 
 ---
 
-## Phase 9: User Story 10 — Session Recovery (P2)
+## Phase 8: User Story 6 — Dispute Resolution (Priority: P2)
 
-**Goal**: User recovers active trades/disputes by importing mnemonic.
+**Goal**: Users can initiate disputes, submit evidence, receive admin messages, see resolution
 
-**Independent Test**: Import mnemonic → daemon returns active trades → local state reconstructed.
+**Independent Test**: User initiates dispute on active trade, sees admin messages and resolution
+
+### Implementation for User Story 6
+
+- [ ] T063 [US6] Implement dispute API in rust/src/api/disputes.rs: initiate_dispute(), submit_evidence(), get_dispute(), stream on_dispute_updated() per contracts/disputes.md
+- [ ] T064 [US6] Implement dispute chat in rust/src/api/disputes.rs: send_dispute_message(), get_dispute_messages() using trade key (not shared key) per contracts/disputes.md
+- [ ] T065 [US6] Create dispute screen in lib/screens/dispute/dispute_screen.dart: dispute status, evidence submission, admin chat, resolution display per spec US6 scenarios 1-5
+- [ ] T066 [US6] Add dispute state to trade progress indicator in lib/widgets/trade_progress.dart: distinct dispute visual (settledByAdmin, completedByAdmin, canceledByAdmin) per spec US6 scenario 5
+
+**Checkpoint**: Dispute flow works — initiate, submit evidence, receive admin messages, see resolution
+
+---
+
+## Phase 9: User Story 10 — Session Recovery (Priority: P2)
+
+**Goal**: Users restore trades and history from mnemonic on a new device
+
+**Independent Test**: User enters mnemonic on fresh install, sees all prior trades and active disputes
 
 ### Implementation for User Story 10
 
-- [ ] T070 [US10] Implement session recovery in `rust/src/api/identity.rs` — when import_from_mnemonic called with `recover: true`, send Action.restore to Mostro daemon, process response (order IDs + disputes), sync trade key index, reconstruct local DB
-- [ ] T071 [US10] Add on_recovery_progress stream in `rust/src/api/identity.rs` — emit phases (connecting, fetching_orders, syncing) with current/total counts
-- [ ] T072 [US10] Add recovery option to onboarding import flow in `lib/src/screens/onboarding_screen.dart` — checkbox "Recover active trades", progress indicator during recovery, privacy mode warning
-- [ ] T073 [US10] Update identity provider in `lib/src/providers/identity_provider.dart` — handle recovery progress stream, show recovery status to user
+- [ ] T067 [US10] Implement session recovery API in rust/src/api/identity.rs: restore_from_mnemonic() sends restore action to daemon, processes order IDs and disputes, syncs trade key index per contracts/identity.md
+- [ ] T068 [US10] Add recovery flow to import screen in lib/screens/onboarding/import_screen.dart: progress indicator during restore, error handling for privacy mode per spec US10 scenarios 1-5
 
-**Checkpoint**: US10 complete — session recovery works in reputation mode
+**Checkpoint**: Account restoration from mnemonic works with trade key index sync
 
 ---
 
-## Phase 10: User Story 11 — Reputation & Rating (P2)
+## Phase 10: User Story 11 — Reputation & Rating (Priority: P2)
 
-**Goal**: Rate counterparty after trade; privacy mode hides reputation.
+**Goal**: Post-trade rating with privacy mode toggle
 
-**Independent Test**: Complete trade → rate counterparty → rating acknowledged. Toggle privacy mode.
+**Independent Test**: Complete trade → rate counterparty → verify rating sent; toggle privacy mode → verify no rating prompt
 
 ### Implementation for User Story 11
 
-- [ ] T074 [US11] Implement reputation API in `rust/src/api/reputation.rs` — submit_rating (rate action), get_privacy_mode, set_privacy_mode, get_rating_for_trade, on_rating_received stream per contracts/reputation.md
-- [ ] T075 [P] [US11] Create reputation provider in `lib/src/providers/reputation_provider.dart` — wraps Rust reputation API, privacy mode state, rating prompt logic
-- [ ] T076 [US11] Create rating dialog widget in `lib/src/widgets/rating_dialog.dart` — score selector, submit button, shown after trade success (only in reputation mode)
-- [ ] T077 [US11] Integrate rating prompt into trade completion flow — after trade completes with Success in active_trade_screen, show rating dialog if not in privacy mode
-- [ ] T078 [US11] Display reputation on order cards — show creator reputation score in `lib/src/widgets/order_card.dart` and `lib/src/screens/order_detail_screen.dart` (if available)
+- [ ] T069 [US11] Implement reputation API in rust/src/api/reputation.rs: submit_rating(), get_privacy_mode(), set_privacy_mode(), stream on_rating_received() per contracts/reputation.md
+- [ ] T070 [US11] Create rating prompt in lib/screens/trade/trade_screen.dart: post-completion rating dialog with score input per spec US11 scenarios 1-2
+- [ ] T071 [US11] Add reputation display to order card in lib/widgets/order_card.dart: show creator's reputation score (hidden in privacy mode) per spec US11 scenario 5
+- [ ] T072 [US11] Add privacy mode toggle to settings screen in lib/screens/settings/settings_screen.dart: global toggle, warning about recovery unavailability per spec FR-044
 
-**Checkpoint**: US11 complete — reputation system works, privacy mode hides it
+**Checkpoint**: Rating system works, privacy mode disables reputation and recovery
 
 ---
 
-## Phase 11: User Story 7 — Settings & Relay Management (P3)
+## Phase 11: User Story 9 — Multi-Platform Responsive (Priority: P2)
 
-**Goal**: Manage relays, identity, wallet, preferences (theme, language, security).
+**Goal**: App adapts layout across phone, tablet, desktop; platform features degrade gracefully
 
-**Independent Test**: Add/remove relay, connect NWC wallet, change theme, export backup.
+**Independent Test**: App renders correctly at each breakpoint; QR fallback works on web
+
+### Implementation for User Story 9
+
+- [ ] T073 [US9] Implement tablet master-detail layout in lib/widgets/responsive_layout.dart: order list + detail side panel for 600-1200px per spec US9 scenario 2
+- [ ] T074 [US9] Implement desktop multi-panel layout in lib/widgets/responsive_layout.dart: NavigationRail + order list + trade panel for >1200px per spec US9 scenario 2
+- [ ] T075 [P] [US9] Add keyboard navigation support for desktop in lib/widgets/responsive_layout.dart per spec FR-044 (DESIGN_SYSTEM.md section 9.2)
+- [ ] T076 [P] [US9] Add platform-specific interactions: haptic feedback on mobile, hover states on web per spec FR-044 (DESIGN_SYSTEM.md section 9)
+
+**Checkpoint**: All three breakpoints render correctly, platform features degrade gracefully
+
+---
+
+## Phase 12: User Story 7 — Settings & Relay Management (Priority: P3)
+
+**Goal**: Users manage relays, identity, wallet, preferences, diagnostics
+
+**Independent Test**: User adds relay, changes theme, connects NWC wallet, enables logging
 
 ### Implementation for User Story 7
 
-- [ ] T079 [US7] Implement NWC client in `rust/src/core/nwc_client.rs` — parse NWC URI, connect to wallet relay, pay_invoice (NIP-47), get_info, connection status monitoring
-- [ ] T080 [US7] Implement NWC API in `rust/src/api/nwc.rs` — connect_wallet, disconnect_wallet, get_wallet, get_balance, pay_invoice, on_wallet_status_changed stream per contracts/nwc.md
-- [ ] T081 [US7] Implement relay auto-sync in `rust/src/api/nostr.rs` — enable_relay_auto_sync (subscribe to Mostro Kind 10002), get_mostro_settings, on_relay_auto_synced stream per contracts/nostr.md
-- [ ] T082 [US7] Implement push token registration in `rust/src/api/nostr.rs` — register_push_token, push server integration per contracts/nostr.md
-- [ ] T083 [P] [US7] Create NWC provider in `lib/src/providers/nwc_provider.dart` — wraps Rust NWC API, wallet status, balance display
-- [ ] T084 [US7] Create settings screen in `lib/src/screens/settings_screen.dart` — sections: Identity (view pubkey, export backup, delete), Wallet (NWC connect/disconnect, balance), Relays (list with status, add/remove, auto-sync toggle), Preferences (theme, language, privacy mode), Security (PIN, biometric)
-- [ ] T085 [US7] Implement theme switching — dark/light/system theme in settings, persist to Settings entity, apply via Flutter ThemeData
+- [ ] T077 [US7] Implement relay management API in rust/src/api/nostr.rs: add_relay(), remove_relay(), blacklist_relay(), get_relays(), auto-sync from kind 10002 per contracts/nostr.md
+- [ ] T078 [US7] Implement NWC wallet API in rust/src/api/nwc.rs: connect_wallet(), disconnect_wallet(), get_wallet_info(), pay_invoice(), stream on_wallet_status_changed() per contracts/nwc.md
+- [ ] T079 [US7] Create settings screen in lib/screens/settings/settings_screen.dart: relay list with health status, identity export, theme selector (System/Dark/Light), language selector, wallet connection, diagnostics toggle per spec US7 scenarios 1-9
+- [ ] T080 [P] [US7] Implement NWC auto-pay integration in rust/src/api/nwc.rs: auto-reconnect with backoff, automatic hold invoice payment during trades, fallback to manual per spec FR-046 and contracts/nwc.md
+- [ ] T081 [P] [US7] Implement diagnostic logging in rust/src/api/diagnostics.rs: opt-in in-memory buffer (max 1000 FIFO), strip sensitive data, export to file, reset on restart per spec FR-050/FR-051
+- [ ] T082 [US7] Create log viewer screen in lib/screens/settings/log_viewer_screen.dart: filter by level, search, export/share per spec FR-051
 
-**Checkpoint**: US7 complete — settings fully functional
+**Checkpoint**: Settings fully functional — relay management, NWC wallet, theme, diagnostics
 
 ---
 
-## Phase 12: User Story 8 — Trade History (P3)
+## Phase 13: User Story 8 — Trade History (Priority: P3)
 
-**Goal**: View chronological list of past trades with details.
+**Goal**: Users view past trades with details
 
-**Independent Test**: Complete a trade → see it in history with correct details.
+**Independent Test**: User with completed trades sees chronological history with trade details
 
 ### Implementation for User Story 8
 
-- [ ] T086 [US8] Implement get_trade_history in `rust/src/api/orders.rs` — query completed trades from DB, return Vec<TradeHistoryEntry> sorted by completion time
-- [ ] T087 [US8] Create history screen in `lib/src/screens/history_screen.dart` — chronological trade list, tap for details (date, amounts, payment method, outcome, counterparty), empty state with guidance
-- [ ] T088 [US8] Add history tab to navigation — add route in `lib/src/routing/app_router.dart`, add to BottomNavigationBar/NavigationRail
+- [ ] T083 [US8] Implement trade history API in rust/src/api/orders.rs: get_trade_history() returns completed trades sorted by date per contracts/orders.md
+- [ ] T084 [US8] Create history screen in lib/screens/history/history_screen.dart: chronological trade list, detail view on tap, empty state guidance per spec US8 scenarios 1-3
 
-**Checkpoint**: US8 complete — trade history viewable
+**Checkpoint**: Trade history displays all past trades with correct details
 
 ---
 
-## Phase 13: User Story 12 — Deep Links & Order Sharing (P3)
+## Phase 14: User Story 12 — Deep Links & Order Sharing (Priority: P3)
 
-**Goal**: Share orders via deep links/QR; clicking link opens order detail.
+**Goal**: Users share orders via deep links and QR codes
 
-**Independent Test**: Share order link → click on another device → app opens to that order.
+**Independent Test**: Share order link → open on another device → navigates to order detail
 
 ### Implementation for User Story 12
 
-- [ ] T089 [US12] Implement deep link parsing in `rust/src/core/deep_links.rs` — parse `mostro://order/<id>` URIs, validate format
-- [ ] T090 [US12] Implement share_order and resolve_deep_link in `rust/src/api/orders.rs` — generate deep link + QR data, parse incoming URIs per contracts/orders.md
-- [ ] T091 [US12] Add share button to order detail screen `lib/src/screens/order_detail_screen.dart` — generate deep link, show QR code, system share sheet
-- [ ] T092 [US12] Wire deep link handling into `lib/src/routing/app_router.dart` — handle `mostro://` scheme on app launch and while running, navigate to order detail
+- [ ] T085 [US12] Implement deep link APIs in rust/src/api/orders.rs: share_order() generates mostro://order/<id> link + QR data, resolve_deep_link() parses URI per contracts/orders.md
+- [ ] T086 [US12] Configure deep link handling in lib/router.dart: register mostro:// URI scheme, route to order detail on launch per spec FR-036
+- [ ] T087 [P] [US12] Create share dialog in lib/screens/order_detail/order_detail_screen.dart: deep link + QR code display per spec US12 scenarios 1-3
 
-**Checkpoint**: US12 complete — order sharing and deep links work
+**Checkpoint**: Order sharing works across platforms
 
 ---
 
-## Phase 14: Polish & Cross-Cutting Concerns
+## Phase 15: Polish & Cross-Cutting Concerns
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T093 [P] Run `cargo clippy -- -D warnings` and fix all warnings in `rust/`
-- [ ] T094 [P] Run `flutter analyze` and fix all issues in `lib/`
-- [ ] T095 [P] Add doc comments to all public Rust API functions in `rust/src/api/*.rs`
-- [ ] T096 [P] Verify ephemeral trade data cleanup — after trade completion, clear sensitive data per Constitution Principle II in `rust/src/core/trade_state.rs`
-- [ ] T097 [P] Add accessibility labels (semantics) to all interactive widgets in `lib/src/widgets/` and `lib/src/screens/`
-- [ ] T098 Test responsive layout at all three breakpoints (mobile <600px, tablet 600-1200px, desktop >1200px)
-- [ ] T099 Verify NIP-59 encryption — no plaintext message content observable on network, test with relay inspection
-- [ ] T100 Test offline mode — disconnect network, verify cached orders display, messages queue, reconnect and flush
-- [ ] T101 Test with at least two different Mostro daemon instances to confirm no single-daemon dependency
-- [ ] T102 Run `cargo test` and `flutter test` — all tests pass
-- [ ] T103 Run quickstart.md validation — follow developer setup guide end-to-end on a clean environment
+- [ ] T088 [P] Implement background notifications in lib/: FCM integration for Android/iOS, silent push with zero content per spec FR-041/FR-049
+- [ ] T089 [P] Implement internationalization in lib/l10n/: string extraction, locale switching, at minimum English and Spanish per spec FR-020
+- [ ] T090 Implement Mostro instance switching in lib/screens/settings/settings_screen.dart: warn user, reset non-default relays per edge case "Mostro instance change"
+- [ ] T091 [P] Add accessibility labels to all interactive elements: semantic labels, logical focus order, minimum 44x44px touch targets per DESIGN_SYSTEM.md section 8
+- [ ] T092 Run quickstart.md validation: verify all setup steps, build commands, and test commands work across platforms
+- [ ] T093 Code cleanup: remove unused imports, ensure cargo clippy -D warnings passes, flutter analyze zero issues per constitution quality standards
 
 ---
 
@@ -288,103 +295,137 @@
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies — start immediately
-- **Foundational (Phase 2)**: Depends on Phase 1 — BLOCKS all user stories
-- **US3 Onboarding (Phase 3)**: Depends on Phase 2 — BLOCKS US1/US2/US4 (need identity)
-- **US1+US2+US4 Trading (Phase 4)**: Depends on Phase 3 (identity required)
-- **US5 Chat (Phase 5)**: Depends on Phase 4 (need active trade)
-- **US6 Disputes (Phase 6)**: Depends on Phase 4 (need active trade)
-- **US13 Cooperative Cancel (Phase 7)**: Depends on Phase 4 (need active trade)
-- **US9 Responsive (Phase 8)**: Depends on Phase 2 (can start after foundation, but best after Phase 4 for testing)
-- **US10 Recovery (Phase 9)**: Depends on Phase 3 (identity module) + Phase 4 (trade model)
-- **US11 Reputation (Phase 10)**: Depends on Phase 4 (need completed trades)
-- **US7 Settings (Phase 11)**: Depends on Phase 2 (can start early, but NWC needs Phase 4 for testing)
-- **US8 History (Phase 12)**: Depends on Phase 4 (need completed trades)
-- **US12 Deep Links (Phase 13)**: Depends on Phase 4 (need order detail screen)
-- **Polish (Phase 14)**: Depends on all previous phases
+- **Setup (Phase 1)**: No dependencies — can start immediately
+- **Foundational (Phase 2)**: Depends on Setup completion — BLOCKS all user stories
+- **US3 Onboarding (Phase 3)**: Depends on Phase 2 — BLOCKS trades (identity required)
+- **US1+US2 Trade (Phase 4)**: Depends on Phase 3 (needs identity)
+- **US4 Browse (Phase 5)**: Can start after Phase 2, but most value after Phase 4
+- **US5 Chat (Phase 6)**: Depends on Phase 4 (needs active trade)
+- **US13 Cancel (Phase 7)**: Depends on Phase 4 (needs active trade)
+- **US6 Disputes (Phase 8)**: Depends on Phase 4 (needs active trade)
+- **US10 Recovery (Phase 9)**: Depends on Phase 3 (needs identity/mnemonic)
+- **US11 Reputation (Phase 10)**: Depends on Phase 4 (needs completed trade)
+- **US9 Responsive (Phase 11)**: Can start after Phase 2 (cross-cutting layout)
+- **US7 Settings (Phase 12)**: Can start after Phase 2 (relay/wallet infrastructure)
+- **US8 History (Phase 13)**: Depends on Phase 4 (needs trade data)
+- **US12 Deep Links (Phase 14)**: Depends on Phase 4 (needs order detail screen)
+- **Polish (Phase 15)**: Depends on all desired user stories being complete
 
 ### User Story Dependencies
 
-- **US3 (P1)**: Standalone — gateway for all other stories
-- **US1+US2 (P1)**: Depend on US3 for identity
-- **US4 (P2)**: Integrated with US1+US2 in Phase 4
-- **US5 (P2)**: Depends on US1+US2 (active trade context)
-- **US6 (P2)**: Depends on US1+US2 (active trade context)
-- **US9 (P2)**: Independent of stories, depends on foundation
-- **US10 (P2)**: Depends on US3 + US1/US2
-- **US11 (P2)**: Depends on US1+US2 (completed trade)
-- **US13 (P2)**: Depends on US1+US2 (active trade context)
-- **US7 (P3)**: Mostly independent, NWC testing needs US1
-- **US8 (P3)**: Depends on US1+US2 (completed trades to display)
-- **US12 (P3)**: Depends on US4 (order detail screen)
+```text
+Phase 2 (Foundational)
+  └─→ US3 (Identity) ─→ US1+US2 (Trade) ─→ US5 (Chat)
+                     │                    ├─→ US13 (Cancel)
+                     │                    ├─→ US6 (Disputes)
+                     │                    ├─→ US11 (Reputation)
+                     │                    ├─→ US8 (History)
+                     │                    └─→ US12 (Deep Links)
+                     └─→ US10 (Recovery)
+  └─→ US4 (Browse) — can start after Phase 2
+  └─→ US9 (Responsive) — can start after Phase 2
+  └─→ US7 (Settings) — can start after Phase 2
+```
 
 ### Within Each User Story
 
-- Models/types before services/API
-- Rust API before Flutter providers
-- Providers before UI screens/widgets
+- Rust API implementation before Flutter UI
+- Models/storage before services
 - Core implementation before integration
+- Story complete before moving to next priority
 
 ### Parallel Opportunities
 
-- All Setup tasks marked [P] can run in parallel
-- All Foundational tasks marked [P] can run in parallel
-- After Phase 4 completes: US5, US6, US7, US8, US9, US10, US11, US12, US13 can largely proceed in parallel
-- Within each story: [P] tasks can run simultaneously
+- All [P] tasks within a phase can run concurrently
+- After Phase 4 completes, Phases 6-8 (Chat, Cancel, Disputes) can run in parallel
+- Phase 11 (Responsive), Phase 12 (Settings) can start alongside any Phase 3+ work
+- Phase 9 (Recovery) can run in parallel with Phase 4+ (only needs identity)
 
 ---
 
-## Parallel Example: Phase 4 (Trading)
+## Parallel Example: Phase 2 (Foundational)
 
 ```bash
-# Step 1: Rust API (sequential within, parallel across modules)
-T034: Orders API (get, create, take, cancel)
-T035: Buyer trade actions (parallel with T036)
-T036: Seller trade actions (parallel with T035)
-T037: Timeout tracking (after T034)
+# Sequential first (storage trait needed by backends):
+Task T008: Storage trait
 
-# Step 2: Flutter providers (parallel)
-T038: Orders provider
-T039: Active trade provider
+# Then parallel:
+Task T009: SQLite backend
+Task T010: IndexedDB backend
+Task T012: BIP-32/39 keys
+Task T013: Secure storage
+Task T015: Relay pool
+Task T016: Message queue
 
-# Step 3: UI widgets and screens (some parallel)
-T040+T044+T045+T047: Widgets (parallel — different files)
-T041+T042+T043+T046: Screens (sequential — share navigation)
-T048: NWC integration (after T046)
+# Then sequential (needs storage + crypto):
+Task T014: NIP-59 Gift Wrap
+Task T017: State machine
+Task T018: Protocol actions
+```
+
+## Parallel Example: Phase 4 (Trade Lifecycle)
+
+```bash
+# Parallel Rust APIs:
+Task T033: create_order
+Task T034: get_orders
+Task T038: cancel_order
+
+# Sequential (depends on above):
+Task T035: take_order
+Task T036: trade actions
+Task T037: trade streams
+
+# Parallel Flutter UI:
+Task T040: order card widget
+Task T044: trade progress widget
+Task T045: QR scanner widget
+
+# Sequential (depends on APIs + widgets):
+Task T039: home screen
+Task T041: order detail screen
+Task T043: trade screen
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (Phase 1–4)
+### MVP First (Phases 1-4)
 
 1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL — blocks everything)
+2. Complete Phase 2: Foundational (CRITICAL — blocks all stories)
 3. Complete Phase 3: US3 Onboarding
-4. Complete Phase 4: US1+US2+US4 Trading
-5. **STOP and VALIDATE**: End-to-end buy and sell trades work
-6. Deploy/demo as MVP
+4. Complete Phase 4: US1+US2 Trade Lifecycle
+5. **STOP and VALIDATE**: Full buy and sell flow works end-to-end
+6. Deploy/demo with core trading
 
 ### Incremental Delivery
 
-1. Setup + Foundational + US3 → Identity works
-2. + US1+US2+US4 → Full trading (MVP!)
-3. + US5 → Chat during trades
-4. + US6 + US13 → Disputes + cooperative cancel
-5. + US9 → Responsive layouts polished
-6. + US10 + US11 → Recovery + reputation
-7. + US7 → Full settings
-8. + US8 + US12 → History + deep links
-9. + Polish → Release candidate
+1. Setup + Foundational → Foundation ready
+2. Add US3 (Onboarding) → Identity works → Deploy (minimal)
+3. Add US1+US2 (Trade) → Full trading → Deploy (MVP!)
+4. Add US5 (Chat) + US13 (Cancel) + US6 (Disputes) → Complete trade experience
+5. Add US10 (Recovery) + US11 (Reputation) → Trust features
+6. Add US7 (Settings) + US8 (History) + US12 (Deep Links) → Full feature set
+7. Polish → Production ready
+
+### Parallel Team Strategy
+
+With multiple developers after Phase 2:
+
+- **Developer A**: US3 (Identity) → US1+US2 (Trade) → US5 (Chat)
+- **Developer B**: US9 (Responsive layouts) → US7 (Settings) → US12 (Deep Links)
+- **Developer C**: US10 (Recovery) → US6 (Disputes) → US11 (Reputation)
 
 ---
 
 ## Notes
 
 - [P] tasks = different files, no dependencies
-- [Story] label maps to user story for traceability
-- Test tasks T098–T103 defined for validation and quality gates
+- [Story] label maps task to specific user story for traceability
+- Each user story is independently completable and testable after its dependencies
+- US1+US2 combined because buy/sell are two sides of the same trade lifecycle
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
-- Constitution compliance verified at each phase boundary
+- All protocol logic in Rust, all UI in Flutter — zero exceptions per constitution
