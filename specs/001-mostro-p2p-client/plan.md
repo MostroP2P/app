@@ -40,7 +40,7 @@ Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Li
 |-----------|--------|-------|
 | I. Rust Core, Flutter Shell | **PASS** | All contracts define Rust-side APIs exposed via flutter_rust_bridge. No Dart crypto or network calls in any contract. |
 | II. Privacy by Design | **PASS** | File attachments use ChaCha20-Poly1305 in Rust. Push notifications carry zero content. NWC credentials encrypted at rest. |
-| III. Protocol Compliance | **PASS** | Order state machine matches Mostro protocol exactly (15 states including PaymentFailed, CompletedByAdmin). All actions mapped in contracts. |
+| III. Protocol Compliance | **PASS** | Order state machine matches Mostro protocol exactly (15 states per mostro-core: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent, SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired, InProgress). Note: PaymentFailed is an Action, not a Status. |
 | IV. Offline-First Architecture | **PASS** | MessageQueue contract handles offline outbox. Orders cached locally with `cached_at` timestamp. |
 | V. Multi-Platform from Day One | **PASS** | Storage trait with SQLite/IndexedDB backends. Async runtime feature-gated for WASM vs native. |
 | VI. Simplicity Over Features | **PASS** | Contracts expose focused APIs per domain. No multipurpose interfaces. |

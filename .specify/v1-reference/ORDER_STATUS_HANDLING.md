@@ -28,7 +28,7 @@ The app defines the following statuses:
 | `fiatSent` | `fiat-sent` | Buyer confirmed fiat payment sent |
 | `settledHoldInvoice` | `settled-hold-invoice` | Seller released, Lightning payment to buyer in progress |
 | `success` | `success` | Trade completed successfully |
-| `paymentFailed` | `payment-failed` | Lightning payment to buyer failed |
+| ~~`paymentFailed`~~ | ~~`payment-failed`~~ | **NOT a protocol status** — v1 UI-only state. See note below. |
 | `canceled` | `canceled` | Order canceled (timeout, direct, or hold invoice canceled) |
 | `cooperativelyCanceled` | `cooperatively-canceled` | Cooperative cancellation in progress or completed |
 | `canceledByAdmin` | `canceled-by-admin` | Admin canceled the order during a dispute |
@@ -37,6 +37,14 @@ The app defines the following statuses:
 | `dispute` | `dispute` | Order is under dispute |
 | `expired` | `expired` | Order expired, treated as canceled |
 | `inProgress` | `in-progress` | Internal status used during restore |
+
+> ⚠️ **Note on `paymentFailed`:** This is NOT a Mostro protocol status. The v1 mobile app created it as a UI-only state. In the protocol, when Lightning payment to buyer fails:
+> 1. Mostro sends `Action::PaymentFailed` notification (not a status change)
+> 2. Order remains in `settled-hold-invoice` status
+> 3. Mostro retries automatically
+> 4. If all retries fail, Mostro sends `Action::AddInvoice` for buyer to provide new invoice
+> 
+> **v2 should NOT include `PaymentFailed` as a status.** Handle it as a transient notification on `SettledHoldInvoice`.
 
 ## Action-to-Status Mapping
 

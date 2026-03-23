@@ -66,7 +66,8 @@ Pending
 │           ├─→ Active
 │           │     ├─→ FiatSent
 │           │     │     └─→ SettledHoldInvoice → Success
-│           │     │                            → PaymentFailed (buyer resubmits invoice)
+│           │     │           (if LN payment fails: Action::PaymentFailed notification,
+│           │     │            then Action::AddInvoice - status stays SettledHoldInvoice)
 │           │     └─→ Dispute
 │           │           ├─→ CanceledByAdmin
 │           │           ├─→ SettledByAdmin

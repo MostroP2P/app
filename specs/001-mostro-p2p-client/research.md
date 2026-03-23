@@ -115,7 +115,7 @@ Pending
       → FiatSent (buyer marked fiat sent)
         → SettledHoldInvoice (seller confirmed, funds released)
           → Success (trade complete)
-          → PaymentFailed (LN payment to buyer failed, buyer may resubmit invoice)
+          (if LN payment fails: Action::PaymentFailed sent, then Action::AddInvoice)
       → Dispute (either party disputes)
         → CanceledByAdmin | SettledByAdmin | CompletedByAdmin
     → Expired (buyer never paid, timeout)

@@ -86,34 +86,31 @@ Seller must pay the hold invoice to lock the sats in escrow.
 | Action | By | Next State (Sell Order) | Next State (Buy Order) |
 |--------|----|------------------------|------------------------|
 | `pay-invoice` | Seller | `active` | `waiting-buyer-invoice` |
-| `payment-failed` | System | `payment-failed` | `payment-failed` |
 | `cancel` | Either | `canceled` | `canceled` |
 
 ---
 
-### 4. PAYMENT_FAILED
+### 4. Action: PAYMENT_FAILED (Not a Status)
 
-**Visual:**
-- Chip: Gray background (`#1F2937`), gray text (`#D1D5DB`)
-- Label: "Payment Failed"
+> ⚠️ **IMPORTANT**: `payment-failed` is NOT an order status in the Mostro protocol. It is only an `Action` sent as a notification. The order status does NOT change when this action is received.
 
-**Description:**
-The seller failed to pay the hold invoice within the time window. The order is temporarily stalled.
+**When it happens:**
+After the seller releases sats, Mostro attempts to pay the buyer's Lightning invoice. If the payment fails:
 
-**Available Actions:**
-- Seller can retry payment
-- Buyer can provide new invoice (optional)
-- Either party can cancel
+1. **First failure**: Mostro sends `Action::PaymentFailed` to the buyer
+   - Payload includes `payment_attempts` remaining and `payment_retries_interval`
+   - Mostro will retry automatically
+   - Order remains in `settled-hold-invoice` status
 
-> ⚠️ **Dispute not available:** Disputes can only be initiated when the order is in `active` or `fiat-sent` status.
+2. **All retries exhausted**: Mostro sends `Action::AddInvoice` to the buyer
+   - Buyer must provide a new Lightning invoice
+   - Order remains in `settled-hold-invoice` status
 
-**Transitions:**
-
-| Action | By | Next State |
-|--------|----|------------|
-| `pay-invoice` | Seller | `active` |
-| `add-invoice` | Buyer | `waiting-payment` |
-| `cancel` | Either | `canceled` |
+**Key points:**
+- `PaymentFailed` is sent to the **buyer**, not the seller
+- The order status stays `settled-hold-invoice` throughout
+- Sats remain locked in escrow until payment succeeds or admin intervenes
+- v1 mobile app created a UI-only "PaymentFailed" state for display purposes, but this is not a protocol status
 
 ---
 
@@ -446,7 +443,7 @@ Order expired without being taken within the configured time limit.
 | `pending` | `#854D0E` (amber-900) | `#FCD34D` (amber-300) | `statusPending` |
 | `waiting-buyer-invoice` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
 | `waiting-payment` | `#7C2D12` (orange-900) | `#FED7AA` (orange-200) | `statusWaiting` |
-| `payment-failed` | `#1F2937` (gray-800) | `#D1D5DB` (gray-300) | `statusInactive` |
+
 | `active` | `#1E3A8A` (blue-900) | `#93C5FD` (blue-300) | `statusActive` |
 | `fiat-sent` | `#065F46` (emerald-900) | `#6EE7B7` (emerald-300) | `statusSuccess` |
 | `settled-hold-invoice` | `#854D0E` (amber-900) | `#FCD34D` (amber-300) | `statusPending` |
@@ -481,10 +478,6 @@ The trade detail screen shows different action buttons based on the current stat
 
 ### WAITING_PAYMENT (as Seller)
 - **Pay Hold Invoice** - Primary button (shows QR/invoice)
-- **Cancel** - Destructive
-
-### PAYMENT_FAILED (as Seller)
-- **Retry Payment** - Primary button
 - **Cancel** - Destructive
 
 ### ACTIVE (as Buyer)
@@ -522,9 +515,6 @@ The trade detail screen shows different action buttons based on the current stat
 | `waiting-buyer-invoice` | `add-invoice` | `waiting-payment` | - |
 | `waiting-buyer-invoice` | `cancel` | `canceled` | `canceled` |
 | `waiting-payment` | `pay-invoice` | - | `active` |
-| `waiting-payment` | `payment-failed` | `payment-failed` | `payment-failed` |
-| `payment-failed` | `pay-invoice` | - | `active` |
-| `payment-failed` | `add-invoice` | `waiting-payment` | - |
 | `active` | `fiat-sent` | `fiat-sent` | `fiat-sent` |
 | `fiat-sent` | `release` | - | `settled-hold-invoice` |
 | `settled-hold-invoice` | (auto) | `success` | `success` |
@@ -542,12 +532,13 @@ The state machine should be implemented in Rust for consistency:
 ```rust
 // rust/src/api/order_fsm.rs
 
+/// Order statuses as defined in mostro-core
+/// Note: PaymentFailed is NOT a status - it's only an Action notification
 #[frb]
 pub enum OrderStatus {
     Pending,
     WaitingBuyerInvoice,
     WaitingPayment,
-    PaymentFailed,
     Active,
     FiatSent,
     SettledHoldInvoice,
@@ -559,6 +550,7 @@ pub enum OrderStatus {
     CanceledByAdmin,
     CompletedByAdmin,
     Expired,
+    InProgress,  // For disputes
 }
 
 #[frb]
@@ -688,8 +680,8 @@ This mapping documents status-changing actions. Role differentiation happens bec
 
 ### Status Preservation Edge Cases
 
-**payment-failed + add-invoice:**
-When `add-invoice` is received while in `payment-failed` status, the order transitions to `waiting-payment`. This is consistent with the v1 FSM behavior where the buyer can provide a new invoice to retry the flow.
+**Action::PaymentFailed handling:**
+When `Action::PaymentFailed` is received (after seller releases), the order status does NOT change — it remains `settled-hold-invoice`. The app should show a UI notification that payment failed and Mostro is retrying. If all retries fail, Mostro sends `Action::AddInvoice` and the buyer must provide a new Lightning invoice.
 
 **Restoring Sessions:**
 When restoring sessions after app restart, orders may have a status but no recent action. The app synthesizes the appropriate action based on status and role. See "Restore Flow" below.
@@ -735,7 +727,7 @@ When restoring sessions after app restart, the app receives orders with a status
 | `settled-hold-invoice` | `released` | `hold-invoice-payment-settled` |
 | `success` | `purchase-completed` | `purchase-completed` |
 | `canceled` | `canceled` | `canceled` |
-| `payment-failed` | `payment-failed` | `payment-failed` |
+
 | `dispute` | `dispute-initiated-by-peer` | `dispute-initiated-by-peer` |
 
 **Critical for `settled-hold-invoice`:** The buyer sees the intermediate "Paying sats" state, while the seller sees `success`. This matches the live flow where buyers must wait for Lightning payment confirmation.
@@ -775,7 +767,7 @@ The `dispute.action` field distinguishes closure reason:
 | `pending` | "Pending" | Yellow |
 | `waiting-payment` | "Waiting payment" | Orange |
 | `waiting-buyer-invoice` | "Waiting invoice" | Orange |
-| `payment-failed` | "Payment Failed" | Gray |
+
 | `fiat-sent` | "Fiat-sent" | Green |
 | `settled-hold-invoice` | "Paying sats" | Yellow |
 | `success` | "Success" | Green |
@@ -791,7 +783,7 @@ The `dispute.action` field distinguishes closure reason:
 | `active` | "Active order" |
 | `fiat-sent` | "Fiat sent" |
 | `settled-hold-invoice` | "Paying sats" |
-| `payment-failed` | "Payment failed" |
+
 | `cooperativelyCanceled` | "Cooperative cancellation" |
 | `canceled-by-admin` | "Order canceled by an administrator" |
 | `settled-by-admin` | "Sats released by an administrator" |
