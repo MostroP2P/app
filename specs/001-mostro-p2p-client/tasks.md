@@ -19,7 +19,7 @@
 
 **Purpose**: Project initialization, Rust crate creation, Flutter scaffolding
 
-- [ ] T001 Initialize Flutter project at repo root with all 6 platform targets (ios/, android/, web/, macos/, windows/, linux/) per plan.md
+- [ ] T001 Initialize Flutter project at repo root with all 6 platform targets (iOS, Android, Web, macOS, Windows, Linux — directories: ios/, android/, web/, macos/, windows/, linux/) per plan.md
 - [ ] T002 Create Rust crate at rust/ with Cargo.toml including dependencies: nostr-sdk 0.44+, mostro-core, bip32, bip39, chacha20poly1305, sqlx, serde, tokio
 - [ ] T003 [P] Configure flutter_rust_bridge v2 with rust_builder/ cargokit integration per quickstart.md
 - [ ] T004 [P] Configure linting: cargo clippy -D warnings, flutter analyze, rustfmt, dart format per constitution quality standards

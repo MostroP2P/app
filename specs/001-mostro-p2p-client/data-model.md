@@ -18,7 +18,7 @@ Represents the user's cryptographic identity. One per app installation.
 | created_at | Timestamp | When identity was created |
 | last_used_at | Timestamp | Last activity timestamp |
 | trade_key_index | u32 | Current BIP-32 trade key index (N in m/44'/1237'/38383'/0/N) |
-| privacy_mode | bool | Whether user is in privacy mode (no reputation). Mirrors the global toggle in Settings; stored on Identity for quick access. |
+| privacy_mode | bool | Whether user is in privacy mode (no reputation). **Authoritative source.** The Settings `privacy_mode` key is a convenience alias: writes MUST go through `set_privacy_mode()` on the Identity API, which updates Identity first and then propagates to Settings. On read, Identity.privacy_mode wins any conflict. Settings MUST NOT be written directly for this key. |
 | derivation_path | String | BIP-32 base path: `m/44'/1237'/38383'/0` |
 
 **Validation rules**:
@@ -71,8 +71,8 @@ Pending
 │           │           ├─→ CanceledByAdmin
 │           │           ├─→ SettledByAdmin
 │           │           └─→ CompletedByAdmin
-│           └─→ Expired
-├─→ Canceled (by creator or timeout)
+│           └─→ Expired (protocol-enforced inactivity timeout, e.g., buyer never paid within deadline)
+├─→ Canceled (explicit user action: creator cancels own untaken order)
 └─→ CooperativelyCanceled
 ```
 
@@ -198,7 +198,7 @@ User preferences stored locally.
 `pin_enabled` (bool), `biometric_enabled` (bool),
 `default_fiat_currency` (ISO code), `notification_enabled` (bool),
 `privacy_mode` (bool — global toggle, applies to future trades),
-`logging_enabled` (bool — diagnostic logging, resets to false on restart).
+`logging_enabled` (bool — diagnostic logging, runtime-only: not persisted to storage; startup code unconditionally sets this to `false` on process start regardless of any prior value).
 
 ---
 
