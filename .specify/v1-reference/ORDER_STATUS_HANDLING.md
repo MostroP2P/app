@@ -1,264 +1,228 @@
-# Order Status Handling
+# Manejo de Estados de Orden
 
-This document describes how the mobile app processes, maps, and displays order statuses received from the Mostro daemon. It covers the action-to-status mapping, role-specific behavior, the restore flow, and UI presentation.
+Este documento describe cómo la app móvil procesa, mapea y muestra los estados de orden recibidos del daemon Mostro. Cubre el mapeo de acción-a-estado, comportamiento específico por rol, el flujo de restauración, y presentación en la UI.
 
-## Overview
+## Resumen
 
-The Mostro daemon communicates with the app via encrypted gift wrap messages (NIP-59). Each message contains an **action** that describes what happened. The app maps these actions to internal **status** values that determine what the user sees and what operations are available.
+El daemon Mostro se comunica con la app vía mensajes gift wrap cifrados (NIP-59). Cada mensaje contiene una **acción** que describe qué pasó. La app mapea estas acciones a valores internos de **estado** que determinan qué ve el usuario y qué operaciones están disponibles.
 
-The key files involved are:
+Los archivos clave involucrados son:
 
-- `lib/data/models/enums/status.dart` — Status enum definition
-- `lib/data/models/enums/action.dart` — Action enum definition
-- `lib/features/order/models/order_state.dart` — Action-to-status mapping (`_getStatusFromAction`)
-- `lib/features/restore/restore_manager.dart` — Status-to-action mapping for restore (`_getActionFromStatus`)
-- `lib/features/trades/widgets/mostro_message_detail_widget.dart` — Order Details display
-- `lib/features/trades/widgets/trades_list_item.dart` — My Trades list chips
+- `lib/data/models/enums/status.dart` — Definición del enum Status
+- `lib/data/models/enums/action.dart` — Definición del enum Action
+- `lib/features/order/models/order_state.dart` — Mapeo de acción-a-estado (`_getStatusFromAction`)
+- `lib/features/restore/restore_manager.dart` — Mapeo de estado-a-acción para restauración (`_getActionFromStatus`)
+- `lib/features/trades/widgets/mostro_message_detail_widget.dart` — Display de Detalles de Orden
+- `lib/features/trades/widgets/trades_list_item.dart` — Chips de lista de Mis Trades
 
-## Status Enum
+## Enum de Estado
 
-The app defines the following statuses:
+La app define los siguientes estados:
 
-| Status | Protocol Value | Description |
-|---|---|---|
-| `pending` | `pending` | Order published, waiting for a counterpart |
-| `waitingBuyerInvoice` | `waiting-buyer-invoice` | Waiting for the buyer to provide a Lightning invoice |
-| `waitingPayment` | `waiting-payment` | Waiting for the seller to pay the hold invoice |
-| `active` | `active` | Both parties matched, trade in progress |
-| `fiatSent` | `fiat-sent` | Buyer confirmed fiat payment sent |
-| `settledHoldInvoice` | `settled-hold-invoice` | Seller released, Lightning payment to buyer in progress |
-| `success` | `success` | Trade completed successfully |
-| ~~`paymentFailed`~~ | ~~`payment-failed`~~ | **NOT a protocol status** — v1 UI-only state. See note below. |
-| `canceled` | `canceled` | Order canceled (timeout, direct, or hold invoice canceled) |
-| `cooperativelyCanceled` | `cooperatively-canceled` | Cooperative cancellation in progress or completed |
-| `canceledByAdmin` | `canceled-by-admin` | Admin canceled the order during a dispute |
-| `settledByAdmin` | `settled-by-admin` | Admin resolved a dispute by releasing sats |
-| `completedByAdmin` | `completed-by-admin` | Reserved status, not actively used |
-| `dispute` | `dispute` | Order is under dispute |
-| `expired` | `expired` | Order expired, treated as canceled |
-| `inProgress` | `in-progress` | Internal status used during restore |
+| Estado | Valor del Protocolo | Descripción |
+|--------|---------------------|-------------|
+| `pending` | `pending` | Orden publicada, esperando contraparte |
+| `waitingBuyerInvoice` | `waiting-buyer-invoice` | Esperando que el comprador provea un invoice Lightning |
+| `waitingPayment` | `waiting-payment` | Esperando que el vendedor pague el hold invoice |
+| `active` | `active` | Ambas partes emparejadas, trade en progreso |
+| `fiatSent` | `fiat-sent` | Comprador confirmó pago fiat enviado |
+| `settledHoldInvoice` | `settled-hold-invoice` | Vendedor liberó, pago Lightning al comprador en progreso |
+| `success` | `success` | Trade completado exitosamente |
+| ~~`paymentFailed`~~ | ~~`payment-failed`~~ | **NO es un estado del protocolo** — estado solo de UI en v1. Ver nota abajo. |
+| `canceled` | `canceled` | Orden cancelada (timeout, directa, o hold invoice cancelado) |
+| `cooperativelyCanceled` | `cooperatively-canceled` | Cancelación cooperativa en progreso o completada |
+| `canceledByAdmin` | `canceled-by-admin` | Admin canceló la orden durante una disputa |
+| `settledByAdmin` | `settled-by-admin` | Admin resolvió una disputa liberando sats |
+| `completedByAdmin` | `completed-by-admin` | Estado reservado, no usado activamente |
+| `dispute` | `dispute` | Orden está en disputa |
+| `expired` | `expired` | Orden expiró, tratada como cancelada |
+| `inProgress` | `in-progress` | Estado interno usado durante restauración |
 
-> ⚠️ **Note on `paymentFailed`:** This is NOT a Mostro protocol status. The v1 mobile app created it as a UI-only state. In the protocol, when Lightning payment to buyer fails:
-> 1. Mostro sends `Action::PaymentFailed` notification (not a status change)
-> 2. Order remains in `settled-hold-invoice` status
-> 3. Mostro retries automatically
-> 4. If all retries fail, Mostro sends `Action::AddInvoice` for buyer to provide new invoice
+> ⚠️ **Nota sobre `paymentFailed`:** Esto NO es un estado del protocolo Mostro. La app móvil v1 lo creó como un estado solo de UI. En el protocolo, cuando el pago Lightning al comprador falla:
+> 1. Mostro envía notificación `Action::PaymentFailed` (no un cambio de estado)
+> 2. La orden permanece en estado `settled-hold-invoice`
+> 3. Mostro reintenta automáticamente
+> 4. Si todos los reintentos fallan, Mostro envía `Action::AddInvoice` para que el comprador provea nuevo invoice
 > 
-> **v2 should NOT include `PaymentFailed` as a status.** Handle it as a transient notification on `SettledHoldInvoice`.
+> **v2 NO debería incluir `PaymentFailed` como estado.** Manejarlo como una notificación transitoria en `SettledHoldInvoice`.
 
-## Action-to-Status Mapping
+## Mapeo de Acción-a-Estado
 
-When the app receives a gift wrap message from Mostro, `_getStatusFromAction()` in `order_state.dart` determines the new status. This mapping is action-driven, not role-specific — role differentiation happens naturally because Mostro sends different actions to buyer and seller.
+Cuando la app recibe un mensaje gift wrap de Mostro, `_getStatusFromAction()` en `order_state.dart` determina el nuevo estado. Este mapeo es dirigido por acción, no específico de rol — la diferenciación por rol sucede naturalmente porque Mostro envía diferentes acciones al comprador y vendedor.
 
-### Waiting Payment
+### Esperando Pago
 
-| Action | Status | When |
-|---|---|---|
-| `waitingSellerToPay` | `waitingPayment` | Seller must pay the hold invoice |
-| `payInvoice` | `waitingPayment` | Seller receives the invoice to pay |
-| `takeSell` | `waitingPayment` | Seller takes a buy order |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `waitingSellerToPay` | `waitingPayment` | Vendedor debe pagar el hold invoice |
+| `payInvoice` | `waitingPayment` | Vendedor recibe el invoice a pagar |
+| `takeSell` | `waitingPayment` | Vendedor toma una orden de compra |
 
-### Waiting Buyer Invoice
+### Esperando Invoice del Comprador
 
-| Action | Status | When |
-|---|---|---|
-| `waitingBuyerInvoice` | `waitingBuyerInvoice` | Buyer must provide a Lightning invoice |
-| `addInvoice` | `waitingBuyerInvoice` | Buyer receives request to add invoice (or stays `settledHoldInvoice` if after payment failure) |
-| `takeBuy` | `waitingBuyerInvoice` | Buyer takes a sell order |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `waitingBuyerInvoice` | `waitingBuyerInvoice` | Comprador debe proveer un invoice Lightning |
+| `addInvoice` | `waitingBuyerInvoice` | Comprador recibe solicitud de agregar invoice (o permanece `settledHoldInvoice` si es después de fallo de pago) |
+| `takeBuy` | `waitingBuyerInvoice` | Comprador toma una orden de venta |
 
-### Active
+### Activo
 
-| Action | Status | When |
-|---|---|---|
-| `buyerTookOrder` | `active` | Seller is notified a buyer took their order |
-| `holdInvoicePaymentAccepted` | `active` | Buyer is notified the seller paid the hold invoice |
-| `buyerInvoiceAccepted` | `active` | Buyer's invoice was accepted |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `buyerTookOrder` | `active` | Vendedor es notificado que un comprador tomó su orden |
+| `holdInvoicePaymentAccepted` | `active` | Comprador es notificado que el vendedor pagó el hold invoice |
+| `buyerInvoiceAccepted` | `active` | Invoice del comprador fue aceptado |
 
-### Fiat Sent
+### Fiat Enviado
 
-| Action | Status | When |
-|---|---|---|
-| `fiatSent` | `fiatSent` | Buyer confirms fiat payment |
-| `fiatSentOk` | `fiatSent` | Counterpart is notified fiat was sent |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `fiatSent` | `fiatSent` | Comprador confirma pago fiat |
+| `fiatSentOk` | `fiatSent` | Contraparte es notificada que fiat fue enviado |
 
-### Settled Hold Invoice (Intermediate)
+### Hold Invoice Liquidado (Intermedio)
 
-| Action | Status | When |
-|---|---|---|
-| `released` | `settledHoldInvoice` | **Buyer** receives this when seller releases sats |
-| `release` | `settledHoldInvoice` | Seller initiates release |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `released` | `settledHoldInvoice` | **Comprador** recibe esto cuando vendedor libera sats |
+| `release` | `settledHoldInvoice` | Vendedor inicia liberación |
 
-This is an intermediate status for the **buyer only**. It means the seller released the sats and the Lightning payment to the buyer is in progress but not yet confirmed. The seller never sees this status because they receive `holdInvoicePaymentSettled` instead, which maps directly to `success`.
+Este es un estado intermedio **solo para el comprador**. Significa que el vendedor liberó los sats y el pago Lightning al comprador está en progreso pero no confirmado aún. El vendedor nunca ve este estado porque recibe `holdInvoicePaymentSettled` en su lugar, que mapea directamente a `success`.
 
-### Success
+### Éxito
 
-| Action | Status | When |
-|---|---|---|
-| `purchaseCompleted` | `success` | Buyer receives confirmation that the LN payment completed |
-| `holdInvoicePaymentSettled` | `success` | **Seller** receives this when the hold invoice settles |
-| `rate` | `success` | User receives a rating prompt |
-| `rateReceived` | `success` | Rating confirmation received |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `purchaseCompleted` | `success` | Comprador recibe confirmación de que el pago LN completó |
+| `holdInvoicePaymentSettled` | `success` | **Vendedor** recibe esto cuando el hold invoice se liquida |
+| `rate` | `success` | Usuario recibe prompt de calificación |
+| `rateReceived` | `success` | Confirmación de calificación recibida |
 
-### Payment Failed (Action, Not Status)
+### Fallo de Pago (Acción, No Estado)
 
-> ⚠️ **v2 Note:** `paymentFailed` is NOT a status change. See protocol note above.
+> ⚠️ **Nota v2:** `paymentFailed` NO es un cambio de estado. Ver nota del protocolo arriba.
 
-| Action | Status | When |
-|---|---|---|
-| `paymentFailed` | (no change) | Lightning payment to buyer failed — order stays `settledHoldInvoice` |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `paymentFailed` | (sin cambio) | Pago Lightning al comprador falló — orden permanece `settledHoldInvoice` |
 
-When `paymentFailed` action is received, the order remains in `settled-hold-invoice` status. The app should display a notification that payment failed and Mostro is retrying. When `addInvoice` follows (after all retries fail), prompt the buyer for a new invoice while remaining in `settled-hold-invoice`.
+Cuando se recibe la acción `paymentFailed`, la orden permanece en estado `settled-hold-invoice`. La app debería mostrar una notificación de que el pago falló y Mostro está reintentando. Cuando `addInvoice` sigue (después de que todos los reintentos fallan), pedir al comprador un nuevo invoice mientras permanece en `settled-hold-invoice`.
 
-### Canceled
+### Cancelado
 
-| Action | Status | When |
-|---|---|---|
-| `canceled` | `canceled` | Mostro cancels the order (timeout, explicit) |
-| `cancel` | `canceled` | Cancel action initiated |
-| `cooperativeCancelAccepted` | `canceled` | Both parties accepted cooperative cancellation |
-| `holdInvoicePaymentCanceled` | `canceled` | Hold invoice was canceled |
-| `adminCanceled` | `canceled` | Admin canceled the order |
-| `adminCancel` | `canceled` | Admin cancel action |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `canceled` | `canceled` | Mostro cancela la orden (timeout, explícita) |
+| `cancel` | `canceled` | Acción de cancelar iniciada |
+| `cooperativeCancelAccepted` | `canceled` | Ambas partes aceptaron cancelación cooperativa |
+| `holdInvoicePaymentCanceled` | `canceled` | Hold invoice fue cancelado |
+| `adminCanceled` | `canceled` | Admin canceló la orden |
+| `adminCancel` | `canceled` | Acción de cancelar del admin |
 
-### Cooperative Cancellation
+### Cancelación Cooperativa
 
-| Action | Status | When |
-|---|---|---|
-| `cooperativeCancelInitiatedByYou` | `cooperativelyCanceled` | User initiated cooperative cancellation |
-| `cooperativeCancelInitiatedByPeer` | `cooperativelyCanceled` | Counterpart initiated cooperative cancellation |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `cooperativeCancelInitiatedByYou` | `cooperativelyCanceled` | Usuario inició cancelación cooperativa |
+| `cooperativeCancelInitiatedByPeer` | `cooperativelyCanceled` | Contraparte inició cancelación cooperativa |
 
-This is a pending state. Once the other party accepts, the status changes to `canceled` via `cooperativeCancelAccepted`.
+Este es un estado pendiente. Una vez que la otra parte acepta, el estado cambia a `canceled` vía `cooperativeCancelAccepted`.
 
-### Dispute
+### Disputa
 
-| Action | Status | When |
-|---|---|---|
-| `disputeInitiatedByYou` | `dispute` | User opened a dispute |
-| `disputeInitiatedByPeer` | `dispute` | Counterpart opened a dispute |
-| `dispute` | `dispute` | General dispute action |
-| `adminTakeDispute` | `dispute` | Admin took the dispute |
-| `adminTookDispute` | `dispute` | Admin took the dispute (confirmation) |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `disputeInitiatedByYou` | `dispute` | Usuario abrió una disputa |
+| `disputeInitiatedByPeer` | `dispute` | Contraparte abrió una disputa |
+| `dispute` | `dispute` | Acción general de disputa |
+| `adminTakeDispute` | `dispute` | Admin tomó la disputa |
+| `adminTookDispute` | `dispute` | Admin tomó la disputa (confirmación) |
 
-_For UI behavior (list badges, dispute chat, admin messaging) see [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md)._ 
+_Para comportamiento de UI (badges de lista, chat de disputa, mensajería con admin) ver [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md)._ 
 
-### Admin Resolution
+### Resolución de Admin
 
-| Action | Status | When |
-|---|---|---|
-| `adminSettle` | `settledByAdmin` | Admin resolves dispute by releasing sats to the user |
-| `adminSettled` | `settledByAdmin` | Admin settlement confirmation |
+| Acción | Estado | Cuándo |
+|--------|--------|--------|
+| `adminSettle` | `settledByAdmin` | Admin resuelve disputa liberando sats al usuario |
+| `adminSettled` | `settledByAdmin` | Confirmación de liquidación del admin |
 
-### Dispute Auto-Close on Terminal State
+### Auto-Cierre de Disputa en Estado Terminal
 
-When an order with an active dispute reaches a terminal state through user action (not admin), the dispute is automatically closed. This is handled in `OrderState.updateWith()` after the admin dispute handling block.
+Cuando una orden con una disputa activa alcanza un estado terminal a través de acción del usuario (no admin), la disputa se cierra automáticamente. Esto se maneja en `OrderState.updateWith()` después del bloque de manejo de disputa del admin.
 
-| Order reaches | `dispute.status` | `dispute.action` | Trigger |
-|---|---|---|---|
-| `success` | `closed` | `user-completed` | Seller receives `holdInvoicePaymentSettled` |
-| `settledHoldInvoice` | `closed` | `user-completed` | Buyer receives `released` |
-| `canceled` | `closed` | `cooperative-cancel` | Both receive `cooperativeCancelAccepted` |
+| Orden alcanza | `dispute.status` | `dispute.action` | Disparador |
+|---------------|------------------|------------------|------------|
+| `success` | `closed` | `user-completed` | Vendedor recibe `holdInvoicePaymentSettled` |
+| `settledHoldInvoice` | `closed` | `user-completed` | Comprador recibe `released` |
+| `canceled` | `closed` | `cooperative-cancel` | Ambos reciben `cooperativeCancelAccepted` |
 
-The dispute status `closed` is distinct from `resolved` (admin settled) and `seller-refunded` (admin canceled). The UI chain handles it automatically:
+El estado de disputa `closed` es distinto de `resolved` (admin liquidó) y `seller-refunded` (admin canceló). La cadena de UI lo maneja automáticamente:
 
-- `DisputeChatScreen`: input disappears (only rendered for `in-progress`)
-- `DisputeMessagesList`: shows "Chat closed" message with lock icon
-- `DisputeStatusBadge`: gray "Closed" badge
-- `DisputeStatusContent`: role-specific resolution message
-- Dispute list description: differentiates by `dispute.action`
+- `DisputeChatScreen`: input desaparece (solo se renderiza para `in-progress`)
+- `DisputeMessagesList`: muestra mensaje "Chat cerrado" con icono de candado
+- `DisputeStatusBadge`: badge gris "Cerrado"
+- `DisputeStatusContent`: mensaje de resolución específico por rol
+- Descripción de lista de disputas: diferencia por `dispute.action`
 
-### Informational Actions (No Status Change)
+### Acciones Informativas (Sin Cambio de Estado)
 
-These actions preserve the current status:
+Estas acciones preservan el estado actual:
 
-- `rateUser` — Rate a user
-- `invoiceUpdated` — Invoice was updated
-- `sendDm` — Direct message
-- `tradePubkey` — Trade public key exchange
-- `adminAddSolver` — Admin assigned a solver
-- `newOrder` — Uses payload status if available
+- `rateUser` — Calificar a un usuario
+- `invoiceUpdated` — Invoice fue actualizado
+- `sendDm` — Mensaje directo
+- `tradePubkey` — Intercambio de clave pública de trade
+- `adminAddSolver` — Admin asignó un solver
+- `newOrder` — Usa estado del payload si está disponible
 
-## Role-Specific Behavior
+## Comportamiento Específico por Rol
 
-Mostro sends different actions to buyer and seller for the same event. The app does not need role-based logic in `_getStatusFromAction()` because the role differentiation is handled by the protocol itself.
+Mostro envía diferentes acciones al comprador y vendedor para el mismo evento. La app no necesita lógica basada en rol en `_getStatusFromAction()` porque la diferenciación de rol es manejada por el protocolo mismo.
 
-### Seller Releases Sats — What Each Party Sees
+### Vendedor Libera Sats — Qué Ve Cada Parte
 
 ```text
-Seller releases
+Vendedor libera
     │
-    ├── Buyer receives: Action.released
-    │   └── Status: settledHoldInvoice ("Paying sats")
-    │       └── Later: Action.purchaseCompleted → Status: success
+    ├── Comprador recibe: Action.released
+    │   └── Estado: settledHoldInvoice ("Pagando sats")
+    │       └── Después: Action.purchaseCompleted → Estado: success
     │
-    └── Seller receives: Action.holdInvoicePaymentSettled
-        └── Status: success (immediately)
+    └── Vendedor recibe: Action.holdInvoicePaymentSettled
+        └── Estado: success (inmediatamente)
 ```
 
-The seller's part is done when they release, so they see success right away. The buyer must wait for the Lightning payment to actually complete.
+La parte del vendedor está hecha cuando libera, así que ve éxito de inmediato. El comprador debe esperar a que el pago Lightning realmente complete.
 
-### Payment Failure Cycle (Buyer Only)
+### Ciclo de Fallo de Pago (Solo Comprador)
 
-> ⚠️ **v2 Note:** `paymentFailed` is an Action notification, NOT a status. The order remains in `settled-hold-invoice` throughout this cycle.
+> ⚠️ **Nota v2:** `paymentFailed` es una notificación de Acción, NO un estado. La orden permanece en `settled-hold-invoice` durante todo este ciclo.
 
 ```text
-Action.released → settledHoldInvoice ("Paying sats")
+Action.released → settledHoldInvoice ("Pagando sats")
     │
-    └── LN payment fails
+    └── Pago LN falla
         │
-        Action.paymentFailed → settledHoldInvoice (status unchanged, show notification)
+        Action.paymentFailed → settledHoldInvoice (estado sin cambio, mostrar notificación)
             │
-            └── Mostro retries automatically (up to N times)
+            └── Mostro reintenta automáticamente (hasta N veces)
                 │
-                ├── Success: Action.purchaseCompleted → success
+                ├── Éxito: Action.purchaseCompleted → success
                 │
-                └── All retries fail:
-                    Action.addInvoice → settledHoldInvoice (buyer provides new invoice)
+                └── Todos los reintentos fallan:
+                    Action.addInvoice → settledHoldInvoice (comprador provee nuevo invoice)
                         │
-                        └── Mostro pays new invoice → success
+                        └── Mostro paga nuevo invoice → success
 ```
 
-### Buyer Takes a Sell Order
+## Flujo de Restauración
 
-```text
-Buyer takes sell order
-    │
-    Action.takeBuy → waitingBuyerInvoice (buyer adds invoice)
-        │
-        Action.addInvoice → waitingBuyerInvoice
-            │
-            Action.holdInvoicePaymentAccepted → active (seller paid hold invoice)
-                │
-                Action.fiatSentOk → fiatSent (buyer confirms fiat payment)
-                    │
-                    Action.released → settledHoldInvoice (seller releases)
-                        │
-                        Action.purchaseCompleted → success
-```
+Cuando la app restaura sesiones después de reinicio, recibe órdenes con un estado pero sin acción. El método `_getActionFromStatus()` en `restore_manager.dart` sintetiza la acción apropiada basada en el estado y el rol del usuario.
 
-### Seller Creates a Sell Order
-
-```text
-Seller creates sell order
-    │
-    Action.newOrder → pending
-        │
-        Action.buyerTookOrder → active (a buyer took the order)
-            │
-            Action.waitingSellerToPay → waitingPayment
-                │
-                Action.payInvoice → waitingPayment (seller pays hold invoice)
-                    │
-                    Action.fiatSentOk → fiatSent (buyer confirms fiat)
-                        │
-                        Action.holdInvoicePaymentSettled → success
-```
-
-## Restore Flow
-
-When the app restores sessions after restart, it receives orders with a status but no action. The `_getActionFromStatus()` method in `restore_manager.dart` synthesizes the appropriate action based on the status and the user's role.
-
-| Status | Buyer Action | Seller Action |
-|---|---|---|
+| Estado | Acción Comprador | Acción Vendedor |
+|--------|------------------|-----------------|
 | `pending` | `newOrder` | `newOrder` |
 | `waitingBuyerInvoice` | `addInvoice` | `waitingBuyerInvoice` |
 | `waitingPayment` | `waitingSellerToPay` | `payInvoice` |
@@ -273,88 +237,83 @@ When the app restores sessions after restart, it receives orders with a status b
 | `completedByAdmin` | `adminSettled` | `adminSettled` |
 | `dispute` | `disputeInitiatedByPeer` | `disputeInitiatedByPeer` |
 | `expired` | `canceled` | `canceled` |
-
 | `inProgress` | `buyerTookOrder` | `buyerTookOrder` |
 
-The role differentiation in restore is critical for `settledHoldInvoice`: the buyer sees the intermediate "Paying sats" state, while the seller sees success.
+La diferenciación por rol en restauración es crítica para `settledHoldInvoice`: el comprador ve el estado intermedio "Pagando sats", mientras el vendedor ve éxito.
 
-## UI Presentation
+## Presentación en UI
 
-Statuses are displayed in two contexts with different levels of detail.
+Los estados se muestran en dos contextos con diferentes niveles de detalle.
 
-### My Trades List (Short Labels)
+### Lista de Mis Trades (Labels Cortos)
 
-The status chips in the trades list use short labels for compact display:
+Los chips de estado en la lista de trades usan labels cortos para display compacto:
 
-| Status | Label | Color |
-|---|---|---|
-| `active` | Active | Green |
-| `pending` | Pending | Yellow |
-| `waitingPayment` | Waiting payment | Orange |
-| `waitingBuyerInvoice` | Waiting invoice | Orange |
+| Estado | Label | Color |
+|--------|-------|-------|
+| `active` | Activo | Verde |
+| `pending` | Pendiente | Amarillo |
+| `waitingPayment` | Esperando pago | Naranja |
+| `waitingBuyerInvoice` | Esperando invoice | Naranja |
+| `fiatSent` | Fiat enviado | Verde |
+| `canceled` | Cancelado | Gris |
+| `cooperativelyCanceled` | Cancelando | Naranja |
+| `canceledByAdmin` | Cancelado | Gris |
+| `settledByAdmin` | Liquidado | Verde |
+| `settledHoldInvoice` | Pagando sats | Amarillo |
+| `completedByAdmin` | Completado | Verde |
+| `dispute` | Disputa | Rojo |
+| `expired` | Expirado | Gris |
+| `success` | Éxito | Verde |
 
-| `fiatSent` | Fiat-sent | Green |
-| `canceled` | Cancel | Gray |
-| `cooperativelyCanceled` | Canceling | Orange |
-| `canceledByAdmin` | Cancel | Gray |
-| `settledByAdmin` | Settled | Green |
-| `settledHoldInvoice` | Paying sats | Yellow |
-| `completedByAdmin` | Completed | Green |
-| `dispute` | Dispute | Red |
-| `expired` | Expired | Gray |
-| `success` | Success | Green |
+### Detalles de Orden (Labels Descriptivos)
 
-### Order Details (Descriptive Labels)
+La pantalla de Detalles de Orden muestra labels descriptivos, amigables al usuario:
 
-The Order Details screen shows descriptive, user-friendly labels:
+| Estado | Label |
+|--------|-------|
+| `active` | Orden activa |
+| `pending` | Orden pendiente |
+| `waitingPayment` | Esperando pago del vendedor |
+| `waitingBuyerInvoice` | Esperando invoice del comprador |
+| `fiatSent` | Fiat enviado |
+| `canceled` | Orden cancelada |
+| `cooperativelyCanceled` | Cancelación cooperativa |
+| `canceledByAdmin` | Orden cancelada por un administrador |
+| `settledByAdmin` | Sats liberados por un administrador |
+| `settledHoldInvoice` | Pagando sats |
+| `completedByAdmin` | Sats liberados por un administrador |
+| `dispute` | Orden en disputa |
+| `expired` | Orden expirada |
+| `success` | Orden exitosa |
 
-| Status | Label |
-|---|---|
-| `active` | Active order |
-| `pending` | Pending order |
-| `waitingPayment` | Waiting for seller payment |
-| `waitingBuyerInvoice` | Waiting for buyer invoice |
+Todos los labels están localizados en inglés, español, italiano y francés.
 
-| `fiatSent` | Fiat sent |
-| `canceled` | Order canceled |
-| `cooperativelyCanceled` | Cooperative cancellation |
-| `canceledByAdmin` | Order canceled by an administrator |
-| `settledByAdmin` | Sats released by an administrator |
-| `settledHoldInvoice` | Paying sats |
-| `completedByAdmin` | Sats released by an administrator |
-| `dispute` | Order in dispute |
-| `expired` | Order expired |
-| `success` | Successful order |
+## Decisiones Clave de Diseño
 
-All labels are localized in English, Spanish, Italian, and French.
+### Por Qué `released` Mapea a `settledHoldInvoice` en Lugar de `success`
 
-The short labels use keys like `S.of(context)!.active` while the descriptive labels use keys like `S.of(context)!.statusDetailActive`.
+Cuando el vendedor libera sats, el pago Lightning al comprador no ha completado aún. Mapear `released` a `success` daba al comprador una falsa sensación de completación. Si el pago subsecuentemente fallaba, el comprador ya había visto "Éxito" lo cual era incorrecto. El estado intermedio `settledHoldInvoice` ("Pagando sats") refleja con precisión el estado: los sats están siendo pagados pero no recibidos aún.
 
-## Key Design Decisions
+El vendedor ve `success` inmediatamente porque recibe `holdInvoicePaymentSettled`, no `released`. Su parte del trade está completa.
 
-### Why `released` Maps to `settledHoldInvoice` Instead of `success`
+### Manejo de Acción `paymentFailed` (Nota v2)
 
-When the seller releases sats, the Lightning payment to the buyer has not yet completed. Mapping `released` to `success` gave the buyer a false sense of completion. If the payment subsequently failed, the buyer had already seen "Success" which was incorrect. The intermediate `settledHoldInvoice` status ("Paying sats") accurately reflects the state: sats are being paid but not yet received.
-
-The seller sees `success` immediately because they receive `holdInvoicePaymentSettled`, not `released`. Their part of the trade is complete.
-
-### Handling `paymentFailed` Action (v2 Note)
-
-> ⚠️ **v1 behavior (deprecated):** v1 created a UI-only `paymentFailed` status and preserved it when `addInvoice` arrived.
+> ⚠️ **Comportamiento v1 (deprecated):** v1 creó un estado `paymentFailed` solo de UI y lo preservaba cuando `addInvoice` llegaba.
 >
-> **v2 behavior:** `paymentFailed` is an Action notification, not a status change. The order remains in `settled-hold-invoice`. When the buyer receives `paymentFailed`, display a notification explaining the payment failed and Mostro is retrying. When `addInvoice` arrives after all retries fail, prompt for a new invoice while remaining in `settled-hold-invoice`.
+> **Comportamiento v2:** `paymentFailed` es una notificación de Acción, no un cambio de estado. La orden permanece en `settled-hold-invoice`. Cuando el comprador recibe `paymentFailed`, mostrar una notificación explicando que el pago falló y Mostro está reintentando. Cuando `addInvoice` llega después de que todos los reintentos fallan, pedir un nuevo invoice mientras permanece en `settled-hold-invoice`.
 
-### Why `cooperativelyCanceled` Has a Distinct Chip
+### Por Qué `cooperativelyCanceled` Tiene un Chip Distinto
 
-In the My Trades list, `cooperativelyCanceled` shows "Canceling" in orange instead of "Cancel" in gray. This is because `cooperativelyCanceled` is a pending state — one party initiated the cancellation but the other has not accepted yet. Showing "Cancel" was misleading since the order was not actually canceled. The orange color matches other waiting states (`waitingPayment`, `waitingBuyerInvoice`) to signal that user action is still required. The final `canceled` status (from `cooperativeCancelAccepted`) shows the gray "Cancel" chip.
+En la lista de Mis Trades, `cooperativelyCanceled` muestra "Cancelando" en naranja en lugar de "Cancelado" en gris. Esto es porque `cooperativelyCanceled` es un estado pendiente — una parte inició la cancelación pero la otra no ha aceptado aún. Mostrar "Cancelado" era engañoso ya que la orden no estaba realmente cancelada. El color naranja coincide con otros estados de espera (`waitingPayment`, `waitingBuyerInvoice`) para señalar que todavía se requiere acción del usuario. El estado final `canceled` (de `cooperativeCancelAccepted`) muestra el chip gris "Cancelado".
 
-### Why Disputes Auto-Close on Terminal State Instead of Subscribing to Kind 38386
+### Por Qué las Disputas se Auto-Cierran en Estado Terminal en Lugar de Suscribirse a Kind 38386
 
-Mostro publishes updated dispute events (kind 38386) when a dispute is resolved, but the mobile app does not subscribe to that event type. Instead, the app infers dispute closure from order terminal state. This approach was chosen because:
+Mostro publica eventos de disputa actualizados (kind 38386) cuando una disputa se resuelve, pero la app móvil no se suscribe a ese tipo de evento. En su lugar, la app infiere cierre de disputa del estado terminal de la orden. Este enfoque fue elegido porque:
 
-1. **No protocol expansion** — no new subscriptions or message types needed
-2. **No backend changes** — Mostro already handles everything correctly on its side
-3. **Data already available** — `OrderState` holds both the order status and the dispute object in `updateWith()`
-4. **Simple logic** — "order finished = dispute finished"
+1. **Sin expansión de protocolo** — no se necesitan nuevas suscripciones o tipos de mensaje
+2. **Sin cambios de backend** — Mostro ya maneja todo correctamente de su lado
+3. **Datos ya disponibles** — `OrderState` mantiene tanto el estado de la orden como el objeto de disputa en `updateWith()`
+4. **Lógica simple** — "orden terminada = disputa terminada"
 
-The `dispute.action` field (`user-completed` vs `cooperative-cancel`) distinguishes the closure reason, following the same pattern used for admin resolutions (`admin-settled` vs `admin-canceled`). This allows the UI to show different messages in both the dispute list and the dispute detail screen without needing the kind 38386 event data.
+El campo `dispute.action` (`user-completed` vs `cooperative-cancel`) distingue la razón de cierre, siguiendo el mismo patrón usado para resoluciones de admin (`admin-settled` vs `admin-canceled`). Esto permite a la UI mostrar diferentes mensajes tanto en la lista de disputas como en la pantalla de detalle de disputa sin necesitar los datos del evento kind 38386.
