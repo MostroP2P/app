@@ -229,7 +229,14 @@ The Connect Wallet screen passes `uriPrefix: 'nostr+walletconnect://'` so only v
 - `test/data/repositories/nwc_storage_test.dart` — Storage CRUD
 - `test/features/wallet/providers/nwc_provider_test.dart` — State transitions, connect/disconnect
 
-## References
+## Cross-References
+
+- [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) — NWC auto-pay and invoice generation integrated into `/pay_invoice` and `/add_invoice` screens
+- [SETTINGS_SCREEN.md](./SETTINGS_SCREEN.md) — Wallet Status Card in Settings
+- [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) — Routes `/wallet_settings` and `/connect_wallet`
+- [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) — Secure storage patterns (NWC URI stored alongside mnemonic)
+
+## External References
 
 - [NIP-47: Nostr Wallet Connect](https://github.com/nostr-protocol/nips/blob/master/47.md)
 - [NWC Developer Documentation](https://nwc.dev)

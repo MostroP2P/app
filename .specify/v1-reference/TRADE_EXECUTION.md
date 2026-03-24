@@ -238,8 +238,9 @@ Derived from `OrderState._getStatusFromAction()` and `MostroFSM`:
 
 ## 8) Cross-references
 
-- `.specify/v1-reference/TAKE_ORDER.md` — links here as soon as the take completes.
-- `.specify/v1-reference/ORDER_STATES.md` — references this spec for execution-state transitions.
-- `.specify/v1-reference/NAVIGATION_ROUTES.md` — routes `/pay_invoice`, `/add_invoice`, `/trade_detail`, `/order_book` point here.
-- `.specify/v1-reference/README.md` — includes this document in the index (screens & navigation).
-- `.specify/v1-reference/RATING_SYSTEM.md` — post-trade rating flow triggered by the **Rate** button.
+- [TAKE_ORDER.md](./TAKE_ORDER.md) — links here as soon as the take completes.
+- [ORDER_STATES.md](./ORDER_STATES.md) — references this spec for execution-state transitions.
+- [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) — routes `/pay_invoice`, `/add_invoice`, `/trade_detail`, `/order_book` point here.
+- [README.md](./README.md) — includes this document in the index (screens & navigation).
+- [RATING_SYSTEM.md](./RATING_SYSTEM.md) — post-trade rating flow triggered by the **Rate** button.
+- [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md) — full NWC implementation details (auto-pay hold invoices, invoice generation, wallet connection lifecycle).
