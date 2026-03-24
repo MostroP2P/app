@@ -328,10 +328,13 @@ The orphan session prevention system uses static timer storage with differentiat
 
 ## Order Creation Flow
 
+Ver también: `.specify/v1-reference/ORDER_CREATION.md` (UI y validaciones de creación).
+
+
 ### Complete Order Creation Process
 
 #### 1. Order Submission
-When a user creates a new order, the flow starts in `AddOrderNotifier.submitOrder()` (`lib/features/order/notfiers/add_order_notifier.dart:71-85`):
+When a user creates a new order, the flow starts in `AddOrderNotifier.submitOrder()` (`lib/features/order/notifiers/add_order_notifier.dart:71-85`):
 
 ```dart
 Future<void> submitOrder(Order order) async {
@@ -377,7 +380,7 @@ Future<void> publishOrder(MostroMessage order) async {
 ```
 
 #### 3. Order Confirmation
-When mostrod confirms the order, `AddOrderNotifier._confirmOrder()` is called (`lib/features/order/notfiers/add_order_notifier.dart:60-69`):
+When mostrod confirms the order, `AddOrderNotifier._confirmOrder()` is called (`lib/features/order/notifiers/add_order_notifier.dart:60-69`):
 
 ```dart
 Future<void> _confirmOrder(MostroMessage message) async {
@@ -1119,7 +1122,7 @@ final childSession = Session(
 ### Complete Order Creation Flow with Key Logging
 
 ```dart
-// File: lib/features/order/notfiers/add_order_notifier.dart:71-85
+// File: lib/features/order/notifiers/add_order_notifier.dart:71-85
 Future<void> submitOrder(Order order) async {
   logger.d('=== ORDER CREATION START ===');
   

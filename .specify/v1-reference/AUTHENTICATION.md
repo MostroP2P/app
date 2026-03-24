@@ -116,6 +116,7 @@ Note: Trade index 0 is the master identity key, index 1 is an ephemeral temp key
 4. Encrypted Chat — NIP-59 gift wrap encryption
 5. Take an Offer — order book browsing
 6. Create Your Own Offer — custom order creation
+   - Ver flujo completo: `.specify/v1-reference/ORDER_CREATION.md`
 
 **Behavior:**
 - Skip/Done button → marks first run complete → shows backup reminder → navigates to `/`
