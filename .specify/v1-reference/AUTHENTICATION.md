@@ -45,7 +45,7 @@ App Launch
 │                    KEY GENERATION                                │
 └─────────────────────────────────────────────────────────────────┘
 
-1. Generate 12-word BIP-39 mnemonic (entropy: 256 bits)
+1. Generate 12-word BIP-39 mnemonic (entropy: 128 bits)
 2. Derive BIP-32 extended private key from mnemonic
 3. Store mnemonic in secure storage (encrypted)
 4. Store extended private key in secure storage
