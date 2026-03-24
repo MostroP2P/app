@@ -56,7 +56,7 @@ MostroApp
 | `/settings` | `SettingsScreen` | `settings_screen.dart` | Configuración general |
 | `/about` | `AboutScreen` | `about_screen.dart` | Acerca de la app |
 | `/walkthrough` | `WalkthroughScreen` | `walkthrough_screen.dart` | Tutorial inicial |
-| `/add_order` | `AddOrderScreen` | `add_order_screen.dart` | Crear orden |
+| `/add_order` | `AddOrderScreen` | `add_order_screen.dart` | Crear orden (ver `.specify/v1-reference/ORDER_CREATION.md`) |
 | `/rate_user/:orderId` | `RateCounterpartScreen` | `rate_counterpart_screen.dart` | Calificar contraparte |
 | `/take_sell/:orderId` | `TakeOrderScreen` | `take_order_screen.dart` | Tomar orden de venta |
 | `/take_buy/:orderId` | `TakeOrderScreen` | `take_order_screen.dart` | Tomar orden de compra |
@@ -375,7 +375,7 @@ CustomTransitionPage buildPageWithDefaultTransition<T>({
 | Home screen | [HOME_SCREEN.md](./HOME_SCREEN.md) |
 | Drawer menu | [DRAWER_MENU.md](./DRAWER_MENU.md) |
 | Bottom nav | [DRAWER_MENU.md](./DRAWER_MENU.md) |
-| Order creation | `add_order_screen.dart` |
+| Order creation | [.specify/v1-reference/ORDER_CREATION.md](./ORDER_CREATION.md) |
 | Take order | `take_order_screen.dart` |
 | My trades | `trades_screen.dart` |
 | Trade detail | `trade_detail_screen.dart` |

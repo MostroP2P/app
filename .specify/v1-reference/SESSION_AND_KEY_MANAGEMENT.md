@@ -328,6 +328,9 @@ The orphan session prevention system uses static timer storage with differentiat
 
 ## Order Creation Flow
 
+Ver también: `.specify/v1-reference/ORDER_CREATION.md` (UI y validaciones de creación).
+
+
 ### Complete Order Creation Process
 
 #### 1. Order Submission
