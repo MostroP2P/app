@@ -4,7 +4,9 @@
 
 User-configurable app preferences. All settings are persisted locally.
 `logging_enabled` is runtime-only (not persisted — always false at startup).
-`privacy_mode` is authoritative on `Identity`; settings mirrors it.
+`privacy_mode` in `AppSettings` is a read-only mirror of `Identity.privacy_mode`.
+To change privacy mode, call `set_privacy_mode()` in the Reputation API
+(`rust/src/api/reputation.rs`), which is the single write path.
 
 ## Functions
 
@@ -19,7 +21,7 @@ AppSettings {
   default_fiat_code: String?       # ISO 4217 code, e.g. "USD" (default: null — show all)
   default_lightning_address: String?  # Lightning address for auto-fill when selling
   logging_enabled: bool            # Runtime-only; always false at startup
-  privacy_mode: bool               # Mirrors Identity.privacy_mode
+  privacy_mode: bool               # Mirrors Identity.privacy_mode; false when no Identity exists
 }
 ```
 
@@ -35,8 +37,8 @@ Persist the user's theme preference.
 ### set_language(locale: String) → ()
 Persist the user's language preference.
 
-**Validation**: `locale` MUST be a valid BCP-47 locale code supported
-by the app (one of the 10 supported locales).
+**Validation**: `locale` MUST be one of the BCP-47 codes supported at
+initial release per FR-020d: `en`, `es`, `it`, `fr`, `de`.
 
 **Errors**: `UnsupportedLocale`, `StorageError`.
 
@@ -46,8 +48,15 @@ by the app (one of the 10 supported locales).
 Set the default fiat currency for new orders. Pass null to clear
 (show all currencies).
 
-**Validation**: If non-null, `code` MUST be a valid ISO 4217 code
-supported by the active Mostro node.
+**Validation** (applied only when `code` is non-null):
+- If no active Mostro node is selected: perform format-only validation
+  (accept any syntactically valid ISO 4217 code). Do NOT return
+  `UnsupportedCurrency`.
+- If an active node exists but `MostroNodeInfo.supported_currencies` is
+  `null` (list unknown): likewise perform format-only validation and do
+  NOT return `UnsupportedCurrency`.
+- Only return `UnsupportedCurrency` when an active node provides a
+  non-null `supported_currencies` Vec and `code` is not in that Vec.
 
 **Errors**: `UnsupportedCurrency`, `StorageError`.
 
@@ -68,13 +77,6 @@ Enable or disable diagnostic logging at runtime. Not persisted —
 resets to false on next app launch.
 
 ---
-
-### set_privacy_mode(enabled: bool) → ()
-Toggle privacy mode. Delegates to `Identity` — updates
-`Identity.privacy_mode` as the authoritative source, then mirrors
-to settings.
-
-**Errors**: `NoIdentity`, `StorageError`.
 
 ## Streams
 

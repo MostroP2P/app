@@ -87,23 +87,30 @@ MostroNodeInfo {
   pubkey: String
   name: String?
   version: String?                    # Daemon software version
-  expiration_hours: u32               # Pending order lifetime (default 24h)
-  expiration_seconds: u32             # Waiting state timeout (default 900s)
+  expiration_hours: u32               # Pending order lifetime; default 24 if omitted by daemon
+  expiration_seconds: u32             # Waiting state timeout; default 900 if omitted by daemon
   fee_pct: f64?                       # Maker/taker fee percentage
   max_order_amount: u64?              # Maximum order size in sats
   min_order_amount: u64?              # Minimum order size in sats
-  supported_currencies: Vec<String>?  # Fiat currency codes supported
+  supported_currencies: Vec<String>?  # Fiat currency codes supported (null = unknown)
   ln_node_id: String?                 # Lightning node public key
   ln_node_alias: String?              # Lightning node alias
   is_active: bool
 }
 ```
 
+> `expiration_hours` and `expiration_seconds` may be absent in daemon-published events.
+> The client MUST treat missing values as `24` and `900` respectively so that callers
+> always receive concrete `u32` values. Deserialization/constructor MUST apply these
+> defaults (e.g. `#[serde(default = "default_expiration_hours")]`).
+
 ---
 
 ### get_known_mostro_nodes() → Vec<MostroNodeInfo>
-Return the list of known Mostro nodes (hardcoded defaults + any
-user-added nodes). Used by the node selector screen (FR-056).
+Return the list of hardcoded default Mostro nodes bundled with the app.
+Used by the node selector screen (FR-056). To switch the active node,
+call `set_active_mostro(pubkey)`. No API for adding arbitrary nodes is
+provided; the list is fixed at compile time.
 
 ---
 
@@ -111,10 +118,27 @@ user-added nodes). Used by the node selector screen (FR-056).
 Switch the active Mostro daemon. All future orders and messages will
 route to this node.
 
-**Side effects**: Updates stored active node. Re-subscribes to the
-new node's relay list (kind 10002).
+**Execution model**: Returns immediately after validating `pubkey`
+format and persisting the new active node to storage. Re-subscription
+to the new node's kind 10002 relay list happens asynchronously in the
+background and does NOT block the return.
 
-**Errors**: `InvalidPublicKey`, `NodeUnreachable`.
+**Atomicity**: The active node is updated in storage before the
+subscription attempt begins. If subscription fails, the stored active
+node is NOT rolled back — the caller must call `set_active_mostro`
+again with a different pubkey to recover.
+
+**Validation**: `pubkey` MUST be a valid 64-char hex string (32 bytes).
+`InvalidPublicKey` is returned synchronously on format failure, before
+any network attempt.
+
+**Timeout / retry**: The background subscription attempt times out
+after 30 seconds. If it fails, it is retried up to 3 times with
+exponential backoff. `NodeUnreachable` is emitted on
+`on_connection_state_changed()` after all retries are exhausted; it is
+NOT returned from this function (which has already returned).
+
+**Errors**: `InvalidPublicKey` (synchronous, format validation only).
 
 ---
 
