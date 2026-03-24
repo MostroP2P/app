@@ -62,7 +62,8 @@
 | [ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md](./ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md) | ChaCha20-Poly1305, Blossom | Crypto in Rust, upload in Flutter |
 | [AUTHENTICATION.md](./AUTHENTICATION.md) | Auth flow, biometric unlock | Adapt for Rust key management |
 | [ACCOUNT_SCREEN.md](./ACCOUNT_SCREEN.md) | Account screen, mnemonic backup | Reference from navigation |
-| [SETTINGS_SCREEN.md](./SETTINGS_SCREEN.md) | Settings screen, preferences | Keep in Flutter |
+| [SETTINGS_SCREEN.md](./SETTINGS_SCREEN.md) | Settings hub (language, fiat, relays, wallet, lightning address) | Keep in Flutter |
+| [NOTIFICATION_SETTINGS.md](./NOTIFICATION_SETTINGS.md) | Push notification toggles, sound/vibration prefs | Keep in Flutter |
 | [ORDER_STATES.md](./ORDER_STATES.md) | Order status enum and values | Move to Rust |
 
 ### Platform & Infrastructure
