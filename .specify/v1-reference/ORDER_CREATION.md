@@ -5,7 +5,7 @@
 ## Archivos fuente analizados
 
 - `lib/features/order/screens/add_order_screen.dart`
-- `lib/features/order/notfiers/add_order_notifier.dart`
+- `lib/features/order/notifiers/add_order_notifier.dart`
 - `lib/features/order/providers/order_notifier_provider.dart`
 - `lib/features/order/models/order_state.dart`
 - `lib/features/order/widgets/*` (secciones de formulario y botones)
