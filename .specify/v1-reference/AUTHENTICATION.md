@@ -49,7 +49,7 @@ App Launch
 2. Derive BIP-32 extended private key from mnemonic
 3. Store mnemonic in secure storage (encrypted)
 4. Store extended private key in secure storage
-5. Set trade key index to 1 (first trade key = index 1)
+5. Set trade key index to 2 (first trade key = index 2; index 1 is reserved for the restore temp key)
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                    RESTORE FLOW (Import)                        │
@@ -65,7 +65,7 @@ User imports mnemonic
     │
     ├── Store new mnemonic and master key
     │
-    ├── Send Restore request to Mostro via Nostr
+    ├── Send restore-session request to Mostro via Nostr
     │   (wrapped with temp trade key index 1)
     │
     ├── Receive: List of orders + disputes + last trade index
@@ -94,12 +94,12 @@ Master Key (Extended Private Key, BIP-32)
         │   └── Used for: Nostr identity (kind 0 events, profile)
         │
         ├── Master Key + index 1 ──→ Temp Trade Key (index 1)
-        │   └── Used for: Restore process (only during restore)
+        │   └── Used for: Restore process only (ephemeral; disposed after restore)
         │
-        └── Master Key + index N ──→ Trade Key N
+        └── Master Key + index N ──→ Trade Key N (N ≥ 2)
             └── Used for: Individual order (N = order's trade index)
 
-Note: Trade index 0 is the master identity key, indices 1+ are for orders.
+Note: Trade index 0 is the master identity key, index 1 is an ephemeral temp key used only during restore, and indices 2+ are for orders. After initialization, the first trade key is set to index 2; subsequent trades increment from there. After restore, the next trade key is set to (lastTradeIndex + 1), which may be index 2 or higher depending on prior trade history.
 ```
 
 ---
@@ -302,7 +302,7 @@ class BackupReminderNotifier extends StateNotifier<bool> {
    - Limit 0 = only new events, no historical
 
 3. Stage 1: Request Restore Data
-   - Send Action::restore wrapped with temp trade key
+   - Send `Action::restore-session` wrapped with temp trade key
    - Receive: Map<orderId, tradeIndex> + List<disputes>
 
 4. Stage 2: Request Order Details
