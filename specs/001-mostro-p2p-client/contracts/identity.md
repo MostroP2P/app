@@ -128,6 +128,18 @@ and for re-deriving keys for existing trades.
 
 **Errors**: `NoIdentity`, `InvalidIndex`.
 
+---
+
+### get_nym_identity(pubkey: String) → NymIdentity
+Derive a deterministic pseudonym, icon index, and color hue from any
+public key. Same input always yields the same output across sessions
+and devices.
+
+**Returns**: See `NymIdentity` in types.md
+(`pseudonym: String`, `icon_index: u8 (0–36)`, `color_hue: u16 (0–359)`)
+
+**Errors**: `InvalidPublicKey`.
+
 ## Streams
 
 ### on_identity_changed() → Stream<IdentityInfo?>
