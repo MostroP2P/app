@@ -161,55 +161,7 @@ InkWell(
 
 ## My Trades (`/order_book`)
 
-**Route:** `/order_book`  
-**Screen:** `TradesScreen` (`lib/features/trades/screens/trades_screen.dart`)
-
-The My Trades screen shows orders where the current user is either the maker or the taker. It uses a different provider (`userOrdersProvider`) that filters by the user's pubkey.
-
-### Data Flow
-
-```dart
-final userOrdersProvider = StreamProvider<List<Order>>((ref) {
-  // Subscribes to kind 38302 events where:
-  // - order.maker_pubkey == current_user_pubkey
-  // - OR order.taker_pubkey == current_user_pubkey
-});
-```
-
-### Tab Chips
-
-The `TradesScreen` uses a chip-based filter for order status:
-
-```dart
-// lib/features/trades/widgets/order_status_chips.dart
-enum OrderStatusFilter {
-  all,
-  active,       // pending, active
-  completed,    // success
-  disputed,    // dispute
-  canceled,    // canceled, cooperatively_canceled
-}
-```
-
-Each chip filters the displayed orders by their `status` field.
-
-### Status → Chip Mapping
-
-| Status(es) | Chip label | Color |
-|------------|-----------|-------|
-| `pending`, `active`, `waiting-buyer-invoice`, `waiting-payment`, `fiat-sent` | Active | `AppTheme.activeColor` |
-| `success` | Completed | Green |
-| `dispute` | Disputed | Orange |
-| `canceled`, `cooperatively-canceled`, `canceled-by-admin` | Canceled | Red |
-| (all) | All | Neutral |
-
-### Trade Detail Navigation
-
-```dart
-context.push('/trade_detail/$orderId');
-```
-
-See `TRADE_EXECUTION.md` for full trade detail screen spec.
+This document now focuses on the public order book. For a complete specification of the My Trades screen (route `/order_book`, `TradesScreen`, status filter, list items, providers, refresh, and navigation), see `.specify/v1-reference/MY_TRADES.md`.
 
 ---
 
@@ -267,4 +219,5 @@ The `OrderFilter` dialog contains:
 - **Trade Execution:** `.specify/v1-reference/TRADE_EXECUTION.md`
 - **Order list item widget:** `lib/features/home/widgets/order_list_item.dart`
 - **Order filter widget:** `lib/shared/widgets/order_filter.dart`
-- **Trades screen:** `lib/features/trades/screens/trades_screen.dart`
+- **Trades screen (detailed spec):** `.specify/v1-reference/MY_TRADES.md`
+- **Widget implementation:** `lib/features/trades/screens/trades_screen.dart`
