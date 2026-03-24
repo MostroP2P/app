@@ -45,8 +45,8 @@ MostroApp
 |------|----------|---------|-------------|
 | `/` | `HomeScreen` | `home_screen.dart` | Libro de órdenes público |
 | `/welcome` | `WelcomeScreen` | `welcome_screen.dart` | Pantalla de bienvenida |
-| `/order_book` | `TradesScreen` | `trades_screen.dart` | Mis trades (equivale a My Trades, ver `.specify/v1-reference/TRADE_EXECUTION.md`) |
-| `/trade_detail/:orderId` | `TradeDetailScreen` | `trade_detail_screen.dart` | Detalle de un trade (ver `.specify/v1-reference/TRADE_EXECUTION.md`) |
+| `/order_book` | `TradesScreen` | `trades_screen.dart` | My trades list (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
+| `/trade_detail/:orderId` | `TradeDetailScreen` | `trade_detail_screen.dart` | Trade detail (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
 | `/chat_list` | `ChatRoomsScreen` | `chat_rooms_list.dart` | Lista de chats |
 | `/chat_room/:orderId` | `ChatRoomScreen` | `chat_room_screen.dart` | Chat de un trade |
 | `/dispute_details/:disputeId` | `DisputeChatScreen` | `dispute_chat_screen.dart` | Chat de disputa |
@@ -61,8 +61,8 @@ MostroApp
 | `/take_sell/:orderId` | `TakeOrderScreen` | `take_order_screen.dart` | Tomar orden de venta (ver `.specify/v1-reference/TAKE_ORDER.md`) |
 | `/take_buy/:orderId` | `TakeOrderScreen` | `take_order_screen.dart` | Tomar orden de compra (ver `.specify/v1-reference/TAKE_ORDER.md`) |
 | `/order_confirmed/:orderId` | `OrderConfirmationScreen` | `order_confirmation_screen.dart` | Orden confirmada |
-| `/pay_invoice/:orderId` | `PayLightningInvoiceScreen` | `pay_lightning_invoice_screen.dart` | Pagar invoice LN (ver `.specify/v1-reference/TRADE_EXECUTION.md`) |
-| `/add_invoice/:orderId` | `AddLightningInvoiceScreen` | `add_lightning_invoice_screen.dart` | Agregar invoice LN (ver `.specify/v1-reference/TRADE_EXECUTION.md`) |
+| `/pay_invoice/:orderId` | `PayLightningInvoiceScreen` | `pay_lightning_invoice_screen.dart` | Pay Lightning invoice (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
+| `/add_invoice/:orderId` | `AddLightningInvoiceScreen` | `add_lightning_invoice_screen.dart` | Add Lightning invoice (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
 | `/notifications` | `NotificationsScreen` | `notifications_screen.dart` | Historial de notificaciones |
 | `/logs` | `LogsScreen` | `logs_screen.dart` | Registro de diagnóstico |
 | `/wallet_settings` | `WalletSettingsScreen` | `wallet_settings_screen.dart` | Configuración de wallet |
@@ -368,9 +368,9 @@ CustomTransitionPage buildPageWithDefaultTransition<T>({
 5. App visible
 ```
 
-## Referencias Cruzadas
+## Cross References
 
-| Referencia | Documento |
+| Reference | Document |
 |------------|-----------|
 | Home screen | [HOME_SCREEN.md](./HOME_SCREEN.md) |
 | Drawer menu | [DRAWER_MENU.md](./DRAWER_MENU.md) |
