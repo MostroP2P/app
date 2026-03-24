@@ -28,6 +28,8 @@ Order has been created by a seller or buyer and is waiting for a counterparty to
 |--------|----|------------|
 | `take-sell` | Buyer | `waiting-buyer-invoice` |
 | `take-buy` | Seller | `waiting-payment` |
+
+> Ver flujo detallado de toma de orden (UI + protocolo + navegación): `.specify/v1-reference/TAKE_ORDER.md`.
 | `cancel` | Creator | `canceled` |
 
 ---
@@ -921,3 +923,11 @@ testWidgets('status chip displays correctly', (tester) async {
   }
 });
 ```
+
+---
+
+## Cross-References
+
+- **Take Order Flow:** `.specify/v1-reference/TAKE_ORDER.md`
+- **Navigation Routes:** `.specify/v1-reference/NAVIGATION_ROUTES.md`
+- **Order Book / Home tap entry:** `.specify/v1-reference/ORDER_BOOK.md`, `.specify/v1-reference/HOME_SCREEN.md`

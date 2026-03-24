@@ -155,6 +155,7 @@ InkWell(
 
 - Sell order (maker selling BTC) → `/take_sell/:orderId` (taker buys BTC)
 - Buy order (maker buying BTC) → `/take_buy/:orderId` (taker sells BTC)
+- Flujo completo de toma: `.specify/v1-reference/TAKE_ORDER.md`
 
 ---
 
