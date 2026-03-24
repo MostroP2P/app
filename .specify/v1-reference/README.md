@@ -57,6 +57,7 @@
 | [ORDER_STATUS_HANDLING.md](./ORDER_STATUS_HANDLING.md) | Order state machine, transitions | Move state machine to Rust |
 | [P2P_CHAT_SYSTEM.md](./P2P_CHAT_SYSTEM.md) | Encrypted chat, sharedKey, `/chat_list` & `/chat_room` flows | **CRITICAL** - Move to Rust |
 | [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md) | Dispute list, admin chat, creation/resolution pipeline | **CRITICAL** - Move dispute logic to Rust |
+| [RATING_SYSTEM.md](./RATING_SYSTEM.md) | Post-trade rating UX, `RatingUser` payload, reputation display | Crypto in Rust; UI in Flutter |
 | [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md) | Nostr Wallet Connect integration | Move to Rust |
 | [ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md](./ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md) | ChaCha20-Poly1305, Blossom | Crypto in Rust, upload in Flutter |
 | [AUTHENTICATION.md](./AUTHENTICATION.md) | Auth flow, biometric unlock | Adapt for Rust key management |

@@ -242,3 +242,4 @@ Derived from `OrderState._getStatusFromAction()` and `MostroFSM`:
 - `.specify/v1-reference/ORDER_STATES.md` — references this spec for execution-state transitions.
 - `.specify/v1-reference/NAVIGATION_ROUTES.md` — routes `/pay_invoice`, `/add_invoice`, `/trade_detail`, `/order_book` point here.
 - `.specify/v1-reference/README.md` — includes this document in the index (screens & navigation).
+- `.specify/v1-reference/RATING_SYSTEM.md` — post-trade rating flow triggered by the **Rate** button.
