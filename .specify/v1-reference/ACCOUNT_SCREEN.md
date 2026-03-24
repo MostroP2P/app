@@ -182,3 +182,25 @@ Each card has an ℹ️ icon that shows explanatory dialog:
 | Secret Words | Explanation of mnemonic backup importance |
 | Privacy | Explanation of privacy modes |
 | Trade Index | Explanation of HD key derivation |
+
+---
+
+## Related Documentation
+
+### Technical Details
+
+For implementation details, see: **[AUTHENTICATION.md](./AUTHENTICATION.md)**
+
+This document covers:
+- BIP-39 mnemonic generation and validation
+- BIP-32 HD key derivation paths
+- Session management (expiration, shared keys)
+- Restore flow (3-stage process with Mostro)
+- Privacy mode technical behavior
+- Security model
+
+### Protocol References
+
+- **[Restore Flow](https://github.com/MostroP2P/protocol/blob/main/src/restore_session.md)** — `Action::restore-session` specification
+- **[Gift Wrap](https://github.com/MostroP2P/protocol/blob/main/src/gift-wrap.md)** — NIP-59 encryption for privacy modes
+- **[NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md)** — BIP-39 key derivation for Nostr
