@@ -28,18 +28,18 @@ App Launch
     │                                      Show Backup Reminder
     │                                          │
     │                                          ▼
-    │                                    / (HomeScreen)
+    │                                    / (HomeScreen) — see HOME_SCREEN.md
     │
     └── Not first time ──→ Check master key exists
                               │
-                              ├── Has master key ──→ / (HomeScreen)
+                              ├── Has master key ──→ / (HomeScreen) — see HOME_SCREEN.md
                               │
                               └── No master key ──→ Generate Master Key
                                                               │
                                                           Show Backup Reminder
                                                               │
                                                               ▼
-                                                        / (HomeScreen)
+                                                        / (HomeScreen) — see HOME_SCREEN.md
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                    KEY GENERATION                                │
