@@ -331,8 +331,8 @@ Text messages have plain string content. Multimedia messages use JSON content:
 ## Read Status & Notification Badges
 
 - **Per-chat state:** `ChatReadStatusService` stores `chat_last_read_{orderId}` timestamps in `SharedPreferences`. Whenever the user opens a room, `markChatAsRead()` records `DateTime.now()`; `hasUnreadMessages()` compares that timestamp to the latest peer message so `ChatListItem` can display a red dot.
-- **Global badge:** `BottomNavBar` listens to `chatCountProvider` and paints a red indicator on the chat icon when the provider value > 0. Push-notification handlers and background services are expected to increment/decrement that provider when new messages arrive outside the current room.
-- **List refresh:** `ChatRoomNotifier._onChatEvent()` and `sendMessage()` call `chatRoomsNotifierProvider.notifier.refreshChatList()` so unread counts and sort order stay in sync without requiring a manual pull-to-refresh.
+- **Global badge pipeline:** `chatCountProvider` (declared in `bottom_nav_bar.dart`) is write-only for background/push handlers and read-only for UI. `BottomNavBar` simply watches the provider to decide whether to draw the badge. Incoming-message surfaces (`ChatRoomNotifier._onChatEvent()` for relay echoes plus any push/background handler that receives a message while the user is outside that room) are the only places that increment the provider, and they do so after calling `chatRoomsNotifierProvider.notifier.refreshChatList()` to keep the list order/unread dots synchronized. `sendMessage()` also calls `refreshChatList()` but never decrements the badge (local sends shouldn't alter unread counts).
+- **Read confirmation / resets:** `markChatAsRead()` is the only path allowed to clear/unset the badge. After it persists the timestamp via `ChatReadStatusService`, it invokes the badge-reset helper (e.g. `chatCountProvider.notifier.resetForChat(orderId)` / `refreshBadge()`), ensuring every decrement flows through a single API and preventing external handlers from mutating the count directly.
 
 ## Lifecycle & Reloads
 
