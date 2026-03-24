@@ -6,7 +6,99 @@ For the **protocol specification** (NIP-59, ECDH, event format), see the [Mostro
 
 ---
 
-## Components
+## Scope
+
+This section documents everything that powers **Mostro Mobile v1 section 7: PEER-TO-PEER CHAT**:
+
+- Routes `/chat_list` (chat hub) and `/chat_room/:orderId` (per-trade chat room) plus the UI widgets layered on top of them (`ChatRoomsScreen`, `ChatRoomScreen`, `ChatTabs`, `MessageInput`, `MessageBubble`, etc.).
+- State derived from Riverpod providers: `chatRoomsProvider`, `chatRoomsNotifierProvider`, `sortedChatRoomsProvider`, `sessionProvider`, `orderNotifierProvider`, `chatTabProvider`.
+- Messaging plumbing: `ChatRoomNotifier`, `ChatRoomsNotifier`, `SubscriptionManager`, `eventStorage`, and the Blossom upload/download helpers for media.
+- Read-status indicators (`ChatReadStatusService`) and navigation badges (`chatCountProvider`).
+- Error handling (missing sessions, keyboard-safe layout) and lifecycle hooks (`appInitializerProvider`, `LifecycleManager`).
+
+Everything in this file is already implemented in Dart/Flutter and needs to be mirrored (or consumed) by the new stack.
+
+## Navigation & Entry Points
+
+- **Bottom nav:** `BottomNavBar` assigns tab index 2 to `/chat_list`. It observes `chatCountProvider` to draw a red dot when there are unread messages (other flows bump that provider).
+- **Drawer:** `ChatRoomsScreen` is wrapped by `CustomDrawerOverlay`, so the global drawer shortcuts can push `/chat_list` as well.
+- **My Trades → Chat:** `TradeDetailScreen` exposes a "Contact" button that calls `context.push('/chat_room/$orderId')` so users can jump directly into the threaded chat for the active trade.
+- **Notifications:** `NotificationListenerWidget` and the FCM actions route intent payloads (e.g., tapping a "new message" push) through `GoRouter`, so links such as `/chat_room/{orderId}` land on the same screen.
+
+From the user's point of view the navigation stack is always: **Home → My Trades → Trade Detail → Chat** or Home → Chat tab.
+
+## Chat List (`ChatRoomsScreen`, route `/chat_list`)
+
+### Layout & tabs
+
+- Rooted inside a `Scaffold` with `MostroAppBar`, drawer overlay, and a permanently pinned `BottomNavBar`.
+- Header section renders the “Chat” title plus the `ChatTabs` component (two tabs: `messages` and `disputes`). Swiping left/right on the content area also flips between tabs via `chatTabProvider`.
+- Below the tabs there is a short description copy (different per tab) and then the main content area. When tab = `ChatTabType.disputes`, the widget swaps to `DisputesList` (same component used by the disputes module).
+- When tab = `messages`, `_buildBody()` renders either `EmptyStateView` (if there are no chats) or a `ListView.builder` of `ChatListItem`s. Extra bottom padding keeps content clear of the nav bar.
+
+### Data sources & sorting
+
+- The screen watches `sortedChatRoomsProvider`, which:
+  1. Listens to `chatRoomsNotifierProvider` (a `StateNotifier<List<ChatRoom>>`).
+  2. For each `ChatRoom` it re-reads `chatRoomsProvider(orderId)` to ensure the freshest in-memory state (messages, metadata) is used.
+  3. Sorts chats by the session start time (`sessionProvider(orderId).startTime`), most recent first. If a session is missing it falls back to `DateTime.now()` so new chats drift to the top.
+- `ChatRoomsNotifier` constructs its list from `sessionNotifierProvider.sessions`. Only sessions that (a) have an `orderId`, (b) have a `peer` or started in the last hour, and (c) already fetched at least one message are shown. This prevents empty shells from cluttering the list. Whenever a chat gains messages, `ChatRoomNotifier` calls `refreshChatList()` so the list re-sorts.
+- App startup (`appInitializerProvider`) eagerly instantiates `chatRoomsProvider(orderId)` for all non-expired sessions so `_loadHistoricalMessages()` runs before the user opens the chat tab.
+
+### Chat list item details
+
+- `ChatListItem` composes:
+  - **Avatar & handle:** `NymAvatar` + `nickNameProvider(peerPubkey)`.
+  - **Context line:** “You are selling to/buying from {handle}” based on `session.role`.
+  - **Last message preview:** The last entry in `chatRoom.messages` (constructor sorts ascending, so `.last` is the newest). Own messages are prefixed with the localized "You:" label.
+  - **Timestamp chip:** Uses `Intl.DateFormat` to show `HH:mm`, “Yesterday”, weekday, or `MMM d` depending on age.
+  - **Unread dot:** `ChatReadStatusService.hasUnreadMessages(orderId, messages, currentUserPubkey)` compares the last read timestamp (stored in `SharedPreferences`) against peer messages. If any peer message is newer, a red dot is displayed until the user enters the room. `onTap` optimistically sets `_isMarkedAsRead = true`, awaits `markChatAsRead()`, and then pushes `/chat_room/{orderId}`.
+- Placeholder skeletons render while a session or peer info is missing, so the list height stays stable during provider churn.
+
+## Chat Room (`ChatRoomScreen`, route `/chat_room/:orderId`)
+
+### Structure & dependencies
+
+- Watches `chatRoomsProvider(orderId)` for decrypted messages/state, `sessionProvider(orderId)` for role + peer metadata, and `orderNotifierProvider(orderId)` for live order status (passed into the info tabs).
+- If the session or peer is missing, the screen immediately returns `ChatErrorScreen.sessionNotFound()` / `.peerUnavailable()` instead of trying to send messages without a shared key.
+- The Scaffold includes a custom app bar (“Back”), the `PeerHeader`, optional info tabs, the message list, the composer, and (when the keyboard is hidden) the global `BottomNavBar` so users can hop elsewhere without popping the stack.
+- `_selectedInfoType` toggles between `null`, `'trade'`, and `'user'`. Focusing the message input automatically clears any info panel via `_handleInfoTypeChanged(null)` so the composer never overlaps the sheet.
+
+### Trade & user info panels
+
+- `InfoButtons` expose two CTA-style buttons:
+  - **Trade information** (`TradeInformationTab`): shows order ID, fiat amount, formatted “Buying/Selling {sats}”, localized status chip (colors from `AppTheme`), payment method, and creation date. It relies on `order.copyWith(status: orderState.status)` so the UI reflects local FSM updates.
+  - **User information** (`UserInformationTab`): shows the peer avatar, handle, public key (copyable via `ClickableText`), your own handle, and the derived shared key (or “Not available” if the session has not negotiated keys yet).
+
+### Message timeline
+
+- `ChatMessagesList` renders `chatRoom.messages` sorted chronologically (oldest first) using a dedicated `ScrollController`. It auto-scrolls to the bottom on first load and whenever the message count changes. The controller is also plumbed into `_scrollController` on `ChatRoomScreen` so keyboard visibility triggers tiny scroll animations that keep the composer visible.
+- Each message is rendered by `MessageBubble`, which detects content type via `MessageTypeUtils`:
+  - Plain text → standard bubble with long-press copy-to-clipboard.
+  - `image_encrypted` → `EncryptedImageMessage`, including cached previews and secure open-in-viewer handling.
+  - `file_encrypted` → `EncryptedFileMessage`, including download buttons, metadata chips, and safe temporary files.
+- Optimistic sends: after the user sends a message, the plaintext `NostrEvent` is appended immediately so it appears in the list before the relay echo arrives.
+
+### Composer & attachments
+
+- `MessageInput` maintains a `TextEditingController`, `FocusNode`, and an `_isUploadingFile` flag. The attachment icon is disabled and shows a spinner while uploads run.
+- `_sendMessage()` trims whitespace, delegates to `chatRoomsProvider(orderId).notifier.sendMessage(text)`, clears the field, and re-focuses the input.
+- `_selectAndUploadFile()` calls `ChatFileUploadHelper.selectAndUploadFile()` with three callbacks:
+  - `getSharedKey` (from `ChatRoomNotifier`) returns the raw ChaCha20 key bytes.
+  - `sendMessage` posts the JSON metadata returned by the upload services.
+  - `isMounted` guards snackbar/dialog updates when the widget tree is gone.
+- `ChatFileUploadHelper` enforces file-size/type limits via `FileValidationService` + `MediaValidationService`, runs a confirmation dialog, encrypts the file with ChaCha20-Poly1305, uploads to Blossom (`BlossomUploadHelper`/`BlossomClient`), and finally sends the `image_encrypted` or `file_encrypted` JSON blob back through the chat pipeline.
+
+### Keyboard, drawer & errors
+
+- `didChangeDependencies` listens for keyboard openings; when the keyboard opens it scrolls the list down a bit to keep the latest messages unobstructed.
+- The message list is wrapped in `CustomDrawerOverlay`, so swiping from the edge still reveals the global drawer even inside a chat.
+- While `ChatRoomNotifier` is still loading history, the UI shows a centered `CircularProgressIndicator`. If initialization fails, the notifier leaves `chatRoomInitializedProvider` as `false` and the UI stays in the loading state until the user backs out.
+
+---
+
+## State & Transport Components
+
 
 | Component | File | Responsibility |
 |---|---|---|
@@ -236,6 +328,18 @@ Text messages have plain string content. Multimedia messages use JSON content:
 **Disk**: Only the gift wrap is stored (Blossom URL inside encrypted payload).
 **Memory**: Decrypted media cached for display, cleared on dispose.
 
+## Read Status & Notification Badges
+
+- **Per-chat state:** `ChatReadStatusService` stores `chat_last_read_{orderId}` timestamps in `SharedPreferences`. Whenever the user opens a room, `markChatAsRead()` records `DateTime.now()`; `hasUnreadMessages()` compares that timestamp to the latest peer message so `ChatListItem` can display a red dot.
+- **Global badge pipeline:** `chatCountProvider` (declared in `bottom_nav_bar.dart`) is write-only for background/push handlers and read-only for UI. `BottomNavBar` simply watches the provider to decide whether to draw the badge. Incoming-message surfaces (`ChatRoomNotifier._onChatEvent()` for relay echoes plus any push/background handler that receives a message while the user is outside that room) are the only places that increment the provider, and they do so after calling `chatRoomsNotifierProvider.notifier.refreshChatList()` to keep the list order/unread dots synchronized. `sendMessage()` also calls `refreshChatList()` but never decrements the badge (local sends shouldn't alter unread counts).
+- **Read confirmation / resets:** `markChatAsRead()` is the only path allowed to clear/unset the badge. After it persists the timestamp via `ChatReadStatusService`, it invokes the badge-reset helper (e.g. `chatCountProvider.notifier.resetForChat(orderId)` / `refreshBadge()`), ensuring every decrement flows through a single API and preventing external handlers from mutating the count directly.
+
+## Lifecycle & Reloads
+
+- **App init:** `appInitializerProvider` loads keys, sessions, and the subscription manager, then instantiates `chatRoomsProvider(orderId)` for each recent session. This guarantees `_loadHistoricalMessages()` runs once on startup, even if the chat tab hasn’t been opened yet.
+- **Foreground resume:** `LifecycleManager` listens for `AppLifecycleState.resumed`. When firing it re-subscribes to relays, reinitializes `MostroService`, asks the order repository to reload, and awaits `chatRoomsNotifierProvider.notifier.reloadAllChats()` so each `ChatRoomNotifier` cancels its old stream, reloads history from disk, and reattaches to `subscriptionManager.chat`.
+- **Background hand-off:** On `AppLifecycleState.paused`, `LifecycleManager` captures the active Nostr filters and hands them to `backgroundServiceProvider` so push notifications keep streaming; it also unsubscribes the foreground `SubscriptionManager` to avoid duplicate events.
+
 ---
 
 ## Bug: Message Loss After Reconnection
@@ -303,6 +407,17 @@ With 2+ active trades, counterpart messages disappear after closing and reopenin
 | `lib/data/models/session.dart` | Session model, ECDH shared key computation |
 | `lib/data/models/nostr_event.dart` | p2pWrap / p2pUnwrap encryption/decryption |
 | `lib/services/lifecycle_manager.dart` | Foreground/background transitions, chat reload |
+
+## Cross References
+
+| Topic | Document |
+|-------|----------|
+| Chat media pipeline | [.specify/v1-reference/ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md](./ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md) |
+| Sessions & shared keys | [.specify/v1-reference/SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) |
+| Trade detail actions (chat button) | [.specify/v1-reference/TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
+| My Trades list (source of chat sessions) | [.specify/v1-reference/MY_TRADES.md](./MY_TRADES.md) |
+
+*Dispute conversations reuse the same chat widgets; see `lib/features/disputes/*` until a dedicated spec is published.*
 
 ---
 
