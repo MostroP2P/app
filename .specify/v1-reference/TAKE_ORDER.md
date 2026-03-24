@@ -1,33 +1,33 @@
 # Take Order Flow Specification (Mostro Mobile v1)
 
-> Especificación del flujo de toma de orden en v1, basada en el código real de Flutter/Dart.
+> Specification of the order taking flow in v1, based on real Flutter/Dart code.
 
-## Alcance
+## Scope
 
-Este documento cubre:
+This document covers:
 
-- Rutas `/take_sell/:orderId` y `/take_buy/:orderId`
-- Pantalla `TakeOrderScreen`
-- Navegación desde Home (`OrderListItem`) hasta la ejecución de `take`
-- Acciones de protocolo enviadas a mostrod (`take-sell`, `take-buy`)
-- Transiciones de estado asociadas al take
-- Navegación posterior a la confirmación del take
-- Manejo de errores y timeouts
+- Routes `/take_sell/:orderId` and `/take_buy/:orderId`
+- `TakeOrderScreen` screen
+- Navigation from Home (`OrderListItem`) to `take` execution
+- Protocol actions sent to mostrod (`take-sell`, `take-buy`)
+- State transitions associated with take
+- Post-take confirmation navigation
+- Error and timeout handling
 
 ---
 
-## Archivos fuente analizados
+## Source Files Analyzed
 
-### Navegación y rutas
+### Navigation and routes
 - `lib/features/home/widgets/order_list_item.dart`
 - `lib/core/app_routes.dart`
 - `lib/services/deep_link_service.dart`
 
-### Pantallas take/confirmación
+### Take/confirmation screens
 - `lib/features/order/screens/take_order_screen.dart`
 - `lib/features/order/screens/order_confirmation_screen.dart`
 
-### Notifiers, estado y protocolo
+### Notifiers, state and protocol
 - `lib/features/order/notifiers/order_notifier.dart`
 - `lib/features/order/notifiers/abstract_mostro_notifier.dart`
 - `lib/features/order/models/order_state.dart`
@@ -39,11 +39,11 @@ Este documento cubre:
 
 ---
 
-## 1) Entry points: cómo se llega a TakeOrderScreen
+## 1) Entry Points: How to Reach TakeOrderScreen
 
-## Desde HomeScreen (tap en order card)
+## From HomeScreen (tap on order card)
 
-En `lib/features/home/widgets/order_list_item.dart`, `InkWell.onTap` decide la ruta según `order.orderType`:
+In `lib/features/home/widgets/order_list_item.dart`, `InkWell.onTap` decides the route based on `order.orderType`:
 
 ```dart
 onTap: () {
@@ -59,16 +59,16 @@ onTap: () {
 },
 ```
 
-Comportamiento real:
+Actual behavior:
 
-- Si ya existe sesión local para esa orden, NO abre take screen; abre `trade_detail`.
-- Si no existe sesión:
+- If a local session already exists for that order, does NOT open take screen; opens `trade_detail`.
+- If no session exists:
   - `OrderType.buy` → `/take_buy/:orderId`
   - `OrderType.sell` → `/take_sell/:orderId`
 
-## Desde router
+## From router
 
-En `lib/core/app_routes.dart`:
+In `lib/core/app_routes.dart`:
 
 ```dart
 GoRoute(
@@ -87,9 +87,9 @@ GoRoute(
 ),
 ```
 
-## Desde deep link
+## From deep link
 
-En `lib/services/deep_link_service.dart`, `getNavigationRoute()` también enruta a take:
+In `lib/services/deep_link_service.dart`, `getNavigationRoute()` also routes to take:
 
 ```dart
 switch (orderInfo.orderType) {
@@ -102,64 +102,64 @@ switch (orderInfo.orderType) {
 
 ---
 
-## 2) Pantalla TakeOrderScreen
+## 2) TakeOrderScreen Screen
 
-Archivo: `lib/features/order/screens/take_order_screen.dart`
+File: `lib/features/order/screens/take_order_screen.dart`
 
-`TakeOrderScreen` es `ConsumerStatefulWidget` y recibe:
+`TakeOrderScreen` is a `ConsumerStatefulWidget` and receives:
 
 - `orderId`
-- `orderType` (`OrderType.sell` o `OrderType.buy`)
+- `orderType` (`OrderType.sell` or `OrderType.buy`)
 
-Consulta orden pública con:
+Queries public order with:
 
 ```dart
 final order = ref.watch(eventProvider(widget.orderId));
 ```
 
-### UI que muestra
+### UI displayed
 
-La pantalla renderiza:
+The screen renders:
 
-1. Monto y tipo de orden (`_buildSellerAmount`)
-2. Métodos de pago (`_buildPaymentMethod`)
-3. Fecha creación (`_buildCreatedOn`)
+1. Amount and order type (`_buildSellerAmount`)
+2. Payment methods (`_buildPaymentMethod`)
+3. Creation date (`_buildCreatedOn`)
 4. Order ID (`_buildOrderId`)
-5. Reputación del creador (`_buildCreatorReputation`)
-6. Countdown con `expiresAt` (`_CountdownWidget`)
-7. Botones: `Close` + botón principal (`Buy` o `Sell`)
+5. Creator reputation (`_buildCreatorReputation`)
+6. Countdown with `expiresAt` (`_CountdownWidget`)
+7. Buttons: `Close` + main button (`Buy` or `Sell`)
 
-### Campos/formulario en take flow
+### Fields/form in take flow
 
-No hay formulario visible persistente para take.
+No persistent visible form for take.
 
-Sí existen `TextEditingController` internos:
+Internal `TextEditingController` do exist:
 
-- `_fiatAmountController`: se usa en diálogo para órdenes por rango
-- `_lndAddressController`: se intenta leer al enviar `takeSell`, pero **no hay widget de input asociado en esta pantalla**
+- `_fiatAmountController`: used in dialog for range orders
+- `_lndAddressController`: read attempt when sending `takeSell`, but **no input widget associated in this screen**
 
-Implicación actual del código:
+Current code implication:
 
-- En take normal (no rango), se envía `amount` opcional (puede ser `null`).
-- En take de orden por rango, se obliga a ingresar monto dentro de `[min, max]`.
-- Lightning address en take no se captura desde UI en esta pantalla (queda `null` salvo que se setee programáticamente).
+- In normal take (non-range), sends optional `amount` (can be `null`).
+- In range order take, forces entering amount within `[min, max]`.
+- Lightning address in take is not captured from UI in this screen (stays `null` unless set programmatically).
 
 ---
 
-## 3) Confirmación de take y envío al protocolo
+## 3) Take Confirmation and Protocol Submission
 
-## Botón principal y modo submit
+## Main button and submit mode
 
-En `_buildActionButtons`, al pulsar botón principal:
+In `_buildActionButtons`, when pressing main button:
 
-- Activa `_isSubmitting = true`
-- Si orden es de rango (`maximum != null && minimum != maximum`), abre `AlertDialog` para monto
-- Valida:
-  - número válido
-  - dentro del rango
-- Si se cancela el diálogo sin monto, resetea `_isSubmitting = false`
+- Activates `_isSubmitting = true`
+- If range order (`maximum != null && minimum != maximum`), opens `AlertDialog` for amount
+- Validates:
+  - valid number
+  - within range
+- If dialog is cancelled without amount, resets `_isSubmitting = false`
 
-Envío real:
+Actual submission:
 
 ```dart
 if (widget.orderType == OrderType.buy) {
@@ -173,31 +173,31 @@ if (widget.orderType == OrderType.buy) {
 }
 ```
 
-## Creación de sesión y timeout anti-orphan
+## Session creation and anti-orphan timeout
 
-En `lib/features/order/notifiers/order_notifier.dart`:
+In `lib/features/order/notifiers/order_notifier.dart`:
 
 - `takeSellOrder(...)`:
-  - crea sesión con `role: Role.buyer`
-  - inicia timer 10s (`startSessionTimeoutCleanup(orderId, ref)`)
-  - llama `mostroService.takeSellOrder(...)`
+  - creates session with `role: Role.buyer`
+  - starts 10s timer (`startSessionTimeoutCleanup(orderId, ref)`)
+  - calls `mostroService.takeSellOrder(...)`
 
 - `takeBuyOrder(...)`:
-  - crea sesión con `role: Role.seller`
-  - inicia timer 10s
-  - llama `mostroService.takeBuyOrder(...)`
+  - creates session with `role: Role.seller`
+  - starts 10s timer
+  - calls `mostroService.takeBuyOrder(...)`
 
-Si mostrod no responde en 10s (`AbstractMostroNotifier`):
+If mostrod doesn't respond in 10s (`AbstractMostroNotifier`):
 
-- elimina sesión
-- muestra notificación `sessionTimeoutMessage`
-- navega a `/`
+- deletes session
+- shows notification `sessionTimeoutMessage`
+- navigates to `/`
 
 ---
 
-## 4) Mensajes de protocolo enviados (mostrod)
+## 4) Protocol Messages Sent (mostrod)
 
-Archivo: `lib/services/mostro_service.dart`
+File: `lib/services/mostro_service.dart`
 
 ## take-buy
 
@@ -226,15 +226,15 @@ Future<void> takeSellOrder(String orderId, int? amount, String? lnAddress) async
 }
 ```
 
-`publishOrder(...)` envuelve el mensaje con clave de sesión (`tradeKey`) y lo publica al pubkey de Mostro.
+`publishOrder(...)` wraps the message with session key (`tradeKey`) and publishes to Mostro pubkey.
 
 ---
 
-## 5) Transiciones de estado después de tomar orden
+## 5) State Transitions After Taking Order
 
-Estado local: `lib/features/order/models/order_state.dart`.
+Local state: `lib/features/order/models/order_state.dart`.
 
-Mapeo explícito en `_getStatusFromAction(...)`:
+Explicit mapping in `_getStatusFromAction(...)`:
 
 ```dart
 case Action.takeBuy:
@@ -244,116 +244,116 @@ case Action.takeSell:
   return Status.waitingPayment;
 ```
 
-Además, el estado termina convergiendo por eventos de mostrod:
+Additionally, state converges via mostrod events:
 
 - `waiting-seller-to-pay` → `waiting-payment`
 - `waiting-buyer-invoice` → `waiting-buyer-invoice`
 - `pay-invoice` → `waiting-payment`
 - `hold-invoice-payment-accepted` / `buyer-took-order` / `buyer-invoice-accepted` → `active`
 
-### Flujo conceptual esperado en pending (según acciones take)
+### Expected conceptual flow from pending (based on take actions)
 
 ```text
 pending --take-sell--> waiting-buyer-invoice
 pending --take-buy--> waiting-payment
 ```
 
-### Flujo operativo en app (post-take)
+### Operational flow in app (post-take)
 
-La navegación/estado final inmediata depende del primer mensaje que llegue desde mostrod (`pay-invoice`, `waiting-buyer-invoice`, `buyer-took-order`, etc.), no de una pantalla de “order confirmed”.
+The immediate final navigation/state depends on the first message from mostrod (`pay-invoice`, `waiting-buyer-invoice`, `buyer-took-order`, etc.), not on an "order confirmed" screen.
 
 ---
 
-## 6) Navegación posterior al take (confirmación)
+## 6) Post-Take Navigation (Confirmation)
 
-La confirmación del take NO usa `OrderConfirmationScreen`.
+Take confirmation does NOT use `OrderConfirmationScreen`.
 
-`OrderConfirmationScreen` (`/order_confirmed/:orderId`) está conectada al flujo de creación (`new-order`), no al take.
+`OrderConfirmationScreen` (`/order_confirmed/:orderId`) is connected to the creation flow (`new-order`), not to take.
 
-En take flow, `AbstractMostroNotifier.handleEvent(...)` navega según acción entrante:
+In take flow, `AbstractMostroNotifier.handleEvent(...)` navigates based on incoming action:
 
-- `Action.payInvoice` + payload `PaymentRequest` → `/pay_invoice/:orderId`
-- `Action.addInvoice` → `/add_invoice/:orderId` (o con `?lnAddress=...` si hay default lightning address)
+- `Action.payInvoice` + `PaymentRequest` payload → `/pay_invoice/:orderId`
+- `Action.addInvoice` → `/add_invoice/:orderId` (or with `?lnAddress=...` if default lightning address exists)
 - `Action.buyerTookOrder` → `/trade_detail/:orderId`
-- `Action.waitingSellerToPay` o `Action.waitingBuyerInvoice` (cuando aplica) → `/trade_detail/:orderId`
+- `Action.waitingSellerToPay` or `Action.waitingBuyerInvoice` (when applicable) → `/trade_detail/:orderId`
 - `Action.fiatSentOk`, `Action.released`, `Action.purchaseCompleted`, `Action.adminSettled`, etc. → `/trade_detail/:orderId`
 
-> For the full description of what happens **after** these redirects (screens `/pay_invoice`, `/add_invoice`, `/trade_detail` plus execution buttons), see `.specify/v1-reference/TRADE_EXECUTION.md`.
+> For the full description of what happens **after** these redirects (screens `/pay_invoice`, `/add_invoice`, `/trade_detail` plus execution buttons), see [TRADE_EXECUTION.md](./TRADE_EXECUTION.md).
 >
 > That document details the buyer/seller flows, reactive buttons, valid actions, and state transitions during trade execution.
 
 ---
 
-## 7) Manejo de errores en take flow
+## 7) Error Handling in Take Flow
 
-## Errores de validación local (antes de enviar)
+## Local validation errors (before sending)
 
-- Monto no numérico en diálogo de rango
-- Monto fuera de rango min/max
-- Cierre del diálogo sin confirmar (resetea loading)
+- Non-numeric amount in range dialog
+- Amount outside min/max range
+- Dialog closed without confirming (resets loading)
 
-## Respuesta `cant-do` desde mostrod
+## `cant-do` response from mostrod
 
-`TakeOrderScreen` escucha `mostroMessageStreamProvider(orderId)` y, cuando llega `Action.cantDo`, resetea `_isSubmitting = false`.
+`TakeOrderScreen` listens to `mostroMessageStreamProvider(orderId)` and, when `Action.cantDo` arrives, resets `_isSubmitting = false`.
 
-Además, `AbstractMostroNotifier` maneja efectos secundarios:
+Additionally, `AbstractMostroNotifier` handles side effects:
 
-- Si razón `pending_order_exists` → borra sesión del orderId
-- Si razón `out_of_range_sats_amount` y hay requestId → cleanup de sesión por request
+- If reason `pending_order_exists` → deletes session for orderId
+- If reason `out_of_range_sats_amount` and requestId exists → cleanup session by request
 
-Los textos visibles al usuario se resuelven desde `NotificationListenerWidget` + `CantDoNotificationMapper`.
+User-visible texts are resolved from `NotificationListenerWidget` + `CantDoNotificationMapper`.
 
-## Timeout sin respuesta de mostrod
+## Timeout without mostrod response
 
-A los 10 segundos tras enviar take:
+At 10 seconds after sending take:
 
-- cleanup de sesión
-- notificación temporal (`sessionTimeoutMessage`)
-- navegación a home (`/`)
+- session cleanup
+- temporary notification (`sessionTimeoutMessage`)
+- navigation to home (`/`)
 
 ---
 
-## 8) Diferencias por ruta (`/take_sell` vs `/take_buy`)
+## 8) Differences by Route (`/take_sell` vs `/take_buy`)
 
-| Ruta | `orderType` en pantalla | Botón principal | Método invocado | Acción protocolo enviada |
-|------|--------------------------|-----------------|-----------------|---------------------------|
+| Route | `orderType` in screen | Main button | Method invoked | Protocol action sent |
+|-------|----------------------|-------------|----------------|----------------------|
 | `/take_sell/:orderId` | `OrderType.sell` | `Buy` | `orderNotifier.takeSellOrder(...)` | `take-sell` |
 | `/take_buy/:orderId` | `OrderType.buy` | `Sell` | `orderNotifier.takeBuyOrder(...)` | `take-buy` |
 
 ---
 
-## 9) Diagrama de flujo end-to-end
+## 9) End-to-End Flow Diagram
 
 ```text
 HomeScreen (OrderListItem.onTap)
-  ├─ si existe sesión local -> /trade_detail/:orderId
-  └─ si no existe sesión
+  ├─ if local session exists -> /trade_detail/:orderId
+  └─ if no session exists
        ├─ orderType.sell -> /take_sell/:orderId
        └─ orderType.buy  -> /take_buy/:orderId
 
 TakeOrderScreen
-  ├─ usuario pulsa botón principal
-  ├─ (si rango) diálogo de monto + validación
-  ├─ crea sesión + timer 10s
-  └─ publica MostroMessage(action: take-sell|take-buy)
+  ├─ user presses main button
+  ├─ (if range) amount dialog + validation
+  ├─ create session + 10s timer
+  └─ publish MostroMessage(action: take-sell|take-buy)
 
-Respuesta mostrod
-  ├─ cant-do -> reset loading + notificación
+mostrod response
+  ├─ cant-do -> reset loading + notification
   ├─ pay-invoice -> /pay_invoice/:orderId
   ├─ add-invoice -> /add_invoice/:orderId
   └─ buyer-took-order / waiting-* -> /trade_detail/:orderId
 
-Si no hay respuesta en 10s
-  -> cleanup sesión + notificación timeout + /
+If no response in 10s
+  -> cleanup session + timeout notification + /
 ```
 
 ---
 
-## 10) Referencias cruzadas
+## 10) Cross References
 
-- Home: `.specify/v1-reference/HOME_SCREEN.md`
-- Order book: `.specify/v1-reference/ORDER_BOOK.md`
-- Rutas: `.specify/v1-reference/NAVIGATION_ROUTES.md`
-- Estados: `.specify/v1-reference/ORDER_STATES.md`
-- Ejecución del trade: `.specify/v1-reference/TRADE_EXECUTION.md`
-- Protocolo: `.specify/PROTOCOL.md`
+- Home: [HOME_SCREEN.md](./HOME_SCREEN.md)
+- Order book: [ORDER_BOOK.md](./ORDER_BOOK.md)
+- Routes: [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md)
+- States: [ORDER_STATES.md](./ORDER_STATES.md)
+- Trade execution: [TRADE_EXECUTION.md](./TRADE_EXECUTION.md)
+- Protocol: [../PROTOCOL.md](../PROTOCOL.md)

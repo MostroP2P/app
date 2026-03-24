@@ -36,7 +36,7 @@
 | [HOME_SCREEN.md](./HOME_SCREEN.md) | Home screen, order book, filters, FAB | Keep in Flutter (UI) |
 | [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) | GoRouter routes, deep links, redirects | Adapt navigation for Rust core |
 | [ORDER_BOOK.md](./ORDER_BOOK.md) | Public order book vs My Trades, filters | Keep in Flutter |
-| [ORDER_CREATION.md](./ORDER_CREATION.md) | AddOrderScreen, formulario y flujo de creación de orden | Keep in Flutter (UI + flujo cliente) |
+| [ORDER_CREATION.md](./ORDER_CREATION.md) | AddOrderScreen, form and order creation flow | Keep in Flutter (UI + client flow) |
 | [TAKE_ORDER.md](./TAKE_ORDER.md) | TakeOrderScreen, rutas `/take_sell` y `/take_buy`, acciones `take-sell`/`take-buy` | Keep in Flutter (UI + flujo cliente) |
 | [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) | PayLightningInvoice, AddLightningInvoice, TradeDetail, protocol actions `pay-invoice`/`fiat-sent`/`release`, execution FSM | UI in Flutter, state machine in Rust |
 | [MY_TRADES.md](./MY_TRADES.md) | `/order_book` (TradesScreen), status filter, data providers, list items, pull-to-refresh, navigation | Keep in Flutter (UI + client flow) |

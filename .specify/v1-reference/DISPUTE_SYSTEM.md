@@ -40,7 +40,7 @@
 - `ChatRoomsScreen` renders a two-tab layout via `ChatTabs`. Tabs map to `ChatTabType.messages` (P2P chat) and `ChatTabType.disputes`.
 - Switching tabs updates `chatTabProvider`; horizontal swipes also toggle tabs.
 - The disputes tab swaps the main list for `DisputesList`, so users can reach disputes without leaving the chat module.
-- A short contextual description is displayed under the tabs ("Aquí están tus disputas" vs "Aquí están tus chats").
+- A short contextual description is displayed under the tabs ("Here are your disputes" vs "Here are your chats").
 
 ### Trade Detail → Dispute button
 - `TradeDetailScreen` surfaces a **Dispute** button whenever the action set contains `actions.Action.dispute` and no dispute is already in progress.
@@ -65,7 +65,7 @@
 ### Data types
 - `Dispute` carries protocol-level fields (IDs, status, admin pubkey, timestamps, action) and implements `Payload` so Mostro DMs can embed it.
 - `DisputeData` is the UI view model (order ID, counterparty, user role, `DisputeDescriptionKey`, etc.). It derives `descriptionKey` from normalized statuses and stores whether the current user initiated the dispute.
-- `DisputeDescriptionKey` drives localized copy ("Abriste una disputa", "Esperando asignación de admin", "Admin cerró la disputa"...).
+- `DisputeDescriptionKey` drives localized copy ("You opened a dispute", "Waiting for admin assignment", "Admin closed the dispute"...).
 
 ### Status & action normalization (from `OrderState`)
 - Actions `disputeInitiatedByYou`, `disputeInitiatedByPeer`, `dispute`, `adminTakeDispute`, `adminTookDispute` map to `Status.dispute`.
@@ -92,7 +92,7 @@
 ### `DisputesList`
 - Driven by `userDisputeDataProvider`, which memoizes `DisputeData` list, sorts by `createdAt` DESC, and rebuilds whenever sessions or order states change.
 - Loading state: centered spinner. Error state: icon + "Retry" button that invalidates the provider.
-- Empty state: gavel icon + helper text ("Tus disputas aparecerán aquí").
+- Empty state: gavel icon + helper text ("Your disputes will appear here").
 
 ### `DisputeListItem`
 - Wraps `DisputeContent` and `DisputeIcon`; tapping marks the dispute as read via `DisputeReadStatusService.markDisputeAsRead(disputeId)` then pushes `/dispute_details/:id`.
@@ -104,7 +104,7 @@
 - `disputeReadStatusProvider` is a `StateProvider.family<int, String>` used solely to trigger rebuilds when a dispute is marked as read (timestamp bump).
 
 ### Tab description copy
-- When `ChatTabType.disputes` is active, `ChatRoomsScreen` shows `S.disputesDescription` ("Aquí hablas con los admins"), reinforcing that this is a separate space from P2P chat.
+- When `ChatTabType.disputes` is active, `ChatRoomsScreen` shows `S.disputesDescription` ("Here you talk with admins"), reinforcing that this is a separate space from P2P chat.
 
 ---
 
@@ -187,7 +187,7 @@
 4. `DisputeMessagesList` shows the blue "Admin assigned" card until the first message arrives.
 
 ### Resolution paths
-- **Admin settled** (`adminSettled`): `Dispute.status = resolved`, `action = admin-settled`. `DisputeMessagesList` hides the input and shows the lock banner. `DisputeStatusContent` renders "Admin devolvió los sats".
+- **Admin settled** (`adminSettled`): `Dispute.status = resolved`, `action = admin-settled`. `DisputeMessagesList` hides the input and shows the lock banner. `DisputeStatusContent` renders "Admin released the sats".
 - **Admin canceled** (`adminCanceled`): `status = seller-refunded`, `action = admin-canceled`.
 - **User completed** (Lightning payment succeeded) or **cooperative cancel**: auto-close logic in `OrderState` sets `status = closed`, `action = user-completed / cooperative-cancel`. No admin involvement required.
 
