@@ -43,7 +43,7 @@ GoRoute(
 
 - **Bottom navigation bar:** second tab (`_onItemTapped` index 1) pushes `/order_book` and highlights the "My Trades" icon.
 - **Drawer menu:** `CustomDrawerOverlay` wraps the screen so the side drawer can jump to the same route.
-- **Programmatic navigation:** `context.push('/order_book')` is invoked after authentication or when tapping notifications relating to user trades.
+- **Programmatic navigation:** After the post-auth redirect to `/`, trade-notification handlers (or quick actions) invoke `context.push('/order_book')` so the user lands directly in My Trades.
 
 `BottomNavBar` also shows a red dot (via `orderBookNotificationCountProvider`) if there are unseen trade updates.
 
