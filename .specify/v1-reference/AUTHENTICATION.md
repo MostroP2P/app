@@ -45,7 +45,7 @@ App Launch
 │                    KEY GENERATION                                │
 └─────────────────────────────────────────────────────────────────┘
 
-1. Generate 24-word BIP-39 mnemonic (entropy: 256 bits)
+1. Generate 12-word BIP-39 mnemonic (entropy: 256 bits)
 2. Derive BIP-32 extended private key from mnemonic
 3. Store mnemonic in secure storage (encrypted)
 4. Store extended private key in secure storage
@@ -134,7 +134,7 @@ Note: Trade index 0 is the master identity key, index 1 is an ephemeral temp key
 **Sections:**
 
 #### 1. Secret Words Card
-- Displays 24-word BIP-39 mnemonic
+- Displays 12-word BIP-39 mnemonic
 - **Masking:** Shows first 2 + last 2 words, middle masked as `••• ••• ••• •••`
 - **Toggle:** Eye icon to show/hide full mnemonic
 - **Info dialog:** Explains what secret words are
@@ -199,7 +199,7 @@ class KeyManager {
 class KeyDerivator {
   // Derivation path: m/44'/1237'/0' (NIP-06 compliant for Nostr)
   
-  String generateMnemonic();           // BIP-39, 24 words
+  String generateMnemonic();           // BIP-39, 12 words
   bool isMnemonicValid(String mnemonic);
   String masterPrivateKeyFromMnemonic(String mnemonic);
   String extendedKeyFromMnemonic(String mnemonic);  // BIP-32 base58
@@ -365,7 +365,7 @@ class BackupReminderNotifier extends StateNotifier<bool> {
 ## Data Storage
 
 ### Secure Storage (KeyStorage)
-- **Mnemonic:** 24-word BIP-39 seed phrase
+- **Mnemonic:** 12-word BIP-39 seed phrase
 - **Master Key:** BIP-32 extended private key (base58)
 - **Trade Key Index:** Next index to use
 - **Backend:** Platform-specific secure storage (iOS Keychain, Android Keystore)
