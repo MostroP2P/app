@@ -278,6 +278,10 @@ En take flow, `AbstractMostroNotifier.handleEvent(...)` navega según acción en
 - `Action.waitingSellerToPay` o `Action.waitingBuyerInvoice` (cuando aplica) → `/trade_detail/:orderId`
 - `Action.fiatSentOk`, `Action.released`, `Action.purchaseCompleted`, `Action.adminSettled`, etc. → `/trade_detail/:orderId`
 
+> For the full description of what happens **after** these redirects (screens `/pay_invoice`, `/add_invoice`, `/trade_detail` plus execution buttons), see `.specify/v1-reference/TRADE_EXECUTION.md`.
+>
+> That document details the buyer/seller flows, reactive buttons, valid actions, and state transitions during trade execution.
+
 ---
 
 ## 7) Manejo de errores en take flow
@@ -351,4 +355,5 @@ Si no hay respuesta en 10s
 - Order book: `.specify/v1-reference/ORDER_BOOK.md`
 - Rutas: `.specify/v1-reference/NAVIGATION_ROUTES.md`
 - Estados: `.specify/v1-reference/ORDER_STATES.md`
+- Ejecución del trade: `.specify/v1-reference/TRADE_EXECUTION.md`
 - Protocolo: `.specify/PROTOCOL.md`
