@@ -1,186 +1,186 @@
-# About Screen (v1 Reference)
+# Pantalla Acerca de (Referencia v1)
 
-> App information, documentation links, and Mostro node details.
+> Información de la app, enlaces a documentación, y detalles del nodo Mostro.
 
-**Route:** `/about`
+**Ruta:** `/about`
 
-## Screen Layout
+## Layout de Pantalla
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│  ←  About                                           │  AppBar
+│  ←  Acerca de                                       │  AppBar
 ├─────────────────────────────────────────────────────┤
 │                                                     │
 │  ┌───────────────────────────────────────────────┐  │
-│  │  📱  App Information                          │  │
+│  │  📱  Información de la App                    │  │
 │  │                                               │  │
-│  │  Version              0.2.5                   │  │
+│  │  Versión              0.2.5                   │  │
 │  │                                               │  │
-│  │  GitHub Repository    mostro-mobile  ↗️       │  │
+│  │  Repositorio GitHub   mostro-mobile  ↗️       │  │
 │  │                                               │  │
-│  │  Commit Hash          abc1234                 │  │
+│  │  Hash de Commit       abc1234                 │  │
 │  │                                               │  │
-│  │  License              MIT                     │  │
+│  │  Licencia             MIT                     │  │
 │  └───────────────────────────────────────────────┘  │
 │                                                     │
 │  ┌───────────────────────────────────────────────┐  │
-│  │  📖  Documentation                            │  │
+│  │  📖  Documentación                            │  │
 │  │                                               │  │
-│  │  Users (English)      Read  ↗️                │  │
+│  │  Usuarios (Inglés)    Leer  ↗️                │  │
 │  │                                               │  │
-│  │  Users (Spanish)      Read  ↗️                │  │
+│  │  Usuarios (Español)   Leer  ↗️                │  │
 │  │                                               │  │
-│  │  Technical            Read  ↗️                │  │
+│  │  Técnica              Leer  ↗️                │  │
 │  └───────────────────────────────────────────────┘  │
 │                                                     │
 │  ┌───────────────────────────────────────────────┐  │
-│  │  🖥️  Mostro Node                              │  │
+│  │  🖥️  Nodo Mostro                              │  │
 │  │                                               │  │
-│  │  ══ General Info ══                           │  │
+│  │  ══ Info General ══                           │  │
 │  │                                               │  │
-│  │  Mostro Public Key    npub1m0str0...  ℹ️ 📋   │  │
-│  │  Max Order Amount     10,000,000 Satoshis ℹ️  │  │
-│  │  Min Order Amount     100 Satoshis       ℹ️  │  │
-│  │  Order Lifespan       24 hours           ℹ️  │  │
-│  │  Service Fee          0.6%               ℹ️  │  │
-│  │  Fiat Currencies      All                ℹ️  │  │
+│  │  Clave Pública Mostro npub1m0str0...  ℹ️ 📋   │  │
+│  │  Monto Máximo Orden   10,000,000 Satoshis ℹ️  │  │
+│  │  Monto Mínimo Orden   100 Satoshis       ℹ️  │  │
+│  │  Vida de Orden        24 horas           ℹ️  │  │
+│  │  Comisión Servicio    0.6%               ℹ️  │  │
+│  │  Monedas Fiat         Todas              ℹ️  │  │
 │  │                                               │  │
-│  │  ══ Technical Details ══                      │  │
+│  │  ══ Detalles Técnicos ══                      │  │
 │  │                                               │  │
-│  │  Mostro Version       0.12.5             ℹ️  │  │
-│  │  Mostro Commit        def5678             ℹ️  │  │
-│  │  Order Expiration     900 sec             ℹ️  │  │
-│  │  Hold Invoice Exp.    86400 sec           ℹ️  │  │
-│  │  Hold Invoice CLTV    144 blocks          ℹ️  │  │
-│  │  Invoice Exp. Window  3600 seconds        ℹ️  │  │
+│  │  Versión Mostro       0.12.5             ℹ️  │  │
+│  │  Commit Mostro        def5678             ℹ️  │  │
+│  │  Expiración Orden     900 seg             ℹ️  │  │
+│  │  Exp. Hold Invoice    86400 seg           ℹ️  │  │
+│  │  CLTV Hold Invoice    144 bloques         ℹ️  │  │
+│  │  Ventana Exp. Invoice 3600 segundos       ℹ️  │  │
 │  │  Proof of Work        0                   ℹ️  │  │
-│  │  Max Orders/Response  50                  ℹ️  │  │
+│  │  Órdenes Máx/Resp     50                  ℹ️  │  │
 │  │                                               │  │
 │  │  ══ Lightning Network ══                      │  │
 │  │                                               │  │
-│  │  LND Version          0.18.0-beta        ℹ️  │  │
-│  │  LND Node Public Key  02abc...      ℹ️ 📋   │  │
-│  │  LND Commit           ghi9012             ℹ️  │  │
-│  │  LND Node Alias       MostroNode          ℹ️  │  │
-│  │  Supported Chains     bitcoin             ℹ️  │  │
-│  │  Supported Networks   mainnet             ℹ️  │  │
-│  │  LND Node URI         02abc@host:9735 ℹ️ 📋  │  │
+│  │  Versión LND          0.18.0-beta        ℹ️  │  │
+│  │  Clave Pública LND    02abc...      ℹ️ 📋   │  │
+│  │  Commit LND           ghi9012             ℹ️  │  │
+│  │  Alias Nodo LND       MostroNode          ℹ️  │  │
+│  │  Cadenas Soportadas   bitcoin             ℹ️  │  │
+│  │  Redes Soportadas     mainnet             ℹ️  │  │
+│  │  URI Nodo LND         02abc@host:9735 ℹ️ 📋  │  │
 │  └───────────────────────────────────────────────┘  │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
 
-## Cards Detail
+## Detalle de Cards
 
-### 1. App Information Card
+### 1. Card de Información de la App
 
-**Icon:** `LucideIcons.smartphone`, mostroGreen, 20px
+**Icono:** `LucideIcons.smartphone`, mostroGreen, 20px
 
-| Field | Value Source | Clickable |
-|-------|--------------|-----------|
-| Version | `APP_VERSION` env var | No |
-| GitHub Repository | Static URL | Yes → opens GitHub |
-| Commit Hash | `GIT_COMMIT` env var | No |
-| License | "MIT" | Yes → shows license dialog |
+| Campo | Fuente del Valor | Clickeable |
+|-------|------------------|------------|
+| Versión | Variable de entorno `APP_VERSION` | No |
+| Repositorio GitHub | URL estática | Sí → abre GitHub |
+| Hash de Commit | Variable de entorno `GIT_COMMIT` | No |
+| Licencia | "MIT" | Sí → muestra diálogo de licencia |
 
-**License Dialog:**
-- Full MIT license text in scrollable container
-- Monospace font
-- Close button
+**Diálogo de Licencia:**
+- Texto completo de licencia MIT en contenedor scrolleable
+- Fuente monoespaciada
+- Botón cerrar
 
-### 2. Documentation Card
+### 2. Card de Documentación
 
-**Icon:** `LucideIcons.book`, mostroGreen, 20px
+**Icono:** `LucideIcons.book`, mostroGreen, 20px
 
-| Link | URL |
-|------|-----|
-| Users (English) | https://mostro.network/docs-english/ |
-| Users (Spanish) | https://mostro.network/docs-spanish/ |
-| Technical | https://mostro.network/protocol/ |
+| Enlace | URL |
+|--------|-----|
+| Usuarios (Inglés) | https://mostro.network/docs-english/ |
+| Usuarios (Español) | https://mostro.network/docs-spanish/ |
+| Técnica | https://mostro.network/protocol/ |
 
-**Clickable rows** with external link icon (↗️).
+**Filas clickeables** con icono de enlace externo (↗️).
 
-### 3. Mostro Node Card
+### 3. Card de Nodo Mostro
 
-**Icon:** `LucideIcons.server`, mostroGreen, 20px
+**Icono:** `LucideIcons.server`, mostroGreen, 20px
 
-**Loading State:** Shows spinner while fetching node info.
+**Estado de Carga:** Muestra spinner mientras obtiene info del nodo.
 
-**Data Source:** `MostroInstance` from daemon announcement event.
+**Fuente de Datos:** `MostroInstance` del evento de anuncio del daemon.
 
-#### General Info Section
+#### Sección Info General
 
-| Field | Key | Format |
-|-------|-----|--------|
-| Mostro Public Key | `pubKey` | Truncated, copyable |
-| Max Order Amount | `maxOrderAmount` | Formatted number + "Satoshis" |
-| Min Order Amount | `minOrderAmount` | Formatted number + "Satoshis" |
-| Order Lifespan | `expirationHours` | Number + "hours" |
-| Service Fee | `fee` | Percentage (fee * 100 + "%") |
-| Fiat Currencies | `fiatCurrenciesAccepted` | Comma-separated or "All" |
+| Campo | Clave | Formato |
+|-------|-------|---------|
+| Clave Pública Mostro | `pubKey` | Truncada, copiable |
+| Monto Máximo Orden | `maxOrderAmount` | Número formateado + "Satoshis" |
+| Monto Mínimo Orden | `minOrderAmount` | Número formateado + "Satoshis" |
+| Vida de Orden | `expirationHours` | Número + "horas" |
+| Comisión Servicio | `fee` | Porcentaje (fee * 100 + "%") |
+| Monedas Fiat | `fiatCurrenciesAccepted` | Separadas por coma o "Todas" |
 
-#### Technical Details Section
+#### Sección Detalles Técnicos
 
-| Field | Key |
-|-------|-----|
-| Mostro Version | `mostroVersion` |
-| Mostro Commit | `commitHash` |
-| Order Expiration | `expirationSeconds` + "sec" |
-| Hold Invoice Expiration | `holdInvoiceExpirationWindow` + "sec" |
-| Hold Invoice CLTV Delta | `holdInvoiceCltvDelta` + "blocks" |
-| Invoice Expiration Window | `invoiceExpirationWindow` + "seconds" |
+| Campo | Clave |
+|-------|-------|
+| Versión Mostro | `mostroVersion` |
+| Commit Mostro | `commitHash` |
+| Expiración Orden | `expirationSeconds` + "seg" |
+| Expiración Hold Invoice | `holdInvoiceExpirationWindow` + "seg" |
+| CLTV Delta Hold Invoice | `holdInvoiceCltvDelta` + "bloques" |
+| Ventana Expiración Invoice | `invoiceExpirationWindow` + "segundos" |
 | Proof of Work | `pow` |
-| Max Orders Per Response | `maxOrdersPerResponse` |
+| Órdenes Máx Por Respuesta | `maxOrdersPerResponse` |
 
-#### Lightning Network Section
+#### Sección Lightning Network
 
-| Field | Key |
-|-------|-----|
-| LND Version | `lndVersion` |
-| LND Node Public Key | `lndNodePublicKey` (copyable) |
-| LND Commit | `lndCommitHash` |
-| LND Node Alias | `lndNodeAlias` |
-| Supported Chains | `supportedChains` |
-| Supported Networks | `supportedNetworks` |
-| LND Node URI | `lndNodeUri` (copyable) |
+| Campo | Clave |
+|-------|-------|
+| Versión LND | `lndVersion` |
+| Clave Pública Nodo LND | `lndNodePublicKey` (copiable) |
+| Commit LND | `lndCommitHash` |
+| Alias Nodo LND | `lndNodeAlias` |
+| Cadenas Soportadas | `supportedChains` |
+| Redes Soportadas | `supportedNetworks` |
+| URI Nodo LND | `lndNodeUri` (copiable) |
 
-## Info Row Patterns
+## Patrones de Fila de Info
 
-### Standard Info Row
+### Fila de Info Estándar
 
 ```text
-Label              Value
+Label              Valor
 ```
 
 - Label: `textSecondary`, 14sp
-- Value: `textPrimary`, 14sp, medium weight
+- Valor: `textPrimary`, 14sp, peso medium
 
-### Info Row with Dialog
+### Fila de Info con Diálogo
 
 ```text
 Label  ℹ️
-Value
+Valor
 ```
 
-- Tap ℹ️ → shows explanation dialog
-- Info icon: 16px, `textSecondary`
+- Tap ℹ️ → muestra diálogo de explicación
+- Icono de info: 16px, `textSecondary`
 
-### Info Row with Dialog and Copy
+### Fila de Info con Diálogo y Copiar
 
 ```text
 Label  ℹ️  📋
-Value (truncated)
+Valor (truncado)
 ```
 
-- Tap ℹ️ → explanation dialog
-- Tap 📋 → copies value to clipboard
-- Shows "Copied to clipboard" snackbar
+- Tap ℹ️ → diálogo de explicación
+- Tap 📋 → copia valor al clipboard
+- Muestra snackbar "Copiado al portapapeles"
 
-## Section Headers
+## Headers de Sección
 
 ```dart
 Text(
-  "General Info",
+  "Info General",
   style: TextStyle(
     color: AppTheme.activeColor,  // mostroGreen
     fontSize: 16,
@@ -189,17 +189,17 @@ Text(
 )
 ```
 
-## Info Dialogs
+## Diálogos de Info
 
-Each ℹ️ button shows a dialog with explanation:
+Cada botón ℹ️ muestra un diálogo con explicación:
 
-| Field | Explanation Key |
-|-------|----------------|
-| Mostro Public Key | `mostroPublicKeyExplanation` |
-| Max Order Amount | `maxOrderAmountExplanation` |
-| Min Order Amount | `minOrderAmountExplanation` |
-| Order Lifespan | `orderExpirationExplanation` |
-| Service Fee | `serviceFeeExplanation` |
-| ... | (all fields have explanations) |
+| Campo | Clave de Explicación |
+|-------|----------------------|
+| Clave Pública Mostro | `mostroPublicKeyExplanation` |
+| Monto Máximo Orden | `maxOrderAmountExplanation` |
+| Monto Mínimo Orden | `minOrderAmountExplanation` |
+| Vida de Orden | `orderExpirationExplanation` |
+| Comisión Servicio | `serviceFeeExplanation` |
+| ... | (todos los campos tienen explicaciones) |
 
-Explanations are i18n strings that describe what each field means and why it matters.
+Las explicaciones son strings i18n que describen qué significa cada campo y por qué importa.
