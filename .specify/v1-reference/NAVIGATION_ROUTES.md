@@ -49,7 +49,7 @@ MostroApp
 | `/trade_detail/:orderId` | `TradeDetailScreen` | `trade_detail_screen.dart` | Trade detail (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
 | `/chat_list` | `ChatRoomsScreen` | `chat_rooms_list.dart` | Chat hub (see `P2P_CHAT_SYSTEM.md`) |
 | `/chat_room/:orderId` | `ChatRoomScreen` | `chat_room_screen.dart` | Trade chat room (see `P2P_CHAT_SYSTEM.md`) |
-| `/dispute_details/:disputeId` | `DisputeChatScreen` | `dispute_chat_screen.dart` | Chat de disputa |
+| `/dispute_details/:disputeId` | `DisputeChatScreen` | `dispute_chat_screen.dart` | Chat de disputa (ver `DISPUTE_SYSTEM.md`) |
 | `/register` | `RegisterScreen` | `register_screen.dart` | Registro de identidad |
 | `/relays` | `RelaysScreen` | `relays_screen.dart` | Gestión de relays |
 | `/key_management` | `KeyManagementScreen` | `key_management_screen.dart` | Cuenta, mnemónicos |

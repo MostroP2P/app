@@ -228,9 +228,11 @@ Derived from `OrderState._getStatusFromAction()` and `MostroFSM`:
 | Maker-side expiration | `OrderNotifier._subscribeToPublicEvents` watches `orderEventsProvider`; when a pending maker order turns `canceled`, it deletes the session and posts `orderCanceled`. |
 | Taker timeout (no response within 10s) | `startSessionTimeoutCleanup` fires, shows `sessionTimeoutMessage`, and navigates home. |
 | Hold invoice payment failure | Mostro sends `payment-failed`; status switches to `paymentFailed`, buyers only see **Add invoice**, sellers only **Pay invoice** until a new request arrives. |
-| Disputes | "Dispute" button triggers `disputeRepositoryProvider.createDispute`. Once a dispute exists, the UI shows "View dispute" and `/chat_room` includes admins after `admin-took-dispute`. |
+| Disputes | "Dispute" button triggers `disputeRepositoryProvider.createDispute`. Once a dispute exists, "View dispute" links to `/dispute_details/:id` and the chat switches to admin shared keys (see [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md)). |
 | Cooperative cancel | Pending cancel renders grey button (disabled) + "Contact" button to coordinate. |
 | Invoice/payment errors | UI surfaces `SnackBarHelper.showTopSnackBar` messages but keeps the user on the same screen. |
+
+**Dispute flow recap:** trade participants can file a dispute once the order is `active`/`fiat-sent`; the repository sends an encrypted `MostroMessage(Action.dispute)`, `OrderState` transitions to `Status.dispute`, and admins may later take the case (`adminTookDispute`), settle (`adminSettled`), or refund (`adminCanceled`). UI details, unread badges, and the dedicated dispute chat live in [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md).
 
 ---
 

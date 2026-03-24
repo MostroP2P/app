@@ -417,7 +417,7 @@ With 2+ active trades, counterpart messages disappear after closing and reopenin
 | Trade detail actions (chat button) | [.specify/v1-reference/TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
 | My Trades list (source of chat sessions) | [.specify/v1-reference/MY_TRADES.md](./MY_TRADES.md) |
 
-*Dispute conversations reuse the same chat widgets; see `lib/features/disputes/*` until a dedicated spec is published.*
+*Dispute conversations reuse the same chat widgets; see [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md) for the dedicated specification.*
 
 ---
 
