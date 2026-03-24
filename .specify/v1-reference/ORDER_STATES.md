@@ -58,7 +58,11 @@ The buyer must provide a Lightning invoice where they want to receive the sats. 
 | Action | By | Next State (Sell Order) | Next State (Buy Order) |
 |--------|----|------------------------|------------------------|
 | `add-invoice` | Buyer | `waiting-payment` | `active` |
-| `cancel` | Either | `canceled` | `canceled` |
+| `cancel` | Buyer | `pending` (taker) | `canceled` (creator) |
+| `cancel` | Seller | `canceled` (creator) | `pending` (taker) |
+
+> **Cancel behavior depends on role in the order:** When the taker cancels, the order returns to `pending` and is republished for a new counterparty. When the creator cancels, the order is `canceled` permanently.
+> **Timeout behavior:** If the expected party does not act within `expiration_seconds` (published in the Mostro instance event kind `38385`), Mostro automatically applies the same cancel logic: if the taker didn't respond, the order returns to `pending`; if the creator didn't respond, the order is `canceled`.
 
 ---
 
@@ -86,7 +90,11 @@ Seller must pay the hold invoice to lock the sats in escrow.
 | Action | By | Next State (Sell Order) | Next State (Buy Order) |
 |--------|----|------------------------|------------------------|
 | `pay-invoice` | Seller | `active` | `waiting-buyer-invoice` |
-| `cancel` | Either | `canceled` | `canceled` |
+| `cancel` | Buyer | `pending` (taker) | `canceled` (creator) |
+| `cancel` | Seller | `canceled` (creator) | `pending` (taker) |
+
+> **Cancel behavior depends on role in the order:** When the taker cancels, the order returns to `pending` and is republished for a new counterparty. When the creator cancels, the order is `canceled` permanently.
+> **Timeout behavior:** If the expected party does not act within `expiration_seconds` (published in the Mostro instance event kind `38385`), Mostro automatically applies the same cancel logic: if the taker didn't respond, the order returns to `pending`; if the creator didn't respond, the order is `canceled`.
 
 ---
 
@@ -101,7 +109,7 @@ Sats are locked in escrow (hold invoice paid). The buyer must now send fiat to t
 
 **Available Actions:**
 - Buyer can mark fiat as sent
-- Either party can cancel
+- Either party can request a cooperative cancel (see section 9)
 - Either party can initiate dispute
 
 **Transitions:**
@@ -109,8 +117,11 @@ Sats are locked in escrow (hold invoice paid). The buyer must now send fiat to t
 | Action | By | Next State |
 |--------|----|------------|
 | `fiat-sent` | Buyer | `fiat-sent` |
-| `cancel` | Either | `canceled` |
+| `cancel` | Either | `active` (cooperative cancel requested — see section 9) |
+| `cancel` | Both parties | `canceled` |
 | `dispute` | Either | `dispute` |
+
+> **Cooperative cancel:** In `active` status, cancel is not unilateral. When one party sends `cancel`, the order remains `active`. Only when the counterparty also sends `cancel`, the order transitions to `canceled`.
 
 ---
 
@@ -125,6 +136,7 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 
 **Available Actions:**
 - Seller can release sats
+- Either party can request a cooperative cancel (see section 9)
 - Either party can initiate dispute if something is wrong
 
 **Transitions:**
@@ -132,7 +144,11 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 | Action | By | Next State |
 |--------|----|------------|
 | `release` | Seller | `settled-hold-invoice` |
+| `cancel` | Either | `fiat-sent` (cooperative cancel requested — see section 9) |
+| `cancel` | Both parties | `canceled` |
 | `dispute` | Either | `dispute` |
+
+> **Cooperative cancel:** In `fiat-sent` status, cancel is not unilateral. When one party sends `cancel`, the order remains `fiat-sent`. Only when the counterparty also sends `cancel`, the order transitions to `canceled`.
 
 ---
 
@@ -143,16 +159,21 @@ Buyer has marked the fiat as sent. Seller must verify receipt and release the sa
 - Label: "Settled"
 
 **Description:**
-Seller has released the sats. The hold invoice is being settled and sats are being routed to the buyer's invoice. This is a transient state before completion.
+Seller has released the sats. The hold invoice is being settled and sats are being routed to the buyer's invoice. This is normally a transient state before completion, but the buyer may need to act if the Lightning payment fails.
 
 **Available Actions:**
-- None (automatic transition)
+- **Seller**: None required, but can `rate` without waiting for the buyer's payment to complete
+- **Buyer**: `add-invoice` (only if payment fails and all retries are exhausted)
 
 **Transitions:**
 
 | Action | By | Next State |
 |--------|----|------------|
 | (automatic) | System | `success` |
+| `rate` | Seller | `settled-hold-invoice` |
+| `add-invoice` | Buyer | `settled-hold-invoice` |
+
+> **Payment failure:** If the Lightning payment to the buyer's invoice fails, Mostro retries automatically. On first failure, the buyer receives `payment-failed` with remaining attempts. If all retries are exhausted, Mostro sends `add-invoice` and the buyer must provide a new invoice. The order remains in `settled-hold-invoice` throughout — see "Action: PAYMENT_FAILED" section for details.
 
 ---
 
@@ -240,6 +261,8 @@ A dispute has been initiated by either party. An admin will review the case and 
 
 **Available Actions:**
 - Both parties can submit evidence via chat
+- Seller can `release` (resolves the trade and auto-closes the dispute)
+- Either party can request a cooperative cancel (see section 9)
 - Admin can settle (release to buyer)
 - Admin can cancel (return to seller)
 
@@ -249,7 +272,9 @@ A dispute has been initiated by either party. An admin will review the case and 
 |--------|----|------------|
 | `admin-settle` | Admin | `settled-by-admin` |
 | `admin-cancel` | Admin | `canceled-by-admin` |
-| `admin-complete` | Admin | `completed-by-admin` |
+| `release` | Seller | `settled-hold-invoice` (dispute auto-closed) |
+| `cancel` | Either | `dispute` (cooperative cancel requested) |
+| `cancel` | Both parties | `canceled` (dispute auto-closed) |
 
 ---
 
@@ -288,10 +313,10 @@ Admin resolved the dispute in favor of the seller. Sats were returned to seller.
 - Label: "Completed"
 
 **Description:**
-Admin marked the trade as completed. This is a force-complete action.
+Reserved status in mostro-core enum. Not implemented in the protocol (no `admin-complete` action exists in mostrod or protocol docs). Mobile v1 treats it as equivalent to `settled-by-admin`.
 
 **Available Actions:**
-- None (terminal state)
+- None (terminal state, reserved/unused)
 
 ---
 
@@ -302,7 +327,9 @@ Admin marked the trade as completed. This is a force-complete action.
 - Label: "Expired"
 
 **Description:**
-Order expired without being taken within the configured time limit.
+Order was in `pending` status and was not taken before `expires_at` (determined by Mostro based on `expiration_hours` published in the instance event kind `38385`). When the order expires, Mostro updates the replaceable event (kind 38383) status to `canceled`.
+
+> **No direct notification:** Mostro does not send a message to the creator when an order expires. The client detects expiration by observing the updated replaceable event on relays.
 
 **Available Actions:**
 - None (terminal state)
@@ -316,10 +343,7 @@ Order expired without being taken within the configured time limit.
 - Label: "In Progress"
 
 **Description:**
-Internal status used during dispute handling. Indicates an admin has taken the dispute and is actively working on resolution.
-
-**Available Actions:**
-- Admin can settle, cancel, or complete the order
+`in-progress` is a **dispute status** (event kind 38386), not an order status. It means an admin has taken the dispute via `admin-take-dispute`. The order itself remains in `dispute` status. While the dispute is in `initiated` or `in-progress`, users can still resolve it themselves via `release` or cooperative cancel, which auto-closes the dispute. See section 10 (DISPUTE) for all available transitions.
 
 **Transitions:**
 
@@ -327,7 +351,6 @@ Internal status used during dispute handling. Indicates an admin has taken the d
 |--------|----|------------|
 | `admin-settle` | Admin | `settled-by-admin` |
 | `admin-cancel` | Admin | `canceled-by-admin` |
-| `admin-complete` | Admin | `completed-by-admin` |
 
 ---
 
@@ -504,25 +527,27 @@ The trade detail screen shows different action buttons based on the current stat
 
 ### ACTIVE (as Buyer)
 - **Fiat Sent** - Success button (primary action)
+- **Contact** - Opens P2P chat with counterparty
 - **Cancel** - Destructive
 - **Dispute** - Warning
 
 ### ACTIVE (as Seller)
+- **Contact** - Opens P2P chat with counterparty
 - **Cancel** - Destructive
 - **Dispute** - Warning
 - (Waiting for buyer to mark fiat sent)
 
 ### FIAT_SENT (as Seller)
 - **Release Sats** - Success button (primary action)
+- **Contact** - Opens P2P chat with counterparty
 - **Dispute** - Warning
 
 ### FIAT_SENT (as Buyer)
-- (Waiting for seller to release)
+- **Contact** - Opens P2P chat with counterparty
 - **Dispute** - Warning (if seller doesn't release)
 
 ### DISPUTE (as Either)
-- (No actions - waiting for admin)
-- Chat available for submitting evidence
+- **Contact** - Opens P2P chat with counterparty
 
 ### SUCCESS / Terminal States
 - **Rate Counterparty** - Star rating component
@@ -535,15 +560,27 @@ The trade detail screen shows different action buttons based on the current stat
 | `pending` | `take-buy` | - | `waiting-payment` |
 | `pending` | `cancel` | `canceled` | `canceled` |
 | `waiting-buyer-invoice` | `add-invoice` | `waiting-payment` | - |
-| `waiting-buyer-invoice` | `cancel` | `canceled` | `canceled` |
+| `waiting-buyer-invoice` | `cancel` (buyer) | `pending` (taker) | `canceled` (creator) |
+| `waiting-buyer-invoice` | `cancel` (seller) | `canceled` (creator) | `pending` (taker) |
 | `waiting-payment` | `pay-invoice` | - | `active` |
+| `waiting-payment` | `cancel` (buyer) | `pending` (taker) | `canceled` (creator) |
+| `waiting-payment` | `cancel` (seller) | `canceled` (creator) | `pending` (taker) |
 | `active` | `fiat-sent` | `fiat-sent` | `fiat-sent` |
-| `fiat-sent` | `release` | - | `settled-hold-invoice` |
-| `settled-hold-invoice` | (auto) | `success` | `success` |
+| `active` | `cancel` (one party) | `active` (cooperative cancel requested) | `active` (cooperative cancel requested) |
+| `active` | `cancel` (both parties) | `canceled` | `canceled` |
 | `active` | `dispute` | `dispute` | `dispute` |
+| `fiat-sent` | `release` | `settled-hold-invoice` | `success` |
+| `fiat-sent` | `cancel` (one party) | `fiat-sent` (cooperative cancel requested) | `fiat-sent` (cooperative cancel requested) |
+| `fiat-sent` | `cancel` (both parties) | `canceled` | `canceled` |
 | `fiat-sent` | `dispute` | `dispute` | `dispute` |
+| `settled-hold-invoice` | (auto) | `success` | `success` |
+| `settled-hold-invoice` | `rate` | - | `settled-hold-invoice` |
+| `settled-hold-invoice` | `add-invoice` | `settled-hold-invoice` | - |
 | `dispute` | `admin-settle` | `settled-by-admin` | `settled-by-admin` |
 | `dispute` | `admin-cancel` | `canceled-by-admin` | `canceled-by-admin` |
+| `dispute` | `release` | `settled-hold-invoice` (dispute auto-closed) | `success` (dispute auto-closed) |
+| `dispute` | `cancel` (one party) | `dispute` (cooperative cancel requested) | `dispute` (cooperative cancel requested) |
+| `dispute` | `cancel` (both parties) | `canceled` (dispute auto-closed) | `canceled` (dispute auto-closed) |
 
 ## Implementation Notes for v2
 
@@ -695,7 +732,7 @@ This mapping documents status-changing actions. Role differentiation happens bec
 | Action | Final Status |
 |--------|--------------|
 | `canceled` | `canceled` |
-| `cancel` | `canceled` |
+| `cancel` | `canceled` (only in pre-escrow states; in `active`/`fiat-sent`/`dispute` requires both parties — see section 9) |
 | `cooperative-cancel-accepted` | `canceled` |
 | `hold-invoice-payment-canceled` | `canceled` |
 | `rate` / `rate-user` / `rate-received` | Preserves current status (rating UI only) |
@@ -754,7 +791,7 @@ When restoring sessions after app restart, the app receives orders with a status
 | `in-progress` | `admin-took-dispute` | `admin-took-dispute` |
 | `settled-by-admin` | `admin-settled` | `admin-settled` |
 | `canceled-by-admin` | `admin-canceled` | `admin-canceled` |
-| `completed-by-admin` | `admin-completed` | `admin-completed` |
+| `completed-by-admin` | `admin-completed` | `admin-completed` *(reserved — not generated by current protocol)* |
 | `expired` | `expired` | `expired` |
 
 **Critical for `settled-hold-invoice`:** The buyer sees the intermediate "Paying sats" state, while the seller sees `success`. This matches the live flow where buyers must wait for Lightning payment confirmation.
@@ -803,7 +840,7 @@ The `dispute.action` field distinguishes closure reason:
 | `in-progress` | "In Progress" | Blue |
 | `settled-by-admin` | "Settled" | Purple |
 | `canceled-by-admin` | "Canceled" | Gray |
-| `completed-by-admin` | "Completed" | Green |
+| `completed-by-admin` | "Completed" | Green *(reserved — not generated by current protocol)* |
 | `expired` | "Expired" | Gray |
 
 ### Order Details (Descriptive Labels)
@@ -816,7 +853,7 @@ The `dispute.action` field distinguishes closure reason:
 | `cooperatively-canceled` | "Cooperative cancellation" |
 | `canceled-by-admin` | "Order canceled by an administrator" |
 | `settled-by-admin` | "Sats released by an administrator" |
-| `completed-by-admin` | "Order completed by an administrator" |
+| `completed-by-admin` | "Order completed by an administrator" *(reserved — not generated by current protocol)* |
 | `in-progress` | "Dispute in progress" |
 | `expired` | "Order expired" |
 

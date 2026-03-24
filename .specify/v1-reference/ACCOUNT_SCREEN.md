@@ -149,12 +149,17 @@ Toggle between reputation mode and full privacy mode.
 
 **Outlined button** (mostroGreen border, icon only):
 - Icon: `LucideIcons.refreshCw`
-- Action: Re-sync user data from relays
+- Action: Sends `restore-session` to Mostro to retrieve non-finalized orders and active disputes with their `trade_index` values.
 
 **Confirmation Dialog:**
 - Title: "Refresh User?"
-- Content: Explanation of what refresh does
+- Content: "This will re-fetch your trades and orders from the Mostro instance. Use this if you think your data is out of sync or orders are missing."
 - Actions: Cancel | Refresh
+
+**On Refresh:**
+1. Send `restore-session` action to Mostro
+2. Update local state with returned orders and disputes
+3. Show success snackbar
 
 ## Debug-Only Section
 
