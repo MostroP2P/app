@@ -139,6 +139,8 @@ This is a pending state. Once the other party accepts, the status changes to `ca
 | `adminTakeDispute` | `dispute` | Admin took the dispute |
 | `adminTookDispute` | `dispute` | Admin took the dispute (confirmation) |
 
+_For UI behavior (list badges, dispute chat, admin messaging) see [DISPUTE_SYSTEM.md](./DISPUTE_SYSTEM.md)._ 
+
 ### Admin Resolution
 
 | Action | Status | When |
