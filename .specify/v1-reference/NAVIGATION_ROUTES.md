@@ -25,7 +25,7 @@ La app usa **GoRouter** con las siguientes características:
 
 ### Arquitectura del Router
 
-```
+```text
 MostroApp
 ├── appInitializerProvider (await initialization)
 │   └── MaterialApp.router
@@ -138,18 +138,18 @@ ref.listen<AuthState>(authNotifierProvider, (previous, state) {
 ### Esquema `mostro:`
 
 **URL format:**
-```
+```text
 mostro:order?id={orderId}&relay={relayUrl}&relay={relayUrl2}
 ```
 
 **Ejemplo:**
-```
+```text
 mostro:order?id=abc123-def456-ghi789&relay=wss://relay.mostro.network&relay=wss://relay2.mostro.network
 ```
 
 ### Pipeline de Deep Links
 
-```
+```text
 1. Sistema operativo envía deep link
    ↓
 2. DeepLinkInterceptor (WidgetsBindingObserver)
@@ -342,7 +342,7 @@ CustomTransitionPage buildPageWithDefaultTransition<T>({
 
 ## Flujo de App Inicialización
 
-```
+```text
 1. MostroApp initState()
    → LifecycleManager provider
    → DeepLinkInterceptor initialization

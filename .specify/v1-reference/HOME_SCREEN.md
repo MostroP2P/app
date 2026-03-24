@@ -107,11 +107,13 @@ ListView.builder(
 ```dart
 RefreshIndicator(
   onRefresh: () async {
-    return await ref.refresh(filteredOrdersProvider);
+    ref.refresh(filteredOrdersProvider);
   },
   child: /* list or empty state */,
 )
 ```
+
+> **Note:** `filteredOrdersProvider` is a synchronous `Provider<List<NostrEvent>>` — `ref.refresh()` returns the new value immediately. The `async` callback satisfies `onRefresh`'s `Future<void>` signature without awaiting anything.
 
 ### Empty State
 
@@ -165,17 +167,30 @@ Controls which tab is active. `OrderType.sell` = "Buy BTC" tab active (show sell
 ### filteredOrdersProvider
 
 Main data provider. Reads:
-- `homeOrderTypeProvider` — determines which orders to show
-- `orderBookFilterProvider` — fiat currency, payment method, amount range filters
+- `homeOrderTypeProvider` — determines which orders to show (buy vs sell)
+- `currencyFilterProvider` — list of selected fiat currencies
+- `paymentMethodFilterProvider` — list of selected payment methods
+- `ratingFilterProvider` — min/max rating range `({double min, double max})`
+- `premiumRangeFilterProvider` — min/max premium range `({double min, double max})`
 
-Returns a filtered, sorted list of `Order` models.
+Returns a filtered, sorted list of `NostrEvent` (orders in pending status).
 
 ```dart
-final filteredOrdersProvider = Provider<List<Order>>((ref) {
+final filteredOrdersProvider = Provider<List<NostrEvent>>((ref) {
+  final allOrdersAsync = ref.watch(orderEventsProvider);
   final orderType = ref.watch(homeOrderTypeProvider);
-  final filter = ref.watch(orderBookFilterProvider);
-  final allOrders = ref.watch(orderBookProvider);
-  // Filter and return
+  final selectedCurrencies = ref.watch(currencyFilterProvider);
+  final selectedPaymentMethods = ref.watch(paymentMethodFilterProvider);
+  final ratingRange = ref.watch(ratingFilterProvider);
+  final premiumRange = ref.watch(premiumRangeFilterProvider);
+
+  return allOrdersAsync.maybeWhen(
+    data: (allOrders) {
+      // Sort by expiration, filter by type + status=pending, apply user filters
+      return filtered.toList();
+    },
+    orElse: () => [],
+  );
 });
 ```
 

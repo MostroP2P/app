@@ -36,49 +36,54 @@ final orderBookFilterProvider = StateNotifierProvider<OrderBookFilterNotifier, O
   return OrderBookFilterNotifier();
 });
 
-final filteredOrdersProvider = Provider<List<Order>>((ref) {
-  final orderType = ref.watch(homeOrderTypeProvider);  // OrderType.sell or buy
-  final filter = ref.watch(orderBookFilterProvider);
-  final allOrders = ref.watch(orderBookProvider);
-  
-  return allOrders.when(
-    data: (orders) => _applyFilters(orders, orderType, filter),
-    loading: () => [],
-    error: (_, __) => [],
+final filteredOrdersProvider = Provider<List<NostrEvent>>((ref) {
+  final allOrdersAsync = ref.watch(orderEventsProvider);
+  final orderType = ref.watch(homeOrderTypeProvider);
+  final selectedCurrencies = ref.watch(currencyFilterProvider);
+  final selectedPaymentMethods = ref.watch(paymentMethodFilterProvider);
+  final ratingRange = ref.watch(ratingFilterProvider);
+  final premiumRange = ref.watch(premiumRangeFilterProvider);
+  // Returns only status=pending orders, filtered and sorted by expiration
+  return allOrdersAsync.maybeWhen(
+    data: (allOrders) { /* filter logic */ return []; },
+    orElse: () => [],
   );
 });
 ```
 
-### Filter State (`OrderBookFilter`)
+### Filter Providers
+
+There is no single `OrderBookFilter` class. Filters are individual `StateProvider` instances:
 
 ```dart
-class OrderBookFilter {
-  final String? fiatCode;        // e.g. "USD", "EUR"
-  final String? paymentMethod;   // e.g. "bank", "cash", " Revolut"
-  final int? minAmount;           // fiat amount minimum
-  final int? maxAmount;          // fiat amount maximum
-}
+// lib/features/home/providers/home_order_providers.dart
+final currencyFilterProvider = StateProvider<List<String>>((ref) => []);
+final paymentMethodFilterProvider = StateProvider<List<String>>((ref) => []);
+final ratingFilterProvider = StateProvider<({double min, double max})>((ref) => (min: 0.0, max: 5.0));
+final premiumRangeFilterProvider = StateProvider<({double min, double max})>((ref) => (min: -10.0, max: 10.0));
 ```
 
 ### Filters Applied
 
-The `filteredOrdersProvider` applies these filters to the full order list:
+The `filteredOrdersProvider` applies these filters to orders with `status == pending`:
 
 1. **Order type** (`homeOrderTypeProvider`): `OrderType.sell` → show maker's sell orders (taker buys). `OrderType.buy` → show maker's buy orders (taker sells).
 
-2. **Fiat currency**: Match `order.fiatCode` against `filter.fiatCode`.
+2. **Fiat currency** (`currencyFilterProvider`): multi-select list. If non-empty, only orders whose `currency` is in the selected list pass through.
 
-3. **Payment method**: Match `order.paymentMethod` against `filter.paymentMethod`.
+3. **Payment method** (`paymentMethodFilterProvider`): multi-select list. If non-empty, only orders whose `paymentMethods` list contains any selected method (substring match, case-insensitive).
 
-4. **Amount range**: `filter.minAmount <= order.fiatAmount <= filter.maxAmount`.
+4. **Rating range** (`ratingFilterProvider`): `{min: 0.0, max: 5.0}`. Filters orders whose `rating.totalRating` falls within range. Applied only when range differs from default.
+
+5. **Premium range** (`premiumRangeFilterProvider`): `{min: -10.0, max: 10.0}`. Filters orders whose `premium` (parsed as double) falls within range. Applied only when range differs from default.
 
 ### Filter Persistence
 
-Filters are stored in `orderBookFilterProvider` (Riverpod `StateNotifier`). They persist across navigation within the session but are **not persisted to storage** — they reset on app restart.
+Filter providers are Riverpod `StateProvider` — state persists within the session but resets on app restart (not stored to disk).
 
 ### Order Sorting
 
-Orders are sorted by `created_at` descending (newest first) in the Nostr subscription. The list renders in this order.
+Orders are sorted by `expirationDate` ascending, then reversed — so orders expiring sooner appear first in the list (most urgently expiring at top).
 
 ---
 
@@ -88,7 +93,7 @@ Orders are sorted by `created_at` descending (newest first) in the Nostr subscri
 
 Each order in the order book renders as an `OrderListItem`:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │  ● ●●●  SellerNick     ★4.8(24)                            │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
@@ -222,30 +227,32 @@ showDialog<void>(
 
 ### Filter Fields
 
-```dart
-class OrderFilterState {
-  String? fiatCode;        // Dropdown: USD, EUR, etc.
-  String? paymentMethod;   // Dropdown: bank, cash, Revolut, etc.
-  RangeValues? amount;    // Range slider: fiat amount
-}
-```
+The `OrderFilter` dialog reads and writes the individual filter providers:
+
+| Provider | Type | Default | Unit |
+|----------|------|---------|------|
+| `currencyFilterProvider` | `List<String>` | `[]` (all) | Fiat currency codes |
+| `paymentMethodFilterProvider` | `List<String>` | `[]` (all) | Payment method names |
+| `ratingFilterProvider` | `({double min, double max})` | `(0.0, 5.0)` | Star rating |
+| `premiumRangeFilterProvider` | `({double min, double max})` | `(-10.0, 10.0)` | Percentage |
 
 ### UI Layout
 
-The `OrderFilter` dialog typically contains:
-- **Fiat currency selector:** Dropdown with supported currencies
-- **Payment method selector:** Dropdown with available payment methods
-- **Amount range:** Min/max input fields or range slider
-- **Apply button:** Applies filters to `orderBookFilterProvider`
-- **Reset button:** Clears all filters
+The `OrderFilter` dialog contains:
+- **Fiat currency selector:** Multi-select chips or dropdown with supported currencies
+- **Payment method selector:** Multi-select chips with available payment methods
+- **Rating range:** Slider for min/max star rating (0.0–5.0)
+- **Premium range:** Slider for min/max premium percentage (-10%–+10%)
+- **Reset button:** Clears all filters (resets providers to defaults)
 
 ### Available Filters
 
-| Filter | Options | Default |
-|--------|---------|---------|
-| Fiat currency | USD, EUR, ARS, etc. | All |
-| Payment method | bank, cash, Revolut, etc. | All |
-| Amount range | Min-Max sats | Full range |
+| Filter | Provider | Default |
+|--------|----------|---------|
+| Fiat currency | `currencyFilterProvider` | All currencies |
+| Payment method | `paymentMethodFilterProvider` | All methods |
+| Rating | `ratingFilterProvider` | 0.0–5.0 stars |
+| Premium | `premiumRangeFilterProvider` | -10%–+10% |
 
 ---
 

@@ -121,13 +121,17 @@ When the drawer is open, `canPop: false` prevents the system back button from na
 
 ```dart
 // lib/shared/providers/drawer_provider.dart
-final drawerProvider = StateProvider<bool>((ref) => false);
+class DrawerNotifier extends StateNotifier<bool> {
+  DrawerNotifier() : super(false);
 
-extension DrawerNotifier on StateNotifier<bool> {
-  void toggleDrawer() => state = !state;
-  void closeDrawer() => state = false;
   void openDrawer() => state = true;
+  void closeDrawer() => state = false;
+  void toggleDrawer() => state = !state;
 }
+
+final drawerProvider = StateNotifierProvider<DrawerNotifier, bool>((ref) {
+  return DrawerNotifier();
+});
 ```
 
 **Why a provider instead of a Flutter `Drawer`?**
