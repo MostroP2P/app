@@ -28,8 +28,8 @@ Este documento cubre:
 - `lib/features/order/screens/order_confirmation_screen.dart`
 
 ### Notifiers, estado y protocolo
-- `lib/features/order/notfiers/order_notifier.dart`
-- `lib/features/order/notfiers/abstract_mostro_notifier.dart`
+- `lib/features/order/notifiers/order_notifier.dart`
+- `lib/features/order/notifiers/abstract_mostro_notifier.dart`
 - `lib/features/order/models/order_state.dart`
 - `lib/features/order/providers/order_notifier_provider.dart`
 - `lib/services/mostro_service.dart`
@@ -175,7 +175,7 @@ if (widget.orderType == OrderType.buy) {
 
 ## Creación de sesión y timeout anti-orphan
 
-En `lib/features/order/notfiers/order_notifier.dart`:
+En `lib/features/order/notifiers/order_notifier.dart`:
 
 - `takeSellOrder(...)`:
   - crea sesión con `role: Role.buyer`
