@@ -1,14 +1,14 @@
-# Home Screen (v1 Reference)
+# Pantalla Principal (Referencia v1)
 
-> Main screen: public order book with tabs, filters, and navigation shell.
+> Pantalla principal: order book público con pestañas, filtros, y shell de navegación.
 
-**Route:** `/`  
-**File:** `lib/features/home/screens/home_screen.dart`  
+**Ruta:** `/`  
+**Archivo:** `lib/features/home/screens/home_screen.dart`  
 **Providers:** `lib/features/home/providers/home_order_providers.dart`
 
 ---
 
-## Screen Layout
+## Layout de Pantalla
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -16,20 +16,20 @@
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  ┌───────────────────┬───────────────────┐              │
-│  │      BUY BTC      │      SELL BTC     │              │  ← Tab buttons
-│  │     (blue ███)   │                   │              │
+│  │   COMPRAR BTC     │    VENDER BTC     │              │  ← Botones de pestañas
+│  │     (azul ███)    │                   │              │
 │  └───────────────────┴───────────────────┘              │
 │                                                         │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │ 🔍 Filter                          12 offers  │   │  ← Filter button
+│  │ 🔍 Filtrar                        12 ofertas   │   │  ← Botón de filtro
 │  └─────────────────────────────────────────────────┘   │
 │                                                         │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │  OrderListItem (sell order 1)                   │   │
+│  │  OrderListItem (orden de venta 1)               │   │
 │  ├─────────────────────────────────────────────────┤   │
-│  │  OrderListItem (sell order 2)                   │   │
+│  │  OrderListItem (orden de venta 2)               │   │
 │  ├─────────────────────────────────────────────────┤   │
-│  │  OrderListItem (sell order 3)                   │   │
+│  │  OrderListItem (orden de venta 3)               │   │
 │  ├─────────────────────────────────────────────────┤   │
 │  │  ...                                            │   │
 │  └─────────────────────────────────────────────────┘   │
@@ -37,55 +37,55 @@
 │                                                  [+]   │  ← AddOrderButton (FAB)
 │                                                         │
 │  ┌──────────┬────────────────┬──────────┐             │
-│  │OrderBook │   My Trades    │   Chat   │             │  ← BottomNavBar
+│  │OrderBook │   Mis Trades   │   Chat   │             │  ← BottomNavBar
 │  └──────────┴────────────────┴──────────┘             │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### AppBar
 
-- **Leading:** Hamburger menu icon → toggles `CustomDrawerOverlay`
-- **Title:** `AnimatedMostroLogo` (tappable, shows happy face for 500ms)
-- **Actions:** `NotificationBellWidget` + 16px spacing
-- **Bottom border:** 1px white @ 10% opacity
+- **Leading:** Icono de menú hamburguesa → alterna `CustomDrawerOverlay`
+- **Title:** `AnimatedMostroLogo` (tappable, muestra cara feliz por 500ms)
+- **Actions:** `NotificationBellWidget` + 16px de espacio
+- **Borde inferior:** 1px blanco @ 10% opacidad
 
 ### Drawer Overlay
 
-The entire `HomeScreen` body is wrapped in `CustomDrawerOverlay`. The drawer slides over the content from the left (70% width), with a black @ 30% opacity overlay behind it.
+Todo el body del `HomeScreen` está envuelto en `CustomDrawerOverlay`. El drawer desliza sobre el contenido desde la izquierda (70% del ancho), con un overlay negro @ 30% opacidad detrás.
 
-### Tabs
+### Pestañas
 
-Two tabs control the displayed order type:
+Dos pestañas controlan el tipo de orden mostrado:
 
-| Tab | Label | Active color | Behavior |
-|-----|-------|-------------|----------|
-| BUY BTC | `S.of(context)!.buyBtc` | `AppTheme.buyColor` (`#2563EB`) | Shows sell orders (makers selling BTC) |
-| SELL BTC | `S.of(context)!.sellBtc` | `AppTheme.sellColor` (`#DC2626`) | Shows buy orders (makers buying BTC) |
+| Pestaña | Label | Color activo | Comportamiento |
+|---------|-------|--------------|----------------|
+| COMPRAR BTC | `S.of(context)!.buyBtc` | `AppTheme.buyColor` (`#2563EB`) | Muestra órdenes de venta (makers vendiendo BTC) |
+| VENDER BTC | `S.of(context)!.sellBtc` | `AppTheme.sellColor` (`#DC2626`) | Muestra órdenes de compra (makers comprando BTC) |
 
-> **Counterintuitive:** "Buy BTC" tab shows sell orders because when a maker creates a sell order, the taker (you) is buying BTC. The tab label is from the taker's perspective.
+> **Contraintuitivo:** La pestaña "Comprar BTC" muestra órdenes de venta porque cuando un maker crea una orden de venta, el taker (tú) está comprando BTC. El label de la pestaña es desde la perspectiva del taker.
 
-**State:** `homeOrderTypeProvider` (Riverpod `StateProvider<OrderType>`)
+**Estado:** `homeOrderTypeProvider` (Riverpod `StateProvider<OrderType>`)
 
-**Swipe gesture:** Horizontal swipe changes tabs:
-- Swipe left → `OrderType.buy` (show buy orders)
-- Swipe right → `OrderType.sell` (show sell orders)
+**Gesto de swipe:** El swipe horizontal cambia de pestaña:
+- Swipe izquierda → `OrderType.buy` (mostrar órdenes de compra)
+- Swipe derecha → `OrderType.sell` (mostrar órdenes de venta)
 
-### Filter Button
+### Botón de Filtro
 
-Below tabs, a pill-shaped button shows filter status and offer count:
+Debajo de las pestañas, un botón con forma de píldora muestra el estado del filtro y conteo de ofertas:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  🔍 Filter                          12 offers            │
+│  🔍 Filtrar                         12 ofertas          │
 └─────────────────────────────────────────────────────────┘
 ```
 
-- Tapping opens `OrderFilter` dialog (`lib/shared/widgets/order_filter.dart`)
-- Shows total count of filtered orders
-- Icon: `HeroIcons.funnel` (outline)
-- Badge count updates when filters change
+- Tap abre el diálogo `OrderFilter` (`lib/shared/widgets/order_filter.dart`)
+- Muestra el conteo total de órdenes filtradas
+- Icono: `HeroIcons.funnel` (outline)
+- El badge se actualiza cuando cambian los filtros
 
-### Order List
+### Lista de Órdenes
 
 ```dart
 ListView.builder(
@@ -98,9 +98,9 @@ ListView.builder(
 )
 ```
 
-**Spacing:** 100px bottom padding (allows FAB visibility), 6px top padding.
+**Espaciado:** 100px de padding inferior (permite visibilidad del FAB), 6px de padding superior.
 
-**Tapping an order:** Navigates to `/take_sell/:orderId` or `/take_buy/:orderId` depending on the order type. Flujo completo en `.specify/v1-reference/TAKE_ORDER.md`.
+**Tap en una orden:** Navega a `/take_sell/:orderId` o `/take_buy/:orderId` dependiendo del tipo de orden. Flujo completo en `.specify/v1-reference/TAKE_ORDER.md`.
 
 ### Pull to Refresh
 
@@ -109,30 +109,30 @@ RefreshIndicator(
   onRefresh: () async {
     ref.refresh(filteredOrdersProvider);
   },
-  child: /* list or empty state */,
+  child: /* lista o estado vacío */,
 )
 ```
 
-> **Note:** `filteredOrdersProvider` is a synchronous `Provider<List<NostrEvent>>` — `ref.refresh()` returns the new value immediately. The `async` callback satisfies `onRefresh`'s `Future<void>` signature without awaiting anything.
+> **Nota:** `filteredOrdersProvider` es un `Provider<List<NostrEvent>>` síncrono — `ref.refresh()` retorna el nuevo valor inmediatamente. El callback `async` satisface la firma `Future<void>` de `onRefresh` sin esperar nada.
 
-### Empty State
+### Estado Vacío
 
-When `filteredOrders.isEmpty`:
+Cuando `filteredOrders.isEmpty`:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                                                         │
-│                    🔍 (search_off icon)                 │
+│                    🔍 (icono search_off)                │
 │                                                         │
-│              No orders available                        │
-│            Try changing your filters                     │
+│           No hay órdenes disponibles                    │
+│          Intenta cambiar tus filtros                    │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
-- Icon: `Icons.search_off`, white30, 48px
-- Text 1: `S.of(context)!.noOrdersAvailable` — white60, 16px
-- Text 2: `S.of(context)!.tryChangingFilters` — white38, 14px, centered
+- Icono: `Icons.search_off`, white30, 48px
+- Texto 1: `S.of(context)!.noOrdersAvailable` — white60, 16px
+- Texto 2: `S.of(context)!.tryChangingFilters` — white38, 14px, centrado
 
 ### FAB (AddOrderButton)
 
@@ -144,13 +144,13 @@ Positioned(
 )
 ```
 
-- Position: 16px from right, above bottom nav bar (80px + safe area bottom + 16px)
-- Navigates to `/add_order` on tap
-- Full spec: see `ORDER_CREATION.md`
+- Posición: 16px desde la derecha, sobre la barra de navegación inferior (80px + área segura inferior + 16px)
+- Navega a `/add_order` al hacer tap
+- Spec completo: ver `ORDER_CREATION.md`
 
-### Bottom Nav Bar
+### Barra de Navegación Inferior
 
-Fixed at bottom (80px height). Three tabs: Order Book, My Trades, Chat. See `NAVIGATION_ROUTES.md` for full spec.
+Fija en la parte inferior (80px de altura). Tres pestañas: Order Book, Mis Trades, Chat. Ver `NAVIGATION_ROUTES.md` para spec completo.
 
 ---
 
@@ -162,18 +162,18 @@ Fixed at bottom (80px height). Three tabs: Order Book, My Trades, Chat. See `NAV
 final homeOrderTypeProvider = StateProvider<OrderType>((ref) => OrderType.sell);
 ```
 
-Controls which tab is active. `OrderType.sell` = "Buy BTC" tab active (show sell orders). `OrderType.buy` = "Sell BTC" tab active (show buy orders).
+Controla qué pestaña está activa. `OrderType.sell` = pestaña "Comprar BTC" activa (muestra órdenes de venta). `OrderType.buy` = pestaña "Vender BTC" activa (muestra órdenes de compra).
 
 ### filteredOrdersProvider
 
-Main data provider. Reads:
-- `homeOrderTypeProvider` — determines which orders to show (buy vs sell)
-- `currencyFilterProvider` — list of selected fiat currencies
-- `paymentMethodFilterProvider` — list of selected payment methods
-- `ratingFilterProvider` — min/max rating range `({double min, double max})`
-- `premiumRangeFilterProvider` — min/max premium range `({double min, double max})`
+Provider principal de datos. Lee:
+- `homeOrderTypeProvider` — determina qué órdenes mostrar (compra vs venta)
+- `currencyFilterProvider` — lista de monedas fiat seleccionadas
+- `paymentMethodFilterProvider` — lista de métodos de pago seleccionados
+- `ratingFilterProvider` — rango de rating min/max `({double min, double max})`
+- `premiumRangeFilterProvider` — rango de premium min/max `({double min, double max})`
 
-Returns a filtered, sorted list of `NostrEvent` (orders in pending status).
+Retorna una lista filtrada y ordenada de `NostrEvent` (órdenes en status pending).
 
 ```dart
 final filteredOrdersProvider = Provider<List<NostrEvent>>((ref) {
@@ -186,7 +186,7 @@ final filteredOrdersProvider = Provider<List<NostrEvent>>((ref) {
 
   return allOrdersAsync.maybeWhen(
     data: (allOrders) {
-      // Sort by expiration, filter by type + status=pending, apply user filters
+      // Ordenar por expiración, filtrar por tipo + status=pending, aplicar filtros del usuario
       return filtered.toList();
     },
     orElse: () => [],
@@ -196,80 +196,80 @@ final filteredOrdersProvider = Provider<List<NostrEvent>>((ref) {
 
 ---
 
-## Skeleton Loading
+## Carga con Skeleton
 
-The order list uses shimmer/skeleton loading while data is being fetched. The `OrderListItem` widget renders skeleton placeholders when `order.isSkeleton == true`.
+La lista de órdenes usa carga shimmer/skeleton mientras se obtienen los datos. El widget `OrderListItem` renderiza placeholders skeleton cuando `order.isSkeleton == true`.
 
-See `ARCHITECTURE.md` → Loading States section for skeleton implementation details.
+Ver `ARCHITECTURE.md` → sección de Estados de Carga para detalles de implementación del skeleton.
 
 ---
 
-## State Flow
+## Flujo de Estado
 
 ```
-App launch
-  → firstRunProvider checks storage
+Lanzamiento de app
+  → firstRunProvider verifica almacenamiento
     → isFirstRun=true → /walkthrough
     → isFirstRun=false → /
       
-HomeScreen mounted
-  → filteredOrdersProvider fetches order book from Nostr
-  → orderBookProvider subscribes to kind 38302 events
-  → Orders update in real-time via Nostr events
+HomeScreen montado
+  → filteredOrdersProvider obtiene order book desde Nostr
+  → orderBookProvider se suscribe a eventos kind 38302
+  → Las órdenes se actualizan en tiempo real vía eventos Nostr
 
-User taps tab
+Usuario hace tap en pestaña
   → homeOrderTypeProvider.set(OrderType.buy|sell)
-  → filteredOrdersProvider recomputes
-  → ListView rebuilds
+  → filteredOrdersProvider recomputa
+  → ListView se reconstruye
 
-User taps filter
+Usuario hace tap en filtro
   → showDialog(OrderFilter)
-  → user sets filters
-  → orderBookFilterProvider updates
-  → filteredOrdersProvider recomputes
+  → usuario establece filtros
+  → orderBookFilterProvider actualiza
+  → filteredOrdersProvider recomputa
 
-User taps order
-  → context.push('/take_sell/$orderId') or '/take_buy/$orderId'
+Usuario hace tap en orden
+  → context.push('/take_sell/$orderId') o '/take_buy/$orderId'
   → TakeOrderScreen
-  → (take flow detallado en .specify/v1-reference/TAKE_ORDER.md)
+  → (flujo de toma detallado en .specify/v1-reference/TAKE_ORDER.md)
 
-User taps FAB
+Usuario hace tap en FAB
   → context.push('/add_order')
   → AddOrderScreen
 
-User swipes right on content
+Usuario hace swipe derecha en contenido
   → homeOrderTypeProvider = OrderType.sell
 
-User swipes left on content
+Usuario hace swipe izquierda en contenido
   → homeOrderTypeProvider = OrderType.buy
 ```
 
 ---
 
-## Theme Colors
+## Colores del Tema
 
-| Element | Color | Hex |
-|---------|-------|-----|
-| Background | `AppTheme.backgroundDark` | `#0D0F14` |
-| List background | `AppTheme.dark1` | `#141720` |
-| Input/button bg | `AppTheme.backgroundInput` | `#1E2230` |
-| BUY tab active | `AppTheme.buyColor` | `#2563EB` |
-| SELL tab active | `AppTheme.sellColor` | `#DC2626` |
-| Inactive text | `AppTheme.textInactive` | `#6B7280` |
-| Border | white @ 10% | — |
-| AppBar bg | `AppTheme.backgroundDark` | `#0D0F14` |
-| NavBar bg | `AppTheme.backgroundNavBar` | — |
+| Elemento | Color | Hex |
+|----------|-------|-----|
+| Fondo | `AppTheme.backgroundDark` | `#0D0F14` |
+| Fondo de lista | `AppTheme.dark1` | `#141720` |
+| Fondo de input/botón | `AppTheme.backgroundInput` | `#1E2230` |
+| Pestaña COMPRAR activa | `AppTheme.buyColor` | `#2563EB` |
+| Pestaña VENDER activa | `AppTheme.sellColor` | `#DC2626` |
+| Texto inactivo | `AppTheme.textInactive` | `#6B7280` |
+| Borde | blanco @ 10% | — |
+| Fondo de AppBar | `AppTheme.backgroundDark` | `#0D0F14` |
+| Fondo de NavBar | `AppTheme.backgroundNavBar` | — |
 
 ---
 
-## Cross-References
+## Referencias Cruzadas
 
-- **Navigation & Routing:** `.specify/v1-reference/NAVIGATION_ROUTES.md`
-- **Drawer Menu:** `.specify/v1-reference/DRAWER_MENU.md`
+- **Navegación y Rutas:** `.specify/v1-reference/NAVIGATION_ROUTES.md`
+- **Menú Drawer:** `.specify/v1-reference/DRAWER_MENU.md`
 - **Order Book:** `.specify/v1-reference/ORDER_BOOK.md`
-- **Order Creation:** `.specify/v1-reference/ORDER_CREATION.md`
-- **Take Order:** `.specify/v1-reference/TAKE_ORDER.md`
-- **AppBar component:** `lib/shared/widgets/mostro_app_bar.dart`
-- **Order list item:** `lib/features/home/widgets/order_list_item.dart`
-- **Order filter:** `lib/shared/widgets/order_filter.dart`
-- **Bottom nav:** `lib/shared/widgets/bottom_nav_bar.dart`
+- **Creación de Orden:** `.specify/v1-reference/ORDER_CREATION.md`
+- **Tomar Orden:** `.specify/v1-reference/TAKE_ORDER.md`
+- **Componente AppBar:** `lib/shared/widgets/mostro_app_bar.dart`
+- **Item de lista de órdenes:** `lib/features/home/widgets/order_list_item.dart`
+- **Filtro de órdenes:** `lib/shared/widgets/order_filter.dart`
+- **Nav inferior:** `lib/shared/widgets/bottom_nav_bar.dart`

@@ -1,16 +1,16 @@
-# Rating System Specification (Mostro Mobile v1)
+# Especificación del Sistema de Calificación (Mostro Mobile v1)
 
-> Reference for section 9 (RATING) covering post-trade rating UX, protocol actions, and reputation display.
+> Referencia para la sección 9 (RATING) que cubre la UX de calificación post-trade, acciones del protocolo y visualización de reputación.
 
-## Scope
+## Alcance
 
-- Route `/rate_user/:orderId`
-- Screen & widgets: `RateCounterpartScreen`, `StarRating`
-- Services & models: `MostroService.submitRating()`, `RatingUser`, `Rating`
-- Actions: `Action.rate`, `Action.rateUser`, `Action.rateReceived`
-- Reputation display in order book items (`NostrEvent.rating`)
+- Ruta `/rate_user/:orderId`
+- Pantalla y widgets: `RateCounterpartScreen`, `StarRating`
+- Servicios y modelos: `MostroService.submitRating()`, `RatingUser`, `Rating`
+- Acciones: `Action.rate`, `Action.rateUser`, `Action.rateReceived`
+- Visualización de reputación en items del order book (`NostrEvent.rating`)
 
-## Source files reviewed
+## Archivos fuente revisados
 
 - `lib/features/rate/rate_counterpart_screen.dart`
 - `lib/features/rate/star_rating.dart`
@@ -29,9 +29,9 @@
 
 ---
 
-## 1) Entry points & navigation
+## 1) Puntos de entrada y navegación
 
-### Route definition (`lib/core/app_routes.dart`)
+### Definición de ruta (`lib/core/app_routes.dart`)
 
 ```dart
 GoRoute(
@@ -46,81 +46,81 @@ GoRoute(
 ),
 ```
 
-### How users reach the rating screen
+### Cómo los usuarios llegan a la pantalla de calificación
 
-1. **Trade Detail buttons**: when `OrderState.action` is `Action.rate`, `Action.rateUser`, or `Action.rateReceived`, `TradeDetailScreen._buildActionButtons()` renders a **Rate** button that calls `context.push('/rate_user/$orderId')`.
-2. **Notification tap**: `NotificationItem.onTap` checks for the same actions and navigates to `/rate_user/$orderId`.
-3. There is no automatic navigation upon receiving `Action.rate` — the user must tap explicitly.
-
----
-
-## 2) Rating UX (`RateCounterpartScreen`)
-
-- Simple centered layout with a title ("Rate counterpart"), a prompt text, a star widget, the numeric "X / 5" display, and a **Submit** button.
-- `StarRating` renders 5 stars; tapping a star sets the rating to that index + 1. Filled stars use `AppTheme.mostroGreen`; empty ones use `AppTheme.grey2`.
-- The Submit button is disabled until `_rating > 0`.
-- `_submitRating()` logs the rating, calls `OrderNotifier.submitRating(_rating)`, and pops the screen on completion.
-
-### State flow
-
-1. User taps a star → `_rating` updated via `setState`.
-2. User taps Submit → `OrderNotifier.submitRating(int)` called.
-3. `OrderNotifier.submitRating` delegates to `MostroService.submitRating(orderId, rating)`.
-4. `MostroService.submitRating` wraps a `MostroMessage(action: Action.rateUser, payload: RatingUser(userRating: rating))` with NIP-59 gift wrap and publishes.
-5. Mostro acknowledges with `Action.rateReceived` (no immediate status change needed).
+1. **Botones en Trade Detail**: cuando `OrderState.action` es `Action.rate`, `Action.rateUser`, o `Action.rateReceived`, `TradeDetailScreen._buildActionButtons()` renderiza un botón **Calificar** que llama a `context.push('/rate_user/$orderId')`.
+2. **Tap en notificación**: `NotificationItem.onTap` verifica las mismas acciones y navega a `/rate_user/$orderId`.
+3. No hay navegación automática al recibir `Action.rate` — el usuario debe hacer tap explícitamente.
 
 ---
 
-## 3) Models
+## 2) UX de calificación (`RateCounterpartScreen`)
+
+- Layout centrado simple con título ("Calificar contraparte"), texto de prompt, widget de estrellas, display numérico "X / 5", y botón **Enviar**.
+- `StarRating` renderiza 5 estrellas; al hacer tap en una estrella se establece el rating a ese índice + 1. Las estrellas llenas usan `AppTheme.mostroGreen`; las vacías usan `AppTheme.grey2`.
+- El botón Enviar está deshabilitado hasta que `_rating > 0`.
+- `_submitRating()` loguea el rating, llama a `OrderNotifier.submitRating(_rating)`, y hace pop de la pantalla al completar.
+
+### Flujo de estado
+
+1. Usuario hace tap en una estrella → `_rating` actualizado vía `setState`.
+2. Usuario hace tap en Enviar → se llama a `OrderNotifier.submitRating(int)`.
+3. `OrderNotifier.submitRating` delega a `MostroService.submitRating(orderId, rating)`.
+4. `MostroService.submitRating` envuelve un `MostroMessage(action: Action.rateUser, payload: RatingUser(userRating: rating))` con gift wrap NIP-59 y publica.
+5. Mostro confirma con `Action.rateReceived` (no se necesita cambio de status inmediato).
+
+---
+
+## 3) Modelos
 
 ### `RatingUser` (`lib/data/models/rating_user.dart`)
 
-Payload type used when submitting a rating:
+Tipo de payload usado al enviar una calificación:
 
 ```dart
 class RatingUser implements Payload {
-  final int userRating; // validated 1..5
+  final int userRating; // validado 1..5
 
   @override
   String get type => 'rating_user';
 }
 ```
 
-Constructor throws `ArgumentError` if value is outside 1..5.
+El constructor lanza `ArgumentError` si el valor está fuera de 1..5.
 
 ### `Rating` (`lib/data/models/rating.dart`)
 
-Read-only reputation snapshot attached to public orders:
+Snapshot de reputación de solo lectura adjunto a órdenes públicas:
 
 ```dart
 class Rating {
   final int totalReviews;
-  final double totalRating;  // average
+  final double totalRating;  // promedio
   final int lastRating;
   final int maxRate;
   final int minRate;
-  final int days;            // days since first rating
+  final int days;            // días desde la primera calificación
 }
 ```
 
-- Deserialized from `["rating", {...}]` array or plain JSON object.
-- `Rating.empty()` provides fallback with `totalRating: 0.0`.
+- Deserializado desde array `["rating", {...}]` u objeto JSON plano.
+- `Rating.empty()` provee fallback con `totalRating: 0.0`.
 
-### `NostrEvent.rating` getter
+### Getter `NostrEvent.rating`
 
-Order events (`kind 38383`) can carry a `rating` tag. `NostrEvent.rating` getter deserializes it automatically, so widgets can display star icons based on `order.rating?.totalRating`.
+Los eventos de orden (`kind 38383`) pueden llevar un tag `rating`. El getter `NostrEvent.rating` lo deserializa automáticamente, así los widgets pueden mostrar iconos de estrellas basados en `order.rating?.totalRating`.
 
 ---
 
-## 4) Actions & status mapping
+## 4) Acciones y mapeo de status
 
-### Relevant actions
+### Acciones relevantes
 
-| Action | Origin | Purpose |
-|--------|--------|---------|
-| `Action.rate` | Mostro → user | Invite user to rate the counterpart |
-| `Action.rateUser` | User → Mostro | Submit the rating |
-| `Action.rateReceived` | Mostro → user | Acknowledgement that rating was recorded |
+| Acción | Origen | Propósito |
+|--------|--------|-----------|
+| `Action.rate` | Mostro → usuario | Invita al usuario a calificar a la contraparte |
+| `Action.rateUser` | Usuario → Mostro | Envía la calificación |
+| `Action.rateReceived` | Mostro → usuario | Confirmación de que la calificación fue registrada |
 
 ### `OrderState._getStatusFromAction`
 
@@ -131,36 +131,36 @@ case Action.holdInvoicePaymentSettled:
   return Status.success;
 
 case Action.rateUser:
-  return payloadStatus ?? status; // preserve current
+  return payloadStatus ?? status; // preserva el actual
 ```
 
-All rating actions map to `Status.success` (the trade is already completed) and do not alter it further.
+Todas las acciones de calificación mapean a `Status.success` (el trade ya está completado) y no lo alteran más.
 
-### Button availability (`_roleActionMap`)
+### Disponibilidad de botones (`_roleActionMap`)
 
-For both `Role.buyer` and `Role.seller` at `Status.success`:
+Para `Role.buyer` y `Role.seller` en `Status.success`:
 
 ```dart
 Action.rate: [Action.rate, Action.rateUser, Action.rateReceived, ...],
 Action.rateReceived: [],
 ```
 
-This means when a `rate` action arrives, the UI exposes the **Rate** button. After `rateReceived`, no further actions are available.
+Esto significa que cuando llega una acción `rate`, la UI expone el botón **Calificar**. Después de `rateReceived`, no hay más acciones disponibles.
 
 ---
 
-## 5) Order book display
+## 5) Visualización en order book
 
 ### `OrderListItem._buildRatingRow`
 
-- Parses `order.rating?.totalRating`, `totalReviews`, and `days`.
-- Displays numeric rating, 5-star icons (filled / half / empty), and helper text ("no reviews", "X reviews • Y days old").
-- Stars use fractional logic: full star for each whole point, half star if remainder ≥ 0.5.
+- Parsea `order.rating?.totalRating`, `totalReviews`, y `days`.
+- Muestra rating numérico, iconos de 5 estrellas (llenas / medias / vacías), y texto de ayuda ("sin reseñas", "X reseñas • Y días de antigüedad").
+- Las estrellas usan lógica fraccional: estrella completa por cada punto entero, media estrella si el resto ≥ 0.5.
 
-### Filter provider (`ratingFilterProvider`)
+### Provider de filtro (`ratingFilterProvider`)
 
-- `StateProvider<({double min, double max})>` defaulting to `(min: 0.0, max: 5.0)`.
-- `filteredOrdersProvider` applies the filter when either bound differs from defaults:
+- `StateProvider<({double min, double max})>` con default `(min: 0.0, max: 5.0)`.
+- `filteredOrdersProvider` aplica el filtro cuando algún límite difiere de los defaults:
 
 ```dart
 if (ratingRange.min > 0.0 || ratingRange.max < 5.0) {
@@ -171,26 +171,26 @@ if (ratingRange.min > 0.0 || ratingRange.max < 5.0) {
 }
 ```
 
-Filter UI is part of `HomeScreen` but outside the scope of this document.
+La UI del filtro es parte de `HomeScreen` pero está fuera del alcance de este documento.
 
 ---
 
-## 6) Error handling & edge cases
+## 6) Manejo de errores y casos borde
 
-| Scenario | Behavior |
-|----------|----------|
-| Rating submitted with 0 stars | Button disabled; cannot proceed. |
-| Network failure during submit | `publishEvent` throws; screen stays open, user may retry. |
-| `CantDoReason.invalidRating` | Mostro returns `cantDo`; `AbstractMostroNotifier` logs but does not navigate. |
-| Double-tap on Submit | UI pops after first success; subsequent taps no-op. |
+| Escenario | Comportamiento |
+|-----------|----------------|
+| Rating enviado con 0 estrellas | Botón deshabilitado; no puede proceder. |
+| Fallo de red durante envío | `publishEvent` lanza excepción; pantalla permanece abierta, usuario puede reintentar. |
+| `CantDoReason.invalidRating` | Mostro retorna `cantDo`; `AbstractMostroNotifier` loguea pero no navega. |
+| Doble tap en Enviar | UI hace pop después del primer éxito; taps subsecuentes no hacen nada. |
 
 ---
 
-## 7) Cross references
+## 7) Referencias cruzadas
 
-| Topic | Document |
-|-------|----------|
-| Trade Detail screen & action buttons | [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
-| Order status transitions after trade completion | [ORDER_STATUS_HANDLING.md](./ORDER_STATUS_HANDLING.md) |
-| Home screen order list & filters | [HOME_SCREEN.md](./HOME_SCREEN.md) |
-| Navigation routes table | [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) |
+| Tema | Documento |
+|------|-----------|
+| Pantalla Trade Detail y botones de acción | [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
+| Transiciones de status de orden después de completar trade | [ORDER_STATUS_HANDLING.md](./ORDER_STATUS_HANDLING.md) |
+| Pantalla principal, lista de órdenes y filtros | [HOME_SCREEN.md](./HOME_SCREEN.md) |
+| Tabla de rutas de navegación | [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) |

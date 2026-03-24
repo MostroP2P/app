@@ -1,35 +1,35 @@
-# Order Book (v1 Reference)
+# Order Book (Referencia v1)
 
-> Public order book display and the My Trades screen.
+> Visualización del order book público y pantalla de Mis Trades.
 
-**Public order book:** `lib/features/home/screens/home_screen.dart` (home tab)  
-**My trades:** `lib/features/trades/screens/trades_screen.dart` (`/order_book` route)  
-**Order list item:** `lib/features/home/widgets/order_list_item.dart`  
-**Order model:** `lib/data/models/order.dart`  
-**Filter widget:** `lib/shared/widgets/order_filter.dart`
-
----
-
-## Two Order Book Contexts
-
-Mostro v1 separates the public order book from the user's personal trades:
-
-| Context | Route | Screen | Data source |
-|---------|-------|--------|-------------|
-| Public order book | `/` | `HomeScreen` | All pubkeys, filtered by fiat + payment method |
-| My trades | `/order_book` | `TradesScreen` | User's own pubkey trades only |
+**Order book público:** `lib/features/home/screens/home_screen.dart` (pestaña principal)  
+**Mis trades:** `lib/features/trades/screens/trades_screen.dart` (ruta `/order_book`)  
+**Item de lista de orden:** `lib/features/home/widgets/order_list_item.dart`  
+**Modelo de orden:** `lib/data/models/order.dart`  
+**Widget de filtro:** `lib/shared/widgets/order_filter.dart`
 
 ---
 
-## Public Order Book (HomeScreen)
+## Dos Contextos de Order Book
 
-### Data Flow
+Mostro v1 separa el order book público de los trades personales del usuario:
+
+| Contexto | Ruta | Pantalla | Fuente de datos |
+|----------|------|----------|-----------------|
+| Order book público | `/` | `HomeScreen` | Todas las pubkeys, filtrado por fiat + método de pago |
+| Mis trades | `/order_book` | `TradesScreen` | Solo trades de la pubkey del usuario |
+
+---
+
+## Order Book Público (HomeScreen)
+
+### Flujo de Datos
 
 ```dart
 // lib/features/home/providers/home_order_providers.dart
 final orderBookProvider = StreamProvider<List<Order>>((ref) {
-  // Subscribes to Nostr kind 38302 events from all pubkeys
-  // Returns all orders, sorted by created_at DESC
+  // Se suscribe a eventos Nostr kind 38302 de todas las pubkeys
+  // Retorna todas las órdenes, ordenadas por created_at DESC
 });
 
 final orderBookFilterProvider = StateNotifierProvider<OrderBookFilterNotifier, OrderBookFilter>((ref) {
@@ -43,17 +43,17 @@ final filteredOrdersProvider = Provider<List<NostrEvent>>((ref) {
   final selectedPaymentMethods = ref.watch(paymentMethodFilterProvider);
   final ratingRange = ref.watch(ratingFilterProvider);
   final premiumRange = ref.watch(premiumRangeFilterProvider);
-  // Returns only status=pending orders, filtered and sorted by expiration
+  // Retorna solo órdenes con status=pending, filtradas y ordenadas por expiración
   return allOrdersAsync.maybeWhen(
-    data: (allOrders) { /* filter logic */ return []; },
+    data: (allOrders) { /* lógica de filtro */ return []; },
     orElse: () => [],
   );
 });
 ```
 
-### Filter Providers
+### Providers de Filtro
 
-There is no single `OrderBookFilter` class. Filters are individual `StateProvider` instances:
+No hay una única clase `OrderBookFilter`. Los filtros son instancias individuales de `StateProvider`:
 
 ```dart
 // lib/features/home/providers/home_order_providers.dart
@@ -63,83 +63,83 @@ final ratingFilterProvider = StateProvider<({double min, double max})>((ref) => 
 final premiumRangeFilterProvider = StateProvider<({double min, double max})>((ref) => (min: -10.0, max: 10.0));
 ```
 
-### Filters Applied
+### Filtros Aplicados
 
-The `filteredOrdersProvider` applies these filters to orders with `status == pending`:
+El `filteredOrdersProvider` aplica estos filtros a órdenes con `status == pending`:
 
-1. **Order type** (`homeOrderTypeProvider`): `OrderType.sell` → show maker's sell orders (taker buys). `OrderType.buy` → show maker's buy orders (taker sells).
+1. **Tipo de orden** (`homeOrderTypeProvider`): `OrderType.sell` → muestra órdenes de venta del maker (taker compra). `OrderType.buy` → muestra órdenes de compra del maker (taker vende).
 
-2. **Fiat currency** (`currencyFilterProvider`): multi-select list. If non-empty, only orders whose `currency` is in the selected list pass through.
+2. **Moneda fiat** (`currencyFilterProvider`): lista multi-select. Si no está vacía, solo pasan órdenes cuya `currency` está en la lista seleccionada.
 
-3. **Payment method** (`paymentMethodFilterProvider`): multi-select list. If non-empty, only orders whose `paymentMethods` list contains any selected method (substring match, case-insensitive).
+3. **Método de pago** (`paymentMethodFilterProvider`): lista multi-select. Si no está vacía, solo pasan órdenes cuya lista `paymentMethods` contiene algún método seleccionado (coincidencia de substring, case-insensitive).
 
-4. **Rating range** (`ratingFilterProvider`): `{min: 0.0, max: 5.0}`. Filters orders whose `rating.totalRating` falls within range. Applied only when range differs from default.
+4. **Rango de rating** (`ratingFilterProvider`): `{min: 0.0, max: 5.0}`. Filtra órdenes cuyo `rating.totalRating` está dentro del rango. Se aplica solo cuando el rango difiere del default.
 
-5. **Premium range** (`premiumRangeFilterProvider`): `{min: -10.0, max: 10.0}`. Filters orders whose `premium` (parsed as double) falls within range. Applied only when range differs from default.
+5. **Rango de premium** (`premiumRangeFilterProvider`): `{min: -10.0, max: 10.0}`. Filtra órdenes cuyo `premium` (parseado como double) está dentro del rango. Se aplica solo cuando el rango difiere del default.
 
-### Filter Persistence
+### Persistencia de Filtros
 
-Filter providers are Riverpod `StateProvider` — state persists within the session but resets on app restart (not stored to disk).
+Los providers de filtro son Riverpod `StateProvider` — el estado persiste dentro de la sesión pero se resetea al reiniciar la app (no se almacena en disco).
 
-### Order Sorting
+### Ordenamiento de Órdenes
 
-Orders are sorted by `expirationDate` ascending, then reversed — so orders expiring sooner appear first in the list (most urgently expiring at top).
+Las órdenes se ordenan por `expirationDate` ascendente, luego se invierte — así las órdenes que expiran pronto aparecen primero en la lista (las que expiran más urgentemente arriba).
 
 ---
 
-## Order List Item
+## Item de Lista de Orden
 
-**File:** `lib/features/home/widgets/order_list_item.dart`
+**Archivo:** `lib/features/home/widgets/order_list_item.dart`
 
-Each order in the order book renders as an `OrderListItem`:
+Cada orden en el order book se renderiza como un `OrderListItem`:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  ● ●●●  SellerNick     ★4.8(24)                            │
+│  ● ●●●  NickVendedor   ★4.8(24)                            │
 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
 │                                                             │
-│  Payment: Bank Transfer          Premium: +5%               │
-│  Range: $10 - $100               SATS: 250,000              │
+│  Pago: Transferencia Bancaria    Premium: +5%               │
+│  Rango: $10 - $100               SATS: 250,000              │
 │                                                             │
-│  🟢 Online                                                │  ← Seller status indicator
+│  🟢 En línea                                              │  ← Indicador de estado del vendedor
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Fields Displayed
+### Campos Mostrados
 
-| Field | Source | Notes |
+| Campo | Fuente | Notas |
 |-------|--------|-------|
-| Avatar | User profile | Colored circle with initials or avatar image |
-| Nick | `order.maker_pubkey` lookup | From user profile (NIP-05 or just hex) |
-| Rating | User profile `total_rating` | Star rating + review count |
-| Payment method | `order.payment_method` | String from protocol |
-| Amount range | `order.amount` (min-max) | Fiat amount range |
-| Premium | `order.premium` | Percentage (+/-), colored green/red |
-| SATS | Calculated | `fiat_amount / exchange_rate * 100000000`, rounded |
-| Status | `order.status` | Online indicator for seller |
+| Avatar | Perfil de usuario | Círculo coloreado con iniciales o imagen de avatar |
+| Nick | búsqueda de `order.maker_pubkey` | Del perfil de usuario (NIP-05 o solo hex) |
+| Rating | `total_rating` del perfil de usuario | Rating de estrellas + conteo de reseñas |
+| Método de pago | `order.payment_method` | String del protocolo |
+| Rango de monto | `order.amount` (min-max) | Rango de monto fiat |
+| Premium | `order.premium` | Porcentaje (+/-), coloreado verde/rojo |
+| SATS | Calculado | `fiat_amount / exchange_rate * 100000000`, redondeado |
+| Estado | `order.status` | Indicador de en línea para vendedor |
 
-### Status Indicator
+### Indicador de Estado
 
-Seller online status is determined by whether their Nostr connection is active. The `OrderListItem` shows a green dot if the seller is currently connected to Nostr relays.
+El estado en línea del vendedor se determina por si su conexión Nostr está activa. El `OrderListItem` muestra un punto verde si el vendedor está actualmente conectado a los relays Nostr.
 
-### SATS Calculation
+### Cálculo de SATS
 
 ```dart
 sats = (order.fiat_amount / current_exchange_rate) * 100_000_000
 ```
 
-The exchange rate is fetched from the price API (configured in settings). The sats amount shown is approximate — the exact amount is calculated at trade time.
+La tasa de cambio se obtiene de la API de precios (configurada en settings). El monto de sats mostrado es aproximado — el monto exacto se calcula al momento del trade.
 
-### States
+### Estados
 
-| State | Render |
-|-------|--------|
-| Loading | Skeleton shimmer (animated placeholder) |
-| Data | Full `OrderListItem` widget |
-| Error | Not individually shown — error at provider level |
-| Empty | `Center` with icon + "No orders available" text |
+| Estado | Render |
+|--------|--------|
+| Cargando | Shimmer skeleton (placeholder animado) |
+| Datos | Widget `OrderListItem` completo |
+| Error | No se muestra individualmente — error a nivel de provider |
+| Vacío | `Center` con icono + texto "No hay órdenes disponibles" |
 
-### Tap Navigation
+### Navegación al Tap
 
 ```dart
 InkWell(
@@ -153,23 +153,23 @@ InkWell(
 )
 ```
 
-- Sell order (maker selling BTC) → `/take_sell/:orderId` (taker buys BTC)
-- Buy order (maker buying BTC) → `/take_buy/:orderId` (taker sells BTC)
+- Orden de venta (maker vendiendo BTC) → `/take_sell/:orderId` (taker compra BTC)
+- Orden de compra (maker comprando BTC) → `/take_buy/:orderId` (taker vende BTC)
 - Flujo completo de toma: `.specify/v1-reference/TAKE_ORDER.md`
 
 ---
 
-## My Trades (`/order_book`)
+## Mis Trades (`/order_book`)
 
-This document now focuses on the public order book. For a complete specification of the My Trades screen (route `/order_book`, `TradesScreen`, status filter, list items, providers, refresh, and navigation), see `.specify/v1-reference/MY_TRADES.md`.
+Este documento ahora se enfoca en el order book público. Para una especificación completa de la pantalla de Mis Trades (ruta `/order_book`, `TradesScreen`, filtro de status, items de lista, providers, refresh y navegación), ver `.specify/v1-reference/MY_TRADES.md`.
 
 ---
 
-## Order Filter Dialog
+## Diálogo de Filtro de Orden
 
-**File:** `lib/shared/widgets/order_filter.dart`
+**Archivo:** `lib/shared/widgets/order_filter.dart`
 
-Triggered from `HomeScreen` via:
+Se dispara desde `HomeScreen` vía:
 
 ```dart
 showDialog<void>(
@@ -178,46 +178,46 @@ showDialog<void>(
 )
 ```
 
-### Filter Fields
+### Campos de Filtro
 
-The `OrderFilter` dialog reads and writes the individual filter providers:
+El diálogo `OrderFilter` lee y escribe los providers de filtro individuales:
 
-| Provider | Type | Default | Unit |
-|----------|------|---------|------|
-| `currencyFilterProvider` | `List<String>` | `[]` (all) | Fiat currency codes |
-| `paymentMethodFilterProvider` | `List<String>` | `[]` (all) | Payment method names |
-| `ratingFilterProvider` | `({double min, double max})` | `(0.0, 5.0)` | Star rating |
-| `premiumRangeFilterProvider` | `({double min, double max})` | `(-10.0, 10.0)` | Percentage |
+| Provider | Tipo | Default | Unidad |
+|----------|------|---------|--------|
+| `currencyFilterProvider` | `List<String>` | `[]` (todos) | Códigos de moneda fiat |
+| `paymentMethodFilterProvider` | `List<String>` | `[]` (todos) | Nombres de método de pago |
+| `ratingFilterProvider` | `({double min, double max})` | `(0.0, 5.0)` | Rating de estrellas |
+| `premiumRangeFilterProvider` | `({double min, double max})` | `(-10.0, 10.0)` | Porcentaje |
 
-### UI Layout
+### Layout de UI
 
-The `OrderFilter` dialog contains:
-- **Fiat currency selector:** Multi-select chips or dropdown with supported currencies
-- **Payment method selector:** Multi-select chips with available payment methods
-- **Rating range:** Slider for min/max star rating (0.0–5.0)
-- **Premium range:** Slider for min/max premium percentage (-10%–+10%)
-- **Reset button:** Clears all filters (resets providers to defaults)
+El diálogo `OrderFilter` contiene:
+- **Selector de moneda fiat:** Chips multi-select o dropdown con monedas soportadas
+- **Selector de método de pago:** Chips multi-select con métodos de pago disponibles
+- **Rango de rating:** Slider para rating de estrellas min/max (0.0–5.0)
+- **Rango de premium:** Slider para porcentaje de premium min/max (-10%–+10%)
+- **Botón reset:** Limpia todos los filtros (resetea providers a defaults)
 
-### Available Filters
+### Filtros Disponibles
 
-| Filter | Provider | Default |
+| Filtro | Provider | Default |
 |--------|----------|---------|
-| Fiat currency | `currencyFilterProvider` | All currencies |
-| Payment method | `paymentMethodFilterProvider` | All methods |
-| Rating | `ratingFilterProvider` | 0.0–5.0 stars |
+| Moneda fiat | `currencyFilterProvider` | Todas las monedas |
+| Método de pago | `paymentMethodFilterProvider` | Todos los métodos |
+| Rating | `ratingFilterProvider` | 0.0–5.0 estrellas |
 | Premium | `premiumRangeFilterProvider` | -10%–+10% |
 
 ---
 
-## Cross-References
+## Referencias Cruzadas
 
 - **HomeScreen:** `.specify/v1-reference/HOME_SCREEN.md`
-- **Navigation:** `.specify/v1-reference/NAVIGATION_ROUTES.md`
-- **Take Order:** `.specify/v1-reference/TAKE_ORDER.md`
-- **Order Creation:** `.specify/v1-reference/ORDER_CREATION.md`
-- **Order States:** `.specify/v1-reference/ORDER_STATES.md`
-- **Trade Execution:** `.specify/v1-reference/TRADE_EXECUTION.md`
-- **Order list item widget:** `lib/features/home/widgets/order_list_item.dart`
-- **Order filter widget:** `lib/shared/widgets/order_filter.dart`
-- **Trades screen (detailed spec):** `.specify/v1-reference/MY_TRADES.md`
-- **Widget implementation:** `lib/features/trades/screens/trades_screen.dart`
+- **Navegación:** `.specify/v1-reference/NAVIGATION_ROUTES.md`
+- **Tomar Orden:** `.specify/v1-reference/TAKE_ORDER.md`
+- **Creación de Orden:** `.specify/v1-reference/ORDER_CREATION.md`
+- **Estados de Orden:** `.specify/v1-reference/ORDER_STATES.md`
+- **Ejecución de Trade:** `.specify/v1-reference/TRADE_EXECUTION.md`
+- **Widget de item de lista de orden:** `lib/features/home/widgets/order_list_item.dart`
+- **Widget de filtro de orden:** `lib/shared/widgets/order_filter.dart`
+- **Pantalla de trades (spec detallado):** `.specify/v1-reference/MY_TRADES.md`
+- **Implementación del widget:** `lib/features/trades/screens/trades_screen.dart`

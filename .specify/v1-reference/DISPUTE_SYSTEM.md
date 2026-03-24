@@ -1,16 +1,16 @@
-# Dispute System Specification (Mostro Mobile v1)
+# Especificación del Sistema de Disputas (Mostro Mobile v1)
 
-> Reference for section 8 (DISPUTES) covering the in-app dispute list, admin chat, and dispute creation pipeline.
+> Referencia para la sección 8 (DISPUTES) que cubre la lista de disputas en la app, chat con admin, y pipeline de creación de disputas.
 
-## Scope
+## Alcance
 
-- Route `/dispute_details/:disputeId`
-- Screens & widgets: `ChatRoomsScreen` (disputes tab), `DisputesList`, `DisputeListItem`, `DisputeChatScreen`, `DisputeMessagesList`, `DisputeInfoCard`, `DisputeMessageInput`
-- Providers & services: `chatTabProvider`, `userDisputeDataProvider`, `disputeDetailsProvider`, `disputeChatNotifierProvider`, `disputeReadStatusProvider`, `DisputeRepository`, `DisputeReadStatusService`
-- Data models: `Dispute`, `DisputeData`, `Session.adminSharedKey`
-- Storage & transport: Sembast event store (`type: dispute_chat`), NIP-59 gift wrap, admin shared-key ECDH
+- Ruta `/dispute_details/:disputeId`
+- Pantallas y widgets: `ChatRoomsScreen` (pestaña de disputas), `DisputesList`, `DisputeListItem`, `DisputeChatScreen`, `DisputeMessagesList`, `DisputeInfoCard`, `DisputeMessageInput`
+- Providers y servicios: `chatTabProvider`, `userDisputeDataProvider`, `disputeDetailsProvider`, `disputeChatNotifierProvider`, `disputeReadStatusProvider`, `DisputeRepository`, `DisputeReadStatusService`
+- Modelos de datos: `Dispute`, `DisputeData`, `Session.adminSharedKey`
+- Almacenamiento y transporte: Sembast event store (`type: dispute_chat`), NIP-59 gift wrap, ECDH de admin shared-key
 
-## Source files reviewed
+## Archivos fuente revisados
 
 - `lib/features/chat/screens/chat_rooms_list.dart`
 - `lib/features/chat/widgets/chat_tabs.dart`
@@ -34,175 +34,175 @@
 
 ---
 
-## 1) Entry points & navigation
+## 1) Puntos de entrada y navegación
 
-### Chat tab integration (`/chat_list`)
-- `ChatRoomsScreen` renders a two-tab layout via `ChatTabs`. Tabs map to `ChatTabType.messages` (P2P chat) and `ChatTabType.disputes`.
-- Switching tabs updates `chatTabProvider`; horizontal swipes also toggle tabs.
-- The disputes tab swaps the main list for `DisputesList`, so users can reach disputes without leaving the chat module.
-- A short contextual description is displayed under the tabs ("Aquí están tus disputas" vs "Aquí están tus chats").
+### Integración de pestaña de chat (`/chat_list`)
+- `ChatRoomsScreen` renderiza un layout de dos pestañas vía `ChatTabs`. Las pestañas mapean a `ChatTabType.messages` (chat P2P) y `ChatTabType.disputes`.
+- Cambiar de pestaña actualiza `chatTabProvider`; los swipes horizontales también alternan las pestañas.
+- La pestaña de disputas intercambia la lista principal por `DisputesList`, así los usuarios pueden acceder a disputas sin salir del módulo de chat.
+- Se muestra una descripción contextual corta bajo las pestañas ("Aquí están tus disputas" vs "Aquí están tus chats").
 
-### Trade Detail → Dispute button
-- `TradeDetailScreen` surfaces a **Dispute** button whenever the action set contains `actions.Action.dispute` and no dispute is already in progress.
-- Tapping Dispute prompts a confirmation dialog; if confirmed, it calls `DisputeRepository.createDispute(orderId)` (see §2) and shows a snackbar on success/failure.
-- Once a dispute exists (`tradeState.dispute?.disputeId != null`), the CTA switches to **View dispute** which links to `/dispute_details/:disputeId`.
+### Trade Detail → Botón de disputa
+- `TradeDetailScreen` muestra un botón **Disputa** cuando el conjunto de acciones contiene `actions.Action.dispute` y no hay una disputa ya en progreso.
+- Al hacer tap en Disputa se muestra un diálogo de confirmación; si se confirma, llama a `DisputeRepository.createDispute(orderId)` (ver §2) y muestra un snackbar de éxito/error.
+- Una vez que existe una disputa (`tradeState.dispute?.disputeId != null`), el CTA cambia a **Ver disputa** que enlaza a `/dispute_details/:disputeId`.
 
-### Automatic navigation via Mostro events
-- `AbstractMostroNotifier` listens to Mostro DM actions:
-  - `disputeInitiatedByYou`, `disputeInitiatedByPeer`, `adminTookDispute`, `adminSettled`, `adminCanceled` all push `/trade_detail/:orderId` to keep both parties on the trade screen when a dispute state changes.
-  - Admin assignment (`adminTookDispute`) also updates the session's admin shared key (see §3), enabling the dispute chat to decrypt admin messages.
+### Navegación automática vía eventos de Mostro
+- `AbstractMostroNotifier` escucha acciones de DM de Mostro:
+  - `disputeInitiatedByYou`, `disputeInitiatedByPeer`, `adminTookDispute`, `adminSettled`, `adminCanceled` todas hacen push a `/trade_detail/:orderId` para mantener a ambas partes en la pantalla de trade cuando cambia el estado de una disputa.
+  - La asignación de admin (`adminTookDispute`) también actualiza la admin shared key de la sesión (ver §3), habilitando el chat de disputa para descifrar mensajes del admin.
 
 ---
 
-## 2) Repository, data model, and dispute creation
+## 2) Repositorio, modelo de datos y creación de disputas
 
 ### `DisputeRepository`
-- `createDispute(orderId)` builds a `MostroMessage(action: Action.dispute, id: orderId)` and wraps it using NIP-59 gift wrap with the user's `tradeKey` and the configured Mostro pubkey (`settingsProvider.mostroPublicKey`).
-- Proof-of-work difficulty uses `MostroInstance.pow`; if unavailable it logs a warning and sends with difficulty 0.
-- `NostrService.publishEvent` broadcasts the wrapped event; the repository returns `true/false` to show snackbars.
-- `getUserDisputes()` and `getDispute(disputeId)` never hit a remote endpoint. They walk all `sessionNotifierProvider` sessions, read each `orderNotifierProvider(orderId)` and collect `OrderState.dispute` objects.
+- `createDispute(orderId)` construye un `MostroMessage(action: Action.dispute, id: orderId)` y lo envuelve usando gift wrap NIP-59 con la `tradeKey` del usuario y la pubkey de Mostro configurada (`settingsProvider.mostroPublicKey`).
+- La dificultad de proof-of-work usa `MostroInstance.pow`; si no está disponible loguea un warning y envía con dificultad 0.
+- `NostrService.publishEvent` transmite el evento envuelto; el repositorio retorna `true/false` para mostrar snackbars.
+- `getUserDisputes()` y `getDispute(disputeId)` nunca hacen llamadas a un endpoint remoto. Recorren todas las sesiones de `sessionNotifierProvider`, leen cada `orderNotifierProvider(orderId)` y recolectan objetos `OrderState.dispute`.
 
-### Data types
-- `Dispute` carries protocol-level fields (IDs, status, admin pubkey, timestamps, action) and implements `Payload` so Mostro DMs can embed it.
-- `DisputeData` is the UI view model (order ID, counterparty, user role, `DisputeDescriptionKey`, etc.). It derives `descriptionKey` from normalized statuses and stores whether the current user initiated the dispute.
-- `DisputeDescriptionKey` drives localized copy ("Abriste una disputa", "Esperando asignación de admin", "Admin cerró la disputa"...).
+### Tipos de datos
+- `Dispute` lleva campos a nivel de protocolo (IDs, status, pubkey del admin, timestamps, action) e implementa `Payload` para que los DMs de Mostro puedan embebarlo.
+- `DisputeData` es el view model de la UI (order ID, contraparte, rol del usuario, `DisputeDescriptionKey`, etc.). Deriva `descriptionKey` de statuses normalizados y almacena si el usuario actual inició la disputa.
+- `DisputeDescriptionKey` maneja el copy localizado ("Abriste una disputa", "Esperando asignación de admin", "Admin cerró la disputa"...).
 
-### Status & action normalization (from `OrderState`)
-- Actions `disputeInitiatedByYou`, `disputeInitiatedByPeer`, `dispute`, `adminTakeDispute`, `adminTookDispute` map to `Status.dispute`.
-- `OrderState.updateWith()` enriches disputes:
-  - Stamps `createdAt` from the DM timestamp for sorting.
-  - `adminTookDispute` sets `status: in-progress`, saves `adminPubkey`, and triggers `Session.setAdminPeer`.
+### Normalización de status y action (desde `OrderState`)
+- Las acciones `disputeInitiatedByYou`, `disputeInitiatedByPeer`, `dispute`, `adminTakeDispute`, `adminTookDispute` mapean a `Status.dispute`.
+- `OrderState.updateWith()` enriquece las disputas:
+  - Estampa `createdAt` del timestamp del DM para ordenamiento.
+  - `adminTookDispute` establece `status: in-progress`, guarda `adminPubkey`, y dispara `Session.setAdminPeer`.
   - `adminSettled` ⇒ `status: resolved`, `action: admin-settled`.
   - `adminCanceled` ⇒ `status: seller-refunded`, `action: admin-canceled`.
-  - User-completed or cooperative-cancel terminal states auto-close the dispute (`status: closed`, `action: user-completed` or `cooperative-cancel`).
+  - Estados terminales de user-completed o cooperative-cancel auto-cierran la disputa (`status: closed`, `action: user-completed` o `cooperative-cancel`).
 
 ---
 
-## 3) Session & admin shared key handshake
+## 3) Sesión y handshake de admin shared key
 
-- Sessions (`lib/data/models/session.dart`) store both the counterparty shared key (`peer`) and an optional `adminSharedKey`.
-- When `adminTookDispute` arrives, `AbstractMostroNotifier` extracts the admin pubkey from the event payload (`Peer`) or existing `Dispute.adminPubkey`, calls `sessionNotifier.updateSession(orderId, setAdminPeer)` and recomputes the shared key via ECDH.
-- `DisputeChatNotifier` requires `session.adminSharedKey` before subscribing. Until the key exists, it listens to `sessionNotifierProvider` and retries subscription automatically.
-- Attachments (`ChatFileUploadHelper`, `EncryptedImageUploadService`, `EncryptedFileUploadService`) call `DisputeChatNotifier.getAdminSharedKey()` to fetch raw ChaCha20 keys for encryption/decryption.
+- Las sesiones (`lib/data/models/session.dart`) almacenan tanto la shared key de la contraparte (`peer`) como una `adminSharedKey` opcional.
+- Cuando llega `adminTookDispute`, `AbstractMostroNotifier` extrae la pubkey del admin del payload del evento (`Peer`) o del `Dispute.adminPubkey` existente, llama a `sessionNotifier.updateSession(orderId, setAdminPeer)` y recalcula la shared key vía ECDH.
+- `DisputeChatNotifier` requiere `session.adminSharedKey` antes de suscribirse. Hasta que la key exista, escucha a `sessionNotifierProvider` y reintenta la suscripción automáticamente.
+- Los adjuntos (`ChatFileUploadHelper`, `EncryptedImageUploadService`, `EncryptedFileUploadService`) llaman a `DisputeChatNotifier.getAdminSharedKey()` para obtener las keys ChaCha20 en raw para cifrado/descifrado.
 
 ---
 
-## 4) Dispute list UX & unread state
+## 4) UX de lista de disputas y estado de no leídos
 
 ### `DisputesList`
-- Driven by `userDisputeDataProvider`, which memoizes `DisputeData` list, sorts by `createdAt` DESC, and rebuilds whenever sessions or order states change.
-- Loading state: centered spinner. Error state: icon + "Retry" button that invalidates the provider.
-- Empty state: gavel icon + helper text ("Tus disputas aparecerán aquí").
+- Manejado por `userDisputeDataProvider`, que memoiza la lista de `DisputeData`, ordena por `createdAt` DESC, y se reconstruye cuando cambian las sesiones o estados de orden.
+- Estado de carga: spinner centrado. Estado de error: icono + botón "Reintentar" que invalida el provider.
+- Estado vacío: icono de mazo + texto de ayuda ("Tus disputas aparecerán aquí").
 
 ### `DisputeListItem`
-- Wraps `DisputeContent` and `DisputeIcon`; tapping marks the dispute as read via `DisputeReadStatusService.markDisputeAsRead(disputeId)` then pushes `/dispute_details/:id`.
-- `DisputeContent` pulls:
-  - `DisputeHeader` (status badge color-coded via `DisputeStatusBadge`).
+- Envuelve `DisputeContent` y `DisputeIcon`; al hacer tap marca la disputa como leída vía `DisputeReadStatusService.markDisputeAsRead(disputeId)` y luego hace push a `/dispute_details/:id`.
+- `DisputeContent` extrae:
+  - `DisputeHeader` (badge de status con color vía `DisputeStatusBadge`).
   - Order ID (`DisputeOrderId`).
-  - Description text (`DisputeDescription`) which, for `status == in-progress`, shows the last admin/user message fetched from `disputeChatNotifierProvider`.
-  - Unread dot: `FutureBuilder` calls `DisputeReadStatusService.hasUnreadMessages(...)`, comparing message timestamps against the stored `SharedPreferences` key (`dispute_last_read_{id}`).
-- `disputeReadStatusProvider` is a `StateProvider.family<int, String>` used solely to trigger rebuilds when a dispute is marked as read (timestamp bump).
+  - Texto de descripción (`DisputeDescription`) que, para `status == in-progress`, muestra el último mensaje admin/usuario obtenido de `disputeChatNotifierProvider`.
+  - Punto de no leído: `FutureBuilder` llama a `DisputeReadStatusService.hasUnreadMessages(...)`, comparando timestamps de mensajes contra la key almacenada en `SharedPreferences` (`dispute_last_read_{id}`).
+- `disputeReadStatusProvider` es un `StateProvider.family<int, String>` usado únicamente para disparar rebuilds cuando una disputa se marca como leída (bump de timestamp).
 
-### Tab description copy
-- When `ChatTabType.disputes` is active, `ChatRoomsScreen` shows `S.disputesDescription` ("Aquí hablas con los admins"), reinforcing that this is a separate space from P2P chat.
+### Copy de descripción de pestaña
+- Cuando `ChatTabType.disputes` está activo, `ChatRoomsScreen` muestra `S.disputesDescription` ("Aquí hablas con los admins"), reforzando que este es un espacio separado del chat P2P.
 
 ---
 
-## 5) Dispute detail & chat screen
+## 5) Pantalla de detalle de disputa y chat
 
 ### `DisputeChatScreen`
-- Receives `disputeId` from GoRouter, `watch(disputeDetailsProvider(disputeId))` to load the latest `Dispute` (or show "not found").
-- On `initState`, it marks the dispute as read and updates `disputeReadStatusProvider`.
-- Converts the domain model (`Dispute`) into `DisputeData` using both `sessionNotifierProvider` and `orderNotifierProvider` to pull role/counterparty data.
+- Recibe `disputeId` desde GoRouter, `watch(disputeDetailsProvider(disputeId))` para cargar la última `Dispute` (o mostrar "no encontrada").
+- En `initState`, marca la disputa como leída y actualiza `disputeReadStatusProvider`.
+- Convierte el modelo de dominio (`Dispute`) a `DisputeData` usando tanto `sessionNotifierProvider` como `orderNotifierProvider` para extraer datos de rol/contraparte.
 - Layout:
   1. `DisputeCommunicationSection` → `DisputeMessagesList`
-  2. `DisputeMessageInput` rendered **only** when `DisputeData.status == 'in-progress'`. Initiated / resolved disputes become read-only logs.
+  2. `DisputeMessageInput` renderizado **solo** cuando `DisputeData.status == 'in-progress'`. Las disputas iniciadas / resueltas se vuelven logs de solo lectura.
 
 ### `DisputeMessagesList`
-- Combines informational UI and chat messages into a single scroll view:
-  - `SliverToBoxAdapter` shows a blue "Admin assigned" card if status = `in-progress` and there are no messages yet.
-  - First list item is always `DisputeInfoCard` (order ID, dispute ID, user role, counterparty nickname via `nickNameProvider`).
-  - Remainder: `DisputeMessageBubble` entries sorted by timestamp, deduped by message ID.
-  - For resolved statuses (`resolved`, `seller-refunded`, `closed`), an extra "Chat closed" lock banner is appended.
-- Handles empty chat gracefully: waiting-for-admin copy, no-messages-yet placeholders, etc.
-- Auto-scrolls to the bottom whenever new messages arrive and the user is near the bottom.
+- Combina UI informacional y mensajes de chat en un solo scroll view:
+  - `SliverToBoxAdapter` muestra una card azul "Admin asignado" si status = `in-progress` y no hay mensajes aún.
+  - El primer item de la lista siempre es `DisputeInfoCard` (order ID, dispute ID, rol del usuario, nickname de contraparte vía `nickNameProvider`).
+  - Resto: entradas de `DisputeMessageBubble` ordenadas por timestamp, deduplicadas por message ID.
+  - Para statuses resueltos (`resolved`, `seller-refunded`, `closed`), se agrega un banner extra "Chat cerrado" con candado.
+- Maneja chat vacío elegantemente: copy de esperando-admin, placeholders de sin-mensajes-aún, etc.
+- Auto-scroll al fondo cuando llegan nuevos mensajes y el usuario está cerca del fondo.
 
 ### `DisputeMessageInput`
-- Shares the same UX pattern as P2P chat: attach button (wired to `ChatFileUploadHelper.selectAndUploadFile`), text box, send button.
-- Attachment workflow uses the admin shared key instead of the counterparty shared key.
-- While a file upload is in progress, the attach icon is replaced by a `CircularProgressIndicator`.
+- Comparte el mismo patrón UX que el chat P2P: botón de adjuntar (conectado a `ChatFileUploadHelper.selectAndUploadFile`), caja de texto, botón de enviar.
+- El workflow de adjuntos usa la admin shared key en vez de la shared key de la contraparte.
+- Mientras una subida de archivo está en progreso, el icono de adjuntar se reemplaza por un `CircularProgressIndicator`.
 
 ---
 
-## 6) Messaging pipeline & storage
+## 6) Pipeline de mensajería y almacenamiento
 
-### Provider & state
-- `disputeChatNotifierProvider` is a `StateNotifierProvider.family<DisputeChatNotifier, DisputeChatState, String>`.
-- `DisputeChatState` stores `messages`, `isLoading`, and `error` (global error, e.g., failed history fetch). `DisputeChatMessage` wraps `NostrEvent` with `isPending` and per-message `error` fields for optimistic UI.
+### Provider y estado
+- `disputeChatNotifierProvider` es un `StateNotifierProvider.family<DisputeChatNotifier, DisputeChatState, String>`.
+- `DisputeChatState` almacena `messages`, `isLoading`, y `error` (error global, ej., fallo al cargar historial). `DisputeChatMessage` envuelve `NostrEvent` con campos `isPending` y `error` por mensaje para UI optimista.
 
-### Initialization & history
-- `initialize()` loads history and subscribes once (idempotent guard `_isInitialized`).
-- Historic events are stored in Sembast with `type: 'dispute_chat'` and `dispute_id: <id>`. Each record keeps the full gift wrap payload (`kind`, `content`, `tags`, etc.).
-- `_loadHistoricalMessages()` filters by `type` + `dispute_id`, unwraps each gift wrap with `session.adminSharedKey`, converts to `DisputeChatMessage`, deduplicates by inner event ID, and sorts ascending.
+### Inicialización e historial
+- `initialize()` carga el historial y suscribe una vez (guard idempotente `_isInitialized`).
+- Los eventos históricos se almacenan en Sembast con `type: 'dispute_chat'` y `dispute_id: <id>`. Cada registro mantiene el payload completo del gift wrap (`kind`, `content`, `tags`, etc.).
+- `_loadHistoricalMessages()` filtra por `type` + `dispute_id`, desenvuelve cada gift wrap con `session.adminSharedKey`, convierte a `DisputeChatMessage`, deduplica por inner event ID, y ordena ascendente.
 
-### Live subscription
-- `_subscribe()` builds a `NostrRequest` for kind `1059` events where the `p` tag matches `session.adminSharedKey.public`.
-- `NostrService.subscribeToEvents()` feeds `_onChatEvent`:
-  1. Verify event kind & `p` tag.
-  2. Skip duplicates using `eventStore.hasItem(wrapperEventId)`.
-  3. Persist the encrypted wrapper (`type: dispute_chat`).
-  4. `p2pUnwrap` with the admin shared key (single-layer gift wrap).
-  5. Skip empty content; create `DisputeChatMessage` and append to state (dedupe, sort).
-  6. Fire-and-forget `_processMessageContent()` to pre-download Blossom files/images.
+### Suscripción en vivo
+- `_subscribe()` construye un `NostrRequest` para eventos kind `1059` donde el tag `p` coincide con `session.adminSharedKey.public`.
+- `NostrService.subscribeToEvents()` alimenta `_onChatEvent`:
+  1. Verificar event kind y tag `p`.
+  2. Saltar duplicados usando `eventStore.hasItem(wrapperEventId)`.
+  3. Persistir el wrapper cifrado (`type: dispute_chat`).
+  4. `p2pUnwrap` con la admin shared key (gift wrap de una capa).
+  5. Saltar contenido vacío; crear `DisputeChatMessage` y agregar al estado (dedupe, sort).
+  6. Fire-and-forget `_processMessageContent()` para pre-descargar archivos/imágenes Blossom.
 
-### Sending messages
-- `sendMessage(text)` creates the inner rumor event (kind 1) **before** wrapping so the optimistic UI uses the final message ID.
-- The UI appends a pending bubble, wraps the rumor with `session.adminSharedKey.public`, publishes via `nostrService.publishEvent`, and persists the wrapper to Sembast.
-- On failure, the pending bubble flips `error` and `isPending=false`.
-- The relay echo eventually arrives via `_onChatEvent`, which dedupes by ID.
+### Envío de mensajes
+- `sendMessage(text)` crea el inner rumor event (kind 1) **antes** de envolver para que la UI optimista use el message ID final.
+- La UI agrega un bubble pendiente, envuelve el rumor con `session.adminSharedKey.public`, publica vía `nostrService.publishEvent`, y persiste el wrapper en Sembast.
+- En fallo, el bubble pendiente cambia `error` y `isPending=false`.
+- El eco del relay eventualmente llega vía `_onChatEvent`, que deduplica por ID.
 
-### Multimedia support
-- `DisputeMessageBubble` inspects the message via `MessageTypeUtils` (text, encrypted image, encrypted file).
-- Image/file widgets reuse the shared cache mixin (`MediaCacheMixin`) provided by `DisputeChatNotifier`.
-- Attachment download requires `getAdminSharedKey()`; missing shared keys throw an exception and display errors in logs.
+### Soporte multimedia
+- `DisputeMessageBubble` inspecciona el mensaje vía `MessageTypeUtils` (texto, imagen cifrada, archivo cifrado).
+- Los widgets de imagen/archivo reusan el mixin de cache compartido (`MediaCacheMixin`) provisto por `DisputeChatNotifier`.
+- La descarga de adjuntos requiere `getAdminSharedKey()`; shared keys faltantes lanzan una excepción y muestran errores en logs.
 
-### Read state & badges
-- `DisputeReadStatusService` stores timestamps in `SharedPreferences` and exposes `hasUnreadMessages(disputeId, messages, isFromUser)` to check for any admin messages newer than the last read time.
-- `DisputeChatScreen` marks the dispute as read on `initState`; `DisputeListItem` also marks as read when tapping from the list to keep both entry points in sync.
+### Estado de lectura y badges
+- `DisputeReadStatusService` almacena timestamps en `SharedPreferences` y expone `hasUnreadMessages(disputeId, messages, isFromUser)` para verificar si hay mensajes del admin más nuevos que el último tiempo de lectura.
+- `DisputeChatScreen` marca la disputa como leída en `initState`; `DisputeListItem` también marca como leída al hacer tap desde la lista para mantener ambos puntos de entrada sincronizados.
 
 ---
 
-## 7) Dispute lifecycle & order status integration
+## 7) Ciclo de vida de disputa e integración con status de orden
 
-### Initiation
-1. User taps **Dispute** in Trade Detail.
-2. `DisputeRepository.createDispute` sends the gift wrap event.
-3. Mostro responds with `disputeInitiatedByYou` (for initiator) and `disputeInitiatedByPeer` (for the counterpart).
-4. `OrderState` stores the `Dispute` payload, `status` transitions to `Status.dispute`, and UI shows the red "Dispute" chip.
+### Iniciación
+1. Usuario hace tap en **Disputa** en Trade Detail.
+2. `DisputeRepository.createDispute` envía el evento gift wrap.
+3. Mostro responde con `disputeInitiatedByYou` (para el iniciador) y `disputeInitiatedByPeer` (para la contraparte).
+4. `OrderState` almacena el payload de `Dispute`, `status` transiciona a `Status.dispute`, y la UI muestra el chip rojo "Disputa".
 
-### Admin assignment
-1. When an admin takes the dispute, Mostro sends `adminTookDispute` with a `Peer` payload representing the admin.
-2. `OrderState.updateWith()` marks the dispute `status: in-progress` and copies the admin pubkey.
-3. `Session.setAdminPeer` computes `adminSharedKey`, enabling dispute chat encryption.
-4. `DisputeMessagesList` shows the blue "Admin assigned" card until the first message arrives.
+### Asignación de admin
+1. Cuando un admin toma la disputa, Mostro envía `adminTookDispute` con un payload `Peer` representando al admin.
+2. `OrderState.updateWith()` marca la disputa `status: in-progress` y copia la admin pubkey.
+3. `Session.setAdminPeer` computa `adminSharedKey`, habilitando el cifrado del chat de disputa.
+4. `DisputeMessagesList` muestra la card azul "Admin asignado" hasta que llega el primer mensaje.
 
-### Resolution paths
-- **Admin settled** (`adminSettled`): `Dispute.status = resolved`, `action = admin-settled`. `DisputeMessagesList` hides the input and shows the lock banner. `DisputeStatusContent` renders "Admin devolvió los sats".
+### Caminos de resolución
+- **Admin settled** (`adminSettled`): `Dispute.status = resolved`, `action = admin-settled`. `DisputeMessagesList` oculta el input y muestra el banner de candado. `DisputeStatusContent` renderiza "Admin devolvió los sats".
 - **Admin canceled** (`adminCanceled`): `status = seller-refunded`, `action = admin-canceled`.
-- **User completed** (Lightning payment succeeded) or **cooperative cancel**: auto-close logic in `OrderState` sets `status = closed`, `action = user-completed / cooperative-cancel`. No admin involvement required.
+- **User completed** (pago Lightning exitoso) o **cooperative cancel**: la lógica de auto-cierre en `OrderState` establece `status = closed`, `action = user-completed / cooperative-cancel`. No se requiere involucramiento del admin.
 
-### Unread + notification flows
-- Because `DisputeReadStatusService` works off timestamps, any new message (admin or user) increments the badge automatically until the user opens the chat.
-- The P2P chat badge (`chatCountProvider`) is independent; disputes currently rely on the red dot inside the list items.
+### Flujos de no leídos + notificaciones
+- Porque `DisputeReadStatusService` trabaja con timestamps, cualquier mensaje nuevo (admin o usuario) incrementa el badge automáticamente hasta que el usuario abre el chat.
+- El badge del chat P2P (`chatCountProvider`) es independiente; las disputas actualmente dependen del punto rojo dentro de los items de lista.
 
 ---
 
-## 8) Cross references
+## 8) Referencias cruzadas
 
-| Topic | Document |
-|-------|----------|
-| Trade Detail actions & dispute button | [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
-| Order status transitions & dispute closure | [ORDER_STATUS_HANDLING.md](./ORDER_STATUS_HANDLING.md) |
-| P2P chat architecture (shared widgets, media pipeline) | [P2P_CHAT_SYSTEM.md](./P2P_CHAT_SYSTEM.md) |
-| Session & key management (admin shared key storage) | [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) |
-| Navigation routes table | [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) |
+| Tema | Documento |
+|------|-----------|
+| Acciones de Trade Detail y botón de disputa | [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
+| Transiciones de status de orden y cierre de disputa | [ORDER_STATUS_HANDLING.md](./ORDER_STATUS_HANDLING.md) |
+| Arquitectura de chat P2P (widgets compartidos, pipeline de media) | [P2P_CHAT_SYSTEM.md](./P2P_CHAT_SYSTEM.md) |
+| Gestión de sesiones y llaves (almacenamiento de admin shared key) | [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) |
+| Tabla de rutas de navegación | [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) |
