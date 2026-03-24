@@ -377,8 +377,8 @@ CustomTransitionPage buildPageWithDefaultTransition<T>({
 | Bottom nav | [DRAWER_MENU.md](./DRAWER_MENU.md) |
 | Order creation | [.specify/v1-reference/ORDER_CREATION.md](./ORDER_CREATION.md) |
 | Take order | [.specify/v1-reference/TAKE_ORDER.md](./TAKE_ORDER.md) |
-| My trades | `trades_screen.dart` |
-| Trade detail | `trade_detail_screen.dart` |
+| My trades | [.specify/v1-reference/TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
+| Trade detail | [.specify/v1-reference/TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
 | Auth | [AUTHENTICATION.md](./AUTHENTICATION.md) |
 | Sessions | [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) |
 | Deep links Nostr | [NOSTR.md](./NOSTR.md) |
