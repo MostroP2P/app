@@ -1,14 +1,14 @@
 # Order Creation (`/add_order`)
 
-> Especificación funcional y técnica de creación de órdenes en Mostro Mobile v1 (Flutter/Dart), basada en el código real.
+> Functional and technical specification for order creation in Mostro Mobile v1 (Flutter/Dart), based on real code.
 
-## Archivos fuente analizados
+## Source Files Analyzed
 
 - `lib/features/order/screens/add_order_screen.dart`
 - `lib/features/order/notifiers/add_order_notifier.dart`
 - `lib/features/order/providers/order_notifier_provider.dart`
 - `lib/features/order/models/order_state.dart`
-- `lib/features/order/widgets/*` (secciones de formulario y botones)
+- `lib/features/order/widgets/*` (form sections and buttons)
 - `lib/data/models/order.dart`
 - `lib/data/models/mostro_message.dart`
 - `lib/services/mostro_service.dart`
@@ -19,14 +19,14 @@
 - `lib/shared/widgets/add_order_button.dart`
 - `lib/core/mostro_fsm.dart`
 
-> Nota de consistencia en el repositorio: en esta versión no existen `create_order_provider.dart`, `order_providers.dart`, `order_repository.dart`, `order_events_provider.dart`, `user_orders_provider.dart` ni `create_order_model.dart` en las rutas solicitadas. La lógica viva está distribuida en `AddOrderScreen`, `AddOrderNotifier`, `MostroService`, `order_notifier_provider.dart` y `open_orders_repository.dart`.
+> Repository consistency note: in this version there are no `create_order_provider.dart`, `order_providers.dart`, `order_repository.dart`, `order_events_provider.dart`, `user_orders_provider.dart` or `create_order_model.dart` at the requested paths. The live logic is distributed across `AddOrderScreen`, `AddOrderNotifier`, `MostroService`, `order_notifier_provider.dart` and `open_orders_repository.dart`.
 
 ---
 
-## 1) Ruta y punto de entrada
+## 1) Route and Entry Point
 
-### Ruta
-- Ruta registrada: `/add_order`
+### Route
+- Registered route: `/add_order`
 - Router: `lib/core/app_routes.dart`
 
 ```dart
@@ -40,79 +40,79 @@ GoRoute(
 ),
 ```
 
-### Entrada desde Home (FAB)
+### Entry from Home (FAB)
 - Widget: `lib/shared/widgets/add_order_button.dart`
-- Navegación:
-  - Compra: `context.push('/add_order', extra: {'orderType': 'buy'})`
-  - Venta: `context.push('/add_order', extra: {'orderType': 'sell'})`
+- Navigation:
+  - Buy: `context.push('/add_order', extra: {'orderType': 'buy'})`
+  - Sell: `context.push('/add_order', extra: {'orderType': 'sell'})`
 
-`AddOrderScreen` consume `state.extra['orderType']` en `initState` para preseleccionar tipo (`buy` o `sell`). Si no viene extra, usa `sell` por defecto.
+`AddOrderScreen` consumes `state.extra['orderType']` in `initState` to preselect type (`buy` or `sell`). If no extra is provided, defaults to `sell`.
 
 ---
 
-## 2) Pantalla `AddOrderScreen`: estado local y bootstrap
+## 2) `AddOrderScreen` Screen: Local State and Bootstrap
 
-Archivo: `lib/features/order/screens/add_order_screen.dart`
+File: `lib/features/order/screens/add_order_screen.dart`
 
-Estado local principal:
-- `_orderType`: `OrderType.sell` por defecto
-- `_marketRate`: `true` por defecto
+Main local state:
+- `_orderType`: `OrderType.sell` by default
+- `_marketRate`: `true` by default
 - `_premiumValue`: `0.0`
 - `_minFiatAmount` / `_maxFiatAmount`
 - `_selectedPaymentMethods`
-- `_validationError` (errores de monto/rango)
-- `_currentRequestId` (control de estado reactivo del botón)
+- `_validationError` (amount/range errors)
+- `_currentRequestId` (reactive button state control)
 
-Inicialización (`initState`):
-1. Lee `extra.orderType`.
-2. Resetea `selectedFiatCodeProvider` al default del usuario (`settings.defaultFiatCode`).
-3. Precarga `defaultLightningAddress` si existe (solo se usa luego para órdenes `buy`).
+Initialization (`initState`):
+1. Reads `extra.orderType`.
+2. Resets `selectedFiatCodeProvider` to user default (`settings.defaultFiatCode`).
+3. Preloads `defaultLightningAddress` if it exists (only used later for `buy` orders).
 
 ---
 
-## 3) Estructura del formulario y campos
+## 3) Form Structure and Fields
 
-## Campos soportados por UI
+## UI Supported Fields
 
-1. **Tipo de orden**
-   - Determinado por el menú FAB (buy/sell).
-2. **Moneda fiat**
+1. **Order type**
+   - Determined by FAB menu (buy/sell).
+2. **Fiat currency**
    - `CurrencySection` + `selectedFiatCodeProvider`.
-3. **Monto fiat**
-   - `AmountSection` con modo simple o rango (`min`/`max`).
-4. **Métodos de pago**
-   - Lista multiselección + método custom de texto libre.
-5. **Tipo de precio**
-   - `market` (con premium/descuento) o `fixed` (monto en sats).
+3. **Fiat amount**
+   - `AmountSection` with simple or range mode (`min`/`max`).
+4. **Payment methods**
+   - Multi-select list + custom free text method.
+5. **Price type**
+   - `market` (with premium/discount) or `fixed` (amount in sats).
 6. **Premium/discount**
-   - `PremiumSection` (slider + input), entero clamp `[-100, 100]`.
-7. **Lightning address (opcional)**
-   - Visible solo cuando `orderType == buy`.
+   - `PremiumSection` (slider + input), integer clamped `[-100, 100]`.
+7. **Lightning address (optional)**
+   - Visible only when `orderType == buy`.
 
-## Expiración
-No hay input manual de expiración en `AddOrderScreen`. La expiración efectiva depende de la configuración del nodo Mostro (`kind 38385`), accesible por `mostroInstance.expirationHours` / `expirationSeconds`.
+## Expiration
+There is no manual expiration input in `AddOrderScreen`. Effective expiration depends on Mostro node configuration (`kind 38385`), accessible via `mostroInstance.expirationHours` / `expirationSeconds`.
 
 ---
 
-## 4) Reglas de validación (código real)
+## 4) Validation Rules (Real Code)
 
-### 4.1 Validaciones de habilitación de submit
-`_getSubmitCallback()` devuelve `null` (botón deshabilitado) si:
-- Existe `_validationError`
-- Falta monto mínimo (`_minFiatAmount == null`)
-- Falta `fiatCode`
-- No hay método de pago (ni seleccionado ni custom)
+### 4.1 Submit Enablement Validations
+`_getSubmitCallback()` returns `null` (button disabled) if:
+- `_validationError` exists
+- Minimum amount is missing (`_minFiatAmount == null`)
+- `fiatCode` is missing
+- No payment method (neither selected nor custom)
 
-### 4.2 Validación de rango fiat
-En `_validateAllAmounts()`:
-- Si hay `min` y `max`, exige `max > min`
+### 4.2 Fiat Range Validation
+In `_validateAllAmounts()`:
+- If `min` and `max` exist, requires `max > min`
 
-### 4.3 Validación de límites en sats (lado cliente)
+### 4.3 Sats Limits Validation (Client Side)
 `_validateSatsRange(double fiatAmount)`:
-1. Requiere `selectedFiatCode`.
-2. Requiere `exchangeRateProvider(fiatCode)` con valor.
-3. Requiere `mostroInstance` cargada.
-4. Convierte fiat a sats:
+1. Requires `selectedFiatCode`.
+2. Requires `exchangeRateProvider(fiatCode)` with a value.
+3. Requires loaded `mostroInstance`.
+4. Converts fiat to sats:
 
 ```dart
 int _calculateSatsFromFiat(double fiatAmount, double exchangeRate) {
@@ -120,27 +120,27 @@ int _calculateSatsFromFiat(double fiatAmount, double exchangeRate) {
 }
 ```
 
-5. Compara contra:
+5. Compares against:
 - `mostroInstance.minOrderAmount`
 - `mostroInstance.maxOrderAmount`
 
-Si sale del rango, bloquea submit y muestra error inline.
+If out of range, blocks submit and shows inline error.
 
-### 4.4 Validaciones de formato
-- Inputs numéricos usan `FilteringTextInputFormatter.digitsOnly`.
-- En precio fijo, `satsAmount` debe ser entero positivo de texto numérico.
+### 4.4 Format Validations
+- Numeric inputs use `FilteringTextInputFormatter.digitsOnly`.
+- For fixed price, `satsAmount` must be a positive integer from numeric text.
 
-### 4.5 Sanitización de método custom
-Antes de enviar:
-- Reemplaza caracteres problemáticos `[,"\\\[\]{}]` por espacios
-- Colapsa espacios múltiples
+### 4.5 Custom Method Sanitization
+Before sending:
+- Replaces problematic characters `[,"\\\[\]{}]` with spaces
+- Collapses multiple spaces
 - `trim()`
 
 ---
 
-## 5) Construcción del modelo `Order`
+## 5) Building the `Order` Model
 
-Al enviar (`_submitOrder()`), se construye `Order` (`lib/data/models/order.dart`) con esta lógica:
+When submitting (`_submitOrder()`), an `Order` (`lib/data/models/order.dart`) is built with this logic:
 
 ```dart
 final fiatAmount = _maxFiatAmount != null ? 0 : _minFiatAmount;
@@ -160,93 +160,92 @@ final order = Order(
 );
 ```
 
-Implicaciones:
-- **Orden simple**: usa `fiatAmount` fijo y `min/max` nulos.
-- **Orden por rango**: usa `fiatAmount = 0` y llena `minAmount/maxAmount`.
-- **Market price**: `amount = 0`, `premium != 0` posible.
+Implications:
+- **Simple order**: uses fixed `fiatAmount` and null `min/max`.
+- **Range order**: uses `fiatAmount = 0` and fills `minAmount/maxAmount`.
+- **Market price**: `amount = 0`, `premium != 0` possible.
 - **Fixed price**: `amount = satsAmount`, `premium = 0`.
 
 ---
 
-## 6) Flujo de creación por Nostr (request/response)
+## 6) Creation Flow via Nostr (Request/Response)
 
-## 6.1 Notifier de creación
-Provider: `addOrderNotifierProvider(tempOrderId)` en `order_notifier_provider.dart`.
-Implementación: `AddOrderNotifier`.
+## 6.1 Creation Notifier
+Provider: `addOrderNotifierProvider(tempOrderId)` in `order_notifier_provider.dart`.
+Implementation: `AddOrderNotifier`.
 
-- Genera `requestId` desde UUID + timestamp (`_requestIdFromOrderId`).
-- Crea sesión temporal con `sessionNotifier.newSession(requestId: ..., role: ...)`.
-- Inicia timer de limpieza de 10s para evitar sesiones huérfanas.
-- Publica `MostroMessage(action: Action.newOrder, requestId, payload: order)`.
+- Generates `requestId` from UUID + timestamp (`_requestIdFromOrderId`).
+- Creates temporary session with `sessionNotifier.newSession(requestId: ..., role: ...)`.
+- Starts 10s cleanup timer to avoid orphan sessions.
+- Publishes `MostroMessage(action: Action.newOrder, requestId, payload: order)`.
 
-## 6.2 Publicación del mensaje
+## 6.2 Message Publishing
 `MostroService.publishOrder()`:
-- Obtiene sesión por `requestId`.
-- Lee PoW de `mostroInstance?.pow ?? 0`.
-- Empaqueta con `MostroMessage.wrap(...)` (NIP-59 gift wrap).
-- Publica evento con `nostrService.publishEvent(event)`.
+- Gets session by `requestId`.
+- Reads PoW from `mostroInstance?.pow ?? 0`.
+- Wraps with `MostroMessage.wrap(...)` (NIP-59 gift wrap).
+- Publishes event with `nostrService.publishEvent(event)`.
 
-## 6.3 Confirmación
-`AddOrderNotifier.subscribe()` escucha `addOrderEventsProvider(requestId)`:
-- Si llega `Action.newOrder` con payload `Order`, ejecuta `_confirmOrder(...)`:
-  1. cancela timer
+## 6.3 Confirmation
+`AddOrderNotifier.subscribe()` listens to `addOrderEventsProvider(requestId)`:
+- If `Action.newOrder` arrives with `Order` payload, executes `_confirmOrder(...)`:
+  1. cancels timer
   2. `session.orderId = message.id`
-  3. persiste sesión
-  4. activa `orderNotifierProvider(message.id!).subscribe()`
-  5. navega a `/order_confirmed/{orderId}`
+  3. persists session
+  4. activates `orderNotifierProvider(message.id!).subscribe()`
+  5. navigates to `/order_confirmed/{orderId}`
 
-## 6.4 Errores `cant-do`
+## 6.4 `cant-do` Errors
 - `out_of_range_sats_amount`:
-  - resetea estado y genera nuevo `requestId` para reintento
+  - resets state and generates new `requestId` for retry
 - `invalid_fiat_currency`:
-  - elimina sesión temporal y navega a `/`
+  - deletes temporary session and navigates to `/`
 
 ---
 
-## 7) Máquina de estados y acciones implicadas
+## 7) State Machine and Implied Actions
 
-### Estado inicial local
+### Initial Local State
 `OrderState(action: Action.newOrder, status: Status.pending)`.
 
-### Mapeo en `order_state.dart` relevante a creación
-- `Action.newOrder` → usa `payloadStatus` (normalmente `pending`)
+### Mapping in `order_state.dart` Relevant to Creation
+- `Action.newOrder` → uses `payloadStatus` (normally `pending`)
 - `Action.takeBuy` → `waitingBuyerInvoice`
 - `Action.takeSell` → `waitingPayment`
 - `Action.waitingSellerToPay` / `payInvoice` → `waitingPayment`
-- `Action.waitingBuyerInvoice` / `addInvoice` → `waitingBuyerInvoice` (con excepción cuando está en `paymentFailed`)
+- `Action.waitingBuyerInvoice` / `addInvoice` → `waitingBuyerInvoice` (with exception when in `paymentFailed`)
 
 ### `mostro_fsm.dart`
-Existe helper FSM (`MostroFSM`) pero el flujo operativo en v1 para UI y transición real en runtime se centra en `OrderState.updateWith()` + mensajes de Mostro.
+FSM helper (`MostroFSM`) exists but the operational flow in v1 for UI and real runtime transition centers on `OrderState.updateWith()` + Mostro messages.
 
 ---
 
-## 8) ¿Qué pasa después de crear la orden?
+## 8) What Happens After Creating the Order?
 
-1. Usuario llega a `/order_confirmed/:orderId` (`OrderConfirmationScreen`).
-2. Al volver a Home, la orden aparece en Order Book cuando:
-   - el evento público (`kind 38383`) está en `Status.pending`
-   - el tipo coincide con el tab seleccionado (`buy/sell`)
-3. El listado público proviene de `orderEventsProvider` (`order_repository_provider.dart`), alimentado por `OpenOrdersRepository.eventsStream`.
-4. Filtros de Home (`currency`, `payment methods`, `rating`, `premium`) se aplican sobre ese stream.
+1. User arrives at `/order_confirmed/:orderId` (`OrderConfirmationScreen`).
+2. When returning to Home, the order appears in Order Book when:
+   - the public event (`kind 38383`) is in `Status.pending`
+   - the type matches the selected tab (`buy/sell`)
+3. The public listing comes from `orderEventsProvider` (`order_repository_provider.dart`), fed by `OpenOrdersRepository.eventsStream`.
+4. Home filters (`currency`, `payment methods`, `rating`, `premium`) are applied on that stream.
 
 ---
 
-## 9) Diferencias importantes: BUY vs SELL al crear
+## 9) Important Differences: BUY vs SELL When Creating
 
 - **BUY**
-  - Puede incluir `buyerInvoice` (lightning address opcional desde la creación).
-  - Rol de sesión inicial: `Role.buyer`.
+  - Can include `buyerInvoice` (optional lightning address from creation).
+  - Initial session role: `Role.buyer`.
 - **SELL**
-  - No muestra campo lightning address en la UI de creación.
-  - Rol de sesión inicial: `Role.seller`.
+  - Does not show lightning address field in creation UI.
+  - Initial session role: `Role.seller`.
 
 ---
 
-## 10) Referencias cruzadas
+## 10) Cross References
 
-- Home y FAB: `.specify/v1-reference/HOME_SCREEN.md`
-- Rutas y navegación: `.specify/v1-reference/NAVIGATION_ROUTES.md`
-- Estados y transiciones: `.specify/v1-reference/ORDER_STATES.md`
-- Relación con tomar órdenes (counterpart flow): `.specify/v1-reference/TAKE_ORDER.md` *(referencia conceptual; el archivo puede no estar presente en esta rama)*
-- Libro de órdenes: `.specify/v1-reference/ORDER_BOOK.md`
-
+- Home and FAB: [HOME_SCREEN.md](./HOME_SCREEN.md)
+- Routes and navigation: [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md)
+- States and transitions: [ORDER_STATES.md](./ORDER_STATES.md)
+- Relation to taking orders (counterpart flow): [TAKE_ORDER.md](./TAKE_ORDER.md)
+- Order book: [ORDER_BOOK.md](./ORDER_BOOK.md)

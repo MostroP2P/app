@@ -765,7 +765,7 @@ void _initSettingsListener() {
       _logger.i('Detected REAL Mostro pubkey change: $currentPubkey -> $newPubkey'); // Line 677
       currentPubkey = newPubkey;                            // Line 678
       
-      // 🔥 RESET COMPLETO: Limpiar todos los relays y hacer sync fresco
+      // 🔥 FULL RESET: Clear all relays and do fresh sync
       _cleanAllRelaysAndResync();                           // Line 681
     } else if (newPubkey != currentPubkey) {
       // Just update the tracking variable without reset (initial load)
@@ -1044,8 +1044,8 @@ Future<void> updateMostroInstance(String newValue) async {
     // COMPLETE RESET: Clear blacklist and user relays when changing Mostro
     state = state.copyWith(
       mostroPublicKey: newValue,                            // Line 57
-      blacklistedRelays: const [], // Blacklist vacío       // Line 58
-      userRelays: const [],         // User relays vacíos   // Line 59
+      blacklistedRelays: const [], // Empty blacklist       // Line 58
+      userRelays: const [],         // Empty user relays   // Line 59
     );
     
     _logger.i('Reset blacklist and user relays for new Mostro instance'); // Line 62

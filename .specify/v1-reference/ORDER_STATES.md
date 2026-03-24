@@ -6,7 +6,7 @@
 
 Mostro orders go through a well-defined lifecycle with 15 possible states. Each state is visually represented in the "My Trades" list with a colored status chip, and transitions occur based on actions by buyer, seller, or admin.
 
-> Para ver cómo se manifiestan estos estados en las pantallas de ejecución (botones disponibles, countdowns, widgets), consultar `.specify/v1-reference/TRADE_EXECUTION.md`.
+> To see how these states manifest in execution screens (available buttons, countdowns, widgets), see [TRADE_EXECUTION.md](./TRADE_EXECUTION.md).
 
 ## Order States Reference
 
@@ -31,7 +31,7 @@ Order has been created by a seller or buyer and is waiting for a counterparty to
 | `take-sell` | Buyer | `waiting-buyer-invoice` |
 | `take-buy` | Seller | `waiting-payment` |
 
-> Ver flujo detallado de toma de orden (UI + protocolo + navegación): `.specify/v1-reference/TAKE_ORDER.md`.
+> See detailed order taking flow (UI + protocol + navigation): [TAKE_ORDER.md](./TAKE_ORDER.md).
 | `cancel` | Creator | `canceled` |
 
 ---
