@@ -100,7 +100,7 @@ ListView.builder(
 
 **Spacing:** 100px bottom padding (allows FAB visibility), 6px top padding.
 
-**Tapping an order:** Navigates to `/take_sell/:orderId` or `/take_buy/:orderId` depending on the order type.
+**Tapping an order:** Navigates to `/take_sell/:orderId` or `/take_buy/:orderId` depending on the order type. Flujo completo en `.specify/v1-reference/TAKE_ORDER.md`.
 
 ### Pull to Refresh
 
@@ -231,6 +231,7 @@ User taps filter
 User taps order
   → context.push('/take_sell/$orderId') or '/take_buy/$orderId'
   → TakeOrderScreen
+  → (take flow detallado en .specify/v1-reference/TAKE_ORDER.md)
 
 User taps FAB
   → context.push('/add_order')
