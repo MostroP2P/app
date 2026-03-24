@@ -45,7 +45,7 @@ MostroApp
 |------|----------|---------|-------------|
 | `/` | `HomeScreen` | `home_screen.dart` | Libro de órdenes público |
 | `/welcome` | `WelcomeScreen` | `welcome_screen.dart` | Pantalla de bienvenida |
-| `/order_book` | `TradesScreen` | `trades_screen.dart` | My trades list (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
+| `/order_book` | `TradesScreen` | `trades_screen.dart` | My trades list (see `.specify/v1-reference/MY_TRADES.md`) |
 | `/trade_detail/:orderId` | `TradeDetailScreen` | `trade_detail_screen.dart` | Trade detail (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
 | `/chat_list` | `ChatRoomsScreen` | `chat_rooms_list.dart` | Lista de chats |
 | `/chat_room/:orderId` | `ChatRoomScreen` | `chat_room_screen.dart` | Chat de un trade |
@@ -377,7 +377,7 @@ CustomTransitionPage buildPageWithDefaultTransition<T>({
 | Bottom nav | [DRAWER_MENU.md](./DRAWER_MENU.md) |
 | Order creation | [.specify/v1-reference/ORDER_CREATION.md](./ORDER_CREATION.md) |
 | Take order | [.specify/v1-reference/TAKE_ORDER.md](./TAKE_ORDER.md) |
-| My trades | [.specify/v1-reference/TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
+| My trades | [.specify/v1-reference/MY_TRADES.md](./MY_TRADES.md) |
 | Trade detail | [.specify/v1-reference/TRADE_EXECUTION.md](./TRADE_EXECUTION.md) |
 | Auth | [AUTHENTICATION.md](./AUTHENTICATION.md) |
 | Sessions | [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) |

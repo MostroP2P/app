@@ -38,7 +38,8 @@
 | [ORDER_BOOK.md](./ORDER_BOOK.md) | Public order book vs My Trades, filters | Keep in Flutter |
 | [ORDER_CREATION.md](./ORDER_CREATION.md) | AddOrderScreen, formulario y flujo de creación de orden | Keep in Flutter (UI + flujo cliente) |
 | [TAKE_ORDER.md](./TAKE_ORDER.md) | TakeOrderScreen, rutas `/take_sell` y `/take_buy`, acciones `take-sell`/`take-buy` | Keep in Flutter (UI + flujo cliente) |
-| [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) | PayLightningInvoice, AddLightningInvoice, TradeDetail, acciones `pay-invoice`/`fiat-sent`/`release` + FSM en ejecución | UI en Flutter, lógica de estado en Rust |
+| [TRADE_EXECUTION.md](./TRADE_EXECUTION.md) | PayLightningInvoice, AddLightningInvoice, TradeDetail, protocol actions `pay-invoice`/`fiat-sent`/`release`, execution FSM | UI in Flutter, state machine in Rust |
+| [MY_TRADES.md](./MY_TRADES.md) | `/order_book` (TradesScreen), status filter, data providers, list items, pull-to-refresh, navigation | Keep in Flutter (UI + client flow) |
 | [DRAWER_MENU.md](./DRAWER_MENU.md) | Side drawer, bottom nav bar | Keep in Flutter |
 
 ### Core Architecture
