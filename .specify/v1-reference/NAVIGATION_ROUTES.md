@@ -66,8 +66,8 @@ MostroApp
 | `/add_invoice/:orderId` | `AddLightningInvoiceScreen` | `add_lightning_invoice_screen.dart` | Add Lightning invoice (see `.specify/v1-reference/TRADE_EXECUTION.md`) |
 | `/notifications` | `NotificationsScreen` | `notifications_screen.dart` | Notification history |
 | `/logs` | `LogsScreen` | `logs_screen.dart` | Diagnostic log |
-| `/wallet_settings` | `WalletSettingsScreen` | `wallet_settings_screen.dart` | Wallet settings |
-| `/connect_wallet` | `ConnectWalletScreen` | `connect_wallet_screen.dart` | Connect NWC wallet |
+| `/wallet_settings` | `WalletSettingsScreen` | `wallet_settings_screen.dart` | Wallet settings (see [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md)) |
+| `/connect_wallet` | `ConnectWalletScreen` | `connect_wallet_screen.dart` | Connect NWC wallet (see [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md)) |
 | `/notification_settings` | `NotificationSettingsScreen` | `notification_settings_screen.dart` | Notification preferences |
 
 ### Route Parameters
@@ -383,3 +383,4 @@ CustomTransitionPage buildPageWithDefaultTransition<T>({
 | Auth | [AUTHENTICATION.md](./AUTHENTICATION.md) |
 | Sessions | [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) |
 | Deep links Nostr | [NOSTR.md](./NOSTR.md) |
+| Wallet (NWC) | [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md) |

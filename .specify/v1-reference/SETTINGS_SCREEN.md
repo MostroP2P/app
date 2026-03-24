@@ -139,7 +139,9 @@
 - Shows NWC connection status
 - Connected: wallet name + balance
 - Disconnected: "Connect Wallet" button
-- Tap → navigates to wallet settings
+- Tap → navigates to `/wallet_settings`
+
+> See [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md) for full wallet connection details.
 
 ### 5. Relays Card
 
