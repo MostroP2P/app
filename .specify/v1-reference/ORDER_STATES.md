@@ -6,6 +6,8 @@
 
 Mostro orders go through a well-defined lifecycle with 15 possible states. Each state is visually represented in the "My Trades" list with a colored status chip, and transitions occur based on actions by buyer, seller, or admin.
 
+> Para ver cómo se manifiestan estos estados en las pantallas de ejecución (botones disponibles, countdowns, widgets), consultar `.specify/v1-reference/TRADE_EXECUTION.md`.
+
 ## Order States Reference
 
 ### 1. PENDING
