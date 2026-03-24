@@ -404,7 +404,21 @@ class BackupReminderNotifier extends StateNotifier<bool> {
 
 ---
 
-## Related Files
+---
+
+## Related Documentation
+
+### UI Specification
+
+For screen layouts, component styles, and UI implementation details, see: **[ACCOUNT_SCREEN.md](./ACCOUNT_SCREEN.md)**
+
+This document covers:
+- Screen layout and visual hierarchy
+- Component styling (cards, buttons, icons)
+- Mnemonic masking UI
+- Privacy mode radio buttons
+- Confirmation dialogs
+- Debug-only Trade Index section
 
 ### Core
 - `lib/features/key_manager/key_manager.dart`
