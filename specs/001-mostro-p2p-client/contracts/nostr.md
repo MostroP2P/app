@@ -134,9 +134,13 @@ any network attempt.
 
 **Timeout / retry**: The background subscription attempt times out
 after 30 seconds. If it fails, it is retried up to 3 times with
-exponential backoff. `NodeUnreachable` is emitted on
-`on_connection_state_changed()` after all retries are exhausted; it is
-NOT returned from this function (which has already returned).
+exponential backoff. After all retries are exhausted the new node's
+relay connections surface `RelayStatus.Error` via
+`on_relay_status_changed()`; if those relays were the only active ones,
+the overall `ConnectionState` transitions to `Offline` via
+`on_connection_state_changed()`. No separate `NodeUnreachable` event
+type is emitted — callers detect unreachability through the standard
+relay-status and connection-state streams.
 
 **Errors**: `InvalidPublicKey` (synchronous, format validation only).
 
