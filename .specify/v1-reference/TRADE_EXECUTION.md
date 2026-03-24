@@ -1,23 +1,23 @@
 # Trade Execution Specification (Mostro Mobile v1)
 
-> Flujo completo de ejecución de trades (sección 5), basado en el código real de Flutter/Dart.
+> Detailed reference for section 5 (TRADE EXECUTION) based on the real Flutter/Dart implementation.
 
-## Alcance
+## Scope
 
-Esta especificación cubre:
+This document covers:
 
-- Rutas `/pay_invoice/:orderId`, `/add_invoice/:orderId` y `/trade_detail/:orderId`
-- Pantallas `PayLightningInvoiceScreen`, `AddLightningInvoiceScreen` y `TradeDetailScreen`
-- Acciones de protocolo involucradas: `pay-invoice`, `add-invoice`, `hold-invoice-payment-accepted`, `fiat-sent`, `fiat-sent-ok`, `release`, `purchase-completed`, `dispute`
-- Transiciones de estado y botones mostrados según rol/estado (`OrderState`, `MostroFSM`)
-- Mecánica de hold invoices (NWC auto-pay, fallback manual, reintentos)
-- Actualización en tiempo real vía notifiers y manejo de errores/timeout
+- Routes `/pay_invoice/:orderId`, `/add_invoice/:orderId`, `/trade_detail/:orderId`
+- Screens `PayLightningInvoiceScreen`, `AddLightningInvoiceScreen`, `TradeDetailScreen`
+- Protocol actions involved: `pay-invoice`, `add-invoice`, `hold-invoice-payment-accepted`, `fiat-sent`, `fiat-sent-ok`, `release`, `purchase-completed`, `dispute`
+- Status transitions and role-based button availability (`OrderState`, `MostroFSM`)
+- Hold-invoice mechanics (NWC auto-pay, manual fallback, retries)
+- Real-time updates via notifiers, session handling, error and timeout behavior
 
 ---
 
-## Archivos fuente analizados
+## Source files reviewed
 
-### Pantallas y widgets
+### Screens & widgets
 - `lib/features/order/screens/pay_lightning_invoice_screen.dart`
 - `lib/shared/widgets/nwc_payment_widget.dart`
 - `lib/shared/widgets/pay_lightning_invoice_widget.dart`
@@ -28,7 +28,7 @@ Esta especificación cubre:
 - `lib/features/trades/widgets/trades_list.dart`
 - `lib/features/trades/widgets/trades_list_item.dart`
 
-### Estado, notifiers y servicios
+### State, notifiers & services
 - `lib/features/order/notifiers/order_notifier.dart`
 - `lib/features/order/notifiers/abstract_mostro_notifier.dart`
 - `lib/features/order/models/order_state.dart`
@@ -41,112 +41,113 @@ Esta especificación cubre:
 
 ---
 
-## 1) Entry points de Trade Execution
+## 1) Trade Execution entry points
 
-### Navegación declarada en `lib/core/app_routes.dart`
+### GoRouter configuration (`lib/core/app_routes.dart`)
 
-| Ruta | Builder | Escenario |
+| Route | Builder | Scenario |
 | --- | --- | --- |
-| `/pay_invoice/:orderId` | `PayLightningInvoiceScreen(orderId)` | Seller debe pagar la hold invoice emitida por Mostro tras `take-buy`. |
-| `/add_invoice/:orderId` | `AddLightningInvoiceScreen(orderId, lnAddress)` | Buyer debe subir su invoice (o confirmar lightning address) tras `take-sell`. |
-| `/trade_detail/:orderId` | `TradeDetailScreen(orderId)` | Vista central para ambos roles durante la ejecución (acciones, contador, botones). |
+| `/pay_invoice/:orderId` | `PayLightningInvoiceScreen(orderId)` | Seller has to pay the hold invoice emitted after `take-buy`. |
+| `/add_invoice/:orderId` | `AddLightningInvoiceScreen(orderId, lnAddress)` | Buyer has to provide their invoice (or confirm a Lightning Address) after `take-sell`. |
+| `/trade_detail/:orderId` | `TradeDetailScreen(orderId)` | Central view for both roles while the trade is active (actions, countdown, chat). |
 
-### Cómo se llega ahí
+### How users arrive here
 
-1. **Eventos de Mostro → navegación automática** (`AbstractMostroNotifier.handleEvent`):
-   - `Action.payInvoice` → `navProvider.go('/pay_invoice/$orderId')` para el seller.
-   - `Action.addInvoice` / `Action.waitingBuyerInvoice` → `navProvider.go('/add_invoice/$orderId')` para el buyer (con query `?lnAddress=` si hay lightning address por defecto).
-   - `Action.holdInvoicePaymentSettled`, `Action.released`, `Action.fiatSentOk`, disputas, etc. → `navProvider.go('/trade_detail/$orderId')` para mantener a ambos roles sincronizados.
-2. **Taps manuales** desde `TradeDetailScreen` (botones "Pagar invoice", "Agregar invoice", "Contactar") usan `context.push()` hacia las mismas rutas.
-3. **Deep links / notif**: cualquier `GoRoute` se resuelve igual si se abre desde un enlace.
+1. **Mostro events → automatic navigation** (`AbstractMostroNotifier.handleEvent`):
+   - `Action.payInvoice` → `navProvider.go('/pay_invoice/$orderId')` for the seller.
+   - `Action.addInvoice` / `Action.waitingBuyerInvoice` → `navProvider.go('/add_invoice/$orderId')` for the buyer (with `?lnAddress=` when defaults exist).
+   - `Action.holdInvoicePaymentSettled`, `Action.released`, `Action.fiatSentOk`, dispute/admin events → `navProvider.go('/trade_detail/$orderId')` to keep both counterparts in sync.
+2. **Manual taps** from `TradeDetailScreen` ("Pay invoice", "Add invoice", "Contact") call `context.push(...)` to the same routes.
+3. **Deep links/notifications** reuse the same routes through `GoRouter`.
 
 ---
 
 ## 2) Seller flow — `PayLightningInvoiceScreen`
 
-Archivo: `lib/features/order/screens/pay_lightning_invoice_screen.dart`
+File: `lib/features/order/screens/pay_lightning_invoice_screen.dart`
 
-- Observa `orderNotifierProvider(orderId)` para obtener `paymentRequest.lnInvoice`, monto en sats (`order.amount`) y fiat (`order.fiatAmount` + `order.fiatCode`).
-- Determina si hay conexión NWC (`nwcProvider`) y si el usuario aún no forzó modo manual (`_manualMode`).
+- Watches `orderNotifierProvider(orderId)` to fetch `paymentRequest.lnInvoice`, sats (`order.amount`), and fiat info (`order.fiatAmount`, `order.fiatCode`).
+- Uses `nwcProvider` to detect NWC connectivity and `_manualMode` to switch UI modes.
 
-### Autopago NWC
+### NWC auto-pay
 
 ```dart
-def final showNwcPayment = isNwcConnected && !_manualMode && lnInvoice.isNotEmpty;
+final showNwcPayment = isNwcConnected && !_manualMode && lnInvoice.isNotEmpty;
 ```
 
-Cuando `true`, renderiza:
+If `true`, the screen renders:
 
-1. Mensaje descriptivo con monto fiat/sats.
-2. `NwcPaymentWidget` (auto-paga la hold invoice). Callbacks clave:
-   - `onPaymentSuccess`: navega a `/` y espera que Mostro emita `hold-invoice-payment-accepted` → `TradeDetailScreen` se actualizará sola.
-   - `onFallbackToManual`: setea `_manualMode = true` para mostrar la UI manual.
-3. Botón **Cancelar** → `orderNotifier.cancelOrder()` y redirige a `/`.
+1. A summary text with fiat/sats amounts.
+2. `NwcPaymentWidget` to send the hold invoice automatically.
+   - `onPaymentSuccess`: `context.go('/')` and wait for Mostro to emit `hold-invoice-payment-accepted` (which will open `TradeDetail`).
+   - `onFallbackToManual`: sets `_manualMode = true` to reveal the manual UI.
+3. A red **Cancel** button calling `orderNotifier.cancelOrder()` followed by `context.go('/')`.
 
-### Pago manual
+### Manual payment mode
 
-Cuando no hay NWC o se fuerza fallback:
+When NWC is not connected or the user opts out:
 
-- Muestra `PayLightningInvoiceWidget` (teclado numérico/QR + estatus de invoice).
-- `onSubmit`: tras confirmar pago, navega a `/` (Mostro actualizará estado).
-- `onCancel`: igual que arriba, invoca `cancelOrder()`.
+- Displays `PayLightningInvoiceWidget` (QR + actions + copy buttons).
+- `onSubmit`: once the user confirms the payment, navigate to `/` and let Mostro update the state.
+- `onCancel`: same as above, invokes `cancelOrder()` before leaving.
 
-### Estado/errores relevantes
+### State notes
 
-- Si `paymentRequest` no existe aún, la pantalla queda vacía (no se muestran botones). Mostro volverá a pedir la pantalla cuando reciba `pay-invoice` o `waiting-seller-to-pay`.
-- `OrderState.status` pasa a `waiting-payment` durante esta fase (`OrderState._getStatusFromAction`).
+- If the `PaymentRequest` has not arrived yet, the UI remains empty (Mostro will resend `pay-invoice` once ready).
+- `OrderState.status` stays in `waiting-payment` during this phase (see `OrderState._getStatusFromAction`).
 
 ---
 
 ## 3) Buyer flow — `AddLightningInvoiceScreen`
 
-Archivo: `lib/features/order/screens/add_lightning_invoice_screen.dart`
+File: `lib/features/order/screens/add_lightning_invoice_screen.dart`
 
-- Consume `mostroOrderStreamProvider(orderId)` para refrescar datos de la orden (amount, fiat, métodos).
-- Lee `nwcProvider` y `settingsProvider` para decidir entre **Lightning Address confirm**, **NWC invoice** o **entrada manual**.
+- Streams the latest order payload via `mostroOrderStreamProvider(orderId)` (amount, fiat data, methods).
+- Reads `nwcProvider` and `settingsProvider` to decide between Lightning Address confirmation, NWC invoice generation, or manual entry.
 
-### Prioridad de flujos
+### Priority ladder
 
-1. **Lightning Address** (`lnAddress` en la ruta o default del usuario):
-   - Renderiza `LnAddressConfirmationWidget` con `S.of(context)!.lnAddressConfirmHeader(orderId)`.
-   - `onConfirm` → `_submitLnAddress()` llama `orderNotifier.sendInvoice(orderId, lnAddress, null)` y regresa a `/`.
+1. **Lightning Address confirmation** (route param or default setting):
+   - Renders `LnAddressConfirmationWidget` with `S.of(context)!.lnAddressConfirmHeader(orderId)`.
+   - `onConfirm` → `_submitLnAddress()` → `orderNotifier.sendInvoice(orderId, lnAddress, null)` → `context.go('/')`.
    - `onManualFallback` → `_manualMode = true`.
-2. **NWC Invoice** (wallet conectada, no hay LN address, amount > 0):
-   - `NwcInvoiceWidget` genera invoice desde la wallet.
+2. **NWC invoice generation** (wallet connected, no LN address, amount > 0):
+   - Uses `NwcInvoiceWidget` to create an invoice in the wallet.
    - `onInvoiceConfirmed(invoice)` → `_submitInvoice(invoice, amount)`.
    - `onFallbackToManual` → `_manualMode = true`.
-3. **Entrada manual** (`AddLightningInvoiceWidget`):
-   - `onSubmit`: valida `invoiceController.text`, luego `orderNotifier.sendInvoice`.
-   - `onCancel`: `orderNotifier.cancelOrder()`.
+3. **Manual entry** (`AddLightningInvoiceWidget`):
+   - `onSubmit`: validates `invoiceController.text`, then `orderNotifier.sendInvoice`.
+   - `onCancel`: `orderNotifier.cancelOrder()` and stay on `/`.
 
-### Reintentos y payment failed
+### Payment failure retries
 
-- `AbstractMostroNotifier._handleAddInvoiceWithAutoLightningAddress` evita usar auto LN address si el estado actual es `Status.paymentFailed` (obliga a flujo manual para evitar loops de pago fallido).
-- Errores (`catch (e)`) muestran `SnackBarHelper.showTopSnackBar` con `S.of(context)!.failedToUpdateInvoice`.
+- `AbstractMostroNotifier._handleAddInvoiceWithAutoLightningAddress` prevents auto Lightning Address usage when `state.status == Status.paymentFailed`; the user must re-enter the invoice manually.
+- Errors are surfaced via `SnackBarHelper.showTopSnackBar` with `failedToUpdateInvoice` messages.
 
 ---
 
-## 4) TradeDetailScreen — vista central de ejecución
+## 4) `TradeDetailScreen` — central trade view
 
-Archivo: `lib/features/trades/screens/trade_detail_screen.dart`
+File: `lib/features/trades/screens/trade_detail_screen.dart`
 
 ### Data sources
 
-- `orderNotifierProvider(orderId)` → `OrderState` (status, action, invoice, peer, dispute).
-- `sessionProvider(orderId)` → rol (`Role.buyer` o `Role.seller`) + peer.
-- `eventProvider(orderId)` → Nostr event original para metadata (premium, amounts).
-- `orderRepositoryProvider` → `MostroInstance` (horas de expiración) para countdown.
-- `orderMessagesStreamProvider` → historial de mensajes (se usa en `MostroMessageDetail`).
+- `orderNotifierProvider(orderId)` → `OrderState` (status, last action, payment request, dispute, peer).
+- `sessionProvider(orderId)` → user role (`Role.buyer` or `Role.seller`).
+- `eventProvider(orderId)` → public order metadata (premium, fiat range, etc.).
+- `orderRepositoryProvider` → `MostroInstance` (`expirationHours`) for countdown timers.
+- `orderMessagesStreamProvider(orderId)` → feed for `MostroMessageDetail`.
 
-### UI principal
+### Layout
 
-1. **Amount & Order ID cards** (`_buildSellerAmount`, `OrderIdCard`).
-2. **Detalles dinámicos**: reputación del creador o `MostroMessageDetail` según el estado.
-3. **Countdown** (`DynamicCountdownWidget`) configurado con `order.expiresAt`. Cambia de color cuando se acerca a timeout.
-4. **Botonera** construida por `_buildActionButtons` + `_buildButtonRow`:
-   - Usa `OrderState.getActions(session.role)` para obtener acciones habilitadas.
-   - Cada acción se renderiza con `MostroReactiveButton`, que escucha `mostroMessageStreamProvider` para resetear loading/mostrar check.
-   - Ejemplos:
+1. Amount & order ID cards (`_buildSellerAmount`, `OrderIdCard`).
+2. Either creator reputation info (pending maker) or `MostroMessageDetail`.
+3. `_CountdownWidget` (pending / waiting states, color-coded as time elapses).
+4. Button row = `_buildActionButtons` + `_buildButtonRow`:
+   - Pulls allowed actions from `OrderState.getActions(session.role)`.
+   - Each button = `MostroReactiveButton`, which listens to `mostroMessageStreamProvider` to stop the spinner or show success.
+
+Example button:
 
 ```dart
 MostroReactiveButton(
@@ -158,87 +159,84 @@ MostroReactiveButton(
 )
 ```
 
-### Acciones clave por rol
+### Key actions by role
 
-| Acción UI | Rol | Estado necesario | Callback |
+| UI Action | Role | Required status | Callback |
 | --- | --- | --- | --- |
-| **Pagar invoice** | Seller | `Status.waitingPayment` con `paymentRequest` presente | `context.push('/pay_invoice/:id')` |
-| **Agregar invoice** | Buyer | `Status.waitingBuyerInvoice` | `context.push('/add_invoice/:id')` |
-| **FIAT ENVIADO** | Buyer | `Status.active` | `orderNotifier.sendFiatSent()` |
-| **LIBERAR** | Seller | `Status.fiatSent` o `Status.active` (según `OrderState.actions`) | `orderNotifier.releaseOrder()` tras diálogo de confirmación |
-| **Cancelar** | Ambos | Depende del estado; muestra diálogo y llama `orderNotifier.cancelOrder()` |
-| **Disputa** | Ambos | `Status.active`, `Status.fiatSent`, etc. | Crea disputa vía `disputeRepositoryProvider.createDispute` |
-| **Contactar** | Ambos | Estados cooperativos/disputa | `context.push('/chat_room/:id')` |
+| **Pay invoice** | Seller | `Status.waitingPayment` and `paymentRequest` present | `context.push('/pay_invoice/:id')` |
+| **Add invoice** | Buyer | `Status.waitingBuyerInvoice` | `context.push('/add_invoice/:id')` |
+| **Fiat sent** | Buyer | `Status.active` | `orderNotifier.sendFiatSent()` |
+| **Release** | Seller | `Status.fiatSent` (or `active` if FSM allows) | Confirm dialog → `orderNotifier.releaseOrder()` |
+| **Cancel** | Both | Depends on status/action | Confirm dialog → `orderNotifier.cancelOrder()` |
+| **Dispute** | Both | `Status.active` / `fiatSent` / `dispute` | Confirm dialog → `disputeRepositoryProvider.createDispute(orderId)` |
+| **Contact** | Both | Cooperative cancel/dispute contexts | `context.push('/chat_room/:id')` |
 
-### Botones adicionales
-
-- `VIEW DISPUTE` aparece si `tradeState.action` ∈ {`dispute-initiated-by-*`, `admin-took-dispute`} y existe `tradeState.dispute?.disputeId`.
-- `Status.cooperativelyCanceled` fuerza mostrar botón de contacto aunque `send-dm` no esté en las acciones actuales.
+Additional buttons:
+- `VIEW DISPUTE` appears whenever the last action is `dispute-*` or `admin-took-dispute` and `tradeState.dispute?.disputeId` exists.
+- `Status.cooperativelyCanceled` forces the "Contact" button even if `send-dm` is not part of the action set.
 
 ---
 
-## 5) Mapeo de acciones ↔ estados
+## 5) Action ↔ status mapping
 
-Se deriva de `OrderState._getStatusFromAction()` + `MostroFSM`:
+Derived from `OrderState._getStatusFromAction()` and `MostroFSM`:
 
-| Evento Mostro | Estado resultante | Descripción |
+| Mostro event | Resulting status | Notes |
 | --- | --- | --- |
-| `take-buy` | `waiting-payment` | Seller tomó orden de compra, debe pagar hold invoice. |
-| `take-sell` | `waiting-buyer-invoice` | Buyer tomó orden de venta, debe subir invoice. |
-| `pay-invoice` / `waiting-seller-to-pay` | `waiting-payment` | Seller ve pantalla de pago. |
-| `add-invoice` / `waiting-buyer-invoice` | `waiting-buyer-invoice` | Buyer ve pantalla de invoice (auto LN addr si aplica). |
-| `hold-invoice-payment-accepted` | `active` | Hold invoice pagada, chat habilitado, ambos roles pasan a TradeDetail. |
-| `fiat-sent` / `fiat-sent-ok` | `fiat-sent` | Buyer declaró pago fiat; seller habilita botón **LIBERAR**. |
-| `release` / `purchase-completed` / `hold-invoice-payment-settled` | `success` / `settled-hold-invoice` | Fondos liberados; `TradeDetail` muestra botón **CALIFICAR**. |
-| `payment-failed` | `payment-failed` | Mostro reintenta: buyer debe reenviar invoice manualmente, seller vuelve a `pay-invoice` tras nuevo request. |
-| `cooperative-cancel-*` | `cooperatively-canceled` → `canceled` | Botones muestran estado de cancelación pendiente. |
-| `dispute-*`, `admin-*` | `dispute`, `settled-by-admin`, `canceled-by-admin` | TradeDetail fuerza botón "Ver disputa" y restringe otras acciones. |
+| `take-buy` | `waiting-payment` | Seller takes a buy order → must pay hold invoice. |
+| `take-sell` | `waiting-buyer-invoice` | Buyer takes a sell order → must upload invoice. |
+| `pay-invoice`, `waiting-seller-to-pay` | `waiting-payment` | Forces seller into `PayLightningInvoiceScreen`. |
+| `add-invoice`, `waiting-buyer-invoice` | `waiting-buyer-invoice` | Forces buyer into `AddLightningInvoiceScreen`. |
+| `hold-invoice-payment-accepted` | `active` | Hold invoice settled; chat + actions enabled. |
+| `fiat-sent`, `fiat-sent-ok` | `fiat-sent` | Buyer declared fiat sent; seller gains **Release** button. |
+| `release`, `purchase-completed`, `hold-invoice-payment-settled` | `success` / `settled-hold-invoice` | Completion path prior to rating. |
+| `payment-failed` | `payment-failed` | Auto retries + manual invoice re-entry. |
+| `cooperative-cancel-*` | `cooperatively-canceled` → `canceled` | Pending cooperative cancel, then terminal state. |
+| `dispute-*`, `admin-*` | `dispute`, `settled-by-admin`, `canceled-by-admin` | TradeDetail locks down to dispute UI. |
 
-`MostroFSM.nextStatus()` también se usa para verificar que solo se expongan acciones válidas por rol (p. ej. buyer nunca ve **LIBERAR**).
-
----
-
-## 6) Actualización en tiempo real y manejo de sesiones
-
-### OrderNotifier (`lib/features/order/notifiers/order_notifier.dart`)
-
-- Suscribe `mostroMessageStreamProvider(orderId)` y mantiene `OrderState` sincronizado (incluye `paymentRequest`, `peer`, `dispute`).
-- Crea sesiones (`sessionNotifier.newSession`) al tomar orden y almacena el rol.
-- Expone métodos para UI: `sendInvoice`, `payInvoice` (vía `mostroService`), `sendFiatSent`, `releaseOrder`, `disputeOrder`, `cancelOrder`.
-
-### AbstractMostroNotifier (`abstract_mostro_notifier.dart`)
-
-Responsable de side-effects al recibir eventos:
-
-- Navegación automática (`navProvider.go(...)`) según la acción recibida.
-- `startSessionTimeoutCleanup` (10 s) para limpiar sesiones si Mostro no responde al take.
-- Cancela la sesión y muestra notificación si Mostro envía `canceled` (timeout/expiración).
-- Detecta `hold-invoice-payment-accepted` para poblar `session.peer` (clave para chat).
-- En `paymentFailed`, marca estado y obliga a buyer a flujo manual (no auto LN address).
-
-### Trade updates / Deck
-
-- `trades_screen.dart` lista mis trades (`filteredTradesWithOrderStateProvider`). Cada item abre `/trade_detail/:orderId` usando `context.push`.
-- `TradesListItem` muestra `StatusChip` + `RoleChip` calculados en tiempo real (`orderNotifierProvider`).
+`MostroFSM.nextStatus()` is used to ensure the UI never renders actions invalid for the user’s role (e.g., buyers never see **Release**).
 
 ---
 
-## 7) Manejo de errores, timeouts y disputas
+## 6) Real-time updates & session handling
 
-| Escenario | Qué hace la app |
+### `OrderNotifier`
+
+- Subscribes to `mostroMessageStreamProvider(orderId)` and keeps `OrderState` in sync (including `paymentRequest`, `peer`, `dispute`).
+- Creates sessions via `sessionNotifier.newSession` when a take is initiated, storing the role and peer info.
+- Exposes methods consumed by the UI: `sendInvoice`, `sendFiatSent`, `releaseOrder`, `disputeOrder`, `cancelOrder`, etc.
+
+### `AbstractMostroNotifier`
+
+- Dispatches navigation (`navProvider.go`) based on incoming actions.
+- Starts 10s session timeouts (`startSessionTimeoutCleanup`) to clean up failed takes.
+- Deletes sessions and shows notifications when Mostro emits `canceled` (expiration, cooperative cancel, etc.).
+- Detects `hold-invoice-payment-accepted` to populate `session.peer` and enable chat.
+- Forces manual invoice entry when `paymentFailed` is active.
+
+### Trades overview
+
+- `/order_book` lists the user’s trades via `filteredTradesWithOrderStateProvider`.
+- `TradesListItem` renders status/role chips from `orderNotifierProvider(orderId)` and navigates to `/trade_detail/:orderId`.
+
+---
+
+## 7) Errors, timeouts, and disputes
+
+| Scenario | App behavior |
 | --- | --- |
-| **Payment timeout / cancelación automática** | `OrderNotifier._subscribeToPublicEvents` escucha `orderEventsProvider`; si el estado público pasa a `canceled` y el usuario era maker (`Status.pending`), elimina la sesión y muestra notificación `orderCanceled`. |
-| **Session timeout (taker no recibe respuesta)** | `AbstractMostroNotifier.startSessionTimeoutCleanup` muestra snackbar `sessionTimeoutMessage` y vuelve a `/`. |
-| **Payment failed (hold invoice)** | Mostro envía `Action.paymentFailed`; `OrderState` entra en `Status.paymentFailed`. Buyer solo ve botón **Agregar invoice**; seller solo ve **Pagar invoice** hasta que Mostro reinstala la hold invoice. |
-| **Disputas** | Botón **Disputa** abre diálogo → `disputeRepositoryProvider.createDispute`. Una vez creada, `TradeDetail` muestra "Ver disputa" y `chat_room` incluye admins cuando llega `admin-took-dispute`. |
-| **Cancelaciones cooperativas** | Cuando uno inicia, el otro ve botón gris "Cancelación pendiente" + botón "Contactar" para coordinar.
-| **Errores al enviar invoice/pago** | UI usa `SnackBarHelper.showTopSnackBar` con mensajes localizados y mantiene al usuario en la misma pantalla.
+| Maker-side expiration | `OrderNotifier._subscribeToPublicEvents` watches `orderEventsProvider`; when a pending maker order turns `canceled`, it deletes the session and posts `orderCanceled`. |
+| Taker timeout (no response within 10s) | `startSessionTimeoutCleanup` fires, shows `sessionTimeoutMessage`, and navigates home. |
+| Hold invoice payment failure | Mostro sends `payment-failed`; status switches to `paymentFailed`, buyers only see **Add invoice**, sellers only **Pay invoice** until a new request arrives. |
+| Disputes | "Dispute" button triggers `disputeRepositoryProvider.createDispute`. Once a dispute exists, the UI shows "View dispute" and `/chat_room` includes admins after `admin-took-dispute`. |
+| Cooperative cancel | Pending cancel renders grey button (disabled) + "Contact" button to coordinate. |
+| Invoice/payment errors | UI surfaces `SnackBarHelper.showTopSnackBar` messages but keeps the user on the same screen. |
 
 ---
 
 ## 8) Cross-references
 
-- `.specify/v1-reference/TAKE_ORDER.md` → sección "Navegación posterior" debe enlazar aquí para la fase posterior a `Take`.
-- `.specify/v1-reference/ORDER_STATES.md` → transiciones de `waiting-payment`, `active`, `fiat-sent`, `success` referencian este documento.
-- `.specify/v1-reference/NAVIGATION_ROUTES.md` → filas de `/pay_invoice`, `/add_invoice`, `/trade_detail` apuntan a este spec.
-- `.specify/v1-reference/README.md` → agregar entrada "TRADE_EXECUTION.md" en el índice.
+- `.specify/v1-reference/TAKE_ORDER.md` — links here as soon as the take completes.
+- `.specify/v1-reference/ORDER_STATES.md` — references this spec for execution-state transitions.
+- `.specify/v1-reference/NAVIGATION_ROUTES.md` — routes `/pay_invoice`, `/add_invoice`, `/trade_detail`, `/order_book` point here.
+- `.specify/v1-reference/README.md` — includes this document in the index (screens & navigation).

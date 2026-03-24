@@ -278,9 +278,9 @@ En take flow, `AbstractMostroNotifier.handleEvent(...)` navega según acción en
 - `Action.waitingSellerToPay` o `Action.waitingBuyerInvoice` (cuando aplica) → `/trade_detail/:orderId`
 - `Action.fiatSentOk`, `Action.released`, `Action.purchaseCompleted`, `Action.adminSettled`, etc. → `/trade_detail/:orderId`
 
-> Para el detalle completo de lo que ocurre DESPUÉS de estas redirecciones (pantallas `/pay_invoice`, `/add_invoice`, `/trade_detail` y botones de ejecución), ver `.specify/v1-reference/TRADE_EXECUTION.md`.
+> For the full description of what happens **after** these redirects (screens `/pay_invoice`, `/add_invoice`, `/trade_detail` plus execution buttons), see `.specify/v1-reference/TRADE_EXECUTION.md`.
 >
-> Ese documento describe los flujos buyer/seller, botones reactivos, estados y acciones válidas en la ejecución del trade.
+> That document details the buyer/seller flows, reactive buttons, valid actions, and state transitions during trade execution.
 
 ---
 
