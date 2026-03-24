@@ -29,6 +29,15 @@
 
 ## Document Index
 
+### Screens & Navigation
+
+| Document | Description | V2 Relevance |
+|----------|-------------|--------------|
+| [HOME_SCREEN.md](./HOME_SCREEN.md) | Home screen, order book, filters, FAB | Keep in Flutter (UI) |
+| [NAVIGATION_ROUTES.md](./NAVIGATION_ROUTES.md) | GoRouter routes, deep links, redirects | Adapt navigation for Rust core |
+| [ORDER_BOOK.md](./ORDER_BOOK.md) | Public order book vs My Trades, filters | Keep in Flutter |
+| [DRAWER_MENU.md](./DRAWER_MENU.md) | Side drawer, bottom nav bar | Keep in Flutter |
+
 ### Core Architecture
 
 | Document | Description | V2 Relevance |
@@ -45,6 +54,10 @@
 | [P2P_CHAT_SYSTEM.md](./P2P_CHAT_SYSTEM.md) | Encrypted chat, sharedKey, ECDH | **CRITICAL** - Move to Rust |
 | [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md) | Nostr Wallet Connect integration | Move to Rust |
 | [ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md](./ENCRYPTED_IMAGE_MESSAGING_IMPLEMENTATION.md) | ChaCha20-Poly1305, Blossom | Crypto in Rust, upload in Flutter |
+| [AUTHENTICATION.md](./AUTHENTICATION.md) | Auth flow, biometric unlock | Adapt for Rust key management |
+| [ACCOUNT_SCREEN.md](./ACCOUNT_SCREEN.md) | Account screen, mnemonic backup | Reference from navigation |
+| [SETTINGS_SCREEN.md](./SETTINGS_SCREEN.md) | Settings screen, preferences | Keep in Flutter |
+| [ORDER_STATES.md](./ORDER_STATES.md) | Order status enum and values | Move to Rust |
 
 ### Platform & Infrastructure
 

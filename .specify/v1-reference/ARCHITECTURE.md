@@ -22,7 +22,7 @@ Mostro Mobile is a sophisticated peer-to-peer Bitcoin trading application built 
 lib/
 ├── core/                    # Central configuration and FSM
 │   ├── app.dart            # Main application configuration
-│   ├── app_routes.dart     # Navigation routing
+│   ├── app_routes.dart     # Navigation routing (see NAVIGATION_ROUTES.md)
 │   ├── app_theme.dart      # UI theming
 │   ├── config.dart         # Global configuration
 │   ├── mostro_fsm.dart     # Order state machine
@@ -30,7 +30,7 @@ lib/
 ├── features/               # Feature-based organization
 │   ├── auth/              # Authentication and registration
 │   ├── chat/              # Peer-to-peer messaging
-│   ├── home/              # Order book and dashboard
+│   ├── home/              # Order book and dashboard (see HOME_SCREEN.md)
 │   ├── key_manager/       # Cryptographic key management
 │   ├── mostro/            # Mostro protocol integration
 │   ├── order/             # Order creation and management
@@ -468,7 +468,7 @@ The project uses extensive code generation:
 ```
 # Core Configuration
 lib/core/config.dart                 # Global app configuration
-lib/core/app_routes.dart            # Navigation routing
+lib/core/app_routes.dart            # Navigation routing (see NAVIGATION_ROUTES.md)
 lib/core/mostro_fsm.dart           # Order state machine
 
 # Service Layer
