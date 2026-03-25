@@ -37,28 +37,33 @@ The client will subscribe to exchange rate events with the following structure:
     ["published_at", "1732546800"],
     ["source", "yadio"]
   ],
-  "content": "{\"USD\": 50000.0, \"EUR\": 45000.0, \"VES\": 850000000.0, \"ARS\": 105000000.0, ...}",
+  "content": "{\"BTC\": {\"USD\": 50000.0, \"EUR\": 45000.0, \"VES\": 850000000.0, \"ARS\": 105000000.0, ...}}",
   "sig": "..."
 }
 ```
 
 ### Content Format
 
-The `content` field is a JSON-encoded string with BTC prices in fiat currencies:
+The `content` field is a JSON-encoded string matching Yadio API format:
 
 ```json
 {
-  "USD": 50000.0,
-  "EUR": 45000.0,
-  "VES": 850000000.0,
-  "ARS": 105000000.0,
-  ...
+  "BTC": {
+    "BTC": 1,
+    "USD": 50000.0,
+    "EUR": 45000.0,
+    "VES": 850000000.0,
+    "ARS": 105000000.0,
+    "..."
+  }
 }
 ```
 
-**Rate semantics:** Each value represents the price of 1 BTC in that fiat currency.
+**Format:** Identical to Yadio `/exrates/BTC` response.
 
-**Example:** `"USD": 50000.0` means 1 BTC = 50,000 USD.
+**Rate semantics:** Each value under `"BTC"` represents the price of 1 BTC in that currency.
+
+**Example:** `"BTC": {"USD": 50000.0}` means 1 BTC = 50,000 USD.
 
 ---
 
