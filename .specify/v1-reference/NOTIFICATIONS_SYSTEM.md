@@ -37,7 +37,7 @@ static NotificationType getNotificationTypeFromAction(Action action) {
 ### 2. Services Layer
 
 #### PushNotificationService (`lib/services/push_notification_service.dart`)
-- **Purpose:** Register device tokens with Mostro push server (plaintext HTTP in Phase 3).
+- **Purpose:** Register device tokens with Mostro push server (HTTPS transport with plaintext registration fields).
 - **Key Methods:**
   - `initialize()` — health check against push server
   - `registerToken(tradePubkey)` — POST `/api/register` with FCM token + trade pubkey + platform
@@ -186,7 +186,7 @@ When user disables push notifications:
 ## Security & Privacy
 
 ### Phase 3 (Current)
-- **Token Registration:** Plaintext HTTP (encrypted in transit via HTTPS).
+- **Token Registration:** HTTPS transport with plaintext registration fields.
 - **Push Payload:** Silent data message with encrypted NIP-59 gift wrap.
 - **Decryption:** Client-side using trade key (server never sees plaintext content).
 
