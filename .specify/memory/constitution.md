@@ -109,9 +109,8 @@
 
 These are explicitly out of scope for the initial release:
 
-- Multiple simultaneous trades (one active trade at a time)
 - Fiat payment integration
-- Built-in Lightning wallet (use external wallet)
+- Built-in Lightning wallet (use NWC or external wallet)
 
 ## Governance
 
@@ -129,4 +128,4 @@ These are explicitly out of scope for the initial release:
 - Complexity beyond what these principles allow MUST be explicitly
   justified and documented.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-03-22
+**Version**: 1.0.0 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-03-25
