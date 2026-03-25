@@ -22,7 +22,7 @@ Mostro v2 client will fetch Bitcoin/fiat exchange rates from Nostr relays instea
 The client will subscribe to exchange rate events with the following structure:
 
 **Kind:** `30078` (Application-specific data)  
-**d tag:** `"rates"`  
+**d tag:** `"mostro-rates"`  
 **Publisher:** Mostro daemon pubkey (same pubkey that signs order events)
 
 #### Example Event
@@ -33,7 +33,7 @@ The client will subscribe to exchange rate events with the following structure:
   "pubkey": "82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390",
   "created_at": 1732546800,
   "tags": [
-    ["d", "rates"],
+    ["d", "mostro-rates"],
     ["updated_at", "1732546800"],
     ["source", "yadio"]
   ],
@@ -83,8 +83,8 @@ fn verify_exchange_rate_event(event: &Event, mostro_pubkey: &PublicKey) -> Resul
         return Err("Invalid event kind");
     }
     
-    if !event.tags.iter().any(|t| t[0] == "d" && t[1] == "rates") {
-        return Err("Missing d:rates tag");
+    if !event.tags.iter().any(|t| t[0] == "d" && t[1] == "mostro-rates") {
+        return Err("Missing d:mostro-rates tag");
     }
     
     // CRITICAL: Verify signer is the connected Mostro instance
@@ -138,7 +138,7 @@ final filter = Filter(
   kinds: [30078],
   authors: [mostroPubkey],  // ONLY accept events from Mostro
   tags: {
-    '#d': ['rates'],
+    '#d': ['mostro-rates'],
   },
 );
 
