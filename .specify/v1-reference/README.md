@@ -29,6 +29,12 @@
 
 ## Document Index
 
+### Critical Reference
+
+| Document | Description | V2 Relevance |
+|----------|-------------|--------------|
+| [CURRENT_FEATURES.md](./CURRENT_FEATURES.md) | Features from v1 that must be preserved in v2 (NWC, encrypted messaging, dispute system, etc.) | **READ FIRST** - defines core feature set |
+
 ### Screens & Navigation
 
 | Document | Description | V2 Relevance |
