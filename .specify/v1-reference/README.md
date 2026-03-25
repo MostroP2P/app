@@ -74,6 +74,9 @@
 | [FCM_IMPLEMENTATION.md](./FCM_IMPLEMENTATION.md) | Push notifications, background service | Keep in Flutter (platform-specific) |
 | [RELAY_SYNC_IMPLEMENTATION.md](./RELAY_SYNC_IMPLEMENTATION.md) | Relay management, kind 10002 | Move relay logic to Rust |
 | [LOGGING_SYSTEM.md](./LOGGING_SYSTEM.md) | In-memory logging with privacy sanitization, export, background isolate support | Keep in Flutter (platform-specific UI + isolate integration) |
+| [MOSTRO_SERVICE.md](./MOSTRO_SERVICE.md) | Mostro protocol communication (gift wrap, message routing, order publishing) | Move core logic to Rust; Flutter handles UI integration |
+| [EXCHANGE_SERVICE.md](./EXCHANGE_SERVICE.md) | Bitcoin/fiat exchange rate fetching (abstract service + Yadio implementation) | Keep in Flutter (HTTP API integration) |
+| [ENCRYPTION_SERVICE.md](./ENCRYPTION_SERVICE.md) | ChaCha20-Poly1305 AEAD encryption for local storage and P2P messaging | Move to Rust (crypto should be platform-agnostic) |
 
 ## Key Differences: V1 vs V2
 
