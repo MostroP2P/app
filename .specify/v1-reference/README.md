@@ -64,6 +64,7 @@
 | [ACCOUNT_SCREEN.md](./ACCOUNT_SCREEN.md) | Account screen, mnemonic backup | Reference from navigation |
 | [SETTINGS_SCREEN.md](./SETTINGS_SCREEN.md) | Settings hub (language, fiat, relays, wallet, lightning address) | Keep in Flutter |
 | [NOTIFICATION_SETTINGS.md](./NOTIFICATION_SETTINGS.md) | Push notification toggles, sound/vibration prefs | Keep in Flutter |
+| [NOTIFICATIONS_SYSTEM.md](./NOTIFICATIONS_SYSTEM.md) | Complete notification architecture (in-app + push + FCM) | FCM/platform handling in Flutter; event/domain mapping shared with Rust core (where applicable). |
 | [ORDER_STATES.md](./ORDER_STATES.md) | Order status enum and values | Move to Rust |
 
 ### Platform & Infrastructure
