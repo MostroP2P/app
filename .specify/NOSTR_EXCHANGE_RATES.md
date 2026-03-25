@@ -34,7 +34,7 @@ The client will subscribe to exchange rate events with the following structure:
   "created_at": 1732546800,
   "tags": [
     ["d", "mostro-rates"],
-    ["updated_at", "1732546800"],
+    ["published_at", "1732546800"],
     ["source", "yadio"]
   ],
   "content": "{\"USD\": 50000.0, \"EUR\": 45000.0, \"VES\": 850000000.0, \"ARS\": 105000000.0, ...}",
