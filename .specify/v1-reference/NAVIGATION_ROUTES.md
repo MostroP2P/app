@@ -68,7 +68,7 @@ MostroApp
 | `/logs` | `LogsScreen` | `logs_screen.dart` | Diagnostic log |
 | `/wallet_settings` | `WalletSettingsScreen` | `wallet_settings_screen.dart` | Wallet settings (see [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md)) |
 | `/connect_wallet` | `ConnectWalletScreen` | `connect_wallet_screen.dart` | Connect NWC wallet (see [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md)) |
-| `/notification_settings` | `NotificationSettingsScreen` | `notification_settings_screen.dart` | Notification preferences |
+| `/notification_settings` | `NotificationSettingsScreen` | `notification_settings_screen.dart` | Notification preferences (see [NOTIFICATION_SETTINGS.md](./NOTIFICATION_SETTINGS.md)) |
 
 ### Route Parameters
 
@@ -384,3 +384,4 @@ CustomTransitionPage buildPageWithDefaultTransition<T>({
 | Sessions | [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) |
 | Deep links Nostr | [NOSTR.md](./NOSTR.md) |
 | Wallet (NWC) | [NWC_ARCHITECTURE.md](./NWC_ARCHITECTURE.md) |
+| Notification Settings | [NOTIFICATION_SETTINGS.md](./NOTIFICATION_SETTINGS.md) |
