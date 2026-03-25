@@ -74,7 +74,7 @@ Each card is a `Container` with consistent styling (rounded corners, subtle bord
 #### 2. Currency
 - Shows emoji + currency name derived from `currencyCodesProvider`.
 - `CurrencySelectionDialog` fetches the full list, caches exchange metadata, and writes `settings.defaultFiatCode`.
-- Orders created afterwards pre-fill this fiat code.
+- Orders created afterward pre-fill this fiat code.
 
 #### 3. Default Lightning Address
 - Text field with live validation (only trimmed, no deep regex).

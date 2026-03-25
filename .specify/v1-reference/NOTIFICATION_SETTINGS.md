@@ -54,7 +54,7 @@
 | Action | Outcome |
 |--------|---------|
 | Enable push | Registers device tokens (handled by app bootstrap elsewhere) and sets `pushNotificationsEnabled = true`. |
-| Disable push | Immediately unregisters tokens + deletes FCM token, sets sound/vibration toggles but leaves their values cached. |
+| Disable push | Immediately unregisters tokens and deletes FCM token; disables sound and vibration controls in the UI while preserving their stored values (values remain cached but are not applied). |
 | Change sound/vibration | Updates preferences even if temporarily disabled; values preserved for next enablement. |
 | Unsupported platform | Master switch disabled, warning banner shown, preferences non-interactive. |
 
