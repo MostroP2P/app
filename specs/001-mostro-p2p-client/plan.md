@@ -162,3 +162,12 @@ web/                          # Web platform project
 | Contracts | `specs/001-mostro-p2p-client/contracts/` | Complete (9 contracts) |
 | Quickstart | `specs/001-mostro-p2p-client/quickstart.md` | Complete |
 | Tasks | `specs/001-mostro-p2p-client/tasks.md` | Exists (generated separately via /speckit.tasks) |
+
+## Spec Revisions (2026-03-25)
+
+Updated from review of new v1-reference files (`NYM_IDENTITY.md`, `ABOUT_SCREEN.md`, `CURRENT_FEATURES.md`):
+
+| FR | Change | Artifacts Updated |
+|----|--------|-------------------|
+| FR-011c | Icon MUST render white on colored background (v1 bug fix: icon was invisible) | spec.md, contracts/types.md (NymIdentity rendering contract), tasks.md (T061) |
+| FR-020b | About screen MUST include documentation links (EN guide, ES guide, technical reference) | spec.md, tasks.md (T095) |

@@ -230,6 +230,11 @@ color_hue: u16            # HSV hue (0–359) for avatar background
 
 > All fields derived deterministically from the public key. The same key
 > always produces the same name, icon, and color across sessions and devices.
+>
+> **Rendering contract (Flutter)**: The icon MUST always be rendered in white
+> (`Colors.white`) over the HSV-colored background circle. The v1 implementation
+> had a bug where the icon color matched the background, making it invisible.
+> v2 MUST always use white icon color regardless of `color_hue` (FR-011c).
 
 ### LogEntry
 ```text

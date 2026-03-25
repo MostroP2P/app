@@ -350,7 +350,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-011**: Users MUST be able to exchange encrypted peer-to-peer messages during an active trade.
 - **FR-011a**: Each party in a trade chat MUST be displayed with a deterministic pseudonym (format: "adjective-noun") and avatar (colored icon) derived from their trade pubkey, ensuring consistent visual identification without revealing real identity.
 - **FR-011b**: Pseudonyms MUST be generated deterministically from the pubkey using a predefined list of adjectives and nouns, allowing the same pubkey to always produce the same pseudonym.
-- **FR-011c**: Avatars MUST consist of a deterministically selected icon and color derived from the pubkey, displayed as a colored circle with the icon inside.
+- **FR-011c**: Avatars MUST consist of a deterministically selected icon and color derived from the pubkey, displayed as a colored circle with the icon inside. The icon MUST always be rendered in white to ensure contrast against the colored background (v1 had a bug where icon and background colors matched, making the icon invisible).
 - **FR-012**: Users MUST be able to initiate a dispute during an active trade.
 - **FR-013**: Users MUST be able to submit text evidence during a dispute.
 - **FR-014**: The system MUST display admin messages and dispute resolution outcomes.
@@ -373,7 +373,7 @@ During an active trade, either party can request a cooperative cancellation. The
 - **FR-019f**: Brand and action colors (buy/sell indicators, status chips, submit buttons) MUST remain visually consistent and recognizable across both themes.
 - **FR-020**: The system MUST support multiple languages (internationalization).
 - **FR-020a**: The Settings screen MUST provide a language selector, currency selector, default Lightning address input, wallet connection status, relay management, notification settings, dev tools access, and Mostro node selector.
-- **FR-020b**: The About screen MUST display app version, GitHub repository link, commit hash, and MIT license. The license MUST be viewable in a dialog.
+- **FR-020b**: The About screen MUST display app version, GitHub repository link, commit hash, MIT license (viewable in a dialog), and documentation links (user guide in English, user guide in Spanish, and technical reference).
 - **FR-020c**: The About screen MUST display Mostro node information including: public key (copyable), order limits, service fee, fiat currencies accepted, daemon version, and Lightning node details. Each field MUST have an info button with explanation.
 - **FR-020d**: The app MUST ship with support for the following languages in the initial release: English (en), Spanish (es), Italian (it), French (fr), and German (de). Additional languages may be added in future releases.
 - **FR-021**: The system MUST notify users of trade events (new taker, payment received, trade complete, dispute updates).
