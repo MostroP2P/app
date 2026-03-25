@@ -74,6 +74,8 @@ Future<Map<String, dynamic>> getRequest(String endpoint) async {
     throw HttpException('Request timed out', uri: url);
   } on FormatException catch (e) {
     throw HttpException('Invalid response format: ${e.message}', uri: url);
+  } on HttpException {
+    rethrow;  // Preserve HttpException specificity from non-200 responses
   } catch (e) {
     throw HttpException('Request failed: $e', uri: url);
   }
@@ -181,10 +183,12 @@ final exchangeRateProvider = StateNotifierProvider.family<
 ### UI Consumption
 
 ```dart
+// Get USD → BTC rate
 final rate = ref.watch(exchangeRateProvider('USD'));
 
 rate.when(
-  data: (value) => Text('1 BTC = ${value.toStringAsFixed(2)} USD'),
+  // value is USD/BTC rate (e.g., 0.000024 BTC per USD)
+  data: (value) => Text('1 USD = ${value.toStringAsFixed(8)} BTC'),
   loading: () => CircularProgressIndicator(),
   error: (err, stack) => Text('Error: $err'),
 );

@@ -37,7 +37,21 @@ class EncryptionResult {
   }
 
   static EncryptionResult fromBlob(Uint8List blob) {
-    // Extract: nonce (first 12), authTag (last 16), data (middle)
+    // Validate minimum size: 12 (nonce) + 16 (authTag) = 28 bytes
+    if (blob.length < 28) {
+      throw ArgumentError('Blob too small: got ${blob.length} bytes, need at least 28 (12-byte nonce + 16-byte auth tag)');
+    }
+    
+    // Extract components
+    final nonce = blob.sublist(0, 12);
+    final authTag = blob.sublist(blob.length - 16);
+    final encryptedData = blob.sublist(12, blob.length - 16);
+    
+    return EncryptionResult(
+      encryptedData: encryptedData,
+      nonce: nonce,
+      authTag: authTag,
+    );
   }
 }
 ```

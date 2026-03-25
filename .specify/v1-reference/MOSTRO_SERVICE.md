@@ -96,7 +96,14 @@ if (_isRestorePayload(result[0])) return;
 **Detection Logic:**
 ```dart
 bool _isRestorePayload(Map<String, dynamic> json) {
-  final payload = json['restore']['payload'] ?? json['order']['payload'];
+  // Safely extract payload wrapper
+  final wrapper = json['restore'] ?? json['order'];
+  if (wrapper == null || wrapper is! Map<String, dynamic>) return false;
+  
+  final payloadValue = wrapper['payload'];
+  if (payloadValue == null || payloadValue is! Map<String, dynamic>) return false;
+  
+  final payload = payloadValue as Map<String, dynamic>;
   
   // RestoreData: has 'restore_data' wrapper with 'orders' and 'disputes' arrays
   if (payload.containsKey('restore_data')) return true;
@@ -105,8 +112,15 @@ bool _isRestorePayload(Map<String, dynamic> json) {
   if (payload.containsKey('trade_index')) return true;
   
   // OrdersResponse: has 'orders' array with OrderDetail (buyer_trade_pubkey/seller_trade_pubkey)
-  if (payload['orders'] is List && 
-      payload['orders'][0]?['buyer_trade_pubkey'] != null) return true;
+  final ordersValue = payload['orders'];
+  if (ordersValue is List && ordersValue.isNotEmpty) {
+    final firstOrder = ordersValue[0];
+    if (firstOrder is Map<String, dynamic> &&
+        (firstOrder.containsKey('buyer_trade_pubkey') ||
+         firstOrder.containsKey('seller_trade_pubkey'))) {
+      return true;
+    }
+  }
   
   return false;
 }
@@ -168,6 +182,12 @@ Future<void> publishOrder(MostroMessage message) async {
   final session = sessions.firstWhereOrNull(
     (s) => s.orderId == message.id || s.requestId == message.requestId,
   );
+  
+  // Guard against missing session
+  if (session == null) {
+    logger.e('No session found for orderId=${message.id} requestId=${message.requestId}');
+    throw StateError('Cannot publish order: no matching session found');
+  }
   
   final pow = ref.read(mostroInstanceProvider)?.pow ?? 0;
   
