@@ -1,10 +1,10 @@
-# Nostr-Based Exchange Rates (v2 Feature)
+# Nostr-Based Exchange Rates (v2 Client Feature)
 
 > Censorship-resistant exchange rate fetching via NIP-33 addressable events, with Yadio HTTP API fallback.
 
 ## Overview
 
-Mostro v2 will fetch Bitcoin/fiat exchange rates from Nostr relays instead of (or in addition to) the Yadio HTTP API. This solves:
+Mostro v2 client will fetch Bitcoin/fiat exchange rates from Nostr relays instead of (or in addition to) the Yadio HTTP API. This solves:
 
 - **Censorship vulnerability** — API blocked in Venezuela and potentially other countries
 - **Scaling costs** — HTTP APIs require infrastructure that scales with user count
@@ -18,6 +18,8 @@ Mostro v2 will fetch Bitcoin/fiat exchange rates from Nostr relays instead of (o
 ## Protocol Specification
 
 ### Event Structure (NIP-33)
+
+The client will subscribe to exchange rate events with the following structure:
 
 **Kind:** `30078` (Application-specific data)  
 **d tag:** `"rates"`  
@@ -62,7 +64,7 @@ The `content` field is a JSON-encoded string with currency rates:
 
 ## Security Requirement: Pubkey Verification
 
-**Critical:** Clients MUST verify the event `pubkey` matches the connected Mostro instance's pubkey.
+**Critical:** The client MUST verify the event `pubkey` matches the connected Mostro instance's pubkey.
 
 ### Why?
 
@@ -113,7 +115,7 @@ final rates = jsonDecode(event.content);
 
 ---
 
-## Client Implementation (v2)
+## Client Implementation
 
 ### Architecture
 
@@ -198,71 +200,6 @@ async fn fetch_exchange_rates(&self) -> Result<Map<String, f64>> {
 
 ---
 
-## Mostro Daemon Integration (Phase 1)
-
-**File:** `src/exchange_rates.rs` (new module)
-
-### Responsibilities
-
-1. Fetch rates from Yadio HTTP API every 5 minutes
-2. Publish NIP-33 event to configured relays
-3. Sign event with Mostro's private key
-
-### Configuration
-
-```toml
-# mostro.toml
-[exchange_rates]
-enabled = true
-source = "yadio"
-publish_interval_seconds = 300  # 5 minutes
-relays = [
-    "wss://relay.mostro.network",
-    "wss://nos.lol",
-    "wss://relay.nostr.band",
-]
-```
-
-### Publishing Logic
-
-```rust
-// Pseudo-code
-async fn publish_exchange_rates(&self) -> Result<()> {
-    // Fetch from Yadio
-    let rates = self.fetch_from_yadio().await?;
-    
-    // Build NIP-33 event
-    let event = Event {
-        kind: 30078,
-        pubkey: self.keypair.public_key(),
-        created_at: unix_timestamp(),
-        tags: vec![
-            vec!["d".to_string(), "rates".to_string()],
-            vec!["updated_at".to_string(), unix_timestamp().to_string()],
-            vec!["source".to_string(), "yadio".to_string()],
-        ],
-        content: serde_json::to_string(&rates)?,
-    };
-    
-    // Sign with Mostro's private key
-    let signed_event = event.sign(&self.keypair)?;
-    
-    // Publish to all relays
-    for relay_url in &self.config.relays {
-        self.nostr_client.publish_to(relay_url, &signed_event).await?;
-    }
-    
-    Ok(())
-}
-```
-
-**Error handling:**
-- If Yadio fetch fails → log warning, skip publishing (keeps last event valid)
-- If relay publish fails → log error, retry next interval
-- Never crash the daemon on exchange rate errors
-
----
-
 ## UI/UX Considerations
 
 ### Currency Selection Dialog
@@ -306,37 +243,6 @@ ratesState.when(
 
 ---
 
-## Migration from v1 → v2
-
-### Step 1: Add Nostr as Primary Source
-
-- Implement `NostrExchangeRateProvider`
-- Keep `YadioExchangeRateProvider` as-is (for fallback)
-- Update `ExchangeService` to try Nostr first, then HTTP
-
-### Step 2: Test in Regtest/Testnet
-
-- Deploy mostro daemon with exchange rate publishing enabled
-- Verify mobile app receives and validates events
-- Test fallback when Nostr unavailable
-
-### Step 3: Gradual Rollout
-
-- **Beta users:** Nostr-first (with fallback)
-- Monitor metrics:
-  - % of rate fetches from Nostr vs HTTP
-  - Latency (Nostr vs HTTP)
-  - Failure rate
-- **Stable release:** Once Nostr proves reliable (>95% success rate)
-
-### Step 4: Optional HTTP API Removal
-
-If Yadio adopts Nostr publishing:
-- Remove HTTP fallback code
-- Pure Nostr-based rates
-
----
-
 ## Performance & Reliability
 
 ### Latency Comparison
@@ -356,7 +262,7 @@ If Yadio adopts Nostr publishing:
 - ~5-10 KB per request (all currencies)
 
 **v2 (Nostr):**
-- 1 event pushed to all subscribed clients every 5 minutes
+- 1 event pushed to all subscribed clients every 5-10 minutes
 - ~5-10 KB per event (same payload)
 - No per-user request overhead
 
@@ -444,11 +350,36 @@ testWidgets('Exchange rates load from Nostr', (tester) async {
 
 ---
 
+## Migration from v1 → v2
+
+### Step 1: Add Nostr as Primary Source
+
+- Implement `NostrExchangeRateProvider` in Rust core
+- Keep `YadioExchangeRateProvider` as-is (for fallback)
+- Update `ExchangeService` to try Nostr first, then HTTP
+
+### Step 2: Test in Regtest/Testnet
+
+- Connect to test Mostro instance with rate publishing enabled
+- Verify mobile app receives and validates events
+- Test fallback when Nostr unavailable
+
+### Step 3: Gradual Rollout
+
+- **Beta users:** Nostr-first (with fallback)
+- Monitor metrics:
+  - % of rate fetches from Nostr vs HTTP
+  - Latency (Nostr vs HTTP)
+  - Failure rate
+- **Stable release:** Once Nostr proves reliable (>95% success rate)
+
+---
+
 ## Future Enhancements
 
 ### Multi-Source Aggregation
 
-Support multiple rate sources (Yadio, CoinGecko, Binance) published by different Mostro instances:
+Support multiple rate sources from different Mostro instances:
 
 ```rust
 // Average rates from multiple trusted pubkeys
@@ -492,26 +423,17 @@ TextField(
 
 ## Cross-References
 
-- [EXCHANGE_SERVICE.md](./v1-reference/EXCHANGE_SERVICE.md) — v1 HTTP-based implementation
-- [NOSTR.md](./v1-reference/NOSTR.md) — Nostr service architecture
-- [MOSTRO_SERVICE.md](./v1-reference/MOSTRO_SERVICE.md) — Mostro protocol integration
+- [v1-reference/EXCHANGE_SERVICE.md](./v1-reference/EXCHANGE_SERVICE.md) — v1 HTTP-based implementation
+- [v1-reference/NOSTR.md](./v1-reference/NOSTR.md) — Nostr service architecture
+- [v1-reference/MOSTRO_SERVICE.md](./v1-reference/MOSTRO_SERVICE.md) — Mostro protocol integration
 - [NIP-33](https://github.com/nostr-protocol/nips/blob/master/33.md) — Parameterized Replaceable Events
-- [Issue #684](https://github.com/MostroP2P/mostro/issues/684) — Original feature proposal
+- [Issue #684](https://github.com/MostroP2P/mostro/issues/684) — Original feature proposal (Mostro daemon implementation)
 
 ---
 
 ## Implementation Checklist
 
-### Mostro Daemon (Phase 1)
-
-- [ ] Create `src/exchange_rates.rs` module
-- [ ] Fetch from Yadio HTTP API every 5 minutes
-- [ ] Publish NIP-33 event to configured relays
-- [ ] Sign with Mostro's private key
-- [ ] Add config options to `mostro.toml`
-- [ ] Error handling (log warnings, don't crash)
-
-### Mobile Client (Phase 2)
+### Client (Rust Core + Flutter)
 
 - [ ] Implement `NostrExchangeRateProvider` (Rust core)
 - [ ] Add pubkey verification logic
@@ -525,13 +447,11 @@ TextField(
 
 ### Documentation
 
-- [ ] Update README with Nostr rates feature
+- [ ] Update user guide: "How exchange rates work in Mostro v2"
 - [ ] API migration guide (v1 → v2)
-- [ ] User guide: "How exchange rates work in Mostro v2"
 
 ### Deployment
 
-- [ ] Deploy to testnet
-- [ ] Beta testing (100 users)
-- [ ] Monitor metrics (Nostr vs HTTP success rate)
+- [ ] Test with regtest/testnet Mostro
+- [ ] Beta testing (monitor metrics)
 - [ ] Stable release
