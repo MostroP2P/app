@@ -73,7 +73,7 @@
 |----------|-------------|--------------|
 | [FCM_IMPLEMENTATION.md](./FCM_IMPLEMENTATION.md) | Push notifications, background service | Keep in Flutter (platform-specific) |
 | [RELAY_SYNC_IMPLEMENTATION.md](./RELAY_SYNC_IMPLEMENTATION.md) | Relay management, kind 10002 | Move relay logic to Rust |
-| [LOGGING_SYSTEM.md](./LOGGING_SYSTEM.md) | Logging, export, privacy | Adapt for Rust + Flutter logging |
+| [LOGGING_SYSTEM.md](./LOGGING_SYSTEM.md) | In-memory logging with privacy sanitization, export, background isolate support | Keep in Flutter (platform-specific UI + isolate integration) |
 
 ## Key Differences: V1 vs V2
 
