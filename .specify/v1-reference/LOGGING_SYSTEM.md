@@ -27,7 +27,7 @@ All application logging goes through a single `logger` instance from `lib/servic
 - **Memory safety** — centralized buffer with strict size limits prevents OOM
 - **Simple API** — `logger.i()`, `logger.e()`, `logger.d()` — no per-service configuration
 
-**Trade-off:** Required migrating ~30+ files from `print()` calls (one-time effort, completed).
+**Trade-off:** Application-wide adoption requires replacing direct `print()` calls with singleton logger calls.
 
 ### Multi-Output Architecture
 
@@ -164,6 +164,13 @@ void main() async {
 @pragma('vm:entry-point')
 void backgroundServiceEntryPoint() async {
   final logSender = IsolateNameServer.lookupPortByName('mostro_logger_send_port');
+  
+  if (logSender == null) {
+    // IsolateNameServer lookup failed — main isolate hasn't registered receiver
+    backgroundLog('Background service started (fallback logging)');
+    return;
+  }
+  
   final logger = Logger(
     printer: SimplePrinter(),
     output: IsolateLogOutput(logSender),
@@ -173,11 +180,13 @@ void backgroundServiceEntryPoint() async {
 ```
 
 **`IsolateLogOutput`:**
+- Requires successful `IsolateNameServer.lookupPortByName()` lookup (returns `SendPort?`).
+- Main isolate must have called `initIsolateLogReceiver()` before background service starts.
 - Sends log data via `SendPort` as JSON: `{timestamp, level, message, service, line}`.
 - Main isolate receives and reconstructs `LogEntry` via `addLogFromIsolate()`.
 
 #### Fallback: `backgroundLog()`
-For isolates where `IsolateNameServer` is unavailable:
+For isolates where `IsolateNameServer.lookupPortByName()` returns `null` or is unavailable:
 ```dart
 void backgroundLog(String message) {
   debugPrint('[BackgroundIsolate] ${cleanMessage(message)}');
@@ -262,7 +271,7 @@ static bool isDebug = kDebugMode;            // Enables console output
 2. **`exportLogsForSharing()`** — writes to temp file, returns `File` for share sheet
 
 **Export Format:**
-```
+```text
 Mostro Logs Report
 Generated: 2026-03-25 01:00:00
 Total: 150
@@ -298,7 +307,9 @@ final logsProvider = ChangeNotifierProvider<MemoryLogOutput>((ref) {
 final filteredLogsProvider = Provider.family<List<LogEntry>, LogsFilter>((ref, filter) {
   final logs = ref.watch(logsProvider).getAllLogs();
   return logs.where((log) {
-    // Apply levelFilter + searchQuery
+    // Pseudocode: filter by levelFilter (if set) and searchQuery (if non-empty)
+    // Real implementation checks log.level.name == filter.levelFilter
+    // and log.message.contains(filter.searchQuery)
   }).toList();
 });
 ```
@@ -317,14 +328,14 @@ class LogsFilter {
 
 ### Why Logging is OFF by Default
 
-1. **Memory overhead** — buffer stores up to 1000 entries (~100-500 KB).
+1. **Memory overhead** — buffer stores up to 1000 entries (assuming ~100-500 bytes per entry: 1000 × 100-500 bytes ≈ 100-500 KB).
 2. **CPU cost** — `cleanMessage()` regex + stack trace parsing on every log.
 3. **Privacy risk** — user may share logs without realizing sensitive data could be present (sanitization reduces but doesn't eliminate risk).
 
 ### Performance Warning Dialog
 
 When user enables logging:
-```
+```text
 ⚠️ Performance Warning
 
 Enabling logs may impact app performance. 
