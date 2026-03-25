@@ -10,9 +10,11 @@ This directory contains the specification for **Mostro v2** — the next generat
 
 ### Core Architecture
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — System architecture and component design
-- [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) — UI/UX design system and guidelines
-- [PROTOCOL.md](./PROTOCOL.md) — Mostro protocol specification
+**Note:** The following specs are planned but not yet implemented in this repository. They exist in the main project documentation.
+
+- ~~[ARCHITECTURE.md](./ARCHITECTURE.md)~~ — System architecture and component design *(planned)*
+- ~~[DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md)~~ — UI/UX design system and guidelines *(planned)*
+- ~~[PROTOCOL.md](./PROTOCOL.md)~~ — Mostro protocol specification *(see [mostro repo](https://github.com/MostroP2P/mostro))*
 
 ### v1 Reference Documentation
 

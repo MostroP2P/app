@@ -124,14 +124,14 @@ final rates = jsonDecode(event.content);
 
 ### Architecture
 
-```
+```text
 ExchangeRateService (Rust core)
     ├─ NostrExchangeRateProvider (primary)
-    │   ├─ Subscribe to kind 30078 with #d:rates from Mostro pubkey
+    │   ├─ Subscribe to kind 30078 with #d:mostro-rates from Mostro pubkey
     │   ├─ Verify signature + pubkey
     │   └─ Parse JSON content
     └─ YadioHttpProvider (fallback)
-        └─ Fetch from https://api.yadio.io/exrates/{currency}
+        └─ Fetch from https://api.yadio.io/exrates/BTC
 ```
 
 ### Subscription Filter
@@ -162,17 +162,43 @@ final subscription = nostrPool.subscribe([filter]);
 **Event reception flow:**
 
 1. Nostr relay pushes new kind `30078` event
-2. Verify `event.pubkey == mostroPubkey`
-3. Verify signature (`event.verify()`)
+2. Verify `event.pubkey == mostroPubkey` (reject if mismatch)
+3. Verify signature (`event.verify()`) (reject if invalid)
 4. Parse `event.content` as JSON
+   - **On parse error:** Log error, ignore event, keep existing cache
+   - **On success:** Validate structure (`{"BTC": {...}}`)
 5. Update local cache (in-memory + persistent storage)
 6. Notify UI (Riverpod state update)
 
+**Error handling:**
+- **Malformed JSON:** Log error, discard event, no cache update
+- **Invalid structure:** Log warning if `BTC` key missing, use partial data if possible
+- **Network errors:** Fall back to HTTP API → persistent cache → error state
+
 **Cache strategy:**
 
-- **In-memory cache:** 5-10 minute TTL
+- **In-memory cache:** TTL based on daemon's `exchange_rates_update_interval_seconds` × 2 (default: 10 minutes)
 - **Persistent cache (SQLite):** Store last successful fetch as fallback if both Nostr and HTTP fail
 - **Cache key:** `"exchange_rates"`
+
+**SQLite Schema:**
+
+```sql
+CREATE TABLE exchange_rates_cache (
+    id INTEGER PRIMARY KEY CHECK (id = 1), -- Singleton row
+    content TEXT NOT NULL,                 -- JSON string: {"BTC": {...}}
+    fetched_at INTEGER NOT NULL,           -- Unix timestamp
+    source TEXT NOT NULL                   -- "nostr" or "http"
+);
+```
+
+**Cache invalidation rules:**
+
+- **On successful Nostr fetch:** Replace cache row with new data
+- **On successful HTTP fetch:** Replace cache row only if Nostr failed
+- **TTL check:** Cache considered stale if `fetched_at < (now - 3600)` (1 hour)
+- **On app launch:** Load from cache immediately, fetch fresh data in background
+- **Manual refresh:** User pull-to-refresh bypasses cache and forces fetch
 
 ### Fallback Logic
 
@@ -238,11 +264,35 @@ final ratesState = ref.watch(exchangeRatesProvider);
 
 ratesState.when(
   loading: () => CircularProgressIndicator(),
-  data: (rates) => OrderForm(rates: rates),
-  error: (err, stack) => ErrorView(
-    message: "Could not fetch exchange rates. Using cached data.",
-    onRetry: () => ref.refresh(exchangeRatesProvider),
-  ),
+  data: (rates) {
+    // Show staleness warning if cache is old
+    final cacheAge = DateTime.now().difference(rates.fetchedAt);
+    if (cacheAge > Duration(minutes: 15)) {
+      return Column(
+        children: [
+          StalenessWarning(age: cacheAge),
+          OrderForm(rates: rates),
+        ],
+      );
+    }
+    return OrderForm(rates: rates);
+  },
+  error: (err, stack) {
+    // Error state: try loading from persistent cache
+    final cachedRates = loadFromSqliteCache();
+    if (cachedRates != null) {
+      return ErrorView(
+        message: "Could not fetch fresh rates. Using cached data from ${cachedRates.fetchedAt}.",
+        data: OrderForm(rates: cachedRates), // Show cached data below error
+        onRetry: () => ref.refresh(exchangeRatesProvider),
+      );
+    } else {
+      return ErrorView(
+        message: "Could not fetch exchange rates and no cache available.",
+        onRetry: () => ref.refresh(exchangeRatesProvider),
+      );
+    }
+  },
 );
 ```
 
@@ -263,13 +313,13 @@ ratesState.when(
 ### Bandwidth Usage
 
 **v1 (HTTP):**
-- 1 request every 5-10 minutes per active user
+- 1 request per active user when needed (on order creation screen)
 - ~5-10 KB per request (all currencies)
 
 **v2 (Nostr):**
-- 1 event pushed to all subscribed clients every 5-10 minutes
-- ~5-10 KB per event (same payload)
-- No per-user request overhead
+- 1 event published by daemon at configured interval (default: 5 minutes, configurable via `exchange_rates_update_interval_seconds`)
+- ~5-10 KB per event (all currencies in Yadio format)
+- No per-user request overhead (relays distribute to all subscribers)
 
 **Conclusion:** Bandwidth roughly equivalent, but Nostr scales better (relays handle distribution).
 
