@@ -21,13 +21,21 @@ impl SqliteStorage {
 
         // Run embedded SQL migrations — split by statement and execute individually.
         // sqlx::query() does not support multiple statements in one call.
+        //
+        // Each chunk produced by split(';') may contain leading comment lines
+        // (-- ...) before the actual SQL keyword; strip them per-line so that
+        // `CREATE TABLE` blocks preceded by section headers are not discarded.
         let ddl = include_str!("migrations/001_initial.sql");
-        for stmt in ddl
-            .split(';')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty() && !s.starts_with("--"))
-        {
-            sqlx::query(stmt)
+        for stmt in ddl.split(';').filter_map(|chunk| {
+            let sql: String = chunk
+                .lines()
+                .filter(|line| !line.trim().starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            let trimmed = sql.trim().to_owned();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        }) {
+            sqlx::query(&stmt)
                 .execute(&pool)
                 .await
                 .map_err(StorageError::Sqlx)?;

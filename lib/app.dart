@@ -2,7 +2,7 @@
 ///
 /// Wires together:
 ///   - Riverpod ProviderScope
-///   - go_router (appRouter)
+///   - go_router (appRouter) with identity-based redirect guard
 ///   - AppTheme dark/light with AnimatedTheme
 ///   - flutter_localizations delegates
 ///   - ThemeMode driven by settingsProvider
@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'providers/identity_provider.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
 import 'providers/settings_provider.dart';
@@ -24,6 +25,13 @@ class MostroApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themePreference = ref.watch(themePreferenceProvider);
 
+    // Feed identity state into the router notifier so go_router re-evaluates
+    // redirect guards whenever login/logout occurs.
+    ref.listen<AsyncValue<IdentityInfo?>>(
+      identityProvider,
+      (_, state) => routerNotifier.update(state),
+    );
+
     return MaterialApp.router(
       title: 'Mostro',
       debugShowCheckedModeBanner: false,
@@ -32,9 +40,6 @@ class MostroApp extends ConsumerWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: _toThemeMode(themePreference),
-      // AnimatedTheme is applied automatically by MaterialApp; the duration
-      // below is the default — override here if needed.
-      // themeAnimationDuration: const Duration(milliseconds: 200),
 
       // ── Routing ──────────────────────────────────────────────────────────
       routerConfig: appRouter,
@@ -47,7 +52,6 @@ class MostroApp extends ConsumerWidget {
       ],
       supportedLocales: const [
         Locale('en'),
-        // Additional locales added in Phase 12 (i18n).
       ],
     );
   }

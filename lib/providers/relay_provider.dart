@@ -1,51 +1,60 @@
-/// Relay provider stub.
+/// Relay provider — Phase 3 T036.
 ///
-/// Phase 3 T036 replaces this with a real implementation backed by
-/// rust/src/api/nostr.rs relay methods.
+/// Polls the Rust relay pool every 5 seconds for connection status.
+/// The nostr pool itself is initialised by the identity provider after
+/// identity creation/import (or by main.dart on a warm start).
 library relay_provider;
+
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Relay connection state.
-enum ConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  error,
-}
+import '../src/rust/api/nostr.dart' as rust_nostr;
+import '../src/rust/api/types.dart';
 
-/// Placeholder relay info.
-class RelayInfo {
-  const RelayInfo({required this.url, required this.state});
-
-  final String url;
-  final ConnectionState state;
-}
+// Re-export types used by screens.
+export '../src/rust/api/types.dart'
+    show ConnectionState, RelayInfo, RelayStatus;
 
 class RelayNotifier extends AsyncNotifier<List<RelayInfo>> {
+  Timer? _timer;
+  bool _polling = false;
+
   @override
   Future<List<RelayInfo>> build() async {
-    // Phase 3: connect to default relays and stream status updates.
-    return [];
+    ref.onDispose(() => _timer?.cancel());
+
+    final infos = await rust_nostr.getRelayInfos();
+
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      // Guard against overlapping invocations if getRelayInfos takes > 5 s.
+      if (_polling) return;
+      _polling = true;
+      try {
+        final updated = await rust_nostr.getRelayInfos();
+        state = AsyncValue.data(updated);
+      } catch (_) {
+        // Silently swallow — pool may not be ready yet.
+      } finally {
+        _polling = false;
+      }
+    });
+
+    return infos;
   }
 }
 
 final relayProvider =
-    AsyncNotifierProvider<RelayNotifier, List<RelayInfo>>(
-  RelayNotifier.new,
-);
+    AsyncNotifierProvider<RelayNotifier, List<RelayInfo>>(RelayNotifier.new);
 
-/// Convenience provider returning overall connection state.
+/// Derived connection state from relay list statuses.
 final connectionStateProvider = Provider<ConnectionState>((ref) {
   final relays = ref.watch(relayProvider).valueOrNull ?? [];
-  if (relays.any((r) => r.state == ConnectionState.connected)) {
-    return ConnectionState.connected;
+  if (relays.any((r) => r.status == RelayStatus.connected)) {
+    return ConnectionState.online;
   }
-  if (relays.any((r) => r.state == ConnectionState.connecting)) {
-    return ConnectionState.connecting;
+  if (relays.any((r) => r.status == RelayStatus.connecting)) {
+    return ConnectionState.reconnecting;
   }
-  if (relays.any((r) => r.state == ConnectionState.error)) {
-    return ConnectionState.error;
-  }
-  return ConnectionState.disconnected;
+  return ConnectionState.offline;
 });
