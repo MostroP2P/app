@@ -28,6 +28,9 @@ hex = "0.4"
 # File attachment encryption (ChaCha20-Poly1305)
 chacha20poly1305 = "0.10"
 
+# Hashing (nym derivation, PIN hash)
+sha2 = "0.10"
+
 # BIP-32/39 key derivation (m/44'/1237'/38383'/0/N — DO NOT CHANGE)
 bip32 = "0.5"
 bip39 = { version = "2", features = ["all-languages", "rand"] }
@@ -37,6 +40,8 @@ bip39 = { version = "2", features = ["all-languages", "rand"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# Argon2id for PIN storage (memory-hard KDF; brute-force resistant for short PINs)
+argon2 = "0.5"
 
 # WASM-only: IndexedDB + wasm async executor
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -65,16 +65,16 @@
 
 **Independent Test**: Fresh install → complete onboarding → home screen visible with relay connected indicator — no trades needed
 
-- [ ] T029 [US3] Implement identity API in rust/src/api/identity.rs: create_identity(), import_from_mnemonic(words, recover), import_from_nsec(nsec), get_identity(), export_encrypted_backup(passphrase), delete_identity(), set_pin(pin), enable_biometric(), unlock(pin), derive_trade_key(), get_trade_key(index), get_nym_identity(pubkey) per contracts/identity.md
-- [ ] T030 [P] [US3] Implement nym identity generation in rust/src/crypto/nym.rs: deterministic_nym(pubkey) → (pseudonym: String adjective-noun, icon_index: u8 0–36, color_hue: u16 0–359); same pubkey always yields same output; called by get_nym_identity() per FR-052/FR-053
-- [ ] T031 [US3] Implement identity provider in lib/providers/identity_provider.dart: wrap identity Rust API, expose IdentityInfo? stream via on_identity_changed(), handle create/import/delete actions
-- [ ] T032 [P] [US3] Implement welcome screen in lib/screens/onboarding/welcome_screen.dart: app logo, "Create New Identity" and "Import Existing" buttons per US3 scenario 1
-- [ ] T033 [P] [US3] Implement create identity screen in lib/screens/onboarding/create_identity_screen.dart: call create_identity(), display 12-word mnemonic grid, backup-confirmation checkbox, "I've saved my phrase" CTA per US3 scenario 2
-- [ ] T034 [P] [US3] Implement import identity screen in lib/screens/onboarding/import_identity_screen.dart: 12/24-word mnemonic word-grid input and nsec bech32 field, real-time BIP-39 validation, import CTA per US3 scenario 3
-- [ ] T035 [P] [US3] Implement PIN setup screen in lib/screens/onboarding/pin_setup_screen.dart: 4–8 digit entry with confirm field, optional biometric enable toggle, skip button per US3 scenario 4
-- [ ] T036 [US3] Implement nostr init in rust/src/api/nostr.rs (bootstrap subset): initialize(relays: None) connecting to preconfigured default relays; relay provider in lib/providers/relay_provider.dart exposes ConnectionState stream
-- [ ] T037 [US3] Wire onboarding navigation in lib/router.dart: redirect guard sends users without identity to /onboarding; after successful identity creation/import navigate to /home per US3 scenario 5
-- [ ] T038 [US3] Implement home screen shell in lib/screens/home/home_screen.dart: scaffold with AppBar (hamburger menu), empty order list placeholder, relay status chip in AppBar — functional shell before order loading is implemented
+- [x] T029 [US3] Implement identity API in rust/src/api/identity.rs: create_identity(), import_from_mnemonic(words, recover), import_from_nsec(nsec), get_identity(), export_encrypted_backup(passphrase), delete_identity(), set_pin(pin), enable_biometric(), unlock(pin), derive_trade_key(), get_trade_key(index), get_nym_identity(pubkey) per contracts/identity.md
+- [x] T030 [P] [US3] Implement nym identity generation in rust/src/crypto/nym.rs: deterministic_nym(pubkey) → (pseudonym: String adjective-noun, icon_index: u8 0–36, color_hue: u16 0–359); same pubkey always yields same output; called by get_nym_identity() per FR-052/FR-053
+- [x] T031 [US3] Implement identity provider in lib/providers/identity_provider.dart: wrap identity Rust API, expose IdentityInfo? stream via on_identity_changed(), handle create/import/delete actions
+- [x] T032 [P] [US3] Implement welcome screen in lib/screens/onboarding/welcome_screen.dart: app logo, "Create New Identity" and "Import Existing" buttons per US3 scenario 1
+- [x] T033 [P] [US3] Implement create identity screen in lib/screens/onboarding/create_identity_screen.dart: call create_identity(), display 12-word mnemonic grid, backup-confirmation checkbox, "I've saved my phrase" CTA per US3 scenario 2
+- [x] T034 [P] [US3] Implement import identity screen in lib/screens/onboarding/import_identity_screen.dart: 12/24-word mnemonic word-grid input and nsec bech32 field, real-time BIP-39 validation, import CTA per US3 scenario 3
+- [x] T035 [P] [US3] Implement PIN setup screen in lib/screens/onboarding/pin_setup_screen.dart: 4–8 digit entry with confirm field, optional biometric enable toggle, skip button per US3 scenario 4
+- [x] T036 [US3] Implement nostr init in rust/src/api/nostr.rs (bootstrap subset): initialize(relays: None) connecting to preconfigured default relays; relay provider in lib/providers/relay_provider.dart exposes ConnectionState stream
+- [x] T037 [US3] Wire onboarding navigation in lib/router.dart: redirect guard sends users without identity to /onboarding; after successful identity creation/import navigate to /home per US3 scenario 5
+- [x] T038 [US3] Implement home screen shell in lib/screens/home/home_screen.dart: scaffold with AppBar (hamburger menu), empty order list placeholder, relay status chip in AppBar — functional shell before order loading is implemented
 
 **Checkpoint**: Fresh install → create or import identity → PIN setup (or skip) → home screen shell visible with relay connected chip
 

@@ -3,3 +3,6 @@
 
 pub mod simple;
 pub mod types;
+pub mod identity;
+pub mod nostr;
+pub(crate) mod runtime;

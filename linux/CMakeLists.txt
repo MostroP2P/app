@@ -1,5 +1,15 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.13)
+
+# Use GCC when clang++ cannot find its C++ runtime headers (Ubuntu 24.04).
+if(NOT DEFINED CMAKE_CXX_COMPILER)
+  find_program(GPP g++)
+  if(GPP)
+    set(CMAKE_CXX_COMPILER "${GPP}" CACHE STRING "" FORCE)
+    set(CMAKE_C_COMPILER "gcc" CACHE STRING "" FORCE)
+  endif()
+endif()
+
 project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change

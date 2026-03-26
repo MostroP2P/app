@@ -65,6 +65,28 @@ pub fn mnemonic_hash(words: &str) -> String {
     format!("{:016x}", hasher.finish())
 }
 
+/// Derive a key directly from a 64-byte BIP-39 seed at the given index.
+/// Used when the seed is already decrypted in memory (avoids re-parsing mnemonic).
+pub fn derive_from_seed_at_index(seed: &[u8; 64], index: u32) -> Result<[u8; 32]> {
+    if index == 0 {
+        bail!("trade keys start at index 1; use derive_identity_key_from_seed for index 0");
+    }
+    let path_str = format!("{}/{}", BASE_PATH, index);
+    let path = DerivationPath::from_str(&path_str).context("invalid derivation path")?;
+    let xprv = XPrv::derive_from_path(seed, &path)
+        .context("BIP-32 key derivation failed")?;
+    Ok(xprv.to_bytes())
+}
+
+/// Derive the identity key (N=0) directly from a 64-byte BIP-39 seed.
+pub fn derive_identity_key_from_seed(seed: &[u8; 64]) -> Result<[u8; 32]> {
+    let path_str = format!("{}/0", BASE_PATH);
+    let path = DerivationPath::from_str(&path_str).context("invalid derivation path")?;
+    let xprv = XPrv::derive_from_path(seed, &path)
+        .context("BIP-32 key derivation failed")?;
+    Ok(xprv.to_bytes())
+}
+
 /// Derive a Nostr public key (hex string) from raw private key bytes.
 pub fn pubkey_from_privkey(privkey_bytes: &[u8; 32]) -> Result<String> {
     let keys = keys_from_privkey(privkey_bytes)?;

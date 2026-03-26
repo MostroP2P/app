@@ -57,6 +57,9 @@ dependencies:
   qr_flutter: ^4.0.0
   mobile_scanner: ^5.0.0
 
+  # File-system paths (DB path on native)
+  path_provider: ^2.0.0
+
   # Internationalization
   intl: ^0.20.2
 
