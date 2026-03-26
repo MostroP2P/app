@@ -15,14 +15,14 @@
 
 **Purpose**: Project initialization and scaffolding on all 6 target platforms
 
-- [ ] T001 Initialize Flutter project at repo root: pubspec.yaml (sdk: ">=3.0.0"), placeholder lib/main.dart calling runApp, flutter create --platforms=ios,android,macos,windows,linux,web
-- [ ] T002 Initialize Rust crate in rust/: Cargo.toml with crate-type = ["cdylib", "staticlib"], rust/src/lib.rs with flutter_rust_bridge macro scaffolding, rust_builder/Cargo.toml for Cargokit integration per plan.md
-- [ ] T003 [P] Add Flutter dependencies to pubspec.yaml: flutter_rust_bridge ^2.0, flutter_riverpod ^2.0, go_router ^13.0, flutter_secure_storage ^9.0, file_picker, permission_handler, qr_flutter, mobile_scanner, flutter_localizations
-- [ ] T004 [P] Add Rust dependencies to rust/Cargo.toml: nostr-sdk 0.44+, mostro-core, sqlx (features: sqlite, runtime-tokio, macros), bip32, bip39, chacha20poly1305, reqwest (features: rustls-tls), tokio (features: rt-multi-thread), serde/serde_json, anyhow
-- [ ] T005 Configure flutter_rust_bridge v2 codegen: create flutter_rust_bridge.yaml at repo root (rust_input, dart_output paths), add rust/build.rs and rust_builder/build.rs per research R2
-- [ ] T006 [P] Add WASM support: rustup target add wasm32-unknown-unknown in CI; feature-gate async runtime in rust/src/lib.rs (#[cfg(target_arch="wasm32")] uses wasm-bindgen-futures; else uses tokio) per research R1/R2
-- [ ] T007 [P] Configure iOS platform in ios/: add Keychain entitlements in ios/Runner/Runner.entitlements, update Podfile to use static frameworks for flutter_rust_bridge
-- [ ] T008 [P] Configure Android platform in android/: add internet + camera permissions to android/app/src/main/AndroidManifest.xml, verify Gradle NDK config for JNI flutter_rust_bridge build
+- [x] T001 Initialize Flutter project at repo root: pubspec.yaml (sdk: ">=3.0.0"), placeholder lib/main.dart calling runApp, flutter create --platforms=ios,android,macos,windows,linux,web
+- [x] T002 Initialize Rust crate in rust/: Cargo.toml with crate-type = ["cdylib", "staticlib"], rust/src/lib.rs with flutter_rust_bridge macro scaffolding, rust_builder/ as Flutter FFI plugin with Cargokit integration per plan.md
+- [x] T003 [P] Add Flutter dependencies to pubspec.yaml: flutter_rust_bridge ^2.0, flutter_riverpod ^2.0, go_router ^13.0, flutter_secure_storage ^9.0, file_picker, permission_handler, qr_flutter, mobile_scanner, flutter_localizations
+- [x] T004 [P] Add Rust dependencies to rust/Cargo.toml: nostr-sdk 0.44+, mostro-core 0.8.0, sqlx (features: sqlite, runtime-tokio, macros), bip32, bip39, chacha20poly1305, reqwest (features: rustls-tls), tokio (features: rt-multi-thread), serde/serde_json, anyhow
+- [x] T005 Configure flutter_rust_bridge v2 codegen: create flutter_rust_bridge.yaml at repo root (rust_input, dart_output paths), add rust/build.rs per research R2; rust_builder uses cargokit Flutter plugin approach
+- [x] T006 [P] Add WASM support: feature-gate async runtime in rust/src/lib.rs (#[cfg(target_arch="wasm32")] uses wasm-bindgen-futures; else uses tokio OnceLock runtime) per research R1/R2
+- [x] T007 [P] Configure iOS platform in ios/: add Keychain entitlements in ios/Runner/Runner.entitlements, create Podfile with use_frameworks! for flutter_rust_bridge, update rust_builder/ios/rust.podspec with cargokit build_pod.sh
+- [x] T008 [P] Configure Android platform in android/: add INTERNET + CAMERA permissions to AndroidManifest.xml, pin ndkVersion="27.0.12077973", set minSdk=21, abiFilters arm64-v8a/armeabi-v7a/x86_64; update rust_builder/android/build.gradle with cargokit
 
 **Checkpoint**: `flutter pub get` succeeds; `cargo build --manifest-path rust/Cargo.toml` succeeds on native; project opens on iOS Simulator and Android Emulator
 
@@ -34,26 +34,26 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T009 Define Storage trait in rust/src/storage/mod.rs: async CRUD methods for all 11 entities (Identity, Order, Trade, Message, Relay, Settings, MessageQueue, NwcWallet, FileAttachment, Rating, Dispute), feature-gated with #[cfg_attr(target_arch="wasm32", ...)] per research R4
-- [ ] T010 Create all SQLite schema migrations in rust/src/storage/migrations/001_initial.sql: tables for all 11 entities with FK constraints, indices on trade_id, order_id, status, cached_at per data-model.md
-- [ ] T011 [P] Implement SQLite storage backend in rust/src/storage/sqlite.rs: all Storage trait methods using sqlx + tokio for native platforms
-- [ ] T012 [P] Implement IndexedDB storage backend in rust/src/storage/indexeddb.rs: all Storage trait methods using indexed_db_futures for wasm32 target per research R4
-- [ ] T013 Implement NIP-59 Gift Wrap in rust/src/protocol/gift_wrap.rs: wrap(rumor, sender_key, recipient_pubkey) → Kind 1059 event, unwrap(gift_wrap, recipient_key) → rumor, using nostr-sdk per spec Protocol Reference and research R3
-- [ ] T014 [P] Implement BIP-32/39 key derivation in rust/src/crypto/keys.rs: derive_identity_key(mnemonic) at m/44'/1237'/38383'/0/0, derive_trade_key(mnemonic, index) at m/44'/1237'/38383'/0/N using bip32 + bip39 per research R8
-- [ ] T015 [P] Implement platform secure storage bridge in rust/src/crypto/secure_store.rs: store(key, bytes) and load(key) using platform keychain (iOS/macOS Keychain, Android Keystore, Windows DPAPI, Linux libsecret, Web SubtleCrypto) per research R5
-- [ ] T016 [P] Implement ChaCha20-Poly1305 file encryption in rust/src/crypto/file_encrypt.rs: encrypt(plaintext, key) → `[nonce:12][ciphertext][tag:16]` blob, decrypt(blob, key) → plaintext using chacha20poly1305 per research R7
-- [ ] T017 Implement relay pool in rust/src/network/relay_pool.rs: connect/disconnect relays, subscribe(filter) → event stream, publish(event), auto-reconnect with exponential backoff, expose ConnectionState per research R1
-- [ ] T018 [P] Implement offline message queue in rust/src/network/message_queue.rs: enqueue(event_json, target_relays), flush_queue() on reconnect, retry with max 10 attempts, prune Sent items after 24h per data-model.md MessageQueue entity
-- [ ] T019 [P] Implement Blossom HTTP client in rust/src/network/blossom.rs: upload_blob(encrypted_bytes) with server fallback (blossom.primal.net, blossom.band, nostr.media, blossom.sector01.com, 24242.io, nosto.re), download_blob(url) per research R7
-- [ ] T020 Implement order state machine in rust/src/protocol/state_machine.rs: all 15 mostro-core states, valid transition map per data-model.md, handle Action::PaymentFailed (order stays SettledHoldInvoice), set CooperativelyCanceled client-side on cooperative cancel acceptance
-- [ ] T021 [P] Implement protocol action builders in rust/src/protocol/actions.rs: build_new_order(), take_sell(), take_buy(), fiat_sent(), release(), cancel(), add_invoice(), dispute(), rate(), restore() as Gift Wrap–wrapped Nostr events per research R3
-- [ ] T022 Define all shared API types in rust/src/api/types.rs: all enums (OrderStatus 15 variants, TradeRole, BuyerStep, SellerStep, MessageType, DisputeStatus, RelayStatus, ConnectionState, ThemeMode, LogLevel, etc.) and structs (OrderInfo, TradeInfo, ChatMessage, NymIdentity {pseudonym: String, icon_index: u8, color_hue: u16}, AppState, etc.) per contracts/types.md
-- [ ] T023 Run flutter_rust_bridge codegen: flutter_rust_bridge_codegen generate to emit lib/src/rust/ Dart bindings from all rust/src/api/*.rs files; verify generated files compile
-- [ ] T024 [P] Implement app theme in lib/theme/app_theme.dart: dark and light ThemeData with WCAG-AA contrast ratios, brand color palette consistent in both modes, smooth AnimatedTheme transition with no flash per FR-019b–f
-- [ ] T025 [P] Set up go_router in lib/router.dart: all named routes (/onboarding, /onboarding/create, /onboarding/import, /onboarding/pin, /onboarding/recovery, /home, /order/:id, /trade, /dispute, /history, /history/:id, /settings/*, /about, /shared/:orderid) with redirect guard (no identity → /onboarding)
-- [ ] T026 [P] Set up Riverpod providers scaffold in lib/providers/: empty AsyncNotifierProvider stubs for identity_provider.dart, orders_provider.dart, trade_provider.dart, messages_provider.dart, relay_provider.dart, wallet_provider.dart, settings_provider.dart
-- [ ] T027 [P] Set up l10n in lib/l10n/: add flutter_localizations + intl to pubspec.yaml, create app_en.arb with all UI string keys as placeholders, configure MaterialApp localizations delegates
-- [ ] T028 Implement app entry and responsive scaffold: lib/app.dart (MaterialApp.router with theme, Riverpod ProviderScope, localizations), lib/widgets/responsive_layout.dart (LayoutBuilder at 3 breakpoints: <600 phone, 600–1200 tablet, >1200 desktop with appropriate navigation chrome) per FR-021 and US9
+- [x] T009 Define Storage trait in rust/src/storage/mod.rs: async CRUD methods for all 11 entities (Identity, Order, Trade, Message, Relay, Settings, MessageQueue, NwcWallet, FileAttachment, Rating, Dispute), feature-gated with #[cfg_attr(target_arch="wasm32", ...)] per research R4
+- [x] T010 Create all SQLite schema migrations in rust/src/storage/migrations/001_initial.sql: tables for all 11 entities with FK constraints, indices on trade_id, order_id, status, cached_at per data-model.md
+- [x] T011 [P] Implement SQLite storage backend in rust/src/storage/sqlite.rs: all Storage trait methods using sqlx + tokio for native platforms
+- [x] T012 [P] Implement IndexedDB storage backend in rust/src/storage/indexeddb.rs: all Storage trait methods using indexed_db_futures for wasm32 target per research R4
+- [x] T013 Implement NIP-59 Gift Wrap in rust/src/protocol/gift_wrap.rs: wrap(rumor, sender_key, recipient_pubkey) → Kind 1059 event, unwrap(gift_wrap, recipient_key) → rumor, using nostr-sdk per spec Protocol Reference and research R3
+- [x] T014 [P] Implement BIP-32/39 key derivation in rust/src/crypto/keys.rs: derive_identity_key(mnemonic) at m/44'/1237'/38383'/0/0, derive_trade_key(mnemonic, index) at m/44'/1237'/38383'/0/N using bip32 + bip39 per research R8
+- [x] T015 [P] Implement platform secure storage bridge in rust/src/crypto/secure_store.rs: store(key, bytes) and load(key) using platform keychain (iOS/macOS Keychain, Android Keystore, Windows DPAPI, Linux libsecret, Web SubtleCrypto) per research R5
+- [x] T016 [P] Implement ChaCha20-Poly1305 file encryption in rust/src/crypto/file_encrypt.rs: encrypt(plaintext, key) → `[nonce:12][ciphertext][tag:16]` blob, decrypt(blob, key) → plaintext using chacha20poly1305 per research R7
+- [x] T017 Implement relay pool in rust/src/network/relay_pool.rs: connect/disconnect relays, subscribe(filter) → event stream, publish(event), auto-reconnect with exponential backoff, expose ConnectionState per research R1
+- [x] T018 [P] Implement offline message queue in rust/src/network/message_queue.rs: enqueue(event_json, target_relays), flush_queue() on reconnect, retry with max 10 attempts, prune Sent items after 24h per data-model.md MessageQueue entity
+- [x] T019 [P] Implement Blossom HTTP client in rust/src/network/blossom.rs: upload_blob(encrypted_bytes) with server fallback (blossom.primal.net, blossom.band, nostr.media, blossom.sector01.com, 24242.io, nosto.re), download_blob(url) per research R7
+- [x] T020 Implement order state machine in rust/src/protocol/state_machine.rs: all 15 mostro-core states, valid transition map per data-model.md, handle Action::PaymentFailed (order stays SettledHoldInvoice), set CooperativelyCanceled client-side on cooperative cancel acceptance
+- [x] T021 [P] Implement protocol action builders in rust/src/protocol/actions.rs: build_new_order(), take_sell(), take_buy(), fiat_sent(), release(), cancel(), add_invoice(), dispute(), rate(), restore() as Gift Wrap–wrapped Nostr events per research R3
+- [x] T022 Define all shared API types in rust/src/api/types.rs: all enums (OrderStatus 15 variants, TradeRole, BuyerStep, SellerStep, MessageType, DisputeStatus, RelayStatus, ConnectionState, ThemeMode, LogLevel, etc.) and structs (OrderInfo, TradeInfo, ChatMessage, NymIdentity {pseudonym: String, icon_index: u8, color_hue: u16}, AppState, etc.) per contracts/types.md
+- [x] T023 Run flutter_rust_bridge codegen: flutter_rust_bridge_codegen generate to emit lib/src/rust/ Dart bindings from all rust/src/api/*.rs files; verify generated files compile
+- [x] T024 [P] Implement app theme in lib/theme/app_theme.dart: dark and light ThemeData with WCAG-AA contrast ratios, brand color palette consistent in both modes, smooth AnimatedTheme transition with no flash per FR-019b–f
+- [x] T025 [P] Set up go_router in lib/router.dart: all named routes (/onboarding, /onboarding/create, /onboarding/import, /onboarding/pin, /onboarding/recovery, /home, /order/:id, /trade, /dispute, /history, /history/:id, /settings/*, /about, /shared/:orderid) with redirect guard (no identity → /onboarding)
+- [x] T026 [P] Set up Riverpod providers scaffold in lib/providers/: empty AsyncNotifierProvider stubs for identity_provider.dart, orders_provider.dart, trade_provider.dart, messages_provider.dart, relay_provider.dart, wallet_provider.dart, settings_provider.dart
+- [x] T027 [P] Set up l10n in lib/l10n/: add flutter_localizations + intl to pubspec.yaml, create app_en.arb with all UI string keys as placeholders, configure MaterialApp localizations delegates
+- [x] T028 Implement app entry and responsive scaffold: lib/app.dart (MaterialApp.router with theme, Riverpod ProviderScope, localizations), lib/widgets/responsive_layout.dart (LayoutBuilder at 3 breakpoints: <600 phone, 600–1200 tablet, >1200 desktop with appropriate navigation chrome) per FR-021 and US9
 
 **Checkpoint**: `cargo test && cargo clippy -- -D warnings` pass; `flutter analyze` zero issues; app launches to blank screen on iOS + Android + Chrome
 

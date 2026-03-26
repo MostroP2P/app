@@ -1,0 +1,13 @@
+# flutter_rust_bridge v2 configuration
+# Docs: https://cjycode.com/flutter_rust_bridge/
+#
+# To regenerate Dart bindings after changing Rust API:
+#   flutter_rust_bridge_codegen generate
+#
+# Install codegen tool:
+#   dart pub global activate flutter_rust_bridge
+
+rust_input: "crate::api"
+rust_root: "rust"
+dart_output: "lib/src/rust"
+dart_entrypoint_class_name: "RustLib"
