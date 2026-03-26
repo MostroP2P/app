@@ -1,0 +1,33 @@
+# Flutter
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# flutter_rust_bridge generated bindings (regenerated via: flutter_rust_bridge_codegen generate)
+lib/src/rust/
+
+# Rust
+rust/target/
+rust_builder/target/
+# NOTE: rust/Cargo.lock IS committed to freeze the mostro-core git dependency
+
+# General
+.DS_Store
+.idea/
+*.log
+.env
+.env.*
+*.iml
+
+# Platform
+ios/Pods/
+ios/.symlinks/
+android/.gradle/
+android/local.properties
+android/app/debug
+android/app/profile
+
+# Web service worker (generated at build time)
+web/flutter_service_worker.js

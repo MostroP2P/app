@@ -10,7 +10,7 @@ Build a multi-platform (iOS, Android, Web, macOS, Windows, Linux) P2P Bitcoin/Li
 ## Technical Context
 
 **Language/Version**: Rust stable (latest, currently 1.94+) (core logic); Dart 3.x / Flutter 3.x (UI)
-**Primary Dependencies**: nostr-sdk 0.44+, mostro-core, flutter_rust_bridge 2.x, Riverpod (state management), go_router (navigation), sqlx (SQLite), indexed_db_futures (web), bip32/bip39 (key derivation), chacha20poly1305 (file encryption)
+**Primary Dependencies**: nostr-sdk 0.44+, mostro-core 0.8.0, flutter_rust_bridge 2.x, Riverpod (state management), go_router (navigation), sqlx (SQLite), indexed_db_futures (web), bip32/bip39 (key derivation), chacha20poly1305 (file encryption)
 **Storage**: SQLite via sqlx (native platforms), IndexedDB (web)
 **Testing**: `cargo test` + `cargo clippy -- -D warnings` (Rust); `flutter test` + `flutter analyze` (Dart)
 **Target Platform**: iOS, Android, Web (WASM), macOS, Windows, Linux

@@ -1,0 +1,313 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Mostro",
+  "@appTitle": { "description": "App name displayed in app bar and splash screen" },
+
+  "loading": "Loading…",
+  "@loading": { "description": "Generic loading indicator label" },
+
+  "errorUnknown": "Something went wrong. Please try again.",
+  "@errorUnknown": { "description": "Generic error fallback message" },
+
+  "retry": "Retry",
+  "@retry": { "description": "Retry button label" },
+
+  "cancel": "Cancel",
+  "@cancel": { "description": "Cancel button label" },
+
+  "confirm": "Confirm",
+  "@confirm": { "description": "Confirm button label" },
+
+  "save": "Save",
+  "@save": { "description": "Save button label" },
+
+  "done": "Done",
+  "@done": { "description": "Done button label" },
+
+  "next": "Next",
+  "@next": { "description": "Next step button label" },
+
+  "back": "Back",
+  "@back": { "description": "Back navigation button label" },
+
+  "skip": "Skip",
+  "@skip": { "description": "Skip optional step button label" },
+
+  "copyToClipboard": "Copy",
+  "@copyToClipboard": { "description": "Copy to clipboard button label" },
+
+  "copiedToClipboard": "Copied to clipboard",
+  "@copiedToClipboard": { "description": "Snackbar message after copying" },
+
+  "offlineBanner": "You are offline — showing cached data",
+  "@offlineBanner": { "description": "Banner shown when app is offline" },
+
+  "onboardingWelcomeTitle": "Welcome to Mostro",
+  "@onboardingWelcomeTitle": { "description": "Onboarding welcome screen title" },
+
+  "onboardingWelcomeSubtitle": "Peer-to-peer bitcoin trading over Nostr",
+  "@onboardingWelcomeSubtitle": { "description": "Onboarding welcome screen subtitle" },
+
+  "onboardingCreateIdentity": "Create New Identity",
+  "@onboardingCreateIdentity": { "description": "Button to create a new identity" },
+
+  "onboardingImportIdentity": "Import Existing Identity",
+  "@onboardingImportIdentity": { "description": "Button to import an existing identity" },
+
+  "createIdentityTitle": "Your Recovery Phrase",
+  "@createIdentityTitle": { "description": "Title on create-identity screen showing mnemonic" },
+
+  "createIdentityInstruction": "Write down these 12 words in order and keep them safe. Anyone with these words can access your identity.",
+  "@createIdentityInstruction": { "description": "Instructions for saving the mnemonic" },
+
+  "createIdentityConfirmCheckbox": "I have safely saved my recovery phrase",
+  "@createIdentityConfirmCheckbox": { "description": "Checkbox to confirm mnemonic has been saved" },
+
+  "createIdentityCta": "I've Saved My Phrase",
+  "@createIdentityCta": { "description": "CTA button after mnemonic confirmation" },
+
+  "importIdentityTitle": "Import Identity",
+  "@importIdentityTitle": { "description": "Title on import-identity screen" },
+
+  "importIdentityMnemonicLabel": "Recovery Phrase (12 or 24 words)",
+  "@importIdentityMnemonicLabel": { "description": "Input label for mnemonic import" },
+
+  "importIdentityNsecLabel": "Private Key (nsec…)",
+  "@importIdentityNsecLabel": { "description": "Input label for nsec import" },
+
+  "importIdentityInvalidMnemonic": "Invalid recovery phrase — check spelling",
+  "@importIdentityInvalidMnemonic": { "description": "Error when mnemonic is invalid" },
+
+  "importIdentityInvalidNsec": "Invalid private key format",
+  "@importIdentityInvalidNsec": { "description": "Error when nsec format is invalid" },
+
+  "importIdentityCta": "Import",
+  "@importIdentityCta": { "description": "CTA button to confirm identity import" },
+
+  "pinSetupTitle": "Set a PIN",
+  "@pinSetupTitle": { "description": "Title on PIN setup screen" },
+
+  "pinSetupSubtitle": "Protect your identity with a 4–8 digit PIN",
+  "@pinSetupSubtitle": { "description": "Subtitle explaining PIN purpose" },
+
+  "pinSetupEnterPin": "Enter PIN",
+  "@pinSetupEnterPin": { "description": "Label for PIN entry field" },
+
+  "pinSetupConfirmPin": "Confirm PIN",
+  "@pinSetupConfirmPin": { "description": "Label for PIN confirmation field" },
+
+  "pinSetupMismatch": "PINs do not match",
+  "@pinSetupMismatch": { "description": "Error when PIN confirmation does not match" },
+
+  "pinSetupEnableBiometric": "Also enable biometric unlock",
+  "@pinSetupEnableBiometric": { "description": "Toggle to enable biometrics alongside PIN" },
+
+  "pinSetupSkip": "Skip (not recommended)",
+  "@pinSetupSkip": { "description": "Skip PIN setup (optional)" },
+
+  "homeTitle": "Orders",
+  "@homeTitle": { "description": "Home screen app bar title" },
+
+  "homeFilterAll": "All",
+  "@homeFilterAll": { "description": "Filter tab: show all orders" },
+
+  "homeFilterBuy": "Buy",
+  "@homeFilterBuy": { "description": "Filter tab: show only buy orders" },
+
+  "homeFilterSell": "Sell",
+  "@homeFilterSell": { "description": "Filter tab: show only sell orders" },
+
+  "homeNoOrders": "No orders found",
+  "@homeNoOrders": { "description": "Empty state message when no orders match filter" },
+
+  "homeSearchPaymentMethod": "Payment method",
+  "@homeSearchPaymentMethod": { "description": "Search/filter placeholder for payment method" },
+
+  "orderDetailTitle": "Order Details",
+  "@orderDetailTitle": { "description": "Order detail screen title" },
+
+  "orderDetailTakeOrder": "Take Order",
+  "@orderDetailTakeOrder": { "description": "CTA button to take an order" },
+
+  "orderDetailAlreadyInTrade": "You already have an active trade",
+  "@orderDetailAlreadyInTrade": { "description": "Message when user tries to take an order while in a trade" },
+
+  "orderKindBuy": "Buy",
+  "@orderKindBuy": { "description": "Order kind label: buyer wants to buy bitcoin" },
+
+  "orderKindSell": "Sell",
+  "@orderKindSell": { "description": "Order kind label: seller wants to sell bitcoin" },
+
+  "orderAmount": "{amount} {currency}",
+  "@orderAmount": {
+    "description": "Formatted order fiat amount with currency",
+    "placeholders": {
+      "amount": { "type": "String" },
+      "currency": { "type": "String" }
+    }
+  },
+
+  "orderAmountRange": "{min}–{max} {currency}",
+  "@orderAmountRange": {
+    "description": "Formatted order fiat amount range with currency",
+    "placeholders": {
+      "min": { "type": "String" },
+      "max": { "type": "String" },
+      "currency": { "type": "String" }
+    }
+  },
+
+  "orderPremium": "{premium}% premium",
+  "@orderPremium": {
+    "description": "Order premium percentage label",
+    "placeholders": { "premium": { "type": "String" } }
+  },
+
+  "tradeTitle": "Active Trade",
+  "@tradeTitle": { "description": "Trade screen app bar title" },
+
+  "tradeFiatSent": "I Sent the Fiat",
+  "@tradeFiatSent": { "description": "Button for buyer to confirm fiat payment sent" },
+
+  "tradeRelease": "Release Bitcoin",
+  "@tradeRelease": { "description": "Button for seller to release bitcoin to buyer" },
+
+  "tradeCancel": "Cancel Trade",
+  "@tradeCancel": { "description": "Button to request cooperative trade cancellation" },
+
+  "tradeDispute": "Open Dispute",
+  "@tradeDispute": { "description": "Button to open a dispute" },
+
+  "tradeAddInvoice": "Add Lightning Invoice",
+  "@tradeAddInvoice": { "description": "Button for buyer to add their Lightning invoice" },
+
+  "tradeTimeout": "Trade expires in {time}",
+  "@tradeTimeout": {
+    "description": "Countdown showing when the trade hold invoice expires",
+    "placeholders": { "time": { "type": "String" } }
+  },
+
+  "chatInputHint": "Message…",
+  "@chatInputHint": { "description": "Chat input field placeholder" },
+
+  "chatSend": "Send",
+  "@chatSend": { "description": "Chat send button label" },
+
+  "disputeTitle": "Dispute",
+  "@disputeTitle": { "description": "Dispute screen title" },
+
+  "historyTitle": "Trade History",
+  "@historyTitle": { "description": "Trade history screen title" },
+
+  "historyNoTrades": "No completed trades yet",
+  "@historyNoTrades": { "description": "Empty state for trade history" },
+
+  "historyOutcomeSuccess": "Completed",
+  "@historyOutcomeSuccess": { "description": "Trade history outcome: successful" },
+
+  "historyOutcomeCanceled": "Canceled",
+  "@historyOutcomeCanceled": { "description": "Trade history outcome: canceled" },
+
+  "historyOutcomeDisputed": "Disputed",
+  "@historyOutcomeDisputed": { "description": "Trade history outcome: disputed" },
+
+  "settingsTitle": "Settings",
+  "@settingsTitle": { "description": "Settings screen title" },
+
+  "settingsTheme": "Theme",
+  "@settingsTheme": { "description": "Theme setting label" },
+
+  "settingsThemeSystem": "System",
+  "@settingsThemeSystem": { "description": "Theme option: follow system preference" },
+
+  "settingsThemeLight": "Light",
+  "@settingsThemeLight": { "description": "Theme option: always light" },
+
+  "settingsThemeDark": "Dark",
+  "@settingsThemeDark": { "description": "Theme option: always dark" },
+
+  "settingsLanguage": "Language",
+  "@settingsLanguage": { "description": "Language setting label" },
+
+  "settingsRelays": "Relays",
+  "@settingsRelays": { "description": "Relay settings section label" },
+
+  "settingsWallet": "Lightning Wallet",
+  "@settingsWallet": { "description": "Wallet settings section label" },
+
+  "settingsPrivacy": "Privacy",
+  "@settingsPrivacy": { "description": "Privacy settings section label" },
+
+  "settingsNotifications": "Notifications",
+  "@settingsNotifications": { "description": "Notifications settings section label" },
+
+  "settingsPrivacyMode": "Privacy Mode",
+  "@settingsPrivacyMode": { "description": "Toggle to hide sensitive trade info from screenshots" },
+
+  "relayStatusConnected": "Connected",
+  "@relayStatusConnected": { "description": "Relay connection status: connected" },
+
+  "relayStatusConnecting": "Connecting…",
+  "@relayStatusConnecting": { "description": "Relay connection status: connecting" },
+
+  "relayStatusDisconnected": "Disconnected",
+  "@relayStatusDisconnected": { "description": "Relay connection status: disconnected" },
+
+  "relayStatusError": "Connection error",
+  "@relayStatusError": { "description": "Relay connection status: error" },
+
+  "walletConnectCta": "Connect Wallet",
+  "@walletConnectCta": { "description": "Button to connect an NWC wallet" },
+
+  "walletNwcUriLabel": "Wallet connect URI (nostr+walletconnect://…)",
+  "@walletNwcUriLabel": { "description": "Input label for NWC URI" },
+
+  "walletNwcUriInvalid": "Invalid wallet connect URI",
+  "@walletNwcUriInvalid": { "description": "Error for invalid NWC URI" },
+
+  "rateCounterparty": "Rate your trade partner",
+  "@rateCounterparty": { "description": "Prompt to rate the trading counterparty" },
+
+  "rateSubmit": "Submit Rating",
+  "@rateSubmit": { "description": "Submit rating button label" },
+
+  "aboutTitle": "About Mostro",
+  "@aboutTitle": { "description": "About screen title" },
+
+  "aboutVersion": "Version {version}",
+  "@aboutVersion": {
+    "description": "App version string on about screen",
+    "placeholders": { "version": { "type": "String" } }
+  },
+
+  "sharedOrderTitle": "Shared Order",
+  "@sharedOrderTitle": { "description": "Title when landing via deep link to a shared order" },
+
+  "qrScanTitle": "Scan QR Code",
+  "@qrScanTitle": { "description": "QR scanner screen title" },
+
+  "qrScanPermissionDenied": "Camera permission is required to scan QR codes",
+  "@qrScanPermissionDenied": { "description": "Message when camera permission is denied" },
+
+  "attachmentPickerTitle": "Add Attachment",
+  "@attachmentPickerTitle": { "description": "Attachment picker sheet title" },
+
+  "attachmentUploadFailed": "Upload failed — try again",
+  "@attachmentUploadFailed": { "description": "Error when file upload to Blossom fails" },
+
+  "pinUnlockTitle": "Enter PIN to unlock",
+  "@pinUnlockTitle": { "description": "PIN unlock screen title" },
+
+  "pinUnlockWrong": "Incorrect PIN",
+  "@pinUnlockWrong": { "description": "Error message for wrong PIN" },
+
+  "pinUnlockBiometric": "Use biometrics",
+  "@pinUnlockBiometric": { "description": "Button to use biometric instead of PIN" },
+
+  "recoveryTitle": "Recover Session",
+  "@recoveryTitle": { "description": "Recovery screen title" },
+
+  "recoveryInstruction": "Enter your recovery phrase to restore your identity",
+  "@recoveryInstruction": { "description": "Instruction on recovery screen" }
+}

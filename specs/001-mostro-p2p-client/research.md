@@ -128,7 +128,7 @@ Pending
 
 **Reference implementations**:
 - Daemon: `github.com/MostroP2P/mostro` (Rust)
-- Core types: `github.com/MostroP2P/mostro-core` (Rust crate)
+- Core types: `crates.io/crates/mostro-core` v0.8.0 (Rust crate)
 - CLI client: `github.com/MostroP2P/mostro-cli` (Rust)
 - Mobile client v1: `github.com/MostroP2P/mostro-mobile` (Flutter)
 - Docs: `mostro.network`
