@@ -6,12 +6,13 @@ This implementation follows the **MIP-05 (Marmot Push Notifications)** specifica
 
 ### ✅ Implemented Aspects
 
-#### 1. Silent Push Notifications
-**What:** FCM sends empty notifications with no message content
-**Why:** Prevents Firebase/Google from learning message content, sender identity, or group membership
-**Implementation:** 
-- FCM notifications contain only `content-available` flag
-- App fetches and decrypts actual messages from Nostr relays when awakened
+#### 1. Fallback Push Notifications
+**What:** FCM sends a generic notification (e.g., "You have new activity") with no trade or message content
+**Why:** Some Android devices restrict or block purely silent notifications, preventing the app from waking up. A generic visible notification ensures the user always receives something, even if the app fails to wake in the background.
+**Implementation:**
+- FCM delivers a notification with a generic, content-free message
+- If the app wakes up successfully, the generic notification is replaced by real background notifications (fetched and decrypted from Nostr relays)
+- If the app does NOT wake up (restricted devices), the generic notification remains visible as a fallback
 
 #### 2. Token Registration
 
@@ -47,15 +48,15 @@ This implementation follows the **MIP-05 (Marmot Push Notifications)** specifica
 **Why:** Provides persistent WebSocket connections to Nostr relays, avoiding Cloud Functions limitations
 **Implementation:**
 - Server monitors Nostr relays for new events
-- Decrypts tokens and sends silent push notifications via FCM
+- Decrypts tokens and sends generic push notifications via FCM
 - State-minimized design with no persistent token storage
 
 ### ⚠️ Partially Implemented / Simplified Aspects
 
 #### 5. Token Distribution (Simplified)
-**MIP-05 Approach:** Gossip-based protocol with kind 447/448/449 events in MLS groups
+**MIP-05 Approach:** Gossip-based protocol with kind 447/448/449 events
 **MostroP2P Approach:** Direct registration with notification server
-**Why Simplified:** MostroP2P uses a different architecture (not MLS-based groups)
+**Why Simplified:** MostroP2P uses a simpler architecture with direct user-to-user trades
 **Implementation:**
 - Device registers encrypted token directly with notification server
 - Server maintains token list for each user
@@ -71,21 +72,17 @@ This implementation follows the **MIP-05 (Marmot Push Notifications)** specifica
 
 ### ❌ Not Implemented Aspects
 
-#### 7. MLS Group Integration
-**Reason:** MostroP2P doesn't use MLS (Message Layer Security) for group management
-**Alternative:** MostroP2P uses direct user-to-user trades and simple group concepts
-
-#### 8. Multi-Server Token Management
+#### 7. Multi-Server Token Management
 **Reason:** MostroP2P uses a single notification server (mostro-push-server)
 **Alternative:** Simplified architecture with single server reduces complexity
 
-#### 9. Tor Support
+#### 8. Tor Support
 **Reason:** Not prioritized for initial implementation
 **Future:** Could be added as an optional privacy enhancement
 
-#### 10. Decoy Tokens
+#### 9. Decoy Tokens
 **Reason:** MostroP2P's trade model doesn't require group size obfuscation
-**Alternative:** Privacy is maintained through other means (encrypted tokens, silent push)
+**Alternative:** Privacy is maintained through other means (encrypted tokens, generic content-free push)
 
 ### 🔒 Privacy Properties Maintained
 
@@ -94,11 +91,10 @@ This implementation follows the **MIP-05 (Marmot Push Notifications)** specifica
 - ✅ Device owner's platform identity (Google account via FCM token)
 
 #### What Firebase/Google CANNOT Learn:
-- ✅ Message content (notifications are silent/empty)
+- ✅ Message content (notifications contain only a generic message, no trade data)
 - ✅ Sender's Nostr identity
 - ✅ Recipient's Nostr identity
 - ✅ Trade details or order information
-- ✅ Group membership (not applicable to MostroP2P)
 
 #### What Notification Server Learns:
 - ✅ Timing of notification events
@@ -127,17 +123,16 @@ The implementation is divided into phases to match MostroP2P's architecture whil
 
 | Aspect | MIP-05 | MostroP2P Implementation |
 |--------|--------|---------------------------|
-| **Token Distribution** | Gossip protocol in MLS groups | Direct server registration |
+| **Token Distribution** | Gossip-based protocol | Direct server registration |
 | **Event Triggers** | Gift-wrapped NIP-59 events | Direct relay monitoring |
-| **Group Model** | MLS-based encrypted groups | Simple user-to-user trades |
 | **Multi-Server** | Support for multiple servers | Single dedicated server |
 | **Decoys** | Required for privacy | Not needed for trade model |
 
 Despite these differences, the core privacy properties of MIP-05 are maintained:
-- Silent push notifications
-- Encrypted token registration
+- Generic content-free push notifications
 - Minimal metadata exposure
 - User opt-out capability
+- Planned: Encrypted token registration (Phase 5)
 
 ### Why a Custom Server?
 
@@ -163,7 +158,7 @@ The custom server approach ([mostro-push-server](https://github.com/MostroP2P/mo
 - The device owner's platform identity (Google account) via FCM token
 
 ### What Firebase/Google CANNOT Learn
-- Message content (notifications are silent/empty)
+- Message content (notifications contain only a generic message, no trade data)
 - Sender's Nostr identity
 - Recipient's Nostr identity
 - Order details or trade information
@@ -197,14 +192,14 @@ The custom server approach ([mostro-push-server](https://github.com/MostroP2P/mo
 │ (Separate Repo) │      for new events
 └────────┬────────┘
          │
-         │ 3. Send silent push
+         │ 3. Send generic push
          ▼
 ┌─────────────────┐
 │ Firebase Cloud  │
 │ Messaging (FCM) │
 └────────┬────────┘
          │
-         │ 4. Wake app (silent notification)
+         │ 4. Wake app (generic notification)
          ▼
 ┌─────────────────┐
 │  MostroP2P App  │
@@ -213,7 +208,7 @@ The custom server approach ([mostro-push-server](https://github.com/MostroP2P/mo
                         handles the rest
 ```
 
-**Note:** The app already has a background notification system implemented. FCM is only used to **wake up the app** with silent push notifications. Once awake, the existing notification system takes over to fetch, decrypt, and display messages.
+**Note:** The app already has a background notification system implemented. FCM sends a generic notification to **wake up the app**. If the app wakes successfully, the generic notification is replaced by real notifications from the background system. If the app does not wake (some Android devices), the generic notification remains as a fallback.
 
 ## Implementation Phases
 
@@ -281,7 +276,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // 1. Initialize minimal Firebase
   await Firebase.initializeApp();
   
-  // 2. Silent notification received (empty - no data in message)
+  // 2. Generic notification received (no trade data in message)
   // 3. Trigger existing background notification system
   //    (app already has flutter_background_service implemented)
   // 4. Existing system handles:
@@ -297,7 +292,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 - **Permission Handling:** Request notification permissions on first launch
 - **Platform Detection:** Skip Firebase initialization on Linux
 - **Token Persistence:** Store token locally using `shared_preferences`
-- **Background Wake-up:** Silent push wakes app to trigger existing notification system
+- **Background Wake-up:** Generic push wakes app; if successful, replaced by real background notifications
 - **No Duplication:** Leverage existing `flutter_background_service` and `flutter_local_notifications`
 
 ### Testing
@@ -355,7 +350,7 @@ final response = await http.post(
 ### Testing
 - ✅ FCM token sent to server correctly
 - ✅ Push notification delivery end-to-end
-- ✅ App wakes up on silent push
+- ✅ App wakes up on generic push
 - ✅ Token unregistration flow
 - ✅ Background notification system triggers correctly
 
@@ -516,7 +511,7 @@ See `mostro-push-server/docs/cryptography.md` for server-side specification.
 - ⚠️ **Web/Windows/macOS:** Firebase supported but notifications may have limitations
 
 ### Security Considerations
-- **No Message Content in Push:** FCM notifications are always silent/empty
+- **No Message Content in Push:** FCM notifications contain only a generic message, no trade data
 - **Encrypted Tokens:** Device tokens encrypted before sending to server
 - **Local Decryption:** All Nostr message decryption happens on device
 - **Ephemeral Keys:** Each token encryption uses fresh ephemeral keypair
@@ -524,7 +519,7 @@ See `mostro-push-server/docs/cryptography.md` for server-side specification.
 
 ### Dependencies
 - `firebase_core: ^3.8.0` - Firebase initialization
-- `firebase_messaging: ^15.1.4` - FCM functionality (silent push only)
+- `firebase_messaging: ^15.1.4` - FCM functionality (generic push with fallback)
 - `flutter_local_notifications: ^19.0.0` - Already implemented (existing system)
 - `flutter_background_service: ^5.1.0` - Already implemented (existing system)
 - `pointycastle: ^3.9.1` - ChaCha20-Poly1305 encryption
@@ -586,7 +581,7 @@ The notification server is maintained in a **separate repository** and handles:
 
 - ✅ Notifications delivered within 5 seconds of new message
 - ✅ Background notifications work with app closed
-- ✅ Zero message content exposed to Firebase/Google
+- ✅ No trade or message content exposed to Firebase/Google
 - ✅ Encrypted tokens successfully registered with server
 - ✅ User can completely opt-out of push notifications
 - ✅ App compiles and runs on Linux (notifications gracefully disabled)
