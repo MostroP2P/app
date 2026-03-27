@@ -130,9 +130,9 @@ The implementation is divided into phases to match MostroP2P's architecture whil
 
 Despite these differences, the core privacy properties of MIP-05 are maintained:
 - Generic content-free push notifications
-- Encrypted token registration
 - Minimal metadata exposure
 - User opt-out capability
+- Planned: Encrypted token registration (Phase 5)
 
 ### Why a Custom Server?
 
