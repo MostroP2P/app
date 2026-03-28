@@ -677,6 +677,75 @@ Vertically scrollable list of notification cards on dark background.
 
 ---
 
+## 15. My Trades Screen
+
+**Ref:** [MY_TRADES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/MY_TRADES.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/JhlLMm5WVUrAY8pO.png
+**Route:** `/order_book` (bottom nav tab 2)
+
+### AppBar:
+- Same as Home: Hamburger (☰) | Mostro Logo | Notification bell (🔔)
+
+### Sub-header:
+- Left: title "My Trades" (bold, white)
+- Right: status filter dropdown button: "▼ Status | All"
+  - Dropdown allows filtering by order status (All, Pending, Active, Fiat Sent, Success, etc.)
+  - Filters are session-only (not persisted to disk)
+
+### Trade cards (scrollable list):
+Each trade the user participates in (as maker or taker) is shown as a card:
+
+```text
+┌────────────────────────────────────────────────────────┐
+│  Selling Bitcoin                                    >  │  Action + chevron
+│  [Success]  [Created by you]                           │  Status badge + role badge
+│  🏦  966 ARS                                    4m     │  Amount + currency + time ago
+│  CBU                                                   │  Payment method
+└────────────────────────────────────────────────────────┘
+```
+
+### Card elements:
+
+| Element | Position | Style |
+|---------|----------|-------|
+| **Action text** | Top-left | "Selling Bitcoin" or "Buying Bitcoin" (white, bold) |
+| **Chevron** (>) | Top-right | White arrow indicating tappable → navigates to Trade Detail |
+| **Status badge** | Below action, left | Colored chip: green "Success", blue "Active", yellow "Pending", etc. |
+| **Role badge** | Next to status | Blue chip with "Created by you" or "Taken by you" text |
+| **Fiat amount + currency** | Below badges, left | Large white text e.g. "966 ARS" with bank/payment icon |
+| **Time ago** | Right of amount | Gray, small text e.g. "4m" |
+| **Payment method** | Bottom-left | Gray small text e.g. "CBU", "SPEI", "Mercado Pago" |
+
+### Status badge colors:
+See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md) for the full list. Key statuses:
+
+| Status | Badge color | Text |
+|--------|------------|------|
+| Pending | Yellow/amber | "Pending" |
+| Waiting Buyer Invoice | Orange | "Waiting invoice" |
+| Waiting Payment | Orange | "Waiting payment" |
+| Active | Blue | "Active" |
+| Fiat Sent | Blue | "Fiat sent" |
+| Success | Green | "Success" |
+| Canceled | Gray | "Canceled" |
+| Dispute | Red | "Dispute" |
+
+### Sorting:
+- Sorted by newest first (most recent trade at top)
+- Only shows orders where the user has a local session (maker or taker)
+
+### Tap navigation:
+- Tapping a card → `/trade_detail/:orderId` (Trade Detail screen)
+
+### Empty state:
+- When no trades exist: centered text "No trades" with icon
+
+### Bottom nav:
+- **My Trades** tab is highlighted (green icon + text) indicating current screen
+- Red dot badge on this tab when there are unseen trade updates
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
