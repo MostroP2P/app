@@ -543,6 +543,57 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 
 ---
 
+## 13. Rating Screen
+
+**Ref:** [RATING_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/RATING_SYSTEM.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/8Kz22TeQzN5XWudw.jpg
+**File:** `lib/features/rate/rate_counterpart_screen.dart`
+
+### When this screen appears:
+- **Seller rates buyer:** when order transitions to `settled-hold-invoice` (sats released, payment in flight)
+- **Buyer rates seller:** when order transitions to `success` (buyer received Lightning payment)
+- Each party is prompted independently at different moments in the flow
+
+### Screen layout:
+
+**Header:**
+- Label: "RATE" (uppercase, gray, small)
+
+**Success indicator:**
+- Green double-lightning-bolt icon (indicates successful trade)
+- Text: "Successful order" (white)
+
+**Rating prompt:**
+- The screen prompts the user to rate their counterparty
+- Tapping "RATE" opens the actual rating interface (star selection)
+
+### Action buttons:
+
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CLOSE | Outline, green border + green text | #8CC63F outline | Skip rating, return to order book |
+| RATE | Filled, green bg + white text | #8CC63F filled | Open star rating interface to submit rating |
+
+### Rating flow:
+1. User taps "RATE"
+2. Star rating selector appears (1-5 stars, tappable)
+3. User selects rating and confirms
+4. Rating sent to Mostro via protocol
+5. Returns to order book / My Trades
+
+### Skip behavior:
+- User can tap "CLOSE" to skip rating entirely
+- Rating is optional but encouraged
+- No penalty for skipping
+
+### Rating timing per role:
+| Role | Prompted when | Order status |
+|------|--------------|-------------|
+| Seller | After releasing sats | `settled-hold-invoice` |
+| Buyer | After receiving payment | `success` |
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
