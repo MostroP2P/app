@@ -2,10 +2,10 @@
 
 > Public order book display and the My Trades screen.
 
-**Public order book:** `lib/features/home/screens/home_screen.dart` (home tab)  
-**My trades:** `lib/features/trades/screens/trades_screen.dart` (`/order_book` route)  
-**Order list item:** `lib/features/home/widgets/order_list_item.dart`  
-**Order model:** `lib/data/models/order.dart`  
+**Public order book:** `lib/features/home/screens/home_screen.dart` (home tab)
+**My trades:** `lib/features/trades/screens/trades_screen.dart` (`/order_book` route)
+**Order list item:** `lib/features/home/widgets/order_list_item.dart`
+**Order model:** `lib/data/models/order.dart`
 **Filter widget:** `lib/shared/widgets/order_filter.dart`
 
 ---
@@ -87,57 +87,75 @@ Orders are sorted by `expirationDate` ascending, then reversed — so orders exp
 
 ---
 
-## Order List Item
+## Order List Item (Order Card)
 
 **File:** `lib/features/home/widgets/order_list_item.dart`
+**Screenshot:** https://i.nostr.build/vwXlnPQhL3ROs13b.jpg
 
-Each order in the order book renders as an `OrderListItem`:
+Each pending order in the order book renders as a card with rounded corners (~12dp radius) on a dark card background (`AppTheme.backgroundCard`). The card has consistent internal padding and contains 5 rows:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  ● ●●●  SellerNick     ★4.8(24)                            │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
-│                                                             │
-│  Payment: Bank Transfer          Premium: +5%               │
-│  Range: $10 - $100               SATS: 250,000              │
-│                                                             │
-│  🟢 Online                                                │  ← Seller status indicator
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  SELLING                          a moment ago   │  Row 1: Status pill + timestamp
+│                                                  │
+│  150 - 230                        PEN  🇵🇪      │  Row 2: Fiat amount + currency + flag
+│                                                  │
+│  Market Price (+5.0%)                            │  Row 3: Price type + premium
+│                                                  │
+│  ┌────────────────────────────────────────────┐  │
+│  │ 💳  Yape, Plin                             │  │  Row 4: Payment methods (nested card)
+│  └────────────────────────────────────────────┘  │
+│                                                  │
+│  ┌────────────────────────────────────────────┐  │
+│  │ 4.7 ★★★★★     👤 9      📅 142            │  │  Row 5: Stats (nested card)
+│  └────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────┘
 ```
 
-### Fields Displayed
+### Row 1: Status Label + Timestamp
 
-| Field | Source | Notes |
-|-------|--------|-------|
-| Avatar | User profile | Colored circle with initials or avatar image |
-| Nick | `order.maker_pubkey` lookup | From user profile (NIP-05 or just hex) |
-| Rating | User profile `total_rating` | Star rating + review count |
-| Payment method | `order.payment_method` | String from protocol |
-| Amount range | `order.amount` (min-max) | Fiat amount range |
-| Premium | `order.premium` | Percentage (+/-), colored green/red |
-| SATS | Calculated | `fiat_amount / exchange_rate * 100000000`, rounded |
-| Status | `order.status` | Online indicator for seller |
+| Element | Position | Style |
+|---------|----------|-------|
+| Status label ("SELLING" / "BUYING") | Left, inside a pill/chip | Uppercase, small font, `textSecondary` color, `backgroundInput` pill background, fully rounded corners |
+| Timestamp ("a moment ago", "4 hours ago") | Right-aligned | Small font, `textSecondary` color, relative time format |
 
-### Status Indicator
+### Row 2: Fiat Amount + Currency + Flag
 
-Seller online status is determined by whether their Nostr connection is active. The `OrderListItem` shows a green dot if the seller is currently connected to Nostr relays.
+| Element | Position | Style |
+|---------|----------|-------|
+| Fiat amount or range | Left | Large bold font (biggest text on card), `textPrimary` (white). Shows "150 - 230" for range orders or "2000" for fixed amount |
+| Currency code | Right of amount | Medium bold font, `textPrimary` (white), e.g. "PEN", "ARS", "VES" |
+| Country flag | Right of currency code | Small flag emoji/icon matching the fiat currency country |
 
-### SATS Calculation
+### Row 3: Price Type + Premium
 
-```dart
-sats = (order.fiat_amount / current_exchange_rate) * 100_000_000
-```
+| Element | Position | Style |
+|---------|----------|-------|
+| Price label | Left | Small font, `textSecondary` color |
+| Content varies by price type: | | |
+| — Market price with premium | | "Market Price (+5.0%)" — premium value in green (`mostroGreen`) if positive, red if negative |
+| — Market price no premium | | "Market Price" |
+| — Fixed price | | Shows sats amount |
 
-The exchange rate is fetched from the price API (configured in settings). The sats amount shown is approximate — the exact amount is calculated at trade time.
+### Row 4: Payment Methods (Nested Card)
 
-### States
+A nested card/container with slightly darker background (`backgroundInput`) and medium rounded corners (~10dp):
 
-| State | Render |
-|-------|--------|
-| Loading | Skeleton shimmer (animated placeholder) |
-| Data | Full `OrderListItem` widget |
-| Error | Not individually shown — error at provider level |
-| Empty | `Center` with icon + "No orders available" text |
+| Element | Position | Style |
+|---------|----------|-------|
+| Payment icon | Left | Small payment app icon or generic card icon in yellow/gold |
+| Payment methods list | Right of icon | Medium font, `textPrimary` (white), comma-separated list of methods. Truncated with "..." if too long to fit one line. E.g. "Mercado Pago, MODO, CVU, Belo, Le..." |
+
+### Row 5: Trader Stats (Nested Card)
+
+A nested card/container with same style as Row 4. Contains three data groups spread horizontally:
+
+| Element | Position | Style |
+|---------|----------|-------|
+| **Rating value** | Left | Medium bold font, `textPrimary` (white), e.g. "4.7" |
+| **Star rating** | Right of value | 5 star icons — filled stars in yellow/gold (`AppTheme.yellow`), empty stars in gray outline. Partial fill for fractional ratings (e.g. 4.7 = 4 full + ~70% filled) |
+| **Trade count** | Center-right | User silhouette icon (`textSecondary` gray) + count in `textPrimary` (white), e.g. "👤 9" — total number of completed trades |
+| **Days active** | Far right | Calendar/grid icon (`textSecondary` gray) + count in `textPrimary` (white), e.g. "📅 142" — days since account creation |
 
 ### Tap Navigation
 
@@ -155,13 +173,22 @@ InkWell(
 
 - Sell order (maker selling BTC) → `/take_sell/:orderId` (taker buys BTC)
 - Buy order (maker buying BTC) → `/take_buy/:orderId` (taker sells BTC)
-- Flujo completo de toma: `.specify/v1-reference/TAKE_ORDER.md`
+- Full take order flow: [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md)
+
+### States
+
+| State | Render |
+|-------|--------|
+| Loading | Skeleton shimmer (animated placeholder) |
+| Data | Full order card as described above |
+| Error | Not individually shown — error at provider level |
+| Empty | `Center` with icon + "No orders available" text |
 
 ---
 
 ## My Trades (`/order_book`)
 
-This document now focuses on the public order book. For a complete specification of the My Trades screen (route `/order_book`, `TradesScreen`, status filter, list items, providers, refresh, and navigation), see `.specify/v1-reference/MY_TRADES.md`.
+This document focuses on the public order book. For a complete specification of the My Trades screen (route `/order_book`, `TradesScreen`, status filter, list items, providers, refresh, and navigation), see [MY_TRADES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/MY_TRADES.md).
 
 ---
 
@@ -198,26 +225,15 @@ The `OrderFilter` dialog contains:
 - **Premium range:** Slider for min/max premium percentage (-10%–+10%)
 - **Reset button:** Clears all filters (resets providers to defaults)
 
-### Available Filters
-
-| Filter | Provider | Default |
-|--------|----------|---------|
-| Fiat currency | `currencyFilterProvider` | All currencies |
-| Payment method | `paymentMethodFilterProvider` | All methods |
-| Rating | `ratingFilterProvider` | 0.0–5.0 stars |
-| Premium | `premiumRangeFilterProvider` | -10%–+10% |
-
 ---
 
 ## Cross-References
 
-- **HomeScreen:** `.specify/v1-reference/HOME_SCREEN.md`
-- **Navigation:** `.specify/v1-reference/NAVIGATION_ROUTES.md`
-- **Take Order:** `.specify/v1-reference/TAKE_ORDER.md`
-- **Order Creation:** `.specify/v1-reference/ORDER_CREATION.md`
-- **Order States:** `.specify/v1-reference/ORDER_STATES.md`
-- **Trade Execution:** `.specify/v1-reference/TRADE_EXECUTION.md`
-- **Order list item widget:** `lib/features/home/widgets/order_list_item.dart`
-- **Order filter widget:** `lib/shared/widgets/order_filter.dart`
-- **Trades screen (detailed spec):** `.specify/v1-reference/MY_TRADES.md`
-- **Widget implementation:** `lib/features/trades/screens/trades_screen.dart`
+- **HomeScreen:** [HOME_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/HOME_SCREEN.md)
+- **Navigation:** [NAVIGATION_ROUTES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/NAVIGATION_ROUTES.md)
+- **Take Order:** [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md)
+- **Order Creation:** [ORDER_CREATION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_CREATION.md)
+- **Order States:** [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+- **Trade Execution:** [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TRADE_EXECUTION.md)
+- **My Trades:** [MY_TRADES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/MY_TRADES.md)
+- **Design System:** [DESIGN_SYSTEM.md](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/DESIGN_SYSTEM.md)
