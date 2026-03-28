@@ -196,7 +196,7 @@ Each card contains:
 | # | Icon | Label | Route | Description | Ref |
 |---|------|-------|-------|-------------|-----|
 | 1 | Person silhouette | Account | `/key_management` | Secret words backup, privacy mode, generate new user | [ACCOUNT_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ACCOUNT_SCREEN.md) |
-| 2 | Gear icon | Settings | `/settings` | Language, default fiat, lightning address, notifications | [SETTINGS_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/SETTINGS_SCREEN.md) |
+| 2 | Gear icon | Settings | `/settings` | Language, fiat currency, lightning address, NWC wallet, relays, push notifications, dev tools, Mostro node selector | [SETTINGS_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/SETTINGS_SCREEN.md) |
 | 3 | Info circle (ℹ️) | About | `/about` | App info, docs links, Mostro node details (from kind 38385 event) | [ABOUT_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ABOUT_SCREEN.md) |
 
 ### Visual specs:
@@ -612,7 +612,30 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 
 ---
 
-## 14. Notifications Screen
+## 14. Settings Screen
+
+**Ref:** [SETTINGS_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/SETTINGS_SCREEN.md)
+**Screenshot:** https://i.nostr.build/1rDSSUd1xeQ1TgRH.png
+**Route:** `/settings` (from Drawer menu)
+
+### 8 setting cards (top to bottom):
+
+| # | Icon | Setting | Action |
+|---|------|---------|--------|
+| 1 | 🌐 | Language | Tap → modal language list. Default = system locale |
+| 2 | 💱 | Default Fiat Currency | Tap → searchable currency dialog |
+| 3 | ⚡ | Lightning Address | Text field (optional), auto-saves |
+| 4 | 👛 | NWC Wallet | Shows connection status + balance. Tap → `/wallet_settings` |
+| 5 | 📡 | Relays | Inline list with status dot (🟢/🔴) + ON/OFF toggle + "Add Relay" button |
+| 6 | 🔔 | Push Notifications | Tap → `/notification_settings` |
+| 7 | 🛠️ | Log Report | Tap → `/logs` (dev tools) |
+| 8 | ⚡ | Mostro Node | Shows truncated pubkey + "Trusted" badge. Tap → node selector modal |
+
+See [SETTINGS_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/SETTINGS_SCREEN.md) for full architecture, persistence, side effects, and sub-screens.
+
+---
+
+## 15. Notifications Screen
 
 **Ref:** [NOTIFICATIONS_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/NOTIFICATIONS_SYSTEM.md)
 **Screenshots:** https://i.nostr.build/88eRv8TknhhzdpD4.png, https://i.nostr.build/2VjCp98YrNVsW63A.png
@@ -677,7 +700,7 @@ Vertically scrollable list of notification cards on dark background.
 
 ---
 
-## 15. My Trades Screen
+## 16. My Trades Screen
 
 **Ref:** [MY_TRADES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/MY_TRADES.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
 **Screenshot:** https://i.nostr.build/JhlLMm5WVUrAY8pO.png
