@@ -364,6 +364,48 @@ See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-refer
 
 ---
 
+## 10. Range Amount Modal
+
+**Ref:** [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md) (range order flow)
+**Screenshot:** https://i.nostr.build/7utwYQ91XKNF73Yt.jpg
+
+### When this modal appears:
+- User taps "Buy" or "Sell" on a **range order** (order with min-max fiat amount)
+- Shown as a centered dialog/modal over the Take Order screen
+- Background dimmed behind the modal
+
+### Modal layout:
+
+**Title:**
+- Text describing the action, e.g. "Enter the amount you want to trade"
+- White text, left-aligned
+
+**Input field:**
+- Numeric input for the fiat amount
+- Shows cursor in green (#8CC63F) when focused
+- Digits-only keyboard
+- Must be within the order's min-max range
+
+**Helper/range text:**
+- Shows the valid range, e.g. "Min: 150 - Max: 230 PEN"
+- Gray secondary text below input
+
+**Action buttons (bottom-right of modal):**
+- **Cancel** (left): Text button, gray text, no background
+- **Submit** (right): Filled green (#8CC63F) button, dark text
+
+### Validation:
+- Amount must be >= min and <= max of the order range
+- Submit button disabled until valid amount entered
+- Shows error if out of range
+
+### After submit:
+- Modal closes
+- Take order flow continues (sends take action to Mostro with the specified fiat amount)
+- If buying BTC without NWC → shows Add Lightning Invoice screen next
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
