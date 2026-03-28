@@ -625,11 +625,45 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 | 1 | 🌐 | Language | Tap → modal language list. Default = system locale |
 | 2 | 💱 | Default Fiat Currency | Tap → searchable currency dialog (see below) |
 | 3 | ⚡ | Lightning Address | Text field (optional), auto-saves |
-| 4 | 👛 | NWC Wallet | Shows connection status + balance. Tap → `/wallet_settings` |
+| 4 | 👛 | NWC Wallet | Shows connection status + balance. Tap → `/wallet_settings` (see NWC section below) |
 | 5 | 📡 | Relays | Inline list with status dot (🟢/🔴) + ON/OFF toggle + "Add Relay" button |
 | 6 | 🔔 | Push Notifications | Tap → `/notification_settings` |
 | 7 | 🛠️ | Log Report | Tap → `/logs` (dev tools) |
 | 8 | ⚡ | Mostro Node | Shows truncated pubkey + "Trusted" badge. Tap → node selector modal |
+
+### NWC Wallet (Nostr Wallet Connect):
+**Ref:** [NWC_ARCHITECTURE.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/NWC_ARCHITECTURE.md)
+
+**Settings card — disconnected state:**
+**Screenshot:** https://i.nostr.build/5rDjTznZCiq6aYYS.png
+- Wallet icon + title "Wallet"
+- Subtitle: "Connect your Lightning wallet via NWC"
+- No balance shown
+- Tap → `/connect_wallet`
+
+**Settings card — connected state:**
+**Screenshot:** https://i.nostr.build/HsqqrqN3d5RWcfrf.png
+- Wallet icon + title "NWC"
+- Shows: "Connected. Balance: 11 sats"
+- Tap → `/wallet_settings`
+
+**Connect Wallet screen (`/connect_wallet`) — no NWC configured:**
+**Screenshot:** https://i.nostr.build/08lXrao4jq8pNVCM.png
+- Back arrow (←) + title
+- Chain/link icon
+- Text input field to paste NWC connection URI (`nostr+walletconnect://...`)
+- QR scan button to scan NWC URI from QR code
+- Green "Connect" button
+- After successful connection → shows balance, redirects to wallet settings
+
+**Wallet Settings screen (`/wallet_settings`) — NWC configured:**
+**Screenshot:** https://i.nostr.build/CKLPZQ9B8P812c7e.png
+- Back arrow (←) + title "Wallet Configuration"
+- **Wallet Info card:** Shows wallet alias, connection status, balance
+- **Disconnect button:** To remove the NWC connection
+- When NWC is connected, the app auto-generates Lightning invoices during trades (skips the manual Add Invoice screen)
+
+---
 
 ### Currency Selection Dialog:
 **Screenshot:** https://i.nostr.build/led9hsgIjQLlguLU.jpg
