@@ -320,6 +320,50 @@ See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-refer
 
 ---
 
+## 9. Add Lightning Invoice Screen
+
+**Ref:** [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md) (post-take flow)
+**Screenshot:** https://i.nostr.build/cacqquWiN0SgjjkB.jpg
+**Route:** Shown after taker takes a sell order (buying BTC) when NWC is not configured
+**File:** `lib/features/order/screens/add_lightning_invoice_screen.dart`
+
+### When this screen appears:
+- User took a sell order (they are buying BTC)
+- NWC (Nostr Wallet Connect) is NOT configured
+- Mostro needs a Lightning invoice or address to send the BTC payment to
+
+### AppBar:
+- Back arrow (←) + title (order context)
+
+### Content card (single rounded card):
+
+**Info text:**
+- "Enter a Lightning Invoice of [amount] Sats equivalent to [fiat_amount] [currency] to continue the exchange of the order with ID [order_id]"
+- Gray text, left-aligned, multi-line
+- Shows exact sats amount, fiat equivalent, and order UUID
+
+**Input field:**
+- Label: "Lightning Invoice" (floating label, gray)
+- Multi-line text input (supports long invoice strings)
+- Dark background input container with rounded corners
+- Underline indicator at bottom
+- Accepts either a Lightning invoice (lnbc...) or a Lightning address (user@domain)
+
+### Bottom action buttons:
+- **Cancel** (left): Text button, gray/white text, no background — goes back
+- **Submit** (right): Filled green (#8CC63F) button, dark text "Submit" — sends invoice to Mostro
+
+### Alternative flow (when NWC IS configured):
+- This screen is skipped entirely
+- The app automatically generates an invoice via NWC and sends it to Mostro
+- User goes directly to the waiting/payment state
+
+### If user has a default Lightning address in settings:
+- The input field is pre-filled with the saved address
+- User can still modify it before submitting
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
