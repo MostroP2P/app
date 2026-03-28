@@ -520,10 +520,26 @@ Same layout as Section 11 (buyer view) — trade summary, payment method, creati
 - **Seller** sees "RELEASE" as primary action (release sats after verifying payment)
 - The button set changes based on the order status AND the user's role (buyer vs seller)
 
-See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md) for complete state transitions. After seller presses RELEASE:
+### Release Confirmation Modal:
+**Screenshot:** https://i.nostr.build/bZidPuPN82Ugd1BI.png
+
+When the seller taps RELEASE, a confirmation modal appears centered on screen:
+
+- **Background:** Dark overlay dimming the trade detail screen behind
+- **Icon:** Large gray info/confirmation icon at top
+- **Title:** "Release Bitcoin" (white, bold)
+- **Body:** "Are you sure you want to release the Satoshis to the buyer?" (gray text)
+- **Buttons (bottom):**
+  - **No** (left): Gray button, white text — dismisses modal, no action
+  - **Yes** (right): Green (#8CC63F) button, white text — confirms release
+
+After confirming "Yes":
+- Sends `release` action to Mostro via NIP-59
 - Order status → `settled-hold-invoice` → `success`
 - Buyer receives Lightning payment
 - Both parties prompted to rate each other
+
+See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md) for complete state transitions.
 
 ---
 
