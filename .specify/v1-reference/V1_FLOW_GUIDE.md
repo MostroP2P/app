@@ -406,6 +406,76 @@ See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-refer
 
 ---
 
+## 11. Trade Detail Screen (Active Order — Buyer View)
+
+**Ref:** [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TRADE_EXECUTION.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/ulWzECZTQK9fzMyO.jpg
+**Route:** `/trade_detail/:orderId`
+
+### When this screen appears:
+- Both buyer and seller have completed their initial steps
+- Buyer submitted Lightning invoice/address
+- Seller paid the hold invoice
+- Order status: **active**
+
+### AppBar:
+- Back arrow (←) + title "ORDER DETAILS"
+
+### Content cards (stacked vertically):
+
+**Card 1 — Trade Summary:**
+- "You are buying [sats] sats"
+- "for [fiat_amount] [currency] 🇦🇷 [currency]"
+- Shows exact sats amount, fiat equivalent, currency code, and country flag
+
+**Card 2 — Payment Method:**
+- Left: payment cards icon (gray)
+- Right: label "Payment Method" (gray) + value e.g. "CBU" (white)
+
+**Card 3 — Creation Date:**
+- Left: calendar icon (gray)
+- Right: label "Created on" (gray) + value e.g. "28 mar 2026 17:16" (white)
+
+**Card 4 — Order ID:**
+- Label "Order ID" (gray)
+- UUID value on two lines (white)
+- Copy icon (📋) to copy to clipboard
+
+**Card 5 — Instructions + Status:**
+- Green lightning bolt icon (top-left)
+- Instructional text (white): "Contact the seller [peer_handle] to arrange how to send [fiat_amount] [currency] using [payment_method]. Once you have sent the fiat money, notify me by pressing the Fiat Sent button."
+- Status label at bottom: "Active order"
+
+### Action Buttons (bottom, stacked in rows):
+
+**Row 1 (primary actions):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CLOSE | Outline, green border + green text | #8CC63F outline | Close detail view, go back |
+| FIAT SENT | Filled, green bg + dark text | #8CC63F filled | Confirm fiat payment sent → changes order status to `fiat-sent` |
+
+**Row 2 (warning actions):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CANCEL | Filled, red bg + white text | ~#D34F4F | Request cooperative cancel → requires both parties to agree |
+| DISPUTE | Filled, red bg + white text | ~#D34F4F | Open dispute → admin intervention |
+
+**Row 3 (communication):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CONTACT | Filled, green bg + dark text, full width | #8CC63F | Open P2P chat with counterparty (`/chat_room/:orderId`) |
+
+### State-dependent button visibility:
+- Buttons change based on order status (active, fiat-sent, etc.)
+- "FIAT SENT" only visible to buyer in `active` state
+- "CANCEL" available to both parties
+- "DISPUTE" available to both parties
+- "CONTACT" always available during active trade
+
+See [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TRADE_EXECUTION.md) for complete state machine and button visibility rules per status.
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
