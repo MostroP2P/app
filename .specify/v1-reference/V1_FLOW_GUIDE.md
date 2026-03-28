@@ -260,6 +260,66 @@ Each card contains:
 
 ---
 
+## 8. Take Order Screen
+
+**Ref:** [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md)
+**Screenshot:** https://i.nostr.build/YrTRGSN4fYHJbUa9.jpg
+**Routes:** `/take_sell/:orderId` (taker buys BTC), `/take_buy/:orderId` (taker sells BTC)
+
+### AppBar:
+- Back arrow (←) + title "SELL ORDER DETAILS" (or "BUY ORDER DETAILS" depending on order type)
+
+### Content: stacked cards with order information
+
+**Card 1 — Order Description + Amount:**
+- Text: "Someone is selling sats"
+- Text: "for 500 MXN 🇲🇽 at market price (+4.0%)"
+- Shows fiat amount, currency code, country flag, price type, and premium
+
+**Card 2 — Payment Method:**
+- Left: payment cards icon (white)
+- Right: label "Payment Method" (gray) + value "SPEI, Cash at OXXO" (white)
+
+**Card 3 — Creation Date:**
+- Left: calendar icon (white)
+- Right: label "Created on" (gray) + value "28 mar 2026 12:44" (white)
+
+**Card 4 — Order ID:**
+- Label "Order ID" (gray)
+- Value: UUID displayed on two lines (white, monospace)
+- Copy icon (📋) to copy order ID to clipboard
+
+**Card 5 — Creator Reputation:**
+- Label "Creator Reputation" (gray)
+- Three stat columns in a horizontal row:
+  | Stat | Icon | Example | Label |
+  |------|------|---------|-------|
+  | Rating | ⭐ (yellow) | 4.5 | "Rating" |
+  | Reviews | 👤 (white) | 5 | "Reviews" |
+  | Days | 📅 (white) | 32 | "Days" |
+- Numbers are large and bold (white), labels are small and gray below
+
+### Countdown Timer:
+- Circular progress indicator (silver/gray wedges showing time remaining)
+- Text: "Time remaining: 19:48:06"
+- Shows how long before the order expires
+
+### Bottom Action Buttons:
+- **Close** (left): Green (#8CC63F) outline button, no fill, green text "CLOSE"
+- **Buy/Sell** (right): Green (#8CC63F) filled button, dark text "BUY" (or "SELL")
+- For range orders: an amount input field appears above buttons for the taker to specify exact fiat amount within the range
+
+### Flow after tapping Buy/Sell:
+1. App sends `take-sell` or `take-buy` action to Mostro via NIP-59
+2. Shows loading/waiting state
+3. On success → navigates to trade detail / order confirmation
+4. On error → shows error message (e.g. "Order already taken", "Out of range")
+5. On timeout → returns to order book
+
+See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md) for complete protocol flow, state transitions, and error handling.
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
