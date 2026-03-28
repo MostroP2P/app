@@ -575,11 +575,29 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 | RATE | Filled, green bg + white text | #8CC63F filled | Open star rating interface to submit rating |
 
 ### Rating flow:
-1. User taps "RATE"
-2. Star rating selector appears (1-5 stars, tappable)
-3. User selects rating and confirms
-4. Rating sent to Mostro via protocol
-5. Returns to order book / My Trades
+1. User taps "RATE" on the success screen
+2. Navigates to "Rate Counterpart" screen
+
+### Rate Counterpart Screen:
+**Screenshot:** https://i.nostr.build/dLYmWtL9T61X48mF.png
+
+**AppBar:**
+- Back arrow (←) + title "Rate Counterpart" (white)
+
+**Center content (vertically centered):**
+- Label: "RATE" (uppercase, centered)
+- **5 star rating widget:**
+  - 5 horizontal stars, tappable
+  - Selected stars: filled lime green (#8CC63F)
+  - Unselected stars: dark gray outline only
+  - User taps to select rating (1-5)
+- Rating display: "4 / 5" (white text, centered below stars)
+
+**Submit button (bottom, centered):**
+- Filled green (#8CC63F) button, rounded corners
+- Text: "Submit Rating" (green/white text)
+- Sends rating to Mostro via protocol
+- After submit → returns to My Trades / order book
 
 ### Skip behavior:
 - User can tap "CLOSE" to skip rating entirely
