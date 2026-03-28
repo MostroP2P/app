@@ -612,6 +612,71 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 
 ---
 
+## 14. Notifications Screen
+
+**Ref:** [NOTIFICATIONS_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/NOTIFICATIONS_SYSTEM.md)
+**Screenshots:** https://i.nostr.build/88eRv8TknhhzdpD4.png, https://i.nostr.build/2VjCp98YrNVsW63A.png
+**Route:** `/notifications`
+
+### Entry point:
+- Tap the notification bell icon (top-right of AppBar)
+- Bell has red dot when unread notifications exist
+- Bell shakes slightly when red dot is active
+
+### AppBar:
+- Back arrow (←) + title "Notifications"
+- Overflow menu (⋮) on right with:
+  - ✅ "Mark all as read" (green checkmark icon)
+  - 🗑️ "Clear all" (red trash icon)
+
+### Notification list:
+Vertically scrollable list of notification cards on dark background.
+
+### Notification card structure:
+
+```text
+┌────────────────────────────────────────────────────────┐
+│  [Icon]  Title text                        • ⋮         │
+│          Subtitle / description text                   │
+│          ┌──────────────────────────────────────────┐  │
+│          │ 👤 Buyer: unbanked-bull                  │  │  (optional detail field)
+│          │ 🕒 Time limit: 15 minutes                │  │
+│          └──────────────────────────────────────────┘  │
+│          hace 4 minutos                                │
+└────────────────────────────────────────────────────────┘
+```
+
+### Card elements:
+
+| Element | Position | Style |
+|---------|----------|-------|
+| **Icon** (left) | Circular container | Varies by type: ⭐ yellow (rating), 💲 blue (payment), 📄 green (invoice), ➕ green (order taken) |
+| **Title** | Top-right of icon | White, bold/semi-bold, ~16sp. E.g. "Rating requested", "Payment settled", "Fiat payment confirmed" |
+| **Subtitle** | Below title | Light gray, regular, ~14sp. Description of the event |
+| **Detail field** (optional) | Below subtitle, nested card | Darker background with blue left border. Shows key-value pairs: buyer handle, time limit, etc. |
+| **Timestamp** | Bottom-left | Gray, small (~12sp). Relative time: "4 minutes ago" |
+| **Unread dot** | Top-right corner | Small green (#8CC63F) circle — indicates unread |
+| **Item menu** (⋮) | Far right | Three dots for per-item actions |
+
+### Notification types (from screenshots):
+
+| Type | Icon | Title | Detail field |
+|------|------|-------|-------------|
+| Rating requested | ⭐ yellow | "Rating requested" | — |
+| Payment settled | 💲 blue | "Payment settled" | — |
+| Fiat payment confirmed | 💲 blue | "Fiat payment confirmed" | — |
+| Contact buyer | ➕ green | "Contact the Buyer" | 👤 Buyer: [handle], 🕒 Time limit: 15 min |
+| Payment required | 💳 blue | "Payment required" | — |
+| Waiting for invoice | 📄 green | "Waiting for invoice" | — |
+| **Backup reminder** (pinned) | 🔑 | "You must back up your account" | — (always first, until backup done) |
+
+### Behavior:
+- Tapping a notification navigates to the relevant screen (trade detail, rating, etc.)
+- Viewing a notification marks it as read (green dot disappears)
+- Backup reminder stays pinned at top until user views secret words in Account screen
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
