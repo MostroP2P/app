@@ -316,7 +316,8 @@ Each card contains:
 4. On error → shows error message (e.g. "Order already taken", "Out of range")
 5. On timeout → returns to order book
 
-See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md) for complete protocol flow, state transitions, and error handling.
+See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TAKE_ORDER.md) for complete protocol flow and error handling.
+See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md) for the complete order state machine and all possible status transitions.
 
 ---
 
@@ -352,6 +353,9 @@ See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-refer
 ### Bottom action buttons:
 - **Cancel** (left): Text button, gray/white text, no background — goes back
 - **Submit** (right): Filled green (#8CC63F) button, dark text "Submit" — sends invoice to Mostro
+
+### Order state context:
+This screen appears during the transition from `pending` → `waitingBuyerInvoice` → `waitingPayment` states. See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md) for the complete state machine.
 
 ### Alternative flow (when NWC IS configured):
 - This screen is skipped entirely
@@ -402,6 +406,7 @@ See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-refer
 ### After submit:
 - Modal closes
 - Take order flow continues (sends take action to Mostro with the specified fiat amount)
+- Order transitions through states defined in [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
 - If buying BTC without NWC → shows Add Lightning Invoice screen next
 
 ---
@@ -466,7 +471,7 @@ See [TAKE_ORDER.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-refer
 | CONTACT | Filled, green bg + dark text, full width | #8CC63F | Open P2P chat with counterparty (`/chat_room/:orderId`) |
 
 ### State-dependent button visibility:
-- Buttons change based on order status (active, fiat-sent, etc.)
+Buttons change based on order status as defined in [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md):
 - "FIAT SENT" only visible to buyer in `active` state
 - "CANCEL" available to both parties
 - "DISPUTE" available to both parties
