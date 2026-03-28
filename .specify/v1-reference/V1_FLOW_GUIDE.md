@@ -197,7 +197,7 @@ Each card contains:
 |---|------|-------|-------|-------------|-----|
 | 1 | Person silhouette | Account | `/key_management` | Secret words backup, privacy mode, generate new user | [ACCOUNT_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ACCOUNT_SCREEN.md) |
 | 2 | Gear icon | Settings | `/settings` | Language, default fiat, lightning address, notifications | [SETTINGS_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/SETTINGS_SCREEN.md) |
-| 3 | Info circle (ℹ️) | About | `/about` | Mostro instance info, version, relays, pubkey | [ABOUT_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ABOUT_SCREEN.md) |
+| 3 | Info circle (ℹ️) | About | `/about` | App info, docs links, Mostro node details (from kind 38385 event) | [ABOUT_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ABOUT_SCREEN.md) |
 
 ### Visual specs:
 - Dark background matching app theme
