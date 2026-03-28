@@ -623,13 +623,23 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 | # | Icon | Setting | Action |
 |---|------|---------|--------|
 | 1 | 🌐 | Language | Tap → modal language list. Default = system locale |
-| 2 | 💱 | Default Fiat Currency | Tap → searchable currency dialog |
+| 2 | 💱 | Default Fiat Currency | Tap → searchable currency dialog (see below) |
 | 3 | ⚡ | Lightning Address | Text field (optional), auto-saves |
 | 4 | 👛 | NWC Wallet | Shows connection status + balance. Tap → `/wallet_settings` |
 | 5 | 📡 | Relays | Inline list with status dot (🟢/🔴) + ON/OFF toggle + "Add Relay" button |
 | 6 | 🔔 | Push Notifications | Tap → `/notification_settings` |
 | 7 | 🛠️ | Log Report | Tap → `/logs` (dev tools) |
 | 8 | ⚡ | Mostro Node | Shows truncated pubkey + "Trusted" badge. Tap → node selector modal |
+
+### Currency Selection Dialog:
+**Screenshot:** https://i.nostr.build/led9hsgIjQLlguLU.jpg
+
+- Full-screen modal dialog
+- **Search bar** at top: magnifying glass icon + placeholder "Search currencies..."
+- **Scrollable list** of all supported fiat currencies
+- Each item: country flag 🇦🇷 + currency code (ARS) + full name (Argentine Peso)
+- Tap an item → sets as default fiat currency, dialog closes
+- Currency data loaded from `assets/data/fiat.json`
 
 See [SETTINGS_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/SETTINGS_SCREEN.md) for full architecture, persistence, side effects, and sub-screens.
 
