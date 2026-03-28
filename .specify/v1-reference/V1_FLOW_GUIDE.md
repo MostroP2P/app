@@ -481,6 +481,52 @@ See [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-
 
 ---
 
+## 12. Trade Detail Screen (Fiat Sent — Seller View)
+
+**Ref:** [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TRADE_EXECUTION.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/4H586RMh5cwIBVXQ.png
+**Route:** `/trade_detail/:orderId`
+**Order status:** `fiat-sent`
+
+### Context:
+- The buyer has confirmed fiat payment by pressing "Fiat Sent"
+- The seller now sees this screen with instructions to verify and release
+
+### Info cards:
+Same layout as Section 11 (buyer view) — trade summary, payment method, creation date, order ID. The key difference is:
+
+**Card 5 — Instructions + Status:**
+- Green lightning bolt icon
+- Instructional text: "The buyer [peer_handle] has confirmed that they have sent you [fiat_amount] [currency] using [payment_method]. Once you verify the payment, release the sats."
+- Status label: "Fiat sent" (instead of "Active order")
+
+### Action Buttons (seller's view after fiat-sent):
+
+**Row 1 (4 buttons side by side):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CLOSE | Outline, green border + green text | #8CC63F outline | Close detail view |
+| RELEASE | Filled, green bg + dark text | #8CC63F filled | **Release sats to buyer** — irreversible, completes the trade |
+| CANCEL | Filled, red/coral bg + white text | ~#D34F4F | Request cooperative cancel |
+| DISPUTE | Filled, red/pink bg + white text | ~#D34F4F | Open dispute — escalate to admin |
+
+**Row 2 (1 button, full width, centered):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CONTACT | Filled, green bg + dark text | #8CC63F filled | Open P2P chat with buyer |
+
+### Key difference from buyer view (Section 11):
+- **Buyer** sees "FIAT SENT" as primary action (confirm payment)
+- **Seller** sees "RELEASE" as primary action (release sats after verifying payment)
+- The button set changes based on the order status AND the user's role (buyer vs seller)
+
+See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md) for complete state transitions. After seller presses RELEASE:
+- Order status → `settled-hold-invoice` → `success`
+- Buyer receives Lightning payment
+- Both parties prompted to rate each other
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
