@@ -313,7 +313,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _confirmRefresh(BuildContext context) {

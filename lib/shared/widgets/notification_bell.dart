@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
-import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
@@ -60,7 +59,6 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
   Widget build(BuildContext context) {
     final backupActive = ref.watch(backupReminderProvider);
     final unreadCount = ref.watch(unreadNotificationCountProvider);
-    final colors = Theme.of(context).extension<AppColors>();
 
     final isActive = backupActive || unreadCount > 0;
 
@@ -90,11 +88,8 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
                 top: -2,
                 right: -2,
                 child: backupActive
-                    ? _RedDot()
-                    : _CountBadge(
-                        count: unreadCount,
-                        colors: colors,
-                      ),
+                    ? const _RedDot()
+                    : _CountBadge(count: unreadCount),
               ),
           ],
         ),
@@ -104,6 +99,8 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
 }
 
 class _RedDot extends StatelessWidget {
+  const _RedDot();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -118,10 +115,9 @@ class _RedDot extends StatelessWidget {
 }
 
 class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count, required this.colors});
+  const _CountBadge({required this.count});
 
   final int count;
-  final AppColors? colors;
 
   @override
   Widget build(BuildContext context) {

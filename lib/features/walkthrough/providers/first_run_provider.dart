@@ -26,9 +26,10 @@ class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
     try {
       final prefs = await SharedPreferences.getInstance();
       state = AsyncValue.data(prefs.getBool(_kFirstRunComplete) ?? false);
-    } catch (e, st) {
-      // Fail-safe: treat as completed so the user reaches the home screen.
-      state = AsyncValue.error(e, st);
+    } catch (_) {
+      // Fail-safe: if SharedPreferences is unavailable treat first-run as
+      // complete so the router sends the user to the home screen directly.
+      state = const AsyncValue.data(true);
     }
   }
 
