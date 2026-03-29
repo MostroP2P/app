@@ -1080,6 +1080,46 @@ Slides open below the info buttons when "User Information" is tapped (button tur
 
 ---
 
+## 21. Trade Detail Screen (Dispute — Seller View)
+
+**Ref:** [DISPUTE_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/DISPUTE_SYSTEM.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/lotPDBuOfgXNX5Nk.png
+**Route:** `/trade_detail/:orderId`
+**Order status:** `dispute`
+
+### Context:
+- A dispute has been initiated (by either party)
+- An admin (dispute resolver) has been assigned
+- The seller still has the option to voluntarily RELEASE sats even during a dispute
+
+### Card 5 — Instructions + Status:
+- Green lightning bolt icon
+- Text: "A dispute resolver has been assigned to handle your case. They will contact you through the app."
+- Status label: "Order in dispute"
+
+### Action Buttons (seller view during dispute):
+
+**Row 1 (4 buttons):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CLOSE | Outline, dark | Gray outline | Close detail view |
+| CONTACT | Filled, green | #8CC63F | Open P2P chat with counterparty |
+| CANCEL | Filled, red | ~#D34F4F | Request cooperative cancel |
+| RELEASE | Filled, green | #8CC63F | **Voluntarily release sats to buyer** — available even without reaching fiat-sent status |
+
+**Row 2 (1 button, full width):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| VIEW DISPUTE | Filled, green | #8CC63F | Navigate to dispute chat with admin |
+
+### Important behavior:
+- **RELEASE is available to seller during dispute** even if the order never reached `fiat-sent` status
+- This allows the seller to voluntarily resolve the dispute by releasing sats
+- Same confirmation modal as Section 12 (Release Bitcoin — "Are you sure?")
+- VIEW DISPUTE opens the admin chat where the dispute resolver communicates with both parties
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
