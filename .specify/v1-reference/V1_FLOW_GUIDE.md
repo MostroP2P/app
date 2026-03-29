@@ -196,6 +196,7 @@ Each card contains:
 - White horizontal divider line below
 
 **Menu Items:**
+
 | # | Icon | Label | Route | Description | Ref |
 |---|------|-------|-------|-------------|-----|
 | 1 | Person silhouette | Account | `/key_management` | Secret words backup, privacy mode, generate new user | [ACCOUNT_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ACCOUNT_SCREEN.md) |
@@ -457,18 +458,21 @@ This screen appears during the transition from `pending` → `waitingBuyerInvoic
 ### Action Buttons (bottom, stacked in rows):
 
 **Row 1 (primary actions):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | CLOSE | Outline, green border + green text | #8CC63F outline | Close detail view, go back |
 | FIAT SENT | Filled, green bg + dark text | #8CC63F filled | Confirm fiat payment sent → changes order status to `fiat-sent` |
 
 **Row 2 (warning actions):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | CANCEL | Filled, red bg + white text | ~#D34F4F | Request cooperative cancel → requires both parties to agree |
 | DISPUTE | Filled, red bg + white text | ~#D34F4F | Open dispute → admin intervention |
 
 **Row 3 (communication):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | CONTACT | Filled, green bg + dark text, full width | #8CC63F | Open P2P chat with counterparty (`/chat_room/:orderId`) |
@@ -506,6 +510,7 @@ Same layout as Section 11 (buyer view) — trade summary, payment method, creati
 ### Action Buttons (seller's view after fiat-sent):
 
 **Row 1 (4 buttons side by side):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | CLOSE | Outline, green border + green text | #8CC63F outline | Close detail view |
@@ -514,6 +519,7 @@ Same layout as Section 11 (buyer view) — trade summary, payment method, creati
 | DISPUTE | Filled, red/pink bg + white text | ~#D34F4F | Open dispute — escalate to admin |
 
 **Row 2 (1 button, full width, centered):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | CONTACT | Filled, green bg + dark text | #8CC63F filled | Open P2P chat with buyer |
@@ -608,6 +614,7 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 - No penalty for skipping
 
 ### Rating timing per role:
+
 | Role | Prompted when | Order status |
 |------|--------------|-------------|
 | Seller | After releasing sats | `settled-hold-invoice` |
@@ -839,6 +846,7 @@ Same layout as buyer view (Section 11) — trade summary, payment method, creati
 ### Action Buttons (seller's view when active):
 
 **Single row (4 buttons side by side):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | CLOSE | Outline, green border + green text | #8CC63F outline | Close detail view |
@@ -881,6 +889,7 @@ Same layout as buyer view (Section 11) — trade summary, payment method, creati
 - Scannable by any Lightning wallet
 
 **Action buttons (inside white card):**
+
 | Button | Icon | Color | Action |
 |--------|------|-------|--------|
 | **Copy** | 📋 copy icon | Green (#8CC63F) bg, dark text | Copies Lightning invoice string to clipboard |
@@ -922,6 +931,7 @@ After tapping "Pay with Wallet":
 - Title: "Chat" (bold, white, left-aligned)
 
 ### Two sub-tabs (below title):
+
 | Tab | Active style | Content |
 |-----|-------------|---------|
 | **Messages** | Green text + green underline (#8CC63F) | P2P trade conversations |
@@ -1025,6 +1035,7 @@ Each dispute card shows:
 
 ### Info buttons (below AppBar):
 Two horizontal buttons side by side:
+
 | Button | Icon | Label |
 |--------|------|-------|
 | Trade Information | 📄 document icon | "Exchange Information" → shows trade details panel |
@@ -1056,6 +1067,7 @@ Two horizontal buttons side by side:
 Slides open below the info buttons when "Exchange Information" is tapped (button turns green when active).
 
 **Fields displayed:**
+
 | Field | Example value | Style |
 |-------|--------------|-------|
 | Order ID | `4485fdbb-807d-48ab-9f32-29634f6c44b2` | Gray label + white value |
@@ -1128,6 +1140,7 @@ Slides open below the info buttons when "User Information" is tapped (button tur
 ### Action Buttons (seller view during dispute):
 
 **Row 1 (4 buttons):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | CLOSE | Outline, dark | Gray outline | Close detail view |
@@ -1136,6 +1149,7 @@ Slides open below the info buttons when "User Information" is tapped (button tur
 | RELEASE | Filled, green | #8CC63F | **Voluntarily release sats to buyer** — available even without reaching fiat-sent status |
 
 **Row 2 (1 button, full width):**
+
 | Button | Style | Color | Action |
 |--------|-------|-------|--------|
 | VIEW DISPUTE | Filled, green | #8CC63F | Navigate to dispute chat with admin |
