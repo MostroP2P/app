@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
+import 'package:mostro/features/walkthrough/screens/walkthrough_screen.dart';
 
 // ── Route name constants ───────────────────────────────────────────────────────
 
@@ -45,16 +49,42 @@ abstract final class AppRoute {
 
 // ── Router ─────────────────────────────────────────────────────────────────────
 
+/// Riverpod container used by the router's redirect callback.
+///
+/// The container is populated by [MostroApp] via [routerContainer] before the
+/// first navigation decision is made.
+ProviderContainer? routerContainer;
+
 /// Application router.
 ///
-/// Redirect logic (first-run → walkthrough) is wired in Phase 3 (US1).
-/// All routes are stubs at this stage.
+/// Redirect logic: if `firstRunComplete == false` every route is redirected to
+/// `/walkthrough`. After the user taps Done or Skip the flag is persisted and
+/// the redirect no longer fires.
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoute.home,
+  redirect: (context, state) {
+    final container = routerContainer;
+    if (container == null) return null;
+
+    final firstRunAsync = container.read(firstRunProvider);
+
+    return firstRunAsync.when(
+      data: (done) {
+        if (!done && state.matchedLocation != AppRoute.walkthrough) {
+          return AppRoute.walkthrough;
+        }
+        // Already on walkthrough or first-run completed — no redirect.
+        return null;
+      },
+      // While loading or on error: fail-safe, no redirect (go to home).
+      loading: () => null,
+      error: (_, __) => null,
+    );
+  },
   routes: [
     GoRoute(
       path: AppRoute.walkthrough,
-      builder: (_, __) => const _Stub('Walkthrough'),
+      builder: (_, __) => const WalkthroughScreen(),
     ),
     GoRoute(
       path: AppRoute.home,

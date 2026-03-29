@@ -657,6 +657,7 @@ dependencies = [
  "elliptic-curve",
  "rfc6979",
  "signature",
+ "spki",
 ]
 
 [[package]]
@@ -680,6 +681,8 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
+ "hkdf",
+ "pkcs8",
  "rand_core 0.6.4",
  "sec1",
  "subtle",
@@ -1418,7 +1421,9 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
+ "once_cell",
  "sha2",
+ "signature",
 ]
 
 [[package]]
@@ -2302,8 +2307,10 @@ dependencies = [
  "flutter_rust_bridge",
  "hex",
  "indexed_db_futures",
+ "k256",
  "mostro-core",
  "nostr-sdk 0.44.1",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
@@ -2410,6 +2417,7 @@ dependencies = [
  "base16ct",
  "der",
  "generic-array",
+ "pkcs8",
  "subtle",
  "zeroize",
 ]

@@ -16,6 +16,10 @@ class MostroApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Expose the Riverpod container to the router's redirect callback so it
+    // can read firstRunProvider without a BuildContext.
+    routerContainer = ProviderScope.containerOf(context, listen: false);
+
     // Theme selection is wired in Phase 3; dark mode is the default.
     return MaterialApp.router(
       title: 'Mostro',
