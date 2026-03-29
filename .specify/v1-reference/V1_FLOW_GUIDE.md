@@ -887,9 +887,20 @@ Same layout as buyer view (Section 11) — trade summary, payment method, creati
 | **Cancel** | — | Red bg, white text | Cancel the trade (cooperative cancel) |
 
 ### Alternative flow (when NWC IS configured):
-- This screen is skipped entirely
-- The app automatically pays the hold invoice via NWC
-- Seller goes directly to the active trade state
+**Screenshot:** https://i.nostr.build/ChBkCYJf2PEYjwWG.png
+
+Instead of the QR code screen, the seller sees a simplified payment screen:
+
+- **AppBar:** Back arrow (←) + "Pay Lightning Invoice"
+- **Info text:** "Pay this invoice of [sats] Sats equivalent to [fiat_amount] [currency] to continue the exchange of order [order_id]"
+- **Pay with Wallet button:** Large green (#8CC63F) button with wallet icon + "Pay with Wallet" — triggers NWC auto-payment
+- **Cancel button:** Red button, white text — cancel the trade
+
+After tapping "Pay with Wallet":
+- App sends payment via NWC automatically
+- Shows loading state while payment is in flight
+- On success → order transitions to `active`
+- On failure → shows error, user can retry or cancel
 
 ### Flow after payment:
 - Seller pays the invoice with their external Lightning wallet (scan QR or paste)
