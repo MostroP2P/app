@@ -1274,6 +1274,8 @@ This guide documents the complete Mostro Mobile v1 user experience across 23 sec
 | 23 | Dispute Resolved | DISPUTE_SYSTEM.md |
 
 ### App characteristics:
+- **Bundle ID (v2):** `foundation.mostro.app`
+- **Bundle ID (v1, reference):** `network.mostro.app`
 - **5 languages:** EN, ES, IT, FR, DE
 - **Dark theme only** with design system defined in DESIGN_SYSTEM.md
 - **Color palette:** Brand green #8CC63F, purple #7856AF, sell red #FF8A8A, error red #EF6A6A

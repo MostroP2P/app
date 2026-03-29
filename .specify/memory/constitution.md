@@ -97,6 +97,7 @@
 
 ### Must Use
 
+- **App Bundle ID:** `foundation.mostro.app` (iOS, Android, web, desktop)
 - **Flutter** — UI framework, multi-platform rendering
 - **Rust via flutter_rust_bridge** — all core logic
 - **nostr-sdk 0.44+** — Nostr protocol implementation
