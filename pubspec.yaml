@@ -2,7 +2,7 @@ name: mostro
 description: "Mostro Mobile v2 — P2P Bitcoin Lightning exchange"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
