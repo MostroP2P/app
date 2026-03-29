@@ -132,7 +132,7 @@ Certain key terms in the body text are highlighted in green (`AppTheme.mostroGre
 
 ## i18n
 
-All slide titles and body texts are localized via `S.of(context)!.*` (intl ARB files). Highlight patterns include translations for EN, ES, and IT.
+All slide titles and body texts are localized via `S.of(context)!.*` (intl ARB files). Highlight patterns include translations for all 5 supported languages: EN, ES, IT, FR, DE.
 
 ---
 
