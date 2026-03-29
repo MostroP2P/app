@@ -3,6 +3,14 @@
 > This document captures the exact v1 behavior for replication in v2.
 > Each section maps to a speckit phase/task and references existing docs.
 
+## ⚠️ MANDATORY: Follow DESIGN_SYSTEM.md First
+
+**Before implementing ANY screen, you MUST read and follow [DESIGN_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/DESIGN_SYSTEM.md) from start to finish.**
+
+Every screen in this guide must adhere to the design tokens, typography, spacing, colors, and component patterns defined in `DESIGN_SYSTEM.md`. Do not improvise or deviate — if this flow guide shows something that contradicts the design system, the design system takes precedence unless explicitly noted otherwise.
+
+This is not optional. The first screen you build sets the tone for the entire app.
+
 ---
 
 ## 1. First Launch — Key Generation + Walkthrough
