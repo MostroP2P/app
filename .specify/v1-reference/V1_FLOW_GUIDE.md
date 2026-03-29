@@ -953,8 +953,30 @@ Scrollable list of `ChatListItem` cards. Each item:
 - Opening a chat marks it as read (red dot disappears)
 
 ### Disputes tab:
-- Shows dispute chats (same `DisputesList` component used in dispute module)
-- Only visible to users involved in active disputes
+**Screenshot:** https://i.nostr.build/PqVVpsGjYGpgabA4.png
+**Ref:** [DISPUTE_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/DISPUTE_SYSTEM.md)
+
+- Tab "Disputes" active (green underline), "Messages" inactive (gray)
+- Description text: "These are your open disputes and the chats with the administrator helping to resolve them."
+
+**Dispute card:**
+```text
+┌──────────────────────────────────────────────────────┐
+│  ⚠️  Dispute                            [Initiated]  │
+│      Order: 4485fdbb-807d-48ab-...                   │
+│      You opened this dispute                         │
+└──────────────────────────────────────────────────────┘
+```
+
+| Element | Style |
+|---------|-------|
+| Warning icon (⚠️) | Yellow/orange triangle |
+| Status badge | "Initiated" — colored chip (matches dispute status) |
+| Order ID | UUID, truncated |
+| Initiator | "You opened this dispute" or "Counterpart opened this dispute" |
+
+- Tap → opens dispute chat with admin
+- Only shows disputes where user is involved
 
 ### Bottom nav:
 - **Chat** tab highlighted (green icon + text)
