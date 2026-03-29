@@ -1147,7 +1147,40 @@ Slides open below the info buttons when "User Information" is tapped (button tur
 
 ---
 
-## 22. Dispute Resolved Screen
+## 22. Dispute Chat Screen (with Admin)
+
+**Ref:** [DISPUTE_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/DISPUTE_SYSTEM.md)
+**Screenshot:** https://i.nostr.build/5OlKn9gJ7f21Ociz.png
+
+### Header section:
+- Title: "Dispute with Buyer: [peer_handle]" (or "Dispute with Seller: [peer_handle]")
+- Status badge: "In progress" (green badge) — shows current dispute status
+- **Order ID:** full UUID displayed
+- **Dispute ID:** full UUID displayed
+- **Instructional text:** Explains that a mediator is reviewing the case, advises to wait for them to join, and explains the shared key:
+  - "The shared key is located in the User Information section of the other user's chat. You can give it to the mediator to allow them to view the chat history."
+
+### Chat area:
+Same bubble system as P2P chat (Section 20):
+- **Own messages:** right-aligned, purple (#7856AF) background, white text
+- **Admin messages:** left-aligned, dark gray background, white text
+- Timestamps below each message ("a minute ago", "a moment ago")
+
+### Message input:
+- Paperclip icon (📎) for attachments
+- Text input: "Write a message..."
+- Green send button (✈️)
+
+### Key workflow:
+1. User opens dispute → dispute card appears in Disputes tab
+2. Admin takes the dispute → status changes to "In progress"
+3. Admin joins this chat and communicates with the user
+4. User can share the **shared key** from the P2P chat (Section 20) so admin can read the trade conversation
+5. Admin resolves → dispute closes (Section 23)
+
+---
+
+## 23. Dispute Resolved Screen
 
 **Ref:** [DISPUTE_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/DISPUTE_SYSTEM.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
 **Screenshot:** https://i.nostr.build/sgbHM3nnDSDfb49Z.png
