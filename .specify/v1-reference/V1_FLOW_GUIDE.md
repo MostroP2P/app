@@ -1198,8 +1198,25 @@ Same bubble system as P2P chat (Section 20):
 
 ### How disputes get resolved:
 1. **Seller releases voluntarily** → dispute auto-closes, order → `success`
-2. **Admin resolves** → admin can force cancel or force release via the admin panel
-3. Either way, the dispute chat becomes read-only with the lock message
+2. **Admin resolves in favor of buyer** → admin forces release, buyer gets sats
+3. **Admin resolves in favor of seller** → admin cancels order, hold invoice cancelled, sats returned to seller
+
+Either way, the dispute chat becomes read-only with a lock message.
+
+### Admin canceled (resolved in favor of seller):
+**Screenshot:** https://i.nostr.build/VgvUdN4vCkqvRmui.png
+
+- **Status badge:** "Resolved" (blue badge)
+- **Resolution text (green box):**
+  - "Dispute resolved"
+  - "The administrator canceled the order and refunded you."
+  - "The buyer did not receive the sats."
+- **Chat locked:** padlock icon + "This dispute has been resolved. The chat is closed."
+- **No action buttons** — only back arrow to navigate away
+
+### Admin released (resolved in favor of buyer):
+- Same layout as above but resolution text indicates sats were released to the buyer
+- Seller sees: "The administrator released the sats to the buyer."
 
 ---
 
