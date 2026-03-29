@@ -926,15 +926,31 @@ Same layout as buyer view (Section 11) — trade summary, payment method, creati
 - When no chat rooms exist: centered text "No messages available"
 - Large empty space
 
-### When chats exist (from P2P_CHAT_SYSTEM.md):
-- Scrollable list of `ChatListItem` cards, each showing:
-  - Peer avatar + handle
-  - Context: "You are selling to / buying from [handle]"
-  - Last message preview (own messages prefixed with "You:")
-  - Timestamp (HH:mm, "Yesterday", weekday, or date)
-  - Red unread dot if peer has sent new messages
-- Sorted by most recent session start time
+### When chats exist:
+**Screenshot:** https://i.nostr.build/JZ9bCueoNql7vN7X.png
+
+Scrollable list of `ChatListItem` cards. Each item:
+
+```text
+┌──────────────────────────────────────────────────────┐
+│  [🟠 Avatar]  incognito-gloriaZhao           Today 🔴│
+│               You are selling sats to incognito-...  │
+│               hola que tal?                          │
+└──────────────────────────────────────────────────────┘
+```
+
+| Element | Position | Style |
+|---------|----------|-------|
+| **Avatar** | Left | Colored circle with icon/initials, generated from peer pubkey |
+| **Handle** | Top-right of avatar | Bold, white text |
+| **Context line** | Below handle | Gray text: "You are selling sats to [handle]" or "You are buying sats from [handle]" — based on user's role |
+| **Last message** | Below context | Gray text, preview of last message. Own messages prefixed with "You:" |
+| **Timestamp** | Top-right corner | Gray small text: "Today", "Yesterday", "HH:mm", weekday, or "MMM d" depending on age |
+| **Unread dot** | Right side | Red circle — appears when peer has sent messages not yet seen |
+
+- Sorted by most recent session start time (newest at top)
 - Tap → `/chat_room/:orderId`
+- Opening a chat marks it as read (red dot disappears)
 
 ### Disputes tab:
 - Shows dispute chats (same `DisputesList` component used in dispute module)
