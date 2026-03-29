@@ -12,6 +12,44 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+
+  # Bridge: Rust core ↔ Flutter UI
+  flutter_rust_bridge: ^2.11.1
+  rust:
+    path: rust_builder
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # Local persistence (Dart UI layer — all platforms)
+  sembast: ^3.8.2
+
+  # Secure storage (PIN unlock; key crypto stays in Rust)
+  flutter_secure_storage: ^9.2.4
+
+  # Preferences (first-run flag, settings)
+  shared_preferences: ^2.5.3
+
+  # Onboarding walkthrough
+  introduction_screen: ^3.1.14
+
+  # QR code display and scanning
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.2.3
+
+  # File operations (attachment picker)
+  file_picker: ^8.3.7
+
+  # Runtime permissions (camera, notifications)
+  permission_handler: ^11.4.0
+
+  # File-system paths (DB path on native)
+  path_provider: ^2.1.5
+
+  # Internationalization
   intl: ^0.20.2
 
 dev_dependencies:
@@ -22,3 +60,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   generate: true
+
+  assets:
+    - assets/data/fiat.json
+    - assets/images/

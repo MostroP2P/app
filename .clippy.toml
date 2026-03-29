@@ -1,0 +1,9 @@
+# Clippy configuration — Mostro Mobile v2 Rust core
+# Run: cargo clippy -- -D warnings
+# All warnings are errors in CI.
+
+# Disallow large enum variants without boxing
+enum-variant-size-threshold = 200
+
+# Enforce documentation on public API items
+# (enforced via #![warn(missing_docs)] in lib.rs when desired)

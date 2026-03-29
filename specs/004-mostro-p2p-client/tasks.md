@@ -19,13 +19,13 @@
 
 **Purpose**: Bootstrap the monorepo, configure all toolchains, install dependencies.
 
-- [ ] T001 Create full directory structure per plan.md: `lib/features/`, `lib/core/`, `lib/shared/`, `rust/src/api/`, `rust/src/db/`, `rust/src/nostr/`, `rust/src/crypto/`, `rust/src/mostro/`, `rust/src/nwc/`, `rust/src/queue/`, `assets/data/`, `assets/images/`, `assets/l10n/`
-- [ ] T002 Configure `rust/Cargo.toml` with all dependencies: `nostr-sdk 0.44+`, `mostro-core 0.8+`, `flutter_rust_bridge 2.x`, `sqlx` (features: sqlite, runtime-tokio), `indexed_db_futures`, `bip32`, `bip39`, `chacha20poly1305`, `tokio` (rt-multi-thread, native only), `wasm-bindgen-futures` (wasm only)
-- [ ] T003 [P] Configure `pubspec.yaml` with Flutter dependencies: `flutter_rust_bridge 2.x`, `riverpod`/`flutter_riverpod`, `go_router`, `sembast`, `flutter_secure_storage`, `introduction_screen`, `qr_flutter`, `mobile_scanner`, `intl`, `shared_preferences`
-- [ ] T004 Configure `rust/build.rs` to invoke `flutter_rust_bridge_codegen generate` and set up `rust_builder/` scaffolding for wasm-pack web builds
-- [ ] T005 [P] Add Rust WASM target and document in `quickstart.md`: `rustup target add wasm32-unknown-unknown`; add `wasm-pack` and `flutter_rust_bridge_codegen` to prerequisites
-- [ ] T006 [P] Configure linting: `.clippy.toml` (Rust, deny warnings), `analysis_options.yaml` (Flutter, strict), pre-commit hooks running `cargo clippy -- -D warnings` and `flutter analyze`
-- [ ] T007 [P] Populate `assets/data/fiat.json` with full fiat currency list (ISO 4217 code, name, country flag emoji); create placeholder walkthrough images `assets/images/wt-1.png` through `wt-6.png`; create skeleton ARB files `assets/l10n/app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb`
+- [x] T001 Create full directory structure per plan.md: `lib/features/`, `lib/core/`, `lib/shared/`, `rust/src/api/`, `rust/src/db/`, `rust/src/nostr/`, `rust/src/crypto/`, `rust/src/mostro/`, `rust/src/nwc/`, `rust/src/queue/`, `assets/data/`, `assets/images/`, `assets/l10n/`
+- [x] T002 Configure `rust/Cargo.toml` with all dependencies: `nostr-sdk 0.44+`, `mostro-core 0.8+`, `flutter_rust_bridge 2.x`, `sqlx` (features: sqlite, runtime-tokio), `indexed_db_futures`, `bip32`, `bip39`, `chacha20poly1305`, `tokio` (rt-multi-thread, native only), `wasm-bindgen-futures` (wasm only)
+- [x] T003 [P] Configure `pubspec.yaml` with Flutter dependencies: `flutter_rust_bridge 2.x`, `riverpod`/`flutter_riverpod`, `go_router`, `sembast`, `flutter_secure_storage`, `introduction_screen`, `qr_flutter`, `mobile_scanner`, `intl`, `shared_preferences`
+- [x] T004 Configure `rust/build.rs` to invoke `flutter_rust_bridge_codegen generate` and set up `rust_builder/` scaffolding for wasm-pack web builds
+- [x] T005 [P] Add Rust WASM target and document in `quickstart.md`: `rustup target add wasm32-unknown-unknown`; add `wasm-pack` and `flutter_rust_bridge_codegen` to prerequisites
+- [x] T006 [P] Configure linting: `.clippy.toml` (Rust, deny warnings), `analysis_options.yaml` (Flutter, strict), pre-commit hooks running `cargo clippy -- -D warnings` and `flutter analyze`
+- [x] T007 [P] Populate `assets/data/fiat.json` with full fiat currency list (ISO 4217 code, name, country flag emoji); create placeholder walkthrough images `assets/images/wt-1.png` through `wt-6.png`; create skeleton ARB files `assets/l10n/app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb`
 
 **Checkpoint**: `flutter pub get`, `cd rust && cargo build`, `flutter analyze` all pass.
 
