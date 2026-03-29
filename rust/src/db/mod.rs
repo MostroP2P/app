@@ -7,6 +7,15 @@ pub mod indexeddb;
 use anyhow::Result;
 
 /// Storage trait — implemented by both SQLite (native) and IndexedDB (WASM).
+///
+/// **Send-safety note**: `#[allow(async_fn_in_trait)]` is used here instead of
+/// the `async-trait` crate. The compiler does NOT automatically require the
+/// returned futures to be `Send`. Callers that hold `Arc<dyn Storage>` across
+/// `.await` points on a multi-threaded executor must ensure concrete
+/// implementations return `Send` futures (both `SqliteStorage` and
+/// `IndexedDbStorage` do, because `sqlx` and the underlying async runtimes
+/// produce `Send` futures). If this trait is ever used with a non-`Send`
+/// backend the bound should be relaxed or `#[async_trait]` adopted.
 #[allow(async_fn_in_trait)]
 pub trait Storage: Send + Sync {
     async fn save_order(&self, order: &crate::api::types::OrderInfo) -> Result<()>;

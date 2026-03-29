@@ -226,12 +226,32 @@ impl Storage for SqliteStorage {
         id: &str,
         status: QueuedMessageStatus,
     ) -> Result<()> {
-        let s = format!("{:?}", status);
-        sqlx::query("UPDATE queued_messages SET status = ? WHERE id = ?")
-            .bind(&s)
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
+        // Load the existing row, update the status field inside the JSON blob,
+        // then persist both the `status` column and the `data` blob together so
+        // they never diverge when `list_queued_messages` deserialises `data`.
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT data FROM queued_messages WHERE id = ?")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        let Some((data,)) = row else {
+            return Ok(()); // nothing to update
+        };
+
+        let mut msg: crate::queue::outbox::QueuedMessage = serde_json::from_str(&data)?;
+        msg.status = status;
+        let new_data = serde_json::to_string(&msg)?;
+        let status_str = format!("{:?}", msg.status);
+
+        sqlx::query(
+            "UPDATE queued_messages SET status = ?, data = ? WHERE id = ?",
+        )
+        .bind(&status_str)
+        .bind(&new_data)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 

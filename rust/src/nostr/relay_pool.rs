@@ -8,13 +8,19 @@
 /// Reconnecting if attempting, Offline otherwise.
 use anyhow::{anyhow, Result};
 use nostr_sdk::prelude::*;
+// The SDK re-exports its own `RelayStatus` via the prelude. Alias it to avoid
+// conflicting with our internal `RelayStatus` from `crate::api::types`.
+use nostr_sdk::RelayStatus as SdkRelayStatus;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{ConnectionState, RelayInfo, RelaySource, RelayStatus};
 use crate::nostr::order_events::pending_orders_filter;
 
 const KIND_GIFT_WRAP: u16 = 1059;
+/// How often the background task polls each relay's SDK status (seconds).
+const STATUS_POLL_INTERVAL_SECS: u64 = 5;
 
 /// Shared relay pool state.
 pub struct RelayPool {
@@ -45,6 +51,11 @@ impl RelayPool {
         }
 
         client.connect().await;
+
+        // Broadcast initial connection state after all relays are wired up.
+        pool.broadcast_connection_state().await;
+
+        pool.spawn_status_monitor();
         Ok(pool)
     }
 
@@ -66,6 +77,8 @@ impl RelayPool {
         };
 
         self.relays.write().await.push(info.clone());
+        let _ = self.relay_tx.send(info.clone());
+        self.broadcast_connection_state().await;
         Ok(info)
     }
 
@@ -90,12 +103,17 @@ impl RelayPool {
             .iter()
             .position(|r| r.url == url)
             .ok_or_else(|| anyhow!("RelayNotFound"))?;
-        relays.remove(pos);
+        let mut removed = relays.remove(pos);
+        removed.status = RelayStatus::Disconnected;
         drop(relays);
+
         self.client
             .remove_relay(url)
             .await
             .map_err(|e| anyhow!("remove relay failed: {e}"))?;
+
+        let _ = self.relay_tx.send(removed);
+        self.broadcast_connection_state().await;
         Ok(())
     }
 
@@ -104,21 +122,7 @@ impl RelayPool {
     }
 
     pub async fn connection_state(&self) -> ConnectionState {
-        let relays = self.relays.read().await;
-        let any_connected = relays
-            .iter()
-            .any(|r| matches!(r.status, RelayStatus::Connected));
-        let any_connecting = relays
-            .iter()
-            .any(|r| matches!(r.status, RelayStatus::Connecting));
-
-        if any_connected {
-            ConnectionState::Online
-        } else if any_connecting {
-            ConnectionState::Reconnecting
-        } else {
-            ConnectionState::Offline
-        }
+        derive_connection_state(&self.relays.read().await)
     }
 
     pub fn subscribe_connection_state(&self) -> broadcast::Receiver<ConnectionState> {
@@ -130,6 +134,14 @@ impl RelayPool {
     }
 
     /// Subscribe to Kind 38383 (public orders) and Kind 1059 (gift wraps) separately.
+    ///
+    /// **TODO (Phase 3)**: After subscribing, spawn an event-processing loop
+    /// that pulls from `client.notifications()` and dispatches:
+    /// - `RelayPoolNotification::Event` with `Kind::from(38383)` →
+    ///   `parse_order_event` → update order-book provider
+    /// - `RelayPoolNotification::Event` with `Kind::from(KIND_GIFT_WRAP)` →
+    ///   `gift_wrap::unwrap` → route to trade/chat handlers
+    /// - `RelayPoolNotification::Shutdown` → update connection state
     pub async fn subscribe_order_and_dm_feeds(&self, trade_pubkeys: Vec<PublicKey>) -> Result<()> {
         let order_filter = pending_orders_filter();
         self.client
@@ -151,4 +163,100 @@ impl RelayPool {
     pub fn client(&self) -> Arc<Client> {
         self.client.clone()
     }
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    async fn broadcast_connection_state(&self) {
+        let state = derive_connection_state(&self.relays.read().await);
+        let _ = self.conn_tx.send(state);
+    }
+
+    /// Spawn a background task that polls each relay's SDK status every
+    /// `STATUS_POLL_INTERVAL_SECS` seconds and broadcasts changes on
+    /// `relay_tx` / `conn_tx` when a relay transitions between states.
+    ///
+    /// `RelayPoolNotification` in nostr-sdk 0.44 does not expose relay-level
+    /// status transitions, so polling `client.relay(url).status()` is the
+    /// available mechanism.
+    fn spawn_status_monitor(self: &Arc<Self>) {
+        let client = self.client.clone();
+        let relays = self.relays.clone();
+        let conn_tx = self.conn_tx.clone();
+        let relay_tx = self.relay_tx.clone();
+
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(STATUS_POLL_INTERVAL_SECS)).await;
+
+                let relay_urls: Vec<String> =
+                    relays.read().await.iter().map(|r| r.url.clone()).collect();
+
+                let mut any_changed = false;
+
+                for url in relay_urls {
+                    let Ok(sdk_relay) = client.relay(&url).await else {
+                        continue;
+                    };
+                    let new_status = map_sdk_status(sdk_relay.status());
+
+                    let mut relays_w = relays.write().await;
+                    if let Some(info) = relays_w.iter_mut().find(|r| r.url == url) {
+                        if info.status != new_status {
+                            info.status = new_status;
+                            if matches!(info.status, RelayStatus::Connected) {
+                                info.last_connected_at = Some(unix_now());
+                            }
+                            any_changed = true;
+                            let _ = relay_tx.send(info.clone());
+                        }
+                    }
+                    drop(relays_w);
+                }
+
+                if any_changed {
+                    let state = derive_connection_state(&relays.read().await);
+                    let _ = conn_tx.send(state);
+                }
+            }
+        });
+    }
+}
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+fn derive_connection_state(relays: &[RelayInfo]) -> ConnectionState {
+    let any_connected = relays
+        .iter()
+        .any(|r| matches!(r.status, RelayStatus::Connected));
+    let any_connecting = relays
+        .iter()
+        .any(|r| matches!(r.status, RelayStatus::Connecting));
+
+    if any_connected {
+        ConnectionState::Online
+    } else if any_connecting {
+        ConnectionState::Reconnecting
+    } else {
+        ConnectionState::Offline
+    }
+}
+
+/// Map an SDK `RelayStatus` to our internal `RelayStatus`.
+fn map_sdk_status(s: SdkRelayStatus) -> RelayStatus {
+    match s {
+        SdkRelayStatus::Connected => RelayStatus::Connected,
+        SdkRelayStatus::Connecting | SdkRelayStatus::Pending => RelayStatus::Connecting,
+        SdkRelayStatus::Disconnected
+        | SdkRelayStatus::Terminated
+        | SdkRelayStatus::Initialized
+        | SdkRelayStatus::Sleeping => RelayStatus::Disconnected,
+        SdkRelayStatus::Banned => RelayStatus::Error,
+    }
+}
+
+fn unix_now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }

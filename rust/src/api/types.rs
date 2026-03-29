@@ -187,11 +187,19 @@ pub struct OrderInfo {
     pub kind: OrderKind,
     pub status: OrderStatus,
     pub amount_sats: Option<u64>,
+    /// Fiat amount for display/transmission only.
+    /// **Do not use for precise financial calculations** — `f64` cannot
+    /// represent all decimal values exactly. Use integer minor units or a
+    /// decimal type (e.g. `rust_decimal`) wherever arithmetic is needed.
     pub fiat_amount: Option<f64>,
+    /// Lower bound of a range order. Same precision caveat as `fiat_amount`.
     pub fiat_amount_min: Option<f64>,
+    /// Upper bound of a range order. Same precision caveat as `fiat_amount`.
     pub fiat_amount_max: Option<f64>,
     pub fiat_code: String,
     pub payment_method: String,
+    /// Market premium as a percentage, e.g. `1.5` means 1.5% above market.
+    /// For display only — same `f64` precision caveat applies.
     pub premium: f64,
     pub creator_pubkey: String,
     /// Unix timestamp (seconds).
