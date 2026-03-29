@@ -984,6 +984,30 @@ Two horizontal buttons side by side:
 - Center: text input pill "Write a message..." (dark background, gray placeholder)
 - Right: green send button with paper plane icon (✈️)
 
+### User Information Panel (toggle via "User Information" button):
+**Screenshot:** https://i.nostr.build/ke1DlPKVTGX3jYrj.png
+
+Slides open below the info buttons when "User Information" is tapped (button turns green when active).
+
+**Panel 1 — Peer Information:**
+- Peer avatar (colored circle, same as chat header)
+- Peer handle (bold, white) e.g. "incognito-gloriaZhao"
+- Label: "Peer's Public Key"
+- Public key value in **blue monospace text** — tappable to copy to clipboard
+
+**Panel 2 — Your Information:**
+- Label: "Your name"
+- Your handle (white) e.g. "magic-pieterWuille"
+- Label: "Your shared key"
+- Shared key value in **blue monospace text** — tappable to copy to clipboard
+
+**Shared key importance:**
+- This is the ECDH shared key derived between both trade parties
+- Can be optionally shared with a dispute resolver (admin) so they can **read the entire chat history** between both parties
+- Tapping the shared key copies it to clipboard for easy sharing
+- This is critical for dispute resolution — without it, the admin cannot see the chat
+- See [DISPUTE_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/DISPUTE_SYSTEM.md) for how shared keys are used in disputes
+
 ### Media support:
 - Supports encrypted image messages (`image_encrypted`) with preview
 - Supports encrypted file messages (`file_encrypted`) with download button
