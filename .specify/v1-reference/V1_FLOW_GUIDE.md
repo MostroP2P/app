@@ -1263,18 +1263,3 @@ This guide documents the complete Mostro Mobile v1 user experience across 23 sec
 ---
 
 *Last updated: 2026-03-29*
-
-- [ ] Create Order flow (add_order_screen)
-- [ ] Take Order flow (buy vs sell)
-- [ ] Trade execution flow (step by step)
-- [ ] P2P Chat during trade
-- [ ] Dispute flow
-- [ ] Rating after trade
-- [ ] Settings screen details
-- [ ] Relay management
-- [ ] NWC wallet connection
-- [ ] Session recovery (12-word restore)
-
----
-
-*Last updated: 2026-03-28*
