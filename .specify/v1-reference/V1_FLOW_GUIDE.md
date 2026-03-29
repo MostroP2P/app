@@ -910,7 +910,7 @@ After tapping "Pay with Wallet":
 
 ---
 
-## 18. Chat Screen (Chat List)
+## 19. Chat Screen (Chat List)
 
 **Ref:** [P2P_CHAT_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/P2P_CHAT_SYSTEM.md)
 **Route:** `/chat_list` (bottom nav tab 3)
