@@ -75,6 +75,22 @@ From the user's point of view the navigation stack is always: **Home → My Trad
 - `ChatMessagesList` renders `chatRoom.messages` sorted chronologically (oldest first) using a dedicated `ScrollController`. It auto-scrolls to the bottom on first load and whenever the message count changes. The controller is also plumbed into `_scrollController` on `ChatRoomScreen` so keyboard visibility triggers tiny scroll animations that keep the composer visible.
 - Each message is rendered by `MessageBubble`, which detects content type via `MessageTypeUtils`:
   - Plain text → standard bubble with long-press copy-to-clipboard.
+
+#### Message Bubble Visual Spec
+
+**Screenshot:** https://i.nostr.build/MyQ0sQCvBf052l5M.png
+
+| Property | Own messages | Peer messages |
+|----------|-------------|---------------|
+| Alignment | Right | Left |
+| Background color | `#7856AF` (`AppTheme.purpleButton`) | Darkened shade of peer's avatar color |
+| Text color | White | White |
+| Bubble shape | Rounded with tail pointing right | Rounded with tail pointing left |
+| Timestamp | Small gray text below bubble | Small gray text below bubble |
+
+**Peer bubble color derivation:** The peer's avatar is a colored circle generated from their pubkey. The message bubble uses a **darker shade** of that same generated color, creating visual consistency between avatar and messages.
+
+**Design System reference:** Purple button color `#7856AF` is defined in [DESIGN_SYSTEM.md](https://github.com/MostroP2P/mobile/blob/main/docs/architecture/DESIGN_SYSTEM.md) as the consolidated purple accent color.
   - `image_encrypted` → `EncryptedImageMessage`, including cached previews and secure open-in-viewer handling.
   - `file_encrypted` → `EncryptedFileMessage`, including download buttons, metadata chips, and safe temporary files.
 - Optimistic sends: after the user sends a message, the plaintext `NostrEvent` is appended immediately so it appears in the list before the relay echo arrives.

@@ -945,6 +945,59 @@ Same layout as buyer view (Section 11) — trade summary, payment method, creati
 
 ---
 
+## 20. Chat Room Screen (P2P Trade Chat)
+
+**Ref:** [P2P_CHAT_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/P2P_CHAT_SYSTEM.md)
+**Screenshot:** https://i.nostr.build/MyQ0sQCvBf052l5M.png
+**Route:** `/chat_room/:orderId`
+
+### AppBar:
+- Back arrow (←)
+- Peer avatar (colored circle based on peer identity)
+- Peer handle name (white, bold)
+- Subtitle: "You are chatting with [peer_handle]" (gray)
+
+### Info buttons (below AppBar):
+Two horizontal buttons side by side:
+| Button | Icon | Label |
+|--------|------|-------|
+| Trade Information | 📄 document icon | "Exchange Information" → shows trade details panel |
+| User Information | 👤 person icon | "User Information" → shows peer info panel |
+
+### Message bubbles:
+
+**Own messages (right-aligned):**
+- Aligned to the right side of screen
+- Background color: purple (#7856AF — `AppTheme.purpleButton`)
+- Text color: white
+- Rounded bubble with tail pointing right
+
+**Peer messages (left-aligned):**
+- Aligned to the left side of screen
+- Background color: darker shade derived from the peer's avatar color
+- Text color: white
+- Rounded bubble with tail pointing left
+- The avatar color is generated from the peer's pubkey, and the bubble uses a darkened version of that same color
+
+### Message input (bottom):
+- Left: paperclip icon (📎) — attach files/images (encrypted via Blossom)
+- Center: text input pill "Write a message..." (dark background, gray placeholder)
+- Right: green send button with paper plane icon (✈️)
+
+### Media support:
+- Supports encrypted image messages (`image_encrypted`) with preview
+- Supports encrypted file messages (`file_encrypted`) with download button
+- Media uploaded/downloaded via Blossom protocol
+- See [P2P_CHAT_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/P2P_CHAT_SYSTEM.md) for encryption details
+
+### Behavior:
+- Messages auto-scroll to bottom on new message
+- Optimistic sends: own message appears immediately before relay confirmation
+- Long-press on message → copy to clipboard
+- Read status tracked per chat room via SharedPreferences
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
