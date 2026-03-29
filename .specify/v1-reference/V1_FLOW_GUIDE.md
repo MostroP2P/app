@@ -815,6 +815,53 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 
 ---
 
+## 17. Chat Screen (Chat List)
+
+**Ref:** [P2P_CHAT_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/P2P_CHAT_SYSTEM.md)
+**Route:** `/chat_list` (bottom nav tab 3)
+
+### AppBar:
+- Same as Home: Hamburger (☰) | Mostro Logo | Notification bell (🔔 with badge)
+
+### Sub-header:
+- Title: "Chat" (bold, white, left-aligned)
+
+### Two sub-tabs (below title):
+| Tab | Active style | Content |
+|-----|-------------|---------|
+| **Messages** | Green text + green underline (#8CC63F) | P2P trade conversations |
+| **Disputes** | Gray text (inactive) | Dispute chats with admin |
+
+- Swipeable left/right between tabs
+- Active tab has green underline indicator
+
+### Description text (below tabs):
+- "Here you will find your conversations with other users during trades."
+- Gray text, left-aligned
+
+### Empty state:
+- When no chat rooms exist: centered text "No messages available"
+- Large empty space
+
+### When chats exist (from P2P_CHAT_SYSTEM.md):
+- Scrollable list of `ChatListItem` cards, each showing:
+  - Peer avatar + handle
+  - Context: "You are selling to / buying from [handle]"
+  - Last message preview (own messages prefixed with "You:")
+  - Timestamp (HH:mm, "Yesterday", weekday, or date)
+  - Red unread dot if peer has sent new messages
+- Sorted by most recent session start time
+- Tap → `/chat_room/:orderId`
+
+### Disputes tab:
+- Shows dispute chats (same `DisputesList` component used in dispute module)
+- Only visible to users involved in active disputes
+
+### Bottom nav:
+- **Chat** tab highlighted (green icon + text)
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
