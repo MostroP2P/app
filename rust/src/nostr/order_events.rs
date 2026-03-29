@@ -48,7 +48,7 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
     let (fiat_amount_min, fiat_amount_max) = parse_fiat_range(&fa_raw);
     let amount_sats: Option<u64> = get("amt").and_then(|v| v.parse().ok());
     let creator_pubkey = event.pubkey.to_hex();
-    let created_at = event.created_at.as_u64() as i64;
+    let created_at = event.created_at.as_secs() as i64;
     let expires_at: Option<i64> = get("expiration").and_then(|v| v.parse().ok());
 
     let is_mine = my_pubkey
