@@ -988,6 +988,22 @@ Scrollable list of `ChatListItem` cards. Each item:
 
 - Tap → opens dispute chat with admin
 - Only shows disputes where user is involved
+- Shows ALL disputes (current and past)
+
+**Multiple disputes with different statuses:**
+**Screenshot:** https://i.nostr.build/SIGopuAbntVdky0W.png
+
+Each dispute card shows:
+- ⚠️ Warning icon + "Order dispute"
+- Order ID (truncated UUID)
+- Resolution text (e.g. "Dispute closed — the order was successfully completed by the parties")
+- Status badge with color:
+
+| Dispute status | Badge color | Badge text |
+|---------------|-------------|------------|
+| Initiated | Yellow/amber | "Initiated" |
+| In progress | Blue | "In progress" |
+| Closed | Gray | "Closed" |
 
 ### Bottom nav:
 - **Chat** tab highlighted (green icon + text)
