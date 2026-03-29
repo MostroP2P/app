@@ -31,9 +31,11 @@
 
 ### Notification bell (top-right of AppBar):
 - Icon: bell/campana
-- **Red dot** appears when there are unread notifications
-- **Shakes slightly** (left-right animation) when red dot is active
-- Red dot disappears only when user views all notifications
+- **Two indicator states:**
+  1. **Red dot** (no number): appears ONLY before user has viewed their secret words (backup reminder). Disappears permanently after viewing words in Account screen.
+  2. **Number badge** (e.g. "7"): appears after backup is done, shows count of unread notifications. Disappears when user opens each notification.
+- **Shakes slightly** (left-right animation) whenever any indicator is active (red dot OR number badge)
+- Once all notifications are read and backup is done → bell is static with no indicator
 
 ### Backup reminder:
 - **Pinned notification** at the top of notification list (always first)
@@ -111,7 +113,7 @@
 ### AppBar (top):
 - **Left:** Hamburger menu icon (☰) — white, opens drawer overlay
 - **Center:** Mostro logo — green skull/monster icon (#8CC63F), tappable (shows happy face 500ms)
-- **Right:** Notification bell — white, with **red dot badge** when unread notifications. Bell shakes slightly when active.
+- **Right:** Notification bell — white. Shows **red dot** (before backup) or **number badge** (after backup, count of unread). Bell shakes left-right when any indicator is active.
 
 ### Tabs (below AppBar):
 - **BUY BTC** (left) — active state: green text (#8CC63F) + green underline
