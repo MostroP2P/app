@@ -815,7 +815,53 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 
 ---
 
-## 17. Chat Screen (Chat List)
+## 17. Pay Lightning Invoice Screen (Seller — Waiting Payment)
+
+**Ref:** [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TRADE_EXECUTION.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/MuwtwQ3mirqHE6vQ.png
+**File:** `lib/features/order/screens/pay_lightning_invoice_screen.dart`
+**Order status:** `waiting-payment`
+
+### When this screen appears:
+- User is the **seller** (selling BTC)
+- Mostro has generated a hold invoice for the seller to pay
+- NWC is NOT configured (otherwise payment is automatic)
+
+### AppBar:
+- Back arrow (←) + title "Pay Lightning Invoice"
+
+### White card (centered, main content):
+
+**Info text:**
+- "Pay this invoice of [sats] Sats equivalent to [fiat_amount] [currency] to continue the exchange of order [order_id]"
+- Dark text on white background
+- Shows exact sats, fiat equivalent, and order UUID
+
+**QR code:**
+- Standard QR code containing the Lightning invoice data
+- Centered below the info text
+- Scannable by any Lightning wallet
+
+**Action buttons (inside white card):**
+| Button | Icon | Color | Action |
+|--------|------|-------|--------|
+| **Copy** | 📋 copy icon | Green (#8CC63F) bg, dark text | Copies Lightning invoice string to clipboard |
+| **Share** | 🔗 share icon | Green (#8CC63F) bg, dark text | Opens system share sheet with invoice |
+| **Cancel** | — | Red bg, white text | Cancel the trade (cooperative cancel) |
+
+### Alternative flow (when NWC IS configured):
+- This screen is skipped entirely
+- The app automatically pays the hold invoice via NWC
+- Seller goes directly to the active trade state
+
+### Flow after payment:
+- Seller pays the invoice with their external Lightning wallet (scan QR or paste)
+- Once paid → order status transitions to `active`
+- Both parties see the Trade Detail screen (Section 11/12)
+
+---
+
+## 18. Chat Screen (Chat List)
 
 **Ref:** [P2P_CHAT_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/P2P_CHAT_SYSTEM.md)
 **Route:** `/chat_list` (bottom nav tab 3)
