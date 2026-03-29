@@ -1120,6 +1120,29 @@ Slides open below the info buttons when "User Information" is tapped (button tur
 
 ---
 
+## 22. Dispute Resolved Screen
+
+**Ref:** [DISPUTE_SYSTEM.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/DISPUTE_SYSTEM.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/sgbHM3nnDSDfb49Z.png
+
+### Context:
+- Seller voluntarily released sats during the dispute, OR admin resolved it
+- Dispute is now closed
+- Order completed successfully
+
+### Screen content:
+- **Green checkmark icon** — resolved indicator
+- Status text: dispute is "Closed" and order "successfully completed"
+- **Chat is locked** — lock icon with message "This dispute has been resolved. The chat is closed."
+- **No action buttons** — only back arrow to return
+
+### How disputes get resolved:
+1. **Seller releases voluntarily** → dispute auto-closes, order → `success`
+2. **Admin resolves** → admin can force cancel or force release via the admin panel
+3. Either way, the dispute chat becomes read-only with the lock message
+
+---
+
 ## Pending Sections (to document with Negrunch)
 
 - [ ] Create Order flow (add_order_screen)
