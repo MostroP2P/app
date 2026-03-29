@@ -80,7 +80,7 @@
 
 | Screen | Route | v1-reference doc |
 |--------|-------|-----------------|
-| Walkthrough | `/walkthrough` | (code only) |
+| Walkthrough | `/walkthrough` | [WALKTHROUGH_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/WALKTHROUGH_SCREEN.md) |
 | Home/Order Book | `/` | [HOME_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/HOME_SCREEN.md), [ORDER_BOOK.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_BOOK.md) |
 | Account | `/key_management` | [ACCOUNT_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ACCOUNT_SCREEN.md) |
 | Settings | `/settings` | [SETTINGS_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/SETTINGS_SCREEN.md) |
