@@ -984,6 +984,26 @@ Two horizontal buttons side by side:
 - Center: text input pill "Write a message..." (dark background, gray placeholder)
 - Right: green send button with paper plane icon (✈️)
 
+### Trade Information Panel (toggle via "Exchange Information" button):
+**Screenshot:** https://i.nostr.build/1mgg3shDhfw2Etbm.png
+
+Slides open below the info buttons when "Exchange Information" is tapped (button turns green when active).
+
+**Fields displayed:**
+| Field | Example value | Style |
+|-------|--------------|-------|
+| Order ID | `4485fdbb-807d-48ab-9f32-29634f6c44b2` | Gray label + white value |
+| Selling/Buying | "4,631 sats for 4545 ARS" | Shows sats amount + fiat equivalent |
+| Status | "Active" | Colored chip matching order status |
+| Payment Method | "Belo" | White text |
+| Created on | "March 29, 2026" | White text |
+
+- All fields are stacked vertically in rectangular containers
+- Labels in gray, values in white
+- Data comes from the order state (`orderNotifierProvider`) so it reflects live updates
+
+---
+
 ### User Information Panel (toggle via "User Information" button):
 **Screenshot:** https://i.nostr.build/ke1DlPKVTGX3jYrj.png
 
