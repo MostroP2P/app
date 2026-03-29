@@ -33,7 +33,7 @@
 - Icon: bell/campana
 - **Two indicator states:**
   1. **Red dot** (no number): appears ONLY before user has viewed their secret words (backup reminder). Disappears permanently after viewing words in Account screen.
-  2. **Number badge** (e.g. "7"): appears after backup is done, shows count of unread notifications. Disappears when user opens each notification.
+  2. **Number badge**: green circle (#8CC63F) with white number inside (e.g. "7"), positioned top-right of bell icon. Appears after backup is done, shows count of unread notifications. Number decreases as user opens each notification. Badge disappears when count reaches 0.
 - **Shakes slightly** (left-right animation) whenever any indicator is active (red dot OR number badge)
 - Once all notifications are read and backup is done → bell is static with no indicator
 
