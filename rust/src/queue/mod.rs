@@ -1,1 +1,1 @@
-// queue — implementation pending
+pub mod outbox;
