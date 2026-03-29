@@ -815,7 +815,44 @@ See [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-ref
 
 ---
 
-## 17. Pay Lightning Invoice Screen (Seller — Waiting Payment)
+## 17. Trade Detail Screen (Active Order — Seller View)
+
+**Ref:** [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TRADE_EXECUTION.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
+**Screenshot:** https://i.nostr.build/rPDs6TpYzEyTW5Up.png
+**Route:** `/trade_detail/:orderId`
+**Order status:** `active`
+
+### Context:
+- Seller has paid the hold invoice
+- Order is now active, waiting for buyer to send fiat and confirm
+
+### Info cards:
+Same layout as buyer view (Section 11) — trade summary, payment method, creation date, order ID.
+
+**Card 5 — Instructions + Status (seller perspective):**
+- Green lightning bolt icon
+- Instructional text: "Contact the buyer [peer_handle] with payment instructions. The platform will notify the seller when the buyer confirms sending the fiat, allowing them to verify receipt. If the buyer doesn't respond, the seller can start a cancellation or a dispute."
+- Warning: "An administrator will only contact you if a dispute is initiated."
+- Status label: "Active order"
+
+### Action Buttons (seller's view when active):
+
+**Single row (4 buttons side by side):**
+| Button | Style | Color | Action |
+|--------|-------|-------|--------|
+| CLOSE | Outline, green border + green text | #8CC63F outline | Close detail view |
+| CANCEL | Filled, red bg + white text | ~#D34F4F | Request cooperative cancel |
+| DISPUTE | Filled, red bg + white text | ~#D34F4F | Open dispute |
+| CONTACT | Filled, green bg + dark text | #8CC63F filled | Open P2P chat with buyer |
+
+### Key difference from buyer active view (Section 11):
+- **Buyer** sees "FIAT SENT" button (to confirm payment)
+- **Seller** does NOT have "FIAT SENT" — they wait for the buyer to confirm, then see "RELEASE" (Section 12)
+- Seller has CANCEL + DISPUTE + CONTACT available
+
+---
+
+## 18. Pay Lightning Invoice Screen (Seller — Waiting Payment)
 
 **Ref:** [TRADE_EXECUTION.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/TRADE_EXECUTION.md), [ORDER_STATES.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/ORDER_STATES.md)
 **Screenshot:** https://i.nostr.build/MuwtwQ3mirqHE6vQ.png
