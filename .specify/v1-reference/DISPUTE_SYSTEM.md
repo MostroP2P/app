@@ -230,7 +230,7 @@ Four independent status systems coexist during a dispute. Confusing them causes 
 
 ---
 
-## 9) Cross references
+## 9) Cross-references
 
 | Topic | Document |
 |-------|----------|
