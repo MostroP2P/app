@@ -1,10 +1,10 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 → 1.0.0 (initial ratification)
-  Modified principles: N/A (first version)
+  Version change: 1.0.0 → 1.1.0
+  Modified principles: N/A
   Added sections:
-    - Core Principles (6 principles)
+    - Core Principles (7 principles) — added VII. V1 User Experience
     - Technical Boundaries
     - Quality Standards
     - Governance
@@ -75,6 +75,24 @@
 - Sensible defaults with minimal required configuration.
 - Fast startup and responsive UI are non-negotiable.
 
+
+### VII. V1 User Experience is Non-Negotiable
+
+- `.specify/v1-reference/V1_FLOW_GUIDE.md` is the **single source of
+  truth** for every screen, interaction, and user-facing behavior in
+  the app.
+- When running `/speckit.specify`, `/speckit.plan`, or `/speckit.tasks`,
+  the agent MUST start from `V1_FLOW_GUIDE.md` and replicate it
+  exactly — no deviations, no improvisation.
+- Every section of `V1_FLOW_GUIDE.md` contains links to detailed
+  spec files inside `.specify/v1-reference/`. Those files provide the
+  full implementation detail for each screen and MUST be consulted
+  before generating tasks for that screen.
+- The design system (`V1_FLOW_GUIDE.md` → `DESIGN_SYSTEM.md`) governs
+  how screens look. The flow guide governs what screens exist and what
+  they do. Both must be followed, in that order of priority:
+  **flow first, design second**.
+
 ## Technical Boundaries
 
 ### Must Use
@@ -128,29 +146,4 @@ These are explicitly out of scope for the initial release:
 - Complexity beyond what these principles allow MUST be explicitly
   justified and documented.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-03-25
-
----
-
-## Amendment 1.1.0 — V1 Flow as UX/UI Ground Truth
-
-### VII. V1 User Experience is Non-Negotiable
-
-- `.specify/v1-reference/V1_FLOW_GUIDE.md` is the **single source of
-  truth** for every screen, interaction, and user-facing behavior in
-  the app.
-- When running `/speckit.specify`, `/speckit.plan`, and
-  `/speckit.tasks`, the agent MUST start from `V1_FLOW_GUIDE.md` and
-  replicate it exactly — no deviations, no improvisation.
-- This is not optional. If `V1_FLOW_GUIDE.md` describes a screen or
-  behavior, that is what gets built. Period.
-- Every section of `V1_FLOW_GUIDE.md` contains links to detailed
-  spec files inside `.specify/v1-reference/`. Those files provide the
-  full implementation detail for each screen and must be consulted
-  before generating tasks for that screen.
-- The design system (`V1_FLOW_GUIDE.md` → `DESIGN_SYSTEM.md`) governs
-  how screens look. The flow guide governs what screens exist and what
-  they do. Both must be followed, in that order of priority:
-  flow first, design second.
-
-**Version**: 1.1.0 | **Amended**: 2026-03-29
+**Version**: 1.1.0 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-03-29
