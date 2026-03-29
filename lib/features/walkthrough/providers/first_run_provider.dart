@@ -30,14 +30,12 @@ class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
 
   /// Mark the walkthrough as completed. Called by both "Done" and "Skip".
   ///
-  /// Also activates the backup reminder (red dot on notification bell).
-  Future<void> markFirstRunComplete(WidgetRef ref) async {
+  /// Callers should separately activate the backup reminder:
+  ///   `ref.read(backupReminderProvider.notifier).showBackupReminder()`
+  Future<void> markFirstRunComplete() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kFirstRunComplete, true);
     state = const AsyncValue.data(true);
-
-    // Activate persistent backup reminder notification.
-    ref.read(backupReminderProvider.notifier).showBackupReminder();
   }
 }
 

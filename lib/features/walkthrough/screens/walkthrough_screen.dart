@@ -159,7 +159,8 @@ class WalkthroughScreen extends ConsumerWidget {
   }
 
   Future<void> _onIntroEnd(BuildContext context, WidgetRef ref) async {
-    await ref.read(firstRunProvider.notifier).markFirstRunComplete(ref);
+    await ref.read(firstRunProvider.notifier).markFirstRunComplete();
+    ref.read(backupReminderProvider.notifier).showBackupReminder();
     if (context.mounted) {
       context.go(AppRoute.home);
     }

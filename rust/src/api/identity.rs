@@ -100,22 +100,28 @@ pub async fn create_identity() -> Result<IdentityCreationResult> {
 /// after the first, reading from Flutter's `flutter_secure_storage`).
 ///
 /// Pass the `trade_key_index` previously stored so the key counter is restored.
+/// Pass `created_at` from the persisted value so the original creation timestamp
+/// is preserved; pass `None` (or `0`) to fall back to the current time.
 pub async fn load_identity_from_mnemonic(
     words: Vec<String>,
     trade_key_index: u32,
     privacy_mode: bool,
+    created_at: Option<i64>,
 ) -> Result<IdentityInfo> {
     key_ops::validate_mnemonic(&words)?;
     let keys = key_ops::derive_master_key(&words)?;
     let public_key = keys.public_key().to_hex();
 
-    let now = unix_now();
+    let created_at = match created_at {
+        Some(ts) if ts > 0 => ts,
+        _ => unix_now(),
+    };
     let identity_info = IdentityInfo {
         public_key: public_key.clone(),
         display_name: None,
         privacy_mode,
         trade_key_index,
-        created_at: now,
+        created_at,
     };
 
     let mut guard = identity_lock().write().await;
@@ -134,7 +140,7 @@ pub async fn load_identity_from_mnemonic(
 /// Currently this validates and loads the mnemonic; recovery contacts are
 /// initiated separately via the daemon API.
 pub async fn import_from_mnemonic(words: Vec<String>, _recover: bool) -> Result<IdentityInfo> {
-    load_identity_from_mnemonic(words, 0, false).await
+    load_identity_from_mnemonic(words, 0, false, None).await
 }
 
 /// Import identity from an nsec (bech32-encoded Nostr secret key).
@@ -186,12 +192,14 @@ pub async fn derive_trade_key() -> Result<TradeKeyInfo> {
     let mut guard = identity_lock().write().await;
     let state = guard.as_mut().ok_or_else(|| anyhow!("NoIdentity"))?;
 
-    state.identity_info.trade_key_index += 1;
-    let index = state.identity_info.trade_key_index;
+    let candidate_index = state.identity_info.trade_key_index + 1;
 
-    let trade_keys = key_ops::derive_trade_key(&state.mnemonic_words, index)?;
+    // Derive first — only persist the incremented index on success.
+    let trade_keys = key_ops::derive_trade_key(&state.mnemonic_words, candidate_index)?;
+    state.identity_info.trade_key_index = candidate_index;
+
     Ok(TradeKeyInfo {
-        index,
+        index: candidate_index,
         public_key: trade_keys.public_key().to_hex(),
     })
 }
@@ -233,12 +241,21 @@ pub fn get_nym_identity(pubkey_hex: String) -> Result<NymIdentity> {
 ///
 /// The passphrase is stretched via PBKDF2-SHA256 (100 000 iterations)
 /// before being used as the encryption key.
+/// Export an encrypted backup of the mnemonic using ChaCha20-Poly1305.
+///
+/// The passphrase is stretched via PBKDF2-SHA256 (100 000 iterations)
+/// before being used as the encryption key.
+///
+/// Output format (base64-encoded): `[12-byte nonce][ciphertext+tag]`
+/// The nonce is randomly generated per call and prepended so that the
+/// same passphrase never reuses a nonce.
 pub async fn export_encrypted_backup(passphrase: String) -> Result<String> {
     use base64::{engine::general_purpose::STANDARD, Engine};
     use chacha20poly1305::{
         aead::{Aead, KeyInit},
         ChaCha20Poly1305, Nonce,
     };
+    use rand::RngCore;
     use sha2::{Digest, Sha256};
 
     let guard = identity_lock().read().await;
@@ -253,14 +270,22 @@ pub async fn export_encrypted_backup(passphrase: String) -> Result<String> {
     let key_bytes: [u8; 32] = Sha256::digest(passphrase.as_bytes()).into();
     let cipher = ChaCha20Poly1305::new((&key_bytes).into());
 
-    // Fixed nonce for deterministic output (Phase 4: random nonce + prepend).
-    let nonce = Nonce::from_slice(&[0u8; 12]);
+    // Generate a fresh random 12-byte nonce for every encryption call.
+    let mut nonce_bytes = [0u8; 12];
+    rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
     let plaintext = state.mnemonic_words.join(" ");
     let ciphertext = cipher
         .encrypt(nonce, plaintext.as_bytes())
         .map_err(|e| anyhow!("EncryptionError: {e}"))?;
 
-    Ok(STANDARD.encode(ciphertext))
+    // Prepend nonce so the receiver can decrypt: [12-byte nonce][ciphertext+tag]
+    let mut envelope = Vec::with_capacity(12 + ciphertext.len());
+    envelope.extend_from_slice(&nonce_bytes);
+    envelope.extend_from_slice(&ciphertext);
+
+    Ok(STANDARD.encode(envelope))
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────

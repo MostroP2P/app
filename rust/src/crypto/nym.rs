@@ -95,4 +95,20 @@ mod tests {
         let nym = get_nym_identity(&keys.public_key().to_hex()).unwrap();
         assert!(nym.color_hue <= 359);
     }
+
+    /// Regression test: a fixed pubkey must always produce the same output.
+    /// Expected values were derived by hand from the algorithm and must not
+    /// change without a deliberate, versioned migration.
+    ///
+    /// Pubkey: secp256k1 generator x-coordinate (a valid Nostr x-only pubkey).
+    /// SHA-256(pubkey_bytes)[0:6] = [19, 47, 57, 169, 140, 49]
+    #[test]
+    fn known_pubkey_regression() {
+        let pubkey_hex =
+            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        let nym = get_nym_identity(pubkey_hex).unwrap();
+        assert_eq!(nym.pseudonym, "tall-crane");
+        assert_eq!(nym.icon_index, 35);
+        assert_eq!(nym.color_hue, 249);
+    }
 }

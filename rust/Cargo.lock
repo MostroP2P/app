@@ -2310,6 +2310,7 @@ dependencies = [
  "k256",
  "mostro-core",
  "nostr-sdk 0.44.1",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
