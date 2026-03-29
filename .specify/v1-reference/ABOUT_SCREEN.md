@@ -106,7 +106,50 @@
 
 **Loading State:** Shows spinner while fetching node info.
 
-**Data Source:** `MostroInstance` from daemon announcement event.
+**Data Source:** Nostr kind `38385` event (NIP-33 addressable/replaceable) published periodically by the Mostro daemon. The `d` tag contains the Mostro instance pubkey. All node metadata is encoded as individual tags in the event (not in `content`).
+
+**Protocol Reference:** [Mostro Instance Status](https://mostro.network/protocol/other_events.html#mostro-instance-status)
+
+**How the app fetches it:**
+1. App subscribes to kind `38385` events filtered by `authors: [settings.mostroPublicKey]`
+2. Relays return the latest replaceable event for that `d` tag
+3. App parses each tag (e.g. `["mostro_version", "0.12.8"]`, `["fee", "0.006"]`) into the `MostroInstance` model
+4. The About screen renders each tag as a labeled info row
+
+**Event structure (kind 38385):**
+```json
+{
+  "kind": 38385,
+  "pubkey": "<Mostro's pubkey>",
+  "tags": [
+    ["d", "<Mostro's pubkey>"],
+    ["mostro_version", "0.12.8"],
+    ["mostro_commit_hash", "1aac442..."],
+    ["max_order_amount", "1000000"],
+    ["min_order_amount", "100"],
+    ["expiration_hours", "1"],
+    ["expiration_seconds", "900"],
+    ["fiat_currencies_accepted", "USD,EUR,ARS,CUP,VES"],
+    ["fee", "0.006"],
+    ["pow", "0"],
+    ["hold_invoice_expiration_window", "120"],
+    ["hold_invoice_cltv_delta", "144"],
+    ["invoice_expiration_window", "120"],
+    ["lnd_version", "0.18.4-beta"],
+    ["lnd_node_pubkey", "0220e455..."],
+    ["lnd_commit_hash", "ddeb8351..."],
+    ["lnd_node_alias", "alice"],
+    ["lnd_chains", "bitcoin"],
+    ["lnd_networks", "mainnet"],
+    ["lnd_uris", "0220e455...@host:9735"],
+    ["y", "mostro", "[instance name]"],
+    ["z", "info"]
+  ],
+  "content": ""
+}
+```
+
+**Important:** The `content` field is empty. All data is in tags. The event is a NIP-33 addressable event (kind 30000-39999 range), meaning relays store only the latest version per `d` tag value.
 
 #### General Info Section
 

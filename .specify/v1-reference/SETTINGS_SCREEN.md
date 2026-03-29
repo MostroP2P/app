@@ -51,16 +51,73 @@
 
 ### Layout (Cards)
 
+**Screenshot:** https://i.nostr.build/1rDSSUd1xeQ1TgRH.png
+
 ```text
-Language          → LanguageSelector (modal list)
-Currency          → CurrencySelectionDialog (searchable list)
-Lightning Address → TextField + autosave
-Wallet            → WalletStatusCard (links to /wallet_settings)
-Relays            → RelaySelector (per-relay status + blacklist)
-Notifications     → Shortcut to /notification_settings
-Dev Tools         → Toggle logging + link to /logs
-Mostro Node       → MostroNodeSelector modal
+┌─────────────────────────────────────────────────────┐
+│  ←  Settings                                        │  AppBar
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  🌐  Language                                 │  │
+│  │      Default                                  │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  💱  Currency                                 │  │
+│  │      🇦🇷 ARS - Argentine Peso                 │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  ⚡  Lightning Address                        │  │
+│  │      [Lightning Address (optional)]           │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  👛  NWC                                      │  │
+│  │      Connected. Balance: 11 sats              │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  📡  Relays                                   │  │
+│  │  wss://nos.lol             🟢  [ON]           │  │
+│  │  wss://relay.mostro.net    🟢  [ON]           │  │
+│  │           [+ Add Relay]                       │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  🔔  Push Notifications                    >  │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  🛠️  Log Report                            >  │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  ⚡  Mostro  [Trusted]       ...7c575...   >  │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+└─────────────────────────────────────────────────────┘
 ```
+
+### Visual Settings Summary
+
+| # | Icon | Setting | Current Value | Action |
+|---|------|---------|---------------|--------|
+| 1 | 🌐 Globe | Language | "Default" (system locale) | Tap → modal language list |
+| 2 | 💱 Currency | Default Fiat Currency | "🇦🇷 ARS - Argentine Peso" | Tap → searchable currency dialog |
+| 3 | ⚡ Lightning | Lightning Address | (empty, optional) | Text field, auto-saves on change |
+| 4 | 👛 Wallet | NWC Wallet | "Connected. Balance: 11 sats" | Tap → `/wallet_settings` |
+| 5 | 📡 Relay | Relays | List with green/red status + ON/OFF toggle | Inline management + "Add Relay" button |
+| 6 | 🔔 Bell | Push Notifications | (chevron >) | Tap → `/notification_settings` |
+| 7 | 🛠️ Gear | Log Report | (chevron >) | Tap → `/logs` |
+| 8 | ⚡ Lightning | Mostro Node | Truncated pubkey + "Trusted" badge | Tap → MostroNodeSelector modal |
+
+### Relay Management (inline):
+- Each relay shows: URL + connection status dot (🟢 green = connected, 🔴 red = disconnected) + ON/OFF toggle
+- "Add Relay" button at bottom to add custom relay URL
+- Relays auto-sync from Mostro's kind 10002 event (see [RELAY_SYNC_IMPLEMENTATION.md](./RELAY_SYNC_IMPLEMENTATION.md))
+- Users can blacklist relays to prevent auto-sync re-adding them
 
 Each card is a `Container` with consistent styling (rounded corners, subtle border, AppTheme colors). Info dialogs use `_showInfoDialog()` for contextual explanations.
 
