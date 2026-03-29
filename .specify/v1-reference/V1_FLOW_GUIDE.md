@@ -16,9 +16,10 @@
 - User never sees this — it's invisible
 
 ### What the user sees:
-- **Walkthrough screen** (`walkthrough_screen.dart`) — mini tutorial with slides
-- Only shown on first launch (stored in SharedPreferences: `has_seen_walkthrough`)
-- After walkthrough → navigates to `/` (home/order book)
+- **Walkthrough screen** — 6-page tutorial with slides covering: welcome, privacy, security, encrypted chat, taking offers, creating offers
+- Only shown on first launch (stored in SharedPreferences: `firstRunComplete`)
+- After walkthrough (Done or Skip) → activates backup reminder → navigates to `/` (home/order book)
+- See [WALKTHROUGH_SCREEN.md](https://github.com/MostroP2P/app/blob/main/.specify/v1-reference/WALKTHROUGH_SCREEN.md) for complete slide content, highlight system, navigation controls, and visual specs
 
 ### On subsequent launches:
 - Straight to order book — no walkthrough, no login, no PIN
@@ -1220,7 +1221,48 @@ Either way, the dispute chat becomes read-only with a lock message.
 
 ---
 
-## Pending Sections (to document with Negrunch)
+## Summary
+
+This guide documents the complete Mostro Mobile v1 user experience across 23 sections. Every section references the corresponding `.specify/v1-reference/` spec document for detailed implementation.
+
+### Screens covered:
+
+| # | Screen | Key ref doc |
+|---|--------|-------------|
+| 1 | First Launch (key gen + walkthrough) | WALKTHROUGH_SCREEN.md, SESSION_AND_KEY_MANAGEMENT.md |
+| 2 | Backup Reminder (bell states) | NOTIFICATIONS_SYSTEM.md, ACCOUNT_SCREEN.md |
+| 3-5 | Home Screen / Order Book | HOME_SCREEN.md, ORDER_BOOK.md |
+| 6 | Drawer Menu | DRAWER_MENU.md |
+| 7 | Create Order | ORDER_CREATION.md |
+| 8 | Take Order | TAKE_ORDER.md |
+| 9 | Add Lightning Invoice (buyer, no NWC) | TAKE_ORDER.md |
+| 10 | Range Amount Modal | TAKE_ORDER.md |
+| 11 | Trade Detail — Buyer Active | TRADE_EXECUTION.md, ORDER_STATES.md |
+| 12 | Trade Detail — Seller Fiat Sent + Release | TRADE_EXECUTION.md, ORDER_STATES.md |
+| 13 | Rating Screen | RATING_SYSTEM.md |
+| 14 | Settings Screen | SETTINGS_SCREEN.md |
+| 15 | Notifications Screen | NOTIFICATIONS_SYSTEM.md |
+| 16 | My Trades | MY_TRADES.md |
+| 17 | Trade Detail — Seller Active | TRADE_EXECUTION.md |
+| 18 | Pay Lightning Invoice (seller, no NWC) + NWC auto-pay | TRADE_EXECUTION.md, NWC_ARCHITECTURE.md |
+| 19 | Chat List + Disputes Tab | P2P_CHAT_SYSTEM.md, DISPUTE_SYSTEM.md |
+| 20 | Chat Room (P2P trade chat) | P2P_CHAT_SYSTEM.md |
+| 21 | Trade Detail — Dispute (seller view) | DISPUTE_SYSTEM.md |
+| 22 | Dispute Chat (with admin) | DISPUTE_SYSTEM.md |
+| 23 | Dispute Resolved | DISPUTE_SYSTEM.md |
+
+### App characteristics:
+- **5 languages:** EN, ES, IT, FR, DE
+- **Dark theme only** with design system defined in DESIGN_SYSTEM.md
+- **Color palette:** Brand green #8CC63F, purple #7856AF, sell red #FF8A8A, error red #EF6A6A
+- **Bottom nav:** 3 tabs (Order Book, My Trades, Chat) with badge indicators
+- **NWC support:** Auto-pays invoices when configured, manual QR/paste when not
+- **Encrypted chat:** P2P via ECDH shared keys, media via Blossom protocol
+- **Dispute system:** User ↔ Admin chat, shared key for chat history access
+
+---
+
+*Last updated: 2026-03-29*
 
 - [ ] Create Order flow (add_order_screen)
 - [ ] Take Order flow (buy vs sell)
