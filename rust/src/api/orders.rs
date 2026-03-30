@@ -231,6 +231,10 @@ pub async fn take_order(
         .await
         .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
 
+    if order.is_mine {
+        return Err(anyhow::anyhow!("CannotTakeOwnOrder"));
+    }
+
     if order.status != OrderStatus::Pending {
         return Err(anyhow::anyhow!("OrderAlreadyTaken"));
     }

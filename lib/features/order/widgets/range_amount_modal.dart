@@ -97,7 +97,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
             TextField(
               controller: _controller,
               autofocus: true,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               cursorColor: green,
               style: Theme.of(context).textTheme.headlineMedium,
               decoration: InputDecoration(

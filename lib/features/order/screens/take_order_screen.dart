@@ -286,8 +286,15 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                     width: 80,
                     height: 80,
                     child: CircularProgressIndicator(
-                      value: _remaining.inSeconds /
-                          (24 * 3600), // proportion of 24h
+                      value: () {
+                        if (order.expiresAt == null) return 0.0;
+                        final lifetime = order.expiresAt!
+                            .difference(order.createdAt)
+                            .inSeconds;
+                        if (lifetime <= 0) return 0.0;
+                        return (_remaining.inSeconds / lifetime)
+                            .clamp(0.0, 1.0);
+                      }(),
                       strokeWidth: 4,
                       color: green,
                       backgroundColor:
