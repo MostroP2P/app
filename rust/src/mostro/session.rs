@@ -65,6 +65,14 @@ impl SessionManager {
         trade_key_index: u32,
         order: OrderInfo,
     ) -> Result<Session> {
+        if order_id != order.id {
+            return Err(anyhow!(
+                "order_id mismatch: param='{}' vs order.id='{}'",
+                order_id,
+                order.id
+            ));
+        }
+
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()

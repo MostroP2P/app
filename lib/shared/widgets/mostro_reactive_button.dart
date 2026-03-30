@@ -78,15 +78,27 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
   Widget _buildChild() {
     switch (_state) {
       case _ButtonState.loading:
-        return const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
+        return Semantics(
+          label: 'Loading',
+          liveRegion: true,
+          child: const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         );
       case _ButtonState.success:
-        return const Icon(Icons.check, size: 20);
+        return Semantics(
+          label: 'Success',
+          liveRegion: true,
+          child: const Icon(Icons.check, size: 20),
+        );
       case _ButtonState.error:
-        return const Icon(Icons.error_outline, size: 20);
+        return Semantics(
+          label: 'Error',
+          liveRegion: true,
+          child: const Icon(Icons.error_outline, size: 20),
+        );
       case _ButtonState.idle:
         if (widget.icon != null) {
           return Row(

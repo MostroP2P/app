@@ -41,10 +41,9 @@ class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
 
       if (!mounted) return;
 
-      // Placeholder — fall back to manual entry until NWC is wired.
+      // NWC not configured — fall back to manual entry (not an error).
       setState(() {
         _loading = false;
-        _error = 'NWC not configured';
       });
       widget.onFallbackToManual();
     } catch (e) {

@@ -301,13 +301,15 @@ pub async fn take_order(
 pub async fn send_invoice(
     order_id: String,
     invoice_or_address: String,
-    _amount_sats: u64,
+    amount_sats: u64,
 ) -> Result<()> {
     if invoice_or_address.trim().is_empty() {
         return Err(anyhow::anyhow!("Invoice or address must not be empty"));
     }
+    if amount_sats == 0 {
+        return Err(anyhow::anyhow!("Amount must be greater than zero"));
+    }
 
-    // Validate the order exists and is in the right state.
     let order = order_book()
         .get_order(&order_id)
         .await
@@ -320,14 +322,14 @@ pub async fn send_invoice(
     }
 
     // TODO: Build AddInvoice MostroMessage, wrap via NIP-59, publish.
-    Ok(())
+    Err(anyhow::anyhow!("NotImplemented: AddInvoice dispatch not wired yet"))
 }
 
 /// Mark fiat payment as sent by the buyer.
 ///
 /// Sends a `FiatSent` MostroMessage to the Mostro daemon.
 ///
-/// TODO: Wire to actual NIP-59 message dispatch in Phase 9+.
+/// Not yet implemented — requires NIP-59 message dispatch.
 pub async fn send_fiat_sent(order_id: String) -> Result<()> {
     let order = order_book()
         .get_order(&order_id)
@@ -339,8 +341,7 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
     }
 
     // TODO: Build FiatSent MostroMessage, wrap via NIP-59, publish.
-    // Update local trade state to FiatSent.
-    Ok(())
+    Err(anyhow::anyhow!("NotImplemented: FiatSent dispatch not wired yet"))
 }
 
 /// Stream that emits whenever the order list changes.

@@ -44,7 +44,7 @@ class _AddLightningInvoiceScreenState
       await Future.delayed(const Duration(milliseconds: 300));
 
       if (!mounted) return;
-      context.push(AppRoute.tradeDetailPath(widget.orderId));
+      context.go(AppRoute.tradeDetailPath(widget.orderId));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

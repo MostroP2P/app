@@ -22,9 +22,12 @@ class TradeDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<TradeDetailScreen> createState() => _TradeDetailScreenState();
 }
 
+/// Default trade countdown duration (matches Mostro daemon default).
+const _kCountdownSeconds = 900; // 15 minutes
+
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
-  Duration _remaining = const Duration(minutes: 15);
+  Duration _remaining = const Duration(seconds: _kCountdownSeconds);
 
   // Mock trade state — will be replaced by Rust bridge provider.
   String _status = 'Active';
@@ -156,7 +159,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     width: 80,
                     height: 80,
                     child: CircularProgressIndicator(
-                      value: (_remaining.inSeconds / 900).clamp(0.0, 1.0),
+                      value: (_remaining.inSeconds / _kCountdownSeconds)
+                          .clamp(0.0, 1.0),
                       strokeWidth: 4,
                       color: _remaining.inMinutes < 5
                           ? colors?.destructiveRed ?? const Color(0xFFD84D4D)

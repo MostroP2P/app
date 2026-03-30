@@ -39,7 +39,7 @@ class OrderIdCard extends StatelessWidget {
           Expanded(
             child: Text(
               orderId,
-              style: theme.textTheme.bodySmall!.copyWith(
+              style: (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
                 fontFamily: 'monospace',
               ),
               overflow: TextOverflow.ellipsis,
