@@ -12,6 +12,7 @@ import 'package:mostro/features/order/screens/take_order_screen.dart';
 import 'package:mostro/features/chat/screens/chat_room_screen.dart';
 import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
+import 'package:mostro/features/trades/screens/trades_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/screens/walkthrough_screen.dart';
 
@@ -102,7 +103,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.orderBook,
-      builder: (_, __) => const _Stub('Order Book'),
+      builder: (_, __) => const TradesScreen(),
     ),
     GoRoute(
       path: AppRoute.addOrder,
