@@ -7,6 +7,7 @@ import 'package:mostro/features/home/screens/home_screen.dart';
 import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/add_order_screen.dart';
+import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
@@ -124,8 +125,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.payInvoice,
-      builder: (context, state) =>
-          _Stub('Pay Invoice — ${state.pathParameters['orderId']}'),
+      builder: (context, state) => PayLightningInvoiceScreen(
+        orderId: state.pathParameters['orderId']!,
+      ),
     ),
     GoRoute(
       path: AppRoute.addInvoice,

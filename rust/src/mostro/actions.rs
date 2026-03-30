@@ -89,6 +89,50 @@ async fn take_order_impl(
     .await
 }
 
+/// Build and wrap a FiatSent MostroMessage.
+pub async fn fiat_sent(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+) -> Result<String> {
+    simple_action(sender_keys, mostro_pubkey, order_id, "fiat-sent").await
+}
+
+/// Build and wrap a Release MostroMessage.
+pub async fn release(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+) -> Result<String> {
+    simple_action(sender_keys, mostro_pubkey, order_id, "release").await
+}
+
+/// Helper for actions that only need an order ID (no extra fields).
+async fn simple_action(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+    action: &str,
+) -> Result<String> {
+    let payload = json!({
+        "order": {
+            "version": 1,
+            "action": action,
+            "content": {
+                "id": order_id,
+            }
+        }
+    });
+
+    gift_wrap::wrap(
+        sender_keys,
+        mostro_pubkey,
+        &payload.to_string(),
+        Kind::from(KIND_ORDER),
+    )
+    .await
+}
+
 fn build_new_order_content(params: &NewOrderParams) -> serde_json::Value {
     let kind_str = match params.kind {
         OrderKind::Buy => "buy",
