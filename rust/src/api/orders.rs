@@ -214,6 +214,85 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     Ok(order)
 }
 
+/// Take an existing order, starting a trade.
+///
+/// Sends a `take-buy` or `take-sell` MostroMessage via NIP-59.
+/// Returns a `TradeInfo` with the initial trade state.
+///
+/// TODO: Wire to actual Rust bridge identity + relay pool in Phase 8+.
+/// Currently validates params and returns a mock TradeInfo.
+pub async fn take_order(
+    order_id: String,
+    role: crate::api::types::TradeRole,
+    fiat_amount: Option<f64>,
+) -> Result<crate::api::types::TradeInfo> {
+    let order = order_book()
+        .get_order(&order_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
+
+    if order.is_mine {
+        return Err(anyhow::anyhow!("CannotTakeOwnOrder"));
+    }
+
+    if order.status != OrderStatus::Pending {
+        return Err(anyhow::anyhow!("OrderAlreadyTaken"));
+    }
+
+    // Validate range amount.
+    let is_range = order.fiat_amount_min.is_some() && order.fiat_amount_max.is_some();
+    if is_range {
+        let amt = fiat_amount.ok_or_else(|| anyhow::anyhow!("FiatAmountRequired"))?;
+        if !amt.is_finite() || amt <= 0.0 {
+            return Err(anyhow::anyhow!("fiat_amount must be positive and finite"));
+        }
+        let min = order.fiat_amount_min.unwrap();
+        let max = order.fiat_amount_max.unwrap();
+        if amt < min || amt > max {
+            return Err(anyhow::anyhow!("OutOfRange"));
+        }
+    }
+
+    use crate::api::types::*;
+
+    // Validate role matches order kind.
+    let expected_role = match order.kind {
+        OrderKind::Buy => TradeRole::Seller,
+        OrderKind::Sell => TradeRole::Buyer,
+    };
+    if role != expected_role {
+        return Err(anyhow::anyhow!("InvalidRole"));
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    let initial_step = match role {
+        TradeRole::Buyer => TradeStep::Buyer(BuyerStep::OrderTaken),
+        TradeRole::Seller => TradeStep::Seller(SellerStep::TakerFound),
+    };
+
+    let trade = TradeInfo {
+        id: uuid::Uuid::new_v4().to_string(),
+        order: order.clone(),
+        role,
+        counterparty_pubkey: order.creator_pubkey.clone(),
+        current_step: initial_step,
+        hold_invoice: None,
+        buyer_invoice: None,
+        trade_key_index: 0,
+        cooperative_cancel_state: None,
+        timeout_at: Some(now + 900), // 15 min default
+        started_at: now,
+        completed_at: None,
+        outcome: None,
+    };
+
+    Ok(trade)
+}
+
 /// Stream that emits whenever the order list changes.
 pub async fn on_orders_updated() -> Result<OrdersStream> {
     let rx = order_book().subscribe();

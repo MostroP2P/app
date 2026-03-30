@@ -51,6 +51,33 @@
 
 ---
 
+## Phase 2b: Default Configuration (Relays + Mostro Node)
+
+**Purpose**: Seed the app with default relay URLs and the default Mostro node
+pubkey so it can connect to the network on first launch without any user
+configuration.
+
+**Depends on**: Phase 2 (T008, T009)
+**Blocks**: T012 (relay pool initialization), T029 (Nostr relay API)
+
+- [ ] T012b Create `rust/src/config.rs` with hardcoded seed constants:
+  - `DEFAULT_RELAYS: &[&str]` = `["wss://relay.mostro.network", "wss://nos.lol"]`
+  - `DEFAULT_MOSTRO_PUBKEY: &str` = `"82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390"`
+  - `DEFAULT_MOSTRO_NAME: &str` = `"Mostro"`
+  - Export from `lib.rs`
+
+- [ ] T012c On first launch (no relays in DB), seed DB with `DEFAULT_RELAYS` as
+  `RelayInfo { url, user_added: false, enabled: true }`. Default relays are NOT
+  deletable from the UI (only disable allowed). Implement in `rust/src/db/seeds.rs`.
+
+- [ ] T012d On first launch (no Mostro node selected), seed the active Mostro node
+  with `DEFAULT_MOSTRO_PUBKEY` + `DEFAULT_MOSTRO_NAME`. Store in settings as
+  `active_mostro_pubkey`. Implement in same `rust/src/db/seeds.rs`.
+
+- [ ] T012e Wire `seeds::seed_defaults()` into app bootstrap (called once after DB
+  migration, before relay pool initialization). Guard with `IF NOT EXISTS` checks
+  so re-runs are idempotent.
+
 ## Phase 3: User Story 1 — First Launch & Identity Setup (Priority: P1) 🎯 MVP Start
 
 **V1 ref**: Section 1 (`WALKTHROUGH_SCREEN.md`, `SESSION_AND_KEY_MANAGEMENT.md`, `AUTHENTICATION.md`)
@@ -141,10 +168,10 @@
 
 **Independent Test**: Tap a sell order card → Take Order screen with all 5 info cards + countdown + Close/Buy buttons. Tap Buy on a range order → modal appears, enter amount → submit → navigates to Add Invoice screen.
 
-- [ ] T047 Implement take order screen in `lib/features/order/screens/take_order_screen.dart`: AppBar "SELL ORDER DETAILS"/"BUY ORDER DETAILS". 5 info cards: (1) description + fiat/currency/flag/price/premium, (2) payment method, (3) creation date, (4) order ID with copy icon (📋), (5) creator reputation (rating ⭐, reviews 👤, days 📅). Countdown timer (circular progress + "Time remaining: HH:MM:SS"). Bottom: Close (green outline) + Buy/Sell (green filled). For range orders: amount input appears above buttons before showing take-action modal. Routes: `/take_sell/:orderId` and `/take_buy/:orderId`.
-- [ ] T048 [P] Implement range amount modal in `lib/features/order/widgets/range_amount_modal.dart`: centered dialog with title, numeric input (green cursor), helper text "Min: X – Max: Y [currency]", Cancel + Submit buttons. Submit disabled until amount in range. Error message if out of range.
-- [ ] T049 Implement take order actions in `rust/src/api/orders.rs`: add `take_order(order_id, role, fiat_amount)` — sends `take-sell` or `take-buy` `MostroMessage` via NIP-59. Returns `TradeInfo` with initial state. Errors: `OrderAlreadyTaken`, `OutOfRange`, `ProtocolError`, `Timeout`.
-- [ ] T050 Wire take order navigation in `lib/features/order/screens/take_order_screen.dart`: on confirm → call `take_order()` → for buyer: navigate to `/add_invoice/:orderId`; for seller: navigate to `/pay_invoice/:orderId`. On `OrderAlreadyTaken` → show error snackbar + return to order book. On timeout (10s no response) → return to order book with timeout notification.
+- [x] T047 Implement take order screen in `lib/features/order/screens/take_order_screen.dart`: AppBar "SELL ORDER DETAILS"/"BUY ORDER DETAILS". 5 info cards: (1) description + fiat/currency/flag/price/premium, (2) payment method, (3) creation date, (4) order ID with copy icon (📋), (5) creator reputation (rating ⭐, reviews 👤, days 📅). Countdown timer (circular progress + "Time remaining: HH:MM:SS"). Bottom: Close (green outline) + Buy/Sell (green filled). For range orders: amount input appears above buttons before showing take-action modal. Routes: `/take_sell/:orderId` and `/take_buy/:orderId`.
+- [x] T048 [P] Implement range amount modal in `lib/features/order/widgets/range_amount_modal.dart`: centered dialog with title, numeric input (green cursor), helper text "Min: X – Max: Y [currency]", Cancel + Submit buttons. Submit disabled until amount in range. Error message if out of range.
+- [x] T049 Implement take order actions in `rust/src/api/orders.rs`: add `take_order(order_id, role, fiat_amount)` — sends `take-sell` or `take-buy` `MostroMessage` via NIP-59. Returns `TradeInfo` with initial state. Errors: `OrderAlreadyTaken`, `OutOfRange`, `ProtocolError`, `Timeout`.
+- [x] T050 Wire take order navigation in `lib/features/order/screens/take_order_screen.dart`: on confirm → call `take_order()` → for buyer: navigate to `/add_invoice/:orderId`; for seller: navigate to `/pay_invoice/:orderId`. On `OrderAlreadyTaken` → show error snackbar + return to order book. On timeout (10s no response) → return to order book with timeout notification.
 
 **Checkpoint**: Full take order flow: card tap → detail screen → Buy/Sell → range modal (if applicable) → next appropriate screen.
 
