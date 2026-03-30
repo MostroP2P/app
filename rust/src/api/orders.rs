@@ -293,6 +293,57 @@ pub async fn take_order(
     Ok(trade)
 }
 
+/// Submit buyer's Lightning invoice for a trade.
+///
+/// Sends an `AddInvoice` MostroMessage to the daemon.
+///
+/// TODO: Wire to actual NIP-59 message dispatch in Phase 9+.
+pub async fn send_invoice(
+    order_id: String,
+    invoice_or_address: String,
+    amount_sats: u64,
+) -> Result<()> {
+    if invoice_or_address.trim().is_empty() {
+        return Err(anyhow::anyhow!("Invoice or address must not be empty"));
+    }
+    if amount_sats == 0 {
+        return Err(anyhow::anyhow!("Amount must be greater than zero"));
+    }
+
+    let order = order_book()
+        .get_order(&order_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
+
+    if order.status != OrderStatus::WaitingBuyerInvoice
+        && order.status != OrderStatus::Pending
+    {
+        return Err(anyhow::anyhow!("WrongTradeState"));
+    }
+
+    // TODO: Build AddInvoice MostroMessage, wrap via NIP-59, publish.
+    Err(anyhow::anyhow!("NotImplemented: AddInvoice dispatch not wired yet"))
+}
+
+/// Mark fiat payment as sent by the buyer.
+///
+/// Sends a `FiatSent` MostroMessage to the Mostro daemon.
+///
+/// Not yet implemented — requires NIP-59 message dispatch.
+pub async fn send_fiat_sent(order_id: String) -> Result<()> {
+    let order = order_book()
+        .get_order(&order_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
+
+    if order.status != OrderStatus::Active {
+        return Err(anyhow::anyhow!("WrongTradeState"));
+    }
+
+    // TODO: Build FiatSent MostroMessage, wrap via NIP-59, publish.
+    Err(anyhow::anyhow!("NotImplemented: FiatSent dispatch not wired yet"))
+}
+
 /// Stream that emits whenever the order list changes.
 pub async fn on_orders_updated() -> Result<OrdersStream> {
     let rx = order_book().subscribe();
