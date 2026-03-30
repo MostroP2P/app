@@ -17,5 +17,9 @@
   "disputeAdminAssigned": "Un administrateur a été assigné à votre litige. Il vous contactera ici sous peu.",
   "disputeChatClosed": "Ce litige a été résolu. Le chat est fermé.",
   "messageCopied": "Copié",
-  "disputeLoadError": "Impossible de charger les litiges. Veuillez réessayer."
+  "disputeLoadError": "Impossible de charger les litiges. Veuillez réessayer.",
+  "disputeMessagingComingSoon": "Messagerie de litige bientôt disponible",
+  "disputeAttachmentsComingSoon": "Pièces jointes bientôt disponibles",
+  "disputeNotFound": "Litige introuvable.",
+  "disputeNotFoundForOrder": "Aucun litige trouvé pour cette commande."
 }

@@ -137,11 +137,16 @@ class DisputeNotifier extends StateNotifier<List<DisputeItem>> {
   DisputeNotifier() : super(const []);
 
   /// Upsert a dispute (insert or update by id).
+  ///
+  /// When updating an existing entry the current [DisputeItem.isRead] state is
+  /// preserved so that bridge-driven refreshes do not accidentally reset the
+  /// in-memory read flag that the UI manages via [markRead].
   void upsert(DisputeItem dispute) {
     final idx = state.indexWhere((d) => d.id == dispute.id);
     if (idx >= 0) {
       final updated = [...state];
-      updated[idx] = dispute;
+      // Preserve the UI-managed read flag across server-driven updates.
+      updated[idx] = dispute.copyWith(isRead: state[idx].isRead);
       state = updated;
     } else {
       state = [...state, dispute];

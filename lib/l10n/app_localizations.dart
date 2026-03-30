@@ -205,6 +205,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to load disputes. Please try again.'**
   String get disputeLoadError;
+
+  /// Snackbar shown when user tries to send a dispute message
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute messaging coming soon'**
+  String get disputeMessagingComingSoon;
+
+  /// Snackbar shown when user tries to attach a file in dispute chat
+  ///
+  /// In en, this message translates to:
+  /// **'File attachments coming soon'**
+  String get disputeAttachmentsComingSoon;
+
+  /// Body text shown when a dispute cannot be found by ID
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute not found.'**
+  String get disputeNotFound;
+
+  /// Snackbar shown when no dispute exists for the current trade
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute not found for this order.'**
+  String get disputeNotFoundForOrder;
 }
 
 class _AppLocalizationsDelegate

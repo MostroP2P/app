@@ -34,5 +34,13 @@
   "messageCopied": "Copied",
   "@messageCopied": {"description": "Snackbar text after copying a chat message to clipboard"},
   "disputeLoadError": "Failed to load disputes. Please try again.",
-  "@disputeLoadError": {"description": "Error message shown when disputes fail to load"}
+  "@disputeLoadError": {"description": "Error message shown when disputes fail to load"},
+  "disputeMessagingComingSoon": "Dispute messaging coming soon",
+  "@disputeMessagingComingSoon": {"description": "Snackbar shown when user tries to send a dispute message"},
+  "disputeAttachmentsComingSoon": "File attachments coming soon",
+  "@disputeAttachmentsComingSoon": {"description": "Snackbar shown when user tries to attach a file in dispute chat"},
+  "disputeNotFound": "Dispute not found.",
+  "@disputeNotFound": {"description": "Body text shown when a dispute cannot be found by ID"},
+  "disputeNotFoundForOrder": "Dispute not found for this order.",
+  "@disputeNotFoundForOrder": {"description": "Snackbar shown when no dispute exists for the current trade"}
 }

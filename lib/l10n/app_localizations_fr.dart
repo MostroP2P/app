@@ -60,4 +60,19 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get disputeLoadError =>
       'Impossible de charger les litiges. Veuillez réessayer.';
+
+  @override
+  String get disputeMessagingComingSoon =>
+      'Messagerie de litige bientôt disponible';
+
+  @override
+  String get disputeAttachmentsComingSoon =>
+      'Pièces jointes bientôt disponibles';
+
+  @override
+  String get disputeNotFound => 'Litige introuvable.';
+
+  @override
+  String get disputeNotFoundForOrder =>
+      'Aucun litige trouvé pour cette commande.';
 }

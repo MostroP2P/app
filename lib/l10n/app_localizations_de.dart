@@ -61,4 +61,18 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get disputeLoadError =>
       'Streitfälle konnten nicht geladen werden. Bitte versuchen Sie es erneut.';
+
+  @override
+  String get disputeMessagingComingSoon =>
+      'Streitfall-Nachrichten demnächst verfügbar';
+
+  @override
+  String get disputeAttachmentsComingSoon => 'Dateianhänge demnächst verfügbar';
+
+  @override
+  String get disputeNotFound => 'Streitfall nicht gefunden.';
+
+  @override
+  String get disputeNotFoundForOrder =>
+      'Kein Streitfall für diese Bestellung gefunden.';
 }

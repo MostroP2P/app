@@ -61,4 +61,17 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get disputeLoadError =>
       'No se pudieron cargar las disputas. Por favor, inténtalo de nuevo.';
+
+  @override
+  String get disputeMessagingComingSoon => 'Mensajería de disputa próximamente';
+
+  @override
+  String get disputeAttachmentsComingSoon => 'Archivos adjuntos próximamente';
+
+  @override
+  String get disputeNotFound => 'Disputa no encontrada.';
+
+  @override
+  String get disputeNotFoundForOrder =>
+      'No se encontró ninguna disputa para esta orden.';
 }

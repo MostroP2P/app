@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
@@ -35,26 +36,30 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
     super.initState();
     // Mark as read as soon as the screen opens.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(disputeNotifierProvider.notifier).markRead(widget.disputeId);
+      if (mounted) {
+        ref.read(disputeNotifierProvider.notifier).markRead(widget.disputeId);
+      }
     });
   }
 
   void _onSendText(String text) {
     // TODO(bridge): Encrypt with adminSharedKey and publish via Rust bridge.
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Dispute messaging coming soon'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(l10n.disputeMessagingComingSoon),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
 
   void _onAttachFile() {
     // TODO(bridge): Open file picker, encrypt with adminSharedKey, upload.
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('File attachments coming soon'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(l10n.disputeAttachmentsComingSoon),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -68,9 +73,10 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
     final dispute = ref.watch(disputeByIdProvider(widget.disputeId));
 
     if (dispute == null) {
+      final l10n = AppLocalizations.of(context);
       return Scaffold(
         appBar: AppBar(title: const Text('Dispute')),
-        body: const Center(child: Text('Dispute not found.')),
+        body: Center(child: Text(l10n.disputeNotFound)),
       );
     }
 
@@ -206,9 +212,11 @@ class _HeaderTitle extends StatelessWidget {
 /// Shown above the chat when the dispute is resolved.
 ///
 /// Three sub-cases driven by [DisputeResolution]:
-/// - [DisputeResolution.fundsToMe] → green checkmark + "Successfully completed"
+/// - [DisputeResolution.fundsToBuyer] or [DisputeResolution.fundsToSeller] where the
+///   viewing party won → green checkmark + "Successfully completed"
 /// - [DisputeResolution.cooperativeCancel] → blue "Resolved" badge + cooperative cancel text
-/// - [DisputeResolution.fundsToCounterparty] → blue "Resolved" badge + refund text
+/// - [DisputeResolution.fundsToBuyer] or [DisputeResolution.fundsToSeller] where the
+///   viewing party lost → blue "Resolved" badge + role-aware outcome text
 class _ResolvedBanner extends StatelessWidget {
   const _ResolvedBanner({required this.dispute, required this.colors});
 

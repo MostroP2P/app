@@ -60,4 +60,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disputeLoadError => 'Failed to load disputes. Please try again.';
+
+  @override
+  String get disputeMessagingComingSoon => 'Dispute messaging coming soon';
+
+  @override
+  String get disputeAttachmentsComingSoon => 'File attachments coming soon';
+
+  @override
+  String get disputeNotFound => 'Dispute not found.';
+
+  @override
+  String get disputeNotFoundForOrder => 'Dispute not found for this order.';
 }

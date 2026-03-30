@@ -17,5 +17,9 @@
   "disputeAdminAssigned": "Un amministratore è stato assegnato alla tua disputa. Ti contatterà qui a breve.",
   "disputeChatClosed": "Questa disputa è stata risolta. La chat è chiusa.",
   "messageCopied": "Copiato",
-  "disputeLoadError": "Impossibile caricare le dispute. Riprova."
+  "disputeLoadError": "Impossibile caricare le dispute. Riprova.",
+  "disputeMessagingComingSoon": "Messaggistica per controversie in arrivo",
+  "disputeAttachmentsComingSoon": "Allegati file in arrivo",
+  "disputeNotFound": "Controversia non trovata.",
+  "disputeNotFoundForOrder": "Nessuna controversia trovata per questo ordine."
 }

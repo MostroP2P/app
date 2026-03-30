@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -492,10 +493,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                   disputeByTradeIdProvider(widget.orderId),
                 );
                 if (dispute == null) {
+                  final l10n = AppLocalizations.of(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Dispute not found for this order.'),
-                      duration: Duration(seconds: 2),
+                    SnackBar(
+                      content: Text(l10n.disputeNotFoundForOrder),
+                      duration: const Duration(seconds: 2),
                     ),
                   );
                   return;
