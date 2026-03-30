@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
 
 /// Add Lightning Invoice screen — Route `/add_invoice/:orderId`.
 ///
@@ -13,9 +15,12 @@ class AddLightningInvoiceScreen extends ConsumerStatefulWidget {
   const AddLightningInvoiceScreen({
     super.key,
     required this.orderId,
+    this.amountSats,
   });
 
   final String orderId;
+  /// Sats amount for the invoice. `null` until the trade provider resolves it.
+  final int? amountSats;
 
   @override
   ConsumerState<AddLightningInvoiceScreen> createState() =>
@@ -26,6 +31,8 @@ class _AddLightningInvoiceScreenState
     extends ConsumerState<AddLightningInvoiceScreen> {
   final _invoiceController = TextEditingController();
   bool _submitting = false;
+  /// `true` when NWC is connected but generation failed → show manual form.
+  bool _manualMode = false;
 
   @override
   void dispose() {
@@ -62,6 +69,30 @@ class _AddLightningInvoiceScreenState
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
+
+    final isWalletConnected = ref.watch(isWalletConnectedProvider);
+
+    // If NWC wallet is connected, amount is known, and we haven't fallen back
+    // to manual, show the auto-invoice widget instead of the manual form.
+    final sats = widget.amountSats;
+    if (isWalletConnected && !_manualMode && sats != null && sats > 0) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Add Invoice')),
+        body: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Center(
+            child: NwcInvoiceWidget(
+              amountSats: sats,
+              onInvoiceConfirmed: (invoice) {
+                _invoiceController.text = invoice;
+                _submit();
+              },
+              onFallbackToManual: () => setState(() => _manualMode = true),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Add Invoice')),

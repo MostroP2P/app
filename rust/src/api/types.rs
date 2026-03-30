@@ -402,6 +402,34 @@ pub struct RatingReceivedEvent {
     pub from_pubkey: String,
 }
 
+/// Connected wallet information returned by `connect_wallet` and `get_wallet`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NwcWalletInfo {
+    /// Wallet service Nostr public key (hex).
+    pub wallet_pubkey: String,
+    /// Human-readable wallet name/alias, if provided by the service.
+    pub wallet_name: Option<String>,
+    /// Current connection status.
+    pub status: WalletStatus,
+    /// Balance in satoshis; `None` if the wallet does not expose balance.
+    pub balance_sats: Option<u64>,
+    /// NWC relay URL(s).
+    pub relay_urls: Vec<String>,
+    /// Unix timestamp of the last successful connection.
+    pub last_connected_at: Option<i64>,
+}
+
+/// Result returned by `pay_invoice`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PaymentResult {
+    /// Whether the payment succeeded.
+    pub success: bool,
+    /// BOLT-11 payment preimage (hex), present on success.
+    pub preimage: Option<String>,
+    /// Human-readable error message, present on failure.
+    pub error: Option<String>,
+}
+
 /// An open or resolved dispute on a trade.
 ///
 /// Created locally when the user initiates a dispute or when a peer-initiated
