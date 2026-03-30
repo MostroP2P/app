@@ -13,6 +13,12 @@
 - **[Story]**: User story (US1–US15) from spec.md
 - All paths are relative to repository root
 
+## Task status legend
+
+- `[x]` — Done: fully implemented and verified
+- `[~]` — Partial: code exists but blocked on missing infrastructure (noted in description)
+- `[ ]` — Not started
+
 ---
 
 ## Phase 1: Setup (Project Initialization)
@@ -208,14 +214,14 @@ configuration.
 
 **Independent Test**: Take a buy order without NWC → Pay Invoice screen with QR code appears → "pay" manually → trade goes active → seller sees "Active order" instructions → buyer marks fiat sent → seller sees RELEASE → confirmation modal → Yes → success screen.
 
-- [x] T061 Implement pay lightning invoice screen in `lib/features/order/screens/pay_lightning_invoice_screen.dart`: AppBar "Pay Lightning Invoice". White card with info text "Pay this invoice of [sats] Sats..." + QR code (centered, scannable) + Copy button (green) + Share button (green, wired via share_plus) + Cancel button (red). Route: `/pay_invoice/:orderId`. Shown to seller when NWC is NOT configured. **Partial**: uses mock invoice — real invoice loading blocked on Dart bridge + trade provider (Phase 10+). Share button wired.
-- [x] T062 [P] Implement NWC payment widget in `lib/shared/widgets/nwc_payment_widget.dart`: single "Pay with Wallet" button (large green, wallet icon). Shows loading spinner during payment. `onPaymentSuccess` and `onFallbackToManual` callbacks. **Partial**: NWC API call stubbed — falls back to manual until NWC module (Phase 14) is implemented. Success/error paths structured correctly.
+- [~] T061 Implement pay lightning invoice screen in `lib/features/order/screens/pay_lightning_invoice_screen.dart`: AppBar "Pay Lightning Invoice". White card with info text "Pay this invoice of [sats] Sats..." + QR code (centered, scannable) + Copy button (green) + Share button (green, wired via share_plus) + Cancel button (red). Route: `/pay_invoice/:orderId`. Shown to seller when NWC is NOT configured. **Partial**: uses mock invoice — real invoice loading blocked on Dart bridge + trade provider (Phase 10+). Share button wired.
+- [~] T062 [P] Implement NWC payment widget in `lib/shared/widgets/nwc_payment_widget.dart`: single "Pay with Wallet" button (large green, wallet icon). Shows loading spinner during payment. `onPaymentSuccess` and `onFallbackToManual` callbacks. **Partial**: NWC API call stubbed — falls back to manual until NWC module (Phase 14) is implemented. Success/error paths structured correctly.
 - [x] T063 [P] Implement pay invoice widget (manual QR mode) in `lib/shared/widgets/pay_lightning_invoice_widget.dart`: QR code display using `qr_flutter`, copy button, share button (wired via share_plus). `onSubmit` (user confirms manual payment), `onCancel` callbacks.
 - [x] T064 Extend trade detail screen in `lib/features/trades/screens/trade_detail_screen.dart` for seller fiat-sent view: Card 5 instruction text becomes "The buyer [handle] has confirmed they sent you [fiat] [currency] using [method]. Once you verify, release the sats." Status label: "Fiat sent". Action buttons: CLOSE (green outline) + RELEASE (green filled) + CANCEL (red) + DISPUTE (red) in one row, CONTACT (green full-width) below.
 - [x] T065 Implement release confirmation dialog in `lib/features/trades/widgets/release_confirmation_dialog.dart`: centered modal on dark overlay. Large gray info icon. Title "Release Bitcoin". Body "Are you sure you want to release the Satoshis to the buyer?" No (gray) + Yes (green) buttons.
-- [x] T066 Implement release order action in `rust/src/api/orders.rs`: `release_order(order_id)` validates FiatSent status, builds Release MostroMessage via NIP-59 gift wrap. **Partial**: message constructed but not published — relay pool dispatch pending (Phase 10+). Also added `fiat_sent` and `release` action builders to `mostro/actions.rs`.
-- [x] T067 Wire seller active view in trade detail: active status + seller role → show CLOSE + CANCEL + DISPUTE + CONTACT (no RELEASE, no FIAT SENT). Seller card 5 instruction: "Contact the buyer [handle] with payment instructions." Status: "Active order". **Note**: `_isBuyer`/`_status` still mock — real state blocked on trade provider + Dart bridge.
-- [x] T068 Wire seller release flow: RELEASE tap → confirmation dialog → Yes → error-handled release call → reactive button → on Success → navigate to rate screen `/rate_user/:orderId`. **Partial**: Dart bridge call still stubbed (Future.delayed) — Rust function ready but FFI bindings not generated yet.
+- [~] T066 Implement release order action in `rust/src/api/orders.rs`: `release_order(order_id)` validates FiatSent status, builds Release MostroMessage via NIP-59 gift wrap. **Partial**: message constructed but not published — relay pool dispatch pending (Phase 10+). Also added `fiat_sent` and `release` action builders to `mostro/actions.rs`.
+- [~] T067 Wire seller active view in trade detail: active status + seller role → show CLOSE + CANCEL + DISPUTE + CONTACT (no RELEASE, no FIAT SENT). Seller card 5 instruction: "Contact the buyer [handle] with payment instructions." Status: "Active order". **Partial**: `_isBuyer`/`_status` still mock — real state blocked on trade provider + Dart bridge.
+- [~] T068 Wire seller release flow: RELEASE tap → confirmation dialog → Yes → error-handled release call → reactive button → on Success → navigate to rate screen `/rate_user/:orderId`. **Partial**: Dart bridge call still stubbed (Future.delayed) — Rust function ready but FFI bindings not generated yet.
 
 **Checkpoint**: Full seller flow: pay hold invoice (both QR and NWC paths) → active → fiat sent by buyer → Release confirmation → trade completes and navigates to rating.
 
