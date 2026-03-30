@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
 import 'package:mostro/features/trades/widgets/trade_info_cards.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
@@ -486,9 +487,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             ], // end if (!_isBuyer)
             const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
-              onPressed: () => context.push(
-                AppRoute.disputeDetailsPath(widget.orderId),
-              ),
+              onPressed: () {
+                final dispute = ref.read(
+                  disputeByTradeIdProvider(widget.orderId),
+                );
+                final targetId = dispute?.id ?? widget.orderId;
+                context.push(AppRoute.disputeDetailsPath(targetId));
+              },
               icon: const Icon(Icons.gavel, size: 16),
               label: const Text('VIEW DISPUTE'),
               style: FilledButton.styleFrom(

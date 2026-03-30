@@ -12,5 +12,10 @@
   "disputesEmptyState": "Vos litiges apparaîtront ici",
   "disputeAttachFile": "Joindre un fichier",
   "disputeWriteMessageHint": "Écrire un message\u2026",
-  "disputeSend": "Envoyer"
+  "disputeSend": "Envoyer",
+  "orderDispute": "Litige de commande",
+  "disputeAdminAssigned": "Un administrateur a été assigné à votre litige. Il vous contactera ici sous peu.",
+  "disputeChatClosed": "Ce litige a été résolu. Le chat est fermé.",
+  "messageCopied": "Copié",
+  "disputeLoadError": "Impossible de charger les litiges. Veuillez réessayer."
 }

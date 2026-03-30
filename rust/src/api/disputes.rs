@@ -34,6 +34,7 @@ impl DisputeStore {
         }
     }
 
+    #[allow(dead_code)]
     async fn upsert(&self, dispute: Dispute) {
         {
             let mut store = self.disputes.write().await;
@@ -44,6 +45,28 @@ impl DisputeStore {
 
     async fn get(&self, trade_id: &str) -> Option<Dispute> {
         self.disputes.read().await.get(trade_id).cloned()
+    }
+
+    /// Atomically update a dispute under the write lock.
+    ///
+    /// `f` receives a mutable reference to the dispute and should return
+    /// `Ok(())` to commit the change or `Err(...)` to abort (no mutation
+    /// is persisted).  The broadcast notification is sent **after** the
+    /// lock is released.
+    async fn update_conditional<F>(&self, trade_id: &str, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut Dispute) -> Result<()>,
+    {
+        let updated = {
+            let mut store = self.disputes.write().await;
+            let dispute = store
+                .get_mut(trade_id)
+                .ok_or_else(|| anyhow!("DisputeNotFound: no dispute for trade {trade_id}"))?;
+            f(dispute)?;
+            dispute.clone()
+        }; // write lock released here
+        let _ = self.update_tx.send(updated);
+        Ok(())
     }
 
     /// Atomically insert a new dispute only if no active (non-Resolved)
@@ -162,24 +185,20 @@ pub async fn get_dispute(trade_id: String) -> Result<Option<Dispute>> {
 /// TODO(Phase 12+): Derive `adminSharedKey` from trade key + admin pubkey
 /// and store in the session via `SessionManager::set_admin_shared_key`.
 pub async fn handle_admin_took_dispute(trade_id: String, admin_pubkey: String) -> Result<()> {
-    let mut dispute = dispute_store()
-        .get(&trade_id)
+    dispute_store()
+        .update_conditional(&trade_id, move |dispute| {
+            if dispute.status != DisputeStatus::Open {
+                return Err(anyhow!(
+                    "InvalidState: dispute is not open (current: {:?})",
+                    dispute.status
+                ));
+            }
+            dispute.status = DisputeStatus::InReview;
+            dispute.admin_pubkey = Some(admin_pubkey);
+            dispute.is_read = false;
+            Ok(())
+        })
         .await
-        .ok_or_else(|| anyhow!("DisputeNotFound: no dispute for trade {trade_id}"))?;
-
-    if dispute.status != DisputeStatus::Open {
-        bail!(
-            "InvalidState: dispute for trade {trade_id} is not open (current: {:?})",
-            dispute.status
-        );
-    }
-
-    dispute.status = DisputeStatus::InReview;
-    dispute.admin_pubkey = Some(admin_pubkey);
-    dispute.is_read = false;
-    dispute_store().upsert(dispute).await;
-
-    Ok(())
 }
 
 /// Handle an incoming `adminSettled` event (admin resolved in buyer's favour).
@@ -193,22 +212,18 @@ pub async fn handle_admin_canceled(trade_id: String) -> Result<()> {
 }
 
 async fn resolve_dispute(trade_id: String, resolution: DisputeResolution) -> Result<()> {
-    let mut dispute = dispute_store()
-        .get(&trade_id)
+    dispute_store()
+        .update_conditional(&trade_id, move |dispute| {
+            if dispute.status == DisputeStatus::Resolved {
+                return Err(anyhow!("InvalidState: dispute is already resolved"));
+            }
+            dispute.status = DisputeStatus::Resolved;
+            dispute.resolution = Some(resolution);
+            dispute.resolved_at = Some(unix_now());
+            dispute.is_read = false;
+            Ok(())
+        })
         .await
-        .ok_or_else(|| anyhow!("DisputeNotFound: no dispute for trade {trade_id}"))?;
-
-    if dispute.status == DisputeStatus::Resolved {
-        bail!("InvalidState: dispute for trade {trade_id} is already resolved");
-    }
-
-    dispute.status = DisputeStatus::Resolved;
-    dispute.resolution = Some(resolution);
-    dispute.resolved_at = Some(unix_now());
-    dispute.is_read = false;
-    dispute_store().upsert(dispute).await;
-
-    Ok(())
 }
 
 // ── Stream ────────────────────────────────────────────────────────────────────

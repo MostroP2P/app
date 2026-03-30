@@ -71,22 +71,35 @@ class DisputeItem {
   /// true → "Dispute with Seller"; false → "Dispute with Buyer".
   final bool isSelling;
 
-  DisputeItem copyWith({bool? isRead}) {
+  DisputeItem copyWith({
+    DisputeStatus? status,
+    bool? initiatedByMe,
+    int? openedAt,
+    String? reason,
+    String? adminPubkey,
+    DisputeResolution? resolution,
+    int? resolvedAt,
+    bool? isRead,
+    String? peerHandle,
+    int? peerIconIndex,
+    int? peerColorHue,
+    bool? isSelling,
+  }) {
     return DisputeItem(
       id: id,
       tradeId: tradeId,
-      status: status,
-      initiatedByMe: initiatedByMe,
-      openedAt: openedAt,
-      reason: reason,
-      adminPubkey: adminPubkey,
-      resolution: resolution,
-      resolvedAt: resolvedAt,
+      status: status ?? this.status,
+      initiatedByMe: initiatedByMe ?? this.initiatedByMe,
+      openedAt: openedAt ?? this.openedAt,
+      reason: reason ?? this.reason,
+      adminPubkey: adminPubkey ?? this.adminPubkey,
+      resolution: resolution ?? this.resolution,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
       isRead: isRead ?? this.isRead,
-      peerHandle: peerHandle,
-      peerIconIndex: peerIconIndex,
-      peerColorHue: peerColorHue,
-      isSelling: isSelling,
+      peerHandle: peerHandle ?? this.peerHandle,
+      peerIconIndex: peerIconIndex ?? this.peerIconIndex,
+      peerColorHue: peerColorHue ?? this.peerColorHue,
+      isSelling: isSelling ?? this.isSelling,
     );
   }
 
@@ -144,6 +157,11 @@ final disputeNotifierProvider =
 /// All disputes sorted newest-first.
 ///
 /// Drives [DisputesList] and the Chat screen Disputes tab.
+///
+/// Returns [AsyncValue.data] even though [disputeNotifierProvider] is
+/// synchronous. This provides a uniform `AsyncValue`-based API surface for
+/// consumers and allows easy future migration when the source becomes
+/// asynchronous (e.g. backed by a Rust bridge stream).
 final userDisputeDataProvider = Provider<AsyncValue<List<DisputeItem>>>((ref) {
   final disputes = ref.watch(disputeNotifierProvider);
   final sorted = [...disputes]
@@ -161,4 +179,16 @@ final disputeUnreadCountProvider = Provider<int>((ref) {
 final disputeByIdProvider =
     Provider.family<DisputeItem?, String>((ref, id) {
   return ref.watch(disputeNotifierProvider).where((d) => d.id == id).firstOrNull;
+});
+
+/// Look up a dispute by its associated trade ID.
+///
+/// Used by [TradeDetailScreen] to resolve the correct `disputeId` before
+/// navigating to [DisputeChatScreen].
+final disputeByTradeIdProvider =
+    Provider.family<DisputeItem?, String>((ref, tradeId) {
+  return ref
+      .watch(disputeNotifierProvider)
+      .where((d) => d.tradeId == tradeId)
+      .firstOrNull;
 });

@@ -12,5 +12,10 @@
   "disputesEmptyState": "Le tue controversie appariranno qui",
   "disputeAttachFile": "Allega file",
   "disputeWriteMessageHint": "Scrivi un messaggio\u2026",
-  "disputeSend": "Invia"
+  "disputeSend": "Invia",
+  "orderDispute": "Disputa ordine",
+  "disputeAdminAssigned": "Un amministratore è stato assegnato alla tua disputa. Ti contatterà qui a breve.",
+  "disputeChatClosed": "Questa disputa è stata risolta. La chat è chiusa.",
+  "messageCopied": "Copiato",
+  "disputeLoadError": "Impossibile caricare le dispute. Riprova."
 }

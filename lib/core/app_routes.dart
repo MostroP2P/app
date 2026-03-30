@@ -204,8 +204,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.disputeChat,
-      builder: (context, state) =>
-          _Stub('Dispute Chat — ${state.pathParameters['disputeId']}'),
+      builder: (context, state) => DisputeChatScreen(
+        disputeId: state.pathParameters['disputeId']!,
+      ),
     ),
   ],
 );

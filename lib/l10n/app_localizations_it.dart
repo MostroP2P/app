@@ -43,4 +43,21 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get disputeSend => 'Invia';
+
+  @override
+  String get orderDispute => 'Disputa ordine';
+
+  @override
+  String get disputeAdminAssigned =>
+      'Un amministratore è stato assegnato alla tua disputa. Ti contatterà qui a breve.';
+
+  @override
+  String get disputeChatClosed =>
+      'Questa disputa è stata risolta. La chat è chiusa.';
+
+  @override
+  String get messageCopied => 'Copiato';
+
+  @override
+  String get disputeLoadError => 'Impossibile caricare le dispute. Riprova.';
 }

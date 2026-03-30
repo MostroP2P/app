@@ -43,4 +43,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disputeSend => 'Send';
+
+  @override
+  String get orderDispute => 'Order dispute';
+
+  @override
+  String get disputeAdminAssigned =>
+      'An administrator has been assigned to your dispute. They will contact you here shortly.';
+
+  @override
+  String get disputeChatClosed =>
+      'This dispute has been resolved. The chat is closed.';
+
+  @override
+  String get messageCopied => 'Copied';
+
+  @override
+  String get disputeLoadError => 'Failed to load disputes. Please try again.';
 }

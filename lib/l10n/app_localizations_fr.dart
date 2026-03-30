@@ -43,4 +43,21 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get disputeSend => 'Envoyer';
+
+  @override
+  String get orderDispute => 'Litige de commande';
+
+  @override
+  String get disputeAdminAssigned =>
+      'Un administrateur a été assigné à votre litige. Il vous contactera ici sous peu.';
+
+  @override
+  String get disputeChatClosed => 'Ce litige a été résolu. Le chat est fermé.';
+
+  @override
+  String get messageCopied => 'Copié';
+
+  @override
+  String get disputeLoadError =>
+      'Impossible de charger les litiges. Veuillez réessayer.';
 }

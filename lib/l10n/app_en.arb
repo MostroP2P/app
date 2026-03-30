@@ -24,5 +24,15 @@
   "disputeWriteMessageHint": "Write a message\u2026",
   "@disputeWriteMessageHint": {"description": "Hint text for the dispute chat message input field"},
   "disputeSend": "Send",
-  "@disputeSend": {"description": "Tooltip for the send button in dispute chat"}
+  "@disputeSend": {"description": "Tooltip for the send button in dispute chat"},
+  "orderDispute": "Order dispute",
+  "@orderDispute": {"description": "Title label for a dispute list item"},
+  "disputeAdminAssigned": "An administrator has been assigned to your dispute. They will contact you here shortly.",
+  "@disputeAdminAssigned": {"description": "Banner shown when an admin is assigned but no messages exist yet"},
+  "disputeChatClosed": "This dispute has been resolved. The chat is closed.",
+  "@disputeChatClosed": {"description": "Lock banner shown when the dispute is resolved"},
+  "messageCopied": "Copied",
+  "@messageCopied": {"description": "Snackbar text after copying a chat message to clipboard"},
+  "disputeLoadError": "Failed to load disputes. Please try again.",
+  "@disputeLoadError": {"description": "Error message shown when disputes fail to load"}
 }

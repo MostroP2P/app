@@ -31,7 +31,7 @@ class DisputesList extends ConsumerWidget {
       error: (err, stack) {
         debugPrint('Disputes load error: $err\n$stack');
         return _ErrorState(
-          message: 'Failed to load disputes. Please try again.',
+          message: AppLocalizations.of(context).disputeLoadError,
           colors: colors,
           onRetry: () => ref.invalidate(userDisputeDataProvider),
         );

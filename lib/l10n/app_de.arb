@@ -12,5 +12,10 @@
   "disputesEmptyState": "Deine Streitfälle werden hier angezeigt",
   "disputeAttachFile": "Datei anhängen",
   "disputeWriteMessageHint": "Nachricht schreiben\u2026",
-  "disputeSend": "Senden"
+  "disputeSend": "Senden",
+  "orderDispute": "Bestellstreit",
+  "disputeAdminAssigned": "Ein Administrator wurde Ihrem Streitfall zugewiesen. Er wird sich hier in Kürze bei Ihnen melden.",
+  "disputeChatClosed": "Dieser Streitfall wurde gelöst. Der Chat ist geschlossen.",
+  "messageCopied": "Kopiert",
+  "disputeLoadError": "Streitfälle konnten nicht geladen werden. Bitte versuchen Sie es erneut."
 }

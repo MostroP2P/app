@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// A single row in the disputes list.
 ///
@@ -62,7 +63,7 @@ class DisputeListItem extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'Order dispute',
+                          AppLocalizations.of(context).orderDispute,
                           style: textTheme.bodyLarge?.copyWith(
                             color: colors.textPrimary,
                             fontWeight: FontWeight.bold,

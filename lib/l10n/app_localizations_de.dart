@@ -43,4 +43,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disputeSend => 'Senden';
+
+  @override
+  String get orderDispute => 'Bestellstreit';
+
+  @override
+  String get disputeAdminAssigned =>
+      'Ein Administrator wurde Ihrem Streitfall zugewiesen. Er wird sich hier in Kürze bei Ihnen melden.';
+
+  @override
+  String get disputeChatClosed =>
+      'Dieser Streitfall wurde gelöst. Der Chat ist geschlossen.';
+
+  @override
+  String get messageCopied => 'Kopiert';
+
+  @override
+  String get disputeLoadError =>
+      'Streitfälle konnten nicht geladen werden. Bitte versuchen Sie es erneut.';
 }

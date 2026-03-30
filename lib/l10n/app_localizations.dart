@@ -175,6 +175,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Send'**
   String get disputeSend;
+
+  /// Title label for a dispute list item
+  ///
+  /// In en, this message translates to:
+  /// **'Order dispute'**
+  String get orderDispute;
+
+  /// Banner shown when an admin is assigned but no messages exist yet
+  ///
+  /// In en, this message translates to:
+  /// **'An administrator has been assigned to your dispute. They will contact you here shortly.'**
+  String get disputeAdminAssigned;
+
+  /// Lock banner shown when the dispute is resolved
+  ///
+  /// In en, this message translates to:
+  /// **'This dispute has been resolved. The chat is closed.'**
+  String get disputeChatClosed;
+
+  /// Snackbar text after copying a chat message to clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get messageCopied;
+
+  /// Error message shown when disputes fail to load
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load disputes. Please try again.'**
+  String get disputeLoadError;
 }
 
 class _AppLocalizationsDelegate

@@ -198,8 +198,9 @@ class _HeaderTitle extends StatelessWidget {
 
 /// Shown above the chat when the dispute is resolved.
 ///
-/// Two sub-cases driven by [DisputeResolution]:
+/// Three sub-cases driven by [DisputeResolution]:
 /// - [DisputeResolution.fundsToMe] → green checkmark + "Successfully completed"
+/// - [DisputeResolution.cooperativeCancel] → blue "Resolved" badge + cooperative cancel text
 /// - [DisputeResolution.fundsToCounterparty] → blue "Resolved" badge + refund text
 class _ResolvedBanner extends StatelessWidget {
   const _ResolvedBanner({required this.dispute, required this.colors});
@@ -210,6 +211,65 @@ class _ResolvedBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+
+    if (dispute.resolution == DisputeResolution.cooperativeCancel) {
+      // ── Cooperative cancel: both parties agreed ───────────────────────
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.statusActive.$1,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.statusActive.$2.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(AppRadius.chip),
+              ),
+              child: Text(
+                'Resolved',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.statusActive.$2,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'The order was cooperatively cancelled. No funds were transferred.',
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.statusActive.$2,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Icon(Icons.lock_outline, size: 14, color: AppColors.statusActive.$2),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'This dispute has been resolved. The chat is closed.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.statusActive.$2,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
 
     if (dispute.resolution == DisputeResolution.fundsToMe) {
       // ── Funds to me: green success state ──────────────────────────────

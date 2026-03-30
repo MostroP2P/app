@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 // ── DisputeMessagesList ───────────────────────────────────────────────────────
 
@@ -286,9 +287,9 @@ class DisputeMessageBubble extends StatelessWidget {
       onLongPress: () {
         Clipboard.setData(ClipboardData(text: message.content));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Copied'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).messageCopied),
+            duration: const Duration(seconds: 2),
           ),
         );
       },
@@ -362,8 +363,7 @@ class _AdminAssignedBanner extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'An administrator has been assigned to your dispute. '
-              'They will contact you here shortly.',
+              AppLocalizations.of(context).disputeAdminAssigned,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.statusActive.$2,
                   ),
@@ -392,7 +392,7 @@ class _ChatClosedBanner extends StatelessWidget {
           Icon(Icons.lock_outline, size: 14, color: colors.textSubtle),
           const SizedBox(width: AppSpacing.xs),
           Text(
-            'This dispute has been resolved. The chat is closed.',
+            AppLocalizations.of(context).disputeChatClosed,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colors.textSubtle,
                   fontStyle: FontStyle.italic,
