@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/trades_list_item.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
 
-/// My Trades screen — Route `/order_book` (bottom nav tab 1).
+/// My Trades screen — Route [AppRoute.orderBook] (`/order_book`, bottom nav tab 1).
 ///
 /// Shows all user trades sorted newest-first with a status filter dropdown.
 /// Tapping a card navigates to `/trade_detail/:orderId`.

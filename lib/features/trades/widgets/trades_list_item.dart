@@ -160,7 +160,8 @@ class TradesListItem extends StatelessWidget {
     final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
     final diff = DateTime.now().difference(dt);
 
-    if (diff.inSeconds < 60) return 'just now';
+    // Guard against clock skew producing a negative (future) timestamp.
+    if (diff.isNegative || diff.inSeconds < 60) return 'just now';
     if (diff.inMinutes < 60) {
       final m = diff.inMinutes;
       return '$m ${m == 1 ? 'minute' : 'minutes'} ago';
