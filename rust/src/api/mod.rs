@@ -3,6 +3,7 @@ pub mod identity;
 pub mod messages;
 pub mod nostr;
 pub mod orders;
+pub mod reputation;
 pub mod types;
 
 pub fn get_app_version() -> String {

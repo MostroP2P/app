@@ -1,0 +1,270 @@
+/// Reputation API — post-trade rating and privacy mode management.
+///
+/// After a trade completes both parties are prompted to rate their counterpart
+/// (1–5 stars).  Ratings are sent to the Mostro daemon via a `RateUser`
+/// action in a NIP-59 Gift Wrap.
+///
+/// Privacy mode disables reputation data in both directions — no ratings are
+/// sent or received when it is active.
+///
+/// All state is held in-memory until the DB persistence layer is wired
+/// (Phase 12+).
+use anyhow::{anyhow, bail, Result};
+use std::collections::HashMap;
+use std::sync::{atomic::{AtomicBool, Ordering}, OnceLock};
+use tokio::sync::{broadcast, RwLock};
+use tokio::sync::broadcast::error::RecvError;
+
+use crate::api::types::{RatingInfo, RatingReceivedEvent};
+
+// ── Rating store ──────────────────────────────────────────────────────────────
+
+struct RatingStore {
+    /// Submitted/received ratings keyed by trade_id.
+    ratings: std::sync::Arc<RwLock<HashMap<String, RatingInfo>>>,
+    /// Broadcast channel; payload = incoming rating event.
+    event_tx: broadcast::Sender<RatingReceivedEvent>,
+    /// In-memory privacy mode flag.
+    privacy_mode: AtomicBool,
+}
+
+impl RatingStore {
+    fn new() -> Self {
+        let (event_tx, _) = broadcast::channel(32);
+        Self {
+            ratings: std::sync::Arc::new(RwLock::new(HashMap::new())),
+            event_tx,
+            privacy_mode: AtomicBool::new(false),
+        }
+    }
+
+    async fn insert(&self, info: RatingInfo) {
+        let mut store = self.ratings.write().await;
+        store.insert(info.trade_id.clone(), info);
+    }
+
+    async fn get(&self, trade_id: &str) -> Option<RatingInfo> {
+        self.ratings.read().await.get(trade_id).cloned()
+    }
+
+    async fn contains(&self, trade_id: &str) -> bool {
+        self.ratings.read().await.contains_key(trade_id)
+    }
+}
+
+// ── Global singleton ──────────────────────────────────────────────────────────
+
+static RATING_STORE: OnceLock<RatingStore> = OnceLock::new();
+
+fn rating_store() -> &'static RatingStore {
+    RATING_STORE.get_or_init(RatingStore::new)
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/// Submit a star rating for the counterparty of a completed trade.
+///
+/// **Preconditions**:
+/// - `score` MUST be in the range 1–5.
+/// - The local identity MUST NOT be in privacy mode.
+/// - No rating MUST already have been submitted for this trade.
+///
+/// **Side effects**: Sends a `RateUser` action to the Mostro daemon via
+/// NIP-59 Gift Wrap (deferred to Phase 14+ once bridge bindings are ready).
+///
+/// **Errors**: `InvalidScore`, `PrivacyModeEnabled`, `AlreadyRated`.
+pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
+    if score < 1 || score > 5 {
+        bail!("InvalidScore: score must be between 1 and 5, got {score}");
+    }
+
+    let store = rating_store();
+
+    if store.privacy_mode.load(Ordering::SeqCst) {
+        bail!("PrivacyModeEnabled: cannot submit rating while privacy mode is active");
+    }
+
+    if store.contains(&trade_id).await {
+        bail!("AlreadyRated: a rating has already been submitted for trade {trade_id}");
+    }
+
+    // TODO(Phase 14+): Look up the session to get trade key + mostro pubkey,
+    // then send a RateUser MostroMessage via NIP-59 Gift Wrap.
+
+    store
+        .insert(RatingInfo {
+            trade_id,
+            score,
+            is_mine: true,
+            created_at: unix_now(),
+        })
+        .await;
+
+    Ok(())
+}
+
+/// Check whether privacy mode is currently enabled.
+pub fn get_privacy_mode() -> bool {
+    rating_store().privacy_mode.load(Ordering::SeqCst)
+}
+
+/// Enable or disable privacy mode.
+///
+/// When enabled, no reputation data is sent or received in future trades and
+/// session recovery becomes unavailable.
+///
+/// **Errors**: `NoIdentity` (identity check deferred to Phase 14+ bridge).
+pub fn set_privacy_mode(enabled: bool) {
+    // TODO(Phase 14+): Verify that an identity exists before toggling.
+    rating_store()
+        .privacy_mode
+        .store(enabled, Ordering::SeqCst);
+}
+
+/// Get the rating submitted or received for a specific trade.
+///
+/// Returns `None` if no rating exists for the given trade.
+pub async fn get_rating_for_trade(trade_id: String) -> Result<Option<RatingInfo>> {
+    Ok(rating_store().get(&trade_id).await)
+}
+
+/// Handle an incoming rating event from the counterparty.
+///
+/// Records the rating and broadcasts it to any active [RatingStream].
+pub async fn handle_rating_received(
+    trade_id: String,
+    score: u8,
+    from_pubkey: String,
+) -> Result<()> {
+    if score < 1 || score > 5 {
+        bail!("InvalidScore: received invalid score {score} for trade {trade_id}");
+    }
+
+    let store = rating_store();
+    let event = RatingReceivedEvent {
+        trade_id: trade_id.clone(),
+        score,
+        from_pubkey,
+    };
+
+    // Record as a peer rating (is_mine = false).
+    store
+        .insert(RatingInfo {
+            trade_id,
+            score,
+            is_mine: false,
+            created_at: unix_now(),
+        })
+        .await;
+
+    let _ = store.event_tx.send(event);
+    Ok(())
+}
+
+// ── Stream ────────────────────────────────────────────────────────────────────
+
+/// A stream that emits incoming [RatingReceivedEvent]s.
+pub struct RatingStream {
+    rx: broadcast::Receiver<RatingReceivedEvent>,
+}
+
+impl RatingStream {
+    /// Poll for the next incoming rating event.
+    ///
+    /// `RecvError::Lagged` is handled gracefully: dropped messages are skipped
+    /// and the loop continues rather than terminating the stream.
+    pub async fn next(&mut self) -> Result<RatingReceivedEvent> {
+        loop {
+            match self.rx.recv().await {
+                Ok(event) => return Ok(event),
+                Err(RecvError::Lagged(_)) => continue,
+                Err(RecvError::Closed) => bail!("RatingStream closed: channel sender dropped"),
+            }
+        }
+    }
+}
+
+/// Subscribe to incoming rating events.
+pub fn on_rating_received() -> RatingStream {
+    let rx = rating_store().event_tx.subscribe();
+    RatingStream { rx }
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn submit_rating_stores_record() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        submit_rating(trade_id.clone(), 4).await.unwrap();
+
+        let info = get_rating_for_trade(trade_id.clone()).await.unwrap().unwrap();
+        assert_eq!(info.score, 4);
+        assert!(info.is_mine);
+        assert_eq!(info.trade_id, trade_id);
+    }
+
+    #[tokio::test]
+    async fn invalid_score_is_rejected() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let err = submit_rating(trade_id, 6).await.unwrap_err();
+        assert!(err.to_string().contains("InvalidScore"));
+    }
+
+    #[tokio::test]
+    async fn zero_score_is_rejected() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let err = submit_rating(trade_id, 0).await.unwrap_err();
+        assert!(err.to_string().contains("InvalidScore"));
+    }
+
+    #[tokio::test]
+    async fn duplicate_rating_is_rejected() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        submit_rating(trade_id.clone(), 3).await.unwrap();
+        let err = submit_rating(trade_id, 5).await.unwrap_err();
+        assert!(err.to_string().contains("AlreadyRated"));
+    }
+
+    #[tokio::test]
+    async fn privacy_mode_blocks_rating() {
+        set_privacy_mode(true);
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let err = submit_rating(trade_id, 4).await.unwrap_err();
+        assert!(err.to_string().contains("PrivacyModeEnabled"));
+        // Reset to avoid affecting other tests.
+        set_privacy_mode(false);
+    }
+
+    #[tokio::test]
+    async fn privacy_mode_toggle() {
+        set_privacy_mode(true);
+        assert!(get_privacy_mode());
+        set_privacy_mode(false);
+        assert!(!get_privacy_mode());
+    }
+
+    #[tokio::test]
+    async fn handle_rating_received_stores_peer_rating() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        handle_rating_received(trade_id.clone(), 5, "peer_pubkey_abc".into())
+            .await
+            .unwrap();
+
+        let info = get_rating_for_trade(trade_id).await.unwrap().unwrap();
+        assert_eq!(info.score, 5);
+        assert!(!info.is_mine);
+    }
+}

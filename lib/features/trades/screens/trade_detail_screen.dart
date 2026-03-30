@@ -35,7 +35,13 @@ enum TradeStatus {
   fiatSent('Fiat Sent'),
   completed('Completed'),
   cancelled('Cancelled'),
-  disputed('Disputed');
+  disputed('Disputed'),
+  /// Trade completed; counterpart rating prompt shown.
+  /// Maps to `Action.rate` / `Action.rateUser` from the Rust bridge.
+  pendingRating('Rate'),
+  /// Rating has been submitted (or skipped).
+  /// Maps to `Action.rateReceived` — no further actions shown.
+  rated('Rated');
 
   const TradeStatus(this.label);
   final String label;
@@ -100,6 +106,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     if (_status == TradeStatus.disputed) {
       return 'A dispute resolver has been assigned. '
           'They will contact you through the app.';
+    }
+    if (_status == TradeStatus.pendingRating) {
+      return 'The trade completed successfully. '
+          'Rate your counterpart to help build trust in the community.';
+    }
+    if (_status == TradeStatus.rated) {
+      return 'Thank you for your rating!';
     }
     return 'Trade in progress.';
   }
@@ -641,6 +654,53 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                   borderRadius: BorderRadius.circular(AppRadius.button),
                 ),
               ),
+            ),
+          ],
+
+          // ── Pending rating — RATE + CLOSE ─────────────────────────────
+          if (_status == TradeStatus.pendingRating) ...[
+            FilledButton.icon(
+              onPressed: () =>
+                  context.push(AppRoute.rateUserPath(widget.orderId)),
+              icon: const Icon(Icons.star_outline, size: 16),
+              label: const Text('RATE'),
+              style: FilledButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton(
+              onPressed: () => context.pop(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: green,
+                side: BorderSide(color: green),
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+              child: const Text('CLOSE'),
+            ),
+          ],
+
+          // ── Rated — CLOSE only (no further actions) ───────────────────
+          if (_status == TradeStatus.rated) ...[
+            OutlinedButton(
+              onPressed: () => context.pop(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: green,
+                side: BorderSide(color: green),
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+              child: const Text('CLOSE'),
             ),
           ],
         ],
