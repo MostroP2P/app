@@ -344,6 +344,27 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
     Err(anyhow::anyhow!("NotImplemented: FiatSent dispatch not wired yet"))
 }
 
+/// Seller confirms fiat received and releases escrowed sats.
+///
+/// Sends a `Release` MostroMessage to the Mostro daemon.
+/// Transitions trade status: FiatSent → SettledHoldInvoice → Success.
+///
+/// Not yet implemented — requires NIP-59 message dispatch.
+pub async fn release_order(order_id: String) -> Result<()> {
+    let order = order_book()
+        .get_order(&order_id)
+        .await
+        .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
+
+    if order.status != OrderStatus::FiatSent {
+        return Err(anyhow::anyhow!("WrongTradeState"));
+    }
+
+    // TODO: Build Release MostroMessage, wrap via NIP-59, publish.
+    // On success, daemon transitions to SettledHoldInvoice → Success.
+    Err(anyhow::anyhow!("NotImplemented: Release dispatch not wired yet"))
+}
+
 /// Stream that emits whenever the order list changes.
 pub async fn on_orders_updated() -> Result<OrdersStream> {
     let rx = order_book().subscribe();

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
 import 'package:mostro/features/trades/widgets/trade_info_cards.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
 
@@ -83,8 +84,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         return 'Fiat payment marked as sent. Waiting for the seller '
             'to confirm receipt and release your sats.';
       }
+    } else {
+      // Seller
+      if (_status == TradeStatus.active) {
+        return 'Contact the buyer with payment instructions.';
+      } else if (_status == TradeStatus.fiatSent) {
+        return 'The buyer has confirmed they sent the fiat payment. '
+            'Once you verify receipt, release the sats.';
+      }
     }
-    return 'Waiting for the buyer to send fiat payment.';
+    return 'Trade in progress.';
   }
 
   String _formatDuration(Duration d) {
@@ -282,7 +291,207 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             ),
           ],
 
-          // Fiat sent state is now handled by _getInstructionText() in Card 5.
+          // ── Seller: Active — CLOSE + CANCEL + DISPUTE + CONTACT ──
+          if (!_isBuyer && _status == TradeStatus.active) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: green,
+                      side: BorderSide(color: green),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                    child: const Text('CLOSE'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.cancel_outlined, size: 16),
+                    label: const Text('CANCEL'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      side: BorderSide(
+                        color:
+                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      ),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.gavel, size: 16),
+                    label: const Text('DISPUTE'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      side: BorderSide(
+                        color:
+                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      ),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton.icon(
+              onPressed: () =>
+                  context.push(AppRoute.chatRoomPath(widget.orderId)),
+              icon: const Icon(Icons.chat_bubble_outline, size: 16),
+              label: const Text('CONTACT'),
+              style: FilledButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+            ),
+          ],
+
+          // ── Seller: Fiat Sent — CLOSE + RELEASE + CANCEL + DISPUTE + CONTACT ──
+          if (!_isBuyer && _status == TradeStatus.fiatSent) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: green,
+                      side: BorderSide(color: green),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                    child: const Text('CLOSE'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: MostroReactiveButton(
+                    label: 'RELEASE',
+                    backgroundColor: green,
+                    icon: Icons.lock_open,
+                    onPressed: () async {
+                      final confirmed =
+                          await showReleaseConfirmationDialog(context);
+                      if (confirmed != true || !context.mounted) return;
+                      // TODO: Call release_order() via Rust bridge.
+                      await Future.delayed(
+                        const Duration(milliseconds: 500),
+                      );
+                      if (context.mounted) {
+                        context.push(
+                          AppRoute.rateUserPath(widget.orderId),
+                        );
+                      }
+                    },
+                    onError: (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Release failed: $e')),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.cancel_outlined, size: 16),
+                    label: const Text('CANCEL'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      side: BorderSide(
+                        color:
+                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      ),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.gavel, size: 16),
+                    label: const Text('DISPUTE'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      side: BorderSide(
+                        color:
+                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      ),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton.icon(
+              onPressed: () =>
+                  context.push(AppRoute.chatRoomPath(widget.orderId)),
+              icon: const Icon(Icons.chat_bubble_outline, size: 16),
+              label: const Text('CONTACT'),
+              style: FilledButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
