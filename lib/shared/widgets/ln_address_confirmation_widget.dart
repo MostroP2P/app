@@ -51,7 +51,7 @@ class LnAddressConfirmationWidget extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(
             address,
-            style: theme.textTheme.bodyLarge!.copyWith(
+            style: (theme.textTheme.bodyLarge ?? const TextStyle()).copyWith(
               fontFamily: 'monospace',
               color: green,
             ),

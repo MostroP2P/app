@@ -12,6 +12,7 @@ class MostroReactiveButton extends StatefulWidget {
     this.backgroundColor,
     this.foregroundColor,
     this.icon,
+    this.onError,
   });
 
   final String label;
@@ -19,6 +20,7 @@ class MostroReactiveButton extends StatefulWidget {
   final Color? backgroundColor;
   final Color? foregroundColor;
   final IconData? icon;
+  final void Function(Object error)? onError;
 
   @override
   State<MostroReactiveButton> createState() => _MostroReactiveButtonState();
@@ -30,7 +32,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
   _ButtonState _state = _ButtonState.idle;
 
   Future<void> _handlePress() async {
-    if (_state == _ButtonState.loading) return;
+    if (_state != _ButtonState.idle) return;
     setState(() => _state = _ButtonState.loading);
 
     try {
@@ -38,10 +40,10 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
       if (!mounted) return;
       setState(() => _state = _ButtonState.success);
 
-      // Reset after showing success briefly.
       await Future.delayed(const Duration(milliseconds: 1500));
       if (mounted) setState(() => _state = _ButtonState.idle);
-    } catch (_) {
+    } catch (e) {
+      widget.onError?.call(e);
       if (!mounted) return;
       setState(() => _state = _ButtonState.error);
 
@@ -58,7 +60,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
     final fg = widget.foregroundColor ?? Colors.black;
 
     return FilledButton(
-      onPressed: _state == _ButtonState.loading ? null : _handlePress,
+      onPressed: _state == _ButtonState.idle ? _handlePress : null,
       style: FilledButton.styleFrom(
         backgroundColor: _state == _ButtonState.error
             ? colors?.destructiveRed ?? const Color(0xFFD84D4D)

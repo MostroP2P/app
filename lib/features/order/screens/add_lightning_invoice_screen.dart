@@ -112,7 +112,7 @@ class _AddLightningInvoiceScreenState
                         borderSide: BorderSide.none,
                       ),
                     ),
-                    style: theme.textTheme.bodySmall!.copyWith(
+                    style: (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
                       fontFamily: 'monospace',
                     ),
                     onChanged: (_) => setState(() {}),

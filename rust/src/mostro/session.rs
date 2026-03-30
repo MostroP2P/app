@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 use crate::api::types::{OrderInfo, TradeRole};
 
 /// Per-trade session state.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Session {
     pub order_id: String,
     pub role: TradeRole,
@@ -29,6 +29,21 @@ pub struct Session {
     pub created_at: i64,
 }
 
+impl std::fmt::Debug for Session {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Session")
+            .field("order_id", &self.order_id)
+            .field("role", &self.role)
+            .field("trade_key_index", &self.trade_key_index)
+            .field("shared_key", &self.shared_key.as_ref().map(|_| "<REDACTED>"))
+            .field("admin_shared_key", &self.admin_shared_key.as_ref().map(|_| "<REDACTED>"))
+            .field("peer_pubkey", &self.peer_pubkey)
+            .field("order", &self.order)
+            .field("created_at", &self.created_at)
+            .finish()
+    }
+}
+
 /// In-memory session store.
 pub struct SessionManager {
     sessions: Arc<RwLock<HashMap<String, Session>>>,
@@ -41,7 +56,8 @@ impl SessionManager {
         }
     }
 
-    /// Create a new session for a trade.
+    /// Create a new session for a trade. Returns an error if a session
+    /// already exists for this order (indicates duplicate processing).
     pub async fn create_session(
         &self,
         order_id: String,
@@ -65,10 +81,11 @@ impl SessionManager {
             created_at: now,
         };
 
-        self.sessions
-            .write()
-            .await
-            .insert(order_id, session.clone());
+        let mut sessions = self.sessions.write().await;
+        if sessions.contains_key(&order_id) {
+            return Err(anyhow!("SessionAlreadyExists: {}", order_id));
+        }
+        sessions.insert(order_id, session.clone());
         Ok(session)
     }
 
@@ -102,8 +119,6 @@ impl SessionManager {
 
         let mut sessions = self.sessions.write().await;
         sessions.retain(|_, s| {
-            // Keep sessions that have a shared key (acknowledged by Mostro)
-            // or are younger than the timeout.
             s.shared_key.is_some() || (now - s.created_at) < timeout_secs
         });
     }
@@ -111,14 +126,11 @@ impl SessionManager {
 
 // ── Global singleton ────────────────────────────────────────────────────────
 
-use tokio::sync::OnceCell;
+use std::sync::OnceLock;
 
-static SESSION_MGR: OnceCell<SessionManager> = OnceCell::const_new();
+static SESSION_MGR: OnceLock<SessionManager> = OnceLock::new();
 
 /// Get the global session manager.
 pub fn session_manager() -> &'static SessionManager {
-    if SESSION_MGR.get().is_none() {
-        let _ = SESSION_MGR.set(SessionManager::new());
-    }
-    SESSION_MGR.get().expect("SessionManager not initialized")
+    SESSION_MGR.get_or_init(SessionManager::new)
 }

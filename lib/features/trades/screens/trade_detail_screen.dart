@@ -28,7 +28,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   // Mock trade state — will be replaced by Rust bridge provider.
   String _status = 'Active';
-  // ignore: prefer_final_fields — will be set from provider in Phase 9+
+  // TODO(Phase 9+): Will be set from provider.
+  // ignore: prefer_final_fields
   bool _isBuyer = true;
 
   @override
@@ -47,13 +48,27 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() {
-        _remaining -= const Duration(seconds: 1);
-        if (_remaining.isNegative) {
+        final next = _remaining - const Duration(seconds: 1);
+        if (next.inSeconds <= 0) {
           _countdownTimer?.cancel();
           _remaining = Duration.zero;
+        } else {
+          _remaining = next;
         }
       });
     });
+  }
+
+  String _getInstructionText() {
+    if (_isBuyer) {
+      if (_status == 'Active') {
+        return 'Send the fiat payment to the seller, then tap "Fiat Sent".';
+      } else if (_status == 'Fiat Sent') {
+        return 'Fiat payment marked as sent. Waiting for the seller '
+            'to confirm receipt and release your sats.';
+      }
+    }
+    return 'Waiting for the buyer to send fiat payment.';
   }
 
   String _formatDuration(Duration d) {
@@ -127,9 +142,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
           // Card 5: Instructions + status
           InstructionsCard(
-            text: _isBuyer && _status == 'Active'
-                ? 'Send the fiat payment to the seller, then tap "Fiat Sent".'
-                : 'Waiting for the buyer to send fiat payment.',
+            text: _getInstructionText(),
             statusLabel: _status,
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -242,14 +255,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             ),
           ],
 
-          // Fiat sent state — waiting for seller release
-          if (_isBuyer && _status == 'Fiat Sent') ...[
-            const InstructionsCard(
-              text: 'Fiat payment marked as sent. Waiting for the seller '
-                  'to confirm receipt and release your sats.',
-              statusLabel: 'Fiat Sent',
-            ),
-          ],
+          // Fiat sent state is now handled by _getInstructionText() in Card 5.
         ],
       ),
     );
