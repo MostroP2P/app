@@ -6,7 +6,7 @@
     <!-- Keychain access group for flutter_secure_storage (PIN, session data) -->
     <key>keychain-access-groups</key>
     <array>
-        <string>$(AppIdentifierPrefix)com.mostro.mostro</string>
+        <string>$(AppIdentifierPrefix)foundation.mostro.app</string>
     </array>
 </dict>
 </plist>

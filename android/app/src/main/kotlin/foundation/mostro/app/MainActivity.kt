@@ -1,4 +1,4 @@
-package com.mostro.mostro
+package foundation.mostro.app
 
 import io.flutter.embedding.android.FlutterActivity
 
