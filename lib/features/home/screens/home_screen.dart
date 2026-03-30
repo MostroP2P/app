@@ -10,6 +10,7 @@ import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
+import 'package:mostro/shared/widgets/add_order_button.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
 
 /// Home screen — public order book with BUY/SELL tabs, filter, and drawer.
@@ -194,11 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             DrawerMenu(onClose: () => setState(() => _drawerOpen = false)),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push(AppRoute.addOrder),
-        backgroundColor: green,
-        child: const Icon(Icons.add, color: Colors.black),
-      ),
+      floatingActionButton: const AddOrderButton(),
       bottomNavigationBar: const BottomNavBar(),
     );
   }
