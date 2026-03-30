@@ -89,10 +89,21 @@ pub async fn download_blob(url: String) -> Result<Vec<u8>> {
             bail!("DownloadFailed: server returned {}", response.status());
         }
 
+        // Reject early if Content-Length already exceeds the limit.
+        if let Some(len) = response.content_length() {
+            if len > MAX_BLOB_SIZE as u64 {
+                bail!("DownloadFailed: Content-Length {len} exceeds 25 MB limit");
+            }
+        }
+
         let bytes = response
             .bytes()
             .await
             .map_err(|e| anyhow!("DownloadFailed: reading body: {e}"))?;
+
+        if bytes.len() > MAX_BLOB_SIZE {
+            bail!("DownloadFailed: {} bytes exceeds 25 MB limit", bytes.len());
+        }
 
         Ok(bytes.to_vec())
     }

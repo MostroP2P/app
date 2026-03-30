@@ -129,9 +129,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
 
     final room = _resolveRoom();
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    if (colors == null) return const SizedBox.shrink();
 
     return Scaffold(
+      // Keyboard avoidance is handled manually via viewInsets.bottom padding
+      // on the composition bar so the BottomNavBar does not push content twice.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         leading: const BackButton(),
         title: _AppBarTitle(room: room),
@@ -221,7 +226,9 @@ class _AppBarTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    if (colors == null) return const SizedBox.shrink();
     final textTheme = Theme.of(context).textTheme;
 
     return Column(

@@ -20,7 +20,9 @@ class TradeInformationTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    if (colors == null) return const SizedBox.shrink();
     final textTheme = Theme.of(context).textTheme;
 
     return Card(
@@ -120,7 +122,9 @@ class UserInformationTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    if (colors == null) return const SizedBox.shrink();
     final textTheme = Theme.of(context).textTheme;
 
     return Card(
@@ -179,14 +183,11 @@ class UserInformationTab extends StatelessWidget {
               style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
             ),
             const SizedBox(height: AppSpacing.xs),
-            GestureDetector(
-              onTap: () => _copy(context, 'Wired in Phase 10+', 'Shared key'),
-              child: Text(
-                'Wired in Phase 10+',
-                style: textTheme.bodySmall?.copyWith(
-                  color: colors.blueAccent,
-                  fontFamily: 'monospace',
-                ),
+            Text(
+              'Available after bridge integration (Phase 10+)',
+              style: textTheme.bodySmall?.copyWith(
+                color: colors.textSubtle,
+                fontStyle: FontStyle.italic,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),

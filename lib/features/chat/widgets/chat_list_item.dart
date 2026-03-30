@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
@@ -20,7 +21,9 @@ class ChatListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    if (colors == null) return const SizedBox.shrink();
     final textTheme = Theme.of(context).textTheme;
 
     final contextLine = room.isSelling
@@ -129,9 +132,9 @@ class ChatListItem extends StatelessWidget {
 
   /// Formats a unix timestamp as a human-friendly label.
   ///
-  /// - Same day → "HH:mm"
-  /// - Yesterday → "Yesterday"
-  /// - Older → "MM/dd"
+  /// - Same day → locale time (e.g. "14:32")
+  /// - Yesterday → locale "Yesterday" via [Intl.message]
+  /// - Older → locale short date (e.g. "Mar 30")
   String _formatTimestamp(int unixSeconds) {
     final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
     final now = DateTime.now();
@@ -139,12 +142,14 @@ class ChatListItem extends StatelessWidget {
     final msgDay = DateTime(dt.year, dt.month, dt.day);
 
     if (msgDay == today) {
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      return DateFormat.Hm().format(dt);
     }
 
     final yesterday = today.subtract(const Duration(days: 1));
-    if (msgDay == yesterday) return 'Yesterday';
+    if (msgDay == yesterday) {
+      return Intl.message('Yesterday', name: 'chatTimestampYesterday');
+    }
 
-    return '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+    return DateFormat.MMMd().format(dt);
   }
 }

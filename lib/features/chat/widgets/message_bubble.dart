@@ -77,7 +77,9 @@ class MessageBubble extends StatelessWidget {
       return _SystemMessage(message: message);
     }
 
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    if (colors == null) return const SizedBox.shrink();
     final textTheme = Theme.of(context).textTheme;
 
     final isMine = message.isMine;
@@ -199,7 +201,9 @@ class _SystemMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    if (colors == null) return const SizedBox.shrink();
     final textTheme = Theme.of(context).textTheme;
 
     return Padding(

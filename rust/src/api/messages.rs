@@ -263,8 +263,9 @@ pub async fn download_attachment(message_id: String) -> Result<FileDownloadResul
     // decryption key from session shared key, decrypt, write to temp dir.
     //
     // For now return a stub result.
+    let safe_name = safe_filename(&attachment.file_name);
     let result = FileDownloadResult {
-        local_path: format!("/tmp/{}", attachment.file_name),
+        local_path: format!("/tmp/{safe_name}"),
         file_name: attachment.file_name,
         mime_type: attachment.mime_type,
         file_size: attachment.file_size,
@@ -384,6 +385,18 @@ fn unix_now() -> i64 {
         .as_secs() as i64
 }
 
+/// Strip directory components from a caller-supplied file name to prevent
+/// path traversal (e.g. `../../../etc/passwd` → `passwd`).
+/// Returns `"attachment"` for empty or path-only inputs.
+fn safe_filename(name: &str) -> String {
+    std::path::Path::new(name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("attachment")
+        .to_string()
+}
+
 fn is_supported_mime_type(mime: &str) -> bool {
     mime.starts_with("image/")
         || mime.starts_with("video/")
@@ -477,6 +490,15 @@ mod tests {
         mark_as_read(trade_id.clone()).await.unwrap();
         let count_after = get_unread_count().await.unwrap();
         assert!(count_after < count_before || count_after == 0);
+    }
+
+    #[test]
+    fn safe_filename_strips_path_traversal() {
+        assert_eq!(safe_filename("../../../etc/passwd"), "passwd");
+        assert_eq!(safe_filename("/etc/passwd"), "passwd");
+        assert_eq!(safe_filename("normal.jpg"), "normal.jpg");
+        assert_eq!(safe_filename(""), "attachment");
+        assert_eq!(safe_filename("/"), "attachment");
     }
 
     #[test]

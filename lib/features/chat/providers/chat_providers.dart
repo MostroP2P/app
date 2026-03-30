@@ -50,6 +50,9 @@ class ChatRoomState {
   /// Number of messages not yet seen by the local user.
   final int unreadCount;
 
+  // Sentinel used by copyWith to distinguish "not provided" from explicit null.
+  static const Object _noChange = Object();
+
   ChatRoomState copyWith({
     String? orderId,
     String? peerPubkey,
@@ -57,7 +60,7 @@ class ChatRoomState {
     int? peerIconIndex,
     int? peerColorHue,
     bool? isSelling,
-    String? lastMessage,
+    Object? lastMessage = _noChange,
     bool? lastMessageIsOwn,
     int? lastMessageAt,
     int? unreadCount,
@@ -69,7 +72,9 @@ class ChatRoomState {
       peerIconIndex: peerIconIndex ?? this.peerIconIndex,
       peerColorHue: peerColorHue ?? this.peerColorHue,
       isSelling: isSelling ?? this.isSelling,
-      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessage: identical(lastMessage, _noChange)
+          ? this.lastMessage
+          : lastMessage as String?,
       lastMessageIsOwn: lastMessageIsOwn ?? this.lastMessageIsOwn,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       unreadCount: unreadCount ?? this.unreadCount,
@@ -146,6 +151,6 @@ final chatCountProvider = Provider<int>((ref) {
 
 /// Maps orderId → last-read unix timestamp (seconds).
 ///
-/// Kept in memory for Phase 10; SharedPreferences persistence is Phase 10+.
+/// In-memory only. SharedPreferences persistence deferred to a future phase.
 final chatReadStatusProvider =
     StateProvider<Map<String, int>>((_) => const {});
