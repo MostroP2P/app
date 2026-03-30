@@ -68,6 +68,7 @@ class OrderItem {
     if (isRange) {
       return '${_fmt(fiatAmountMin!)} – ${_fmt(fiatAmountMax!)}';
     }
+    assert(fiatAmount != null, 'OrderItem must have fiatAmount or be a range');
     return _fmt(fiatAmount ?? 0);
   }
 
@@ -163,7 +164,7 @@ final _mockOrders = [
 /// Will be replaced by a StreamProvider from Rust bridge.
 final orderBookProvider = Provider<List<OrderItem>>((_) => _mockOrders);
 
-/// Filtered + sorted orders based on active tab and all filter providers.
+/// Filtered orders based on active tab and all filter providers.
 final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
   final allOrders = ref.watch(orderBookProvider);
   final orderType = ref.watch(homeOrderTypeProvider);

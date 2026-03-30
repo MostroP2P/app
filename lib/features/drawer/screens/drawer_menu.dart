@@ -61,7 +61,9 @@ class DrawerMenu extends StatelessWidget {
                           children: [
                             Text(
                               'MOSTRO',
-                              style: theme.textTheme.headlineLarge!.copyWith(
+                              style: (theme.textTheme.headlineLarge ??
+                                      theme.textTheme.headlineMedium!)
+                                  .copyWith(
                                 color: green,
                                 letterSpacing: 2,
                               ),
@@ -145,26 +147,33 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xl,
-          vertical: AppSpacing.md,
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 22),
-            const SizedBox(width: AppSpacing.lg),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.md,
             ),
-          ],
+            child: Row(
+              children: [
+                Icon(icon, color: Colors.white, size: 22),
+                const SizedBox(width: AppSpacing.lg),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

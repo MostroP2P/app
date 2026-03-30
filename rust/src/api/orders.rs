@@ -150,7 +150,13 @@ pub struct OrdersStream {
 
 impl OrdersStream {
     pub async fn next(&mut self) -> Option<Vec<OrderInfo>> {
-        self.rx.recv().await.ok()
+        loop {
+            match self.rx.recv().await {
+                Ok(orders) => return Some(orders),
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => return None,
+            }
+        }
     }
 }
 

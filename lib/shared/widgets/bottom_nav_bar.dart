@@ -42,6 +42,8 @@ class BottomNavBar extends ConsumerWidget {
             context.go(AppRoute.orderBook);
           case 2:
             context.go(AppRoute.chatList);
+          default:
+            assert(false, 'Unexpected bottom nav index: $index');
         }
       },
       items: [

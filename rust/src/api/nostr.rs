@@ -20,17 +20,18 @@ fn pool() -> Result<&'static Arc<RelayPool>> {
 ///
 /// If `relays` is empty or `None`, uses preconfigured defaults.
 pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
-    let urls = relays
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(default_relays);
-
     if POOL.get().is_some() {
         return Err(anyhow::anyhow!("AlreadyInitialized"));
     }
 
-    let p = RelayPool::new(urls).await?;
-    POOL.set(p)
-        .map_err(|_| anyhow::anyhow!("AlreadyInitialized"))?;
+    let urls = relays
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(default_relays);
+
+    // get_or_try_init is atomic — only one caller creates the pool even if
+    // two race past the is_some() guard above.
+    POOL.get_or_try_init(|| async { RelayPool::new(urls).await })
+        .await?;
     Ok(())
 }
 
@@ -87,7 +88,13 @@ pub struct ConnectionStateStream {
 
 impl ConnectionStateStream {
     pub async fn next(&mut self) -> Option<ConnectionState> {
-        self.rx.recv().await.ok()
+        loop {
+            match self.rx.recv().await {
+                Ok(state) => return Some(state),
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+            }
+        }
     }
 }
 
@@ -98,7 +105,13 @@ pub struct RelayStatusStream {
 
 impl RelayStatusStream {
     pub async fn next(&mut self) -> Option<RelayInfo> {
-        self.rx.recv().await.ok()
+        loop {
+            match self.rx.recv().await {
+                Ok(info) => return Some(info),
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+            }
+        }
     }
 }
 
