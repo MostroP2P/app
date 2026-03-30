@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/chat/widgets/chat_list_item.dart';
+import 'package:mostro/features/disputes/widgets/disputes_list.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 
 /// Route: /chat_list
@@ -161,14 +162,7 @@ class _DisputesTab extends StatelessWidget {
             style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
           ),
         ),
-        Expanded(
-          child: Center(
-            child: Text(
-              'Dispute chat — Phase 12',
-              style: textTheme.bodyMedium?.copyWith(color: colors.textSubtle),
-            ),
-          ),
-        ),
+        const Expanded(child: DisputesList()),
       ],
     );
   }

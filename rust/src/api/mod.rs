@@ -1,3 +1,4 @@
+pub mod disputes;
 pub mod identity;
 pub mod messages;
 pub mod nostr;

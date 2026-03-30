@@ -11,6 +11,7 @@ import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart'
 import 'package:mostro/features/order/screens/take_order_screen.dart';
 import 'package:mostro/features/chat/screens/chat_room_screen.dart';
 import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
+import 'package:mostro/features/disputes/screens/dispute_chat_screen.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/trades/screens/trades_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
@@ -189,8 +190,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.disputeDetails,
-      builder: (context, state) =>
-          _Stub('Dispute Details — ${state.pathParameters['disputeId']}'),
+      builder: (context, state) => DisputeChatScreen(
+        disputeId: state.pathParameters['disputeId']!,
+      ),
     ),
     GoRoute(
       path: AppRoute.notificationSettings,
@@ -202,8 +204,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.disputeChat,
-      builder: (context, state) =>
-          _Stub('Dispute Chat — ${state.pathParameters['disputeId']}'),
+      builder: (context, state) => DisputeChatScreen(
+        disputeId: state.pathParameters['disputeId']!,
+      ),
     ),
   ],
 );

@@ -124,6 +124,24 @@ impl SessionManager {
         self.sessions.write().await.remove(order_id);
     }
 
+    /// Store the ECDH admin shared key derived from `adminTookDispute`.
+    ///
+    /// Called by the event handler when the daemon assigns an admin to the
+    /// dispute. The key is derived from the trade BIP-32 key and the admin's
+    /// Nostr public key using NIP-44 v2 ECDH.
+    pub async fn set_admin_shared_key(
+        &self,
+        order_id: &str,
+        key: [u8; 32],
+    ) -> Result<()> {
+        let mut sessions = self.sessions.write().await;
+        let session = sessions
+            .get_mut(order_id)
+            .ok_or_else(|| anyhow!("SessionNotFound: {order_id}"))?;
+        session.admin_shared_key = Some(key);
+        Ok(())
+    }
+
     /// Remove sessions older than `timeout_secs` that have no shared key
     /// (i.e., the take action was never acknowledged by Mostro).
     pub async fn cleanup_stale_sessions(&self, timeout_secs: i64) {

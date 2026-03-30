@@ -151,6 +151,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yesterday'**
   String get chatTimestampYesterday;
+
+  /// Empty state message on the disputes list screen
+  ///
+  /// In en, this message translates to:
+  /// **'Your disputes will appear here'**
+  String get disputesEmptyState;
+
+  /// Tooltip for the attach file button in dispute chat
+  ///
+  /// In en, this message translates to:
+  /// **'Attach file'**
+  String get disputeAttachFile;
+
+  /// Hint text for the dispute chat message input field
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message…'**
+  String get disputeWriteMessageHint;
+
+  /// Tooltip for the send button in dispute chat
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get disputeSend;
+
+  /// Title label for a dispute list item
+  ///
+  /// In en, this message translates to:
+  /// **'Order dispute'**
+  String get orderDispute;
+
+  /// Banner shown when an admin is assigned but no messages exist yet
+  ///
+  /// In en, this message translates to:
+  /// **'An administrator has been assigned to your dispute. They will contact you here shortly.'**
+  String get disputeAdminAssigned;
+
+  /// Lock banner shown when the dispute is resolved
+  ///
+  /// In en, this message translates to:
+  /// **'This dispute has been resolved. The chat is closed.'**
+  String get disputeChatClosed;
+
+  /// Snackbar text after copying a chat message to clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get messageCopied;
+
+  /// Error message shown when disputes fail to load
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load disputes. Please try again.'**
+  String get disputeLoadError;
+
+  /// Snackbar shown when user tries to send a dispute message
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute messaging coming soon'**
+  String get disputeMessagingComingSoon;
+
+  /// Snackbar shown when user tries to attach a file in dispute chat
+  ///
+  /// In en, this message translates to:
+  /// **'File attachments coming soon'**
+  String get disputeAttachmentsComingSoon;
+
+  /// Body text shown when a dispute cannot be found by ID
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute not found.'**
+  String get disputeNotFound;
+
+  /// Snackbar shown when no dispute exists for the current trade
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute not found for this order.'**
+  String get disputeNotFoundForOrder;
+
+  /// Badge label shown on a resolved dispute banner
+  ///
+  /// In en, this message translates to:
+  /// **'Resolved'**
+  String get disputeResolved;
+
+  /// Heading shown when the viewing party won the dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Successfully completed'**
+  String get disputeSuccessfullyCompleted;
+
+  /// Body text in the cooperative-cancel resolved banner
+  ///
+  /// In en, this message translates to:
+  /// **'The order was cooperatively cancelled. No funds were transferred.'**
+  String get disputeCoopCancelMessage;
+
+  /// Dispute chat screen title when trading as seller (peer is the buyer)
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute with Buyer: {handle}'**
+  String disputeWithBuyer(String handle);
+
+  /// Dispute chat screen title when trading as buyer (peer is the seller)
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute with Seller: {handle}'**
+  String disputeWithSeller(String handle);
+
+  /// Sub-title showing the truncated order/trade ID
+  ///
+  /// In en, this message translates to:
+  /// **'Order {orderId}'**
+  String orderLabel(String orderId);
+
+  /// Status chip label for a newly opened dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Initiated'**
+  String get disputeInitiated;
+
+  /// Status chip label for a dispute under admin review
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get disputeInProgress;
+
+  /// Status chip label for a resolved/closed dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Closed'**
+  String get disputeStatusClosed;
+
+  /// Resolution text shown to the seller when admin released funds to the buyer
+  ///
+  /// In en, this message translates to:
+  /// **'The administrator settled the dispute in the buyer\'s favour. The sats were released to the buyer.'**
+  String get disputeLostFundsToBuyer;
+
+  /// Resolution text shown to the buyer when admin returned funds to the seller
+  ///
+  /// In en, this message translates to:
+  /// **'The administrator canceled the order and returned the sats to the seller. You did not receive the sats.'**
+  String get disputeLostFundsToSeller;
 }
 
 class _AppLocalizationsDelegate

@@ -31,4 +31,89 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get chatTimestampYesterday => 'Ieri';
+
+  @override
+  String get disputesEmptyState => 'Le tue controversie appariranno qui';
+
+  @override
+  String get disputeAttachFile => 'Allega file';
+
+  @override
+  String get disputeWriteMessageHint => 'Scrivi un messaggio…';
+
+  @override
+  String get disputeSend => 'Invia';
+
+  @override
+  String get orderDispute => 'Disputa ordine';
+
+  @override
+  String get disputeAdminAssigned =>
+      'Un amministratore è stato assegnato alla tua disputa. Ti contatterà qui a breve.';
+
+  @override
+  String get disputeChatClosed =>
+      'Questa disputa è stata risolta. La chat è chiusa.';
+
+  @override
+  String get messageCopied => 'Copiato';
+
+  @override
+  String get disputeLoadError => 'Impossibile caricare le dispute. Riprova.';
+
+  @override
+  String get disputeMessagingComingSoon =>
+      'Messaggistica per controversie in arrivo';
+
+  @override
+  String get disputeAttachmentsComingSoon => 'Allegati file in arrivo';
+
+  @override
+  String get disputeNotFound => 'Controversia non trovata.';
+
+  @override
+  String get disputeNotFoundForOrder =>
+      'Nessuna controversia trovata per questo ordine.';
+
+  @override
+  String get disputeResolved => 'Risolto';
+
+  @override
+  String get disputeSuccessfullyCompleted => 'Completato con successo';
+
+  @override
+  String get disputeCoopCancelMessage =>
+      'L\'ordine è stato annullato cooperativamente. Nessun fondo è stato trasferito.';
+
+  @override
+  String disputeWithBuyer(String handle) {
+    return 'Controversia con l\'Acquirente: $handle';
+  }
+
+  @override
+  String disputeWithSeller(String handle) {
+    return 'Controversia con il Venditore: $handle';
+  }
+
+  @override
+  String orderLabel(String orderId) {
+    return 'Ordine $orderId';
+  }
+
+  @override
+  String get disputeInitiated => 'Avviato';
+
+  @override
+  String get disputeInProgress => 'In corso';
+
+  @override
+  String get disputeStatusClosed => 'Chiuso';
+
+  @override
+  String get disputeLostFundsToBuyer =>
+      'L\'amministratore ha risolto la controversia a favore dell\'acquirente. I sats sono stati rilasciati all\'acquirente.';
+
+  @override
+  String get disputeLostFundsToSeller =>
+      'L\'amministratore ha annullato l\'ordine e restituito i sats al venditore. Non hai ricevuto i sats.';
 }

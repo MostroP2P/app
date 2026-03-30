@@ -100,8 +100,10 @@ pub enum DisputeStatus {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DisputeResolution {
-    FundsToMe,
-    FundsToCounterparty,
+    /// Admin settled the dispute — sats released to the buyer.
+    FundsToBuyer,
+    /// Admin canceled the order — sats returned to the seller.
+    FundsToSeller,
     CooperativeCancel,
 }
 
@@ -374,4 +376,34 @@ fn default_expiration_hours() -> u32 {
 
 fn default_expiration_seconds() -> u32 {
     900
+}
+
+/// An open or resolved dispute on a trade.
+///
+/// Created locally when the user initiates a dispute or when a peer-initiated
+/// dispute notification arrives. Status updated as admin actions are received.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Dispute {
+    /// Unique dispute identifier (generated locally or from protocol event).
+    pub id: String,
+    /// The trade this dispute belongs to.
+    pub trade_id: String,
+    /// Current dispute lifecycle status.
+    pub status: DisputeStatus,
+    /// `true` if the local user opened the dispute.
+    pub initiated_by_me: bool,
+    /// Optional free-text reason supplied when opening the dispute.
+    pub reason: Option<String>,
+    /// Admin's Nostr public key (hex), populated when `adminTookDispute`
+    /// is received and ECDH admin shared key is derived.
+    pub admin_pubkey: Option<String>,
+    /// Resolution outcome, populated when status becomes `Resolved`.
+    pub resolution: Option<DisputeResolution>,
+    /// Unix timestamp (seconds) when the dispute was opened.
+    pub opened_at: i64,
+    /// Unix timestamp (seconds) when the dispute was resolved; `None` while
+    /// still open.
+    pub resolved_at: Option<i64>,
+    /// Whether the local user has seen the latest dispute update.
+    pub is_read: bool,
 }
