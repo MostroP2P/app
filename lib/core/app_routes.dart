@@ -6,6 +6,7 @@ import 'package:mostro/features/account/screens/account_screen.dart';
 import 'package:mostro/features/home/screens/home_screen.dart';
 import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/order/screens/add_order_screen.dart';
+import 'package:mostro/features/order/screens/take_order_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/screens/walkthrough_screen.dart';
 
@@ -107,13 +108,17 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.takeSell,
-      builder: (context, state) =>
-          _Stub('Take Sell — ${state.pathParameters['orderId']}'),
+      builder: (context, state) => TakeOrderScreen(
+        orderId: state.pathParameters['orderId']!,
+        isBuying: true, // taker is buying BTC (taking a sell order)
+      ),
     ),
     GoRoute(
       path: AppRoute.takeBuy,
-      builder: (context, state) =>
-          _Stub('Take Buy — ${state.pathParameters['orderId']}'),
+      builder: (context, state) => TakeOrderScreen(
+        orderId: state.pathParameters['orderId']!,
+        isBuying: false, // taker is selling BTC (taking a buy order)
+      ),
     ),
     GoRoute(
       path: AppRoute.payInvoice,
