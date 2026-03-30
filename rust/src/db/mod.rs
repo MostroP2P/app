@@ -1,4 +1,5 @@
 pub mod schema;
+pub mod seeds;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod sqlite;
 #[cfg(target_arch = "wasm32")]

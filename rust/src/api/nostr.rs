@@ -120,10 +120,10 @@ impl RelayStatusStream {
 // ── Internals ───────────────────────────────────────────────────────────────
 
 fn default_relays() -> Vec<String> {
-    vec![
-        "wss://relay.mostro.network".to_string(),
-        "wss://relay.damus.io".to_string(),
-    ]
+    crate::config::DEFAULT_RELAYS
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 
 /// Provide access to the global pool for other Rust modules (e.g. orders API).

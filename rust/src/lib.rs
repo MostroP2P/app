@@ -4,6 +4,7 @@
 // Zero crypto in Dart — this is the only source of trust.
 
 pub mod api;
+pub mod config;
 pub mod crypto;
 pub mod db;
 pub mod mostro;

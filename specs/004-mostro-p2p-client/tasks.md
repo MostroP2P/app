@@ -60,21 +60,21 @@ configuration.
 **Depends on**: Phase 2 (T008, T009)
 **Blocks**: T012 (relay pool initialization), T029 (Nostr relay API)
 
-- [ ] T012b Create `rust/src/config.rs` with hardcoded seed constants:
+- [x] T012b Create `rust/src/config.rs` with hardcoded seed constants:
   - `DEFAULT_RELAYS: &[&str]` = `["wss://relay.mostro.network", "wss://nos.lol"]`
   - `DEFAULT_MOSTRO_PUBKEY: &str` = `"82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390"`
   - `DEFAULT_MOSTRO_NAME: &str` = `"Mostro"`
   - Export from `lib.rs`
 
-- [ ] T012c On first launch (no relays in DB), seed DB with `DEFAULT_RELAYS` as
+- [x] T012c On first launch (no relays in DB), seed DB with `DEFAULT_RELAYS` as
   `RelayInfo { url, user_added: false, enabled: true }`. Default relays are NOT
   deletable from the UI (only disable allowed). Implement in `rust/src/db/seeds.rs`.
 
-- [ ] T012d On first launch (no Mostro node selected), seed the active Mostro node
+- [x] T012d On first launch (no Mostro node selected), seed the active Mostro node
   with `DEFAULT_MOSTRO_PUBKEY` + `DEFAULT_MOSTRO_NAME`. Store in settings as
   `active_mostro_pubkey`. Implement in same `rust/src/db/seeds.rs`.
 
-- [ ] T012e Wire `seeds::seed_defaults()` into app bootstrap (called once after DB
+- [x] T012e Wire `seeds::seed_defaults()` into app bootstrap (called once after DB
   migration, before relay pool initialization). Guard with `IF NOT EXISTS` checks
   so re-runs are idempotent.
 
