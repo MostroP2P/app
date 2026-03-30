@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// Re-export so walkthrough_screen.dart can import backupReminderProvider
+// from this file without a second import.
+export 'package:mostro/features/account/providers/backup_reminder_provider.dart';
+
 /// SharedPreferences key for the first-run flag.
 const _kFirstRunComplete = 'firstRunComplete';
 
@@ -22,9 +26,10 @@ class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
     try {
       final prefs = await SharedPreferences.getInstance();
       state = AsyncValue.data(prefs.getBool(_kFirstRunComplete) ?? false);
-    } catch (e, st) {
-      // Fail-safe: treat as completed so the user reaches the home screen.
-      state = AsyncValue.error(e, st);
+    } catch (_) {
+      // Fail-safe: if SharedPreferences is unavailable treat first-run as
+      // complete so the router sends the user to the home screen directly.
+      state = const AsyncValue.data(true);
     }
   }
 
@@ -37,22 +42,4 @@ class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
     await prefs.setBool(_kFirstRunComplete, true);
     state = const AsyncValue.data(true);
   }
-}
-
-// ── Backup reminder (stub — full implementation in Phase 4/US2) ──────────────
-
-/// Tracks whether the backup reminder badge (red dot on bell) is active.
-final backupReminderProvider =
-    StateNotifierProvider<BackupReminderNotifier, bool>(
-  (ref) => BackupReminderNotifier(),
-);
-
-class BackupReminderNotifier extends StateNotifier<bool> {
-  BackupReminderNotifier() : super(false);
-
-  /// Activate the persistent backup reminder. Called after walkthrough ends.
-  void showBackupReminder() => state = true;
-
-  /// Dismiss the reminder permanently (called after user views backup words).
-  void dismissBackupReminder() => state = false;
 }

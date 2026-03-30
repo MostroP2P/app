@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:mostro/features/account/screens/account_screen.dart';
+import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/screens/walkthrough_screen.dart';
 
@@ -134,7 +136,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.keyManagement,
-      builder: (_, __) => const _Stub('Key Management'),
+      builder: (_, __) => const AccountScreen(),
     ),
     GoRoute(
       path: AppRoute.settings,
@@ -146,7 +148,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.notifications,
-      builder: (_, __) => const _Stub('Notifications'),
+      builder: (_, __) => const NotificationsScreen(),
     ),
     GoRoute(
       path: AppRoute.relays,
