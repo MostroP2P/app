@@ -19,9 +19,18 @@ use crate::api::types::{RatingInfo, RatingReceivedEvent};
 
 // ── Rating store ──────────────────────────────────────────────────────────────
 
+/// Both sides of a trade's rating, held together under a single map entry so
+/// `mine` and `peer` ratings for the same trade never overwrite each other.
+struct TradeRatings {
+    /// Rating submitted by the local user (`is_mine = true`).
+    mine: Option<RatingInfo>,
+    /// Rating received from the counterparty (`is_mine = false`).
+    peer: Option<RatingInfo>,
+}
+
 struct RatingStore {
-    /// Submitted/received ratings keyed by trade_id.
-    ratings: std::sync::Arc<RwLock<HashMap<String, RatingInfo>>>,
+    /// Per-trade ratings keyed by trade_id.
+    ratings: std::sync::Arc<RwLock<HashMap<String, TradeRatings>>>,
     /// Broadcast channel; payload = incoming rating event.
     event_tx: broadcast::Sender<RatingReceivedEvent>,
     /// In-memory privacy mode flag.
@@ -38,27 +47,40 @@ impl RatingStore {
         }
     }
 
+    /// Return the local user's rating for a trade, falling back to the peer's
+    /// rating if the local user has not yet submitted one.
     async fn get(&self, trade_id: &str) -> Option<RatingInfo> {
-        self.ratings.read().await.get(trade_id).cloned()
+        self.ratings.read().await.get(trade_id).and_then(|r| {
+            r.mine.clone().or_else(|| r.peer.clone())
+        })
     }
 
-    /// Atomically insert a new rating only if no rating already exists for the
-    /// trade.  Prevents TOCTOU races on concurrent `submit_rating` calls.
-    async fn try_insert_if_absent(&self, info: RatingInfo) -> Result<()> {
+    /// Atomically insert the local user's rating only if one has not been
+    /// submitted yet.  Prevents TOCTOU races on concurrent `submit_rating`
+    /// calls.  Does not affect the peer side.
+    async fn try_insert_mine(&self, info: RatingInfo) -> Result<()> {
         let mut store = self.ratings.write().await;
-        if store.contains_key(&info.trade_id) {
+        let entry = store
+            .entry(info.trade_id.clone())
+            .or_insert_with(|| TradeRatings { mine: None, peer: None });
+        if entry.mine.is_some() {
             bail!(
                 "AlreadyRated: a rating has already been submitted for trade {}",
                 info.trade_id
             );
         }
-        store.insert(info.trade_id.clone(), info);
+        entry.mine = Some(info);
         Ok(())
     }
 
-    async fn insert(&self, info: RatingInfo) {
+    /// Insert or update the peer's incoming rating for a trade.
+    /// Can be called multiple times safely (handles re-delivery).
+    async fn insert_peer(&self, info: RatingInfo) {
         let mut store = self.ratings.write().await;
-        store.insert(info.trade_id.clone(), info);
+        let entry = store
+            .entry(info.trade_id.clone())
+            .or_insert_with(|| TradeRatings { mine: None, peer: None });
+        entry.peer = Some(info);
     }
 }
 
@@ -108,7 +130,7 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
 
     // Atomic check-and-insert under write lock — prevents TOCTOU races.
     store
-        .try_insert_if_absent(RatingInfo {
+        .try_insert_mine(RatingInfo {
             trade_id,
             score,
             is_mine: true,
@@ -147,6 +169,9 @@ pub async fn get_rating_for_trade(trade_id: String) -> Result<Option<RatingInfo>
 /// Handle an incoming rating event from the counterparty.
 ///
 /// Records the rating and broadcasts it to any active [RatingStream].
+///
+/// No-ops silently when privacy mode is active — incoming reputation data is
+/// discarded in both directions when the user has opted out.
 pub async fn handle_rating_received(
     trade_id: String,
     score: u8,
@@ -157,6 +182,12 @@ pub async fn handle_rating_received(
     }
 
     let store = rating_store();
+
+    // Discard incoming ratings when privacy mode is active.
+    if store.privacy_mode.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     let event = RatingReceivedEvent {
         trade_id: trade_id.clone(),
         score,
@@ -165,7 +196,7 @@ pub async fn handle_rating_received(
 
     // Record as a peer rating (is_mine = false).
     store
-        .insert(RatingInfo {
+        .insert_peer(RatingInfo {
             trade_id,
             score,
             is_mine: false,
@@ -278,6 +309,8 @@ mod tests {
 
     #[tokio::test]
     async fn handle_rating_received_stores_peer_rating() {
+        let _guard = privacy_lock().lock().unwrap();
+        set_privacy_mode(false); // ensure clean state
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         handle_rating_received(trade_id.clone(), 5, "peer_pubkey_abc".into())
             .await
@@ -286,5 +319,43 @@ mod tests {
         let info = get_rating_for_trade(trade_id).await.unwrap().unwrap();
         assert_eq!(info.score, 5);
         assert!(!info.is_mine);
+    }
+
+    #[tokio::test]
+    async fn handle_rating_received_discarded_in_privacy_mode() {
+        let _guard = privacy_lock().lock().unwrap();
+        set_privacy_mode(true);
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        handle_rating_received(trade_id.clone(), 4, "peer_pubkey_xyz".into())
+            .await
+            .unwrap(); // should succeed (silently discarded)
+
+        let info = get_rating_for_trade(trade_id).await.unwrap();
+        assert!(info.is_none(), "peer rating should be discarded in privacy mode");
+        set_privacy_mode(false);
+    }
+
+    #[tokio::test]
+    async fn mine_and_peer_ratings_coexist_for_same_trade() {
+        let _guard = privacy_lock().lock().unwrap();
+        set_privacy_mode(false);
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+
+        // Submit my rating first.
+        submit_rating(trade_id.clone(), 4).await.unwrap();
+
+        // Receive peer rating for the same trade.
+        handle_rating_received(trade_id.clone(), 5, "peer_pubkey".into())
+            .await
+            .unwrap();
+
+        // get_rating_for_trade returns mine (preferred).
+        let info = get_rating_for_trade(trade_id.clone()).await.unwrap().unwrap();
+        assert!(info.is_mine);
+        assert_eq!(info.score, 4);
+
+        // Submitting my rating a second time is still rejected.
+        let err = submit_rating(trade_id, 3).await.unwrap_err();
+        assert!(err.to_string().contains("AlreadyRated"));
     }
 }

@@ -38,15 +38,16 @@ class StarRating extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (index) {
         final isFilled = index < rating;
-        return GestureDetector(
-          onTap: onChanged == null ? null : () => onChanged!(index + 1),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Icon(
-              isFilled ? Icons.star_rounded : Icons.star_outline_rounded,
-              color: isFilled ? filledColor : emptyColor,
-              size: starSize,
-            ),
+        final starNumber = index + 1;
+        return IconButton(
+          onPressed: onChanged == null ? null : () => onChanged!(starNumber),
+          tooltip: 'Select $starNumber star${starNumber == 1 ? '' : 's'}',
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          constraints: BoxConstraints(minWidth: starSize + 8, minHeight: starSize + 8),
+          icon: Icon(
+            isFilled ? Icons.star_rounded : Icons.star_outline_rounded,
+            color: isFilled ? filledColor : emptyColor,
+            size: starSize,
           ),
         );
       }),
