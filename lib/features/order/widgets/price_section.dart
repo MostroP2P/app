@@ -38,6 +38,14 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
     super.dispose();
   }
 
+  void _syncControllerFromProvider(double? prev, double next) {
+    if (_editingPremium) return;
+    final newText = next.toStringAsFixed(1);
+    if (_premiumController.text != newText) {
+      _premiumController.text = newText;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -48,13 +56,8 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
     final isMarket = ref.watch(isMarketPriceProvider);
     final premium = ref.watch(premiumValueProvider);
 
-    // Sync controller when slider changes (but not while user is editing).
-    if (!_editingPremium) {
-      final newText = premium.toStringAsFixed(1);
-      if (_premiumController.text != newText) {
-        _premiumController.text = newText;
-      }
-    }
+    // Sync controller from provider via listener (not in build body).
+    ref.listen<double>(premiumValueProvider, _syncControllerFromProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,9 +142,10 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                                 borderSide: BorderSide.none,
                               ),
                             ),
-                            onTap: () => _editingPremium = true,
+                            onTap: () =>
+                                setState(() => _editingPremium = true),
                             onSubmitted: (v) {
-                              _editingPremium = false;
+                              setState(() => _editingPremium = false);
                               final parsed = double.tryParse(v);
                               if (parsed != null) {
                                 ref.read(premiumValueProvider.notifier).state =
@@ -149,7 +153,12 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                               }
                             },
                             onTapOutside: (_) {
-                              _editingPremium = false;
+                              setState(() => _editingPremium = false);
+                              // Sync controller to current provider value.
+                              _syncControllerFromProvider(
+                                null,
+                                ref.read(premiumValueProvider),
+                              );
                             },
                           ),
                         ),

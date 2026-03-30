@@ -165,6 +165,11 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     if has_range {
         let min = params.fiat_amount_min.unwrap();
         let max = params.fiat_amount_max.unwrap();
+        if !min.is_finite() || !max.is_finite() {
+            return Err(anyhow::anyhow!(
+                "fiat_amount_min and fiat_amount_max must be finite"
+            ));
+        }
         if min <= 0.0 || min >= max {
             return Err(anyhow::anyhow!(
                 "fiat_amount_min must be > 0 and < fiat_amount_max"

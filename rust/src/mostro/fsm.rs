@@ -104,7 +104,11 @@ mod tests {
 
     #[test]
     fn buy_order_happy_path() {
+        // Buyer creates → Seller takes → WaitingPayment → Active → FiatSent → SettledHoldInvoice
         assert_eq!(next_status(&OrderStatus::Pending, Action::TakeSell, TradeRole::Seller), Some(OrderStatus::WaitingPayment));
+        assert_eq!(next_status(&OrderStatus::WaitingPayment, Action::PayInvoice, TradeRole::Seller), Some(OrderStatus::Active));
+        assert_eq!(next_status(&OrderStatus::Active, Action::FiatSent, TradeRole::Buyer), Some(OrderStatus::FiatSent));
+        assert_eq!(next_status(&OrderStatus::FiatSent, Action::Release, TradeRole::Seller), Some(OrderStatus::SettledHoldInvoice));
     }
 
     #[test]

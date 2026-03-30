@@ -6,24 +6,9 @@ use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde_json::json;
 
-use crate::api::types::OrderKind;
+use crate::api::types::{NewOrderParams, OrderKind};
 use crate::nostr::gift_wrap;
-
-/// Kind used for Mostro direct messages (NIP-59 inner rumor).
-const MOSTRO_DM_KIND: u16 = 38383;
-
-/// Parameters for creating a new order.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct NewOrderParams {
-    pub kind: OrderKind,
-    pub fiat_amount: Option<f64>,
-    pub fiat_amount_min: Option<f64>,
-    pub fiat_amount_max: Option<f64>,
-    pub fiat_code: String,
-    pub payment_method: String,
-    pub premium: f64,
-    pub amount_sats: Option<u64>,
-}
+use crate::nostr::order_events::KIND_ORDER;
 
 /// Build and wrap a NewOrder MostroMessage.
 ///
@@ -48,7 +33,7 @@ pub async fn new_order(
         sender_keys,
         mostro_pubkey,
         &payload.to_string(),
-        Kind::from(MOSTRO_DM_KIND),
+        Kind::from(KIND_ORDER),
     )
     .await
 }
@@ -60,26 +45,7 @@ pub async fn take_buy(
     order_id: &str,
     amount: Option<f64>,
 ) -> Result<String> {
-    let mut content = json!({ "id": order_id });
-    if let Some(amt) = amount {
-        content["amount"] = json!(amt);
-    }
-
-    let payload = json!({
-        "order": {
-            "version": 1,
-            "action": "take-buy",
-            "content": content,
-        }
-    });
-
-    gift_wrap::wrap(
-        sender_keys,
-        mostro_pubkey,
-        &payload.to_string(),
-        Kind::from(MOSTRO_DM_KIND),
-    )
-    .await
+    take_order_impl(sender_keys, mostro_pubkey, order_id, amount, "take-buy").await
 }
 
 /// Build and wrap a TakeSell MostroMessage.
@@ -89,6 +55,18 @@ pub async fn take_sell(
     order_id: &str,
     amount: Option<f64>,
 ) -> Result<String> {
+    take_order_impl(sender_keys, mostro_pubkey, order_id, amount, "take-sell").await
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+async fn take_order_impl(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+    amount: Option<f64>,
+    action: &str,
+) -> Result<String> {
     let mut content = json!({ "id": order_id });
     if let Some(amt) = amount {
         content["amount"] = json!(amt);
@@ -97,7 +75,7 @@ pub async fn take_sell(
     let payload = json!({
         "order": {
             "version": 1,
-            "action": "take-sell",
+            "action": action,
             "content": content,
         }
     });
@@ -106,12 +84,10 @@ pub async fn take_sell(
         sender_keys,
         mostro_pubkey,
         &payload.to_string(),
-        Kind::from(MOSTRO_DM_KIND),
+        Kind::from(KIND_ORDER),
     )
     .await
 }
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
 
 fn build_new_order_content(params: &NewOrderParams) -> serde_json::Value {
     let kind_str = match params.kind {

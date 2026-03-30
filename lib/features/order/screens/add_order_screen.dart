@@ -31,6 +31,20 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
   bool get _isBuy => widget.orderType == 'buy';
 
   @override
+  void initState() {
+    super.initState();
+    // Reset form providers so each new screen starts fresh.
+    Future.microtask(() {
+      ref.read(selectedPaymentMethodsProvider.notifier).state = [];
+      ref.read(customPaymentMethodProvider.notifier).state = '';
+      ref.read(selectedFiatCodeProvider.notifier).state = 'USD';
+      ref.read(isMarketPriceProvider.notifier).state = true;
+      ref.read(premiumValueProvider.notifier).state = 0.0;
+      ref.read(fixedSatsProvider.notifier).state = '';
+    });
+  }
+
+  @override
   void dispose() {
     _amountController.dispose();
     _minController.dispose();
