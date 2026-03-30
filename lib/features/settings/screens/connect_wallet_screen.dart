@@ -63,6 +63,15 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
           .toList();
 
       if (!mounted) return;
+      if (relayUrls.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No valid relay URL found in NWC URI.'),
+          ),
+        );
+        setState(() => _connecting = false);
+        return;
+      }
       ref.read(nwcProvider.notifier).setConnected(
             NwcWalletState(
               walletPubkey: pubkey,

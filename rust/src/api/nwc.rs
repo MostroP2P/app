@@ -135,11 +135,7 @@ pub async fn pay_invoice(bolt11: String) -> Result<PaymentResult> {
             .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?
     };
     if status != WalletStatus::Connected {
-        return Ok(PaymentResult {
-            success: false,
-            preimage: None,
-            error: Some("NoWalletConnected: wallet is not connected".into()),
-        });
+        bail!("NoWalletConnected: wallet is not connected");
     }
     // TODO(Phase 15+): send NIP-47 pay_invoice request and await result.
     Ok(PaymentResult {
