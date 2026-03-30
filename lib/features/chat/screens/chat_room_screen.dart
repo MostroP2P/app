@@ -54,7 +54,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   void _onSend(String text) {
     if (text.trim().isEmpty) return;
-    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final now = DateTime.now().millisecondsSinceEpoch;
     setState(() {
       _messages.add(
         ChatMessage(
@@ -64,7 +64,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           isMine: true,
           isRead: false,
           hasAttachment: false,
-          createdAt: now,
+          createdAt: now ~/ 1000,
         ),
       );
     });

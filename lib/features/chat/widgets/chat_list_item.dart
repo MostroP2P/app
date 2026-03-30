@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
 
 /// A single row in the chat rooms list.
@@ -36,8 +37,9 @@ class ChatListItem extends StatelessWidget {
             ? 'You: ${room.lastMessage}'
             : room.lastMessage;
 
+    final l10n = AppLocalizations.of(context);
     final timestampLabel = room.lastMessageAt > 0
-        ? _formatTimestamp(room.lastMessageAt)
+        ? _formatTimestamp(room.lastMessageAt, l10n)
         : '';
 
     return InkWell(
@@ -133,9 +135,9 @@ class ChatListItem extends StatelessWidget {
   /// Formats a unix timestamp as a human-friendly label.
   ///
   /// - Same day → locale time (e.g. "14:32")
-  /// - Yesterday → locale "Yesterday" via [Intl.message]
+  /// - Yesterday → localized "Yesterday" from [AppLocalizations]
   /// - Older → locale short date (e.g. "Mar 30")
-  String _formatTimestamp(int unixSeconds) {
+  String _formatTimestamp(int unixSeconds, AppLocalizations l10n) {
     final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -147,7 +149,7 @@ class ChatListItem extends StatelessWidget {
 
     final yesterday = today.subtract(const Duration(days: 1));
     if (msgDay == yesterday) {
-      return Intl.message('Yesterday', name: 'chatTimestampYesterday');
+      return l10n.chatTimestampYesterday;
     }
 
     return DateFormat.MMMd().format(dt);

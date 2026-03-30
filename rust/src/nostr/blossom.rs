@@ -49,7 +49,7 @@ pub async fn upload_blob(
 
     let mut last_err = String::new();
     for server in &servers {
-        match try_upload(server, &sha256, bytes.clone(), &mime_type).await {
+        match try_upload(server, &sha256, &bytes, &mime_type).await {
             Ok(url) => return Ok(url),
             Err(e) => {
                 last_err = format!("{server}: {e}");
@@ -130,7 +130,7 @@ pub async fn download_blob(url: String) -> Result<Vec<u8>> {
 async fn try_upload(
     server: &str,
     sha256: &str,
-    bytes: Vec<u8>,
+    bytes: &[u8],
     mime_type: &str,
 ) -> Result<String> {
     #[cfg(not(target_arch = "wasm32"))]
@@ -144,7 +144,8 @@ async fn try_upload(
         let response = client
             .put(&url)
             .header("Content-Type", mime_type)
-            .body(bytes)
+            .header("Content-Length", bytes.len().to_string())
+            .body(bytes.to_vec())
             .send()
             .await
             .map_err(|e| anyhow!("PUT {url} failed: {e}"))?;

@@ -17,7 +17,14 @@ class ChatRoomState {
     this.lastMessageIsOwn = false,
     this.lastMessageAt = 0,
     this.unreadCount = 0,
-  });
+  })  : assert(
+          peerIconIndex >= 0 && peerIconIndex <= 36,
+          'peerIconIndex must be 0–36, got $peerIconIndex',
+        ),
+        assert(
+          peerColorHue >= 0 && peerColorHue <= 359,
+          'peerColorHue must be 0–359, got $peerColorHue',
+        );
 
   /// The trade / order ID that identifies this chat room.
   final String orderId;
@@ -151,6 +158,6 @@ final chatCountProvider = Provider<int>((ref) {
 
 /// Maps orderId → last-read unix timestamp (seconds).
 ///
-/// In-memory only. SharedPreferences persistence deferred to a future phase.
+/// In-memory only. Sembast persistence deferred to a future phase.
 final chatReadStatusProvider =
     StateProvider<Map<String, int>>((_) => const {});

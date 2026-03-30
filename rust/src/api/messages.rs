@@ -9,7 +9,7 @@
 /// `on_attachment_progress(message_id)`.
 use anyhow::{anyhow, bail, Result};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{
@@ -100,15 +100,10 @@ impl MessageStore {
 
 // ── Global singleton ──────────────────────────────────────────────────────────
 
-use tokio::sync::OnceCell;
-
-static MESSAGE_STORE: OnceCell<MessageStore> = OnceCell::const_new();
+static MESSAGE_STORE: OnceLock<MessageStore> = OnceLock::new();
 
 fn message_store() -> &'static MessageStore {
-    if MESSAGE_STORE.get().is_none() {
-        let _ = MESSAGE_STORE.set(MessageStore::new());
-    }
-    MESSAGE_STORE.get().expect("MessageStore not initialized")
+    MESSAGE_STORE.get_or_init(MessageStore::new)
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -264,8 +259,12 @@ pub async fn download_attachment(message_id: String) -> Result<FileDownloadResul
     //
     // For now return a stub result.
     let safe_name = safe_filename(&attachment.file_name);
+    let local_path = std::env::temp_dir()
+        .join(&safe_name)
+        .to_string_lossy()
+        .into_owned();
     let result = FileDownloadResult {
-        local_path: format!("/tmp/{safe_name}"),
+        local_path,
         file_name: attachment.file_name,
         mime_type: attachment.mime_type,
         file_size: attachment.file_size,

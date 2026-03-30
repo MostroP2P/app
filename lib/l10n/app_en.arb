@@ -14,5 +14,7 @@
   "done": "Done",
   "@done": {"description": "Done action"},
   "skip": "Skip",
-  "@skip": {"description": "Skip action"}
+  "@skip": {"description": "Skip action"},
+  "chatTimestampYesterday": "Yesterday",
+  "@chatTimestampYesterday": {"description": "Timestamp label for messages from yesterday"}
 }

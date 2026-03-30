@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
 
@@ -69,7 +70,6 @@ class MessageBubble extends StatelessWidget {
   /// HSV hue (0–359) used to tint peer message bubbles.
   final int peerColorHue;
 
-  static const _ownBubbleColor = Color(0xFF7856AF);
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +88,7 @@ class MessageBubble extends StatelessWidget {
         isMine ? MainAxisAlignment.end : MainAxisAlignment.start;
 
     final bubbleColor = isMine
-        ? _ownBubbleColor
+        ? colors.purpleButton
         : HSVColor.fromAHSV(1.0, peerColorHue.toDouble(), 0.55, 0.40).toColor();
 
     // Tail: own message → top-right is squared; peer → top-left is squared.
@@ -188,7 +188,7 @@ class MessageBubble extends StatelessWidget {
 
   String _formatTime(int unixSeconds) {
     final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return DateFormat.Hm().format(dt);
   }
 }
 

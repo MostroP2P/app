@@ -4,6 +4,18 @@ import 'package:flutter/services.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
 
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+void _copyToClipboard(BuildContext context, String text, String label) {
+  Clipboard.setData(ClipboardData(text: text));
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('$label copied'),
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
+
 // ── TradeInformationTab ───────────────────────────────────────────────────────
 
 /// Expandable panel showing trade / order details.
@@ -223,15 +235,8 @@ class UserInformationTab extends StatelessWidget {
     );
   }
 
-  void _copy(BuildContext context, String text, String label) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+  void _copy(BuildContext context, String text, String label) =>
+      _copyToClipboard(context, text, label);
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
@@ -271,15 +276,7 @@ class _InfoRow extends StatelessWidget {
             child: customValue ??
                 GestureDetector(
                   onTap: copyable && value != null
-                      ? () {
-                          Clipboard.setData(ClipboardData(text: value!));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('$label copied'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
+                      ? () => _copyToClipboard(context, value!, label)
                       : null,
                   child: Text(
                     value ?? '—',

@@ -7,5 +7,6 @@
   "cancel": "Abbrechen",
   "confirm": "Bestätigen",
   "done": "Fertig",
-  "skip": "Überspringen"
+  "skip": "Überspringen",
+  "chatTimestampYesterday": "Gestern"
 }
