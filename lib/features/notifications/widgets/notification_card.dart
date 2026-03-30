@@ -23,96 +23,100 @@ class NotificationCard extends StatelessWidget {
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              border: notification.isRead
-                  ? null
-                  : Border.all(color: Colors.white12, width: 1),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TypeIconCircle(type: notification.type),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              notification.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge!
-                                  .copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: Colors.white,
-                                  ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                border: notification.isRead
+                    ? null
+                    : Border.all(color: Colors.white12, width: 1),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _TypeIconCircle(type: notification.type),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                notification.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge!
+                                    .copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                    ),
+                              ),
                             ),
-                          ),
-                          _OverflowMenu(
-                            isRead: notification.isRead,
-                            onMarkRead: onMarkRead,
-                            onDelete: onDelete,
-                          ),
+                            _OverflowMenu(
+                              isRead: notification.isRead,
+                              onMarkRead: onMarkRead,
+                              onDelete: onDelete,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          notification.message,
+                          style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                                color: textSec,
+                                fontSize: 14,
+                              ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (notification.detail != null &&
+                            notification.detail!.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          _DetailSection(detail: notification.detail!),
                         ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        notification.message,
-                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                              color: textSec,
-                              fontSize: 14,
-                            ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (notification.detail != null &&
-                          notification.detail!.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
-                        _DetailSection(detail: notification.detail!),
+                        Text(
+                          _relativeTime(notification.timestamp),
+                          style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                                color: textSec,
+                                fontSize: 12,
+                              ),
+                        ),
                       ],
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        _relativeTime(notification.timestamp),
-                        style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                              color: textSec,
-                              fontSize: 12,
-                            ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          // Unread dot — top-right of the card
-          if (!notification.isRead)
-            Positioned(
-              top: AppSpacing.sm,
-              right: AppSpacing.sm,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF8CC63F),
-                  shape: BoxShape.circle,
-                ),
+                ],
               ),
             ),
-        ],
+            // Unread dot — top-right of the card
+            if (!notification.isRead)
+              Positioned(
+                top: AppSpacing.sm,
+                right: AppSpacing.sm,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF8CC63F),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -246,9 +250,10 @@ class _TypeIconCircle extends StatelessWidget {
       NotificationType.payment =>
         (Icons.attach_money, Colors.blue),
       NotificationType.invoiceRequest ||
-      NotificationType.orderUpdate ||
-      NotificationType.orderTaken =>
+      NotificationType.orderUpdate =>
         (Icons.description, Colors.green),
+      NotificationType.orderTaken =>
+        (Icons.add_circle, Colors.green),
       NotificationType.dispute => (Icons.gavel, Colors.red),
       NotificationType.cancellation => (Icons.cancel, Colors.orange),
       NotificationType.message => (Icons.chat_bubble, Colors.teal),
@@ -259,7 +264,7 @@ class _TypeIconCircle extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: bg.withValues(alpha: 0.2),
+        color: bg.withOpacity(0.2),
         shape: BoxShape.circle,
       ),
       child: Icon(icon, color: bg, size: 20),

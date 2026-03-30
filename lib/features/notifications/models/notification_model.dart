@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 /// In-app notification record.
 enum NotificationType {
   orderUpdate,
@@ -96,7 +98,7 @@ class NotificationModel {
     required int score,
   }) {
     return NotificationModel(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: const Uuid().v4(),
       type: NotificationType.ratingReceived,
       title: 'Rating received',
       message: 'You received a $score-star rating for order $orderId.',
@@ -111,7 +113,7 @@ class NotificationModel {
     required int sats,
   }) {
     return NotificationModel(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: const Uuid().v4(),
       type: NotificationType.paymentReceived,
       title: 'Payment received',
       message: 'You received $sats sats for order $orderId.',
@@ -123,7 +125,7 @@ class NotificationModel {
 
   factory NotificationModel.invoiceRequest({required String orderId}) {
     return NotificationModel(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: const Uuid().v4(),
       type: NotificationType.invoiceRequest,
       title: 'Invoice requested',
       message: 'Please add your Lightning invoice for order $orderId.',
@@ -135,7 +137,7 @@ class NotificationModel {
 
   factory NotificationModel.orderTaken({required String orderId}) {
     return NotificationModel(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: const Uuid().v4(),
       type: NotificationType.orderTaken,
       title: 'Order taken',
       message: 'Your order $orderId has been taken by a counterpart.',
@@ -147,7 +149,7 @@ class NotificationModel {
 
   factory NotificationModel.backupReminder() {
     return NotificationModel(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: const Uuid().v4(),
       type: NotificationType.system,
       title: 'Back up your account',
       message: 'Save your secret words to avoid losing access to your account.',

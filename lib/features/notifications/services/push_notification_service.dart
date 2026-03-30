@@ -54,11 +54,12 @@ class PushNotificationService {
     final disputeId = payload['disputeId'] as String?;
 
     return switch (type) {
-      'trade_updated' when _isValidId(orderId) => '/trade_detail/$orderId',
-      'invoice_request' when _isValidId(orderId) => '/add_invoice/$orderId',
-      'payment_received' when _isValidId(orderId) => '/pay_invoice/$orderId',
-      'rating_received' when _isValidId(orderId) => '/rate_user/$orderId',
-      'dispute_update' when _isValidId(disputeId) => '/dispute_details/$disputeId',
+      'tradeUpdate' when _isValidId(orderId) => '/trade_detail/$orderId',
+      'invoiceRequest' when _isValidId(orderId) => '/add_invoice/$orderId',
+      'paymentReceived' when _isValidId(orderId) => '/pay_invoice/$orderId',
+      'ratingReceived' when _isValidId(orderId) => '/rate_user/$orderId',
+      'orderTaken' when _isValidId(orderId) => '/add_invoice/$orderId',
+      'dispute' when _isValidId(disputeId) => '/dispute_details/$disputeId',
       _ => null,
     };
   }
@@ -84,11 +85,21 @@ class NotificationListenerWidget extends StatefulWidget {
 
 class _NotificationListenerWidgetState
     extends State<NotificationListenerWidget> {
+  // StreamSubscription<RemoteMessage>? _openedAppSubscription;
+
   @override
   void initState() {
     super.initState();
-    // TODO(firebase): Subscribe to FirebaseMessaging.onMessageOpenedApp here
-    // and call _handlePayload with the message data map.
+    // TODO(firebase): Uncomment when firebase_messaging is added
+    // _openedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+    //   (message) => _handlePayload(message.data),
+    // );
+  }
+
+  @override
+  void dispose() {
+    // _openedAppSubscription?.cancel();
+    super.dispose();
   }
 
   // ignore: unused_element

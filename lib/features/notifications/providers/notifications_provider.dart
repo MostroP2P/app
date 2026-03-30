@@ -2,11 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:sembast/sembast_io.dart';
-import 'package:sembast/sembast_memory.dart';
+import 'package:sembast/sembast.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:mostro/features/notifications/models/notification_model.dart';
+
+// Platform-specific imports
+import 'package:path_provider/path_provider.dart'
+    if (dart.library.html) 'dart:html';
+import 'package:sembast/sembast_io.dart'
+    if (dart.library.html) 'package:sembast_web/sembast_web.dart';
 
 // ── Sembast persistence store ─────────────────────────────────────────────────
 
@@ -26,9 +31,7 @@ class SembastNotificationsStore {
     try {
       final Database db;
       if (kIsWeb) {
-        // TODO(web-push): Replace with databaseFactoryWeb once sembast_web is
-        // added to pubspec.yaml. Using in-memory factory as a placeholder.
-        db = await databaseFactoryMemory.openDatabase(_dbName);
+        db = await databaseFactoryWeb.openDatabase(_dbName);
       } else {
         final dir = await getApplicationDocumentsDirectory();
         final path = '${dir.path}/$_dbName';
@@ -184,9 +187,31 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
 
   // ── Bridge stubs ────────────────────────────────────────────────────────────
 
-  /// TODO(bridge): Call from bridge listener for on_trade_updated events.
-  void onTradeUpdated(String orderId, String status) {}
+  /// Called from bridge listener for on_trade_updated events.
+  void onTradeUpdated(String orderId, String status) {
+    final notification = NotificationModel(
+      id: const Uuid().v4(),
+      type: NotificationType.tradeUpdate,
+      title: 'Trade updated',
+      message: 'Order $orderId status changed to $status.',
+      timestamp: DateTime.now(),
+      orderId: orderId,
+      detail: {'Order': orderId, 'Status': status},
+    );
+    add(notification);
+  }
 
-  /// TODO(bridge): Call from bridge listener for on_new_message events.
-  void onNewMessage(String orderId) {}
+  /// Called from bridge listener for on_new_message events.
+  void onNewMessage(String orderId) {
+    final notification = NotificationModel(
+      id: const Uuid().v4(),
+      type: NotificationType.message,
+      title: 'New message',
+      message: 'You have a new message for order $orderId.',
+      timestamp: DateTime.now(),
+      orderId: orderId,
+      detail: {'Order': orderId},
+    );
+    add(notification);
+  }
 }

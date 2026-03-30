@@ -26,6 +26,7 @@ dependencies:
 
   # Local persistence (Dart UI layer — all platforms)
   sembast: ^3.8.2
+  sembast_web: ^2.3.1+1
 
   # Secure storage (PIN unlock; key crypto stays in Rust)
   flutter_secure_storage: ^9.2.4
@@ -54,6 +55,9 @@ dependencies:
 
   # Internationalization
   intl: ^0.20.2
+
+  # UUID generation (collision-resistant notification IDs)
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:
