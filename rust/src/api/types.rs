@@ -378,6 +378,30 @@ fn default_expiration_seconds() -> u32 {
     900
 }
 
+/// Rating submitted or received for a completed trade.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RatingInfo {
+    /// The trade this rating belongs to.
+    pub trade_id: String,
+    /// Star score (1–5).
+    pub score: u8,
+    /// `true` if the local user submitted this rating.
+    pub is_mine: bool,
+    /// Unix timestamp (seconds) when the rating was submitted.
+    pub created_at: i64,
+}
+
+/// Event emitted when the counterparty submits a rating for the local user.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RatingReceivedEvent {
+    /// The trade this rating belongs to.
+    pub trade_id: String,
+    /// Star score submitted by the counterparty (1–5).
+    pub score: u8,
+    /// Nostr public key (hex) of the rater.
+    pub from_pubkey: String,
+}
+
 /// An open or resolved dispute on a trade.
 ///
 /// Created locally when the user initiates a dispute or when a peer-initiated
