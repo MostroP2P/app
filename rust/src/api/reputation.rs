@@ -38,17 +38,27 @@ impl RatingStore {
         }
     }
 
-    async fn insert(&self, info: RatingInfo) {
-        let mut store = self.ratings.write().await;
-        store.insert(info.trade_id.clone(), info);
-    }
-
     async fn get(&self, trade_id: &str) -> Option<RatingInfo> {
         self.ratings.read().await.get(trade_id).cloned()
     }
 
-    async fn contains(&self, trade_id: &str) -> bool {
-        self.ratings.read().await.contains_key(trade_id)
+    /// Atomically insert a new rating only if no rating already exists for the
+    /// trade.  Prevents TOCTOU races on concurrent `submit_rating` calls.
+    async fn try_insert_if_absent(&self, info: RatingInfo) -> Result<()> {
+        let mut store = self.ratings.write().await;
+        if store.contains_key(&info.trade_id) {
+            bail!(
+                "AlreadyRated: a rating has already been submitted for trade {}",
+                info.trade_id
+            );
+        }
+        store.insert(info.trade_id.clone(), info);
+        Ok(())
+    }
+
+    async fn insert(&self, info: RatingInfo) {
+        let mut store = self.ratings.write().await;
+        store.insert(info.trade_id.clone(), info);
     }
 }
 
@@ -93,21 +103,18 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
         bail!("PrivacyModeEnabled: cannot submit rating while privacy mode is active");
     }
 
-    if store.contains(&trade_id).await {
-        bail!("AlreadyRated: a rating has already been submitted for trade {trade_id}");
-    }
-
     // TODO(Phase 14+): Look up the session to get trade key + mostro pubkey,
     // then send a RateUser MostroMessage via NIP-59 Gift Wrap.
 
+    // Atomic check-and-insert under write lock — prevents TOCTOU races.
     store
-        .insert(RatingInfo {
+        .try_insert_if_absent(RatingInfo {
             trade_id,
             score,
             is_mine: true,
             created_at: unix_now(),
         })
-        .await;
+        .await?;
 
     Ok(())
 }
@@ -204,9 +211,19 @@ pub fn on_rating_received() -> RatingStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    /// Serializes tests that mutate the global `privacy_mode` flag so they
+    /// don't race with each other or with tests that call `submit_rating`.
+    fn privacy_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[tokio::test]
     async fn submit_rating_stores_record() {
+        let _guard = privacy_lock().lock().unwrap();
+        set_privacy_mode(false); // ensure clean state
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         submit_rating(trade_id.clone(), 4).await.unwrap();
 
@@ -232,6 +249,8 @@ mod tests {
 
     #[tokio::test]
     async fn duplicate_rating_is_rejected() {
+        let _guard = privacy_lock().lock().unwrap();
+        set_privacy_mode(false); // ensure clean state
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         submit_rating(trade_id.clone(), 3).await.unwrap();
         let err = submit_rating(trade_id, 5).await.unwrap_err();
@@ -240,16 +259,17 @@ mod tests {
 
     #[tokio::test]
     async fn privacy_mode_blocks_rating() {
+        let _guard = privacy_lock().lock().unwrap();
         set_privacy_mode(true);
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         let err = submit_rating(trade_id, 4).await.unwrap_err();
         assert!(err.to_string().contains("PrivacyModeEnabled"));
-        // Reset to avoid affecting other tests.
         set_privacy_mode(false);
     }
 
     #[tokio::test]
     async fn privacy_mode_toggle() {
+        let _guard = privacy_lock().lock().unwrap();
         set_privacy_mode(true);
         assert!(get_privacy_mode());
         set_privacy_mode(false);
