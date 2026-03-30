@@ -1,12 +1,12 @@
-/// Mostro action dispatch — builds and publishes MostroMessages.
+/// Mostro action dispatch — builds and wraps MostroMessages.
 ///
-/// Each function constructs a `MostroMessage` JSON payload, wraps it
-/// via NIP-59 Gift Wrap, and publishes to relays.
-use anyhow::{anyhow, Result};
+/// Each function constructs a `MostroMessage` JSON payload and wraps it
+/// via NIP-59 Gift Wrap, returning the event JSON ready for publication.
+use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde_json::json;
 
-use crate::api::types::{OrderInfo, OrderKind};
+use crate::api::types::OrderKind;
 use crate::nostr::gift_wrap;
 
 /// Kind used for Mostro direct messages (NIP-59 inner rumor).

@@ -59,12 +59,12 @@ class CurrencySection extends ConsumerWidget {
 
     showDialog<void>(
       context: context,
-      builder: (_) => _CurrencyPickerDialog(
+      builder: (dialogContext) => _CurrencyPickerDialog(
         currencies: list,
         selected: ref.read(selectedFiatCodeProvider),
         onSelect: (code) {
           ref.read(selectedFiatCodeProvider.notifier).state = code;
-          Navigator.pop(context);
+          Navigator.pop(dialogContext);
         },
       ),
     );

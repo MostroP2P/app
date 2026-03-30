@@ -38,11 +38,8 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     super.dispose();
   }
 
-  bool get _isValid {
-    final selectedMethods = ref.read(selectedPaymentMethodsProvider);
-    final customMethod = ref.read(customPaymentMethodProvider);
+  bool _checkValid(List<String> selectedMethods, String customMethod) {
     final hasPayment = selectedMethods.isNotEmpty || customMethod.isNotEmpty;
-
     if (!hasPayment) return false;
 
     if (_isRange) {
@@ -56,7 +53,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
   }
 
   Future<void> _submit() async {
-    if (_submitting || !_isValid) return;
+    final selectedMethods = ref.read(selectedPaymentMethodsProvider);
+    final customMethod = ref.read(customPaymentMethodProvider);
+    if (_submitting || !_checkValid(selectedMethods, customMethod)) return;
     setState(() => _submitting = true);
 
     try {
@@ -80,6 +79,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
+    final selectedMethods = ref.watch(selectedPaymentMethodsProvider);
+    final customMethod = ref.watch(customPaymentMethodProvider);
+    final isValid = _checkValid(selectedMethods, customMethod);
 
     return Scaffold(
       appBar: AppBar(title: const Text('CREATING NEW ORDER')),
@@ -227,7 +229,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: FilledButton(
-                  onPressed: _isValid ? _submit : null,
+                  onPressed: isValid ? _submit : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: green,
                     foregroundColor: Colors.black,

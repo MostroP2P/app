@@ -25,11 +25,33 @@ final selectedPaymentMethodsProvider =
 final customPaymentMethodProvider = StateProvider<String>((_) => '');
 
 /// Multi-select payment methods + custom text field.
-class PaymentMethodSection extends ConsumerWidget {
+class PaymentMethodSection extends ConsumerStatefulWidget {
   const PaymentMethodSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PaymentMethodSection> createState() =>
+      _PaymentMethodSectionState();
+}
+
+class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
+  late final TextEditingController _customController;
+
+  @override
+  void initState() {
+    super.initState();
+    _customController = TextEditingController(
+      text: ref.read(customPaymentMethodProvider),
+    );
+  }
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
@@ -64,7 +86,7 @@ class PaymentMethodSection extends ConsumerWidget {
 
         // Add method button
         GestureDetector(
-          onTap: () => _showMethodPicker(context, ref),
+          onTap: () => _showMethodPicker(context),
           behavior: HitTestBehavior.opaque,
           child: Container(
             width: double.infinity,
@@ -89,6 +111,7 @@ class PaymentMethodSection extends ConsumerWidget {
 
         // Custom method text field
         TextField(
+          controller: _customController,
           decoration: InputDecoration(
             hintText: 'Custom payment method...',
             filled: true,
@@ -118,16 +141,16 @@ class PaymentMethodSection extends ConsumerWidget {
     );
   }
 
-  void _showMethodPicker(BuildContext context, WidgetRef ref) {
+  void _showMethodPicker(BuildContext context) {
     final selected = ref.read(selectedPaymentMethodsProvider);
 
     showDialog<void>(
       context: context,
-      builder: (_) => _MethodPickerDialog(
+      builder: (dialogContext) => _MethodPickerDialog(
         selected: selected,
         onDone: (methods) {
           ref.read(selectedPaymentMethodsProvider.notifier).state = methods;
-          Navigator.pop(context);
+          Navigator.pop(dialogContext);
         },
       ),
     );

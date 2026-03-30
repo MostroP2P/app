@@ -13,11 +13,33 @@ final premiumValueProvider = StateProvider<double>((_) => 0.0);
 final fixedSatsProvider = StateProvider<String>((_) => '');
 
 /// Price type toggle + premium/fixed sats input.
-class PriceSection extends ConsumerWidget {
+class PriceSection extends ConsumerStatefulWidget {
   const PriceSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PriceSection> createState() => _PriceSectionState();
+}
+
+class _PriceSectionState extends ConsumerState<PriceSection> {
+  late final TextEditingController _premiumController;
+  bool _editingPremium = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _premiumController = TextEditingController(
+      text: ref.read(premiumValueProvider).toStringAsFixed(1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _premiumController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
@@ -25,6 +47,14 @@ class PriceSection extends ConsumerWidget {
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final isMarket = ref.watch(isMarketPriceProvider);
     final premium = ref.watch(premiumValueProvider);
+
+    // Sync controller when slider changes (but not while user is editing).
+    if (!_editingPremium) {
+      final newText = premium.toStringAsFixed(1);
+      if (_premiumController.text != newText) {
+        _premiumController.text = newText;
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,9 +115,7 @@ class PriceSection extends ConsumerWidget {
                         SizedBox(
                           width: 60,
                           child: TextField(
-                            controller: TextEditingController(
-                              text: premium.toStringAsFixed(1),
-                            ),
+                            controller: _premiumController,
                             keyboardType: const TextInputType.numberWithOptions(
                               signed: true,
                               decimal: true,
@@ -111,12 +139,17 @@ class PriceSection extends ConsumerWidget {
                                 borderSide: BorderSide.none,
                               ),
                             ),
+                            onTap: () => _editingPremium = true,
                             onSubmitted: (v) {
+                              _editingPremium = false;
                               final parsed = double.tryParse(v);
                               if (parsed != null) {
                                 ref.read(premiumValueProvider.notifier).state =
                                     parsed.clamp(-10.0, 10.0);
                               }
+                            },
+                            onTapOutside: (_) {
+                              _editingPremium = false;
                             },
                           ),
                         ),
@@ -192,7 +225,7 @@ class PriceSection extends ConsumerWidget {
   void _showPriceInfo(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Price Types'),
         content: const Text(
           'Market Price: Your order price follows the market rate with '
@@ -201,7 +234,7 @@ class PriceSection extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('OK'),
           ),
         ],

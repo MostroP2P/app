@@ -30,7 +30,12 @@ pub enum Action {
 pub fn next_status(current: &OrderStatus, action: Action, role: TradeRole) -> Option<OrderStatus> {
     match (current, action, role) {
         // ── Order creation ──────────────────────────────────────────────
-        (_, Action::NewOrder, _) => Some(OrderStatus::Pending),
+        // NewOrder is only valid when no prior state exists. Callers
+        // should not pass terminal/active states here. We restrict to
+        // Pending (self-transition for idempotency) or reject entirely.
+        // In practice, order creation is handled outside the FSM; this
+        // arm exists only for completeness.
+        (OrderStatus::Pending, Action::NewOrder, _) => Some(OrderStatus::Pending),
 
         // ── Taking an order ─────────────────────────────────────────────
         (OrderStatus::Pending, Action::TakeBuy, TradeRole::Buyer) => Some(OrderStatus::WaitingBuyerInvoice),
@@ -52,6 +57,11 @@ pub fn next_status(current: &OrderStatus, action: Action, role: TradeRole) -> Op
         (OrderStatus::Pending, Action::Cancel, _) => Some(OrderStatus::Canceled),
 
         // Cooperative cancel — either party can request.
+        // Role enforcement (requester != accepter) is handled by the
+        // application layer via `TradeInfo.cooperative_cancel_state`
+        // (`RequestedByMe` / `RequestedByPeer`), not by the status FSM,
+        // because `OrderStatus` follows the mostro-core protocol which
+        // has no intermediate cancel-requested states.
         (OrderStatus::Active, Action::CooperativeCancel, _) => Some(OrderStatus::Active),
         (OrderStatus::Active, Action::AcceptCooperativeCancel, _) => Some(OrderStatus::CooperativelyCanceled),
         (OrderStatus::FiatSent, Action::CooperativeCancel, _) => Some(OrderStatus::FiatSent),
