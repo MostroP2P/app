@@ -208,6 +208,26 @@ pub struct OrderInfo {
     pub is_mine: bool,
 }
 
+/// Parameters for creating a new order via the Mostro protocol.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NewOrderParams {
+    pub kind: OrderKind,
+    /// Fixed fiat amount (null if range order).
+    pub fiat_amount: Option<f64>,
+    /// Min fiat amount for range orders (null if fixed).
+    pub fiat_amount_min: Option<f64>,
+    /// Max fiat amount for range orders (null if fixed).
+    pub fiat_amount_max: Option<f64>,
+    /// ISO 4217 fiat currency code.
+    pub fiat_code: String,
+    /// Comma-separated payment method descriptions.
+    pub payment_method: String,
+    /// Market premium/discount percentage.
+    pub premium: f64,
+    /// Optional fixed sat amount.
+    pub amount_sats: Option<u64>,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TradeInfo {
     pub id: String,

@@ -6,7 +6,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
-use crate::api::types::{OrderInfo, OrderKind, OrderStatus};
+use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
 use crate::nostr::order_events::parse_order_event;
 
 /// Filter parameters for the order list.
@@ -138,6 +138,69 @@ pub async fn get_orders(filters: Option<OrderFilters>) -> Result<Vec<OrderInfo>>
 /// Public API: get a single order by ID.
 pub async fn get_order(order_id: String) -> Result<Option<OrderInfo>> {
     Ok(order_book().get_order(&order_id).await)
+}
+
+/// Create a new order on the Mostro network.
+///
+/// Validates params, builds the MostroMessage, wraps via NIP-59, and
+/// publishes to relays. Queues if offline.
+///
+/// TODO: Wire to actual Rust bridge identity + relay pool in Phase 7.
+/// Currently validates params and returns a mock OrderInfo.
+pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
+    // Validate: fiat_amount XOR range
+    let has_fixed = params.fiat_amount.is_some();
+    let has_range = params.fiat_amount_min.is_some() && params.fiat_amount_max.is_some();
+    if has_fixed == has_range {
+        return Err(anyhow::anyhow!(
+            "Must provide either fiat_amount or both fiat_amount_min and fiat_amount_max"
+        ));
+    }
+    if has_range {
+        let min = params.fiat_amount_min.unwrap();
+        let max = params.fiat_amount_max.unwrap();
+        if min <= 0.0 || min >= max {
+            return Err(anyhow::anyhow!(
+                "fiat_amount_min must be > 0 and < fiat_amount_max"
+            ));
+        }
+    }
+    if params.fiat_code.trim().is_empty() {
+        return Err(anyhow::anyhow!("fiat_code must not be empty"));
+    }
+    if params.payment_method.trim().is_empty() {
+        return Err(anyhow::anyhow!("payment_method must not be empty"));
+    }
+
+    // Build a local OrderInfo representing the newly created order.
+    // In Phase 7, this will be replaced by the actual Mostro response
+    // after the NIP-59 message is published and acknowledged.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    let order = OrderInfo {
+        id: uuid::Uuid::new_v4().to_string(),
+        kind: params.kind,
+        status: OrderStatus::Pending,
+        amount_sats: params.amount_sats,
+        fiat_amount: params.fiat_amount,
+        fiat_amount_min: params.fiat_amount_min,
+        fiat_amount_max: params.fiat_amount_max,
+        fiat_code: params.fiat_code,
+        payment_method: params.payment_method,
+        premium: params.premium,
+        creator_pubkey: String::new(), // filled by identity in Phase 7
+        created_at: now,
+        expires_at: Some(now + 24 * 3600),
+        is_mine: true,
+    };
+
+    // Cache locally
+    order_book().upsert_order(order.clone()).await;
+
+    Ok(order)
 }
 
 /// Stream that emits whenever the order list changes.
