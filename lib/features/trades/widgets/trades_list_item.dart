@@ -151,6 +151,8 @@ class TradesListItem extends StatelessWidget {
       TradeStatusFilter.success => AppColors.statusSuccess,
       TradeStatusFilter.canceled => AppColors.statusInactive,
       TradeStatusFilter.dispute => AppColors.statusDispute,
+      // `all` is a filter sentinel, not a real trade status — shouldn't occur
+      // in practice since TradesListItem only renders individual trades.
       TradeStatusFilter.all => AppColors.statusInactive,
     };
   }
