@@ -95,6 +95,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             'Once you verify receipt, release the sats.';
       }
     }
+    if (_status == TradeStatus.disputed) {
+      return 'A dispute resolver has been assigned. '
+          'They will contact you through the app.';
+    }
     return 'Trade in progress.';
   }
 
@@ -370,6 +374,126 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: green,
                 foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+            ),
+          ],
+
+          // ── Disputed — CLOSE + CONTACT + CANCEL + RELEASE + VIEW DISPUTE ──
+          if (_status == TradeStatus.disputed) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: green,
+                      side: BorderSide(color: green),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                    child: const Text('CLOSE'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                    label: const Text('CONTACT'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: green,
+                      side: BorderSide(color: green),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.cancel_outlined, size: 16),
+                    label: const Text('CANCEL'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      side: BorderSide(
+                        color:
+                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                      ),
+                      minimumSize: const Size(0, 40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.button),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: MostroReactiveButton(
+                    label: 'RELEASE',
+                    backgroundColor: green,
+                    icon: Icons.lock_open,
+                    onPressed: () async {
+                      final confirmed =
+                          await showReleaseConfirmationDialog(context);
+                      if (confirmed != true || !context.mounted) return;
+                      try {
+                        await Future.delayed(
+                          const Duration(milliseconds: 500),
+                        );
+                        if (context.mounted) {
+                          context.push(
+                            AppRoute.rateUserPath(widget.orderId),
+                          );
+                        }
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Release failed: $e')),
+                        );
+                      }
+                    },
+                    onError: (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Release failed: $e')),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton.icon(
+              onPressed: () => context.push(
+                AppRoute.disputeDetailsPath(widget.orderId),
+              ),
+              icon: const Icon(Icons.gavel, size: 16),
+              label: const Text('VIEW DISPUTE'),
+              style: FilledButton.styleFrom(
+                backgroundColor: colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(40),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.button),
