@@ -91,6 +91,7 @@ class _PayLightningInvoiceScreenState
                             data: _mockInvoice,
                             size: 200,
                             backgroundColor: Colors.white,
+                            semanticsLabel: 'Lightning invoice QR code',
                           ),
                         ),
                       ),
@@ -102,10 +103,11 @@ class _PayLightningInvoiceScreenState
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: () {
-                              Clipboard.setData(
+                            onPressed: () async {
+                              await Clipboard.setData(
                                 ClipboardData(text: _mockInvoice),
                               );
+                              if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Invoice copied'),

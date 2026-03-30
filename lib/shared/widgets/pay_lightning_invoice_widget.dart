@@ -12,14 +12,10 @@ class PayLightningInvoiceWidget extends StatelessWidget {
     super.key,
     required this.bolt11,
     required this.amountSats,
-    this.onSubmit,
-    this.onCancel,
   });
 
   final String bolt11;
   final int amountSats;
-  final VoidCallback? onSubmit;
-  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -56,8 +52,9 @@ class PayLightningInvoiceWidget extends StatelessWidget {
           children: [
             Expanded(
               child: FilledButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: bolt11));
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: bolt11));
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Invoice copied'),
