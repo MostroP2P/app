@@ -21,5 +21,16 @@
   "disputeMessagingComingSoon": "Mensajería de disputa próximamente",
   "disputeAttachmentsComingSoon": "Archivos adjuntos próximamente",
   "disputeNotFound": "Disputa no encontrada.",
-  "disputeNotFoundForOrder": "No se encontró ninguna disputa para esta orden."
+  "disputeNotFoundForOrder": "No se encontró ninguna disputa para esta orden.",
+  "disputeResolved": "Resuelto",
+  "disputeSuccessfullyCompleted": "Completado con éxito",
+  "disputeCoopCancelMessage": "La orden fue cancelada cooperativamente. No se transfirieron fondos.",
+  "disputeWithBuyer": "Disputa con Comprador: {handle}",
+  "disputeWithSeller": "Disputa con Vendedor: {handle}",
+  "orderLabel": "Orden {orderId}",
+  "disputeInitiated": "Iniciado",
+  "disputeInProgress": "En progreso",
+  "disputeStatusClosed": "Cerrado",
+  "disputeLostFundsToBuyer": "El administrador resolvió la disputa a favor del comprador. Los sats fueron liberados al comprador.",
+  "disputeLostFundsToSeller": "El administrador canceló la orden y devolvió los sats al vendedor. No recibiste los sats."
 }

@@ -136,11 +136,19 @@ class _HeaderTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
     final handle = dispute.peerHandle ?? 'Unknown';
-    final role = dispute.isSelling ? 'Buyer' : 'Seller';
 
-    final (statusBg, statusFg, statusLabel) = _statusChip(dispute.status);
+    final title = dispute.isSelling
+        ? l10n.disputeWithBuyer(handle)
+        : l10n.disputeWithSeller(handle);
+
+    final truncatedId = dispute.tradeId.length > 12
+        ? '${dispute.tradeId.substring(0, 12)}\u2026'
+        : dispute.tradeId;
+
+    final (statusBg, statusFg, statusLabel) = _statusChip(dispute.status, l10n);
 
     return Row(
       children: [
@@ -150,7 +158,7 @@ class _HeaderTitle extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Dispute with $role: $handle',
+                title,
                 style: textTheme.titleMedium?.copyWith(
                   color: colors.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -159,7 +167,7 @@ class _HeaderTitle extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Order ${dispute.tradeId.length > 12 ? '${dispute.tradeId.substring(0, 12)}…' : dispute.tradeId}',
+                l10n.orderLabel(truncatedId),
                 style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
               ),
             ],
@@ -186,22 +194,25 @@ class _HeaderTitle extends StatelessWidget {
     );
   }
 
-  static (Color, Color, String) _statusChip(DisputeStatus status) {
+  static (Color, Color, String) _statusChip(
+    DisputeStatus status,
+    AppLocalizations l10n,
+  ) {
     return switch (status) {
       DisputeStatus.open => (
         AppColors.statusPending.$1,
         AppColors.statusPending.$2,
-        'Initiated',
+        l10n.disputeInitiated,
       ),
       DisputeStatus.inReview => (
         AppColors.statusActive.$1,
         AppColors.statusActive.$2,
-        'In progress',
+        l10n.disputeInProgress,
       ),
       DisputeStatus.resolved => (
         AppColors.statusInactive.$1,
         AppColors.statusInactive.$2,
-        'Closed',
+        l10n.disputeStatusClosed,
       ),
     };
   }
@@ -225,6 +236,7 @@ class _ResolvedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
 
     if (dispute.resolution == DisputeResolution.cooperativeCancel) {
@@ -250,7 +262,7 @@ class _ResolvedBanner extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.chip),
               ),
               child: Text(
-                'Resolved',
+                l10n.disputeResolved,
                 style: textTheme.bodySmall?.copyWith(
                   color: AppColors.statusActive.$2,
                   fontWeight: FontWeight.bold,
@@ -260,7 +272,7 @@ class _ResolvedBanner extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'The order was cooperatively cancelled. No funds were transferred.',
+              l10n.disputeCoopCancelMessage,
               style: textTheme.bodySmall?.copyWith(
                 color: AppColors.statusActive.$2,
               ),
@@ -272,7 +284,7 @@ class _ResolvedBanner extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: Text(
-                    'This dispute has been resolved. The chat is closed.',
+                    l10n.disputeChatClosed,
                     style: textTheme.bodySmall?.copyWith(
                       color: AppColors.statusActive.$2,
                       fontStyle: FontStyle.italic,
@@ -310,7 +322,7 @@ class _ResolvedBanner extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Successfully completed',
+              l10n.disputeSuccessfullyCompleted,
               style: textTheme.bodyMedium?.copyWith(
                 color: AppColors.statusSuccess.$2,
                 fontWeight: FontWeight.bold,
@@ -324,7 +336,7 @@ class _ResolvedBanner extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 Flexible(
                   child: Text(
-                    'This dispute has been resolved. The chat is closed.',
+                    l10n.disputeChatClosed,
                     style: textTheme.bodySmall?.copyWith(
                       color: AppColors.statusSuccess.$2,
                       fontStyle: FontStyle.italic,
@@ -360,7 +372,7 @@ class _ResolvedBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.chip),
             ),
             child: Text(
-              'Resolved',
+              l10n.disputeResolved,
               style: textTheme.bodySmall?.copyWith(
                 color: AppColors.statusActive.$2,
                 fontWeight: FontWeight.bold,
@@ -376,7 +388,7 @@ class _ResolvedBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.card),
             ),
             child: Text(
-              _lostResolutionText(dispute),
+              _lostResolutionText(dispute, l10n),
               style: textTheme.bodySmall?.copyWith(
                 color: AppColors.statusSuccess.$2,
               ),
@@ -389,7 +401,7 @@ class _ResolvedBanner extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
-                  'This dispute has been resolved. The chat is closed.',
+                  l10n.disputeChatClosed,
                   style: textTheme.bodySmall?.copyWith(
                     color: AppColors.statusActive.$2,
                     fontStyle: FontStyle.italic,
@@ -404,23 +416,17 @@ class _ResolvedBanner extends StatelessWidget {
   }
 
   /// Returns the outcome description for the party who did not win.
-  static String _lostResolutionText(DisputeItem dispute) {
-    if (dispute.resolution == DisputeResolution.fundsToBuyer) {
-      // Admin settled in buyer's favour.
-      return dispute.isSelling
-          ? 'The administrator settled the dispute in the buyer\'s favour. '
-            'The sats were released to the buyer.'
-          : 'The administrator settled the dispute in your favour. '
-            'You received the sats.';
+  ///
+  /// Only called when [userWon] is false and resolution is not
+  /// [DisputeResolution.cooperativeCancel], so the two reachable cases are:
+  /// - [DisputeResolution.fundsToBuyer] with isSelling=true (seller lost)
+  /// - [DisputeResolution.fundsToSeller] with isSelling=false (buyer lost)
+  static String _lostResolutionText(DisputeItem dispute, AppLocalizations l10n) {
+    if (dispute.isSelling) {
+      // Seller lost: admin released funds to the buyer.
+      return l10n.disputeLostFundsToBuyer;
     }
-    if (dispute.resolution == DisputeResolution.fundsToSeller) {
-      // Admin canceled; sats returned to seller.
-      return dispute.isSelling
-          ? 'The administrator canceled the order. '
-            'The sats were returned to you.'
-          : 'The administrator canceled the order and returned the sats to the seller. '
-            'You did not receive the sats.';
-    }
-    return 'The dispute has been resolved.';
+    // Buyer lost: admin returned funds to the seller.
+    return l10n.disputeLostFundsToSeller;
   }
 }

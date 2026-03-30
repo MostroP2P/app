@@ -74,4 +74,46 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get disputeNotFoundForOrder =>
       'Nessuna controversia trovata per questo ordine.';
+
+  @override
+  String get disputeResolved => 'Risolto';
+
+  @override
+  String get disputeSuccessfullyCompleted => 'Completato con successo';
+
+  @override
+  String get disputeCoopCancelMessage =>
+      'L\'ordine è stato annullato cooperativamente. Nessun fondo è stato trasferito.';
+
+  @override
+  String disputeWithBuyer(String handle) {
+    return 'Controversia con l\'Acquirente: $handle';
+  }
+
+  @override
+  String disputeWithSeller(String handle) {
+    return 'Controversia con il Venditore: $handle';
+  }
+
+  @override
+  String orderLabel(String orderId) {
+    return 'Ordine $orderId';
+  }
+
+  @override
+  String get disputeInitiated => 'Avviato';
+
+  @override
+  String get disputeInProgress => 'In corso';
+
+  @override
+  String get disputeStatusClosed => 'Chiuso';
+
+  @override
+  String get disputeLostFundsToBuyer =>
+      'L\'amministratore ha risolto la controversia a favore dell\'acquirente. I sats sono stati rilasciati all\'acquirente.';
+
+  @override
+  String get disputeLostFundsToSeller =>
+      'L\'amministratore ha annullato l\'ordine e restituito i sats al venditore. Non hai ricevuto i sats.';
 }

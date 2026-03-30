@@ -72,4 +72,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disputeNotFoundForOrder => 'Dispute not found for this order.';
+
+  @override
+  String get disputeResolved => 'Resolved';
+
+  @override
+  String get disputeSuccessfullyCompleted => 'Successfully completed';
+
+  @override
+  String get disputeCoopCancelMessage =>
+      'The order was cooperatively cancelled. No funds were transferred.';
+
+  @override
+  String disputeWithBuyer(String handle) {
+    return 'Dispute with Buyer: $handle';
+  }
+
+  @override
+  String disputeWithSeller(String handle) {
+    return 'Dispute with Seller: $handle';
+  }
+
+  @override
+  String orderLabel(String orderId) {
+    return 'Order $orderId';
+  }
+
+  @override
+  String get disputeInitiated => 'Initiated';
+
+  @override
+  String get disputeInProgress => 'In progress';
+
+  @override
+  String get disputeStatusClosed => 'Closed';
+
+  @override
+  String get disputeLostFundsToBuyer =>
+      'The administrator settled the dispute in the buyer\'s favour. The sats were released to the buyer.';
+
+  @override
+  String get disputeLostFundsToSeller =>
+      'The administrator canceled the order and returned the sats to the seller. You did not receive the sats.';
 }

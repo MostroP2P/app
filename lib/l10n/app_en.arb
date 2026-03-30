@@ -42,5 +42,36 @@
   "disputeNotFound": "Dispute not found.",
   "@disputeNotFound": {"description": "Body text shown when a dispute cannot be found by ID"},
   "disputeNotFoundForOrder": "Dispute not found for this order.",
-  "@disputeNotFoundForOrder": {"description": "Snackbar shown when no dispute exists for the current trade"}
+  "@disputeNotFoundForOrder": {"description": "Snackbar shown when no dispute exists for the current trade"},
+  "disputeResolved": "Resolved",
+  "@disputeResolved": {"description": "Badge label shown on a resolved dispute banner"},
+  "disputeSuccessfullyCompleted": "Successfully completed",
+  "@disputeSuccessfullyCompleted": {"description": "Heading shown when the viewing party won the dispute"},
+  "disputeCoopCancelMessage": "The order was cooperatively cancelled. No funds were transferred.",
+  "@disputeCoopCancelMessage": {"description": "Body text in the cooperative-cancel resolved banner"},
+  "disputeWithBuyer": "Dispute with Buyer: {handle}",
+  "@disputeWithBuyer": {
+    "description": "Dispute chat screen title when trading as seller (peer is the buyer)",
+    "placeholders": {"handle": {"type": "String"}}
+  },
+  "disputeWithSeller": "Dispute with Seller: {handle}",
+  "@disputeWithSeller": {
+    "description": "Dispute chat screen title when trading as buyer (peer is the seller)",
+    "placeholders": {"handle": {"type": "String"}}
+  },
+  "orderLabel": "Order {orderId}",
+  "@orderLabel": {
+    "description": "Sub-title showing the truncated order/trade ID",
+    "placeholders": {"orderId": {"type": "String"}}
+  },
+  "disputeInitiated": "Initiated",
+  "@disputeInitiated": {"description": "Status chip label for a newly opened dispute"},
+  "disputeInProgress": "In progress",
+  "@disputeInProgress": {"description": "Status chip label for a dispute under admin review"},
+  "disputeStatusClosed": "Closed",
+  "@disputeStatusClosed": {"description": "Status chip label for a resolved/closed dispute"},
+  "disputeLostFundsToBuyer": "The administrator settled the dispute in the buyer's favour. The sats were released to the buyer.",
+  "@disputeLostFundsToBuyer": {"description": "Resolution text shown to the seller when admin released funds to the buyer"},
+  "disputeLostFundsToSeller": "The administrator canceled the order and returned the sats to the seller. You did not receive the sats.",
+  "@disputeLostFundsToSeller": {"description": "Resolution text shown to the buyer when admin returned funds to the seller"}
 }

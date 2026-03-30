@@ -21,5 +21,16 @@
   "disputeMessagingComingSoon": "Messaggistica per controversie in arrivo",
   "disputeAttachmentsComingSoon": "Allegati file in arrivo",
   "disputeNotFound": "Controversia non trovata.",
-  "disputeNotFoundForOrder": "Nessuna controversia trovata per questo ordine."
+  "disputeNotFoundForOrder": "Nessuna controversia trovata per questo ordine.",
+  "disputeResolved": "Risolto",
+  "disputeSuccessfullyCompleted": "Completato con successo",
+  "disputeCoopCancelMessage": "L'ordine è stato annullato cooperativamente. Nessun fondo è stato trasferito.",
+  "disputeWithBuyer": "Controversia con l'Acquirente: {handle}",
+  "disputeWithSeller": "Controversia con il Venditore: {handle}",
+  "orderLabel": "Ordine {orderId}",
+  "disputeInitiated": "Avviato",
+  "disputeInProgress": "In corso",
+  "disputeStatusClosed": "Chiuso",
+  "disputeLostFundsToBuyer": "L'amministratore ha risolto la controversia a favore dell'acquirente. I sats sono stati rilasciati all'acquirente.",
+  "disputeLostFundsToSeller": "L'amministratore ha annullato l'ordine e restituito i sats al venditore. Non hai ricevuto i sats."
 }
