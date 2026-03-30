@@ -7,5 +7,6 @@
   "cancel": "Annuler",
   "confirm": "Confirmer",
   "done": "Terminé",
-  "skip": "Passer"
+  "skip": "Passer",
+  "chatTimestampYesterday": "Hier"
 }

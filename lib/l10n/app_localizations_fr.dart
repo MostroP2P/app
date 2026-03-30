@@ -28,4 +28,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get skip => 'Passer';
+
+  @override
+  String get chatTimestampYesterday => 'Hier';
 }

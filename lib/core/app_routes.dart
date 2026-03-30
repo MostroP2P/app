@@ -9,6 +9,8 @@ import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart'
 import 'package:mostro/features/order/screens/add_order_screen.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
+import 'package:mostro/features/chat/screens/chat_room_screen.dart';
+import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/screens/walkthrough_screen.dart';
@@ -143,12 +145,13 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.chatList,
-      builder: (_, __) => const _Stub('Chat List'),
+      builder: (_, __) => const ChatRoomsScreen(),
     ),
     GoRoute(
       path: AppRoute.chatRoom,
-      builder: (context, state) =>
-          _Stub('Chat Room — ${state.pathParameters['orderId']}'),
+      builder: (context, state) => ChatRoomScreen(
+        orderId: state.pathParameters['orderId']!,
+      ),
     ),
     GoRoute(
       path: AppRoute.keyManagement,

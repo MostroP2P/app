@@ -145,6 +145,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skip'**
   String get skip;
+
+  /// Timestamp label for messages from yesterday
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get chatTimestampYesterday;
 }
 
 class _AppLocalizationsDelegate
