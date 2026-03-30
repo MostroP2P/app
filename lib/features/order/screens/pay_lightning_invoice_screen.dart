@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 
 /// Pay Lightning Invoice screen — Route `/pay_invoice/:orderId`.
 ///
@@ -33,6 +35,8 @@ class _PayLightningInvoiceScreenState
       'jyzpnpryz4jns7qs9qyyssqjrvz0waerp2g3kx6k2neqfmfp2sxlm0n3m';
 
   bool _waiting = false;
+  /// `true` when NWC is connected but payment failed → show QR fallback.
+  bool _manualMode = false;
 
   void _simulatePaymentDetected() {
     setState(() => _waiting = true);
@@ -48,6 +52,27 @@ class _PayLightningInvoiceScreenState
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+
+    final isWalletConnected = ref.watch(isWalletConnectedProvider);
+
+    // If NWC wallet is connected and payment hasn't failed yet, show auto-pay.
+    if (isWalletConnected && !_manualMode) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Pay Lightning Invoice')),
+        body: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Center(
+            child: NwcPaymentWidget(
+              bolt11: _mockInvoice,
+              // TODO(bridge): pass real sats amount from trade provider.
+              amountSats: 0,
+              onPaymentSuccess: _simulatePaymentDetected,
+              onFallbackToManual: () => setState(() => _manualMode = true),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Pay Lightning Invoice')),

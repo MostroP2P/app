@@ -13,6 +13,8 @@ import 'package:mostro/features/chat/screens/chat_room_screen.dart';
 import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
 import 'package:mostro/features/disputes/screens/dispute_chat_screen.dart';
 import 'package:mostro/features/rate/screens/rate_counterpart_screen.dart';
+import 'package:mostro/features/settings/screens/connect_wallet_screen.dart';
+import 'package:mostro/features/settings/screens/wallet_settings_screen.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/trades/screens/trades_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
@@ -178,11 +180,11 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.walletSettings,
-      builder: (_, __) => const _Stub('Wallet Settings'),
+      builder: (_, __) => const WalletSettingsScreen(),
     ),
     GoRoute(
       path: AppRoute.connectWallet,
-      builder: (_, __) => const _Stub('Connect Wallet'),
+      builder: (_, __) => const ConnectWalletScreen(),
     ),
     GoRoute(
       path: AppRoute.rateUser,
