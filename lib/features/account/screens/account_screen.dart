@@ -176,20 +176,33 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   style: theme.textTheme.bodySmall!.copyWith(color: textSec),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                _PrivacyOption(
-                  title: 'Reputation Mode',
-                  subtitle: 'Standard privacy with reputation',
-                  selected: !_privacyMode,
-                  green: green,
-                  onTap: () => setState(() => _privacyMode = false),
+                Opacity(
+                  opacity: 0.5,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PrivacyOption(
+                        title: 'Reputation Mode',
+                        subtitle: 'Standard privacy with reputation',
+                        selected: !_privacyMode,
+                        green: green,
+                        onTap: null,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _PrivacyOption(
+                        title: 'Full Privacy Mode',
+                        subtitle: 'Maximum anonymity',
+                        selected: _privacyMode,
+                        green: green,
+                        onTap: null,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                _PrivacyOption(
-                  title: 'Full Privacy Mode',
-                  subtitle: 'Maximum anonymity',
-                  selected: _privacyMode,
-                  green: green,
-                  onTap: () => setState(() => _privacyMode = true),
+                Text(
+                  'Coming soon',
+                  style: theme.textTheme.bodySmall!.copyWith(color: textSec),
                 ),
               ],
             ),
@@ -302,6 +315,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         content: TextField(
           controller: controller,
           maxLines: 3,
+          autocorrect: false,
+          enableSuggestions: false,
+          enableIMEPersonalizedLearning: false,
           decoration: const InputDecoration(
             hintText: 'Enter your 12 or 24 word phrase...',
           ),
@@ -422,13 +438,16 @@ class _PrivacyOption extends StatelessWidget {
   final String subtitle;
   final bool selected;
   final Color green;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label: title,
-      button: true,
+      button: onTap != null,
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      onTapHint: onTap != null ? 'select $title' : null,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(4),

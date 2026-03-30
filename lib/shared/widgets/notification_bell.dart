@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
@@ -67,7 +68,7 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
       if (next) _triggerShake();
     });
     ref.listen<int>(unreadNotificationCountProvider, (prev, next) {
-      if ((next) > (prev ?? 0)) _triggerShake();
+      if (next > (prev ?? 0)) _triggerShake();
     });
 
     final semanticLabel = !isActive
@@ -113,11 +114,12 @@ class _RedDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>();
     return Container(
       width: 8,
       height: 8,
-      decoration: const BoxDecoration(
-        color: Color(0xFFD84D4D),
+      decoration: BoxDecoration(
+        color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
         shape: BoxShape.circle,
       ),
     );
@@ -131,12 +133,12 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>();
     final label = count > 99 ? '99+' : '$count';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
-        // Dark gold pill badge
-        color: const Color(0xFFB8860B),
+        color: colors?.badgeGold ?? const Color(0xFFB8860B),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(

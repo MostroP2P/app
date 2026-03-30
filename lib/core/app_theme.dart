@@ -26,6 +26,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.messageSent,
     required this.messageReceived,
     required this.systemMessage,
+    required this.badgeGold,
   });
 
   final Color backgroundDark;
@@ -47,6 +48,8 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color messageSent;
   final Color messageReceived;
   final Color systemMessage;
+  /// Dark-gold color used for the notification count badge.
+  final Color badgeGold;
 
   /// Status chip colors — [background, text].
   static const statusPending = (Color(0xFF854D0E), Color(0xFFFCD34D));
@@ -78,6 +81,7 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? messageSent,
     Color? messageReceived,
     Color? systemMessage,
+    Color? badgeGold,
   }) {
     return AppColors(
       backgroundDark: backgroundDark ?? this.backgroundDark,
@@ -99,6 +103,7 @@ class AppColors extends ThemeExtension<AppColors> {
       messageSent: messageSent ?? this.messageSent,
       messageReceived: messageReceived ?? this.messageReceived,
       systemMessage: systemMessage ?? this.systemMessage,
+      badgeGold: badgeGold ?? this.badgeGold,
     );
   }
 
@@ -127,6 +132,7 @@ class AppColors extends ThemeExtension<AppColors> {
       messageSent: Color.lerp(messageSent, other.messageSent, t)!,
       messageReceived: Color.lerp(messageReceived, other.messageReceived, t)!,
       systemMessage: Color.lerp(systemMessage, other.systemMessage, t)!,
+      badgeGold: Color.lerp(badgeGold, other.badgeGold, t)!,
     );
   }
 }
@@ -174,6 +180,7 @@ const _dark = AppColors(
   messageSent: Color(0xFF8359C2),
   messageReceived: Color(0xFF4B6349),
   systemMessage: Color(0xFF2A2D35),
+  badgeGold: Color(0xFFB8860B),
 );
 
 const _light = AppColors(
@@ -196,6 +203,7 @@ const _light = AppColors(
   messageSent: Color(0xFF8359C2),
   messageReceived: Color(0xFF4B6349),
   systemMessage: Color(0xFFE0E0E0),
+  badgeGold: Color(0xFFB8860B),
 );
 
 // ── ThemeData factories ────────────────────────────────────────────────────────
