@@ -235,21 +235,35 @@ pub async fn take_order(
         return Err(anyhow::anyhow!("OrderAlreadyTaken"));
     }
 
-    // Validate range amount if provided.
-    if let Some(amt) = fiat_amount {
-        if let (Some(min), Some(max)) = (order.fiat_amount_min, order.fiat_amount_max) {
-            if amt < min || amt > max {
-                return Err(anyhow::anyhow!("OutOfRange"));
-            }
+    // Validate range amount.
+    let is_range = order.fiat_amount_min.is_some() && order.fiat_amount_max.is_some();
+    if is_range {
+        let amt = fiat_amount.ok_or_else(|| anyhow::anyhow!("FiatAmountRequired"))?;
+        if !amt.is_finite() || amt <= 0.0 {
+            return Err(anyhow::anyhow!("fiat_amount must be positive and finite"));
         }
+        let min = order.fiat_amount_min.unwrap();
+        let max = order.fiat_amount_max.unwrap();
+        if amt < min || amt > max {
+            return Err(anyhow::anyhow!("OutOfRange"));
+        }
+    }
+
+    use crate::api::types::*;
+
+    // Validate role matches order kind.
+    let expected_role = match order.kind {
+        OrderKind::Buy => TradeRole::Seller,
+        OrderKind::Sell => TradeRole::Buyer,
+    };
+    if role != expected_role {
+        return Err(anyhow::anyhow!("InvalidRole"));
     }
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-
-    use crate::api::types::*;
 
     let initial_step = match role {
         TradeRole::Buyer => TradeStep::Buyer(BuyerStep::OrderTaken),

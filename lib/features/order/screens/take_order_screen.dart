@@ -36,15 +36,8 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   Timer? _countdownTimer;
   Duration _remaining = Duration.zero;
   bool _submitting = false;
-
-  OrderItem? get _order {
-    final orders = ref.read(orderBookProvider);
-    try {
-      return orders.firstWhere((o) => o.id == widget.orderId);
-    } catch (_) {
-      return null;
-    }
-  }
+  // ignore: unused_field — used when Rust bridge take_order() is wired (Phase 8+).
+  double? _selectedAmount;
 
   @override
   void initState() {
@@ -59,14 +52,16 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   }
 
   void _startCountdown() {
-    final order = _order;
+    final orders = ref.read(orderBookProvider);
+    final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     if (order?.expiresAt == null) return;
 
-    _remaining = order!.expiresAt!.difference(DateTime.now());
+    final expiresAt = order!.expiresAt!;
+    _remaining = expiresAt.difference(DateTime.now());
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() {
-        _remaining = order.expiresAt!.difference(DateTime.now());
+        _remaining = expiresAt.difference(DateTime.now());
         if (_remaining.isNegative) {
           _countdownTimer?.cancel();
           _remaining = Duration.zero;
@@ -84,7 +79,8 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   }
 
   Future<void> _onTakeOrder() async {
-    final order = _order;
+    final orders = ref.read(orderBookProvider);
+    final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     if (order == null || _submitting) return;
 
     // Range orders: show amount modal first.
@@ -96,12 +92,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
         currencyCode: order.fiatCode,
       );
       if (amount == null || !mounted) return;
+      _selectedAmount = amount;
     }
 
     setState(() => _submitting = true);
 
     try {
-      // TODO (Phase 8+): Call take_order() via Rust bridge.
+      // TODO (Phase 8+): Call take_order(orderId, _selectedAmount) via Rust bridge.
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (!mounted) return;
@@ -133,7 +130,8 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final order = _order;
+    final orders = ref.watch(orderBookProvider);
+    final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
