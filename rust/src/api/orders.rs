@@ -53,33 +53,36 @@ impl OrderBook {
 
     /// Get all cached orders, optionally filtered.
     pub async fn get_orders(&self, filters: Option<OrderFilters>) -> Vec<OrderInfo> {
-        let orders = self.orders.read().await;
-        let mut result: Vec<OrderInfo> = orders
-            .iter()
-            .filter(|o| matches!(o.status, OrderStatus::Pending))
-            .filter(|o| {
-                let Some(ref f) = filters else { return true };
-                if let Some(ref kind) = f.kind {
-                    if &o.kind != kind {
-                        return false;
+        // Clone + filter under the read lock, then drop it before sorting.
+        let mut result: Vec<OrderInfo> = {
+            let orders = self.orders.read().await;
+            orders
+                .iter()
+                .filter(|o| matches!(o.status, OrderStatus::Pending))
+                .filter(|o| {
+                    let Some(ref f) = filters else { return true };
+                    if let Some(ref kind) = f.kind {
+                        if &o.kind != kind {
+                            return false;
+                        }
                     }
-                }
-                if let Some(ref code) = f.fiat_code {
-                    if !code.is_empty() && o.fiat_code != *code {
-                        return false;
+                    if let Some(ref code) = f.fiat_code {
+                        if !code.is_empty() && o.fiat_code != *code {
+                            return false;
+                        }
                     }
-                }
-                if let Some(ref pm) = f.payment_method {
-                    if !pm.is_empty()
-                        && !o.payment_method.to_lowercase().contains(&pm.to_lowercase())
-                    {
-                        return false;
+                    if let Some(ref pm) = f.payment_method {
+                        if !pm.is_empty()
+                            && !o.payment_method.to_lowercase().contains(&pm.to_lowercase())
+                        {
+                            return false;
+                        }
                     }
-                }
-                true
-            })
-            .cloned()
-            .collect();
+                    true
+                })
+                .cloned()
+                .collect()
+        }; // read lock dropped here
 
         // Sort by ascending expiration (soonest-expiring first), then by
         // descending created_at for orders without expiration.

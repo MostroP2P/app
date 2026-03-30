@@ -45,7 +45,11 @@ class OrderItem {
     this.rating = 0.0,
     this.tradeCount = 0,
     this.daysActive = 0,
-  });
+  }) : assert(
+         (fiatAmount != null && fiatAmountMin == null && fiatAmountMax == null) ||
+         (fiatAmount == null && fiatAmountMin != null && fiatAmountMax != null),
+         'OrderItem must have either fiatAmount or both fiatAmountMin and fiatAmountMax',
+       );
 
   final String id;
   final String kind; // "buy" or "sell"
@@ -68,8 +72,7 @@ class OrderItem {
     if (isRange) {
       return '${_fmt(fiatAmountMin!)} – ${_fmt(fiatAmountMax!)}';
     }
-    assert(fiatAmount != null, 'OrderItem must have fiatAmount or be a range');
-    return _fmt(fiatAmount ?? 0);
+    return _fmt(fiatAmount!);
   }
 
   static String _fmt(double v) {

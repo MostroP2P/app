@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
 
-/// Available currencies for the filter chip selector.
-const _currencies = ['ARS', 'USD', 'EUR', 'BRL', 'MXN', 'COP', 'CLP', 'VES'];
+/// Commonly traded currencies shown first in the filter. The full list
+/// comes from the fiatCurrenciesProvider (assets/data/fiat.json).
+const _topCurrencies = ['ARS', 'USD', 'EUR', 'BRL', 'MXN', 'COP', 'CLP', 'VES'];
 
 /// Available payment methods for the filter chip selector.
 const _paymentMethods = [
@@ -39,6 +41,8 @@ class _OrderFilterDialog extends ConsumerWidget {
 
     final selectedCurrencies = ref.watch(currencyFilterProvider);
     final selectedMethods = ref.watch(paymentMethodFilterProvider);
+    final allCurrencies = ref.watch(availableCurrencyCodesProvider);
+    final currencies = allCurrencies.isNotEmpty ? allCurrencies : _topCurrencies;
     final ratingRange = ref.watch(ratingFilterProvider);
     final premiumRange = ref.watch(premiumRangeFilterProvider);
 
@@ -80,7 +84,7 @@ class _OrderFilterDialog extends ConsumerWidget {
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.xs,
-                children: _currencies.map((code) {
+                children: currencies.map((code) {
                   final selected = selectedCurrencies.contains(code);
                   return FilterChip(
                     label: Text(code),

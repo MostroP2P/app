@@ -3,28 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 
-/// Currency code → flag emoji lookup.
-const _currencyFlags = <String, String>{
-  'ARS': '\u{1F1E6}\u{1F1F7}',
-  'USD': '\u{1F1FA}\u{1F1F8}',
-  'EUR': '\u{1F1EA}\u{1F1FA}',
-  'BRL': '\u{1F1E7}\u{1F1F7}',
-  'MXN': '\u{1F1F2}\u{1F1FD}',
-  'COP': '\u{1F1E8}\u{1F1F4}',
-  'CLP': '\u{1F1E8}\u{1F1F1}',
-  'VES': '\u{1F1FB}\u{1F1EA}',
-  'PEN': '\u{1F1F5}\u{1F1EA}',
-  'GBP': '\u{1F1EC}\u{1F1E7}',
-  'CRC': '\u{1F1E8}\u{1F1F7}',
-  'GTQ': '\u{1F1EC}\u{1F1F9}',
-};
-
 /// Order list item card with 5 rows per V1 spec.
 class OrderListItem extends StatelessWidget {
-  const OrderListItem({super.key, required this.order, this.onTap});
+  const OrderListItem({
+    super.key,
+    required this.order,
+    this.onTap,
+    this.currencyFlags = const {},
+  });
 
   final OrderItem order;
   final VoidCallback? onTap;
+  final Map<String, String> currencyFlags;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +31,7 @@ class OrderListItem extends StatelessWidget {
     final pillColor = isSelling ? sellColor : green;
     final premiumPositive = order.premium >= 0;
     final premiumColor = premiumPositive ? green : sellColor;
-    final flag = _currencyFlags[order.fiatCode] ?? '';
+    final flag = currencyFlags[order.fiatCode] ?? '';
 
     return GestureDetector(
       onTap: onTap,

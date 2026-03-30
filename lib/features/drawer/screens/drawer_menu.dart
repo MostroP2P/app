@@ -62,7 +62,11 @@ class DrawerMenu extends StatelessWidget {
                             Text(
                               'MOSTRO',
                               style: (theme.textTheme.headlineLarge ??
-                                      theme.textTheme.headlineMedium!)
+                                      theme.textTheme.headlineMedium ??
+                                      const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ))
                                   .copyWith(
                                 color: green,
                                 letterSpacing: 2,

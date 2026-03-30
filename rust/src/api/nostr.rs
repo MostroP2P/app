@@ -24,9 +24,14 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
         return Err(anyhow::anyhow!("AlreadyInitialized"));
     }
 
-    let urls = relays
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(default_relays);
+    let urls: Vec<String> = relays
+        .unwrap_or_default()
+        .into_iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let urls = if urls.is_empty() { default_relays() } else { urls };
 
     // get_or_try_init is atomic — only one caller creates the pool even if
     // two race past the is_some() guard above.
@@ -58,13 +63,10 @@ pub async fn get_connection_state() -> Result<ConnectionState> {
 /// Attempt to send all queued offline messages.
 /// Returns count of successfully flushed messages.
 ///
-/// TODO: Wire to outbox queue in Phase 7 when message queue persistence
-/// is implemented.
+/// Not yet implemented — requires the persistence layer from Phase 7.
 pub async fn flush_message_queue() -> Result<u32> {
     let _pool = pool()?;
-    // Placeholder — actual flush implementation requires the persistence
-    // layer from Phase 7.
-    Ok(0)
+    Err(anyhow::anyhow!("NotImplemented: queue persistence not wired yet"))
 }
 
 // ── Streams ─────────────────────────────────────────────────────────────────

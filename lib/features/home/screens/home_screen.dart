@@ -8,6 +8,7 @@ import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
 
@@ -60,6 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final filteredOrders = ref.watch(filteredOrdersProvider);
+    final flags = ref.watch(currencyFlagsProvider);
 
     return Scaffold(
       body: Stack(
@@ -147,46 +149,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
 
               // Order list
+              // TODO: Add RefreshIndicator when orderBookProvider is backed
+              // by the Rust bridge (Phase 7). Currently mock data — refresh is a no-op.
               Expanded(
                 child: filteredOrders.isEmpty
                     ? const OrderListEmpty()
-                    : RefreshIndicator(
-                        onRefresh: () async {
-                          ref.invalidate(orderBookProvider);
-                        },
-                        child: ListView.separated(
-                          padding: const EdgeInsets.only(
-                            left: AppSpacing.lg,
-                            right: AppSpacing.lg,
-                            top: AppSpacing.xs,
-                            bottom: 100,
-                          ),
-                          itemCount: filteredOrders.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: AppSpacing.sm),
-                          itemBuilder: (context, index) {
-                            final order = filteredOrders[index];
-                            return OrderListItem(
-                              order: order,
-                              onTap: () {
-                                // Navigate based on which tab the user is on:
-                                // BUY tab → taker buys → take_sell route
-                                // SELL tab → taker sells → take_buy route
-                                final orderType =
-                                    ref.read(homeOrderTypeProvider);
-                                if (orderType == OrderType.buy) {
-                                  context.push(
-                                    AppRoute.takeSellPath(order.id),
-                                  );
-                                } else {
-                                  context.push(
-                                    AppRoute.takeBuyPath(order.id),
-                                  );
-                                }
-                              },
-                            );
-                          },
+                    : ListView.separated(
+                        padding: const EdgeInsets.only(
+                          left: AppSpacing.lg,
+                          right: AppSpacing.lg,
+                          top: AppSpacing.xs,
+                          bottom: 100,
                         ),
+                        itemCount: filteredOrders.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.sm),
+                        itemBuilder: (context, index) {
+                          final order = filteredOrders[index];
+                          return OrderListItem(
+                            order: order,
+                            currencyFlags: flags,
+                            onTap: () {
+                              final orderType =
+                                  ref.read(homeOrderTypeProvider);
+                              if (orderType == OrderType.buy) {
+                                context.push(
+                                  AppRoute.takeSellPath(order.id),
+                                );
+                              } else {
+                                context.push(
+                                  AppRoute.takeBuyPath(order.id),
+                                );
+                              }
+                            },
+                          );
+                        },
                       ),
               ),
             ],
