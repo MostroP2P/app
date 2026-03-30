@@ -52,12 +52,16 @@ class OrderItem {
     this.tradeCount = 0,
     this.daysActive = 0,
   }) {
-    final hasFixed = fiatAmount != null;
-    final hasRange = fiatAmountMin != null && fiatAmountMax != null;
-    if (hasFixed == hasRange) {
+    final isFixed = fiatAmount != null &&
+        fiatAmountMin == null &&
+        fiatAmountMax == null;
+    final isRange = fiatAmount == null &&
+        fiatAmountMin != null &&
+        fiatAmountMax != null;
+    if (!isFixed && !isRange) {
       throw ArgumentError(
-        'OrderItem must have either fiatAmount or both '
-        'fiatAmountMin and fiatAmountMax, not ${hasFixed ? "both" : "neither"}',
+        'OrderItem requires exactly one shape: '
+        'fiatAmount (fixed) or fiatAmountMin+fiatAmountMax (range)',
       );
     }
   }
