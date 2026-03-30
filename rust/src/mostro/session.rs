@@ -99,6 +99,13 @@ impl SessionManager {
 
     /// Update an existing session.
     pub async fn update_session(&self, order_id: &str, session: Session) -> Result<()> {
+        if session.order_id != order_id {
+            return Err(anyhow!(
+                "SessionOrderIdMismatch: param='{}' vs session.order_id='{}'",
+                order_id,
+                session.order_id
+            ));
+        }
         let mut sessions = self.sessions.write().await;
         if !sessions.contains_key(order_id) {
             return Err(anyhow!("SessionNotFound"));

@@ -193,6 +193,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                   setState(() => _status = 'Fiat Sent');
                 }
               },
+              onError: (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to mark fiat sent: $e')),
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.sm),
             Row(
@@ -200,7 +206,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      // TODO: Wire cooperative cancel.
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
                     },
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
@@ -222,7 +230,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      // TODO: Wire dispute action.
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon')),
+                      );
                     },
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),

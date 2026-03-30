@@ -37,20 +37,19 @@ class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
   Future<void> _generateInvoice() async {
     try {
       // TODO: Call NWC make_invoice(amount_sats) via Rust bridge.
-      await Future.delayed(const Duration(seconds: 2));
+      // When wired, this will await the actual NWC response.
 
       if (!mounted) return;
 
-      // NWC not configured — fall back to manual entry (not an error).
-      setState(() {
-        _loading = false;
-      });
+      // NWC not configured — fall back to manual entry immediately.
+      setState(() => _loading = false);
       widget.onFallbackToManual();
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('NWC invoice generation failed: $e\n$stack');
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e.toString();
+        _error = 'Unable to generate invoice automatically';
       });
       widget.onFallbackToManual();
     }
