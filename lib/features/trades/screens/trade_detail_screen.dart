@@ -25,12 +25,25 @@ class TradeDetailScreen extends ConsumerStatefulWidget {
 /// Default trade countdown duration (matches Mostro daemon default).
 const _kCountdownSeconds = 900; // 15 minutes
 
+/// Type-safe trade status for the detail screen.
+/// Will map to/from Rust bridge TradeStep when wired.
+enum TradeStatus {
+  active('Active'),
+  fiatSent('Fiat Sent'),
+  completed('Completed'),
+  cancelled('Cancelled'),
+  disputed('Disputed');
+
+  const TradeStatus(this.label);
+  final String label;
+}
+
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
   Duration _remaining = const Duration(seconds: _kCountdownSeconds);
 
   // Mock trade state — will be replaced by Rust bridge provider.
-  String _status = 'Active';
+  TradeStatus _status = TradeStatus.active;
   // TODO(Phase 9+): Will be set from provider.
   // ignore: prefer_final_fields
   bool _isBuyer = true;
@@ -64,9 +77,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   String _getInstructionText() {
     if (_isBuyer) {
-      if (_status == 'Active') {
+      if (_status == TradeStatus.active) {
         return 'Send the fiat payment to the seller, then tap "Fiat Sent".';
-      } else if (_status == 'Fiat Sent') {
+      } else if (_status == TradeStatus.fiatSent) {
         return 'Fiat payment marked as sent. Waiting for the seller '
             'to confirm receipt and release your sats.';
       }
@@ -146,7 +159,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           // Card 5: Instructions + status
           InstructionsCard(
             text: _getInstructionText(),
-            statusLabel: _status,
+            statusLabel: _status.label,
           ),
           const SizedBox(height: AppSpacing.xl),
 
@@ -181,7 +194,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ],
 
           // Action buttons (buyer flow — T060)
-          if (_isBuyer && _status == 'Active') ...[
+          if (_isBuyer && _status == TradeStatus.active) ...[
             MostroReactiveButton(
               label: 'FIAT SENT',
               backgroundColor: green,
@@ -190,7 +203,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 // TODO: Call send_fiat_sent() via Rust bridge.
                 await Future.delayed(const Duration(milliseconds: 500));
                 if (mounted) {
-                  setState(() => _status = 'Fiat Sent');
+                  setState(() => _status = TradeStatus.fiatSent);
                 }
               },
               onError: (e) {
