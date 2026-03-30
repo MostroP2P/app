@@ -82,3 +82,46 @@ resets to false on next app launch.
 
 ### on_settings_changed() → Stream<AppSettings>
 Emits whenever any setting is updated.
+
+---
+
+## Default Configuration (Hardcoded Seed Values)
+
+These values are compiled into the app as defaults. They are used on first launch
+before the user adds or removes anything.
+
+### Default Relays
+
+| URL | Purpose |
+|-----|---------|
+| `wss://relay.mostro.network` | Primary Mostro relay |
+| `wss://nos.lol` | General Nostr relay (fallback) |
+
+These are stored as `RelayInfo` entries with `user_added: false`. They cannot be
+removed by the user from the UI (only user-added relays are deletable), but they
+can be disabled.
+
+### Default Mostro Node
+
+| Field | Value |
+|-------|-------|
+| `pubkey` | `82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390` |
+| `name` | `Mostro` |
+| `is_default` | `true` |
+
+This node is pre-selected on first launch. The user can add more nodes or switch
+to a different one from Settings → Mostro Node.
+
+### Rust Constants (suggested location: `rust/src/config.rs`)
+
+```rust
+pub const DEFAULT_RELAYS: &[&str] = &[
+    "wss://relay.mostro.network",
+    "wss://nos.lol",
+];
+
+pub const DEFAULT_MOSTRO_PUBKEY: &str =
+    "82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390";
+
+pub const DEFAULT_MOSTRO_NAME: &str = "Mostro";
+```
