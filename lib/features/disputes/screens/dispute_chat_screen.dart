@@ -30,8 +30,6 @@ class DisputeChatScreen extends ConsumerStatefulWidget {
 }
 
 class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
-  bool _isAttaching = false;
-
   @override
   void initState() {
     super.initState();
@@ -43,13 +41,22 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
 
   void _onSendText(String text) {
     // TODO(bridge): Encrypt with adminSharedKey and publish via Rust bridge.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Dispute messaging coming soon'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
-  void _onAttachFile() async {
+  void _onAttachFile() {
     // TODO(bridge): Open file picker, encrypt with adminSharedKey, upload.
-    setState(() => _isAttaching = true);
-    await Future.delayed(const Duration(milliseconds: 300));
-    if (mounted) setState(() => _isAttaching = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('File attachments coming soon'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -104,7 +111,7 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
               child: DisputeMessageInput(
                 onSendText: _onSendText,
                 onAttachFile: _onAttachFile,
-                isAttaching: _isAttaching,
+                isAttaching: false,
               ),
             ),
         ],
@@ -271,8 +278,13 @@ class _ResolvedBanner extends StatelessWidget {
       );
     }
 
-    if (dispute.resolution == DisputeResolution.fundsToMe) {
-      // ── Funds to me: green success state ──────────────────────────────
+    // Determine if the viewing party "won" the dispute.
+    final userWon =
+        (dispute.resolution == DisputeResolution.fundsToBuyer && !dispute.isSelling) ||
+        (dispute.resolution == DisputeResolution.fundsToSeller && dispute.isSelling);
+
+    if (userWon) {
+      // ── Viewing party won: green success state ────────────────────────
       return Container(
         width: double.infinity,
         margin: const EdgeInsets.all(AppSpacing.md),
@@ -318,7 +330,7 @@ class _ResolvedBanner extends StatelessWidget {
       );
     }
 
-    // ── Funds to counterparty: blue "Resolved" badge + refund message ──
+    // ── Viewing party lost: blue "Resolved" badge + outcome message ──────
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(AppSpacing.md),
@@ -356,11 +368,7 @@ class _ResolvedBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.card),
             ),
             child: Text(
-              dispute.isSelling
-                  ? 'The administrator canceled the order and refunded you. '
-                    'The buyer did not receive the sats.'
-                  : 'The administrator canceled the order and refunded the seller. '
-                    'You did not receive the sats.',
+              _lostResolutionText(dispute),
               style: textTheme.bodySmall?.copyWith(
                 color: AppColors.statusSuccess.$2,
               ),
@@ -385,5 +393,26 @@ class _ResolvedBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Returns the outcome description for the party who did not win.
+  static String _lostResolutionText(DisputeItem dispute) {
+    if (dispute.resolution == DisputeResolution.fundsToBuyer) {
+      // Admin settled in buyer's favour.
+      return dispute.isSelling
+          ? 'The administrator settled the dispute in the buyer\'s favour. '
+            'The sats were released to the buyer.'
+          : 'The administrator settled the dispute in your favour. '
+            'You received the sats.';
+    }
+    if (dispute.resolution == DisputeResolution.fundsToSeller) {
+      // Admin canceled; sats returned to seller.
+      return dispute.isSelling
+          ? 'The administrator canceled the order. '
+            'The sats were returned to you.'
+          : 'The administrator canceled the order and returned the sats to the seller. '
+            'You did not receive the sats.';
+    }
+    return 'The dispute has been resolved.';
   }
 }

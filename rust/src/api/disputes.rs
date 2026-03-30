@@ -203,12 +203,12 @@ pub async fn handle_admin_took_dispute(trade_id: String, admin_pubkey: String) -
 
 /// Handle an incoming `adminSettled` event (admin resolved in buyer's favour).
 pub async fn handle_admin_settled(trade_id: String) -> Result<()> {
-    resolve_dispute(trade_id, DisputeResolution::FundsToMe).await
+    resolve_dispute(trade_id, DisputeResolution::FundsToBuyer).await
 }
 
 /// Handle an incoming `adminCanceled` event (admin refunded the seller).
 pub async fn handle_admin_canceled(trade_id: String) -> Result<()> {
-    resolve_dispute(trade_id, DisputeResolution::FundsToCounterparty).await
+    resolve_dispute(trade_id, DisputeResolution::FundsToSeller).await
 }
 
 async fn resolve_dispute(trade_id: String, resolution: DisputeResolution) -> Result<()> {
@@ -317,7 +317,7 @@ mod tests {
 
         let d = get_dispute(trade_id).await.unwrap().unwrap();
         assert_eq!(d.status, DisputeStatus::Resolved);
-        assert_eq!(d.resolution, Some(DisputeResolution::FundsToMe));
+        assert_eq!(d.resolution, Some(DisputeResolution::FundsToBuyer));
         assert!(d.resolved_at.is_some());
     }
 }

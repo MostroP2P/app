@@ -491,8 +491,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 final dispute = ref.read(
                   disputeByTradeIdProvider(widget.orderId),
                 );
-                final targetId = dispute?.id ?? widget.orderId;
-                context.push(AppRoute.disputeDetailsPath(targetId));
+                if (dispute == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Dispute not found for this order.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  return;
+                }
+                context.push(AppRoute.disputeDetailsPath(dispute.id));
               },
               icon: const Icon(Icons.gavel, size: 16),
               label: const Text('VIEW DISPUTE'),

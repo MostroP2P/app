@@ -7,7 +7,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 enum DisputeStatus { open, inReview, resolved }
 
 /// Dispute resolution outcome.
-enum DisputeResolution { fundsToMe, fundsToCounterparty, cooperativeCancel }
+/// Absolute outcome of a resolved dispute.
+///
+/// Named from the perspective of the trade roles, not the viewing party,
+/// so both buyer and seller can interpret the same value correctly.
+enum DisputeResolution {
+  /// Admin settled the dispute — sats released to the buyer.
+  fundsToBuyer,
+
+  /// Admin canceled the order — sats returned to the seller.
+  fundsToSeller,
+
+  cooperativeCancel,
+}
 
 /// Dart-side chat message for dispute/admin chat.
 @immutable
@@ -107,9 +119,10 @@ class DisputeItem {
   String get description {
     if (status == DisputeStatus.resolved) {
       return switch (resolution) {
-        DisputeResolution.fundsToMe => 'Dispute resolved in your favour',
-        DisputeResolution.fundsToCounterparty =>
-          "Dispute resolved in counterparty's favour",
+        DisputeResolution.fundsToBuyer =>
+          isSelling ? "Dispute resolved in buyer's favour" : 'Dispute resolved in your favour',
+        DisputeResolution.fundsToSeller =>
+          isSelling ? 'Dispute resolved in your favour' : "Dispute resolved in seller's favour",
         DisputeResolution.cooperativeCancel => 'Order cancelled cooperatively',
         null => 'Dispute resolved',
       };

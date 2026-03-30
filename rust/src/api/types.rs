@@ -100,8 +100,10 @@ pub enum DisputeStatus {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DisputeResolution {
-    FundsToMe,
-    FundsToCounterparty,
+    /// Admin settled the dispute — sats released to the buyer.
+    FundsToBuyer,
+    /// Admin canceled the order — sats returned to the seller.
+    FundsToSeller,
     CooperativeCancel,
 }
 
