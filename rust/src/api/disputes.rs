@@ -12,6 +12,7 @@ use anyhow::{anyhow, bail, Result};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use tokio::sync::{broadcast, RwLock};
+use tokio::sync::broadcast::error::RecvError;
 
 use crate::api::types::{Dispute, DisputeResolution, DisputeStatus};
 
@@ -43,6 +44,26 @@ impl DisputeStore {
 
     async fn get(&self, trade_id: &str) -> Option<Dispute> {
         self.disputes.read().await.get(trade_id).cloned()
+    }
+
+    /// Atomically insert a new dispute only if no active (non-Resolved)
+    /// dispute exists for the trade. Prevents TOCTOU races on concurrent
+    /// `open_dispute` calls.
+    async fn try_insert_if_absent_or_resolved(&self, dispute: Dispute) -> Result<Dispute> {
+        let mut store = self.disputes.write().await;
+        if let Some(existing) = store.get(&dispute.trade_id) {
+            if existing.status != DisputeStatus::Resolved {
+                bail!(
+                    "DisputeAlreadyOpen: dispute already exists for trade {}",
+                    dispute.trade_id
+                );
+            }
+        }
+        store.insert(dispute.trade_id.clone(), dispute.clone());
+        // Notify subscribers after releasing the write lock.
+        drop(store);
+        let _ = self.update_tx.send(dispute.clone());
+        Ok(dispute)
     }
 }
 
@@ -79,13 +100,6 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         bail!("TradeNotDisputable: trade_id must not be empty");
     }
 
-    // Reject if a dispute is already open for this trade.
-    if let Some(existing) = dispute_store().get(&trade_id).await {
-        if existing.status != DisputeStatus::Resolved {
-            bail!("DisputeAlreadyOpen: dispute already exists for trade {trade_id}");
-        }
-    }
-
     // TODO(Phase 12+): Look up session to get trade key + mostro pubkey, then
     // send a Dispute MostroMessage via NIP-59 Gift Wrap.
 
@@ -102,8 +116,9 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         is_read: true,
     };
 
-    dispute_store().upsert(dispute.clone()).await;
-    Ok(dispute)
+    dispute_store()
+        .try_insert_if_absent_or_resolved(dispute)
+        .await
 }
 
 /// Submit free-text evidence for an open dispute.
@@ -129,7 +144,7 @@ pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
     // admin's pubkey (stored in dispute.admin_pubkey once assigned).
     let _ = dispute;
 
-    Ok(())
+    bail!("NotImplemented: evidence submission not yet implemented")
 }
 
 /// Get dispute details for a trade.
@@ -152,6 +167,13 @@ pub async fn handle_admin_took_dispute(trade_id: String, admin_pubkey: String) -
         .await
         .ok_or_else(|| anyhow!("DisputeNotFound: no dispute for trade {trade_id}"))?;
 
+    if dispute.status != DisputeStatus::Open {
+        bail!(
+            "InvalidState: dispute for trade {trade_id} is not open (current: {:?})",
+            dispute.status
+        );
+    }
+
     dispute.status = DisputeStatus::InReview;
     dispute.admin_pubkey = Some(admin_pubkey);
     dispute.is_read = false;
@@ -162,19 +184,23 @@ pub async fn handle_admin_took_dispute(trade_id: String, admin_pubkey: String) -
 
 /// Handle an incoming `adminSettled` event (admin resolved in buyer's favour).
 pub async fn handle_admin_settled(trade_id: String) -> Result<()> {
-    _resolve(trade_id, DisputeResolution::FundsToMe).await
+    resolve_dispute(trade_id, DisputeResolution::FundsToMe).await
 }
 
 /// Handle an incoming `adminCanceled` event (admin refunded the seller).
 pub async fn handle_admin_canceled(trade_id: String) -> Result<()> {
-    _resolve(trade_id, DisputeResolution::FundsToCounterparty).await
+    resolve_dispute(trade_id, DisputeResolution::FundsToCounterparty).await
 }
 
-async fn _resolve(trade_id: String, resolution: DisputeResolution) -> Result<()> {
+async fn resolve_dispute(trade_id: String, resolution: DisputeResolution) -> Result<()> {
     let mut dispute = dispute_store()
         .get(&trade_id)
         .await
         .ok_or_else(|| anyhow!("DisputeNotFound: no dispute for trade {trade_id}"))?;
+
+    if dispute.status == DisputeStatus::Resolved {
+        bail!("InvalidState: dispute for trade {trade_id} is already resolved");
+    }
 
     dispute.status = DisputeStatus::Resolved;
     dispute.resolution = Some(resolution);
@@ -195,15 +221,16 @@ pub struct DisputeStream {
 
 impl DisputeStream {
     /// Poll for the next dispute update matching this trade.
+    ///
+    /// `RecvError::Lagged` is handled gracefully: dropped messages are skipped
+    /// and the loop continues rather than terminating the stream.
     pub async fn next(&mut self) -> Result<Dispute> {
         loop {
-            let dispute = self
-                .rx
-                .recv()
-                .await
-                .map_err(|e| anyhow!("DisputeStream closed: {e}"))?;
-            if dispute.trade_id == self.trade_id {
-                return Ok(dispute);
+            match self.rx.recv().await {
+                Ok(dispute) if dispute.trade_id == self.trade_id => return Ok(dispute),
+                Ok(_) => continue, // different trade — keep waiting
+                Err(RecvError::Lagged(_)) => continue, // missed messages; keep going
+                Err(RecvError::Closed) => bail!("DisputeStream closed: channel sender dropped"),
             }
         }
     }

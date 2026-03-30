@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Message composition bar for dispute/admin chat.
 ///
@@ -51,6 +52,7 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
     final colors = Theme.of(context).extension<AppColors>();
     assert(colors != null, 'AppColors theme extension must be registered');
     if (colors == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -81,7 +83,7 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
                 : IconButton(
                     icon: Icon(Icons.attach_file, color: colors.textSubtle),
                     onPressed: widget.onAttachFile,
-                    tooltip: 'Attach file',
+                    tooltip: l10n.disputeAttachFile,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -98,7 +100,7 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
                     color: colors.textPrimary,
                   ),
               decoration: InputDecoration(
-                hintText: 'Write a message…',
+                hintText: l10n.disputeWriteMessageHint,
                 hintStyle: TextStyle(color: colors.textSubtle),
                 filled: true,
                 fillColor: colors.backgroundInput,
@@ -131,7 +133,7 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
             child: IconButton(
               icon: Icon(Icons.send, color: colors.mostroGreen),
               onPressed: _handleSend,
-              tooltip: 'Send',
+              tooltip: l10n.disputeSend,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),

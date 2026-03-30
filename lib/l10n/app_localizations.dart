@@ -151,6 +151,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yesterday'**
   String get chatTimestampYesterday;
+
+  /// Empty state message on the disputes list screen
+  ///
+  /// In en, this message translates to:
+  /// **'Your disputes will appear here'**
+  String get disputesEmptyState;
+
+  /// Tooltip for the attach file button in dispute chat
+  ///
+  /// In en, this message translates to:
+  /// **'Attach file'**
+  String get disputeAttachFile;
+
+  /// Hint text for the dispute chat message input field
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message…'**
+  String get disputeWriteMessageHint;
+
+  /// Tooltip for the send button in dispute chat
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get disputeSend;
 }
 
 class _AppLocalizationsDelegate

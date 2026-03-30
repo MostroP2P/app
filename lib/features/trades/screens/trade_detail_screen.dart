@@ -403,11 +403,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: () =>
+                        context.push(AppRoute.chatRoomPath(widget.orderId)),
                     icon: const Icon(Icons.chat_bubble_outline, size: 16),
                     label: const Text('CONTACT'),
                     style: OutlinedButton.styleFrom(
@@ -422,6 +419,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 ),
               ],
             ),
+            // CANCEL + RELEASE only available to the seller during a dispute.
+            if (!_isBuyer) ...[
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
@@ -484,6 +483,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 ),
               ],
             ),
+            ], // end if (!_isBuyer)
             const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
               onPressed: () => context.push(

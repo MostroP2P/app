@@ -8,5 +8,9 @@
   "confirm": "Confirmar",
   "done": "Listo",
   "skip": "Omitir",
-  "chatTimestampYesterday": "Ayer"
+  "chatTimestampYesterday": "Ayer",
+  "disputesEmptyState": "Tus disputas aparecerán aquí",
+  "disputeAttachFile": "Adjuntar archivo",
+  "disputeWriteMessageHint": "Escribe un mensaje\u2026",
+  "disputeSend": "Enviar"
 }

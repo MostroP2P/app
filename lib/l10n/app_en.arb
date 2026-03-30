@@ -16,5 +16,13 @@
   "skip": "Skip",
   "@skip": {"description": "Skip action"},
   "chatTimestampYesterday": "Yesterday",
-  "@chatTimestampYesterday": {"description": "Timestamp label for messages from yesterday"}
+  "@chatTimestampYesterday": {"description": "Timestamp label for messages from yesterday"},
+  "disputesEmptyState": "Your disputes will appear here",
+  "@disputesEmptyState": {"description": "Empty state message on the disputes list screen"},
+  "disputeAttachFile": "Attach file",
+  "@disputeAttachFile": {"description": "Tooltip for the attach file button in dispute chat"},
+  "disputeWriteMessageHint": "Write a message\u2026",
+  "@disputeWriteMessageHint": {"description": "Hint text for the dispute chat message input field"},
+  "disputeSend": "Send",
+  "@disputeSend": {"description": "Tooltip for the send button in dispute chat"}
 }

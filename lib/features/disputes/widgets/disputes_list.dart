@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/disputes/widgets/dispute_list_item.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Disputes list widget — driven by [userDisputeDataProvider].
 ///
@@ -27,11 +28,14 @@ class DisputesList extends ConsumerWidget {
 
     return disputesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => _ErrorState(
-        message: err.toString(),
-        colors: colors,
-        onRetry: () => ref.invalidate(userDisputeDataProvider),
-      ),
+      error: (err, stack) {
+        debugPrint('Disputes load error: $err\n$stack');
+        return _ErrorState(
+          message: 'Failed to load disputes. Please try again.',
+          colors: colors,
+          onRetry: () => ref.invalidate(userDisputeDataProvider),
+        );
+      },
       data: (disputes) => disputes.isEmpty
           ? _EmptyState(colors: colors)
           : ListView.separated(
@@ -65,7 +69,7 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.gavel, size: 64, color: colors.textSubtle),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Your disputes will appear here',
+            AppLocalizations.of(context).disputesEmptyState,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),

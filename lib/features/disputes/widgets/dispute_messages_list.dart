@@ -87,8 +87,8 @@ class _DisputeMessagesListState extends State<DisputeMessagesList> {
 
         // 2. "Admin assigned" banner (inReview + no messages)
         if (isInReview && deduped.isEmpty)
-          SliverToBoxAdapter(
-            child: _AdminAssignedBanner(colors: colors),
+          const SliverToBoxAdapter(
+            child: _AdminAssignedBanner(),
           ),
 
         // 3. Message bubbles
@@ -342,8 +342,7 @@ class DisputeMessageBubble extends StatelessWidget {
 // ── Banners ───────────────────────────────────────────────────────────────────
 
 class _AdminAssignedBanner extends StatelessWidget {
-  const _AdminAssignedBanner({required this.colors});
-  final AppColors colors;
+  const _AdminAssignedBanner();
 
   @override
   Widget build(BuildContext context) {

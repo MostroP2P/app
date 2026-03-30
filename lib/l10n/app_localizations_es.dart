@@ -31,4 +31,16 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get chatTimestampYesterday => 'Ayer';
+
+  @override
+  String get disputesEmptyState => 'Tus disputas aparecerán aquí';
+
+  @override
+  String get disputeAttachFile => 'Adjuntar archivo';
+
+  @override
+  String get disputeWriteMessageHint => 'Escribe un mensaje…';
+
+  @override
+  String get disputeSend => 'Enviar';
 }

@@ -63,7 +63,7 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
     if (dispute == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Dispute')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: Text('Dispute not found.')),
       );
     }
 
@@ -242,11 +242,13 @@ class _ResolvedBanner extends StatelessWidget {
               children: [
                 Icon(Icons.lock_outline, size: 14, color: AppColors.statusSuccess.$2),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  'This dispute has been resolved. The chat is closed.',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: AppColors.statusSuccess.$2,
-                    fontStyle: FontStyle.italic,
+                Flexible(
+                  child: Text(
+                    'This dispute has been resolved. The chat is closed.',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.statusSuccess.$2,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
               ],
@@ -294,8 +296,11 @@ class _ResolvedBanner extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.card),
             ),
             child: Text(
-              'The administrator canceled the order and refunded you. '
-              'The buyer did not receive the sats.',
+              dispute.isSelling
+                  ? 'The administrator canceled the order and refunded you. '
+                    'The buyer did not receive the sats.'
+                  : 'The administrator canceled the order and refunded the seller. '
+                    'You did not receive the sats.',
               style: textTheme.bodySmall?.copyWith(
                 color: AppColors.statusSuccess.$2,
               ),

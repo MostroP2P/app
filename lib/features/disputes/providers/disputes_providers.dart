@@ -93,9 +93,13 @@ class DisputeItem {
   /// Human-readable description shown in list items.
   String get description {
     if (status == DisputeStatus.resolved) {
-      return resolution == DisputeResolution.fundsToMe
-          ? 'Dispute resolved in your favour'
-          : 'Order refunded by administrator';
+      return switch (resolution) {
+        DisputeResolution.fundsToMe => 'Dispute resolved in your favour',
+        DisputeResolution.fundsToCounterparty =>
+          "Dispute resolved in counterparty's favour",
+        DisputeResolution.cooperativeCancel => 'Order cancelled cooperatively',
+        null => 'Dispute resolved',
+      };
     }
     return initiatedByMe ? 'You opened this dispute' : 'Counterpart opened this dispute';
   }
