@@ -1,21 +1,40 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+// Sentinel for copyWith nullable fields.
+const _unset = Object();
+
 /// Wallet connection state held in memory.
 ///
 /// `null`  → no wallet connected.
 /// non-null → wallet connected; contains pubkey + relay URLs + optional balance.
 class NwcWalletState {
-  const NwcWalletState({
+  NwcWalletState({
     required this.walletPubkey,
-    required this.relayUrls,
+    required List<String> relayUrls,
     this.walletName,
     this.balanceSats,
-  });
+  }) : relayUrls = List.unmodifiable(relayUrls);
 
   final String walletPubkey;
+  /// Immutable list of NWC relay URLs.
   final List<String> relayUrls;
   final String? walletName;
   final int? balanceSats;
+
+  NwcWalletState copyWith({
+    String? walletPubkey,
+    List<String>? relayUrls,
+    String? walletName,
+    Object? balanceSats = _unset,
+  }) =>
+      NwcWalletState(
+        walletPubkey: walletPubkey ?? this.walletPubkey,
+        relayUrls: relayUrls ?? this.relayUrls,
+        walletName: walletName ?? this.walletName,
+        balanceSats: identical(balanceSats, _unset)
+            ? this.balanceSats
+            : balanceSats as int?,
+      );
 }
 
 // ── Notifier ───────────────────────────────────────────────────────────────────
@@ -33,12 +52,7 @@ class NwcNotifier extends StateNotifier<NwcWalletState?> {
   void updateBalance(int? sats) {
     final current = state;
     if (current == null) return;
-    state = NwcWalletState(
-      walletPubkey: current.walletPubkey,
-      relayUrls: current.relayUrls,
-      walletName: current.walletName,
-      balanceSats: sats,
-    );
+    state = current.copyWith(balanceSats: sats);
   }
 }
 

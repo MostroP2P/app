@@ -146,8 +146,8 @@ class _ConnectedView extends StatelessWidget {
 
               // Relays
               _InfoRow(
-                label: 'Relay',
-                value: wallet.relayUrls.firstOrNull ?? '—',
+                label: wallet.relayUrls.length == 1 ? 'Relay' : 'Relays',
+                value: _formatRelays(wallet.relayUrls),
                 colors: colors,
                 theme: theme,
               ),
@@ -184,6 +184,12 @@ class _ConnectedView extends StatelessWidget {
   String _truncate(String s) {
     if (s.length <= 16) return s;
     return '${s.substring(0, 8)}…${s.substring(s.length - 8)}';
+  }
+
+  String _formatRelays(List<String> relays) {
+    if (relays.isEmpty) return '—';
+    if (relays.length == 1) return relays.first;
+    return '${relays.first} (+${relays.length - 1} more)';
   }
 }
 

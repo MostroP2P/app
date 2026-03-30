@@ -35,7 +35,9 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
     final text = _uriController.text.trim();
     const prefix = 'nostr+walletconnect://';
     if (!text.startsWith(prefix)) return false;
-    final afterPrefix = text.substring(prefix.length).split('?').first;
+    // Normalize to lowercase so uppercase hex (A-F) is accepted.
+    final afterPrefix =
+        text.substring(prefix.length).split('?').first.toLowerCase();
     return afterPrefix.length == 64 &&
         afterPrefix.codeUnits.every(
           (c) =>
@@ -54,15 +56,9 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
       await Future.delayed(const Duration(milliseconds: 300));
 
       // Stub: store minimal wallet state from the parsed URI.
-      final uri = _uriController.text.trim();
-      final rest = uri.replaceFirst('nostr+walletconnect://', '');
-      final parts = rest.split('?');
-      final pubkey = parts.first;
-      final query = parts.length > 1 ? parts[1] : '';
-      final relayUrls = query
-          .split('&')
-          .where((p) => p.startsWith('relay='))
-          .map((p) => Uri.decodeComponent(p.substring('relay='.length)))
+      final parsed = Uri.parse(_uriController.text.trim());
+      final pubkey = parsed.host; // Dart normalises host to lowercase.
+      final relayUrls = (parsed.queryParametersAll['relay'] ?? const [])
           .where((r) => r.startsWith('wss://') || r.startsWith('ws://'))
           .toList();
 
@@ -186,6 +182,16 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                           if (text.startsWith('nostr+walletconnect://')) {
                             _uriController.text = text;
                             setState(() {});
+                          } else {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Clipboard does not contain a valid NWC URI.',
+                                ),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
                           }
                         },
                         icon: const Icon(Icons.paste, size: 16),

@@ -66,9 +66,16 @@ pub async fn connect_wallet(nwc_uri: String) -> Result<NwcWalletInfo> {
         .map_err(|e| anyhow!("ConnectionFailed: {e}"))?;
 
     let store = wallet_store();
-    {
+    let had_existing = {
         let mut guard = store.client.write().await;
+        let had = guard.is_some();
         *guard = Some(client);
+        had
+    };
+    // Notify disconnect before the new connection event so listeners can
+    // cleanly transition from the old connection to the new one.
+    if had_existing {
+        store.notify(None);
     }
     store.notify(Some(info.clone()));
     Ok(info)
@@ -100,11 +107,17 @@ pub async fn get_wallet() -> Result<Option<NwcWalletInfo>> {
 ///
 /// **Errors**: `NoWalletConnected`, `WalletError`.
 pub async fn get_balance() -> Result<Option<u64>> {
-    let guard = wallet_store().client.read().await;
-    let client = guard
-        .as_ref()
-        .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?;
-    client.get_balance().await
+    let (status, balance) = {
+        let guard = wallet_store().client.read().await;
+        let client = guard
+            .as_ref()
+            .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?;
+        (client.info.status.clone(), client.info.balance_sats)
+    };
+    if status != WalletStatus::Connected {
+        bail!("NoWalletConnected: wallet is not connected");
+    }
+    Ok(balance)
 }
 
 /// Pay a BOLT-11 invoice via the connected NWC wallet.
@@ -114,11 +127,26 @@ pub async fn pay_invoice(bolt11: String) -> Result<PaymentResult> {
     if bolt11.trim().is_empty() {
         bail!("InvoiceInvalid: bolt11 must not be empty");
     }
-    let guard = wallet_store().client.read().await;
-    let client = guard
-        .as_ref()
-        .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?;
-    client.pay_invoice(&bolt11).await
+    let status = {
+        let guard = wallet_store().client.read().await;
+        guard
+            .as_ref()
+            .map(|c| c.info.status.clone())
+            .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?
+    };
+    if status != WalletStatus::Connected {
+        return Ok(PaymentResult {
+            success: false,
+            preimage: None,
+            error: Some("NoWalletConnected: wallet is not connected".into()),
+        });
+    }
+    // TODO(Phase 15+): send NIP-47 pay_invoice request and await result.
+    Ok(PaymentResult {
+        success: false,
+        preimage: None,
+        error: Some("NotImplemented: NIP-47 pay_invoice not yet wired".into()),
+    })
 }
 
 // ── Stream ────────────────────────────────────────────────────────────────────

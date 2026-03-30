@@ -173,9 +173,6 @@ impl NwcClient {
     /// TODO(Phase 15+): Construct and send a signed `pay_invoice` NIP-47
     /// request, wait for the response event, and return the preimage.
     pub async fn pay_invoice(&self, bolt11: &str) -> Result<PaymentResult> {
-        if bolt11.trim().is_empty() {
-            bail!("InvoiceInvalid: bolt11 must not be empty");
-        }
         if self.info.status != WalletStatus::Connected {
             return Ok(PaymentResult {
                 success: false,
