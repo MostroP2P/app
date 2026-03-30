@@ -45,6 +45,14 @@ android {
     }
 }
 
+
+    packaging {
+        jniLibs {
+            // Preserve 16 KB page alignment in packaged .so files (Android 15+ requirement)
+            useLegacyPackaging = false
+        }
+    }
+
 flutter {
     source = "../.."
 }

@@ -1,0 +1,14 @@
+# Android 16 KB page-size alignment
+# Required for Google Play compliance from August 2025 (Android 15 / API 35).
+# The -z max-page-size=16384 linker flag tells the dynamic linker to align
+# LOAD segments to 16 KB boundaries in librust.so.
+# See: https://developer.android.com/guide/practices/page-sizes
+
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.armv7-linux-androideabi]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
