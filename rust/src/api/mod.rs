@@ -1,4 +1,6 @@
 pub mod identity;
+pub mod nostr;
+pub mod orders;
 pub mod types;
 
 pub fn get_app_version() -> String {

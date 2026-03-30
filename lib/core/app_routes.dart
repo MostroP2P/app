@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/features/account/screens/account_screen.dart';
+import 'package:mostro/features/home/screens/home_screen.dart';
 import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/screens/walkthrough_screen.dart';
@@ -90,7 +91,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.home,
-      builder: (_, __) => const _Stub('Home / Order Book'),
+      builder: (_, __) => const HomeScreen(),
     ),
     GoRoute(
       path: AppRoute.orderBook,
