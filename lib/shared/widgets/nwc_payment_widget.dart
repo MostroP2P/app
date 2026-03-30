@@ -32,11 +32,14 @@ class _NwcPaymentWidgetState extends State<NwcPaymentWidget> {
   Future<void> _pay() async {
     setState(() => _paying = true);
     try {
-      // TODO: Call nwc_api.pay_invoice(bolt11) via Rust bridge.
+      // TODO(Phase 14): Replace with nwc_api.pay_invoice(widget.bolt11)
+      // via Rust bridge once NWC module is implemented.
+      // On success: call widget.onPaymentSuccess().
+      // On API failure: call widget.onFallbackToManual().
       await Future.delayed(const Duration(seconds: 1));
 
       if (!mounted) return;
-      // Placeholder — fall back to manual until NWC is wired.
+      // NWC not wired yet — fall back to manual payment.
       widget.onFallbackToManual();
     } catch (e) {
       debugPrint('NWC payment failed: $e');

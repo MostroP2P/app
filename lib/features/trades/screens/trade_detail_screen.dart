@@ -43,9 +43,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
   Duration _remaining = const Duration(seconds: _kCountdownSeconds);
 
-  // Mock trade state — will be replaced by Rust bridge provider.
+  // TODO(bridge): Replace with real state from a TradeInfo Riverpod
+  // provider backed by the Rust bridge once FFI bindings expose
+  // TradeInfo for widget.orderId. Map TradeInfo.current_step to
+  // TradeStatus and TradeInfo.role to _isBuyer.
   TradeStatus _status = TradeStatus.active;
-  // TODO(Phase 9+): Will be set from provider.
   // ignore: prefer_final_fields
   bool _isBuyer = true;
 
@@ -404,13 +406,23 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                       final confirmed =
                           await showReleaseConfirmationDialog(context);
                       if (confirmed != true || !context.mounted) return;
-                      // TODO: Call release_order() via Rust bridge.
-                      await Future.delayed(
-                        const Duration(milliseconds: 500),
-                      );
-                      if (context.mounted) {
-                        context.push(
-                          AppRoute.rateUserPath(widget.orderId),
+                      try {
+                        // TODO(bridge): Call release_order(widget.orderId)
+                        // via Rust bridge once FFI bindings are generated.
+                        // Currently the Rust function exists but the Dart
+                        // bridge only exposes test helpers.
+                        await Future.delayed(
+                          const Duration(milliseconds: 500),
+                        );
+                        if (context.mounted) {
+                          context.push(
+                            AppRoute.rateUserPath(widget.orderId),
+                          );
+                        }
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Release failed: $e')),
                         );
                       }
                     },

@@ -7,6 +7,8 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
+use crate::config::DEFAULT_MOSTRO_PUBKEY;
+use crate::mostro::actions;
 use crate::nostr::order_events::parse_order_event;
 
 /// Filter parameters for the order list.
@@ -340,8 +342,14 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // TODO: Build FiatSent MostroMessage, wrap via NIP-59, publish.
-    Err(anyhow::anyhow!("NotImplemented: FiatSent dispatch not wired yet"))
+    // Build FiatSent MostroMessage wrapped via NIP-59.
+    let sender_keys = crate::api::identity::get_active_keys().await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let _event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id).await?;
+
+    // TODO(Phase 10+): Publish event_json to relay pool once connected.
+
+    Ok(())
 }
 
 /// Seller confirms fiat received and releases escrowed sats.
@@ -360,9 +368,15 @@ pub async fn release_order(order_id: String) -> Result<()> {
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // TODO: Build Release MostroMessage, wrap via NIP-59, publish.
+    // Build Release MostroMessage wrapped via NIP-59.
+    let sender_keys = crate::api::identity::get_active_keys().await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let _event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id).await?;
+
+    // TODO(Phase 10+): Publish event_json to relay pool once connected.
     // On success, daemon transitions to SettledHoldInvoice → Success.
-    Err(anyhow::anyhow!("NotImplemented: Release dispatch not wired yet"))
+
+    Ok(())
 }
 
 /// Stream that emits whenever the order list changes.

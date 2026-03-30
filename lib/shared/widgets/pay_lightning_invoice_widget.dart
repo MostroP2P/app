@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'package:mostro/core/app_theme.dart';
 
@@ -76,11 +77,15 @@ class PayLightningInvoiceWidget extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: FilledButton.icon(
-                onPressed: () {
-                  // TODO: Wire system share sheet via Share.share().
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Share coming soon')),
-                  );
+                onPressed: () async {
+                  try {
+                    await SharePlus.instance.share(ShareParams(text: bolt11));
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Share failed: $e')),
+                    );
+                  }
                 },
                 icon: const Icon(Icons.share, size: 16),
                 label: const Text('Share'),

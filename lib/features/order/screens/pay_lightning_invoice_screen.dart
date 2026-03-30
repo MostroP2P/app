@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
@@ -23,7 +24,9 @@ class PayLightningInvoiceScreen extends ConsumerStatefulWidget {
 
 class _PayLightningInvoiceScreenState
     extends ConsumerState<PayLightningInvoiceScreen> {
-  // Mock invoice — will come from Mostro daemon response.
+  // TODO(bridge): Replace with real invoice from trade provider once
+  // Dart bridge exposes TradeInfo.hold_invoice for widget.orderId.
+  // Subscribe to trade status stream and navigate on payment confirmation.
   final _mockInvoice =
       'lnbc1500n1pj9nr7mpp5xz80dm6k5tqasn3nyh3e6fqzmtqpy0xf5h9m7y0yr5'
       'n4dqwk4esdqqcqzzsxqyz5vqsp5usyc4lg3dxp3skyhw5e8vy5w6v7kw6mxhf'
@@ -130,13 +133,18 @@ class _PayLightningInvoiceScreenState
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: () {
-                              // TODO: Wire system share sheet.
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Share coming soon'),
-                                ),
-                              );
+                            onPressed: () async {
+                              try {
+                                await SharePlus.instance
+                                    .share(ShareParams(text: _mockInvoice));
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Share failed: $e'),
+                                  ),
+                                );
+                              }
                             },
                             icon: const Icon(Icons.share, size: 16),
                             label: const Text('Share'),
