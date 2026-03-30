@@ -7,6 +7,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/features/notifications/widgets/notification_card.dart';
 
 /// Notifications screen — Route `/notifications`.
 ///
@@ -87,17 +88,56 @@ class NotificationsScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
         ],
         for (final n in notifications) ...[
-          _NotificationCard(
+          NotificationCard(
             notification: n,
             onMarkRead: () =>
                 ref.read(notificationsProvider.notifier).markAsRead(n.id),
             onDelete: () =>
                 ref.read(notificationsProvider.notifier).delete(n.id),
+            onTap: () => _handleTap(context, n),
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
       ],
     );
+  }
+
+  void _handleTap(BuildContext context, NotificationModel n) {
+    void noId() {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open notification details.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
+    switch (n.type) {
+      case NotificationType.ratingReceived:
+      case NotificationType.tradeUpdate:
+        n.orderId != null
+            ? context.push(AppRoute.rateUserPath(n.orderId!))
+            : noId();
+      case NotificationType.paymentReceived:
+      case NotificationType.payment:
+        n.orderId != null
+            ? context.push(AppRoute.payInvoicePath(n.orderId!))
+            : noId();
+      case NotificationType.invoiceRequest:
+      case NotificationType.orderUpdate:
+      case NotificationType.orderTaken:
+        n.orderId != null
+            ? context.push(AppRoute.addInvoicePath(n.orderId!))
+            : noId();
+      case NotificationType.dispute:
+        n.disputeId != null
+            ? context.push(AppRoute.disputeDetailsPath(n.disputeId!))
+            : noId();
+      default:
+        n.orderId != null
+            ? context.push(AppRoute.tradeDetailPath(n.orderId!))
+            : noId();
+    }
   }
 }
 
@@ -155,142 +195,9 @@ class _BackupReminderCard extends StatelessWidget {
   }
 }
 
-// ── Notification card ─────────────────────────────────────────────────────────
+// ── Type icon (kept per spec — referenced by future phases) ──────────────────
 
-class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({
-    required this.notification,
-    required this.onMarkRead,
-    required this.onDelete,
-  });
-
-  final NotificationModel notification;
-  final VoidCallback onMarkRead;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-
-    return GestureDetector(
-      onTap: () {
-        if (notification.orderId != null) {
-          context.push(AppRoute.tradeDetailPath(notification.orderId!));
-        } else if (notification.disputeId != null) {
-          context.push(AppRoute.disputeDetailsPath(notification.disputeId!));
-        }
-      },
-      onLongPress: () => _showContextMenu(context),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          border: notification.isRead
-              ? null
-              : Border.all(color: Colors.white12, width: 1),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _TypeIcon(type: notification.type),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    notification.title,
-                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          fontWeight: notification.isRead
-                              ? FontWeight.normal
-                              : FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    notification.message,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall!
-                        .copyWith(color: textSec),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _relativeTime(notification.timestamp),
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall!
-                            .copyWith(color: textSec),
-                      ),
-                      if (!notification.isRead)
-                        GestureDetector(
-                          onTap: onMarkRead,
-                          child: Text(
-                            'Mark as read',
-                            style:
-                                Theme.of(context).textTheme.labelSmall!.copyWith(
-                                      color: colors?.mostroGreen,
-                                    ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showContextMenu(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!notification.isRead)
-              ListTile(
-                leading: const Icon(Icons.mark_email_read_outlined),
-                title: const Text('Mark as read'),
-                onTap: () {
-                  Navigator.pop(context);
-                  onMarkRead();
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('Delete'),
-              onTap: () {
-                Navigator.pop(context);
-                onDelete();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _relativeTime(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.isNegative || diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
-}
-
+// ignore: unused_element
 class _TypeIcon extends StatelessWidget {
   const _TypeIcon({required this.type});
 
@@ -306,6 +213,10 @@ class _TypeIcon extends StatelessWidget {
       NotificationType.cancellation => (Icons.cancel_outlined, Colors.orange),
       NotificationType.message => (Icons.chat_bubble_outline, Colors.teal),
       NotificationType.system => (Icons.info_outline, Colors.grey),
+      NotificationType.ratingReceived => (Icons.star, Colors.amber),
+      NotificationType.paymentReceived => (Icons.attach_money, Colors.blue),
+      NotificationType.invoiceRequest => (Icons.description, Colors.green),
+      NotificationType.orderTaken => (Icons.add_circle_outline, Colors.green),
     };
     return Icon(icon, color: color, size: 22);
   }
@@ -320,7 +231,11 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.notifications_off_outlined, size: 48, color: Colors.white38),
+          const Icon(
+            Icons.notifications_off_outlined,
+            size: 48,
+            color: Colors.white38,
+          ),
           const SizedBox(height: AppSpacing.md),
           Text(
             'No notifications',
