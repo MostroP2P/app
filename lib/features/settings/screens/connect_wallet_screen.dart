@@ -31,8 +31,18 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
     super.dispose();
   }
 
-  bool get _isValid =>
-      _uriController.text.trim().startsWith('nostr+walletconnect://');
+  bool get _isValid {
+    final text = _uriController.text.trim();
+    const prefix = 'nostr+walletconnect://';
+    if (!text.startsWith(prefix)) return false;
+    final afterPrefix = text.substring(prefix.length).split('?').first;
+    return afterPrefix.length == 64 &&
+        afterPrefix.codeUnits.every(
+          (c) =>
+              (c >= 48 && c <= 57) || // 0-9
+              (c >= 97 && c <= 102), // a-f
+        );
+  }
 
   Future<void> _connect() async {
     if (_connecting || !_isValid) return;
@@ -45,23 +55,32 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
 
       // Stub: store minimal wallet state from the parsed URI.
       final uri = _uriController.text.trim();
-      final pubkey = uri
-          .replaceFirst('nostr+walletconnect://', '')
-          .split('?')
-          .first;
+      final rest = uri.replaceFirst('nostr+walletconnect://', '');
+      final parts = rest.split('?');
+      final pubkey = parts.first;
+      final query = parts.length > 1 ? parts[1] : '';
+      final relayUrls = query
+          .split('&')
+          .where((p) => p.startsWith('relay='))
+          .map((p) => Uri.decodeComponent(p.substring('relay='.length)))
+          .where((r) => r.startsWith('wss://') || r.startsWith('ws://'))
+          .toList();
 
       if (!mounted) return;
       ref.read(nwcProvider.notifier).setConnected(
             NwcWalletState(
               walletPubkey: pubkey,
-              relayUrls: const ['wss://relay.example.com'],
+              relayUrls: relayUrls,
             ),
           );
       context.go(AppRoute.walletSettings);
     } catch (e) {
       if (!mounted) return;
+      debugPrint('NWC connection error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Connection failed: $e')),
+        const SnackBar(
+          content: Text('Connection failed. Please check your NWC URI and try again.'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _connecting = false);

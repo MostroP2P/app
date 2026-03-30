@@ -19,7 +19,7 @@ use crate::api::types::{NwcWalletInfo, PaymentResult, WalletStatus};
 /// Format: `nostr+walletconnect://<wallet_pubkey>?relay=<url>&secret=<hex>`
 ///
 /// Multiple `relay=` params are allowed.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct NwcUri {
     /// Wallet service Nostr public key (64-char lowercase hex).
     pub wallet_pubkey: String,
@@ -27,6 +27,16 @@ pub struct NwcUri {
     pub relay_urls: Vec<String>,
     /// 64-char hex secret used as the NWC client key.
     pub secret_hex: String,
+}
+
+impl std::fmt::Debug for NwcUri {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NwcUri")
+            .field("wallet_pubkey", &self.wallet_pubkey)
+            .field("relay_urls", &self.relay_urls)
+            .field("secret_hex", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl NwcUri {
@@ -84,12 +94,24 @@ fn urlencoding_decode(s: &str) -> String {
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '%' {
-            let h1 = chars.next().and_then(|c| c.to_digit(16));
-            let h2 = chars.next().and_then(|c| c.to_digit(16));
-            if let (Some(h1), Some(h2)) = (h1, h2) {
-                out.push(char::from_u32(h1 * 16 + h2).unwrap_or(c));
-            } else {
-                out.push(c);
+            let c1 = chars.next();
+            let c2 = chars.next();
+            match (
+                c1.and_then(|ch| ch.to_digit(16)),
+                c2.and_then(|ch| ch.to_digit(16)),
+            ) {
+                (Some(h1), Some(h2)) => {
+                    out.push(char::from_u32(h1 * 16 + h2).unwrap_or('%'));
+                }
+                _ => {
+                    out.push('%');
+                    if let Some(ch) = c1 {
+                        out.push(ch);
+                    }
+                    if let Some(ch) = c2 {
+                        out.push(ch);
+                    }
+                }
             }
         } else {
             out.push(c);

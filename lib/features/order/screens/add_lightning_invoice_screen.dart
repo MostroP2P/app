@@ -15,9 +15,12 @@ class AddLightningInvoiceScreen extends ConsumerStatefulWidget {
   const AddLightningInvoiceScreen({
     super.key,
     required this.orderId,
+    this.amountSats,
   });
 
   final String orderId;
+  /// Sats amount for the invoice. `null` until the trade provider resolves it.
+  final int? amountSats;
 
   @override
   ConsumerState<AddLightningInvoiceScreen> createState() =>
@@ -69,17 +72,17 @@ class _AddLightningInvoiceScreenState
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
 
-    // If NWC wallet is connected and we haven't fallen back to manual,
-    // show the auto-invoice widget instead of the manual input form.
-    if (isWalletConnected && !_manualMode) {
+    // If NWC wallet is connected, amount is known, and we haven't fallen back
+    // to manual, show the auto-invoice widget instead of the manual form.
+    final sats = widget.amountSats;
+    if (isWalletConnected && !_manualMode && sats != null && sats > 0) {
       return Scaffold(
         appBar: AppBar(title: const Text('Add Invoice')),
         body: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Center(
             child: NwcInvoiceWidget(
-              // TODO(bridge): pass real sats amount from trade provider.
-              amountSats: 0,
+              amountSats: sats,
               onInvoiceConfirmed: (invoice) {
                 _invoiceController.text = invoice;
                 _submit();
