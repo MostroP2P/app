@@ -35,20 +35,30 @@ class PushNotificationService {
     // TODO(firebase): FirebaseMessaging.onMessageOpenedApp.listen(_handleTap)
   }
 
+  /// Validates that a push payload ID contains only safe characters
+  /// (alphanumeric, hyphens, underscores) to prevent route injection.
+  static final _validIdPattern = RegExp(r'^[a-zA-Z0-9\-_]+$');
+
+  bool _isValidId(String? id) =>
+      id != null && id.isNotEmpty && _validIdPattern.hasMatch(id);
+
   /// Extract the GoRouter destination from a push payload.
   ///
   /// Payload keys: `type` (string), `orderId` (string?), `disputeId` (string?)
+  ///
+  /// Returns `null` if the payload type is unrecognised or the required ID
+  /// fails validation (alphanumeric + hyphens/underscores only).
   String? routeFromPayload(Map<String, dynamic> payload) {
     final type = payload['type'] as String?;
     final orderId = payload['orderId'] as String?;
     final disputeId = payload['disputeId'] as String?;
 
     return switch (type) {
-      'trade_updated' when orderId != null => '/trade_detail/$orderId',
-      'invoice_request' when orderId != null => '/add_invoice/$orderId',
-      'payment_received' when orderId != null => '/pay_invoice/$orderId',
-      'rating_received' when orderId != null => '/rate_user/$orderId',
-      'dispute_update' when disputeId != null => '/dispute_details/$disputeId',
+      'trade_updated' when _isValidId(orderId) => '/trade_detail/$orderId',
+      'invoice_request' when _isValidId(orderId) => '/add_invoice/$orderId',
+      'payment_received' when _isValidId(orderId) => '/pay_invoice/$orderId',
+      'rating_received' when _isValidId(orderId) => '/rate_user/$orderId',
+      'dispute_update' when _isValidId(disputeId) => '/dispute_details/$disputeId',
       _ => null,
     };
   }

@@ -103,31 +103,40 @@ class NotificationsScreen extends ConsumerWidget {
   }
 
   void _handleTap(BuildContext context, NotificationModel n) {
+    void noId() {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open notification details.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
     switch (n.type) {
       case NotificationType.ratingReceived:
       case NotificationType.tradeUpdate:
-        if (n.orderId != null) {
-          context.push(AppRoute.rateUserPath(n.orderId!));
-        }
+        n.orderId != null
+            ? context.push(AppRoute.rateUserPath(n.orderId!))
+            : noId();
       case NotificationType.paymentReceived:
       case NotificationType.payment:
-        if (n.orderId != null) {
-          context.push(AppRoute.payInvoicePath(n.orderId!));
-        }
+        n.orderId != null
+            ? context.push(AppRoute.payInvoicePath(n.orderId!))
+            : noId();
       case NotificationType.invoiceRequest:
       case NotificationType.orderUpdate:
       case NotificationType.orderTaken:
-        if (n.orderId != null) {
-          context.push(AppRoute.addInvoicePath(n.orderId!));
-        }
+        n.orderId != null
+            ? context.push(AppRoute.addInvoicePath(n.orderId!))
+            : noId();
       case NotificationType.dispute:
-        if (n.disputeId != null) {
-          context.push(AppRoute.disputeDetailsPath(n.disputeId!));
-        }
+        n.disputeId != null
+            ? context.push(AppRoute.disputeDetailsPath(n.disputeId!))
+            : noId();
       default:
-        if (n.orderId != null) {
-          context.push(AppRoute.tradeDetailPath(n.orderId!));
-        }
+        n.orderId != null
+            ? context.push(AppRoute.tradeDetailPath(n.orderId!))
+            : noId();
     }
   }
 }

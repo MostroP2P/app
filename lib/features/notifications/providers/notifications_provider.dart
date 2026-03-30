@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,45 +15,60 @@ class SembastNotificationsStore {
   static const _storeName = 'notifications';
 
   Database? _db;
+  Completer<Database>? _opening;
   final _store = intMapStoreFactory.store(_storeName);
 
   Future<Database> _open() async {
     if (_db != null) return _db!;
-    if (kIsWeb) {
-      // TODO(web-push): Replace with databaseFactoryWeb once sembast_web is
-      // added to pubspec.yaml. Using in-memory factory as a placeholder.
-      _db = await databaseFactoryMemory.openDatabase(_dbName);
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-      final path = '${dir.path}/$_dbName';
-      _db = await databaseFactoryIo.openDatabase(path);
+    if (_opening != null) return _opening!.future;
+
+    _opening = Completer<Database>();
+    try {
+      final Database db;
+      if (kIsWeb) {
+        // TODO(web-push): Replace with databaseFactoryWeb once sembast_web is
+        // added to pubspec.yaml. Using in-memory factory as a placeholder.
+        db = await databaseFactoryMemory.openDatabase(_dbName);
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        final path = '${dir.path}/$_dbName';
+        db = await databaseFactoryIo.openDatabase(path);
+      }
+      _db = db;
+      _opening!.complete(db);
+      return db;
+    } catch (e, st) {
+      _opening!.completeError(e, st);
+      _opening = null;
+      rethrow;
     }
-    return _db!;
   }
 
   Future<List<NotificationModel>> loadAll() async {
     final db = await _open();
     final records = await _store.find(db);
     return records
-        .map(
-          (r) => NotificationModel.fromJson(
-            Map<String, dynamic>.from(r.value),
-          ),
-        )
+        .map((r) => NotificationModel.fromJson(Map<String, dynamic>.from(r.value)))
         .toList();
   }
 
+  /// Upsert: updates existing record by id, inserts if not found.
   Future<void> save(NotificationModel notification) async {
     final db = await _open();
-    final json = notification.toJson()
+    final json = Map<String, dynamic>.from(notification.toJson())
       ..removeWhere((_, v) => v == null);
-    await _store.add(db, Map<String, dynamic>.from(json));
+    final finder = Finder(filter: Filter.equals('id', notification.id));
+    final existing = await _store.findFirst(db, finder: finder);
+    if (existing != null) {
+      await _store.update(db, json, finder: finder);
+    } else {
+      await _store.add(db, json);
+    }
   }
 
   Future<void> deleteRecord(String id) async {
     final db = await _open();
-    final finder = Finder(filter: Filter.equals('id', id));
-    await _store.delete(db, finder: finder);
+    await _store.delete(db, finder: Finder(filter: Filter.equals('id', id)));
   }
 
   Future<void> deleteAll() async {
@@ -79,14 +96,21 @@ final notificationsProviderWithDb =
     StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
   (ref) {
     final store = ref.watch(sembastNotificationsStoreProvider);
-    return NotificationsNotifier(store: store);
+    final notifier = NotificationsNotifier(store: store);
+    notifier.loadInitialData();
+    return notifier;
   },
 );
 
-/// Count of unread notifications.
-final unreadNotificationCountProvider = Provider<int>((ref) {
-  return ref.watch(notificationsProvider).where((n) => !n.isRead).length;
-});
+/// Count of unread notifications (in-memory provider).
+final unreadNotificationCountProvider = Provider<int>(
+  (ref) => ref.watch(notificationsProvider).where((n) => !n.isRead).length,
+);
+
+/// Count of unread notifications (DB-backed provider).
+final unreadNotificationCountProviderWithDb = Provider<int>(
+  (ref) => ref.watch(notificationsProviderWithDb).where((n) => !n.isRead).length,
+);
 
 // ── Notifier ──────────────────────────────────────────────────────────────────
 
@@ -95,30 +119,67 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
 
   final SembastNotificationsStore? store;
 
-  void add(NotificationModel notification) {
-    state = [notification, ...state];
-    store?.save(notification);
+  /// Load persisted notifications into state. Called once on construction
+  /// when a [store] is provided.
+  Future<void> loadInitialData() async {
+    if (store == null) return;
+    try {
+      final notifications = await store!.loadAll();
+      state = notifications;
+    } catch (e) {
+      debugPrint('NotificationsNotifier: failed to load from Sembast: $e');
+    }
   }
 
-  void markAsRead(String id) {
+  Future<void> add(NotificationModel notification) async {
+    state = [notification, ...state];
+    try {
+      await store?.save(notification);
+    } catch (e) {
+      debugPrint('NotificationsNotifier: failed to persist add: $e');
+    }
+  }
+
+  Future<void> markAsRead(String id) async {
     state = [
       for (final n in state)
         if (n.id == id) n.copyWith(isRead: true) else n,
     ];
+    try {
+      final updated = state.firstWhere((n) => n.id == id);
+      await store?.save(updated);
+    } catch (e) {
+      debugPrint('NotificationsNotifier: failed to persist markAsRead: $e');
+    }
   }
 
   void markAllAsRead() {
     state = [for (final n in state) n.copyWith(isRead: true)];
+    // Persist each updated record; fire-and-forget is acceptable for bulk
+    // read-status updates since ordering doesn't matter here.
+    for (final n in state) {
+      store?.save(n).catchError((Object e) {
+        debugPrint('NotificationsNotifier: failed to persist markAllAsRead: $e');
+      });
+    }
   }
 
-  void delete(String id) {
+  Future<void> delete(String id) async {
     state = state.where((n) => n.id != id).toList();
-    store?.deleteRecord(id);
+    try {
+      await store?.deleteRecord(id);
+    } catch (e) {
+      debugPrint('NotificationsNotifier: failed to persist delete: $e');
+    }
   }
 
-  void deleteAll() {
+  Future<void> deleteAll() async {
     state = [];
-    store?.deleteAll();
+    try {
+      await store?.deleteAll();
+    } catch (e) {
+      debugPrint('NotificationsNotifier: failed to persist deleteAll: $e');
+    }
   }
 
   // ── Bridge stubs ────────────────────────────────────────────────────────────
