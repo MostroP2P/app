@@ -70,28 +70,38 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
       if ((next) > (prev ?? 0)) _triggerShake();
     });
 
-    return IconButton(
-      tooltip: 'Notifications',
-      onPressed: () => context.push(AppRoute.notifications),
-      icon: AnimatedBuilder(
-        animation: _shakeAnimation,
-        builder: (context, child) => Transform.translate(
-          offset: Offset(_shakeAnimation.value, 0),
-          child: child,
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            const Icon(Icons.notifications_outlined, size: 24),
-            if (isActive)
-              Positioned(
-                top: -2,
-                right: -2,
-                child: backupActive
-                    ? const _RedDot()
-                    : _CountBadge(count: unreadCount),
-              ),
-          ],
+    final semanticLabel = !isActive
+        ? 'Notifications, no unread notifications'
+        : backupActive
+            ? 'Notifications, backup reminder active'
+            : 'Notifications, $unreadCount unread';
+
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      child: IconButton(
+        tooltip: semanticLabel,
+        onPressed: () => context.push(AppRoute.notifications),
+        icon: AnimatedBuilder(
+          animation: _shakeAnimation,
+          builder: (context, child) => Transform.translate(
+            offset: Offset(_shakeAnimation.value, 0),
+            child: child,
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.notifications_outlined, size: 24),
+              if (isActive)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: backupActive
+                      ? const _RedDot()
+                      : _CountBadge(count: unreadCount),
+                ),
+            ],
+          ),
         ),
       ),
     );

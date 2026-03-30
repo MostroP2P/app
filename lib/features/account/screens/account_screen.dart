@@ -37,18 +37,25 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     if (_loadingWords) return;
     setState(() => _loadingWords = true);
 
-    // TODO: call Rust bridge get_identity() in Phase 5 to fetch the mnemonic.
-    // For now simulate with placeholder.
-    await Future.delayed(const Duration(milliseconds: 200));
-    setState(() {
-      _loadingWords = false;
-      _wordsVisible = true;
-      // Placeholder: real words come from the Rust identity API.
-      _words ??= List.generate(12, (i) => 'word${i + 1}');
-    });
+    try {
+      // TODO: call Rust bridge get_identity() in Phase 5 to fetch the mnemonic.
+      // For now simulate with placeholder.
+      await Future.delayed(const Duration(milliseconds: 200));
 
-    // Dismiss backup reminder permanently once the user views their words.
-    await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
+      if (!mounted) return;
+      setState(() {
+        _wordsVisible = true;
+        // Placeholder: real words come from the Rust identity API.
+        _words ??= List.generate(12, (i) => 'word${i + 1}');
+      });
+
+      // Dismiss backup reminder permanently once the user views their words.
+      if (mounted) {
+        await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
+      }
+    } finally {
+      if (mounted) setState(() => _loadingWords = false);
+    }
   }
 
   @override
@@ -390,9 +397,12 @@ class _CardHeader extends StatelessWidget {
               ),
         ),
         const Spacer(),
-        GestureDetector(
-          onTap: onInfo,
-          child: const Icon(Icons.info_outline, size: 18),
+        IconButton(
+          onPressed: onInfo,
+          icon: const Icon(Icons.info_outline, size: 18),
+          tooltip: 'More information',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
         ),
       ],
     );
@@ -416,9 +426,13 @@ class _PrivacyOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
+    return Semantics(
+      label: title,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Row(
         children: [
           Container(
             width: 20,
@@ -460,6 +474,7 @@ class _PrivacyOption extends StatelessWidget {
             ],
           ),
         ],
+        ),
       ),
     );
   }
