@@ -9,7 +9,13 @@ enum OrderType { buy, sell }
 /// "SELL BTC" → OrderType.sell (shows buy orders — taker sells).
 final homeOrderTypeProvider = StateProvider<OrderType>((_) => OrderType.buy);
 
-// ── Filter providers ─────────────────────────────────────────────────────────
+// ── Filter defaults & providers ──────────────────────────────────────────────
+
+/// Canonical default range for the rating filter.
+const defaultRatingRange = (min: 0.0, max: 5.0);
+
+/// Canonical default range for the premium filter.
+const defaultPremiumRange = (min: -10.0, max: 10.0);
 
 /// Selected fiat currency codes (multi-select). Empty = no filter.
 final currencyFilterProvider = StateProvider<List<String>>((_) => []);
@@ -19,18 +25,18 @@ final paymentMethodFilterProvider = StateProvider<List<String>>((_) => []);
 
 /// Rating range filter. Default = full range.
 final ratingFilterProvider =
-    StateProvider<({double min, double max})>((_) => (min: 0.0, max: 5.0));
+    StateProvider<({double min, double max})>((_) => defaultRatingRange);
 
 /// Premium range filter. Default = full range.
 final premiumRangeFilterProvider =
-    StateProvider<({double min, double max})>((_) => (min: -10.0, max: 10.0));
+    StateProvider<({double min, double max})>((_) => defaultPremiumRange);
 
 // ── Mock order data (until Rust bridge is wired) ─────────────────────────────
 
 /// Lightweight Dart-side order model for the UI layer.
 /// Will be replaced by the Rust-bridge `OrderInfo` in Phase 7.
 class OrderItem {
-  const OrderItem({
+  OrderItem({
     required this.id,
     required this.kind,
     this.fiatAmount,
@@ -45,11 +51,16 @@ class OrderItem {
     this.rating = 0.0,
     this.tradeCount = 0,
     this.daysActive = 0,
-  }) : assert(
-         (fiatAmount != null && fiatAmountMin == null && fiatAmountMax == null) ||
-         (fiatAmount == null && fiatAmountMin != null && fiatAmountMax != null),
-         'OrderItem must have either fiatAmount or both fiatAmountMin and fiatAmountMax',
-       );
+  }) {
+    final hasFixed = fiatAmount != null;
+    final hasRange = fiatAmountMin != null && fiatAmountMax != null;
+    if (hasFixed == hasRange) {
+      throw ArgumentError(
+        'OrderItem must have either fiatAmount or both '
+        'fiatAmountMin and fiatAmountMax, not ${hasFixed ? "both" : "neither"}',
+      );
+    }
+  }
 
   final String id;
   final String kind; // "buy" or "sell"
@@ -188,19 +199,22 @@ final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
     }
 
     if (selectedPaymentMethods.isNotEmpty) {
-      final methods = o.paymentMethod.toLowerCase();
-      final anyMatch = selectedPaymentMethods
-          .any((pm) => methods.contains(pm.toLowerCase()));
-      if (!anyMatch) return false;
+      final tokens = o.paymentMethod
+          .split(',')
+          .map((t) => t.trim().toLowerCase())
+          .toSet();
+      final selectedLower =
+          selectedPaymentMethods.map((pm) => pm.toLowerCase()).toSet();
+      if (tokens.intersection(selectedLower).isEmpty) return false;
     }
 
-    if (ratingRange != (min: 0.0, max: 5.0)) {
+    if (ratingRange != defaultRatingRange) {
       if (o.rating < ratingRange.min || o.rating > ratingRange.max) {
         return false;
       }
     }
 
-    if (premiumRange != (min: -10.0, max: 10.0)) {
+    if (premiumRange != defaultPremiumRange) {
       if (o.premium < premiumRange.min || o.premium > premiumRange.max) {
         return false;
       }

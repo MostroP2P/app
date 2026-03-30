@@ -68,9 +68,9 @@ class _OrderFilterDialog extends ConsumerWidget {
                       ref.read(currencyFilterProvider.notifier).state = [];
                       ref.read(paymentMethodFilterProvider.notifier).state = [];
                       ref.read(ratingFilterProvider.notifier).state =
-                          (min: 0.0, max: 5.0);
+                          defaultRatingRange;
                       ref.read(premiumRangeFilterProvider.notifier).state =
-                          (min: -10.0, max: 10.0);
+                          defaultPremiumRange;
                     },
                     child: Text('Reset', style: TextStyle(color: green)),
                   ),
