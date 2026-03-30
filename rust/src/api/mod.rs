@@ -1,4 +1,5 @@
 pub mod identity;
+pub mod messages;
 pub mod nostr;
 pub mod orders;
 pub mod types;
