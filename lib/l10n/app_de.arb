@@ -130,7 +130,7 @@
   "themeSystemDefault": "Systemstandard",
   "lightningAddressDialogTitle": "Lightning-Adresse",
   "lightningAddressHintText": "benutzer@domain.com",
-  "invalidLightningAddressFormat": "Muss im Format benutzer@domain.com vorliegen",
+  "invalidLightningAddressFormat": "Muss im Format benutzer@domain oder benutzer@domain.tld vorliegen",
   "clearButtonLabel": "Löschen",
   "saveButtonLabel": "Speichern",
   "connectWalletTitle": "Wallet verbinden",

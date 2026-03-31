@@ -121,10 +121,10 @@ Pending
         → CanceledByAdmin | SettledByAdmin | CompletedByAdmin
     → Expired (buyer never paid, timeout)
   → Canceled (creator canceled or timeout)
-  → CooperativelyCanceled (UI-only state — protocol sends action notifications, does not change status)
+  → cooperatively-canceled (wire value, maps to OrderStatus::Canceled — see R14)
 ```
 
-> PaymentFailed is an Action, not a Status. CooperativelyCanceled is client-side UI only.
+> PaymentFailed is an Action, not a Status. `cooperatively-canceled` IS a real wire status value sent by the daemon; clients map it to `Canceled` (no distinct enum variant needed).
 
 **Reference implementations**:
 - Daemon: `github.com/MostroP2P/mostro` (Rust)

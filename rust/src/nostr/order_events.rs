@@ -68,13 +68,11 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
     let created_at = event.created_at.as_secs() as i64;
     let expires_at: Option<i64> = get("expiration").and_then(|v| v.parse().ok());
 
-    // is_mine: true when the logged-in user created this order.
-    // Since the Mostro node is the event author, we can't compare against
-    // event.pubkey here; this flag is set later when trade messages confirm
-    // the user's identity.  For now always false for order-book events.
-    let is_mine = my_pubkey
-        .map(|pk| pk == &event.pubkey)
-        .unwrap_or(false);
+    // is_mine is always false for Kind 38383 events: the event author is the
+    // Mostro node, not the maker. Ownership is confirmed later via incoming
+    // trade messages (gift-wrap response from the daemon).
+    let is_mine = false;
+    let _ = my_pubkey; // unused — kept in signature for future use
 
     Some(OrderInfo {
         id,

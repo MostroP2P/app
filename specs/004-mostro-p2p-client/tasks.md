@@ -479,31 +479,31 @@ configuration.
 ## Parallel Execution Examples
 
 ### Phase 2 (Foundation) — Run together:
-```
+```text
 T009 IndexedDB backend       T010 Shared types             T011 NIP-59 Gift Wrap
 T012 Relay pool               T013 Message queue            T015 App routes scaffold
 ```
 
 ### Phase 3 (US1 — First Launch) — Run together after T017:
-```
+```text
 T018 ECDH shared key         T019 Nym identity             T022 Highlight config
 T026 Placeholder images
 ```
 
 ### Phase 18 (Real Order Book + Shimmer) — Run together after T126:
-```
+```text
 T127 OrderListSkeleton widget   T128 subscribe_orders() Rust    T129 on_orders_updated() stream
 T130 Wire startup subscription  T131 StreamProvider orderBook   T132 Shimmer in home screen
 ```
 
 ### Phase 5 (US3 — Order Book) — Run together after T031:
-```
+```text
 T033 Order list item card    T034 Order book providers     T035 Filter dialog
 T036 Bottom nav bar          T037 Drawer menu
 ```
 
 ### Phase 10 (US8 — P2P Chat) — Run together after T071:
-```
+```text
 T074 Chat list item          T075 Chat providers           T077 Message bubble
 T078 Message input           T079 Info panels              T080 Image message widget
 T081 File message widget     T072 Nym avatar

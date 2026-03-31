@@ -193,7 +193,7 @@
   "loadingOrders": "Chargement des ordres…",
   "errorLoadingOrders": "Impossible de charger les ordres. Vérifiez votre connexion.",
   "retry": "Réessayer",
-  "disableRelayLabel": "Désactiver le relay {url}",
-  "enableRelayLabel": "Activer le relay {url}",
-  "removeRelayTooltip": "Supprimer le relay"
+  "disableRelayLabel": "Désactiver le relais {url}",
+  "enableRelayLabel": "Activer le relais {url}",
+  "removeRelayTooltip": "Supprimer le relais"
 }

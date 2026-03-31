@@ -192,11 +192,11 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                         onPressed: () async {
                           final data =
                               await Clipboard.getData(Clipboard.kTextPlain);
-                          final text = data?.text ?? '';
+                          final text = (data?.text ?? '').trim();
                           const scheme = 'nostr+walletconnect://';
                           if (text.toLowerCase().startsWith(scheme)) {
                             _uriController.text =
-                                scheme + text.substring(scheme.length);
+                                scheme + text.trim().substring(scheme.length);
                             setState(() {});
                           } else {
                             if (!context.mounted) return;

@@ -127,13 +127,15 @@ class OrderItem {
 /// UI exits the shimmer/loading state right away.  Subsequent emissions arrive
 /// as [subscribe_orders()] upserts orders from the relay stream.
 final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) async* {
+  // Subscribe first so no broadcast is missed between snapshot and loop.
+  final stream = await orders_api.onOrdersUpdated();
+
   // Emit current cache immediately — exits shimmer even with no orders yet.
   final snapshot = await orders_api.getOrders(filters: null);
   debugPrint('[orderBook] initial snapshot: ${snapshot.length} orders');
   yield snapshot.map(OrderItem.fromInfo).toList();
 
   // Stream live updates from the relay subscription.
-  final stream = await orders_api.onOrdersUpdated();
   while (true) {
     final orders = await stream.next();
     if (orders == null) break;

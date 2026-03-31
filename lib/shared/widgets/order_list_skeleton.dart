@@ -24,15 +24,26 @@ class OrderListSkeleton extends StatelessWidget {
             vertical: AppSpacing.sm,
           ),
           itemCount: 5,
-          itemBuilder: (_, __) => Container(
-            height: 100,
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+          itemBuilder: (_, __) => const _SkeletonCard(),
         ),
+      ),
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  static const double _height = 100;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: _height,
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs + 2),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.card),
       ),
     );
   }

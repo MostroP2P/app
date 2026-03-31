@@ -54,7 +54,7 @@ class _AddLightningInvoiceScreenState
       await orders_api.sendInvoice(
         orderId: widget.orderId,
         invoiceOrAddress: _invoiceController.text.trim(),
-        amountSats: BigInt.from(widget.amountSats ?? 0),
+        amountSats: BigInt.from(widget.amountSats!),
       );
 
       if (!mounted) return;

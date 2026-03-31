@@ -137,18 +137,25 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
             .map(|k| k.public_key().to_hex())
             .unwrap_or_default();
 
-        let result = if let (Ok(keys), Some(ref peer_hex)) = (sender_keys, &s.peer_pubkey) {
-            match nostr_sdk::PublicKey::from_hex(peer_hex) {
+        let result = match (&sender_keys, &s.peer_pubkey) {
+            (Err(e), _) => Err(anyhow!("key retrieval failed: {e}")),
+            (Ok(_), None) => {
+                log::warn!("[messages] session exists but peer not yet known — local-only");
+                Ok(())
+            }
+            (Ok(keys), Some(peer_hex)) => match nostr_sdk::PublicKey::from_hex(peer_hex) {
+                Err(e) => Err(anyhow!("invalid peer pubkey: {e}")),
                 Ok(peer_pubkey) => {
                     let payload = serde_json::json!({ "text": content }).to_string();
                     match crate::nostr::gift_wrap::wrap(
-                        &keys,
+                        keys,
                         &peer_pubkey,
                         &payload,
                         nostr_sdk::Kind::from(14u16),
                     )
                     .await
                     {
+                        Err(e) => Err(anyhow!("gift wrap failed: {e}")),
                         Ok(event_json) => {
                             if let Ok(pool) = crate::api::nostr::get_pool() {
                                 match serde_json::from_str::<nostr_sdk::Event>(&event_json) {
@@ -165,14 +172,9 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
                                 Ok(())
                             }
                         }
-                        Err(e) => Err(anyhow!("gift wrap failed: {e}")),
                     }
                 }
-                Err(e) => Err(anyhow!("invalid peer pubkey: {e}")),
-            }
-        } else {
-            log::warn!("[messages] session exists but peer unknown — local-only");
-            Ok(())
+            },
         };
 
         (sender_pubkey, result)

@@ -593,14 +593,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String disableRelayLabel(String url) {
-    return 'Désactiver le relay $url';
+    return 'Désactiver le relais $url';
   }
 
   @override
   String enableRelayLabel(String url) {
-    return 'Activer le relay $url';
+    return 'Activer le relais $url';
   }
 
   @override
-  String get removeRelayTooltip => 'Supprimer le relay';
+  String get removeRelayTooltip => 'Supprimer le relais';
 }
