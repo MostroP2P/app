@@ -108,6 +108,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                       );
                       return;
                     }
+                    if (!mounted) return;
                     setState(() {
                       _relays.add(
                         _RelayEntry(
@@ -171,10 +172,15 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                   ),
                 ),
                 // Active toggle
-                Switch(
-                  value: relay.isActive,
-                  onChanged: (v) => _toggleRelay(index, v),
-                  activeThumbColor: c.mostroGreen,
+                Semantics(
+                  label: relay.isActive
+                      ? 'Disable relay ${relay.url}'
+                      : 'Enable relay ${relay.url}',
+                  child: Switch(
+                    value: relay.isActive,
+                    onChanged: (v) => _toggleRelay(index, v),
+                    activeThumbColor: c.mostroGreen,
+                  ),
                 ),
                 // Remove button (user-added relays only)
                 if (!relay.isDefault)

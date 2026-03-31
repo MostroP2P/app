@@ -78,7 +78,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
       setState(() => _errorText = 'Must be a 64-character hex string');
       return;
     }
-    ref.read(mostroPubkeyProvider.notifier).state = input;
+    ref.read(mostroPubkeyProvider.notifier).state = input.toLowerCase();
     Navigator.of(context).pop();
   }
 
@@ -108,6 +108,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close),
+                tooltip: 'Close',
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -175,6 +176,9 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
           TextField(
             controller: _controller,
             maxLength: 64,
+            autocorrect: false,
+            enableSuggestions: false,
+            keyboardType: TextInputType.visiblePassword,
             decoration: InputDecoration(
               hintText: 'Enter 64-char hex pubkey',
               errorText: _errorText,

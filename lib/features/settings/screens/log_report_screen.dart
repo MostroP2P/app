@@ -70,7 +70,9 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
   @override
   Widget build(BuildContext context) {
     final loggingEnabled = ref.watch(settingsProvider).loggingEnabled;
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colorsRaw = Theme.of(context).extension<AppColors>();
+    assert(colorsRaw != null, 'AppColors theme extension must be registered');
+    final colors = colorsRaw!;
 
     return Scaffold(
       appBar: AppBar(
@@ -174,6 +176,11 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
       await SharePlus.instance.share(ShareParams(text: content));
     } catch (e) {
       debugPrint('Failed to share logs: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to share logs')),
+        );
+      }
     }
   }
 }

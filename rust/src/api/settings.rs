@@ -99,8 +99,10 @@ fn validate_fiat_code(code: &str) -> Result<()> {
 }
 
 /// Validates a Lightning Address in `user@domain` format.
+///
+/// Requires exactly one `@` with a non-empty local part and domain.
 fn validate_lightning_address(address: &str) -> Result<()> {
-    let parts: Vec<&str> = address.splitn(2, '@').collect();
+    let parts: Vec<&str> = address.split('@').collect();
     if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
         Ok(())
     } else {
