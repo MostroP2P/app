@@ -435,12 +435,22 @@ async fn _run_order_subscription() {
     };
     let client = pool.client();
 
+    // The Mostro daemon is the author of all Kind 38383 events.
+    // Use the compiled-in default pubkey (mirrors config.rs / settings screen).
+    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
+        Ok(pk) => pk,
+        Err(e) => {
+            log::error!("[orders] invalid DEFAULT_MOSTRO_PUBKEY: {e}");
+            return;
+        }
+    };
+    log::info!("[orders] subscribing to Kind 38383 from mostro={}", mostro_pubkey.to_hex());
+
     // Get notifications receiver before subscribing to avoid missing
     // events that arrive between the subscribe call and receiver creation.
     let mut rx = client.notifications();
 
-    let filter = crate::nostr::order_events::pending_orders_filter();
-    log::info!("[orders] subscribing to Kind 38383 filter");
+    let filter = crate::nostr::order_events::pending_orders_filter(&mostro_pubkey);
     if let Err(e) = client.subscribe(filter, None).await {
         log::error!("[orders] subscribe failed: {e}");
         return;

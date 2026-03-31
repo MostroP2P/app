@@ -143,7 +143,9 @@ impl RelayPool {
     ///   `gift_wrap::unwrap` → route to trade/chat handlers
     /// - `RelayPoolNotification::Shutdown` → update connection state
     pub async fn subscribe_order_and_dm_feeds(&self, trade_pubkeys: Vec<PublicKey>) -> Result<()> {
-        let order_filter = pending_orders_filter();
+        let mostro_pubkey = nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
+            .map_err(|e| anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+        let order_filter = pending_orders_filter(&mostro_pubkey);
         self.client
             .subscribe(order_filter, None)
             .await
