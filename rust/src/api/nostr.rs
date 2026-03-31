@@ -45,17 +45,22 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
     let pool_ref = POOL.get().unwrap().clone();
     tokio::spawn(async move {
         let mut rx = pool_ref.subscribe_connection_state();
+        log::info!("[nostr] connection state watcher started");
         loop {
             match rx.recv().await {
                 Ok(ConnectionState::Online) => {
+                    log::info!("[nostr] relay pool ONLINE — flushing queue + subscribing orders");
                     let _ = flush_message_queue().await;
                     // Start (or re-start) Kind 38383 order book subscription.
-                    // subscribe_orders() is idempotent and returns immediately
-                    // after spawning its background loop.
                     crate::api::orders::subscribe_orders().await;
                 }
-                Err(_) => break,
-                _ => {}
+                Ok(state) => {
+                    log::info!("[nostr] connection state changed: {state:?}");
+                }
+                Err(_) => {
+                    log::warn!("[nostr] connection state channel closed");
+                    break;
+                }
             }
         }
     });

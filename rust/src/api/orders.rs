@@ -417,8 +417,10 @@ pub async fn subscribe_orders() {
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_err()
     {
+        log::debug!("[orders] subscribe_orders: already active, skipping");
         return;
     }
+    log::info!("[orders] subscribe_orders: spawning subscription loop");
 
     tokio::spawn(async {
         let _guard = ResetGuard;
@@ -427,7 +429,10 @@ pub async fn subscribe_orders() {
 }
 
 async fn _run_order_subscription() {
-    let Ok(pool) = crate::api::nostr::get_pool() else { return };
+    let Ok(pool) = crate::api::nostr::get_pool() else {
+        log::error!("[orders] subscription failed: relay pool not initialized");
+        return;
+    };
     let client = pool.client();
 
     // Get notifications receiver before subscribing to avoid missing
@@ -435,22 +440,36 @@ async fn _run_order_subscription() {
     let mut rx = client.notifications();
 
     let filter = crate::nostr::order_events::pending_orders_filter();
-    if client.subscribe(filter, None).await.is_err() {
+    log::info!("[orders] subscribing to Kind 38383 filter");
+    if let Err(e) = client.subscribe(filter, None).await {
+        log::error!("[orders] subscribe failed: {e}");
         return;
     }
+    log::info!("[orders] Kind 38383 subscription active — waiting for events");
 
     use nostr_sdk::RelayPoolNotification;
 
     loop {
         match rx.recv().await {
             Ok(RelayPoolNotification::Event { event, .. }) => {
+                log::debug!("[orders] received event kind={}", event.kind);
                 if let Some(info) = parse_order_event(&event, None) {
+                    log::info!("[orders] upserted order id={}", info.id);
                     order_book().upsert_order(info).await;
                 }
             }
-            Ok(RelayPoolNotification::Shutdown) => break,
-            Err(broadcast::error::RecvError::Closed) => break,
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
+            Ok(RelayPoolNotification::Shutdown) => {
+                log::info!("[orders] relay pool shutdown — subscription loop exiting");
+                break;
+            }
+            Err(broadcast::error::RecvError::Closed) => {
+                log::warn!("[orders] notification channel closed");
+                break;
+            }
+            Err(broadcast::error::RecvError::Lagged(n)) => {
+                log::warn!("[orders] lagged by {n} messages");
+                continue;
+            }
             _ => {}
         }
     }

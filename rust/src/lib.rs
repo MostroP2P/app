@@ -12,3 +12,16 @@ pub mod mostro;
 pub mod nostr;
 pub mod nwc;
 pub mod queue;
+
+/// Called once by Flutter during `RustLib.init()` — sets up logging so Rust
+/// messages appear in `adb logcat` under the tag `mostro_rust`.
+#[flutter_rust_bridge::frb(init)]
+pub fn init_app() {
+    #[cfg(target_os = "android")]
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Debug)
+            .with_tag("mostro_rust"),
+    );
+    log::info!("[init] Rust core initialized");
+}

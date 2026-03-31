@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
@@ -122,14 +123,21 @@ class OrderItem {
 
 /// Live order book backed by the Rust bridge Kind 38383 subscription.
 ///
-/// Starts in loading state (shimmer shown) until the first emission arrives
-/// from the Rust order cache. Each time [subscribe_orders()] upserts an order
-/// the broadcast fires and this stream yields an updated snapshot.
+/// Immediately yields the current cached snapshot (empty on first run) so the
+/// UI exits the shimmer/loading state right away.  Subsequent emissions arrive
+/// as [subscribe_orders()] upserts orders from the relay stream.
 final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) async* {
+  // Emit current cache immediately — exits shimmer even with no orders yet.
+  final snapshot = await orders_api.getOrders(filters: null);
+  debugPrint('[orderBook] initial snapshot: ${snapshot.length} orders');
+  yield snapshot.map(OrderItem.fromInfo).toList();
+
+  // Stream live updates from the relay subscription.
   final stream = await orders_api.onOrdersUpdated();
   while (true) {
     final orders = await stream.next();
     if (orders == null) break;
+    debugPrint('[orderBook] update: ${orders.length} orders');
     yield orders.map(OrderItem.fromInfo).toList();
   }
 });
