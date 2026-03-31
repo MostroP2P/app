@@ -21,8 +21,7 @@ class DisputesList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColors>();
-    assert(colors != null, 'AppColors theme extension must be registered');
-    if (colors == null) return const SizedBox.shrink();
+    if (colors == null) throw StateError('AppColors theme extension must be registered');
 
     final disputesAsync = ref.watch(userDisputeDataProvider);
 

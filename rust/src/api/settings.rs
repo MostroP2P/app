@@ -170,6 +170,9 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
 /// during synchronous tests) we fall back to a synchronous write; the
 /// broadcast notification is skipped in that path but the flag is always set.
 pub fn set_logging_enabled(enabled: bool) {
+    // Note: the async path is fire-and-forget (spawn); callers that call
+    // get_settings() immediately after may not yet see the updated flag
+    // (eventually consistent).  The sync fallback applies the change inline.
     match tokio::runtime::Handle::try_current() {
         Ok(handle) => {
             handle.spawn(async move {

@@ -35,6 +35,11 @@ class SembastNotificationsStore {
         // lose all notifications on page reload (notificationsProviderWithDb
         // regresses to in-memory-only behavior).  Fix: add sembast_web, switch
         // to databaseFactoryWeb, remove the sembast_memory import.
+        debugPrint(
+          '[notifications] WARNING: Using in-memory DB on web — '
+          'notifications will not persist across reloads. '
+          'Add sembast_web to pubspec.yaml to fix.',
+        );
         db = await databaseFactoryMemory.openDatabase(_dbName);
       } else {
         final dir = await getApplicationDocumentsDirectory();

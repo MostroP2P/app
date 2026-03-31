@@ -23,8 +23,8 @@ class _NotificationSettingsScreenState
   @override
   Widget build(BuildContext context) {
     final colorsRaw = Theme.of(context).extension<AppColors>();
-    assert(colorsRaw != null, 'AppColors theme extension must be registered');
-    final colors = colorsRaw!;
+    if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
+    final colors = colorsRaw;
 
     return Scaffold(
       appBar: AppBar(

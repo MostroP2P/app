@@ -15,7 +15,7 @@ final privacyModeProvider = StateNotifierProvider<PrivacyModeNotifier, bool>(
 class PrivacyModeNotifier extends StateNotifier<bool> {
   PrivacyModeNotifier() : super(false);
 
-  /// Toggle privacy mode and propagate to the Rust layer.
+  /// Set privacy mode to [enabled] and propagate to the Rust layer.
   void setPrivacyMode(bool enabled) {
     state = enabled;
     // TODO(bridge): call set_privacy_mode(enabled) via FFI (Phase 18+).
