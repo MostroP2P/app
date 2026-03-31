@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 
@@ -92,10 +92,10 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
     }
   }
 
-  void _onQrDetected(BarcodeCapture capture) {
-    final raw = capture.barcodes.firstOrNull?.rawValue;
-    if (raw != null && raw.startsWith('nostr+walletconnect://')) {
-      _uriController.text = raw;
+  void _onQrDetected(String raw) {
+    final normalized = raw.trim();
+    if (normalized.toLowerCase().startsWith('nostr+walletconnect://')) {
+      _uriController.text = normalized;
       setState(() => _showScanner = false);
     }
   }
@@ -114,7 +114,10 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
           title: const Text('Scan QR Code'),
           leading: BackButton(onPressed: () => setState(() => _showScanner = false)),
         ),
-        body: MobileScanner(onDetect: _onQrDetected),
+        body: PlatformAwareQrScanner(
+          hint: AppLocalizations.of(context).pasteNwcUri,
+          onDetected: _onQrDetected,
+        ),
       );
     }
 

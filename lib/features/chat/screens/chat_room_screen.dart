@@ -132,6 +132,102 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final showSidePanel = screenWidth >= AppBreakpoints.tablet;
+
+    // ── Side panel (tablet+) ─────────────────────────────────────────────────
+    // On tablet/desktop the info panels are always visible as a persistent
+    // sidebar rather than toggling over the message list.
+    Widget? sidePanel;
+    if (showSidePanel) {
+      sidePanel = SizedBox(
+        width: 300,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _showTradeInfo
+              ? TradeInformationTab(
+                  key: const ValueKey('trade'),
+                  orderId: widget.orderId,
+                )
+              : _showUserInfo
+                  ? UserInformationTab(
+                      key: const ValueKey('user'),
+                      peerHandle: room.peerHandle,
+                      peerPubkey: room.peerPubkey,
+                      peerIconIndex: room.peerIconIndex,
+                      peerColorHue: room.peerColorHue,
+                    )
+                  : Container(
+                      key: const ValueKey('none'),
+                      color: colors.backgroundCard,
+                      child: Center(
+                        child: Text(
+                          'Select ℹ or 👤\nfor details',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: colors.textSubtle),
+                        ),
+                      ),
+                    ),
+        ),
+      );
+    }
+
+    // ── Chat column ──────────────────────────────────────────────────────────
+    final chatColumn = Column(
+      children: [
+        // Animated info panels (mobile only — on tablet+ shown as sidebar)
+        if (!showSidePanel)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: _showTradeInfo
+                ? TradeInformationTab(
+                    key: const ValueKey('trade'),
+                    orderId: widget.orderId,
+                  )
+                : _showUserInfo
+                    ? UserInformationTab(
+                        key: const ValueKey('user'),
+                        peerHandle: room.peerHandle,
+                        peerPubkey: room.peerPubkey,
+                        peerIconIndex: room.peerIconIndex,
+                        peerColorHue: room.peerColorHue,
+                      )
+                    : const SizedBox.shrink(key: ValueKey('none')),
+          ),
+
+        // Message list
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            itemCount: _messages.length,
+            itemBuilder: (context, index) {
+              return MessageBubble(
+                message: _messages[index],
+                peerColorHue: room.peerColorHue,
+              );
+            },
+          ),
+        ),
+
+        // Composition bar
+        Padding(
+          padding: EdgeInsets.only(
+            left: AppSpacing.sm,
+            right: AppSpacing.sm,
+            bottom:
+                MediaQuery.of(context).viewInsets.bottom + AppSpacing.sm,
+            top: AppSpacing.xs,
+          ),
+          child: MessageInput(
+            onSendText: _onSend,
+            onAttachFile: _onAttach,
+            isAttaching: _isAttaching,
+          ),
+        ),
+      ],
+    );
+
     return Scaffold(
       // Keyboard avoidance is handled manually via viewInsets.bottom padding
       // on the composition bar so the BottomNavBar does not push content twice.
@@ -158,59 +254,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Animated info panels
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            child: _showTradeInfo
-                ? TradeInformationTab(
-                    key: const ValueKey('trade'),
-                    orderId: widget.orderId,
-                  )
-                : _showUserInfo
-                    ? UserInformationTab(
-                        key: const ValueKey('user'),
-                        peerHandle: room.peerHandle,
-                        peerPubkey: room.peerPubkey,
-                        peerIconIndex: room.peerIconIndex,
-                        peerColorHue: room.peerColorHue,
-                      )
-                    : const SizedBox.shrink(key: ValueKey('none')),
-          ),
-
-          // Message list
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return MessageBubble(
-                  message: _messages[index],
-                  peerColorHue: room.peerColorHue,
-                );
-              },
-            ),
-          ),
-
-          // Composition bar
-          Padding(
-            padding: EdgeInsets.only(
-              left: AppSpacing.sm,
-              right: AppSpacing.sm,
-              bottom: MediaQuery.of(context).viewInsets.bottom +
-                  AppSpacing.sm,
-              top: AppSpacing.xs,
-            ),
-            child: MessageInput(
-              onSendText: _onSend,
-              onAttachFile: _onAttach,
-              isAttaching: _isAttaching,
-            ),
-          ),
-        ],
-      ),
+      body: showSidePanel && sidePanel != null
+          ? Row(
+              children: [
+                Expanded(child: chatColumn),
+                const VerticalDivider(width: 1),
+                sidePanel,
+              ],
+            )
+          : chatColumn,
       bottomNavigationBar: const BottomNavBar(),
     );
   }

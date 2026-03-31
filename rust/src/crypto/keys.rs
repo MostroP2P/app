@@ -57,7 +57,7 @@ fn derive_at_index(mnemonic_words: &[String], index: u32) -> Result<Keys> {
         .parse()
         .map_err(|e| anyhow!("derivation path parse: {e}"))?;
 
-    let xprv = XPrv::derive_from_path(&seed, &path)
+    let xprv = XPrv::derive_from_path(seed, &path)
         .map_err(|e| anyhow!("BIP-32 derive error: {e}"))?;
 
     // k256 signing key → raw 32-byte secret

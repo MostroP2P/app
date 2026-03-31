@@ -125,6 +125,8 @@ pub enum ConnectionState {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum QueuedMessageStatus {
     Pending,
+    /// Currently being published — prevents duplicate flush attempts.
+    InFlight,
     Sent,
     Failed,
 }

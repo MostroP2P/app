@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/mostro_defaults.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -70,12 +71,13 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            final l10n = AppLocalizations.of(ctx);
             return AlertDialog(
-              title: const Text('Add Relay'),
+              title: Text(l10n.addRelayDialogTitle),
               content: TextField(
                 controller: controller,
                 decoration: InputDecoration(
-                  hintText: 'wss://relay.example.com',
+                  hintText: l10n.relayHintText,
                   errorText: errorText,
                 ),
                 onChanged: (_) {
@@ -87,28 +89,31 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(l10n.cancel),
                 ),
                 TextButton(
                   onPressed: () {
                     final url = controller.text.trim();
                     if (!url.startsWith('wss://')) {
                       setDialogState(
-                        () => errorText = 'Must start with wss://',
+                        () => errorText = l10n.relayErrorMustStartWithWss,
                       );
                       return;
                     }
                     if (url.length < 10) {
-                      setDialogState(() => errorText = 'URL is too short');
+                      setDialogState(() => errorText = l10n.relayErrorUrlTooShort);
                       return;
                     }
                     if (_relays.any((r) => r.url == url)) {
                       setDialogState(
-                        () => errorText = 'Relay already in list',
+                        () => errorText = l10n.relayErrorDuplicate,
                       );
                       return;
                     }
-                    if (!mounted) return;
+                    if (!mounted) {
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      return;
+                    }
                     setState(() {
                       _relays.add(
                         _RelayEntry(
@@ -121,7 +126,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                     Navigator.of(ctx).pop();
                     // TODO(bridge): call add_relay(url)
                   },
-                  child: const Text('Add'),
+                  child: Text(l10n.addButtonLabel),
                 ),
               ],
             );
@@ -197,7 +202,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
           onPressed: _showAddRelayDialog,
           icon: Icon(Icons.add, color: c.mostroGreen),
           label: Text(
-            'Add Relay',
+            AppLocalizations.of(context).addRelayDialogTitle,
             style: TextStyle(color: c.mostroGreen),
           ),
         ),

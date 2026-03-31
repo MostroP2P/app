@@ -1,7 +1,7 @@
-/// Default configuration constants for the Mostro network.
-///
-/// These are compiled into the app and used on first launch when no
-/// user-configured relays or Mostro node exist in the database.
+//! Default configuration constants for the Mostro network.
+//!
+//! These are compiled into the app and used on first launch when no
+//! user-configured relays or Mostro node exist in the database.
 
 /// Default relay URLs seeded on first launch.
 pub const DEFAULT_RELAYS: &[&str] = &[

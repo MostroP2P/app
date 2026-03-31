@@ -53,6 +53,7 @@ class _CurrencySelectorDialogState
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearch);
     _searchController.dispose();
     super.dispose();
   }

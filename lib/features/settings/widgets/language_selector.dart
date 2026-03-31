@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 // ── Language data ─────────────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ class LanguageSelector extends ConsumerWidget {
             child: Row(
               children: [
                 Text(
-                  'Select Language',
+                  AppLocalizations.of(context).selectLanguageTitle,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const Spacer(),

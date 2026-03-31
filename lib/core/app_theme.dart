@@ -148,6 +148,18 @@ abstract final class AppSpacing {
   static const double xxl = 32;
 }
 
+// ── Responsive breakpoints ────────────────────────────────────────────────────
+
+/// Logical-pixel breakpoints for responsive layouts.
+///
+/// - < [tablet]  → mobile   (single-column, overlay drawer, bottom nav)
+/// - [tablet] – [desktop] → tablet (2-column grid, side panel)
+/// - ≥ [desktop] → desktop  (3-column grid, persistent sidebar, no bottom nav)
+abstract final class AppBreakpoints {
+  static const double tablet = 600;
+  static const double desktop = 1200;
+}
+
 // ── Border-radius tokens ───────────────────────────────────────────────────────
 
 abstract final class AppRadius {

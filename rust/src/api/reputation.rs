@@ -9,7 +9,7 @@
 ///
 /// All state is held in-memory until the DB persistence layer is wired
 /// (Phase 12+).
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use std::collections::HashMap;
 use std::sync::{atomic::{AtomicBool, Ordering}, OnceLock};
 use tokio::sync::{broadcast, RwLock};
@@ -115,7 +115,7 @@ fn unix_now() -> i64 {
 ///
 /// **Errors**: `InvalidScore`, `PrivacyModeEnabled`, `AlreadyRated`.
 pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
-    if score < 1 || score > 5 {
+    if !(1u8..=5).contains(&score) {
         bail!("InvalidScore: score must be between 1 and 5, got {score}");
     }
 
@@ -177,7 +177,7 @@ pub async fn handle_rating_received(
     score: u8,
     from_pubkey: String,
 ) -> Result<()> {
-    if score < 1 || score > 5 {
+    if !(1u8..=5).contains(&score) {
         bail!("InvalidScore: received invalid score {score} for trade {trade_id}");
     }
 

@@ -20,6 +20,11 @@ class BottomNavBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // On desktop the persistent sidebar provides navigation; hide bottom nav.
+    if (MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop) {
+      return const SizedBox.shrink();
+    }
+
     final currentIndex = ref.watch(bottomNavIndexProvider);
     final colors = Theme.of(context).extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
