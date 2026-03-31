@@ -10,6 +10,31 @@ Future<void> main() async {
   // Initialize the Nostr relay pool with default relays (from config.rs).
   // This must happen before any Nostr/order API calls.
   await nostr_api.initialize(relays: null);
-  debugPrint('[main] Nostr relay pool initialized');
+
+  // Log initial relay state for diagnostics.
+  final relays = await nostr_api.getRelays();
+  final connState = await nostr_api.getConnectionState();
+  debugPrint('[main] relay pool initialized — state=$connState relays=${relays.map((r) => '${r.url}:${r.status}').join(', ')}');
+
+  // Watch for connection state changes in background (logs appear in flutter output).
+  _watchConnectionState();
+
   runApp(const ProviderScope(child: MostroApp()));
+}
+
+/// Background watcher: logs every relay pool connection state change.
+/// Output visible via `flutter run` / `adb logcat -s flutter`.
+void _watchConnectionState() {
+  Future.microtask(() async {
+    try {
+      final stream = await nostr_api.onConnectionStateChanged();
+      while (true) {
+        final state = await stream.next();
+        if (state == null) break;
+        debugPrint('[nostr] connection state → $state');
+      }
+    } catch (e) {
+      debugPrint('[nostr] connection watcher error: $e');
+    }
+  });
 }
