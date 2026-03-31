@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
+import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 
 /// Account screen — Route `/key_management`.
 ///
@@ -20,9 +23,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   bool _wordsVisible = false;
   List<String>? _words;
   bool _loadingWords = false;
-
-  // Privacy mode — placeholder until settings provider is wired in Phase 6
-  bool _privacyMode = false;
 
   String _maskPhrase(List<String> words) {
     if (words.length < 4) return words.join(' ');
@@ -66,6 +66,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final privacyMode = ref.watch(privacyModeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -176,33 +177,29 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   style: theme.textTheme.bodySmall!.copyWith(color: textSec),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                Opacity(
-                  opacity: 0.5,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _PrivacyOption(
-                        title: 'Reputation Mode',
-                        subtitle: 'Standard privacy with reputation',
-                        selected: !_privacyMode,
-                        green: green,
-                        onTap: null,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      _PrivacyOption(
-                        title: 'Full Privacy Mode',
-                        subtitle: 'Maximum anonymity',
-                        selected: _privacyMode,
-                        green: green,
-                        onTap: null,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Coming soon',
-                  style: theme.textTheme.bodySmall!.copyWith(color: textSec),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _PrivacyOption(
+                      title: 'Reputation Mode',
+                      subtitle: 'Standard privacy with reputation',
+                      selected: !privacyMode,
+                      green: green,
+                      onTap: () => ref
+                          .read(privacyModeProvider.notifier)
+                          .setPrivacyMode(false),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _PrivacyOption(
+                      title: 'Full Privacy Mode',
+                      subtitle: 'Maximum anonymity',
+                      selected: privacyMode,
+                      green: green,
+                      onTap: () => ref
+                          .read(privacyModeProvider.notifier)
+                          .setPrivacyMode(true),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -286,8 +283,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Generate New User?'),
         content: const Text(
-          'This will permanently replace your current identity. '
-          'Make sure you have backed up your current secret words.',
+          'This will create a brand-new identity. Your current secret words '
+          'will no longer work — make sure they are backed up before continuing.',
         ),
         actions: [
           TextButton(
@@ -297,7 +294,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: wire to create_identity() Rust bridge in Phase 5.
+              // TODO(bridge): call create_identity() via FFI (Phase 18+).
+              ref
+                  .read(backupReminderProvider.notifier)
+                  .showBackupReminder();
+              context.go(AppRoute.walkthrough);
             },
             child: const Text('Continue'),
           ),

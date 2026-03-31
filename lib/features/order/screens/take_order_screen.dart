@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
@@ -138,6 +139,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
     final flags = ref.watch(currencyFlagsProvider);
+    final privacyMode = ref.watch(privacyModeProvider);
 
     if (order == null) {
       return Scaffold(
@@ -247,34 +249,39 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // Card 5: Creator reputation
-          _InfoCard(
-            color: cardBg,
-            child: Row(
-              children: [
-                const Icon(Icons.star, size: 16, color: Colors.amber),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  order.rating.toStringAsFixed(1),
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(width: AppSpacing.lg),
-                Icon(Icons.person_outline, size: 16, color: textSec),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  '${order.tradeCount}',
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(width: AppSpacing.lg),
-                Icon(Icons.calendar_month_outlined, size: 16, color: textSec),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  '${order.daysActive}d',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
+          // Card 5: Creator reputation — hidden in full privacy mode.
+          // TODO(bridge): the rate_counterpart route should also be skipped
+          // when privacy mode is on (controlled via the trade flow, not here).
+          if (!privacyMode) ...[
+            _InfoCard(
+              color: cardBg,
+              child: Row(
+                children: [
+                  const Icon(Icons.star, size: 16, color: Colors.amber),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    order.rating.toStringAsFixed(1),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(width: AppSpacing.lg),
+                  Icon(Icons.person_outline, size: 16, color: textSec),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    '${order.tradeCount}',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(width: AppSpacing.lg),
+                  Icon(Icons.calendar_month_outlined, size: 16, color: textSec),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    '${order.daysActive}d',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           const SizedBox(height: AppSpacing.xl),
 
           // Countdown timer

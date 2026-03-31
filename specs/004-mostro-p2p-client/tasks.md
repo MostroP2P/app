@@ -373,8 +373,8 @@ configuration.
 
 **Independent Test**: Account screen → masked words → Show → 12 visible. Toggle privacy mode → subsequent trades use anonymous identity. Generate new user → backup reminder reactivates.
 
-- [ ] T116 Extend account screen in `lib/features/account/screens/account_screen.dart`: add privacy mode toggle card ("Reputation mode" / "Full privacy mode") calling `set_privacy_mode()`. Add "Generate New User" option with confirmation dialog: warns this creates a new identity and old backup words won't work. On confirm → `create_identity()` (new mnemonic) → `showBackupReminder()` reactivates → navigate to `/walkthrough` or home with new red dot.
-- [ ] T117 [P] Wire privacy mode display: when in Full Privacy mode, trade screens should not show reputation data (rating stars, review count). `orderNotifierProvider` respects privacy mode setting. Settings screen reflects current mode.
+- [x] T116 Extend account screen in `lib/features/account/screens/account_screen.dart`: add privacy mode toggle card ("Reputation mode" / "Full privacy mode") calling `set_privacy_mode()`. Add "Generate New User" option with confirmation dialog: warns this creates a new identity and old backup words won't work. On confirm → `create_identity()` (new mnemonic) → `showBackupReminder()` reactivates → navigate to `/walkthrough` or home with new red dot.
+- [x] T117 [P] Wire privacy mode display: when in Full Privacy mode, trade screens should not show reputation data (rating stars, review count). `orderNotifierProvider` respects privacy mode setting. Settings screen reflects current mode.
 
 **Checkpoint**: All 3 account actions work: view secret words (backup confirmed), toggle privacy mode (affects subsequent trades), generate new identity (backup reminder reactivates).
 
