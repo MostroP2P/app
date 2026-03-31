@@ -100,17 +100,33 @@ fn validate_fiat_code(code: &str) -> Result<()> {
 
 /// Validates a Lightning Address in `user@domain` format.
 ///
-/// Requires exactly one `@` with a non-empty local part and domain.
+/// Requires exactly one `@`, a non-empty local part, and a domain that
+/// contains at least one dot with no empty labels and only ASCII
+/// alphanumeric/hyphen characters.
 fn validate_lightning_address(address: &str) -> Result<()> {
-    let parts: Vec<&str> = address.split('@').collect();
+    let trimmed = address.trim();
+    let parts: Vec<&str> = trimmed.split('@').collect();
     if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-        Ok(())
-    } else {
-        bail!(
-            "InvalidLightningAddress: '{}' must be in user@domain format",
-            address
-        )
+        let domain = parts[1];
+        let labels: Vec<&str> = domain.split('.').collect();
+        let valid_domain = labels.len() >= 2
+            && labels.iter().all(|label| {
+                !label.is_empty()
+                    && label.len() <= 63
+                    && label
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+            });
+        if valid_domain {
+            return Ok(());
+        }
     }
+    bail!(
+        "InvalidLightningAddress: '{}' must be in user@domain.tld format",
+        address
+    )
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

@@ -89,16 +89,20 @@ impl MessageOutbox {
     {
         let now = unix_now();
 
-        // Snapshot messages that are due for a retry attempt.
+        // Snapshot messages that are due for a retry attempt, marking them
+        // InFlight so concurrent flush() calls skip them.
         let pending: Vec<QueuedMessage> = {
-            let q = self.queue.lock().unwrap();
-            q.iter()
-                .filter(|m| {
-                    m.status == QueuedMessageStatus::Pending
-                        && m.next_retry_at.is_none_or(|t| now >= t)
-                })
-                .cloned()
-                .collect()
+            let mut q = self.queue.lock().unwrap();
+            let mut snapshot = Vec::new();
+            for m in q.iter_mut() {
+                if m.status == QueuedMessageStatus::Pending
+                    && m.next_retry_at.is_none_or(|t| now >= t)
+                {
+                    m.status = QueuedMessageStatus::InFlight;
+                    snapshot.push(m.clone());
+                }
+            }
+            snapshot
         };
 
         let mut sent = 0u32;
@@ -114,6 +118,7 @@ impl MessageOutbox {
                     if msg.retry_count >= MAX_RETRIES {
                         msg.status = QueuedMessageStatus::Failed;
                     } else {
+                        msg.status = QueuedMessageStatus::Pending;
                         msg.next_retry_at = Some(now + msg.next_retry_delay_secs());
                     }
                 }
@@ -127,9 +132,11 @@ impl MessageOutbox {
         }
 
         // Prune: sent items always; failed items after 24 hours.
+        // InFlight messages are preserved (another concurrent flush owns them).
         let cutoff = now - 86_400;
         self.queue.lock().unwrap().retain(|m| {
             m.status == QueuedMessageStatus::Pending
+                || m.status == QueuedMessageStatus::InFlight
                 || (m.status == QueuedMessageStatus::Failed && m.created_at > cutoff)
         });
 

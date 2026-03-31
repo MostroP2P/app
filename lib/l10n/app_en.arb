@@ -109,7 +109,7 @@
   "@tabSellBtc": {"description": "Tab label for the sell Bitcoin order book"},
   "filterButtonLabel": "FILTER",
   "@filterButtonLabel": {"description": "Button label to open order book filter options"},
-  "offersCount": "{count} offers",
+  "offersCount": "{count, plural, =1{1 offer} other{{count} offers}}",
   "@offersCount": {
     "description": "Number of offers shown in the order book",
     "placeholders": {"count": {"type": "int"}}

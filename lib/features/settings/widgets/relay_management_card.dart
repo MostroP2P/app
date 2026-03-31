@@ -108,7 +108,10 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                       );
                       return;
                     }
-                    if (!mounted) return;
+                    if (!mounted) {
+                      Navigator.of(ctx).pop();
+                      return;
+                    }
                     setState(() {
                       _relays.add(
                         _RelayEntry(

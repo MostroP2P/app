@@ -171,7 +171,13 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String offersCount(int count) {
-    return '$count offerte';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count offerte',
+      one: '1 offerta',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -402,7 +408,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get invalidLightningAddressFormat =>
-      'Deve essere nel formato utente@dominio';
+      'Deve essere nel formato utente@dominio.com';
 
   @override
   String get clearButtonLabel => 'Cancella';

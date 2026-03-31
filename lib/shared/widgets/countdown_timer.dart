@@ -64,7 +64,7 @@ class _CountdownTimerState extends State<CountdownTimer> {
 
   Color _color(AppColors colors) {
     final total = widget.duration.inSeconds;
-    if (total == 0) return colors.mostroGreen;
+    if (total == 0) return colors.destructiveRed;
     final ratio = _remaining.inSeconds / total;
     if (ratio > 0.33) return colors.mostroGreen;
     if (ratio > 0.10) return const Color(0xFFFFD700);

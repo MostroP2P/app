@@ -173,7 +173,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String offersCount(int count) {
-    return '$count offres';
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count offres',
+      one: '1 offre',
+    );
+    return '$_temp0';
   }
 
   @override

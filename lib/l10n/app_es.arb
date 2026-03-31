@@ -53,7 +53,7 @@
   "tabBuyBtc": "COMPRAR BTC",
   "tabSellBtc": "VENDER BTC",
   "filterButtonLabel": "FILTRAR",
-  "offersCount": "{count} ofertas",
+  "offersCount": "{count, plural, =1{1 oferta} other{{count} ofertas}}",
   "noOrdersAvailable": "No hay órdenes disponibles",
   "justNow": "Ahora mismo",
   "minutesAgo": "Hace {m}m",

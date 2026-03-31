@@ -66,7 +66,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => showCurrencySelector(context),
           ),
 
-          // 3 — Lightning Address
+          // 4 — Lightning Address
           _settingsCard(
             context: context,
             colors: colors,
@@ -76,7 +76,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => _showLightningAddressDialog(context),
           ),
 
-          // 4 — NWC Wallet
+          // 5 — NWC Wallet
           _settingsCard(
             context: context,
             colors: colors,
@@ -92,7 +92,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
 
-          // 5 — Relays
+          // 6 — Relays
           Container(
             margin: const EdgeInsets.only(bottom: AppSpacing.md),
             decoration: BoxDecoration(

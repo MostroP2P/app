@@ -5,11 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 
-// Expose for other widgets that need to know whether to show bottom nav.
-// ignore: unused_element
-bool _isDesktop(BuildContext context) =>
-    MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
-
 /// Currently active bottom-nav tab index.
 final bottomNavIndexProvider = StateProvider<int>((_) => 0);
 

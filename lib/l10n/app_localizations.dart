@@ -389,7 +389,7 @@ abstract class AppLocalizations {
   /// Number of offers shown in the order book
   ///
   /// In en, this message translates to:
-  /// **'{count} offers'**
+  /// **'{count, plural, =1{1 offer} other{{count} offers}}'**
   String offersCount(int count);
 
   /// Empty state message when the order book has no orders

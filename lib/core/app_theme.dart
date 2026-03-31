@@ -152,9 +152,9 @@ abstract final class AppSpacing {
 
 /// Logical-pixel breakpoints for responsive layouts.
 ///
-/// - < [kBreakpointTablet]  → mobile   (single-column, overlay drawer, bottom nav)
-/// - [kBreakpointTablet] – [kBreakpointDesktop] → tablet (2-column grid, side panel)
-/// - ≥ [kBreakpointDesktop] → desktop  (3-column grid, persistent sidebar, no bottom nav)
+/// - < [tablet]  → mobile   (single-column, overlay drawer, bottom nav)
+/// - [tablet] – [desktop] → tablet (2-column grid, side panel)
+/// - ≥ [desktop] → desktop  (3-column grid, persistent sidebar, no bottom nav)
 abstract final class AppBreakpoints {
   static const double tablet = 600;
   static const double desktop = 1200;
