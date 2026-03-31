@@ -2,16 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sembast/sembast.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:mostro/features/notifications/models/notification_model.dart';
 
-// Platform-specific imports
+// Platform-specific imports — path_provider is only needed on non-web.
 import 'package:path_provider/path_provider.dart'
     if (dart.library.html) 'dart:html';
-import 'package:sembast/sembast_io.dart'
-    if (dart.library.html) 'package:sembast_web/sembast_web.dart';
+import 'package:sembast/sembast_io.dart';
+import 'package:sembast/sembast_memory.dart' show databaseFactoryMemory;
 
 // ── Sembast persistence store ─────────────────────────────────────────────────
 
@@ -31,7 +30,12 @@ class SembastNotificationsStore {
     try {
       final Database db;
       if (kIsWeb) {
-        db = await databaseFactoryWeb.openDatabase(_dbName);
+        // TODO(web-push): Replace databaseFactoryMemory with databaseFactoryWeb
+        // once sembast_web is added to pubspec.yaml. Without this, web users
+        // lose all notifications on page reload (notificationsProviderWithDb
+        // regresses to in-memory-only behavior).  Fix: add sembast_web, switch
+        // to databaseFactoryWeb, remove the sembast_memory import.
+        db = await databaseFactoryMemory.openDatabase(_dbName);
       } else {
         final dir = await getApplicationDocumentsDirectory();
         final path = '${dir.path}/$_dbName';

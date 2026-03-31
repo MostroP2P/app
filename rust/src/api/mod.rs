@@ -5,6 +5,7 @@ pub mod nostr;
 pub mod nwc;
 pub mod orders;
 pub mod reputation;
+pub mod settings;
 pub mod types;
 
 pub fn get_app_version() -> String {
