@@ -94,22 +94,28 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
     })
 }
 
+/// Parse the `s` tag value into an [`OrderStatus`].
+///
+/// mostro-core uses `#[serde(rename_all = "kebab-case")]`, so all status
+/// strings on the wire are kebab-case: `"pending"`, `"waiting-buyer-invoice"`,
+/// `"in-progress"`, etc.
 fn parse_status(s: &str) -> Option<OrderStatus> {
     match s {
-        "Pending" => Some(OrderStatus::Pending),
-        "WaitingBuyerInvoice" => Some(OrderStatus::WaitingBuyerInvoice),
-        "WaitingPayment" => Some(OrderStatus::WaitingPayment),
-        "Active" => Some(OrderStatus::Active),
-        "FiatSent" => Some(OrderStatus::FiatSent),
-        "SettledHoldInvoice" => Some(OrderStatus::SettledHoldInvoice),
-        "Success" => Some(OrderStatus::Success),
-        "Canceled" => Some(OrderStatus::Canceled),
-        "Expired" => Some(OrderStatus::Expired),
-        "CanceledByAdmin" => Some(OrderStatus::CanceledByAdmin),
-        "SettledByAdmin" => Some(OrderStatus::SettledByAdmin),
-        "CompletedByAdmin" => Some(OrderStatus::CompletedByAdmin),
-        "Dispute" => Some(OrderStatus::Dispute),
-        "InProgress" => Some(OrderStatus::InProgress),
+        "pending" => Some(OrderStatus::Pending),
+        "waiting-buyer-invoice" => Some(OrderStatus::WaitingBuyerInvoice),
+        "waiting-payment" => Some(OrderStatus::WaitingPayment),
+        "active" => Some(OrderStatus::Active),
+        "fiat-sent" => Some(OrderStatus::FiatSent),
+        "settled-hold-invoice" => Some(OrderStatus::SettledHoldInvoice),
+        "success" => Some(OrderStatus::Success),
+        "canceled" => Some(OrderStatus::Canceled),
+        "cooperatively-canceled" => Some(OrderStatus::Canceled),
+        "expired" => Some(OrderStatus::Expired),
+        "canceled-by-admin" => Some(OrderStatus::CanceledByAdmin),
+        "settled-by-admin" => Some(OrderStatus::SettledByAdmin),
+        "completed-by-admin" => Some(OrderStatus::CompletedByAdmin),
+        "dispute" => Some(OrderStatus::Dispute),
+        "in-progress" => Some(OrderStatus::InProgress),
         _ => None,
     }
 }
@@ -130,9 +136,13 @@ fn parse_fiat_range(raw: &Option<String>) -> (Option<f64>, Option<f64>) {
 /// orders on behalf of makers after they send a `new-order` NIP-59 message.
 /// Filtering by `author = mostro_pubkey` ensures we only receive orders that
 /// belong to the trusted Mostro instance configured in the app.
+/// Build a Nostr filter for pending orders from a specific Mostro node.
+///
+/// The `s` tag value is `"pending"` (kebab-case) — mostro-core serialises
+/// the `Status` enum with `#[serde(rename_all = "kebab-case")]`.
 pub fn pending_orders_filter(mostro_pubkey: &PublicKey) -> Filter {
     Filter::new()
         .kind(Kind::from(KIND_ORDER))
         .author(*mostro_pubkey)
-        .custom_tag(SingleLetterTag::lowercase(Alphabet::S), "Pending")
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::S), "pending")
 }
