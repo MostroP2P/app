@@ -167,9 +167,12 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
 ///
 /// When a Tokio runtime is available the update is dispatched asynchronously
 /// and the broadcast notification is sent.  When there is no runtime (e.g.
-/// during synchronous tests) we fall back to a synchronous write; the
-/// broadcast notification is skipped in that path but the flag is always set.
+/// during synchronous tests) we fall back to a blocking write; the broadcast
+/// notification is skipped in that path but the flag is always set.
 pub fn set_logging_enabled(enabled: bool) {
+    // Note: the async path is fire-and-forget (spawn); callers that call
+    // get_settings() immediately after may not yet see the updated flag
+    // (eventually consistent).  The sync fallback applies the change inline.
     match tokio::runtime::Handle::try_current() {
         Ok(handle) => {
             handle.spawn(async move {
@@ -180,12 +183,7 @@ pub fn set_logging_enabled(enabled: bool) {
         Err(_) => {
             // No async runtime — update the flag synchronously.
             // Notification is intentionally skipped here (best-effort).
-            match store().settings.try_write() {
-                Ok(mut guard) => guard.logging_enabled = enabled,
-                Err(_) => eprintln!(
-                    "[settings] set_logging_enabled({enabled}): lock contention, update dropped"
-                ),
-            }
+            store().settings.blocking_write().logging_enabled = enabled;
         }
     }
 }

@@ -28,8 +28,8 @@ class LanguageSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentCode = ref.watch(settingsProvider).language;
     final colorsRaw = Theme.of(context).extension<AppColors>();
-    assert(colorsRaw != null, 'AppColors theme extension must be registered');
-    final colors = colorsRaw!;
+    if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
+    final colors = colorsRaw;
 
     return SafeArea(
       child: Column(

@@ -136,8 +136,8 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
-    assert(colors != null, 'AppColors theme extension must be registered');
-    final c = colors!;
+    if (colors == null) throw StateError('AppColors theme extension must be registered');
+    final c = colors;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

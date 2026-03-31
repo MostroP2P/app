@@ -31,8 +31,7 @@ class _EncryptedFileMessageState extends State<EncryptedFileMessage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
-    assert(colors != null, 'AppColors theme extension must be registered');
-    if (colors == null) return const SizedBox.shrink();
+    if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
 
     final icon = _iconForMime(widget.mimeType);
