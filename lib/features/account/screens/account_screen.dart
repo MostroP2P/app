@@ -292,12 +292,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
               // TODO(bridge): call create_identity() via FFI (Phase 18+).
-              ref
+              await ref
                   .read(backupReminderProvider.notifier)
                   .showBackupReminder();
+              if (!context.mounted) return;
               context.go(AppRoute.walkthrough);
             },
             child: const Text('Continue'),
