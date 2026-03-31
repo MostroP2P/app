@@ -67,7 +67,10 @@ impl MessageOutbox {
     pub fn enqueue(&self, event_json: String) {
         let now = unix_now();
         let msg = QueuedMessage::new(event_json, now);
-        self.queue.lock().unwrap().push(msg);
+        self.queue
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(msg);
     }
 
     /// Attempt to publish all pending messages.
@@ -92,7 +95,7 @@ impl MessageOutbox {
         // Snapshot messages that are due for a retry attempt, marking them
         // InFlight so concurrent flush() calls skip them.
         let pending: Vec<QueuedMessage> = {
-            let mut q = self.queue.lock().unwrap();
+            let mut q = self.queue.lock().unwrap_or_else(|e| e.into_inner());
             let mut snapshot = Vec::new();
             for m in q.iter_mut() {
                 if m.status == QueuedMessageStatus::Pending
@@ -125,7 +128,7 @@ impl MessageOutbox {
             }
 
             // Write back the updated entry.
-            let mut q = self.queue.lock().unwrap();
+            let mut q = self.queue.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(entry) = q.iter_mut().find(|m| m.id == msg.id) {
                 *entry = msg;
             }
@@ -134,7 +137,7 @@ impl MessageOutbox {
         // Prune: sent items always; failed items after 24 hours.
         // InFlight messages are preserved (another concurrent flush owns them).
         let cutoff = now - 86_400;
-        self.queue.lock().unwrap().retain(|m| {
+        self.queue.lock().unwrap_or_else(|e| e.into_inner()).retain(|m| {
             m.status == QueuedMessageStatus::Pending
                 || m.status == QueuedMessageStatus::InFlight
                 || (m.status == QueuedMessageStatus::Failed && m.created_at > cutoff)
@@ -145,7 +148,7 @@ impl MessageOutbox {
 
     /// Count of messages currently in the queue (all statuses).
     pub fn len(&self) -> usize {
-        self.queue.lock().unwrap().len()
+        self.queue.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     pub fn is_empty(&self) -> bool {

@@ -49,6 +49,7 @@ class _PlatformAwareQrScannerState extends State<PlatformAwareQrScanner> {
       setState(() => _errorText = 'Clipboard is empty');
       return;
     }
+    setState(() => _errorText = null);
     widget.onDetected(text);
   }
 
@@ -97,7 +98,7 @@ class _CameraScannerState extends State<_CameraScanner> {
     return MobileScanner(
       onDetect: (capture) {
         if (_detected) return;
-        final raw = capture.barcodes.firstOrNull?.rawValue;
+        final raw = capture.barcodes.firstOrNull?.rawValue?.trim();
         if (raw != null && raw.isNotEmpty) {
           _detected = true;
           widget.onDetected(raw);

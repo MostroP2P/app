@@ -423,6 +423,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scanQrCodeTitle => 'QR-Code scannen';
 
   @override
+  String get pasteNwcUri => 'NWC-URI einfügen';
+
+  @override
   String get selectLanguageTitle => 'Sprache auswählen';
 
   @override

@@ -39,7 +39,31 @@ class _CountdownTimerState extends State<CountdownTimer> {
   void initState() {
     super.initState();
     _remaining = widget.duration;
-    _start();
+    if (_remaining <= Duration.zero) {
+      // Fire immediately on the next frame so listeners are attached.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onExpired?.call();
+      });
+    } else {
+      _start();
+    }
+  }
+
+  @override
+  void didUpdateWidget(CountdownTimer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.duration != oldWidget.duration) {
+      _timer?.cancel();
+      _remaining = widget.duration;
+      if (_remaining <= Duration.zero) {
+        _remaining = Duration.zero;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onExpired?.call();
+        });
+      } else {
+        _start();
+      }
+    }
   }
 
   @override

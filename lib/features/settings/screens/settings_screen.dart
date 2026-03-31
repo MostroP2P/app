@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/currency_selector_dialog.dart';
@@ -51,8 +52,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.brightness_6_outlined,
-            title: 'Appearance',
-            subtitle: _themeLabel(settings.themeMode),
+            title: AppLocalizations.of(context).appearanceSettingTitle,
+            subtitle: _themeLabel(context, settings.themeMode),
             onTap: () => _showThemeDialog(context),
           ),
 
@@ -244,21 +245,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // ── Theme helpers ─────────────────────────────────────────────────────────────
 
-  String _themeLabel(ThemeMode mode) => switch (mode) {
-        ThemeMode.dark => 'Dark',
-        ThemeMode.light => 'Light',
-        ThemeMode.system => 'System default',
-      };
+  String _themeLabel(BuildContext context, ThemeMode mode) {
+    final l10n = AppLocalizations.of(context);
+    return switch (mode) {
+      ThemeMode.dark => l10n.themeDark,
+      ThemeMode.light => l10n.themeLight,
+      ThemeMode.system => l10n.themeSystemDefault,
+    };
+  }
 
   Future<void> _showThemeDialog(BuildContext context) async {
     final current = ref.read(settingsProvider).themeMode;
     await showDialog<void>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Appearance'),
+        title: Text(AppLocalizations.of(ctx).appearanceDialogTitle),
         children: ThemeMode.values.map((mode) {
           return ListTile(
-            title: Text(_themeLabel(mode)),
+            title: Text(_themeLabel(ctx, mode)),
             trailing: mode == current ? const Icon(Icons.check) : null,
             onTap: () {
               ref.read(settingsProvider.notifier).setThemeMode(mode);

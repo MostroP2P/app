@@ -135,6 +135,7 @@
   "saveButtonLabel": "Speichern",
   "connectWalletTitle": "Wallet verbinden",
   "scanQrCodeTitle": "QR-Code scannen",
+  "pasteNwcUri": "NWC-URI einfügen",
   "selectLanguageTitle": "Sprache auswählen",
   "selectCurrencyDialogTitle": "Währung auswählen",
   "addRelayDialogTitle": "Relay hinzufügen",

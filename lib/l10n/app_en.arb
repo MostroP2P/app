@@ -281,6 +281,8 @@
   "@connectWalletTitle": {"description": "Screen or dialog title for the NWC wallet connection flow"},
   "scanQrCodeTitle": "Scan QR Code",
   "@scanQrCodeTitle": {"description": "Screen title for the QR code scanner"},
+  "pasteNwcUri": "Paste NWC URI",
+  "@pasteNwcUri": {"description": "Hint text for the NWC URI input field / QR scanner fallback"},
   "selectLanguageTitle": "Select Language",
   "@selectLanguageTitle": {"description": "Dialog or screen title for the language picker"},
   "selectCurrencyDialogTitle": "Select Currency",

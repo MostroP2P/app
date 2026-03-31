@@ -169,11 +169,12 @@ pub async fn set_default_fiat_code(code: Option<String>) -> Result<()> {
 ///
 /// **Errors**: `InvalidLightningAddress` if `address` is Some but malformed.
 pub async fn set_default_lightning_address(address: Option<String>) -> Result<()> {
-    if let Some(ref a) = address {
+    let normalized = address.map(|a| a.trim().to_string());
+    if let Some(ref a) = normalized {
         validate_lightning_address(a)?;
     }
     let snapshot = store()
-        .write_with(|s| s.default_lightning_address = address)
+        .write_with(|s| s.default_lightning_address = normalized)
         .await;
     store().notify(snapshot);
     Ok(())

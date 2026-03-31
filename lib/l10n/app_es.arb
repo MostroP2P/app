@@ -135,6 +135,7 @@
   "saveButtonLabel": "Guardar",
   "connectWalletTitle": "Conectar billetera",
   "scanQrCodeTitle": "Escanear código QR",
+  "pasteNwcUri": "Pegar URI NWC",
   "selectLanguageTitle": "Seleccionar idioma",
   "selectCurrencyDialogTitle": "Seleccionar moneda",
   "addRelayDialogTitle": "Agregar relay",

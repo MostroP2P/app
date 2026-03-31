@@ -408,7 +408,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get invalidLightningAddressFormat =>
-      'Deve essere nel formato utente@dominio.com';
+      'Deve essere nel formato utente@dominio';
 
   @override
   String get clearButtonLabel => 'Cancella';
@@ -421,6 +421,9 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get scanQrCodeTitle => 'Scansiona codice QR';
+
+  @override
+  String get pasteNwcUri => 'Incolla URI NWC';
 
   @override
   String get selectLanguageTitle => 'Seleziona lingua';

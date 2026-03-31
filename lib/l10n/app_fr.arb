@@ -135,6 +135,7 @@
   "saveButtonLabel": "Enregistrer",
   "connectWalletTitle": "Connecter le portefeuille",
   "scanQrCodeTitle": "Scanner le code QR",
+  "pasteNwcUri": "Coller l'URI NWC",
   "selectLanguageTitle": "Sélectionner la langue",
   "selectCurrencyDialogTitle": "Sélectionner la devise",
   "addRelayDialogTitle": "Ajouter un relais",

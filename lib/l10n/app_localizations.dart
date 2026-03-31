@@ -854,6 +854,12 @@ abstract class AppLocalizations {
   /// **'Scan QR Code'**
   String get scanQrCodeTitle;
 
+  /// Hint text for the NWC URI input field / QR scanner fallback
+  ///
+  /// In en, this message translates to:
+  /// **'Paste NWC URI'**
+  String get pasteNwcUri;
+
   /// Dialog or screen title for the language picker
   ///
   /// In en, this message translates to:

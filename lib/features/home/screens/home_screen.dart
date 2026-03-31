@@ -11,6 +11,7 @@ import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/shared/widgets/add_order_button.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
 
 /// Home screen — public order book with BUY/SELL tabs, filter, and drawer.
@@ -156,9 +157,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             indicatorColor: green,
             labelColor: colors?.textPrimary,
             unselectedLabelColor: colors?.textSecondary,
-            tabs: const [
-              Tab(text: 'BUY BTC'),
-              Tab(text: 'SELL BTC'),
+            tabs: [
+              Tab(text: AppLocalizations.of(context).tabBuyBtc),
+              Tab(text: AppLocalizations.of(context).tabSellBtc),
             ],
           ),
         ),
@@ -189,7 +190,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   Text(
-                    'FILTER',
+                    AppLocalizations.of(context).filterButtonLabel,
                     style: TextStyle(
                       color: colors?.textSecondary,
                       fontSize: 12,
@@ -198,7 +199,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ),
                   const Spacer(),
                   Text(
-                    '${filteredOrders.length} offers',
+                    AppLocalizations.of(context).offersCount(filteredOrders.length),
                     style: TextStyle(
                       color: colors?.textSecondary,
                       fontSize: 12,
