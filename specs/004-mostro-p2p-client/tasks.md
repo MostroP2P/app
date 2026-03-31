@@ -395,6 +395,24 @@ configuration.
 
 ---
 
+## Phase 18: Real Order Book Bridge + Shimmer Loading (Priority: P1)
+
+**Purpose**: Replace mock order data with live Kind 38383 events from the trusted Mostro relay and add DESIGN_SYSTEM.md §9.1 skeleton shimmer during initial load.
+
+**Depends on**: Phase 5 (US3 — order book UI), Phase 2 (relay pool)
+
+**Independent Test**: On app launch the home screen shows shimmer skeletons for ~1–3 seconds, then real orders from `relay.mostro.network` populate the list. Switching BUY/SELL tabs filters correctly. Disconnecting the network while the app is open keeps the last cached batch visible; reconnecting fetches fresh orders.
+
+- [ ] T126 Add `shimmer: ^3.0.0` to `pubspec.yaml` as specified in DESIGN_SYSTEM.md §9.1. Run `flutter pub get`.
+- [ ] T127 [P] Implement `OrderListSkeleton` widget in `lib/shared/widgets/order_list_skeleton.dart` per DESIGN_SYSTEM.md §9.1: `Shimmer.fromColors(baseColor: Color(0xFF1E2230), highlightColor: Color(0xFF2A2D35), child: ListView.builder(itemCount: 5, ...))`. Each skeleton card: `Container(height: 100, margin: EdgeInsets.symmetric(vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))`. Add l10n key `loadingOrders` = "Loading orders…" as accessibility label.
+- [ ] T128 [P] Implement Kind 38383 subscription loop in `rust/src/api/orders.rs`: add `pub async fn subscribe_orders()` that calls `pool()?.client().subscribe([Filter::new().kind(38383)], None)` and for each received `RelayPoolNotification::Event` calls `parse_order_event(&event)` → on `Ok(info)` calls `order_book().upsert_order(info).await` which broadcasts via the existing `tx` channel. Handle relay disconnections with auto-resubscribe on reconnect.
+- [ ] T129 [P] Expose `on_orders_updated()` FRB stream in `rust/src/api/orders.rs`: add `OrdersStream` wrapper struct (analogous to `ConnectionStateStream` in `nostr.rs`) with `pub async fn next(&mut self) -> Option<Vec<OrderInfo>>` that reads from a `broadcast::Receiver<Vec<OrderInfo>>`. Add `pub async fn on_orders_updated() -> Result<OrdersStream>` top-level function. Re-run `flutter_rust_bridge_codegen generate`.
+- [ ] T130 Wire Kind 38383 subscription into app startup in `rust/src/api/nostr.rs`: in the existing `ConnectionState::Online` background task (already spawned in `initialize()`), add a call to `orders::subscribe_orders().await` so that the subscription begins on first relay connection and re-subscribes after any reconnect.
+- [ ] T131 Replace mock `orderBookProvider` in `lib/features/home/providers/home_order_providers.dart`: change `orderBookProvider` from `Provider<List<OrderItem>>((_) => _mockOrders)` to `StreamProvider.autoDispose<List<OrderItem>>` that calls `rust_api.on_orders_updated()` and maps each emitted `List<OrderInfo>` to `List<OrderItem>` (field mapping: `id`, `kind.name.toLowerCase()`, `fiatAmount`/`fiatAmountMin`/`fiatAmountMax`, `fiatCode`, `paymentMethod`, `premium`, `creatorPubkey`, `createdAt` from Unix epoch, `expiresAt`). Initial value = `[]`. Update `filteredOrdersProvider` to consume the new provider type. Remove `_mockOrders` and the `OrderItem` class — use the Rust-generated `OrderInfo` directly or keep `OrderItem` as a thin mapper.
+- [ ] T132 Wire shimmer into home screen in `lib/features/home/screens/home_screen.dart`: watch `orderBookProvider.when(loading: () => OrderListSkeleton(), error: (e,_) => _errorState(e), data: (orders) => orders.isEmpty ? OrderListEmpty() : orderContent(onOrderTap))`. Replace the current `Expanded(child: orderContent(onOrderTap))` with the `when` pattern. Import `order_list_skeleton.dart`.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -402,6 +420,7 @@ configuration.
 - **Phase 1 (Setup)**: No dependencies — start immediately
 - **Phase 2 (Foundation)**: Depends on Phase 1 — **BLOCKS all user story phases**
 - **Phases 3–17 (User Stories)**: All depend on Phase 2 completion
+- **Phase 18 (Real Order Book + Shimmer)**: Depends on Phase 5 (US3 UI) + Phase 2 (relay pool)
   - P1 stories (3–11) can proceed in priority order or in parallel if staffed
   - P2 stories (12–17) can begin after Phase 2; recommended after P1 stories are stable
 - **Final Phase (Polish)**: Depends on all desired stories being complete
@@ -447,6 +466,12 @@ T012 Relay pool               T013 Message queue            T015 App routes scaf
 ```
 T018 ECDH shared key         T019 Nym identity             T022 Highlight config
 T026 Placeholder images
+```
+
+### Phase 18 (Real Order Book + Shimmer) — Run together after T126:
+```
+T127 OrderListSkeleton widget   T128 subscribe_orders() Rust    T129 on_orders_updated() stream
+T130 Wire startup subscription  T131 StreamProvider orderBook   T132 Shimmer in home screen
 ```
 
 ### Phase 5 (US3 — Order Book) — Run together after T031:

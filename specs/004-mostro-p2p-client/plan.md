@@ -147,6 +147,27 @@ assets/
 
 **Structure Decision**: Flutter multi-platform monorepo with a `lib/` Dart shell and `rust/` Rust core. Features are organized as self-contained directories under `lib/features/`, each mirroring a V1_FLOW_GUIDE.md section group. The Rust `api/` layer exposes only what the Flutter shell needs; all protocol internals stay inside `rust/src/`. The `generated/` directory is owned by `flutter_rust_bridge_codegen` and must never be edited manually.
 
+## Phase 18: Real Order Book Bridge + Shimmer Loading
+
+**Context**: Phases 1–17 implemented the complete UI with mock order data and left bridge wiring for the order book explicitly deferred. Phase 18 closes the gap between the Rust `OrderBook` infrastructure (already implemented in `orders.rs`) and the Flutter `orderBookProvider` (currently `Provider<List<OrderItem>>` with hardcoded mock data).
+
+**Objectives**:
+1. Subscribe to Kind 38383 events from the trusted Mostro relay — the public order book as specified in `PROTOCOL.md §Order Publication`.
+2. Stream live orders into the Flutter UI via `on_orders_updated()` FRB stream → `StreamProvider`.
+3. Show DESIGN_SYSTEM.md §9.1 shimmer skeletons during initial load (`shimmer: ^3.0.0`).
+
+**Key Files**:
+- `rust/src/api/orders.rs` — add `subscribe_orders()` and `on_orders_updated()` / `OrdersStream`
+- `rust/src/api/nostr.rs` — call `subscribe_orders()` on `ConnectionState::Online`
+- `lib/features/home/providers/home_order_providers.dart` — replace mock `Provider` with `StreamProvider.autoDispose`
+- `lib/shared/widgets/order_list_skeleton.dart` — new shimmer widget
+- `lib/features/home/screens/home_screen.dart` — wire `provider.when(loading/error/data)`
+- `pubspec.yaml` — add `shimmer: ^3.0.0`
+
+**Dependencies**: Phase 5 (US3 order book UI), Phase 2 (relay pool), flutter_rust_bridge codegen.
+
+---
+
 ## Complexity Tracking
 
 No constitution violations identified. Architecture matches exactly what the constitution prescribes: Rust core + Flutter shell + single bridge. The storage trait with two backends (SQLite native / IndexedDB web) is required by Constitution Principle V (multi-platform from day one) — no alternative satisfies both native and web without violating Principle I.
