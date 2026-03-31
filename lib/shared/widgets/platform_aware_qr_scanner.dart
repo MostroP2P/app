@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Platform-aware QR scanner.
 ///
@@ -35,6 +36,7 @@ class PlatformAwareQrScanner extends StatefulWidget {
 class _PlatformAwareQrScannerState extends State<PlatformAwareQrScanner> {
   final _controller = TextEditingController();
   String? _errorText;
+  bool _hasEmitted = false;
 
   @override
   void dispose() {
@@ -42,24 +44,30 @@ class _PlatformAwareQrScannerState extends State<PlatformAwareQrScanner> {
     super.dispose();
   }
 
+  void _emitOnce(String value) {
+    if (_hasEmitted) return;
+    _hasEmitted = true;
+    widget.onDetected(value);
+  }
+
   Future<void> _pasteFromClipboard() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
     if (text.isEmpty) {
-      setState(() => _errorText = 'Clipboard is empty');
+      if (mounted) setState(() => _errorText = AppLocalizations.of(context).clipboardEmptyError);
       return;
     }
     setState(() => _errorText = null);
-    widget.onDetected(text);
+    _emitOnce(text);
   }
 
   void _submit() {
     final text = _controller.text.trim();
     if (text.isEmpty) {
-      setState(() => _errorText = 'Please enter a value');
+      setState(() => _errorText = AppLocalizations.of(context).enterValueError);
       return;
     }
-    widget.onDetected(text);
+    _emitOnce(text);
   }
 
   @override
@@ -141,7 +149,7 @@ class _WebFallback extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Paste QR Code Content',
+            AppLocalizations.of(context).pasteQrCodeHeading,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -162,14 +170,14 @@ class _WebFallback extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onPaste,
                   icon: const Icon(Icons.content_paste),
-                  label: const Text('Paste'),
+                  label: Text(AppLocalizations.of(context).pasteButtonLabel),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: FilledButton(
                   onPressed: onSubmit,
-                  child: const Text('Submit'),
+                  child: Text(AppLocalizations.of(context).submitButtonLabel),
                 ),
               ),
             ],

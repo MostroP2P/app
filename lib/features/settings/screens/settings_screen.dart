@@ -32,7 +32,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(AppLocalizations.of(context).settingsScreenTitle),
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -42,7 +42,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.language,
-            title: 'Language',
+            title: AppLocalizations.of(context).languageSettingTitle,
             subtitle: languageNameForCode(settings.language),
             onTap: () => showLanguageSelector(context),
           ),
@@ -62,8 +62,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.monetization_on_outlined,
-            title: 'Default Fiat Currency',
-            subtitle: settings.defaultFiatCode ?? 'All currencies',
+            title: AppLocalizations.of(context).defaultFiatCurrencyTitle,
+            subtitle: settings.defaultFiatCode ?? AppLocalizations.of(context).allCurrencies,
             onTap: () => showCurrencySelector(context),
           ),
 
@@ -72,8 +72,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.bolt,
-            title: 'Lightning Address',
-            subtitle: settings.defaultLightningAddress ?? 'Tap to set',
+            title: AppLocalizations.of(context).lightningAddressSettingTitle,
+            subtitle: settings.defaultLightningAddress ?? AppLocalizations.of(context).tapToSetSubtitle,
             onTap: () => _showLightningAddressDialog(context),
           ),
 
@@ -82,10 +82,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.account_balance_wallet_outlined,
-            title: 'NWC Wallet',
+            title: AppLocalizations.of(context).nwcWalletSettingTitle,
             subtitle: isWalletConnected
-                ? 'NWC — Connected. Balance: ${wallet.balanceSats != null ? '${wallet.balanceSats} sats' : 'N/A'}'
-                : 'Connect your Lightning wallet via NWC',
+                ? AppLocalizations.of(context).nwcConnectedBalance(
+                    wallet.balanceSats != null ? '${wallet.balanceSats} sats' : 'N/A',
+                  )
+                : AppLocalizations.of(context).nwcConnectPrompt,
             onTap: () => context.push(
               isWalletConnected
                   ? AppRoute.walletSettings
@@ -121,12 +123,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Relays',
+                                AppLocalizations.of(context).relaysSettingTitle,
                                 style: Theme.of(context).textTheme.bodyLarge
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
                               Text(
-                                'Manage relay connections',
+                                AppLocalizations.of(context).manageRelayConnections,
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -161,8 +163,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.notifications_outlined,
-            title: 'Push Notifications',
-            subtitle: 'Manage notification preferences',
+            title: AppLocalizations.of(context).pushNotificationsSettingTitle,
+            subtitle: AppLocalizations.of(context).manageNotificationPreferences,
             onTap: () => context.push(AppRoute.notificationSettings),
           ),
 
@@ -171,8 +173,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.description_outlined,
-            title: 'Log Report',
-            subtitle: 'View diagnostic logs',
+            title: AppLocalizations.of(context).logReportSettingTitle,
+            subtitle: AppLocalizations.of(context).viewDiagnosticLogs,
             onTap: () => context.push(AppRoute.logs),
           ),
 
@@ -181,7 +183,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context: context,
             colors: colors,
             icon: Icons.hub_outlined,
-            title: 'Mostro Node',
+            title: AppLocalizations.of(context).mostroNodeSettingTitle,
             subtitle: truncatePubkey(mostroPubkey),
             onTap: () => showMostroNodeSelector(context),
           ),
@@ -288,13 +290,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            final l10n = AppLocalizations.of(ctx);
             return AlertDialog(
-              title: const Text('Lightning Address'),
+              title: Text(l10n.lightningAddressDialogTitle),
               content: TextField(
                 controller: controller,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  hintText: 'user@domain.com',
+                  hintText: l10n.lightningAddressHintText,
                   errorText: errorText,
                 ),
                 onChanged: (_) {
@@ -311,11 +314,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         .setDefaultLightningAddress(null);
                     Navigator.of(ctx).pop();
                   },
-                  child: const Text('Clear'),
+                  child: Text(l10n.clearButtonLabel),
                 ),
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(l10n.cancel),
                 ),
                 TextButton(
                   onPressed: () {
@@ -332,7 +335,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         parts[0].isEmpty ||
                         parts[1].isEmpty) {
                       setDialogState(
-                        () => errorText = 'Must be in user@domain format',
+                        () => errorText = l10n.invalidLightningAddressFormat,
                       );
                       return;
                     }
@@ -341,7 +344,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         .setDefaultLightningAddress(input);
                     Navigator.of(ctx).pop();
                   },
-                  child: const Text('Save'),
+                  child: Text(l10n.saveButtonLabel),
                 ),
               ],
             );

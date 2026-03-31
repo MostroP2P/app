@@ -878,6 +878,72 @@ abstract class AppLocalizations {
   /// **'Add Relay'**
   String get addRelayDialogTitle;
 
+  /// Generic add action button label
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get addButtonLabel;
+
+  /// Placeholder hint in the add-relay URL field
+  ///
+  /// In en, this message translates to:
+  /// **'wss://relay.example.com'**
+  String get relayHintText;
+
+  /// Validation error when relay URL does not start with wss://
+  ///
+  /// In en, this message translates to:
+  /// **'Must start with wss://'**
+  String get relayErrorMustStartWithWss;
+
+  /// Validation error when relay URL is too short
+  ///
+  /// In en, this message translates to:
+  /// **'URL is too short'**
+  String get relayErrorUrlTooShort;
+
+  /// Validation error when relay URL is already added
+  ///
+  /// In en, this message translates to:
+  /// **'Relay already in list'**
+  String get relayErrorDuplicate;
+
+  /// NWC wallet connected status with balance
+  ///
+  /// In en, this message translates to:
+  /// **'NWC — Connected. Balance: {balance}'**
+  String nwcConnectedBalance(String balance);
+
+  /// Heading text on the web QR code paste fallback screen
+  ///
+  /// In en, this message translates to:
+  /// **'Paste QR Code Content'**
+  String get pasteQrCodeHeading;
+
+  /// Button label for paste-from-clipboard action
+  ///
+  /// In en, this message translates to:
+  /// **'Paste'**
+  String get pasteButtonLabel;
+
+  /// Error shown when clipboard has no text to paste
+  ///
+  /// In en, this message translates to:
+  /// **'Clipboard is empty'**
+  String get clipboardEmptyError;
+
+  /// Validation error when QR input field is empty
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a value'**
+  String get enterValueError;
+
+  /// Default hint text for the QR scanner widget
+  ///
+  /// In en, this message translates to:
+  /// **'Paste or scan a QR code'**
+  String get pasteOrScanQrCode;
+
   /// Section title on the Mostro node settings screen
   ///
   /// In en, this message translates to:

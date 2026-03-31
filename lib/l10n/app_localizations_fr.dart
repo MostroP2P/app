@@ -439,6 +439,41 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addRelayDialogTitle => 'Ajouter un relais';
 
   @override
+  String get addButtonLabel => 'Ajouter';
+
+  @override
+  String get relayHintText => 'wss://relay.example.com';
+
+  @override
+  String get relayErrorMustStartWithWss => 'Doit commencer par wss://';
+
+  @override
+  String get relayErrorUrlTooShort => 'L\'URL est trop courte';
+
+  @override
+  String get relayErrorDuplicate => 'Le relais est déjà dans la liste';
+
+  @override
+  String nwcConnectedBalance(String balance) {
+    return 'NWC — Connecté. Solde : $balance';
+  }
+
+  @override
+  String get pasteQrCodeHeading => 'Coller le contenu du QR code';
+
+  @override
+  String get pasteButtonLabel => 'Coller';
+
+  @override
+  String get clipboardEmptyError => 'Le presse-papiers est vide';
+
+  @override
+  String get enterValueError => 'Veuillez entrer une valeur';
+
+  @override
+  String get pasteOrScanQrCode => 'Coller ou scanner un QR code';
+
+  @override
   String get mostroNodeTitle => 'Nœud Mostro';
 
   @override
