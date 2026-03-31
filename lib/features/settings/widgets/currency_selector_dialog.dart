@@ -73,7 +73,8 @@ class _CurrencySelectorDialogState
           _loading = false;
         });
       }
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('Failed to load currencies: $e\n$stack');
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -95,7 +96,9 @@ class _CurrencySelectorDialogState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    final c = colors!;
 
     return Scaffold(
       appBar: AppBar(
@@ -113,7 +116,7 @@ class _CurrencySelectorDialogState
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search currencies…',
-                prefixIcon: Icon(Icons.search, color: colors.textSubtle),
+                prefixIcon: Icon(Icons.search, color: c.textSubtle),
               ),
             ),
           ),

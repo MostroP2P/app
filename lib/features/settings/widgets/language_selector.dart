@@ -73,7 +73,6 @@ class LanguageSelector extends ConsumerWidget {
                   : null,
               onTap: () {
                 ref.read(settingsProvider.notifier).setLanguage(lang.code);
-                ref.read(localeProvider.notifier).state = Locale(lang.code);
                 Navigator.of(context).pop();
               },
             );
@@ -99,7 +98,7 @@ void showLanguageSelector(BuildContext context) {
   );
 }
 
-/// Returns the English display name for a BCP-47 language code.
+/// Returns the native display name for a BCP-47 language code (e.g. "Español" for "es").
 String languageNameForCode(String code) {
   final entry = _languages.firstWhere(
     (l) => l.code == code,

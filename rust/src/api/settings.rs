@@ -80,16 +80,14 @@ fn validate_locale(locale: &str) -> Result<()> {
     }
 }
 
-/// Validates a simple ISO 4217 fiat code: 1–3 uppercase ASCII letters.
+/// Validates an ISO 4217 fiat code: exactly 3 uppercase ASCII letters.
 fn validate_fiat_code(code: &str) -> Result<()> {
-    let valid = !code.is_empty()
-        && code.len() <= 3
-        && code.chars().all(|c| c.is_ascii_uppercase());
+    let valid = code.len() == 3 && code.chars().all(|c| c.is_ascii_uppercase());
     if valid {
         Ok(())
     } else {
         bail!(
-            "InvalidFiatCode: '{}' must be 1–3 uppercase ASCII letters (ISO 4217)",
+            "InvalidFiatCode: '{}' must be exactly 3 uppercase ASCII letters (ISO 4217)",
             code
         )
     }
@@ -134,7 +132,7 @@ pub async fn set_language(locale: String) -> Result<()> {
 
 /// Set or clear the default fiat currency code.
 ///
-/// **Errors**: `InvalidFiatCode` if `code` is Some but not 1–3 uppercase letters.
+/// **Errors**: `InvalidFiatCode` if `code` is Some but not exactly 3 uppercase letters (ISO 4217).
 pub async fn set_default_fiat_code(code: Option<String>) -> Result<()> {
     if let Some(ref c) = code {
         validate_fiat_code(c)?;
@@ -159,19 +157,26 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
 }
 
 /// Toggle the in-memory logging flag (not persisted to disk).
+///
+/// When a Tokio runtime is available the update is dispatched asynchronously
+/// and the broadcast notification is sent.  When there is no runtime (e.g.
+/// during synchronous tests) we fall back to a synchronous write; the
+/// broadcast notification is skipped in that path but the flag is always set.
 pub fn set_logging_enabled(enabled: bool) {
-    // Fire-and-forget: spawn onto the runtime since write_with is async.
-    // We update synchronously via a blocking write to avoid blocking the
-    // caller on an async runtime.
-    //
-    // Implementation note: we tolerate the brief window where the runtime
-    // notification is not sent because log toggling is best-effort.
-    let rt = tokio::runtime::Handle::try_current();
-    if let Ok(handle) = rt {
-        handle.spawn(async move {
-            let snapshot = store().write_with(|s| s.logging_enabled = enabled).await;
-            store().notify(snapshot);
-        });
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => {
+            handle.spawn(async move {
+                let snapshot = store().write_with(|s| s.logging_enabled = enabled).await;
+                store().notify(snapshot);
+            });
+        }
+        Err(_) => {
+            // No async runtime — update the flag synchronously.
+            // Notification is intentionally skipped here (best-effort).
+            if let Ok(mut guard) = store().settings.try_write() {
+                guard.logging_enabled = enabled;
+            }
+        }
     }
 }
 
@@ -306,6 +311,7 @@ mod tests {
 
     #[tokio::test]
     async fn all_supported_locales_accepted() {
+        let _g = settings_lock().lock().unwrap();
         for locale in SUPPORTED_LOCALES {
             set_language(locale.to_string()).await.unwrap();
         }

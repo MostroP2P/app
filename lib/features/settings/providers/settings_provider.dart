@@ -71,8 +71,11 @@ final settingsProvider =
   (ref) => SettingsNotifier(),
 );
 
-/// Current display locale derived from [settingsProvider].
+/// Current display locale, derived automatically from [settingsProvider].
 ///
-/// Updated together with `language` so that [MaterialApp.router] locale
-/// can be set from a single provider watch.
-final localeProvider = StateProvider<Locale>((ref) => const Locale('en'));
+/// Rebuilds whenever [AppSettingsState.language] changes so that
+/// [MaterialApp.router] locale stays in sync without manual updates.
+final localeProvider = Provider<Locale>((ref) {
+  final language = ref.watch(settingsProvider.select((s) => s.language));
+  return Locale(language);
+});

@@ -54,8 +54,10 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
   }
 
   void _removeRelay(int index) {
+    // ignore: unused_local_variable — used by the pending bridge call below.
+    final url = _relays[index].url;
     setState(() => _relays.removeAt(index));
-    // TODO(bridge): call remove_relay(_relays[index].url)
+    // TODO(bridge): call remove_relay(url)
   }
 
   Future<void> _showAddRelayDialog() async {
@@ -89,10 +91,14 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                 TextButton(
                   onPressed: () {
                     final url = controller.text.trim();
-                    if (!url.startsWith('wss://') || url.length < 10) {
+                    if (!url.startsWith('wss://')) {
                       setDialogState(
                         () => errorText = 'Must start with wss://',
                       );
+                      return;
+                    }
+                    if (url.length < 10) {
+                      setDialogState(() => errorText = 'URL is too short');
                       return;
                     }
                     if (_relays.any((r) => r.url == url)) {
@@ -127,7 +133,9 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    final c = colors!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +143,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
         ..._relays.asMap().entries.map((entry) {
           final index = entry.key;
           final relay = entry.value;
-          final dotColor = relay.isActive ? colors.mostroGreen : colors.textDisabled;
+          final dotColor = relay.isActive ? c.mostroGreen : c.textDisabled;
 
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
@@ -165,12 +173,12 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                 Switch(
                   value: relay.isActive,
                   onChanged: (v) => _toggleRelay(index, v),
-                  activeThumbColor: colors.mostroGreen,
+                  activeThumbColor: c.mostroGreen,
                 ),
                 // Remove button (user-added relays only)
                 if (!relay.isDefault)
                   IconButton(
-                    icon: Icon(Icons.delete_outline, color: colors.destructiveRed),
+                    icon: Icon(Icons.delete_outline, color: c.destructiveRed),
                     onPressed: () => _removeRelay(index),
                     tooltip: 'Remove relay',
                   ),
@@ -181,10 +189,10 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
         const SizedBox(height: AppSpacing.sm),
         TextButton.icon(
           onPressed: _showAddRelayDialog,
-          icon: Icon(Icons.add, color: colors.mostroGreen),
+          icon: Icon(Icons.add, color: c.mostroGreen),
           label: Text(
             'Add Relay',
-            style: TextStyle(color: colors.mostroGreen),
+            style: TextStyle(color: c.mostroGreen),
           ),
         ),
       ],

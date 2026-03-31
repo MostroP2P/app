@@ -43,7 +43,9 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final colors = Theme.of(context).extension<AppColors>();
+    assert(colors != null, 'AppColors theme extension must be registered');
+    final c = colors!;
 
     return Scaffold(
       appBar: AppBar(
@@ -61,13 +63,13 @@ class AboutScreen extends StatelessWidget {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: colors.mostroGreen.withAlpha(30),
+                    color: c.mostroGreen.withAlpha(30),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Icon(
                     Icons.hub_outlined,
                     size: 48,
-                    color: colors.mostroGreen,
+                    color: c.mostroGreen,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -79,14 +81,14 @@ class AboutScreen extends StatelessWidget {
                 Text(
                   'v$_appVersion',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.textSubtle,
+                        color: c.textSubtle,
                       ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Peer-to-peer Bitcoin trading over Nostr',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.textSubtle,
+                        color: c.textSubtle,
                       ),
                   textAlign: TextAlign.center,
                 ),
@@ -112,7 +114,7 @@ class AboutScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: colors.backgroundCard,
+              color: c.backgroundCard,
               borderRadius: BorderRadius.circular(AppRadius.card),
             ),
             child: Column(
@@ -124,13 +126,13 @@ class AboutScreen extends StatelessWidget {
                     Icon(
                       Icons.fingerprint,
                       size: 18,
-                      color: colors.textSubtle,
+                      color: c.textSubtle,
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'Pubkey',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.textSubtle,
+                            color: c.textSubtle,
                           ),
                     ),
                     const Spacer(),
@@ -143,13 +145,13 @@ class AboutScreen extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: colors.mostroGreen.withAlpha(30),
+                            color: c.mostroGreen.withAlpha(30),
                             borderRadius: BorderRadius.circular(AppRadius.chip),
                           ),
                           child: Text(
                             'Trusted',
                             style: TextStyle(
-                              color: colors.mostroGreen,
+                              color: c.mostroGreen,
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
@@ -160,24 +162,28 @@ class AboutScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(
-                      const ClipboardData(text: _defaultPubkey),
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Pubkey copied to clipboard'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    _truncatePubkey(_defaultPubkey),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontFamily: 'monospace',
-                          color: colors.textLink,
+                Semantics(
+                  button: true,
+                  label: 'Copy pubkey to clipboard',
+                  child: InkWell(
+                    onTap: () {
+                      Clipboard.setData(
+                        const ClipboardData(text: _defaultPubkey),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Pubkey copied to clipboard'),
+                          duration: Duration(seconds: 2),
                         ),
+                      );
+                    },
+                    child: Text(
+                      _truncatePubkey(_defaultPubkey),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontFamily: 'monospace',
+                            color: c.textLink,
+                          ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -190,13 +196,13 @@ class AboutScreen extends StatelessWidget {
                     Icon(
                       Icons.router_outlined,
                       size: 18,
-                      color: colors.textSubtle,
+                      color: c.textSubtle,
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'Relays',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.textSubtle,
+                            color: c.textSubtle,
                           ),
                     ),
                   ],
@@ -212,7 +218,7 @@ class AboutScreen extends StatelessWidget {
                           height: 6,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: colors.mostroGreen,
+                            color: c.mostroGreen,
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
@@ -238,7 +244,7 @@ class AboutScreen extends StatelessWidget {
             child: Text(
               'Open-source. Non-custodial. Private.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textSubtle,
+                    color: c.textSubtle,
                   ),
             ),
           ),

@@ -155,7 +155,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
     );
   }
 
-  void _shareLogs() {
+  Future<void> _shareLogs() async {
     final lines = _mockEntries.map((e) {
       final time = _formatTimestamp(e.timestamp);
       final level = e.level.name.toUpperCase().padRight(7);
@@ -166,7 +166,11 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
         '=================\n'
         '$lines';
 
-    SharePlus.instance.share(ShareParams(text: content));
+    try {
+      await SharePlus.instance.share(ShareParams(text: content));
+    } catch (e) {
+      debugPrint('Failed to share logs: $e');
+    }
   }
 }
 
