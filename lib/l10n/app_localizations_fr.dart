@@ -580,4 +580,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get navChat => 'Chat';
+
+  @override
+  String get loadingOrders => 'Chargement des ordres…';
 }

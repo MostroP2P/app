@@ -53,7 +53,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   }
 
   void _startCountdown() {
-    final orders = ref.read(orderBookProvider);
+    final orders = ref.read(orderBookProvider).valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     if (order?.expiresAt == null) return;
 
@@ -80,7 +80,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   }
 
   Future<void> _onTakeOrder() async {
-    final orders = ref.read(orderBookProvider);
+    final orders = ref.read(orderBookProvider).valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     if (order == null || _submitting) return;
 
@@ -131,7 +131,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final orders = ref.watch(orderBookProvider);
+    final orders = ref.watch(orderBookProvider).valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();

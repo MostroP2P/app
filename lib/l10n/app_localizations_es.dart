@@ -576,4 +576,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get navChat => 'Chat';
+
+  @override
+  String get loadingOrders => 'Cargando órdenes…';
 }

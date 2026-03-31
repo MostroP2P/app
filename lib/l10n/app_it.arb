@@ -189,5 +189,6 @@
 
   "navOrderBook": "Book ordini",
   "navMyTrades": "Le mie operazioni",
-  "navChat": "Chat"
+  "navChat": "Chat",
+  "loadingOrders": "Caricamento ordini…"
 }

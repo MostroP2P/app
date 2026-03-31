@@ -388,5 +388,8 @@
   "navMyTrades": "My Trades",
   "@navMyTrades": {"description": "Bottom navigation label for the My Trades tab"},
   "navChat": "Chat",
-  "@navChat": {"description": "Bottom navigation label for the Chat tab"}
+  "@navChat": {"description": "Bottom navigation label for the Chat tab"},
+
+  "loadingOrders": "Loading orders…",
+  "@loadingOrders": {"description": "Accessibility label for the order book shimmer skeleton (DESIGN_SYSTEM §9.1)"}
 }

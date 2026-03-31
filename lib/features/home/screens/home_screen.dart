@@ -13,6 +13,7 @@ import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/shared/widgets/add_order_button.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
+import 'package:mostro/shared/widgets/order_list_skeleton.dart';
 
 /// Home screen — public order book with BUY/SELL tabs, filter, and drawer.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -211,10 +212,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
 
-        // Order list (responsive)
-        // TODO: Add RefreshIndicator when orderBookProvider is backed
-        // by the Rust bridge (Phase 7). Currently mock data — refresh is a no-op.
-        Expanded(child: orderContent(onOrderTap)),
+        // Order list — shimmer while loading, error state, or live data.
+        Expanded(
+          child: ref.watch(orderBookProvider).when(
+            loading: () => const OrderListSkeleton(),
+            error: (e, _) => Center(
+              child: Text(
+                e.toString(),
+                style: TextStyle(color: colors?.textSecondary),
+              ),
+            ),
+            data: (_) => orderContent(onOrderTap),
+          ),
+        ),
       ],
     );
 

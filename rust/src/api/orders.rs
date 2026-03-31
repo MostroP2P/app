@@ -4,6 +4,7 @@
 /// applies filters, and exposes a stream for UI updates.
 use anyhow::Result;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
@@ -381,6 +382,68 @@ pub async fn release_order(order_id: String) -> Result<()> {
     // On success, daemon transitions to SettledHoldInvoice → Success.
 
     Ok(())
+}
+
+// ── Kind 38383 subscription ───────────────────────────────────────────────────
+
+/// Guards against spawning duplicate subscription loops.
+static SUBSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Subscribe to Kind 38383 (pending public orders) and populate the order book.
+///
+/// Idempotent — only one subscription loop runs at a time. Call this whenever
+/// the relay pool comes online; subsequent calls are no-ops until the previous
+/// loop exits (pool shutdown or channel closed).
+///
+/// Internally spawns a background Tokio task that:
+/// 1. Subscribes to `pending_orders_filter()` via the relay pool client.
+/// 2. Loops over `RelayPoolNotification::Event` messages.
+/// 3. Parses each Kind 38383 event via `parse_order_event` and upserts it
+///    into the order book, which broadcasts the update to all `OrdersStream`
+///    subscribers.
+pub async fn subscribe_orders() {
+    // Only one loop at a time — subsequent Online transitions are no-ops.
+    if SUBSCRIPTION_ACTIVE
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return;
+    }
+
+    tokio::spawn(async {
+        _run_order_subscription().await;
+        SUBSCRIPTION_ACTIVE.store(false, Ordering::Release);
+    });
+}
+
+async fn _run_order_subscription() {
+    let Ok(pool) = crate::api::nostr::get_pool() else { return };
+    let client = pool.client();
+
+    // Get notifications receiver before subscribing to avoid missing
+    // events that arrive between the subscribe call and receiver creation.
+    let mut rx = client.notifications();
+
+    let filter = crate::nostr::order_events::pending_orders_filter();
+    if client.subscribe(filter, None).await.is_err() {
+        return;
+    }
+
+    use nostr_sdk::RelayPoolNotification;
+
+    loop {
+        match rx.recv().await {
+            Ok(RelayPoolNotification::Event { event, .. }) => {
+                if let Some(info) = parse_order_event(&event, None) {
+                    order_book().upsert_order(info).await;
+                }
+            }
+            Ok(RelayPoolNotification::Shutdown) => break,
+            Err(broadcast::error::RecvError::Closed) => break,
+            Err(broadcast::error::RecvError::Lagged(_)) => continue,
+            _ => {}
+        }
+    }
 }
 
 /// Stream that emits whenever the order list changes.

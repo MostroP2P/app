@@ -1,3 +1,4 @@
+mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be accurate, and you can change it according to your needs. */
 // Mostro Mobile v2 — Rust core
 // All Nostr protocol handling, NIP-59, BIP-32 key derivation,
 // NWC wallet integration, and relay communication live here.

@@ -1153,6 +1153,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Chat'**
   String get navChat;
+
+  /// Accessibility label for the order book shimmer skeleton (DESIGN_SYSTEM §9.1)
+  ///
+  /// In en, this message translates to:
+  /// **'Loading orders…'**
+  String get loadingOrders;
 }
 
 class _AppLocalizationsDelegate

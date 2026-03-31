@@ -49,6 +49,10 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
             match rx.recv().await {
                 Ok(ConnectionState::Online) => {
                     let _ = flush_message_queue().await;
+                    // Start (or re-start) Kind 38383 order book subscription.
+                    // subscribe_orders() is idempotent and returns immediately
+                    // after spawning its background loop.
+                    crate::api::orders::subscribe_orders().await;
                 }
                 Err(_) => break,
                 _ => {}
