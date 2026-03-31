@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/mostro_defaults.dart';
 
 // ── Provider for current Mostro node pubkey ───────────────────────────────────
 
-/// Default Mostro daemon pubkey (mirrors DEFAULT_MOSTRO_PUBKEY in config.rs).
-const _defaultMostroPubkey =
-    '82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390';
+const _defaultMostroPubkey = defaultMostroPubkey;
 
 /// In-memory override of the Mostro node pubkey.
+///
+/// **UI-only placeholder** — this value is not yet passed to the Rust bridge.
+/// TODO(bridge): read mostroPubkeyProvider when constructing outgoing Nostr
+/// events so order routing uses the selected node (Phase 18+).
 final mostroPubkeyProvider = StateProvider<String>(
   (ref) => _defaultMostroPubkey,
 );

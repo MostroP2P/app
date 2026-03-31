@@ -38,7 +38,11 @@ class LogReportScreen extends ConsumerStatefulWidget {
 
 class _LogReportScreenState extends ConsumerState<LogReportScreen> {
   // Sample data shown when no bridge is connected.
-  // TODO(bridge): replace with stream from Rust log sink.
+  // TODO(bridge): replace _mockEntries with a live stream from the Rust log
+  // sink once the log bridge API is implemented (Phase 18+).  The bridge
+  // should expose an on_log_entry() stream that emits LogEntry structs; consume
+  // it here via a StreamBuilder or a Riverpod StreamProvider and remove the
+  // static list below.
   static final List<_LogEntry> _mockEntries = [
     _LogEntry(
       id: 1,
@@ -258,9 +262,16 @@ class _LogEntryTile extends StatelessWidget {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 String _formatTimestamp(int unixSeconds) {
-  final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
+  final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000).toLocal();
+  final now = DateTime.now();
   final h = dt.hour.toString().padLeft(2, '0');
   final m = dt.minute.toString().padLeft(2, '0');
   final s = dt.second.toString().padLeft(2, '0');
-  return '$h:$m:$s';
+  final time = '$h:$m:$s';
+  final sameDay = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  if (sameDay) return time;
+  final y = dt.year.toString();
+  final mo = dt.month.toString().padLeft(2, '0');
+  final d = dt.day.toString().padLeft(2, '0');
+  return '$y-$mo-$d $time';
 }

@@ -66,6 +66,11 @@ fn store() -> &'static SettingsStore {
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
+/// Supported BCP-47 language codes.
+///
+/// **Keep in sync** with the Flutter side: `AppLocalizations.supportedLocales`
+/// in `lib/l10n/` (or the `flutter_localizations` delegate configuration).
+/// Both lists must be updated together when adding a new language.
 const SUPPORTED_LOCALES: &[&str] = &["en", "es", "it", "fr", "de"];
 
 fn validate_locale(locale: &str) -> Result<()> {
@@ -173,8 +178,11 @@ pub fn set_logging_enabled(enabled: bool) {
         Err(_) => {
             // No async runtime — update the flag synchronously.
             // Notification is intentionally skipped here (best-effort).
-            if let Ok(mut guard) = store().settings.try_write() {
-                guard.logging_enabled = enabled;
+            match store().settings.try_write() {
+                Ok(mut guard) => guard.logging_enabled = enabled,
+                Err(_) => eprintln!(
+                    "[settings] set_logging_enabled({enabled}): lock contention, update dropped"
+                ),
             }
         }
     }

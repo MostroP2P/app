@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/mostro_defaults.dart';
 
-// Default Mostro node info (mirrors rust/src/config.rs)
-const _defaultPubkey =
-    '82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390';
-const _defaultRelays = [
-  'wss://relay.mostro.network',
-  'wss://nos.lol',
-];
+// Default Mostro node info — imported from core/mostro_defaults.dart.
+const _defaultPubkey = defaultMostroPubkey;
+const _defaultRelays = defaultMostroRelays;
 
 /// About screen — shows app version, Mostro branding, docs link, and default
 /// node information.

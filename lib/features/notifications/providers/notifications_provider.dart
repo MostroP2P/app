@@ -30,7 +30,11 @@ class SembastNotificationsStore {
     try {
       final Database db;
       if (kIsWeb) {
-        // TODO(web-push): use databaseFactoryWeb when sembast_web is added to pubspec.
+        // TODO(web-push): Replace databaseFactoryMemory with databaseFactoryWeb
+        // once sembast_web is added to pubspec.yaml. Without this, web users
+        // lose all notifications on page reload (notificationsProviderWithDb
+        // regresses to in-memory-only behavior).  Fix: add sembast_web, switch
+        // to databaseFactoryWeb, remove the sembast_memory import.
         db = await databaseFactoryMemory.openDatabase(_dbName);
       } else {
         final dir = await getApplicationDocumentsDirectory();

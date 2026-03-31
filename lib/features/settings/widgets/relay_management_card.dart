@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/mostro_defaults.dart';
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -32,12 +33,12 @@ class RelayManagementCard extends ConsumerStatefulWidget {
 }
 
 class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
-  // Mirror of DEFAULT_RELAYS from rust/src/config.rs
-  static const _defaultRelays = [
-    'wss://relay.mostro.network',
-    'wss://nos.lol',
-  ];
+  // Defaults mirror rust/src/config.rs — imported from core/mostro_defaults.dart.
+  static const _defaultRelays = defaultMostroRelays;
 
+  // TODO(bridge): replace _relays local state with a Riverpod provider backed
+  // by the Rust bridge (get_relays / add_relay / remove_relay) so configuration
+  // persists across navigations and stays in sync with the backend (Phase 18+).
   late List<_RelayEntry> _relays;
 
   @override
