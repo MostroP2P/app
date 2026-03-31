@@ -45,7 +45,7 @@ impl SettingsStore {
         F: FnOnce(&mut AppSettings),
     {
         let mut guard = self.settings.write().await;
-        f(&mut *guard);
+        f(&mut guard);
         let mut snapshot = guard.clone();
         snapshot.privacy_mode = crate::api::reputation::get_privacy_mode();
         snapshot

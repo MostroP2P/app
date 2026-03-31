@@ -25,6 +25,10 @@ pub struct OrderBook {
     tx: broadcast::Sender<Vec<OrderInfo>>,
 }
 
+impl Default for OrderBook {
+    fn default() -> Self { Self::new() }
+}
+
 impl OrderBook {
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(16);

@@ -3,11 +3,13 @@
 /// Thin facade over `RelayPool` — keeps all async/relay logic in the pool
 /// while exposing a flat function interface for the Dart side.
 use anyhow::Result;
+use nostr_sdk::Event;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
 use crate::api::types::{ConnectionState, RelayInfo};
 use crate::nostr::relay_pool::RelayPool;
+use crate::queue::outbox;
 
 /// Global relay pool singleton, initialised once by `initialize()`.
 static POOL: OnceCell<Arc<RelayPool>> = OnceCell::const_new();
@@ -37,6 +39,23 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
     // two race past the is_some() guard above.
     POOL.get_or_try_init(|| async { RelayPool::new(urls).await })
         .await?;
+
+    // Spawn a background task that flushes the outbox whenever the relay pool
+    // transitions to Online.  The task exits when the broadcast channel closes.
+    let pool_ref = POOL.get().unwrap().clone();
+    tokio::spawn(async move {
+        let mut rx = pool_ref.subscribe_connection_state();
+        loop {
+            match rx.recv().await {
+                Ok(ConnectionState::Online) => {
+                    let _ = flush_message_queue().await;
+                }
+                Err(_) => break,
+                _ => {}
+            }
+        }
+    });
+
     Ok(())
 }
 
@@ -61,12 +80,28 @@ pub async fn get_connection_state() -> Result<ConnectionState> {
 }
 
 /// Attempt to send all queued offline messages.
-/// Returns count of successfully flushed messages.
 ///
-/// Not yet implemented — requires the persistence layer from Phase 7.
+/// Iterates the in-memory outbox, publishes each pending event via the relay
+/// pool, and applies exponential backoff on failure.  Events are pruned once
+/// sent or after [`MAX_RETRIES`] failures.
+///
+/// Returns the count of messages successfully published in this pass.
 pub async fn flush_message_queue() -> Result<u32> {
-    let _pool = pool()?;
-    Err(anyhow::anyhow!("NotImplemented: queue persistence not wired yet"))
+    let client = pool()?.client();
+    let sent = outbox::outbox()
+        .flush(|event_json| {
+            let client = client.clone();
+            async move {
+                let event: Event = serde_json::from_str(&event_json)?;
+                client
+                    .send_event(&event)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                Ok(())
+            }
+        })
+        .await;
+    Ok(sent)
 }
 
 // ── Streams ─────────────────────────────────────────────────────────────────
@@ -127,6 +162,7 @@ fn default_relays() -> Vec<String> {
 }
 
 /// Provide access to the global pool for other Rust modules (e.g. orders API).
+#[allow(dead_code)]
 pub(crate) fn get_pool() -> Result<&'static Arc<RelayPool>> {
     pool()
 }

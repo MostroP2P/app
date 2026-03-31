@@ -5,6 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 
+// Expose for other widgets that need to know whether to show bottom nav.
+// ignore: unused_element
+bool _isDesktop(BuildContext context) =>
+    MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
+
 /// Currently active bottom-nav tab index.
 final bottomNavIndexProvider = StateProvider<int>((_) => 0);
 
@@ -20,6 +25,11 @@ class BottomNavBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // On desktop the persistent sidebar provides navigation; hide bottom nav.
+    if (MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop) {
+      return const SizedBox.shrink();
+    }
+
     final currentIndex = ref.watch(bottomNavIndexProvider);
     final colors = Theme.of(context).extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);

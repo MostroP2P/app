@@ -126,6 +126,7 @@ fn urlencoding_decode(s: &str) -> String {
 pub struct NwcClient {
     pub info: NwcWalletInfo,
     /// NWC client secret key (hex) — used to sign NIP-47 requests.
+    #[allow(dead_code)]
     pub(super) secret_hex: String,
 }
 
@@ -172,7 +173,7 @@ impl NwcClient {
     ///
     /// TODO(Phase 15+): Construct and send a signed `pay_invoice` NIP-47
     /// request, wait for the response event, and return the preimage.
-    pub async fn pay_invoice(&self, bolt11: &str) -> Result<PaymentResult> {
+    pub async fn pay_invoice(&self, _bolt11: &str) -> Result<PaymentResult> {
         if self.info.status != WalletStatus::Connected {
             return Ok(PaymentResult {
                 success: false,

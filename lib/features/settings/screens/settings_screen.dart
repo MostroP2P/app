@@ -46,7 +46,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => showLanguageSelector(context),
           ),
 
-          // 2 — Default Fiat Currency
+          // 2 — Appearance (theme)
+          _settingsCard(
+            context: context,
+            colors: colors,
+            icon: Icons.brightness_6_outlined,
+            title: 'Appearance',
+            subtitle: _themeLabel(settings.themeMode),
+            onTap: () => _showThemeDialog(context),
+          ),
+
+          // 3 — Default Fiat Currency
           _settingsCard(
             context: context,
             colors: colors,
@@ -228,6 +238,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ── Theme helpers ─────────────────────────────────────────────────────────────
+
+  String _themeLabel(ThemeMode mode) => switch (mode) {
+        ThemeMode.dark => 'Dark',
+        ThemeMode.light => 'Light',
+        ThemeMode.system => 'System default',
+      };
+
+  Future<void> _showThemeDialog(BuildContext context) async {
+    final current = ref.read(settingsProvider).themeMode;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Appearance'),
+        children: ThemeMode.values.map((mode) {
+          return ListTile(
+            title: Text(_themeLabel(mode)),
+            trailing: mode == current ? const Icon(Icons.check) : null,
+            onTap: () {
+              ref.read(settingsProvider.notifier).setThemeMode(mode);
+              Navigator.of(ctx).pop();
+            },
+          );
+        }).toList(),
       ),
     );
   }

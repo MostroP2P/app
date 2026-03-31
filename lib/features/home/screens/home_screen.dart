@@ -63,138 +63,183 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final filteredOrders = ref.watch(filteredOrdersProvider);
     final flags = ref.watch(currencyFlagsProvider);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = screenWidth >= AppBreakpoints.desktop;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Main content
-          Column(
-            children: [
-              // AppBar
-              SafeArea(
-                bottom: false,
-                child: _MostroAppBar(
-                  green: green,
-                  showHappyFace: _showHappyFace,
-                  onMenuTap: _toggleDrawer,
-                  onLogoTap: _triggerHappyFace,
-                ),
-              ),
+    // ── Order list: responsive column count ──────────────────────────────────
+    final columns = screenWidth >= AppBreakpoints.desktop
+        ? 3
+        : screenWidth >= AppBreakpoints.tablet
+            ? 2
+            : 1;
 
-              // Tabs
-              Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                ),
-                child: TabBar(
-                controller: _tabController,
-                indicatorColor: green,
-                labelColor: colors?.textPrimary,
-                unselectedLabelColor: colors?.textSecondary,
-                tabs: const [
-                  Tab(text: 'BUY BTC'),
-                  Tab(text: 'SELL BTC'),
-                ],
-              ),
-              ),
+    Widget orderContent(void Function(String orderId, OrderType type) onTap) {
+      if (filteredOrders.isEmpty) return const OrderListEmpty();
+      if (columns == 1) {
+        return ListView.separated(
+          padding: const EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            top: AppSpacing.xs,
+            bottom: 100,
+          ),
+          itemCount: filteredOrders.length,
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+          itemBuilder: (context, index) {
+            final order = filteredOrders[index];
+            return OrderListItem(
+              order: order,
+              currencyFlags: flags,
+              onTap: () => onTap(order.id, ref.read(homeOrderTypeProvider)),
+            );
+          },
+        );
+      }
+      return GridView.builder(
+        padding: const EdgeInsets.only(
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+          top: AppSpacing.xs,
+          bottom: 100,
+        ),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          crossAxisSpacing: AppSpacing.sm,
+          mainAxisSpacing: AppSpacing.sm,
+          childAspectRatio: 1.1,
+        ),
+        itemCount: filteredOrders.length,
+        itemBuilder: (context, index) {
+          final order = filteredOrders[index];
+          return OrderListItem(
+            order: order,
+            currencyFlags: flags,
+            onTap: () => onTap(order.id, ref.read(homeOrderTypeProvider)),
+          );
+        },
+      );
+    }
 
-              // Filter pill
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.sm,
-                ),
-                child: GestureDetector(
-                  onTap: () => showOrderFilterDialog(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colors?.backgroundInput,
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.filter_alt_outlined,
-                          size: 16,
-                          color: colors?.textSecondary,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          'FILTER',
-                          style: TextStyle(
-                            color: colors?.textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${filteredOrders.length} offers',
-                          style: TextStyle(
-                            color: colors?.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+    void onOrderTap(String id, OrderType type) {
+      if (type == OrderType.buy) {
+        context.push(AppRoute.takeSellPath(id));
+      } else {
+        context.push(AppRoute.takeBuyPath(id));
+      }
+    }
 
-              // Order list
-              // TODO: Add RefreshIndicator when orderBookProvider is backed
-              // by the Rust bridge (Phase 7). Currently mock data — refresh is a no-op.
-              Expanded(
-                child: filteredOrders.isEmpty
-                    ? const OrderListEmpty()
-                    : ListView.separated(
-                        padding: const EdgeInsets.only(
-                          left: AppSpacing.lg,
-                          right: AppSpacing.lg,
-                          top: AppSpacing.xs,
-                          bottom: 100,
-                        ),
-                        itemCount: filteredOrders.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final order = filteredOrders[index];
-                          return OrderListItem(
-                            order: order,
-                            currencyFlags: flags,
-                            onTap: () {
-                              final orderType =
-                                  ref.read(homeOrderTypeProvider);
-                              if (orderType == OrderType.buy) {
-                                context.push(
-                                  AppRoute.takeSellPath(order.id),
-                                );
-                              } else {
-                                context.push(
-                                  AppRoute.takeBuyPath(order.id),
-                                );
-                              }
-                            },
-                          );
-                        },
-                      ),
+    // ── Main content column ───────────────────────────────────────────────────
+    final mainContent = Column(
+      children: [
+        // AppBar (hidden hamburger on desktop — sidebar is always visible)
+        SafeArea(
+          bottom: false,
+          child: _MostroAppBar(
+            green: green,
+            showHappyFace: _showHappyFace,
+            onMenuTap: isDesktop ? null : _toggleDrawer,
+            onLogoTap: _triggerHappyFace,
+          ),
+        ),
+
+        // Tabs
+        Container(
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withValues(alpha: 0.1),
               ),
+            ),
+          ),
+          child: TabBar(
+            controller: _tabController,
+            indicatorColor: green,
+            labelColor: colors?.textPrimary,
+            unselectedLabelColor: colors?.textSecondary,
+            tabs: const [
+              Tab(text: 'BUY BTC'),
+              Tab(text: 'SELL BTC'),
             ],
           ),
+        ),
 
-          // Drawer overlay
-          if (_drawerOpen)
-            DrawerMenu(onClose: () => setState(() => _drawerOpen = false)),
-        ],
-      ),
+        // Filter pill
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.sm,
+          ),
+          child: GestureDetector(
+            onTap: () => showOrderFilterDialog(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: colors?.backgroundInput,
+                borderRadius: BorderRadius.circular(AppRadius.button),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.filter_alt_outlined,
+                    size: 16,
+                    color: colors?.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'FILTER',
+                    style: TextStyle(
+                      color: colors?.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${filteredOrders.length} offers',
+                    style: TextStyle(
+                      color: colors?.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Order list (responsive)
+        // TODO: Add RefreshIndicator when orderBookProvider is backed
+        // by the Rust bridge (Phase 7). Currently mock data — refresh is a no-op.
+        Expanded(child: orderContent(onOrderTap)),
+      ],
+    );
+
+    // ── Scaffold layout ───────────────────────────────────────────────────────
+    // Desktop: persistent sidebar + main content in a Row (no overlay drawer).
+    // Mobile/tablet: Stack with optional overlay drawer.
+    final body = isDesktop
+        ? Row(
+            children: [
+              const DrawerMenu(persistent: true),
+              const VerticalDivider(width: 1),
+              Expanded(child: mainContent),
+            ],
+          )
+        : Stack(
+            children: [
+              mainContent,
+              if (_drawerOpen)
+                DrawerMenu(
+                  onClose: () => setState(() => _drawerOpen = false),
+                ),
+            ],
+          );
+
+    return Scaffold(
+      body: body,
       floatingActionButton: const AddOrderButton(),
       bottomNavigationBar: const BottomNavBar(),
     );
@@ -212,7 +257,8 @@ class _MostroAppBar extends StatelessWidget {
 
   final Color green;
   final bool showHappyFace;
-  final VoidCallback onMenuTap;
+  /// Null on desktop where the persistent sidebar replaces the overlay drawer.
+  final VoidCallback? onMenuTap;
   final VoidCallback onLogoTap;
 
   @override
@@ -224,11 +270,12 @@ class _MostroAppBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: onMenuTap,
-            icon: const Icon(Icons.menu, size: 24),
-            tooltip: 'Menu',
-          ),
+          if (onMenuTap != null)
+            IconButton(
+              onPressed: onMenuTap,
+              icon: const Icon(Icons.menu, size: 24),
+              tooltip: 'Menu',
+            ),
           const Spacer(),
           GestureDetector(
             onTap: onLogoTap,

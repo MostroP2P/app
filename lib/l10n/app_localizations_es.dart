@@ -116,4 +116,420 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get disputeLostFundsToSeller =>
       'El administrador canceló la orden y devolvió los sats al vendedor. No recibiste los sats.';
+
+  @override
+  String get walkthroughSlideOneTitle =>
+      'Intercambia Bitcoin libremente — sin KYC';
+
+  @override
+  String get walkthroughSlideOneBody =>
+      'Mostro es un exchange peer-to-peer que te permite intercambiar Bitcoin por cualquier moneda y método de pago — sin KYC y sin necesidad de dar tus datos a nadie. Está construido sobre Nostr, lo que lo hace resistente a la censura. Nadie puede impedirte operar.';
+
+  @override
+  String get walkthroughSlideTwoTitle => 'Privacidad por defecto';
+
+  @override
+  String get walkthroughSlideTwoBody =>
+      'Mostro genera una nueva identidad en cada intercambio, de modo que tus operaciones no pueden vincularse. También puedes decidir cuánta privacidad quieres:\n• Modo reputación – Permite que otros vean tus operaciones exitosas y tu nivel de confianza.\n• Modo privacidad total – No se construye reputación, pero tu actividad es completamente anónima.\nCambia de modo en cualquier momento desde la pantalla de Cuenta, donde también debes guardar tus palabras secretas — son la única forma de recuperar tu cuenta.';
+
+  @override
+  String get walkthroughSlideThreeTitle => 'Seguridad en cada paso';
+
+  @override
+  String get walkthroughSlideThreeBody =>
+      'Mostro usa Hold Invoices (facturas retenidas): los sats permanecen en la billetera del vendedor hasta el final del intercambio. Esto protege a ambas partes. La aplicación también está diseñada para ser intuitiva y fácil para todo tipo de usuarios.';
+
+  @override
+  String get walkthroughSlideFourTitle => 'Chat totalmente cifrado';
+
+  @override
+  String get walkthroughSlideFourBody =>
+      'Cada operación tiene su propio chat privado, cifrado de extremo a extremo. Solo los dos usuarios involucrados pueden leerlo. En caso de disputa, puedes compartir la clave con un administrador para ayudar a resolver el problema.';
+
+  @override
+  String get walkthroughSlideFiveTitle => 'Toma una oferta';
+
+  @override
+  String get walkthroughSlideFiveBody =>
+      'Explora el libro de órdenes, elige una oferta que te convenga y sigue el flujo de la operación paso a paso. Podrás revisar el perfil del otro usuario, chatear de forma segura y completar la operación con facilidad.';
+
+  @override
+  String get walkthroughSlideSixTitle => '¿No encuentras lo que necesitas?';
+
+  @override
+  String get walkthroughSlideSixBody =>
+      'También puedes crear tu propia oferta y esperar a que alguien la tome. Establece el monto y el método de pago preferido — Mostro se encarga del resto.';
+
+  @override
+  String get tabBuyBtc => 'COMPRAR BTC';
+
+  @override
+  String get tabSellBtc => 'VENDER BTC';
+
+  @override
+  String get filterButtonLabel => 'FILTRAR';
+
+  @override
+  String offersCount(int count) {
+    return '$count ofertas';
+  }
+
+  @override
+  String get noOrdersAvailable => 'No hay órdenes disponibles';
+
+  @override
+  String get justNow => 'Ahora mismo';
+
+  @override
+  String minutesAgo(int m) {
+    return 'Hace ${m}m';
+  }
+
+  @override
+  String hoursAgo(int h) {
+    return 'Hace ${h}h';
+  }
+
+  @override
+  String daysAgo(int d) {
+    return 'Hace ${d}d';
+  }
+
+  @override
+  String get creatingNewOrderTitle => 'CREANDO NUEVA ORDEN';
+
+  @override
+  String get youWantToBuyBitcoin => 'Quieres comprar Bitcoin';
+
+  @override
+  String get youWantToSellBitcoin => 'Quieres vender Bitcoin';
+
+  @override
+  String get rangeOrderLabel => 'Orden por rango';
+
+  @override
+  String get payLightningInvoiceTitle => 'Pagar Factura Lightning';
+
+  @override
+  String get invoiceCopied => 'Factura copiada';
+
+  @override
+  String get addInvoiceTitle => 'Agregar Factura';
+
+  @override
+  String get submitButtonLabel => 'Enviar';
+
+  @override
+  String get orderAlreadyTaken => 'La orden ya fue tomada';
+
+  @override
+  String get orderIdCopied => 'ID de orden copiado';
+
+  @override
+  String get orderDetailsTitle => 'DETALLES DE LA ORDEN';
+
+  @override
+  String get timeRemainingLabel => 'Tiempo restante:';
+
+  @override
+  String get fiatSentButtonLabel => 'FIAT ENVIADO';
+
+  @override
+  String get disputeButtonLabel => 'DISPUTAR';
+
+  @override
+  String get contactButtonLabel => 'CONTACTAR';
+
+  @override
+  String get rateButtonLabel => 'VALORAR';
+
+  @override
+  String get viewDisputeButtonLabel => 'VER DISPUTA';
+
+  @override
+  String get comingSoonMessage => 'Próximamente';
+
+  @override
+  String get tradeStatusActive => 'Activo';
+
+  @override
+  String get tradeStatusFiatSent => 'Fiat enviado';
+
+  @override
+  String get tradeStatusCompleted => 'Completado';
+
+  @override
+  String get tradeStatusCancelled => 'Cancelado';
+
+  @override
+  String get tradeStatusDisputed => 'En disputa';
+
+  @override
+  String get releaseButtonLabel => 'LIBERAR';
+
+  @override
+  String get accountScreenTitle => 'Cuenta';
+
+  @override
+  String get secretWordsTitle => 'Palabras secretas';
+
+  @override
+  String get toRestoreYourAccount => 'Para restaurar tu cuenta';
+
+  @override
+  String get privacyCardTitle => 'Privacidad';
+
+  @override
+  String get controlPrivacySettings =>
+      'Controla tu configuración de privacidad';
+
+  @override
+  String get reputationMode => 'Modo Reputación';
+
+  @override
+  String get reputationModeSubtitle => 'Privacidad estándar con reputación';
+
+  @override
+  String get fullPrivacyMode => 'Modo Privacidad Total';
+
+  @override
+  String get fullPrivacyModeSubtitle => 'Anonimato máximo';
+
+  @override
+  String get generateNewUserButton => 'Generar nuevo usuario';
+
+  @override
+  String get importMostroUserButton => 'Importar usuario de Mostro';
+
+  @override
+  String get generateNewUserDialogTitle => '¿Generar nuevo usuario?';
+
+  @override
+  String get generateNewUserDialogContent =>
+      'Esto creará una identidad completamente nueva. Tus palabras secretas actuales dejarán de funcionar — asegúrate de tenerlas respaldadas antes de continuar.';
+
+  @override
+  String get continueButtonLabel => 'Continuar';
+
+  @override
+  String get importMnemonicDialogTitle => 'Importar Mnemónico';
+
+  @override
+  String get importMnemonicHintText => 'Ingresa tu frase de 12 o 24 palabras…';
+
+  @override
+  String get importButtonLabel => 'Importar';
+
+  @override
+  String get refreshUserDialogTitle => '¿Actualizar usuario?';
+
+  @override
+  String get refreshUserDialogContent =>
+      'Esto volverá a obtener tus operaciones y órdenes desde la instancia de Mostro. Úsalo si crees que tus datos están desincronizados o faltan órdenes.';
+
+  @override
+  String get hideButtonLabel => 'Ocultar';
+
+  @override
+  String get showButtonLabel => 'Mostrar';
+
+  @override
+  String get settingsScreenTitle => 'Configuración';
+
+  @override
+  String get languageSettingTitle => 'Idioma';
+
+  @override
+  String get appearanceSettingTitle => 'Apariencia';
+
+  @override
+  String get appearanceDialogTitle => 'Apariencia';
+
+  @override
+  String get defaultFiatCurrencyTitle => 'Moneda fiat predeterminada';
+
+  @override
+  String get allCurrencies => 'Todas las monedas';
+
+  @override
+  String get lightningAddressSettingTitle => 'Dirección Lightning';
+
+  @override
+  String get tapToSetSubtitle => 'Toca para configurar';
+
+  @override
+  String get nwcWalletSettingTitle => 'Billetera NWC';
+
+  @override
+  String get nwcConnectPrompt => 'Conecta tu billetera Lightning mediante NWC';
+
+  @override
+  String get relaysSettingTitle => 'Relays';
+
+  @override
+  String get manageRelayConnections => 'Administrar conexiones de relay';
+
+  @override
+  String get pushNotificationsSettingTitle => 'Notificaciones push';
+
+  @override
+  String get manageNotificationPreferences =>
+      'Administrar preferencias de notificaciones';
+
+  @override
+  String get logReportSettingTitle => 'Informe de registros';
+
+  @override
+  String get viewDiagnosticLogs => 'Ver registros de diagnóstico';
+
+  @override
+  String get mostroNodeSettingTitle => 'Nodo Mostro';
+
+  @override
+  String get themeDark => 'Oscuro';
+
+  @override
+  String get themeLight => 'Claro';
+
+  @override
+  String get themeSystemDefault => 'Predeterminado del sistema';
+
+  @override
+  String get lightningAddressDialogTitle => 'Dirección Lightning';
+
+  @override
+  String get lightningAddressHintText => 'usuario@dominio.com';
+
+  @override
+  String get invalidLightningAddressFormat =>
+      'Debe tener el formato usuario@dominio';
+
+  @override
+  String get clearButtonLabel => 'Limpiar';
+
+  @override
+  String get saveButtonLabel => 'Guardar';
+
+  @override
+  String get connectWalletTitle => 'Conectar billetera';
+
+  @override
+  String get scanQrCodeTitle => 'Escanear código QR';
+
+  @override
+  String get selectLanguageTitle => 'Seleccionar idioma';
+
+  @override
+  String get selectCurrencyDialogTitle => 'Seleccionar moneda';
+
+  @override
+  String get addRelayDialogTitle => 'Agregar relay';
+
+  @override
+  String get mostroNodeTitle => 'Nodo Mostro';
+
+  @override
+  String get currentNodeLabel => 'Nodo actual';
+
+  @override
+  String get trustedBadgeLabel => 'De confianza';
+
+  @override
+  String get useDefaultButtonLabel => 'Usar predeterminado';
+
+  @override
+  String get confirmButtonLabel => 'Confirmar';
+
+  @override
+  String get invalidHexPubkey =>
+      'Debe ser una cadena hexadecimal de 64 caracteres';
+
+  @override
+  String get notificationsScreenTitle => 'Notificaciones';
+
+  @override
+  String get markAllAsReadMenuItem => 'Marcar todo como leído';
+
+  @override
+  String get clearAllMenuItem => 'Borrar todo';
+
+  @override
+  String get youMustBackUpYourAccount =>
+      'Debes hacer una copia de seguridad de tu cuenta';
+
+  @override
+  String get tapToViewAndSaveSecretWords =>
+      'Toca para ver y guardar tus palabras secretas.';
+
+  @override
+  String get noNotifications => 'Sin notificaciones';
+
+  @override
+  String get markAsRead => 'Marcar como leído';
+
+  @override
+  String get deleteNotificationLabel => 'Eliminar';
+
+  @override
+  String get rateScreenHeader => 'VALORAR';
+
+  @override
+  String get successfulOrder => 'Orden exitosa';
+
+  @override
+  String get submitRatingButton => 'ENVIAR';
+
+  @override
+  String get closeRatingButton => 'CERRAR';
+
+  @override
+  String get aboutScreenTitle => 'Acerca de';
+
+  @override
+  String get mostroTagline => 'Intercambio de Bitcoin peer-to-peer sobre Nostr';
+
+  @override
+  String get viewDocumentationButton => 'Ver documentación';
+
+  @override
+  String get linkCopiedToClipboard => 'Enlace copiado al portapapeles';
+
+  @override
+  String get defaultNodeSection => 'Nodo predeterminado';
+
+  @override
+  String get pubkeyLabel => 'Clave pública';
+
+  @override
+  String get relaysLabel => 'Relays';
+
+  @override
+  String get pubkeyCopiedToClipboard => 'Clave pública copiada al portapapeles';
+
+  @override
+  String get footerTagline => 'Código abierto. Sin custodia. Privado.';
+
+  @override
+  String get drawerTitle => 'MOSTRO';
+
+  @override
+  String get betaBadgeLabel => 'Beta';
+
+  @override
+  String get drawerAccountMenuItem => 'Cuenta';
+
+  @override
+  String get drawerSettingsMenuItem => 'Configuración';
+
+  @override
+  String get drawerAboutMenuItem => 'Acerca de';
+
+  @override
+  String get navOrderBook => 'Libro de órdenes';
+
+  @override
+  String get navMyTrades => 'Mis operaciones';
+
+  @override
+  String get navChat => 'Chat';
 }
