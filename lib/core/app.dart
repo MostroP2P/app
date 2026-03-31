@@ -5,6 +5,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
 
 /// Root application widget.
 ///
@@ -20,13 +21,19 @@ class MostroApp extends ConsumerWidget {
     // can read firstRunProvider without a BuildContext.
     routerContainer = ProviderScope.containerOf(context, listen: false);
 
-    // Theme selection is wired in Phase 3; dark mode is the default.
+    // Watch locale from settings provider so language changes propagate.
+    final locale = ref.watch(localeProvider);
+
+    // Theme mode from settings; dark is the default.
+    final themeMode = ref.watch(settingsProvider).themeMode;
+
     return MaterialApp.router(
       title: 'Mostro',
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
-      themeMode: ThemeMode.dark,
+      themeMode: themeMode,
+      locale: locale,
       routerConfig: appRouter,
       localizationsDelegates: const [
         AppLocalizations.delegate,

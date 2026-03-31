@@ -13,7 +13,11 @@ import 'package:mostro/features/chat/screens/chat_room_screen.dart';
 import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
 import 'package:mostro/features/disputes/screens/dispute_chat_screen.dart';
 import 'package:mostro/features/rate/screens/rate_counterpart_screen.dart';
+import 'package:mostro/features/about/screens/about_screen.dart';
 import 'package:mostro/features/settings/screens/connect_wallet_screen.dart';
+import 'package:mostro/features/settings/screens/log_report_screen.dart';
+import 'package:mostro/features/settings/screens/notification_settings_screen.dart';
+import 'package:mostro/features/settings/screens/settings_screen.dart';
 import 'package:mostro/features/settings/screens/wallet_settings_screen.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/trades/screens/trades_screen.dart';
@@ -164,11 +168,11 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.settings,
-      builder: (_, __) => const _Stub('Settings'),
+      builder: (_, __) => const SettingsScreen(),
     ),
     GoRoute(
       path: AppRoute.about,
-      builder: (_, __) => const _Stub('About'),
+      builder: (_, __) => const AboutScreen(),
     ),
     GoRoute(
       path: AppRoute.notifications,
@@ -200,11 +204,11 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.notificationSettings,
-      builder: (_, __) => const _Stub('Notification Settings'),
+      builder: (_, __) => const NotificationSettingsScreen(),
     ),
     GoRoute(
       path: AppRoute.logs,
-      builder: (_, __) => const _Stub('Logs'),
+      builder: (_, __) => const LogReportScreen(),
     ),
     GoRoute(
       path: AppRoute.disputeChat,

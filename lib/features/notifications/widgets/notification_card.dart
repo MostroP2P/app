@@ -264,7 +264,7 @@ class _TypeIconCircle extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: bg.withOpacity(0.2),
+        color: bg.withValues(alpha: 0.2),
         shape: BoxShape.circle,
       ),
       child: Icon(icon, color: bg, size: 20),

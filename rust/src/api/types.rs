@@ -459,3 +459,21 @@ pub struct Dispute {
     /// Whether the local user has seen the latest dispute update.
     pub is_read: bool,
 }
+
+/// Aggregated user-facing application settings.
+///
+/// `privacy_mode` is a read-only mirror of `IdentityInfo.privacy_mode` —
+/// the authoritative value lives in the Identity layer.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AppSettings {
+    pub theme: ThemeMode,
+    /// BCP-47 language tag, e.g. `"en"`, `"es"`.
+    pub language: String,
+    /// ISO 4217 fiat currency code selected as the user's default, if any.
+    pub default_fiat_code: Option<String>,
+    /// Default Lightning Address in `user@domain` format, if set.
+    pub default_lightning_address: Option<String>,
+    pub logging_enabled: bool,
+    /// Read-only mirror of `IdentityInfo.privacy_mode`.
+    pub privacy_mode: bool,
+}

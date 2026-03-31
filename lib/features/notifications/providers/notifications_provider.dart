@@ -2,16 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sembast/sembast.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:mostro/features/notifications/models/notification_model.dart';
 
-// Platform-specific imports
+// Platform-specific imports — path_provider is only needed on non-web.
 import 'package:path_provider/path_provider.dart'
     if (dart.library.html) 'dart:html';
-import 'package:sembast/sembast_io.dart'
-    if (dart.library.html) 'package:sembast_web/sembast_web.dart';
+import 'package:sembast/sembast_io.dart';
+import 'package:sembast/sembast_memory.dart' show databaseFactoryMemory;
 
 // ── Sembast persistence store ─────────────────────────────────────────────────
 
@@ -31,7 +30,8 @@ class SembastNotificationsStore {
     try {
       final Database db;
       if (kIsWeb) {
-        db = await databaseFactoryWeb.openDatabase(_dbName);
+        // TODO(web-push): use databaseFactoryWeb when sembast_web is added to pubspec.
+        db = await databaseFactoryMemory.openDatabase(_dbName);
       } else {
         final dir = await getApplicationDocumentsDirectory();
         final path = '${dir.path}/$_dbName';
