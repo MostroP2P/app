@@ -401,6 +401,16 @@ static SUBSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
 /// 3. Parses each Kind 38383 event via `parse_order_event` and upserts it
 ///    into the order book, which broadcasts the update to all `OrdersStream`
 ///    subscribers.
+/// RAII guard that resets `SUBSCRIPTION_ACTIVE` to `false` when dropped,
+/// ensuring the flag is cleared even if the subscription task panics.
+struct ResetGuard;
+
+impl Drop for ResetGuard {
+    fn drop(&mut self) {
+        SUBSCRIPTION_ACTIVE.store(false, Ordering::Release);
+    }
+}
+
 pub async fn subscribe_orders() {
     // Only one loop at a time — subsequent Online transitions are no-ops.
     if SUBSCRIPTION_ACTIVE
@@ -411,8 +421,8 @@ pub async fn subscribe_orders() {
     }
 
     tokio::spawn(async {
+        let _guard = ResetGuard;
         _run_order_subscription().await;
-        SUBSCRIPTION_ACTIVE.store(false, Ordering::Release);
     });
 }
 

@@ -32,6 +32,7 @@ class AboutScreen extends StatelessWidget {
             Clipboard.setData(
               const ClipboardData(text: 'https://mostro.network/docs'),
             );
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Link copied to clipboard'),

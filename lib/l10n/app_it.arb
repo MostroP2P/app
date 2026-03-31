@@ -142,7 +142,7 @@
   "addButtonLabel": "Aggiungi",
   "relayHintText": "wss://relay.example.com",
   "relayErrorMustStartWithWss": "Deve iniziare con wss://",
-  "relayErrorUrlTooShort": "L'URL è troppo corta",
+  "relayErrorUrlTooShort": "L'URL è troppo corto",
   "relayErrorDuplicate": "Relay già presente nella lista",
   "nwcConnectedBalance": "NWC — Connesso. Saldo: {balance}",
   "pasteQrCodeHeading": "Incolla contenuto del codice QR",
@@ -190,5 +190,10 @@
   "navOrderBook": "Book ordini",
   "navMyTrades": "Le mie operazioni",
   "navChat": "Chat",
-  "loadingOrders": "Caricamento ordini…"
+  "loadingOrders": "Caricamento ordini…",
+  "errorLoadingOrders": "Impossibile caricare gli ordini. Controlla la connessione.",
+  "retry": "Riprova",
+  "disableRelayLabel": "Disabilita relay {url}",
+  "enableRelayLabel": "Abilita relay {url}",
+  "removeRelayTooltip": "Rimuovi relay"
 }

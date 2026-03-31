@@ -408,7 +408,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get invalidLightningAddressFormat =>
-      'Muss im Format benutzer@domain vorliegen';
+      'Muss im Format benutzer@domain.com vorliegen';
 
   @override
   String get clearButtonLabel => 'Löschen';
@@ -579,4 +579,24 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get loadingOrders => 'Aufträge werden geladen…';
+
+  @override
+  String get errorLoadingOrders =>
+      'Aufträge konnten nicht geladen werden. Bitte Verbindung prüfen.';
+
+  @override
+  String get retry => 'Erneut versuchen';
+
+  @override
+  String disableRelayLabel(String url) {
+    return 'Relay $url deaktivieren';
+  }
+
+  @override
+  String enableRelayLabel(String url) {
+    return 'Relay $url aktivieren';
+  }
+
+  @override
+  String get removeRelayTooltip => 'Relay entfernen';
 }

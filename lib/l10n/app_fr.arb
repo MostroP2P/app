@@ -190,5 +190,10 @@
   "navOrderBook": "Carnet d'ordres",
   "navMyTrades": "Mes transactions",
   "navChat": "Chat",
-  "loadingOrders": "Chargement des ordres…"
+  "loadingOrders": "Chargement des ordres…",
+  "errorLoadingOrders": "Impossible de charger les ordres. Vérifiez votre connexion.",
+  "retry": "Réessayer",
+  "disableRelayLabel": "Désactiver le relay {url}",
+  "enableRelayLabel": "Activer le relay {url}",
+  "removeRelayTooltip": "Supprimer le relay"
 }

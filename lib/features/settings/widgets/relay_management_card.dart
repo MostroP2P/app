@@ -142,14 +142,14 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
-    final c = colors;
+    final l10n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ..._relays.indexed.map((record) {
           final (index, relay) = record;
-          final dotColor = relay.isActive ? c.mostroGreen : c.textDisabled;
+          final dotColor = relay.isActive ? colors.mostroGreen : colors.textDisabled;
 
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
@@ -178,20 +178,20 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                 // Active toggle
                 Semantics(
                   label: relay.isActive
-                      ? 'Disable relay ${relay.url}'
-                      : 'Enable relay ${relay.url}',
+                      ? l10n.disableRelayLabel(relay.url)
+                      : l10n.enableRelayLabel(relay.url),
                   child: Switch(
                     value: relay.isActive,
                     onChanged: (v) => _toggleRelay(index, v),
-                    activeThumbColor: c.mostroGreen,
+                    activeThumbColor: colors.mostroGreen,
                   ),
                 ),
                 // Remove button (user-added relays only)
                 if (!relay.isDefault)
                   IconButton(
-                    icon: Icon(Icons.delete_outline, color: c.destructiveRed),
+                    icon: Icon(Icons.delete_outline, color: colors.destructiveRed),
                     onPressed: () => _removeRelay(index),
-                    tooltip: 'Remove relay',
+                    tooltip: l10n.removeRelayTooltip,
                   ),
               ],
             ),
@@ -200,10 +200,10 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
         const SizedBox(height: AppSpacing.sm),
         TextButton.icon(
           onPressed: _showAddRelayDialog,
-          icon: Icon(Icons.add, color: c.mostroGreen),
+          icon: Icon(Icons.add, color: colors.mostroGreen),
           label: Text(
-            AppLocalizations.of(context).addRelayDialogTitle,
-            style: TextStyle(color: c.mostroGreen),
+            l10n.addRelayDialogTitle,
+            style: TextStyle(color: colors.mostroGreen),
           ),
         ),
       ],

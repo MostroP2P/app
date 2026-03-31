@@ -447,7 +447,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get relayErrorUrlTooShort => 'La URL es demasiado corta';
 
   @override
-  String get relayErrorDuplicate => 'La retransmisión ya está en la lista';
+  String get relayErrorDuplicate => 'El relay ya está en la lista';
 
   @override
   String nwcConnectedBalance(String balance) {
@@ -579,4 +579,24 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get loadingOrders => 'Cargando órdenes…';
+
+  @override
+  String get errorLoadingOrders =>
+      'No se pudieron cargar las órdenes. Comprueba tu conexión.';
+
+  @override
+  String get retry => 'Reintentar';
+
+  @override
+  String disableRelayLabel(String url) {
+    return 'Desactivar relay $url';
+  }
+
+  @override
+  String enableRelayLabel(String url) {
+    return 'Activar relay $url';
+  }
+
+  @override
+  String get removeRelayTooltip => 'Eliminar relay';
 }

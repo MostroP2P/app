@@ -143,7 +143,7 @@
   "relayHintText": "wss://relay.example.com",
   "relayErrorMustStartWithWss": "Debe comenzar con wss://",
   "relayErrorUrlTooShort": "La URL es demasiado corta",
-  "relayErrorDuplicate": "La retransmisión ya está en la lista",
+  "relayErrorDuplicate": "El relay ya está en la lista",
   "nwcConnectedBalance": "NWC — Conectado. Saldo: {balance}",
   "pasteQrCodeHeading": "Pegar contenido del código QR",
   "pasteButtonLabel": "Pegar",
@@ -190,5 +190,10 @@
   "navOrderBook": "Libro de órdenes",
   "navMyTrades": "Mis operaciones",
   "navChat": "Chat",
-  "loadingOrders": "Cargando órdenes…"
+  "loadingOrders": "Cargando órdenes…",
+  "errorLoadingOrders": "No se pudieron cargar las órdenes. Comprueba tu conexión.",
+  "retry": "Reintentar",
+  "disableRelayLabel": "Desactivar relay {url}",
+  "enableRelayLabel": "Activar relay {url}",
+  "removeRelayTooltip": "Eliminar relay"
 }

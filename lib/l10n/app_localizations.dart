@@ -1159,6 +1159,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Loading orders…'**
   String get loadingOrders;
+
+  /// Error message shown when the order book fails to load
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load orders. Please check your connection.'**
+  String get errorLoadingOrders;
+
+  /// Retry button label
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// Accessibility label for the toggle that disables a relay
+  ///
+  /// In en, this message translates to:
+  /// **'Disable relay {url}'**
+  String disableRelayLabel(String url);
+
+  /// Accessibility label for the toggle that enables a relay
+  ///
+  /// In en, this message translates to:
+  /// **'Enable relay {url}'**
+  String enableRelayLabel(String url);
+
+  /// Tooltip for the remove-relay icon button
+  ///
+  /// In en, this message translates to:
+  /// **'Remove relay'**
+  String get removeRelayTooltip;
 }
 
 class _AppLocalizationsDelegate

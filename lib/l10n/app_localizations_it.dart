@@ -444,7 +444,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get relayErrorMustStartWithWss => 'Deve iniziare con wss://';
 
   @override
-  String get relayErrorUrlTooShort => 'L\'URL è troppo corta';
+  String get relayErrorUrlTooShort => 'L\'URL è troppo corto';
 
   @override
   String get relayErrorDuplicate => 'Relay già presente nella lista';
@@ -579,4 +579,24 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get loadingOrders => 'Caricamento ordini…';
+
+  @override
+  String get errorLoadingOrders =>
+      'Impossibile caricare gli ordini. Controlla la connessione.';
+
+  @override
+  String get retry => 'Riprova';
+
+  @override
+  String disableRelayLabel(String url) {
+    return 'Disabilita relay $url';
+  }
+
+  @override
+  String enableRelayLabel(String url) {
+    return 'Abilita relay $url';
+  }
+
+  @override
+  String get removeRelayTooltip => 'Rimuovi relay';
 }

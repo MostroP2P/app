@@ -217,9 +217,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: ref.watch(orderBookProvider).when(
             loading: () => const OrderListSkeleton(),
             error: (e, _) => Center(
-              child: Text(
-                e.toString(),
-                style: TextStyle(color: colors?.textSecondary),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    AppLocalizations.of(context).errorLoadingOrders,
+                    style: TextStyle(color: colors?.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextButton(
+                    onPressed: () => ref.invalidate(orderBookProvider),
+                    child: Text(AppLocalizations.of(context).retry),
+                  ),
+                ],
               ),
             ),
             data: (_) => orderContent(onOrderTap),

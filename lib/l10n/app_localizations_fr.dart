@@ -583,4 +583,24 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get loadingOrders => 'Chargement des ordres…';
+
+  @override
+  String get errorLoadingOrders =>
+      'Impossible de charger les ordres. Vérifiez votre connexion.';
+
+  @override
+  String get retry => 'Réessayer';
+
+  @override
+  String disableRelayLabel(String url) {
+    return 'Désactiver le relay $url';
+  }
+
+  @override
+  String enableRelayLabel(String url) {
+    return 'Activer le relay $url';
+  }
+
+  @override
+  String get removeRelayTooltip => 'Supprimer le relay';
 }
