@@ -134,11 +134,15 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                             ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        truncatePubkey(currentPubkey),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontFamily: 'monospace',
-                            ),
+                      Semantics(
+                        label: 'Current node public key',
+                        value: currentPubkey,
+                        child: Text(
+                          truncatePubkey(currentPubkey),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontFamily: 'monospace',
+                              ),
+                        ),
                       ),
                     ],
                   ),

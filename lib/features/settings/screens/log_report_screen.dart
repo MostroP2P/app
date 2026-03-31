@@ -43,7 +43,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
   // should expose an on_log_entry() stream that emits LogEntry structs; consume
   // it here via a StreamBuilder or a Riverpod StreamProvider and remove the
   // static list below.
-  static final List<_LogEntry> _mockEntries = [
+  static final List<_LogEntry> _mockEntries = List.unmodifiable([
     _LogEntry(
       id: 1,
       level: _LogLevel.info,
@@ -65,7 +65,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
       message: 'Fetched 42 orders from relay',
       timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000 - 10,
     ),
-  ];
+  ]);
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +78,11 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
       appBar: AppBar(
         title: const Text('Log Report'),
         actions: [
-          // Share logs
+          // Share logs — disabled when no entries exist.
           IconButton(
             icon: const Icon(Icons.share_outlined),
-            tooltip: 'Share logs',
-            onPressed: () => _shareLogs(),
+            tooltip: _mockEntries.isNotEmpty ? 'Share logs' : 'No logs to share',
+            onPressed: _mockEntries.isNotEmpty ? _shareLogs : null,
           ),
           // Toggle logging
           IconButton(
@@ -165,7 +165,9 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
     final lines = _mockEntries.map((e) {
       final time = _formatTimestamp(e.timestamp);
       final level = e.level.name.toUpperCase().padRight(7);
-      return '$time [$level] ${e.tag}: ${e.message}';
+      final tag = _sanitizeForShare(e.tag);
+      final message = _sanitizeForShare(e.message);
+      return '$time [$level] $tag: $message';
     }).join('\n');
 
     final content = 'Mostro Log Report\n'
@@ -267,6 +269,33 @@ class _LogEntryTile extends StatelessWidget {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Redact common secrets and keys from a log string before sharing.
+///
+/// Patterns replaced:
+/// - Authorization/Bearer tokens → `[REDACTED_AUTH]`
+/// - Key-value secrets (token, apikey, secret, password, …) → `[REDACTED_SECRET]`
+/// - Long hex strings ≥32 chars, npub/nsec Bech32 keys → `[REDACTED_KEY]`
+String _sanitizeForShare(String text) {
+  // Authorization: Bearer <value>
+  var out = text.replaceAllMapped(
+    RegExp(r'(Authorization\s*:\s*Bearer\s+)\S+', caseSensitive: false),
+    (m) => '${m[1]}[REDACTED_AUTH]',
+  );
+  // Key-value secrets: token=, apikey=, secret=, password=, api_key= (: or = separator)
+  out = out.replaceAllMapped(
+    RegExp(
+      r'((?:token|apikey|api_key|secret|password)\s*[=:]\s*)\S+',
+      caseSensitive: false,
+    ),
+    (m) => '${m[1]}[REDACTED_SECRET]',
+  );
+  // Long hex strings (≥32 hex chars) — covers private keys and trade IDs
+  out = out.replaceAll(RegExp(r'[0-9a-fA-F]{32,}'), '[REDACTED_KEY]');
+  // npub / nsec Bech32 keys
+  out = out.replaceAll(RegExp(r'n(?:pub|sec)1[02-9ac-hj-np-z]{6,}'), '[REDACTED_KEY]');
+  return out;
+}
 
 String _formatTimestamp(int unixSeconds) {
   final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000).toLocal();

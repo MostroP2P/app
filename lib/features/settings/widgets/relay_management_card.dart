@@ -142,9 +142,8 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ..._relays.asMap().entries.map((entry) {
-          final index = entry.key;
-          final relay = entry.value;
+        ..._relays.indexed.map((record) {
+          final (index, relay) = record;
           final dotColor = relay.isActive ? c.mostroGreen : c.textDisabled;
 
           return Padding(
