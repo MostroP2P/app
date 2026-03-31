@@ -198,6 +198,9 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         .unwrap_or_default()
         .as_secs() as i64;
 
+    // Clone params before the struct takes ownership of its fields.
+    let params_for_dispatch = params.clone();
+
     let order = OrderInfo {
         id: uuid::Uuid::new_v4().to_string(),
         kind: params.kind,
@@ -209,14 +212,31 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         fiat_code: params.fiat_code,
         payment_method: params.payment_method,
         premium: params.premium,
-        creator_pubkey: String::new(), // filled by identity in Phase 7
+        creator_pubkey: String::new(),
         created_at: now,
         expires_at: Some(now + 24 * 3600),
         is_mine: true,
     };
 
-    // Cache locally
+    // Cache locally (optimistic — daemon will publish the real Kind 38383).
     order_book().upsert_order(order.clone()).await;
+
+    // Dispatch new_order to Mostro (fire-and-forget; daemon publishes Kind 38383
+    // when it accepts the order, which arrives via the subscription loop).
+    if let Ok(sender_keys) = crate::api::identity::get_active_keys().await {
+        if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+            match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch).await {
+                Ok(event_json) => {
+                    if let Err(e) = publish_event_json(&event_json).await {
+                        log::warn!("[orders] create_order publish failed: {e}");
+                    } else {
+                        log::info!("[orders] create_order dispatched for id={}", order.id);
+                    }
+                }
+                Err(e) => log::warn!("[orders] create_order action build failed: {e}"),
+            }
+        }
+    }
 
     Ok(order)
 }
@@ -276,6 +296,7 @@ pub async fn take_order(
         .unwrap_or_default()
         .as_secs() as i64;
 
+    let dispatch_role = role.clone();
     let initial_step = match role {
         TradeRole::Buyer => TradeStep::Buyer(BuyerStep::OrderTaken),
         TradeRole::Seller => TradeStep::Seller(SellerStep::TakerFound),
@@ -296,6 +317,31 @@ pub async fn take_order(
         completed_at: None,
         outcome: None,
     };
+
+    // Dispatch the take action to Mostro (fire-and-forget; the daemon responds
+    // asynchronously via NIP-59 gift wrap with the next trade step).
+    if let Ok(sender_keys) = crate::api::identity::get_active_keys().await {
+        if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+            let action_result = match dispatch_role {
+                TradeRole::Buyer => {
+                    actions::take_sell(&sender_keys, &mostro_pubkey, &order_id, fiat_amount).await
+                }
+                TradeRole::Seller => {
+                    actions::take_buy(&sender_keys, &mostro_pubkey, &order_id, fiat_amount).await
+                }
+            };
+            match action_result {
+                Ok(event_json) => {
+                    if let Err(e) = publish_event_json(&event_json).await {
+                        log::warn!("[orders] take_order publish failed: {e}");
+                    } else {
+                        log::info!("[orders] take_order dispatched for order={order_id}");
+                    }
+                }
+                Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
+            }
+        }
+    }
 
     Ok(trade)
 }
@@ -328,8 +374,18 @@ pub async fn send_invoice(
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // TODO: Build AddInvoice MostroMessage, wrap via NIP-59, publish.
-    Err(anyhow::anyhow!("NotImplemented: AddInvoice dispatch not wired yet"))
+    let sender_keys = crate::api::identity::get_active_keys().await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let event_json = actions::add_invoice(
+        &sender_keys,
+        &mostro_pubkey,
+        &order_id,
+        &invoice_or_address,
+    )
+    .await?;
+    publish_event_json(&event_json).await?;
+    log::info!("[orders] add_invoice published for order={order_id}");
+    Ok(())
 }
 
 /// Mark fiat payment as sent by the buyer.
@@ -347,13 +403,11 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // Build FiatSent MostroMessage wrapped via NIP-59.
     let sender_keys = crate::api::identity::get_active_keys().await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
-    let _event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id).await?;
-
-    // TODO(Phase 10+): Publish event_json to relay pool once connected.
-
+    let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id).await?;
+    publish_event_json(&event_json).await?;
+    log::info!("[orders] fiat_sent published for order={order_id}");
     Ok(())
 }
 
@@ -373,14 +427,29 @@ pub async fn release_order(order_id: String) -> Result<()> {
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // Build Release MostroMessage wrapped via NIP-59.
     let sender_keys = crate::api::identity::get_active_keys().await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
-    let _event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id).await?;
+    let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id).await?;
+    publish_event_json(&event_json).await?;
+    log::info!("[orders] release published for order={order_id}");
+    Ok(())
+}
 
-    // TODO(Phase 10+): Publish event_json to relay pool once connected.
-    // On success, daemon transitions to SettledHoldInvoice → Success.
+// ── Internal helpers ─────────────────────────────────────────────────────────
 
+/// Parse and publish a serialised Nostr event JSON via the relay pool.
+///
+/// Returns an error if the pool is not initialised, the JSON is malformed,
+/// or the relay client reports a publish error.
+async fn publish_event_json(event_json: &str) -> Result<()> {
+    let pool = crate::api::nostr::get_pool()
+        .map_err(|_| anyhow::anyhow!("RelayPoolNotInitialized"))?;
+    let event: nostr_sdk::Event = serde_json::from_str(event_json)
+        .map_err(|e| anyhow::anyhow!("invalid event JSON: {e}"))?;
+    pool.client()
+        .send_event(&event)
+        .await
+        .map_err(|e| anyhow::anyhow!("publish failed: {e}"))?;
     Ok(())
 }
 

@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 /// Add Lightning Invoice screen — Route `/add_invoice/:orderId`.
 ///
@@ -40,15 +41,21 @@ class _AddLightningInvoiceScreenState
     super.dispose();
   }
 
-  bool get _isValid => _invoiceController.text.trim().isNotEmpty;
+  bool get _isValid =>
+      _invoiceController.text.trim().isNotEmpty &&
+      widget.amountSats != null &&
+      widget.amountSats! > 0;
 
   Future<void> _submit() async {
     if (_submitting || !_isValid) return;
     setState(() => _submitting = true);
 
     try {
-      // TODO (Phase 9+): Call send_invoice() via Rust bridge.
-      await Future.delayed(const Duration(milliseconds: 300));
+      await orders_api.sendInvoice(
+        orderId: widget.orderId,
+        invoiceOrAddress: _invoiceController.text.trim(),
+        amountSats: BigInt.from(widget.amountSats ?? 0),
+      );
 
       if (!mounted) return;
       context.go(AppRoute.tradeDetailPath(widget.orderId));

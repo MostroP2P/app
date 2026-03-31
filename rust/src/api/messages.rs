@@ -122,18 +122,77 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
         bail!("TradeNotFound: trade_id must not be empty");
     }
 
-    // TODO(Phase 10+): Look up session to get peer pubkey and shared key,
-    // then encrypt via NIP-44 and publish as a NIP-59 gift-wrapped event.
-    // For now the message is persisted locally only.
     let now = unix_now();
+
+    // Look up session to get peer pubkey and trade key index.
+    // If no session exists (e.g. order not yet active), fall back to local-only.
+    let session = crate::mostro::session::session_manager()
+        .get_session(&trade_id)
+        .await;
+
+    let (sender_pubkey, publish_result) = if let Some(ref s) = session {
+        let sender_keys = crate::api::identity::get_active_trade_keys(s.trade_key_index).await;
+        let sender_pubkey = sender_keys
+            .as_ref()
+            .map(|k| k.public_key().to_hex())
+            .unwrap_or_default();
+
+        let result = if let (Ok(keys), Some(ref peer_hex)) = (sender_keys, &s.peer_pubkey) {
+            match nostr_sdk::PublicKey::from_hex(peer_hex) {
+                Ok(peer_pubkey) => {
+                    let payload = serde_json::json!({ "text": content }).to_string();
+                    match crate::nostr::gift_wrap::wrap(
+                        &keys,
+                        &peer_pubkey,
+                        &payload,
+                        nostr_sdk::Kind::from(14u16),
+                    )
+                    .await
+                    {
+                        Ok(event_json) => {
+                            if let Ok(pool) = crate::api::nostr::get_pool() {
+                                match serde_json::from_str::<nostr_sdk::Event>(&event_json) {
+                                    Ok(event) => pool
+                                        .client()
+                                        .send_event(&event)
+                                        .await
+                                        .map(|_| ())
+                                        .map_err(|e| anyhow!("publish failed: {e}")),
+                                    Err(e) => Err(anyhow!("event parse failed: {e}")),
+                                }
+                            } else {
+                                log::warn!("[messages] relay pool not ready — message stored locally");
+                                Ok(())
+                            }
+                        }
+                        Err(e) => Err(anyhow!("gift wrap failed: {e}")),
+                    }
+                }
+                Err(e) => Err(anyhow!("invalid peer pubkey: {e}")),
+            }
+        } else {
+            log::warn!("[messages] session exists but peer unknown — local-only");
+            Ok(())
+        };
+
+        (sender_pubkey, result)
+    } else {
+        log::warn!("[messages] no session for trade={trade_id} — local-only");
+        (String::new(), Ok(()))
+    };
+
+    if let Err(e) = publish_result {
+        log::warn!("[messages] send_message trade={trade_id}: {e}");
+    }
+
     let msg = ChatMessage {
         id: uuid::Uuid::new_v4().to_string(),
         trade_id: trade_id.clone(),
-        sender_pubkey: String::new(), // filled from identity in Phase 10+
+        sender_pubkey,
         content,
         message_type: MessageType::Peer,
         is_mine: true,
-        is_read: true, // own messages are always read
+        is_read: true,
         has_attachment: false,
         attachment: None,
         created_at: now,
