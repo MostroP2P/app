@@ -115,7 +115,7 @@ impl OrderBook {
             .cloned()
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Vec<OrderInfo>> {
+    pub(crate) fn subscribe(&self) -> broadcast::Receiver<Vec<OrderInfo>> {
         self.tx.subscribe()
     }
 }
@@ -481,7 +481,7 @@ impl OrdersStream {
 
 /// Called internally to process a raw Nostr event into the order cache.
 /// Typically invoked from the relay pool's event processing loop.
-pub async fn process_order_event(event: &nostr_sdk::Event, my_pubkey: Option<&nostr_sdk::PublicKey>) {
+pub(crate) async fn process_order_event(event: &nostr_sdk::Event, my_pubkey: Option<&nostr_sdk::PublicKey>) {
     if let Some(order) = parse_order_event(event, my_pubkey) {
         order_book().upsert_order(order).await;
     }

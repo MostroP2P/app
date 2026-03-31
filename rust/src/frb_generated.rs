@@ -26,7 +26,6 @@
 // Section: imports
 
 use crate::api::disputes::*;
-use crate::api::identity::*;
 use crate::api::messages::*;
 use crate::api::nostr::*;
 use crate::api::nwc::*;
@@ -45,7 +44,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1749065330;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1998520049;
 
 // Section: executor
 
@@ -528,57 +527,6 @@ fn wire__crate__api__orders__OrderBook_set_orders_impl(
                     })()
                     .await,
                 )
-            }
-        },
-    )
-}
-fn wire__crate__api__orders__OrderBook_subscribe_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "OrderBook_subscribe",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OrderBook>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let mut api_that_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
-                    }
-                    let api_that_guard = api_that_guard.unwrap();
-                    let output_ok = Result::<_, ()>::Ok(crate::api::orders::OrderBook::subscribe(
-                        &*api_that_guard,
-                    ))?;
-                    Ok(output_ok)
-                })())
             }
         },
     )
@@ -1336,78 +1284,6 @@ fn wire__crate__api__nostr__flush_message_queue_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok = crate::api::nostr::flush_message_queue().await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__identity__get_active_keys_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "get_active_keys",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || async move {
-                        let output_ok = crate::api::identity::get_active_keys().await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__identity__get_active_trade_keys_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "get_active_trade_keys",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_index = <u32>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || async move {
-                        let output_ok =
-                            crate::api::identity::get_active_trade_keys(api_index).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2822,70 +2698,6 @@ fn wire__crate__api__nwc__pay_invoice_impl(
         },
     )
 }
-fn wire__crate__api__orders__process_order_event_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "process_order_event",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_event = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>,
-            >>::sse_decode(&mut deserializer);
-            let api_my_pubkey = <Option<
-                RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PublicKey>>,
-            >>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, ()>(
-                    (move || async move {
-                        let mut api_event_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_event, 0, false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_event_guard =
-                                        Some(api_event.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        let api_event_guard = api_event_guard.unwrap();
-                        let output_ok = Result::<_, ()>::Ok({
-                            crate::api::orders::process_order_event(
-                                &*api_event_guard,
-                                api_my_pubkey,
-                            )
-                            .await;
-                        })?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
 fn wire__crate__api__orders__release_order_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3503,12 +3315,6 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DisputeStream>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageStream>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
@@ -3518,13 +3324,7 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OrdersStream>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PublicKey>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RatingStream>
-);
-flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Receiver<Vec<OrderInfo>>>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RelayStatusStream>
@@ -3579,16 +3379,6 @@ impl SseDecode for DisputeStream {
     }
 }
 
-impl SseDecode for Keys {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
 impl SseDecode for MessageStream {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3624,16 +3414,6 @@ impl SseDecode for RatingStream {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
             flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RatingStream>,
-        >>::sse_decode(deserializer);
-        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
-    }
-}
-
-impl SseDecode for Receiver<Vec<OrderInfo>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Receiver<Vec<OrderInfo>>>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -3713,22 +3493,6 @@ impl SseDecode
     }
 }
 
-impl SseDecode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageStream>>
 {
@@ -3760,29 +3524,7 @@ impl SseDecode
 }
 
 impl SseDecode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PublicKey>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RatingStream>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <usize>::sse_decode(deserializer);
-        return decode_rust_opaque_moi(inner);
-    }
-}
-
-impl SseDecode
-    for RustOpaqueMoi<
-        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Receiver<Vec<OrderInfo>>>,
-    >
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4242,21 +3984,6 @@ impl SseDecode for Option<String> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<String>::sse_decode(deserializer));
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode
-    for Option<RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PublicKey>>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PublicKey>,
-            >>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -4896,186 +4623,177 @@ fn pde_ffi_dispatcher_primary_impl(
         7 => wire__crate__api__orders__OrderBook_get_orders_impl(port, ptr, rust_vec_len, data_len),
         8 => wire__crate__api__orders__OrderBook_new_impl(port, ptr, rust_vec_len, data_len),
         9 => wire__crate__api__orders__OrderBook_set_orders_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__orders__OrderBook_subscribe_impl(port, ptr, rust_vec_len, data_len),
-        11 => {
+        10 => {
             wire__crate__api__orders__OrderBook_upsert_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__api__orders__OrdersStream_next_impl(port, ptr, rust_vec_len, data_len),
-        13 => {
+        11 => wire__crate__api__orders__OrdersStream_next_impl(port, ptr, rust_vec_len, data_len),
+        12 => {
             wire__crate__api__reputation__RatingStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        14 => {
+        13 => {
             wire__crate__api__nostr__RelayStatusStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        15 => {
+        14 => {
             wire__crate__api__settings__SettingsStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        16 => wire__crate__api__messages__UnreadCountStream_next_impl(
+        15 => wire__crate__api__messages__UnreadCountStream_next_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => {
+        16 => {
             wire__crate__api__nwc__WalletStatusStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => wire__crate__api__nostr__add_relay_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__nwc__connect_wallet_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__identity__create_identity_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__orders__create_order_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__identity__delete_identity_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__identity__derive_trade_key_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__nwc__disconnect_wallet_impl(port, ptr, rust_vec_len, data_len),
-        25 => {
+        17 => wire__crate__api__nostr__add_relay_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__nwc__connect_wallet_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__identity__create_identity_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__orders__create_order_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__identity__delete_identity_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__identity__derive_trade_key_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__nwc__disconnect_wallet_impl(port, ptr, rust_vec_len, data_len),
+        24 => {
             wire__crate__api__messages__download_attachment_impl(port, ptr, rust_vec_len, data_len)
         }
-        26 => wire__crate__api__identity__export_encrypted_backup_impl(
+        25 => wire__crate__api__identity__export_encrypted_backup_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        27 => wire__crate__api__nostr__flush_message_queue_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__identity__get_active_keys_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__identity__get_active_trade_keys_impl(
+        26 => wire__crate__api__nostr__flush_message_queue_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__get_app_version_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__messages__get_attachment_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__get_app_version_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__messages__get_attachment_status_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        32 => wire__crate__api__nwc__get_balance_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__nostr__get_connection_state_impl(port, ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__disputes__get_dispute_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__identity__get_identity_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__messages__get_messages_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__identity__get_nym_identity_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__orders__get_order_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__orders__get_orders_impl(port, ptr, rust_vec_len, data_len),
-        40 => {
+        29 => wire__crate__api__nwc__get_balance_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__nostr__get_connection_state_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__disputes__get_dispute_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__identity__get_identity_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__messages__get_messages_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__identity__get_nym_identity_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__orders__get_order_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__orders__get_orders_impl(port, ptr, rust_vec_len, data_len),
+        37 => {
             wire__crate__api__reputation__get_privacy_mode_impl(port, ptr, rust_vec_len, data_len)
         }
-        41 => wire__crate__api__reputation__get_rating_for_trade_impl(
+        38 => wire__crate__api__reputation__get_rating_for_trade_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__crate__api__nostr__get_relays_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__settings__get_settings_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__identity__get_trade_key_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__messages__get_unread_count_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__nwc__get_wallet_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__disputes__handle_admin_canceled_impl(
+        39 => wire__crate__api__nostr__get_relays_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__settings__get_settings_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__identity__get_trade_key_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__messages__get_unread_count_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__nwc__get_wallet_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__disputes__handle_admin_canceled_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        45 => {
+            wire__crate__api__disputes__handle_admin_settled_impl(port, ptr, rust_vec_len, data_len)
+        }
+        46 => wire__crate__api__disputes__handle_admin_took_dispute_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        47 => wire__crate__api__reputation__handle_rating_received_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         48 => {
-            wire__crate__api__disputes__handle_admin_settled_impl(port, ptr, rust_vec_len, data_len)
-        }
-        49 => wire__crate__api__disputes__handle_admin_took_dispute_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        50 => wire__crate__api__reputation__handle_rating_received_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        51 => {
             wire__crate__api__identity__import_from_mnemonic_impl(port, ptr, rust_vec_len, data_len)
         }
-        52 => wire__crate__api__identity__import_from_nsec_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__nostr__initialize_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__identity__load_identity_from_mnemonic_impl(
+        49 => wire__crate__api__identity__import_from_nsec_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__nostr__initialize_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__identity__load_identity_from_mnemonic_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__messages__mark_as_read_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__messages__on_attachment_progress_impl(
+        52 => wire__crate__api__messages__mark_as_read_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__messages__on_attachment_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__crate__api__nostr__on_connection_state_changed_impl(
+        54 => wire__crate__api__nostr__on_connection_state_changed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => {
+        55 => {
             wire__crate__api__disputes__on_dispute_updated_impl(port, ptr, rust_vec_len, data_len)
         }
-        59 => wire__crate__api__messages__on_new_message_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__orders__on_orders_updated_impl(port, ptr, rust_vec_len, data_len),
-        61 => {
+        56 => wire__crate__api__messages__on_new_message_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__orders__on_orders_updated_impl(port, ptr, rust_vec_len, data_len),
+        58 => {
             wire__crate__api__reputation__on_rating_received_impl(port, ptr, rust_vec_len, data_len)
         }
-        62 => {
+        59 => {
             wire__crate__api__nostr__on_relay_status_changed_impl(port, ptr, rust_vec_len, data_len)
         }
-        63 => {
+        60 => {
             wire__crate__api__settings__on_settings_changed_impl(port, ptr, rust_vec_len, data_len)
         }
-        64 => wire__crate__api__messages__on_unread_count_changed_impl(
+        61 => wire__crate__api__messages__on_unread_count_changed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => {
+        62 => {
             wire__crate__api__nwc__on_wallet_status_changed_impl(port, ptr, rust_vec_len, data_len)
         }
-        66 => wire__crate__api__disputes__open_dispute_impl(port, ptr, rust_vec_len, data_len),
-        67 => {
+        63 => wire__crate__api__disputes__open_dispute_impl(port, ptr, rust_vec_len, data_len),
+        64 => {
             wire__crate__api__orders__order_filters_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        68 => wire__crate__api__nwc__pay_invoice_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__orders__process_order_event_impl(port, ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__orders__release_order_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__nostr__remove_relay_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__orders__send_fiat_sent_impl(port, ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__messages__send_file_impl(port, ptr, rust_vec_len, data_len),
-        74 => wire__crate__api__orders__send_invoice_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__messages__send_message_impl(port, ptr, rust_vec_len, data_len),
-        76 => wire__crate__api__settings__set_default_fiat_code_impl(
+        65 => wire__crate__api__nwc__pay_invoice_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__orders__release_order_impl(port, ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__nostr__remove_relay_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__orders__send_fiat_sent_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__messages__send_file_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__orders__send_invoice_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__messages__send_message_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__settings__set_default_fiat_code_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        77 => wire__crate__api__settings__set_default_lightning_address_impl(
+        73 => wire__crate__api__settings__set_default_lightning_address_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        78 => wire__crate__api__settings__set_language_impl(port, ptr, rust_vec_len, data_len),
-        79 => {
+        74 => wire__crate__api__settings__set_language_impl(port, ptr, rust_vec_len, data_len),
+        75 => {
             wire__crate__api__settings__set_logging_enabled_impl(port, ptr, rust_vec_len, data_len)
         }
-        80 => {
+        76 => {
             wire__crate__api__reputation__set_privacy_mode_impl(port, ptr, rust_vec_len, data_len)
         }
-        81 => wire__crate__api__settings__set_theme_impl(port, ptr, rust_vec_len, data_len),
-        82 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
-        83 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
-        85 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__settings__set_theme_impl(port, ptr, rust_vec_len, data_len),
+        78 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
+        79 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
+        81 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -5150,21 +4868,6 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<DisputeStream>> for DisputeStr
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<Keys> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<Keys> {}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Keys>> for Keys {
-    fn into_into_dart(self) -> FrbWrapper<Keys> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<MessageStream> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
@@ -5220,26 +4923,6 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<RatingStream>> for RatingStream {
     fn into_into_dart(self) -> FrbWrapper<RatingStream> {
-        self.into()
-    }
-}
-
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<Receiver<Vec<OrderInfo>>> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
-            .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<Receiver<Vec<OrderInfo>>>
-{
-}
-
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<Receiver<Vec<OrderInfo>>>>
-    for Receiver<Vec<OrderInfo>>
-{
-    fn into_into_dart(self) -> FrbWrapper<Receiver<Vec<OrderInfo>>> {
         self.into()
     }
 }
@@ -6183,16 +5866,6 @@ impl SseEncode for DisputeStream {
     }
 }
 
-impl SseEncode for Keys {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>>>::sse_encode(
-            flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self),
-            serializer,
-        );
-    }
-}
-
 impl SseEncode for MessageStream {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6218,18 +5891,6 @@ impl SseEncode for RatingStream {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RatingStream>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
-    }
-}
-
-impl SseEncode for Receiver<Vec<OrderInfo>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Receiver<Vec<OrderInfo>>>,
-        >>::sse_encode(
-            flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self),
-            serializer,
-        );
     }
 }
 
@@ -6298,24 +5959,6 @@ impl SseEncode
     }
 }
 
-impl SseEncode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageStream>>
 {
@@ -6350,31 +5993,7 @@ impl SseEncode
 }
 
 impl SseEncode
-    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PublicKey>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RatingStream>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        let (ptr, size) = self.sse_encode_raw();
-        <usize>::sse_encode(ptr, serializer);
-        <i32>::sse_encode(size, serializer);
-    }
-}
-
-impl SseEncode
-    for RustOpaqueMoi<
-        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Receiver<Vec<OrderInfo>>>,
-    >
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6779,18 +6398,6 @@ impl SseEncode for Option<String> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <String>::sse_encode(value, serializer);
-        }
-    }
-}
-
-impl SseEncode
-    for Option<RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PublicKey>>>
-{
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< PublicKey>>>::sse_encode(value, serializer);
         }
     }
 }
@@ -7350,7 +6957,6 @@ mod io {
 
     use super::*;
     use crate::api::disputes::*;
-    use crate::api::identity::*;
     use crate::api::messages::*;
     use crate::api::nostr::*;
     use crate::api::nwc::*;
@@ -7410,34 +7016,6 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEvent(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEvent(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageStream(
         ptr: *const std::ffi::c_void,
     ) {
@@ -7480,20 +7058,6 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPublicKey(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< PublicKey>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPublicKey(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< PublicKey>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRatingStream(
         ptr: *const std::ffi::c_void,
     ) {
@@ -7505,20 +7069,6 @@ mod io {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RatingStream>>::decrement_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerReceiverVecOrderInfo(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Receiver < Vec < OrderInfo > >>>::increment_strong_count(ptr as _);
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_mostro_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerReceiverVecOrderInfo(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Receiver < Vec < OrderInfo > >>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -7590,7 +7140,6 @@ mod web {
 
     use super::*;
     use crate::api::disputes::*;
-    use crate::api::identity::*;
     use crate::api::messages::*;
     use crate::api::nostr::*;
     use crate::api::nwc::*;
@@ -7652,34 +7201,6 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEvent(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEvent(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Event>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerKeys(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Keys>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
     pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageStream(
         ptr: *const std::ffi::c_void,
     ) {
@@ -7722,20 +7243,6 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPublicKey(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< PublicKey>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPublicKey(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< PublicKey>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
     pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRatingStream(
         ptr: *const std::ffi::c_void,
     ) {
@@ -7747,20 +7254,6 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RatingStream>>::decrement_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerReceiverVecOrderInfo(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Receiver < Vec < OrderInfo > >>>::increment_strong_count(ptr as _);
-    }
-
-    #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerReceiverVecOrderInfo(
-        ptr: *const std::ffi::c_void,
-    ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Receiver < Vec < OrderInfo > >>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

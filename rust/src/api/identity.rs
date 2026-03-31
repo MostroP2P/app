@@ -300,7 +300,7 @@ fn unix_now() -> i64 {
 
 /// Expose the in-memory `Keys` for other Rust modules (relay pool, gift wrap).
 /// Returns `Err("NoIdentity")` if no identity is loaded.
-pub async fn get_active_keys() -> Result<Keys> {
+pub(crate) async fn get_active_keys() -> Result<Keys> {
     let guard = identity_lock().read().await;
     guard
         .as_ref()
@@ -309,7 +309,7 @@ pub async fn get_active_keys() -> Result<Keys> {
 }
 
 /// Expose the active trade key at the given index for message signing.
-pub async fn get_active_trade_keys(index: u32) -> Result<Keys> {
+pub(crate) async fn get_active_trade_keys(index: u32) -> Result<Keys> {
     let guard = identity_lock().read().await;
     let state = guard.as_ref().ok_or_else(|| anyhow!("NoIdentity"))?;
 
