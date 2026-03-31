@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +24,8 @@ Future<void> main() async {
 }
 
 /// Background watcher: logs every relay pool connection state change.
-/// Output visible via `flutter run` / `adb logcat -s flutter`.
+/// When Online, also polls the order cache after a short delay so we know
+/// whether the Kind 38383 subscription actually delivered events.
 void _watchConnectionState() {
   Future.microtask(() async {
     try {
@@ -32,6 +34,22 @@ void _watchConnectionState() {
         final state = await stream.next();
         if (state == null) break;
         debugPrint('[nostr] connection state → $state');
+        if (state.name == 'online') {
+          // Log relay details when we come online.
+          final relays = await nostr_api.getRelays();
+          for (final r in relays) {
+            debugPrint('[nostr] relay ${r.url} → ${r.status}');
+          }
+          // Wait 5 seconds then poll the order cache — tells us if the
+          // Kind 38383 subscription delivered any events.
+          Future.delayed(const Duration(seconds: 5), () async {
+            final orders = await orders_api.getOrders(filters: null);
+            debugPrint('[diag] order cache after 5s: ${orders.length} orders');
+            if (orders.isNotEmpty) {
+              debugPrint('[diag] first order: id=${orders.first.id} kind=${orders.first.kind} fiat=${orders.first.fiatCode}');
+            }
+          });
+        }
       }
     } catch (e) {
       debugPrint('[nostr] connection watcher error: $e');

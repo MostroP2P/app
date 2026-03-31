@@ -32,10 +32,12 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
             .and_then(|t| t.as_slice().get(1).map(|s| s.to_string()))
     };
 
-    // Validate this is a Mostro order event (z=order).
-    // Non-Mostro 38383 events on the relay are silently skipped.
-    if get("z").as_deref() != Some("order") {
-        return None;
+    // Log the z-tag value for diagnostics but do not hard-reject — older
+    // Mostro events may omit the tag; the author filter already scopes to the
+    // trusted node.
+    let z_tag = get("z");
+    if z_tag.as_deref() != Some("order") {
+        log::debug!("[parse] Kind 38383 z-tag={z_tag:?} (expected 'order') — processing anyway");
     }
 
     let id = get("d")?;

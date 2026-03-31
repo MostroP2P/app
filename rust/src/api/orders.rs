@@ -462,10 +462,18 @@ async fn _run_order_subscription() {
     loop {
         match rx.recv().await {
             Ok(RelayPoolNotification::Event { event, .. }) => {
-                log::debug!("[orders] received event kind={}", event.kind);
-                if let Some(info) = parse_order_event(&event, None) {
-                    log::info!("[orders] upserted order id={}", info.id);
-                    order_book().upsert_order(info).await;
+                log::info!("[orders] event kind={} author={}", event.kind, &event.pubkey.to_hex()[..8]);
+                match parse_order_event(&event, None) {
+                    Some(info) => {
+                        log::info!("[orders] parsed order id={} kind={:?} status={:?}", info.id, info.kind, info.status);
+                        order_book().upsert_order(info).await;
+                    }
+                    None => {
+                        log::warn!("[orders] event kind={} rejected by parser (tags: {:?})",
+                            event.kind,
+                            event.tags.iter().take(6).map(|t| t.as_slice().first().map(|s| s.as_str()).unwrap_or("?")).collect::<Vec<_>>()
+                        );
+                    }
                 }
             }
             Ok(RelayPoolNotification::Shutdown) => {
