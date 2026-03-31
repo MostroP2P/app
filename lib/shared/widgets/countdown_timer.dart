@@ -75,14 +75,16 @@ class _CountdownTimerState extends State<CountdownTimer> {
   void _start() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
+      var expired = false;
       setState(() {
         _remaining -= const Duration(seconds: 1);
         if (_remaining <= Duration.zero) {
           _remaining = Duration.zero;
           _timer?.cancel();
-          widget.onExpired?.call();
+          expired = true;
         }
       });
+      if (expired) widget.onExpired?.call();
     });
   }
 

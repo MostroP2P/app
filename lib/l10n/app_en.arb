@@ -388,5 +388,26 @@
   "navMyTrades": "My Trades",
   "@navMyTrades": {"description": "Bottom navigation label for the My Trades tab"},
   "navChat": "Chat",
-  "@navChat": {"description": "Bottom navigation label for the Chat tab"}
+  "@navChat": {"description": "Bottom navigation label for the Chat tab"},
+
+  "loadingOrders": "Loading orders…",
+  "@loadingOrders": {"description": "Accessibility label for the order book shimmer skeleton (DESIGN_SYSTEM §9.1)"},
+
+  "errorLoadingOrders": "Could not load orders. Please check your connection.",
+  "@errorLoadingOrders": {"description": "Error message shown when the order book fails to load"},
+  "retry": "Retry",
+  "@retry": {"description": "Retry button label"},
+
+  "disableRelayLabel": "Disable relay {url}",
+  "@disableRelayLabel": {
+    "description": "Accessibility label for the toggle that disables a relay",
+    "placeholders": {"url": {"type": "String"}}
+  },
+  "enableRelayLabel": "Enable relay {url}",
+  "@enableRelayLabel": {
+    "description": "Accessibility label for the toggle that enables a relay",
+    "placeholders": {"url": {"type": "String"}}
+  },
+  "removeRelayTooltip": "Remove relay",
+  "@removeRelayTooltip": {"description": "Tooltip for the remove-relay icon button"}
 }

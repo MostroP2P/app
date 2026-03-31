@@ -93,9 +93,11 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
   }
 
   void _onQrDetected(String raw) {
+    const scheme = 'nostr+walletconnect://';
     final normalized = raw.trim();
-    if (normalized.toLowerCase().startsWith('nostr+walletconnect://')) {
-      _uriController.text = normalized;
+    if (normalized.toLowerCase().startsWith(scheme)) {
+      // Normalize scheme to lowercase so _isValid's startsWith check passes.
+      _uriController.text = scheme + normalized.substring(scheme.length);
       setState(() => _showScanner = false);
     }
   }
@@ -190,9 +192,11 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                         onPressed: () async {
                           final data =
                               await Clipboard.getData(Clipboard.kTextPlain);
-                          final text = data?.text ?? '';
-                          if (text.startsWith('nostr+walletconnect://')) {
-                            _uriController.text = text;
+                          final text = (data?.text ?? '').trim();
+                          const scheme = 'nostr+walletconnect://';
+                          if (text.toLowerCase().startsWith(scheme)) {
+                            _uriController.text =
+                                scheme + text.trim().substring(scheme.length);
                             setState(() {});
                           } else {
                             if (!context.mounted) return;

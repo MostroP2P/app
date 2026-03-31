@@ -4,6 +4,7 @@
 /// applies filters, and exposes a stream for UI updates.
 use anyhow::Result;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
@@ -114,7 +115,7 @@ impl OrderBook {
             .cloned()
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Vec<OrderInfo>> {
+    pub(crate) fn subscribe(&self) -> broadcast::Receiver<Vec<OrderInfo>> {
         self.tx.subscribe()
     }
 }
@@ -197,6 +198,9 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         .unwrap_or_default()
         .as_secs() as i64;
 
+    // Clone params before the struct takes ownership of its fields.
+    let params_for_dispatch = params.clone();
+
     let order = OrderInfo {
         id: uuid::Uuid::new_v4().to_string(),
         kind: params.kind,
@@ -208,14 +212,31 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         fiat_code: params.fiat_code,
         payment_method: params.payment_method,
         premium: params.premium,
-        creator_pubkey: String::new(), // filled by identity in Phase 7
+        creator_pubkey: String::new(),
         created_at: now,
         expires_at: Some(now + 24 * 3600),
         is_mine: true,
     };
 
-    // Cache locally
+    // Cache locally (optimistic — daemon will publish the real Kind 38383).
     order_book().upsert_order(order.clone()).await;
+
+    // Dispatch new_order to Mostro (fire-and-forget; daemon publishes Kind 38383
+    // when it accepts the order, which arrives via the subscription loop).
+    if let Ok(sender_keys) = crate::api::identity::get_active_keys().await {
+        if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+            match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch).await {
+                Ok(event_json) => {
+                    if let Err(e) = publish_event_json(&event_json).await {
+                        log::warn!("[orders] create_order publish failed: {e}");
+                    } else {
+                        log::info!("[orders] create_order dispatched for id={}", order.id);
+                    }
+                }
+                Err(e) => log::warn!("[orders] create_order action build failed: {e}"),
+            }
+        }
+    }
 
     Ok(order)
 }
@@ -275,6 +296,7 @@ pub async fn take_order(
         .unwrap_or_default()
         .as_secs() as i64;
 
+    let dispatch_role = role.clone();
     let initial_step = match role {
         TradeRole::Buyer => TradeStep::Buyer(BuyerStep::OrderTaken),
         TradeRole::Seller => TradeStep::Seller(SellerStep::TakerFound),
@@ -295,6 +317,31 @@ pub async fn take_order(
         completed_at: None,
         outcome: None,
     };
+
+    // Dispatch the take action to Mostro (fire-and-forget; the daemon responds
+    // asynchronously via NIP-59 gift wrap with the next trade step).
+    if let Ok(sender_keys) = crate::api::identity::get_active_keys().await {
+        if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+            let action_result = match dispatch_role {
+                TradeRole::Buyer => {
+                    actions::take_sell(&sender_keys, &mostro_pubkey, &order_id, fiat_amount).await
+                }
+                TradeRole::Seller => {
+                    actions::take_buy(&sender_keys, &mostro_pubkey, &order_id, fiat_amount).await
+                }
+            };
+            match action_result {
+                Ok(event_json) => {
+                    if let Err(e) = publish_event_json(&event_json).await {
+                        log::warn!("[orders] take_order publish failed: {e}");
+                    } else {
+                        log::info!("[orders] take_order dispatched for order={order_id}");
+                    }
+                }
+                Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
+            }
+        }
+    }
 
     Ok(trade)
 }
@@ -327,8 +374,18 @@ pub async fn send_invoice(
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // TODO: Build AddInvoice MostroMessage, wrap via NIP-59, publish.
-    Err(anyhow::anyhow!("NotImplemented: AddInvoice dispatch not wired yet"))
+    let sender_keys = crate::api::identity::get_active_keys().await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let event_json = actions::add_invoice(
+        &sender_keys,
+        &mostro_pubkey,
+        &order_id,
+        &invoice_or_address,
+    )
+    .await?;
+    publish_event_json(&event_json).await?;
+    log::info!("[orders] add_invoice published for order={order_id}");
+    Ok(())
 }
 
 /// Mark fiat payment as sent by the buyer.
@@ -346,13 +403,11 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // Build FiatSent MostroMessage wrapped via NIP-59.
     let sender_keys = crate::api::identity::get_active_keys().await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
-    let _event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id).await?;
-
-    // TODO(Phase 10+): Publish event_json to relay pool once connected.
-
+    let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id).await?;
+    publish_event_json(&event_json).await?;
+    log::info!("[orders] fiat_sent published for order={order_id}");
     Ok(())
 }
 
@@ -372,15 +427,139 @@ pub async fn release_order(order_id: String) -> Result<()> {
         return Err(anyhow::anyhow!("WrongTradeState"));
     }
 
-    // Build Release MostroMessage wrapped via NIP-59.
     let sender_keys = crate::api::identity::get_active_keys().await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
-    let _event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id).await?;
-
-    // TODO(Phase 10+): Publish event_json to relay pool once connected.
-    // On success, daemon transitions to SettledHoldInvoice → Success.
-
+    let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id).await?;
+    publish_event_json(&event_json).await?;
+    log::info!("[orders] release published for order={order_id}");
     Ok(())
+}
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+/// Parse and publish a serialised Nostr event JSON via the relay pool.
+///
+/// Returns an error if the pool is not initialised, the JSON is malformed,
+/// or the relay client reports a publish error.
+async fn publish_event_json(event_json: &str) -> Result<()> {
+    let pool = crate::api::nostr::get_pool()
+        .map_err(|_| anyhow::anyhow!("RelayPoolNotInitialized"))?;
+    let event: nostr_sdk::Event = serde_json::from_str(event_json)
+        .map_err(|e| anyhow::anyhow!("invalid event JSON: {e}"))?;
+    pool.client()
+        .send_event(&event)
+        .await
+        .map_err(|e| anyhow::anyhow!("publish failed: {e}"))?;
+    Ok(())
+}
+
+// ── Kind 38383 subscription ───────────────────────────────────────────────────
+
+/// Guards against spawning duplicate subscription loops.
+static SUBSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Subscribe to Kind 38383 (pending public orders) and populate the order book.
+///
+/// Idempotent — only one subscription loop runs at a time. Call this whenever
+/// the relay pool comes online; subsequent calls are no-ops until the previous
+/// loop exits (pool shutdown or channel closed).
+///
+/// Internally spawns a background Tokio task that:
+/// 1. Subscribes to `pending_orders_filter()` via the relay pool client.
+/// 2. Loops over `RelayPoolNotification::Event` messages.
+/// 3. Parses each Kind 38383 event via `parse_order_event` and upserts it
+///    into the order book, which broadcasts the update to all `OrdersStream`
+///    subscribers.
+/// RAII guard that resets `SUBSCRIPTION_ACTIVE` to `false` when dropped,
+/// ensuring the flag is cleared even if the subscription task panics.
+struct ResetGuard;
+
+impl Drop for ResetGuard {
+    fn drop(&mut self) {
+        SUBSCRIPTION_ACTIVE.store(false, Ordering::Release);
+    }
+}
+
+pub async fn subscribe_orders() {
+    // Only one loop at a time — subsequent Online transitions are no-ops.
+    if SUBSCRIPTION_ACTIVE
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        log::debug!("[orders] subscribe_orders: already active, skipping");
+        return;
+    }
+    log::info!("[orders] subscribe_orders: spawning subscription loop");
+
+    tokio::spawn(async {
+        let _guard = ResetGuard;
+        _run_order_subscription().await;
+    });
+}
+
+async fn _run_order_subscription() {
+    let Ok(pool) = crate::api::nostr::get_pool() else {
+        log::error!("[orders] subscription failed: relay pool not initialized");
+        return;
+    };
+    let client = pool.client();
+
+    // The Mostro daemon is the author of all Kind 38383 events.
+    // Use the compiled-in default pubkey (mirrors config.rs / settings screen).
+    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
+        Ok(pk) => pk,
+        Err(e) => {
+            log::error!("[orders] invalid DEFAULT_MOSTRO_PUBKEY: {e}");
+            return;
+        }
+    };
+    log::info!("[orders] subscribing to Kind 38383 from mostro={}", mostro_pubkey.to_hex());
+
+    // Get notifications receiver before subscribing to avoid missing
+    // events that arrive between the subscribe call and receiver creation.
+    let mut rx = client.notifications();
+
+    let filter = crate::nostr::order_events::pending_orders_filter(&mostro_pubkey);
+    if let Err(e) = client.subscribe(filter, None).await {
+        log::error!("[orders] subscribe failed: {e}");
+        return;
+    }
+    log::info!("[orders] Kind 38383 subscription active — waiting for events");
+
+    use nostr_sdk::RelayPoolNotification;
+
+    loop {
+        match rx.recv().await {
+            Ok(RelayPoolNotification::Event { event, .. }) => {
+                log::info!("[orders] event kind={} author={}", event.kind, &event.pubkey.to_hex()[..8]);
+                match parse_order_event(&event, None) {
+                    Some(info) => {
+                        log::info!("[orders] parsed order id={} kind={:?} status={:?}", info.id, info.kind, info.status);
+                        order_book().upsert_order(info).await;
+                    }
+                    None => {
+                        log::warn!("[orders] event kind={} rejected by parser (tags: {:?})",
+                            event.kind,
+                            event.tags.iter().take(6).map(|t| t.as_slice().first().map(|s| s.as_str()).unwrap_or("?")).collect::<Vec<_>>()
+                        );
+                    }
+                }
+            }
+            Ok(RelayPoolNotification::Shutdown) => {
+                log::info!("[orders] relay pool shutdown — subscription loop exiting");
+                break;
+            }
+            Err(broadcast::error::RecvError::Closed) => {
+                log::warn!("[orders] notification channel closed");
+                break;
+            }
+            Err(broadcast::error::RecvError::Lagged(n)) => {
+                log::warn!("[orders] lagged by {n} messages");
+                continue;
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Stream that emits whenever the order list changes.
@@ -408,7 +587,7 @@ impl OrdersStream {
 
 /// Called internally to process a raw Nostr event into the order cache.
 /// Typically invoked from the relay pool's event processing loop.
-pub async fn process_order_event(event: &nostr_sdk::Event, my_pubkey: Option<&nostr_sdk::PublicKey>) {
+pub(crate) async fn process_order_event(event: &nostr_sdk::Event, my_pubkey: Option<&nostr_sdk::PublicKey>) {
     if let Some(order) = parse_order_event(event, my_pubkey) {
         order_book().upsert_order(order).await;
     }

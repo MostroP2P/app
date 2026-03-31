@@ -219,9 +219,9 @@ configuration.
 - [x] T063 [P] Implement pay invoice widget (manual QR mode) in `lib/shared/widgets/pay_lightning_invoice_widget.dart`: QR code display using `qr_flutter`, copy button, share button (wired via share_plus). `onSubmit` (user confirms manual payment), `onCancel` callbacks.
 - [x] T064 Extend trade detail screen in `lib/features/trades/screens/trade_detail_screen.dart` for seller fiat-sent view: Card 5 instruction text becomes "The buyer [handle] has confirmed they sent you [fiat] [currency] using [method]. Once you verify, release the sats." Status label: "Fiat sent". Action buttons: CLOSE (green outline) + RELEASE (green filled) + CANCEL (red) + DISPUTE (red) in one row, CONTACT (green full-width) below.
 - [x] T065 Implement release confirmation dialog in `lib/features/trades/widgets/release_confirmation_dialog.dart`: centered modal on dark overlay. Large gray info icon. Title "Release Bitcoin". Body "Are you sure you want to release the Satoshis to the buyer?" No (gray) + Yes (green) buttons.
-- [~] T066 Implement release order action in `rust/src/api/orders.rs`: `release_order(order_id)` validates FiatSent status, builds Release MostroMessage via NIP-59 gift wrap. **Partial**: message constructed but not published — relay pool dispatch pending (Phase 10+). Also added `fiat_sent` and `release` action builders to `mostro/actions.rs`.
-- [~] T067 Wire seller active view in trade detail: active status + seller role → show CLOSE + CANCEL + DISPUTE + CONTACT (no RELEASE, no FIAT SENT). Seller card 5 instruction: "Contact the buyer [handle] with payment instructions." Status: "Active order". **Partial**: `_isBuyer`/`_status` still mock — real state blocked on trade provider + Dart bridge.
-- [~] T068 Wire seller release flow: RELEASE tap → confirmation dialog → Yes → error-handled release call → reactive button → on Success → navigate to rate screen `/rate_user/:orderId`. **Partial**: Dart bridge call still stubbed (Future.delayed) — Rust function ready but FFI bindings not generated yet.
+- [x] T066 Implement release order action in `rust/src/api/orders.rs`: `release_order(order_id)` validates FiatSent status, builds Release MostroMessage via NIP-59 gift wrap and publishes to relay pool via `publish_event_json()`. Also added `fiat_sent`, `release`, `cancel`, `add_invoice` action builders to `mostro/actions.rs`. `send_fiat_sent`, `send_invoice`, `take_order`, and `create_order` are all wired to dispatch (fire-and-forget with optimistic local return).
+- [~] T067 Wire seller active view in trade detail: active status + seller role → show CLOSE + CANCEL + DISPUTE + CONTACT (no RELEASE, no FIAT SENT). Seller card 5 instruction: "Contact the buyer [handle] with payment instructions." Status: "Active order". **Partial**: `_isBuyer`/`_status` still local state — real trade state from incoming gift-wrap events requires incoming-message routing (Phase 20+).
+- [x] T068 Wire seller release flow: RELEASE tap → confirmation dialog → Yes → `orders_api.releaseOrder(orderId)` via Rust bridge → on success → navigate to rate screen `/rate_user/:orderId`. Buyer FIAT SENT button also wired to `orders_api.sendFiatSent(orderId)`. Buyer add-invoice screen wired to `orders_api.sendInvoice()`. All `Future.delayed` stubs replaced.
 
 **Checkpoint**: Full seller flow: pay hold invoice (both QR and NWC paths) → active → fiat sent by buyer → Release confirmation → trade completes and navigates to rating.
 
@@ -237,7 +237,7 @@ configuration.
 
 - [x] T069 Implement file encryption in `rust/src/crypto/file_enc.rs`: `encrypt_file(bytes, key)` → `[nonce:12][ciphertext][tag:16]` using `chacha20poly1305`. `decrypt_file(encrypted_bytes, key)` → plaintext bytes. Key derived from ECDH shared key + file-specific nonce.
 - [~] T070 Implement Blossom HTTP client in `rust/src/nostr/blossom.rs`: `upload_blob(encrypted_bytes, mime_type, server_url)` → Blossom URL. `download_blob(url)` → encrypted bytes. Server list: blossom.primal.net, blossom.band, nostr.media, blossom.sector01.com, 24242.io, nosto.re. Try each in order on failure. Max 25MB. **Note**: Blossom auth header (Kind 24242) wired in Phase 10+ when key infrastructure is exposed.
-- [~] T071 Implement messages API in `rust/src/api/messages.rs` per `contracts/messages.md`: `send_message(trade_id, content)`, `get_messages(trade_id)`, `mark_as_read(trade_id)`, `get_unread_count()`, `send_file(trade_id, file_bytes, file_name, mime_type)`, `download_attachment(message_id)`. Streams: `on_new_message(trade_id)`, `on_unread_count_changed()`, `on_attachment_progress(message_id)`. **Partial**: in-memory store only — NIP-59 publish and ECDH key derivation wired in Phase 10+.
+- [~] T071 Implement messages API in `rust/src/api/messages.rs` per `contracts/messages.md`: `send_message(trade_id, content)`, `get_messages(trade_id)`, `mark_as_read(trade_id)`, `get_unread_count()`, `send_file(trade_id, file_bytes, file_name, mime_type)`, `download_attachment(message_id)`. Streams: `on_new_message(trade_id)`, `on_unread_count_changed()`, `on_attachment_progress(message_id)`. **Partial**: `send_message` now looks up session, wraps via NIP-59 gift wrap to peer pubkey (Kind 14), and publishes to relay pool. Falls back to local-only if session/peer not yet known. Incoming message routing (gift-wrap decryption → message store) still pending Phase 20+.
 - [x] T072 Implement nym avatar widget in `lib/shared/widgets/nym_avatar.dart`: colored circle background (HSV hue from `NymIdentity.color_hue`), white icon from `NymIdentity.icon_index` (0–36 icon set, ALWAYS white regardless of hue — v1 bug fix per `contracts/types.md` NymIdentity rendering contract). Deterministic: same pubkey → same appearance always.
 - [x] T073 Implement chat list screen in `lib/features/chat/screens/chat_rooms_screen.dart`: AppBar + "Chat" title + two sub-tabs (Messages / Disputes, swipeable). Messages tab: empty state "No messages available" OR `ListView` of `ChatListItem`. Disputes tab placeholder (Phase 12). Tab description text below tabs. Route: `/chat_list`. Wired in app_routes.dart.
 - [x] T074 [P] Implement chat list item widget in `lib/features/chat/widgets/chat_list_item.dart`: `NymAvatar` + peer handle (bold white) + context line "You are selling/buying sats to/from [handle]" + last message preview (own: "You: ...") + timestamp chip + red unread dot. Tap → navigate to `/chat_room/:orderId`.
@@ -395,6 +395,46 @@ configuration.
 
 ---
 
+## Phase 18: Real Order Book Bridge + Shimmer Loading (Priority: P1)
+
+**Purpose**: Replace mock order data with live Kind 38383 events from the trusted Mostro relay and add DESIGN_SYSTEM.md §9.1 skeleton shimmer during initial load.
+
+**Depends on**: Phase 5 (US3 — order book UI), Phase 2 (relay pool)
+
+**Independent Test**: On app launch the home screen shows shimmer skeletons for ~1–3 seconds, then real orders from `relay.mostro.network` populate the list. Switching BUY/SELL tabs filters correctly. Disconnecting the network while the app is open keeps the last cached batch visible; reconnecting fetches fresh orders.
+
+- [x] T126 Add `shimmer: ^3.0.0` to `pubspec.yaml` as specified in DESIGN_SYSTEM.md §9.1. Run `flutter pub get`.
+- [x] T127 [P] Implement `OrderListSkeleton` widget in `lib/shared/widgets/order_list_skeleton.dart` per DESIGN_SYSTEM.md §9.1: `Shimmer.fromColors(baseColor: Color(0xFF1E2230), highlightColor: Color(0xFF2A2D35), child: ListView.builder(itemCount: 5, ...))`. Each skeleton card: `Container(height: 100, margin: EdgeInsets.symmetric(vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)))`. Add l10n key `loadingOrders` = "Loading orders…" as accessibility label.
+- [x] T128 [P] Implement Kind 38383 subscription loop in `rust/src/api/orders.rs`: add `pub async fn subscribe_orders()` that calls `pool()?.client().subscribe([Filter::new().kind(38383)], None)` and for each received `RelayPoolNotification::Event` calls `parse_order_event(&event)` → on `Ok(info)` calls `order_book().upsert_order(info).await` which broadcasts via the existing `tx` channel. Handle relay disconnections with auto-resubscribe on reconnect.
+- [x] T129 [P] Expose `on_orders_updated()` FRB stream in `rust/src/api/orders.rs`: add `OrdersStream` wrapper struct (analogous to `ConnectionStateStream` in `nostr.rs`) with `pub async fn next(&mut self) -> Option<Vec<OrderInfo>>` that reads from a `broadcast::Receiver<Vec<OrderInfo>>`. Add `pub async fn on_orders_updated() -> Result<OrdersStream>` top-level function. Re-run `flutter_rust_bridge_codegen generate`.
+- [x] T130 Wire Kind 38383 subscription into app startup in `rust/src/api/nostr.rs`: in the existing `ConnectionState::Online` background task (already spawned in `initialize()`), add a call to `orders::subscribe_orders().await` so that the subscription begins on first relay connection and re-subscribes after any reconnect.
+- [x] T131 Replace mock `orderBookProvider` in `lib/features/home/providers/home_order_providers.dart`: change `orderBookProvider` from `Provider<List<OrderItem>>((_) => _mockOrders)` to `StreamProvider.autoDispose<List<OrderItem>>` that calls `rust_api.on_orders_updated()` and maps each emitted `List<OrderInfo>` to `List<OrderItem>` (field mapping: `id`, `kind.name.toLowerCase()`, `fiatAmount`/`fiatAmountMin`/`fiatAmountMax`, `fiatCode`, `paymentMethod`, `premium`, `creatorPubkey`, `createdAt` from Unix epoch, `expiresAt`). Initial value = `[]`. Update `filteredOrdersProvider` to consume the new provider type. Remove `_mockOrders` and the `OrderItem` class — use the Rust-generated `OrderInfo` directly or keep `OrderItem` as a thin mapper.
+- [x] T132 Wire shimmer into home screen in `lib/features/home/screens/home_screen.dart`: watch `orderBookProvider.when(loading: () => OrderListSkeleton(), error: (e,_) => _errorState(e), data: (orders) => orders.isEmpty ? OrderListEmpty() : orderContent(onOrderTap))`. Replace the current `Expanded(child: orderContent(onOrderTap))` with the `when` pattern. Import `order_list_skeleton.dart`.
+
+---
+
+## Phase 19: Bridge Stabilization & Protocol Compliance
+
+**Purpose**: Fix all bugs blocking live order book display discovered during Phase 18 integration testing. Covers: FRB public API cleanup, Android logging setup, relay initialization, order provider initial yield, Mostro protocol corrections (Kind 38383 authorship + status kebab-case), relay pool reliability improvements, and UI error handling.
+
+**Depends on**: Phase 18
+
+- [x] T133 [P] Fix FRB build errors: change `get_active_keys()`, `get_active_trade_keys()` in `rust/src/api/identity.rs` and `process_order_event()`, `OrderBook::subscribe()` in `rust/src/api/orders.rs` from `pub` to `pub(crate)` so FRB does not generate stubs for types that cannot be serialized (`nostr_sdk::Keys`, `nostr_sdk::Event`, `broadcast::Receiver<Vec<OrderInfo>>`). Re-run `flutter_rust_bridge_codegen generate` to regenerate `rust/src/frb_generated.rs`.
+- [x] T134 [P] Add Rust logging to `rust/Cargo.toml`: add `log = "0.4"` and `android_logger = "0.14"` (under `[target.'cfg(target_os = "android")'.dependencies]`). Add `#[flutter_rust_bridge::frb(init)] pub fn init_app()` in `rust/src/lib.rs` that calls `android_logger::init_once(Config::default().with_max_level(LevelFilter::Debug).with_tag("mostro_rust"))` inside `#[cfg(target_os = "android")]`. Add `log::info!/warn!/error!/debug!` calls throughout `rust/src/api/orders.rs` and `rust/src/api/nostr.rs`.
+- [x] T135 Fix relay pool initialization: call `await nostr_api.initialize(relays: null)` in `lib/main.dart` before `runApp()`. Add `_watchConnectionState()` background watcher that logs every relay state transition and polls the order cache 5 seconds after first `Online` event. This was the root cause of orders never appearing (no relay pool existed at all).
+- [x] T136 Fix `orderBookProvider` initial yield: in `lib/features/home/providers/home_order_providers.dart`, yield an initial snapshot from `orders_api.getOrders(filters: null)` immediately before entering the `onOrdersUpdated()` stream loop. Without this the `StreamProvider` never emits a value and the UI stays in shimmer forever when the relay subscription takes time.
+- [x] T137 Fix Kind 38383 author filter: correct the understanding that the **Mostro daemon node** (not makers) creates and publishes Kind 38383 events. Makers send a `new-order` NIP-59 Gift Wrap to the node; the node publishes the Kind 38383 event signed with its own key. Update `pending_orders_filter()` in `rust/src/nostr/order_events.rs` to add `.author(*mostro_pubkey)` using `DEFAULT_MOSTRO_PUBKEY` from `config.rs`. Update `subscribe_order_and_dm_feeds()` in `rust/src/nostr/relay_pool.rs` to pass the parsed pubkey to the filter function. Update doc comments throughout.
+- [x] T138 Fix status kebab-case: `mostro-core` uses `#[serde(rename_all = "kebab-case")]` on all enums, so all status values on the wire are kebab-case: `"pending"`, `"in-progress"`, `"waiting-buyer-invoice"`, `"waiting-payment"`, `"fiat-sent"`, `"settled-hold-invoice"`, `"canceled-by-admin"`, `"settled-by-admin"`, `"completed-by-admin"`, `"cooperatively-canceled"`. Fix `parse_status()` in `rust/src/nostr/order_events.rs` to match all 15 variants using kebab-case strings. Fix `pending_orders_filter()` to use `"pending"` (lowercase) for the `s` tag value. This was the primary bug: zero orders matched because the filter used `"Pending"` and the parser rejected all received events.
+- [x] T139 [P] Add `ResetGuard` panic safety in `rust/src/api/orders.rs`: implement `struct ResetGuard` with `Drop` impl that calls `SUBSCRIPTION_ACTIVE.store(false, Ordering::Release)`. Use `let _guard = ResetGuard;` at the top of the spawned subscription task so `SUBSCRIPTION_ACTIVE` is always reset even on panic.
+- [x] T140 [P] Relay pool reliability improvements in `rust/src/nostr/relay_pool.rs`: reduce `STATUS_POLL_INTERVAL_SECS` from 5 → 2 seconds for faster online detection. Add `tokio::time::sleep(Duration::from_millis(500)).await` after `client.connect().await` before the first `broadcast_connection_state()` call so the SDK has time to initiate WebSocket handshakes before the initial poll.
+- [x] T141 [P] Home screen error state: replace the generic error widget in `lib/features/home/screens/home_screen.dart` with a friendly column containing the `errorLoadingOrders` l10n string and a `TextButton` labelled `retry` that calls `ref.invalidate(orderBookProvider)`. Add l10n keys `errorLoadingOrders` and `retry` to all 5 ARB files (`app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb`).
+- [x] T142 [P] Relay management card accessibility: in `lib/features/settings/widgets/relay_management_card.dart`, add `Semantics(label: relay.isActive ? l10n.disableRelayLabel(relay.url) : l10n.enableRelayLabel(relay.url))` on the active toggle and `tooltip: l10n.removeRelayTooltip` on the remove button. Remove `final c = colors;` alias. Add l10n keys `disableRelayLabel` (parametrized with `{url}`), `enableRelayLabel` (parametrized with `{url}`), `removeRelayTooltip` to all 5 ARB files.
+- [x] T143 [P] About screen snackbar: in `lib/features/about/screens/about_screen.dart`, call `ScaffoldMessenger.of(context).hideCurrentSnackBar()` before showing the copy-pubkey snackbar to prevent overlapping snackbars.
+- [x] T144 [P] Currency selector cleanup: in `lib/features/settings/widgets/currency_selector_dialog.dart`, remove `final c = colors;` alias (line 102) and replace all `c.` references with `colors.` directly.
+- [x] T145 Make `z` tag check lenient in `rust/src/nostr/order_events.rs`: older Mostro events may omit the `z=order` tag; since the author filter already scopes to the trusted node, log a debug warning instead of rejecting. This prevents valid orders from being silently dropped.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -402,6 +442,7 @@ configuration.
 - **Phase 1 (Setup)**: No dependencies — start immediately
 - **Phase 2 (Foundation)**: Depends on Phase 1 — **BLOCKS all user story phases**
 - **Phases 3–17 (User Stories)**: All depend on Phase 2 completion
+- **Phase 18 (Real Order Book + Shimmer)**: Depends on Phase 5 (US3 UI) + Phase 2 (relay pool)
   - P1 stories (3–11) can proceed in priority order or in parallel if staffed
   - P2 stories (12–17) can begin after Phase 2; recommended after P1 stories are stable
 - **Final Phase (Polish)**: Depends on all desired stories being complete
@@ -438,25 +479,31 @@ configuration.
 ## Parallel Execution Examples
 
 ### Phase 2 (Foundation) — Run together:
-```
+```text
 T009 IndexedDB backend       T010 Shared types             T011 NIP-59 Gift Wrap
 T012 Relay pool               T013 Message queue            T015 App routes scaffold
 ```
 
 ### Phase 3 (US1 — First Launch) — Run together after T017:
-```
+```text
 T018 ECDH shared key         T019 Nym identity             T022 Highlight config
 T026 Placeholder images
 ```
 
-### Phase 5 (US3 — Order Book) — Run together after T031:
+### Phase 18 (Real Order Book + Shimmer) — Run together after T126:
+```text
+T127 OrderListSkeleton widget   T128 subscribe_orders() Rust    T129 on_orders_updated() stream
+T130 Wire startup subscription  T131 StreamProvider orderBook   T132 Shimmer in home screen
 ```
+
+### Phase 5 (US3 — Order Book) — Run together after T031:
+```text
 T033 Order list item card    T034 Order book providers     T035 Filter dialog
 T036 Bottom nav bar          T037 Drawer menu
 ```
 
 ### Phase 10 (US8 — P2P Chat) — Run together after T071:
-```
+```text
 T074 Chat list item          T075 Chat providers           T077 Message bubble
 T078 Message input           T079 Info panels              T080 Image message widget
 T081 File message widget     T072 Nym avatar

@@ -130,7 +130,7 @@
   "themeSystemDefault": "Systemstandard",
   "lightningAddressDialogTitle": "Lightning-Adresse",
   "lightningAddressHintText": "benutzer@domain.com",
-  "invalidLightningAddressFormat": "Muss im Format benutzer@domain vorliegen",
+  "invalidLightningAddressFormat": "Muss im Format benutzer@domain oder benutzer@domain.tld vorliegen",
   "clearButtonLabel": "Löschen",
   "saveButtonLabel": "Speichern",
   "connectWalletTitle": "Wallet verbinden",
@@ -189,5 +189,11 @@
 
   "navOrderBook": "Orderbuch",
   "navMyTrades": "Meine Trades",
-  "navChat": "Chat"
+  "navChat": "Chat",
+  "loadingOrders": "Aufträge werden geladen…",
+  "errorLoadingOrders": "Aufträge konnten nicht geladen werden. Bitte Verbindung prüfen.",
+  "retry": "Erneut versuchen",
+  "disableRelayLabel": "Relay {url} deaktivieren",
+  "enableRelayLabel": "Relay {url} aktivieren",
+  "removeRelayTooltip": "Relay entfernen"
 }

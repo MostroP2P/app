@@ -568,4 +568,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navChat => 'Chat';
+
+  @override
+  String get loadingOrders => 'Loading orders…';
+
+  @override
+  String get errorLoadingOrders =>
+      'Could not load orders. Please check your connection.';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String disableRelayLabel(String url) {
+    return 'Disable relay $url';
+  }
+
+  @override
+  String enableRelayLabel(String url) {
+    return 'Enable relay $url';
+  }
+
+  @override
+  String get removeRelayTooltip => 'Remove relay';
 }

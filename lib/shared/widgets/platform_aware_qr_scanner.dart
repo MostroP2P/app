@@ -57,6 +57,7 @@ class _PlatformAwareQrScannerState extends State<PlatformAwareQrScanner> {
       if (mounted) setState(() => _errorText = AppLocalizations.of(context).clipboardEmptyError);
       return;
     }
+    if (!mounted) return;
     setState(() => _errorText = null);
     _emitOnce(text);
   }

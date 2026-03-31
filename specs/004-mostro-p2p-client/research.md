@@ -121,10 +121,10 @@ Pending
         → CanceledByAdmin | SettledByAdmin | CompletedByAdmin
     → Expired (buyer never paid, timeout)
   → Canceled (creator canceled or timeout)
-  → CooperativelyCanceled (UI-only state — protocol sends action notifications, does not change status)
+  → cooperatively-canceled (wire value, maps to OrderStatus::Canceled — see R14)
 ```
 
-> PaymentFailed is an Action, not a Status. CooperativelyCanceled is client-side UI only.
+> PaymentFailed is an Action, not a Status. `cooperatively-canceled` IS a real wire status value sent by the daemon; clients map it to `Canceled` (no distinct enum variant needed).
 
 **Reference implementations**:
 - Daemon: `github.com/MostroP2P/mostro` (Rust)
@@ -353,3 +353,48 @@ essential for anonymity-focused users.
 **Privacy mode**: When enabled, no reputation data is sent/received,
 trades are anonymous, and session recovery is unavailable. Toggle in
 settings.
+
+## R13: Kind 38383 Authorship (Protocol Correction)
+
+**Decision**: Filter Kind 38383 events by `author = mostro_pubkey`, not by maker pubkey.
+
+**Rationale**: The Mostro **daemon node** (not makers) creates and publishes Kind 38383 parameterized replaceable events. The flow is:
+1. Maker sends a `new-order` NIP-59 Gift Wrap (Kind 1059) to the Mostro node.
+2. The Mostro node validates the order and publishes a Kind 38383 event **signed with the node's own keypair**.
+3. Clients subscribe to Kind 38383 events where `author = mostro_pubkey` to see the orders belonging to that specific trusted instance.
+
+Filtering by the Mostro node's pubkey also serves as a trust scope — it ensures clients only receive orders from the configured, trusted daemon, not from arbitrary publishers.
+
+**References**: `https://mostro.network/protocol/list_orders.html`, `https://mostro.network/protocol/new_sell_order.html`
+
+**Implementation**: `pending_orders_filter()` in `rust/src/nostr/order_events.rs` must include `.author(mostro_pubkey)`. The pubkey comes from `crate::config::DEFAULT_MOSTRO_PUBKEY`.
+
+## R14: mostro-core Serde Conventions
+
+**Decision**: All Mostro protocol enum values on the wire use `kebab-case` (not PascalCase, snake_case, or camelCase).
+
+**Rationale**: `mostro-core` decorates its enums with `#[serde(rename_all = "kebab-case")]`. This affects the `s` tag (status) in Kind 38383 events and any JSON content inside Gift Wrap messages. A client that matches `"Pending"` will see zero orders; the actual wire value is `"pending"`.
+
+**Complete status mapping** (wire value → `OrderStatus` variant):
+
+| Wire value (kebab-case) | Rust variant |
+|------------------------|--------------|
+| `pending` | `Pending` |
+| `waiting-buyer-invoice` | `WaitingBuyerInvoice` |
+| `waiting-payment` | `WaitingPayment` |
+| `active` | `Active` |
+| `fiat-sent` | `FiatSent` |
+| `settled-hold-invoice` | `SettledHoldInvoice` |
+| `success` | `Success` |
+| `canceled` | `Canceled` |
+| `cooperatively-canceled` | `Canceled` (maps to same) |
+| `expired` | `Expired` |
+| `canceled-by-admin` | `CanceledByAdmin` |
+| `settled-by-admin` | `SettledByAdmin` |
+| `completed-by-admin` | `CompletedByAdmin` |
+| `dispute` | `Dispute` |
+| `in-progress` | `InProgress` |
+
+**Implementation**: `parse_status()` in `rust/src/nostr/order_events.rs`. The Nostr filter tag value must also be `"pending"` (lowercase).
+
+**Note on order kind**: The `k` tag values are `"buy"` and `"sell"` (already lowercase). Only the `s` (status) tag required correction.

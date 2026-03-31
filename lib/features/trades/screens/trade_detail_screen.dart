@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
 import 'package:mostro/features/trades/widgets/trade_info_cards.dart';
@@ -230,8 +231,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               backgroundColor: green,
               icon: Icons.send,
               onPressed: () async {
-                // TODO: Call send_fiat_sent() via Rust bridge.
-                await Future.delayed(const Duration(milliseconds: 500));
+                await orders_api.sendFiatSent(orderId: widget.orderId);
                 if (mounted) {
                   setState(() => _status = TradeStatus.fiatSent);
                 }
@@ -473,9 +473,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                           await showReleaseConfirmationDialog(context);
                       if (confirmed != true || !context.mounted) return;
                       try {
-                        await Future.delayed(
-                          const Duration(milliseconds: 500),
-                        );
+                        await orders_api.releaseOrder(orderId: widget.orderId);
                         if (context.mounted) {
                           context.push(
                             AppRoute.rateUserPath(widget.orderId),
@@ -559,13 +557,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                           await showReleaseConfirmationDialog(context);
                       if (confirmed != true || !context.mounted) return;
                       try {
-                        // TODO(bridge): Call release_order(widget.orderId)
-                        // via Rust bridge once FFI bindings are generated.
-                        // Currently the Rust function exists but the Dart
-                        // bridge only exposes test helpers.
-                        await Future.delayed(
-                          const Duration(milliseconds: 500),
-                        );
+                        await orders_api.releaseOrder(orderId: widget.orderId);
                         if (context.mounted) {
                           context.push(
                             AppRoute.rateUserPath(widget.orderId),

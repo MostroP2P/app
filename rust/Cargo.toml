@@ -25,6 +25,9 @@ thiserror = "1"
 uuid = { version = "1", features = ["v4"] }
 hex = "0.4"
 
+# Logging
+log = "0.4"
+
 # File attachment encryption (ChaCha20-Poly1305)
 chacha20poly1305 = "0.10"
 rand = { version = "0.8", features = ["getrandom"] }
@@ -44,6 +47,10 @@ bip39 = { version = "2", features = ["all-languages", "rand"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
+# Android logging backend
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.14"
 
 # WASM-only: IndexedDB + wasm async executor
 [target.'cfg(target_arch = "wasm32")'.dependencies]

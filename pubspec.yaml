@@ -14,7 +14,7 @@ dependencies:
     sdk: flutter
 
   # Bridge: Rust core ↔ Flutter UI
-  flutter_rust_bridge: ^2.11.1
+  flutter_rust_bridge: 2.11.1
   rust:
     path: rust_builder
 
@@ -59,10 +59,19 @@ dependencies:
   # UUID generation (collision-resistant notification IDs)
   uuid: ^4.5.1
 
+  # Skeleton loading shimmer effect (DESIGN_SYSTEM.md §9.1)
+  shimmer: ^3.0.0
+
+  # Required by flutter_rust_bridge generated code
+  freezed_annotation: ^2.4.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # Required by flutter_rust_bridge_codegen generate
+  freezed: ^2.5.7
+  build_runner: ^2.4.13
 
 flutter:
   uses-material-design: true

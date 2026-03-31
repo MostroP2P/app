@@ -580,4 +580,27 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get navChat => 'Chat';
+
+  @override
+  String get loadingOrders => 'Chargement des ordres…';
+
+  @override
+  String get errorLoadingOrders =>
+      'Impossible de charger les ordres. Vérifiez votre connexion.';
+
+  @override
+  String get retry => 'Réessayer';
+
+  @override
+  String disableRelayLabel(String url) {
+    return 'Désactiver le relais $url';
+  }
+
+  @override
+  String enableRelayLabel(String url) {
+    return 'Activer le relais $url';
+  }
+
+  @override
+  String get removeRelayTooltip => 'Supprimer le relais';
 }

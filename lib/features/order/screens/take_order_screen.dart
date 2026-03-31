@@ -43,6 +43,17 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   @override
   void initState() {
     super.initState();
+    // Try immediately in case the provider already has data.
+    _tryStartCountdown();
+    // If the provider is still loading, listen for the first value.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.listenManual(orderBookProvider, (_, __) => _tryStartCountdown(),
+          fireImmediately: true);
+    });
+  }
+
+  void _tryStartCountdown() {
+    if (_countdownTimer != null) return; // already running
     _startCountdown();
   }
 
@@ -53,7 +64,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   }
 
   void _startCountdown() {
-    final orders = ref.read(orderBookProvider);
+    final orders = ref.read(orderBookProvider).valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     if (order?.expiresAt == null) return;
 
@@ -80,7 +91,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   }
 
   Future<void> _onTakeOrder() async {
-    final orders = ref.read(orderBookProvider);
+    final orders = ref.read(orderBookProvider).valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     if (order == null || _submitting) return;
 
@@ -131,7 +142,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final orders = ref.watch(orderBookProvider);
+    final orders = ref.watch(orderBookProvider).valueOrNull ?? [];
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();

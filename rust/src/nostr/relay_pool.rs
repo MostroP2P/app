@@ -20,7 +20,7 @@ use crate::nostr::order_events::pending_orders_filter;
 
 const KIND_GIFT_WRAP: u16 = 1059;
 /// How often the background task polls each relay's SDK status (seconds).
-const STATUS_POLL_INTERVAL_SECS: u64 = 5;
+const STATUS_POLL_INTERVAL_SECS: u64 = 2;
 
 /// Shared relay pool state.
 pub struct RelayPool {
@@ -51,6 +51,11 @@ impl RelayPool {
         }
 
         client.connect().await;
+
+        // Give the SDK a moment to initiate WebSocket handshakes before the
+        // first status poll.  Without this the initial broadcast is always
+        // Reconnecting (every relay is still in Pending/Connecting state).
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Broadcast initial connection state after all relays are wired up.
         pool.broadcast_connection_state().await;
@@ -143,7 +148,9 @@ impl RelayPool {
     ///   `gift_wrap::unwrap` → route to trade/chat handlers
     /// - `RelayPoolNotification::Shutdown` → update connection state
     pub async fn subscribe_order_and_dm_feeds(&self, trade_pubkeys: Vec<PublicKey>) -> Result<()> {
-        let order_filter = pending_orders_filter();
+        let mostro_pubkey = nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
+            .map_err(|e| anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+        let order_filter = pending_orders_filter(&mostro_pubkey);
         self.client
             .subscribe(order_filter, None)
             .await

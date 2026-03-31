@@ -99,7 +99,6 @@ class _CurrencySelectorDialogState
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
-    final c = colors;
 
     return Scaffold(
       appBar: AppBar(
@@ -117,7 +116,7 @@ class _CurrencySelectorDialogState
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search currencies…',
-                prefixIcon: Icon(Icons.search, color: c.textSubtle),
+                prefixIcon: Icon(Icons.search, color: colors.textSubtle),
               ),
             ),
           ),

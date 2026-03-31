@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/types.dart';
 
 // ── Order type ────────────────────────────────────────────────────────────────
 
@@ -31,10 +34,16 @@ final ratingFilterProvider =
 final premiumRangeFilterProvider =
     StateProvider<({double min, double max})>((_) => defaultPremiumRange);
 
-// ── Mock order data (until Rust bridge is wired) ─────────────────────────────
+// ── Order model ───────────────────────────────────────────────────────────────
 
 /// Lightweight Dart-side order model for the UI layer.
-/// Will be replaced by the Rust-bridge `OrderInfo` in Phase 7.
+///
+/// TODO(Phase 18+): Add `OrderItem.fromInfo(OrderInfo info)` factory once
+/// `flutter_rust_bridge_codegen generate` has been run and the generated
+/// `OrderInfo` type is available at `package:rust/src/rust/api/orders.dart`.
+/// Field mapping: id, kind.name.toLowerCase(), fiatAmount, fiatAmountMin,
+/// fiatAmountMax, fiatCode, paymentMethod, premium, creatorPubkey,
+/// DateTime.fromMillisecondsSinceEpoch(createdAt * 1000), expiresAt.
 class OrderItem {
   OrderItem({
     required this.id,
@@ -93,98 +102,54 @@ class OrderItem {
   static String _fmt(double v) {
     return v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
   }
+
+  /// Map a Rust-bridge [OrderInfo] to an [OrderItem] for display.
+  factory OrderItem.fromInfo(OrderInfo info) => OrderItem(
+        id: info.id,
+        kind: info.kind == OrderKind.buy ? 'buy' : 'sell',
+        fiatAmount: info.fiatAmount,
+        fiatAmountMin: info.fiatAmountMin,
+        fiatAmountMax: info.fiatAmountMax,
+        fiatCode: info.fiatCode,
+        paymentMethod: info.paymentMethod,
+        premium: info.premium,
+        creatorPubkey: info.creatorPubkey,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(info.createdAt * 1000),
+        expiresAt: info.expiresAt != null
+            ? DateTime.fromMillisecondsSinceEpoch(info.expiresAt! * 1000)
+            : null,
+      );
 }
 
-/// Mock orders for UI development.
-final _mockOrders = [
-  OrderItem(
-    id: 'order-1',
-    kind: 'sell',
-    fiatAmount: 50000,
-    fiatCode: 'ARS',
-    paymentMethod: 'Mercado Pago, Bank Transfer',
-    premium: 5.0,
-    creatorPubkey: 'abc123',
-    createdAt: DateTime.now().subtract(const Duration(minutes: 12)),
-    rating: 4.5,
-    tradeCount: 23,
-    daysActive: 45,
-  ),
-  OrderItem(
-    id: 'order-2',
-    kind: 'sell',
-    fiatAmountMin: 10000,
-    fiatAmountMax: 100000,
-    fiatCode: 'ARS',
-    paymentMethod: 'Mercado Pago',
-    premium: 3.0,
-    creatorPubkey: 'def456',
-    createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-    rating: 4.8,
-    tradeCount: 102,
-    daysActive: 180,
-  ),
-  OrderItem(
-    id: 'order-3',
-    kind: 'sell',
-    fiatAmount: 200,
-    fiatCode: 'USD',
-    paymentMethod: 'Zelle, Wise',
-    premium: -2.0,
-    creatorPubkey: 'ghi789',
-    createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-    rating: 3.2,
-    tradeCount: 5,
-    daysActive: 10,
-  ),
-  OrderItem(
-    id: 'order-4',
-    kind: 'buy',
-    fiatAmount: 500,
-    fiatCode: 'EUR',
-    paymentMethod: 'SEPA, Revolut',
-    premium: 1.5,
-    creatorPubkey: 'jkl012',
-    createdAt: DateTime.now().subtract(const Duration(minutes: 30)),
-    rating: 4.0,
-    tradeCount: 15,
-    daysActive: 60,
-  ),
-  OrderItem(
-    id: 'order-5',
-    kind: 'buy',
-    fiatAmount: 100000,
-    fiatCode: 'ARS',
-    paymentMethod: 'Bank Transfer',
-    premium: 8.0,
-    creatorPubkey: 'mno345',
-    createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    rating: 2.0,
-    tradeCount: 2,
-    daysActive: 3,
-  ),
-  OrderItem(
-    id: 'order-6',
-    kind: 'sell',
-    fiatAmount: 1000,
-    fiatCode: 'BRL',
-    paymentMethod: 'Pix',
-    premium: 4.0,
-    creatorPubkey: 'pqr678',
-    createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
-    rating: 4.9,
-    tradeCount: 300,
-    daysActive: 365,
-  ),
-];
+/// Live order book backed by the Rust bridge Kind 38383 subscription.
+///
+/// Immediately yields the current cached snapshot (empty on first run) so the
+/// UI exits the shimmer/loading state right away.  Subsequent emissions arrive
+/// as [subscribe_orders()] upserts orders from the relay stream.
+final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) async* {
+  // Subscribe first so no broadcast is missed between snapshot and loop.
+  final stream = await orders_api.onOrdersUpdated();
 
-/// Provides the full (unfiltered) order list.
-/// Will be replaced by a StreamProvider from Rust bridge.
-final orderBookProvider = Provider<List<OrderItem>>((_) => _mockOrders);
+  // Emit current cache immediately — exits shimmer even with no orders yet.
+  final snapshot = await orders_api.getOrders(filters: null);
+  debugPrint('[orderBook] initial snapshot: ${snapshot.length} orders');
+  yield snapshot.map(OrderItem.fromInfo).toList();
+
+  // Stream live updates from the relay subscription.
+  while (true) {
+    final orders = await stream.next();
+    if (orders == null) break;
+    debugPrint('[orderBook] update: ${orders.length} orders');
+    yield orders.map(OrderItem.fromInfo).toList();
+  }
+});
 
 /// Filtered orders based on active tab and all filter providers.
+///
+/// Unwraps the `AsyncValue` from [orderBookProvider]; returns `[]` while
+/// loading or on error so that filter/tab logic is always well-typed.
 final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
-  final allOrders = ref.watch(orderBookProvider);
+  final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
   final orderType = ref.watch(homeOrderTypeProvider);
   final selectedCurrencies = ref.watch(currencyFilterProvider);
   final selectedPaymentMethods = ref.watch(paymentMethodFilterProvider);

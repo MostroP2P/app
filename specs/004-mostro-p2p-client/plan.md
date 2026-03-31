@@ -147,6 +147,62 @@ assets/
 
 **Structure Decision**: Flutter multi-platform monorepo with a `lib/` Dart shell and `rust/` Rust core. Features are organized as self-contained directories under `lib/features/`, each mirroring a V1_FLOW_GUIDE.md section group. The Rust `api/` layer exposes only what the Flutter shell needs; all protocol internals stay inside `rust/src/`. The `generated/` directory is owned by `flutter_rust_bridge_codegen` and must never be edited manually.
 
+## Phase 18: Real Order Book Bridge + Shimmer Loading
+
+**Context**: Phases 1–17 implemented the complete UI with mock order data and left bridge wiring for the order book explicitly deferred. Phase 18 closes the gap between the Rust `OrderBook` infrastructure (already implemented in `orders.rs`) and the Flutter `orderBookProvider` (currently `Provider<List<OrderItem>>` with hardcoded mock data).
+
+**Objectives**:
+1. Subscribe to Kind 38383 events from the trusted Mostro relay — the public order book as specified in `PROTOCOL.md §Order Publication`.
+2. Stream live orders into the Flutter UI via `on_orders_updated()` FRB stream → `StreamProvider`.
+3. Show DESIGN_SYSTEM.md §9.1 shimmer skeletons during initial load (`shimmer: ^3.0.0`).
+
+**Key Files**:
+- `rust/src/api/orders.rs` — add `subscribe_orders()` and `on_orders_updated()` / `OrdersStream`
+- `rust/src/api/nostr.rs` — call `subscribe_orders()` on `ConnectionState::Online`
+- `lib/features/home/providers/home_order_providers.dart` — replace mock `Provider` with `StreamProvider.autoDispose`
+- `lib/shared/widgets/order_list_skeleton.dart` — new shimmer widget
+- `lib/features/home/screens/home_screen.dart` — wire `provider.when(loading/error/data)`
+- `pubspec.yaml` — add `shimmer: ^3.0.0`
+
+**Dependencies**: Phase 5 (US3 order book UI), Phase 2 (relay pool), flutter_rust_bridge codegen.
+
+---
+
+## Phase 19: Bridge Stabilization & Protocol Compliance
+
+**Context**: Phase 18 wired the real order book bridge but integration testing revealed several blocking bugs: (1) no relay pool existed at app startup because `nostr_api.initialize()` was never called; (2) `orderBookProvider` never emitted an initial value so the shimmer never resolved; (3) the Kind 38383 author filter was missing `author = mostro_pubkey`; (4) all status values were wrong (PascalCase vs kebab-case); (5) FRB generated broken stubs for non-serializable Rust types; (6) missing Android logging made diagnosis impossible.
+
+**Objectives**:
+1. Unblock live order display — resolve all protocol and initialization bugs.
+2. Establish correct Mostro protocol understanding in code and docs.
+3. Improve relay pool reliability and observability.
+4. Fix UI accessibility and error handling gaps found in CodeRabbit review.
+
+**Key Protocol Corrections**:
+
+- **Kind 38383 authorship**: The Mostro **daemon node** (not makers) creates and signs Kind 38383 events. Makers send a `new-order` NIP-59 Gift Wrap to the node; the node publishes the order. Clients must filter with `author = mostro_pubkey` to scope to the trusted instance.
+- **Status serde convention**: `mostro-core` uses `#[serde(rename_all = "kebab-case")]` on all enums. All 15 status values on the wire are kebab-case: `"pending"`, `"in-progress"`, `"waiting-buyer-invoice"`, `"waiting-payment"`, `"fiat-sent"`, `"settled-hold-invoice"`, `"canceled-by-admin"`, `"settled-by-admin"`, `"completed-by-admin"`, `"cooperatively-canceled"`, `"active"`, `"canceled"`, `"expired"`, `"success"`, `"dispute"`. The filter `s` tag value is `"pending"` (not `"Pending"`).
+
+**Key Files Changed**:
+- `rust/src/api/orders.rs` — `ResetGuard` panic safety, logging, `pub(crate)` visibility fix
+- `rust/src/api/identity.rs` — `pub(crate)` for `get_active_keys()` / `get_active_trade_keys()`
+- `rust/src/api/nostr.rs` — connection state logging
+- `rust/src/nostr/order_events.rs` — kebab-case `parse_status()`, `author` in filter, lenient `z` tag
+- `rust/src/nostr/relay_pool.rs` — 500ms connect delay, 2s poll interval, pass pubkey to filter
+- `rust/src/lib.rs` — `init_app()` with `android_logger` for `#[frb(init)]`
+- `rust/Cargo.toml` — add `log`, `android_logger`
+- `lib/main.dart` — `nostr_api.initialize()` call, `_watchConnectionState()` diagnostics
+- `lib/features/home/providers/home_order_providers.dart` — initial cache yield in `orderBookProvider`
+- `lib/features/home/screens/home_screen.dart` — retry error state
+- `lib/features/settings/widgets/relay_management_card.dart` — accessibility labels
+- `lib/features/about/screens/about_screen.dart` — `hideCurrentSnackBar()` before copy snackbar
+- `lib/features/settings/widgets/currency_selector_dialog.dart` — remove `c` alias
+- `lib/l10n/app_*.arb` (all 5 locales) — new keys: `errorLoadingOrders`, `retry`, `disableRelayLabel`, `enableRelayLabel`, `removeRelayTooltip`
+
+**Dependencies**: Phase 18 complete.
+
+---
+
 ## Complexity Tracking
 
 No constitution violations identified. Architecture matches exactly what the constitution prescribes: Rust core + Flutter shell + single bridge. The storage trait with two backends (SQLite native / IndexedDB web) is required by Constitution Principle V (multi-platform from day one) — no alternative satisfies both native and web without violating Principle I.

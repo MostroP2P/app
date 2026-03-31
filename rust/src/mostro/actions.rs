@@ -107,6 +107,42 @@ pub async fn release(
     simple_action(sender_keys, mostro_pubkey, order_id, "release").await
 }
 
+/// Build and wrap a Cancel MostroMessage.
+pub async fn cancel(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+) -> Result<String> {
+    simple_action(sender_keys, mostro_pubkey, order_id, "cancel").await
+}
+
+/// Build and wrap an AddInvoice MostroMessage (buyer submits Lightning invoice).
+pub async fn add_invoice(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+    invoice: &str,
+) -> Result<String> {
+    let payload = json!({
+        "order": {
+            "version": 1,
+            "action": "add-invoice",
+            "content": {
+                "id": order_id,
+                "payment_request": invoice,
+            }
+        }
+    });
+
+    gift_wrap::wrap(
+        sender_keys,
+        mostro_pubkey,
+        &payload.to_string(),
+        Kind::from(KIND_ORDER),
+    )
+    .await
+}
+
 /// Helper for actions that only need an order ID (no extra fields).
 async fn simple_action(
     sender_keys: &Keys,
