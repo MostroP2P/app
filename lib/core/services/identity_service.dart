@@ -101,7 +101,17 @@ class IdentityService {
   static Future<List<String>> regenerate() async {
     // Clear Rust's in-memory identity state first — createIdentity() returns
     // AlreadyExists if any identity is currently loaded.
-    await identity_api.deleteIdentity();
+    // deleteIdentity() may throw if no identity is loaded (e.g. fresh install
+    // followed immediately by regenerate); ignore that case and proceed.
+    try {
+      await identity_api.deleteIdentity();
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (!msg.contains('noidentity') && !msg.contains('no identity') && !msg.contains('not loaded')) {
+        rethrow;
+      }
+      debugPrint('[identity] regenerate: no identity loaded, skipping deleteIdentity');
+    }
     final result = await identity_api.createIdentity();
     final words = result.mnemonicWords;
 

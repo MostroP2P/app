@@ -9,6 +9,7 @@ import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/providers/session_provider.dart';
 
 /// Account screen — Route `/key_management`.
 ///
@@ -29,8 +30,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   bool _loadingWords = false;
 
   /// All 12 words are hidden until the user explicitly taps "Show".
-  String _fullyMaskedPhrase() =>
-      List.filled(12, '•••').join(' ');
+  String _fullyMaskedPhrase() => List.filled(12, '•••').join(' ');
 
   Future<void> _loadAndRevealWords() async {
     if (_loadingWords) return;
@@ -42,7 +42,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       if (!mounted) return;
       if (words.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No identity found — try restarting the app.')),
+          const SnackBar(
+            content: Text('No identity found — try restarting the app.'),
+          ),
         );
         return;
       }
@@ -105,9 +107,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final privacyMode = ref.watch(privacyModeProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Account'),
-      ),
+      appBar: AppBar(title: const Text('Account')),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
@@ -121,12 +121,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   icon: Icons.key,
                   iconColor: green,
                   title: 'Secret Words',
-                  onInfo: () => _showInfoDialog(
-                    context,
-                    'Secret Words',
-                    'Your 12 secret words are the only way to recover your account. '
-                        'Back them up in a safe place — never share them with anyone.',
-                  ),
+                  onInfo:
+                      () => _showInfoDialog(
+                        context,
+                        'Secret Words',
+                        'Your 12 secret words are the only way to recover your account. '
+                            'Back them up in a safe place — never share them with anyone.',
+                      ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
@@ -146,59 +147,64 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     children: [
                       _wordsVisible && _words != null
                           ? SelectableText(
-                              _words!.join(' '),
-                              style: theme.textTheme.bodyMedium!.copyWith(
-                                fontFamily: 'monospace',
-                                height: 1.6,
-                              ),
-                            )
-                          : Text(
-                              _fullyMaskedPhrase(),
-                              style: theme.textTheme.bodyMedium!.copyWith(
-                                fontFamily: 'monospace',
-                                height: 1.6,
-                              ),
+                            _words!.join(' '),
+                            style: theme.textTheme.bodyMedium!.copyWith(
+                              fontFamily: 'monospace',
+                              height: 1.6,
                             ),
+                          )
+                          : Text(
+                            _fullyMaskedPhrase(),
+                            style: theme.textTheme.bodyMedium!.copyWith(
+                              fontFamily: 'monospace',
+                              height: 1.6,
+                            ),
+                          ),
                       const SizedBox(height: AppSpacing.sm),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: _loadingWords
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : TextButton.icon(
-                                onPressed: _wordsVisible
-                                    ? () => setState(() {
-                                          _wordsVisible = false;
-                                          _showBackupCheckbox = false;
-                                        })
-                                    : _loadAndRevealWords,
-                                icon: Icon(
-                                  _wordsVisible
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  size: 16,
-                                  color: green,
+                        child:
+                            _loadingWords
+                                ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : TextButton.icon(
+                                  onPressed:
+                                      _wordsVisible
+                                          ? () => setState(() {
+                                            _wordsVisible = false;
+                                            _showBackupCheckbox = false;
+                                          })
+                                          : _loadAndRevealWords,
+                                  icon: Icon(
+                                    _wordsVisible
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                    size: 16,
+                                    color: green,
+                                  ),
+                                  label: Text(
+                                    _wordsVisible ? 'Hide' : 'Show',
+                                    style: TextStyle(color: green),
+                                  ),
                                 ),
-                                label: Text(
-                                  _wordsVisible ? 'Hide' : 'Show',
-                                  style: TextStyle(color: green),
-                                ),
-                              ),
                       ),
                       // Backup confirmation checkbox — appears when words are
                       // visible and backup has not yet been confirmed.
                       AnimatedSize(
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeInOut,
-                        child: _showBackupCheckbox
-                            ? _BackupConfirmRow(
-                                green: green,
-                                onConfirm: _confirmBackup,
-                              )
-                            : const SizedBox.shrink(),
+                        child:
+                            _showBackupCheckbox
+                                ? _BackupConfirmRow(
+                                  green: green,
+                                  onConfirm: _confirmBackup,
+                                )
+                                : const SizedBox.shrink(),
                       ),
                     ],
                   ),
@@ -218,13 +224,14 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   icon: Icons.shield_outlined,
                   iconColor: green,
                   title: 'Privacy',
-                  onInfo: () => _showInfoDialog(
-                    context,
-                    'Privacy Modes',
-                    'Reputation mode lets others see your successful trades.\n\n'
-                        'Full privacy mode keeps your activity completely anonymous — '
-                        'no reputation is built.',
-                  ),
+                  onInfo:
+                      () => _showInfoDialog(
+                        context,
+                        'Privacy Modes',
+                        'Reputation mode lets others see your successful trades.\n\n'
+                            'Full privacy mode keeps your activity completely anonymous — '
+                            'no reputation is built.',
+                      ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
@@ -240,9 +247,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                       subtitle: 'Standard privacy with reputation',
                       selected: !privacyMode,
                       green: green,
-                      onTap: () => ref
-                          .read(privacyModeProvider.notifier)
-                          .setPrivacyMode(false),
+                      onTap:
+                          () => ref
+                              .read(privacyModeProvider.notifier)
+                              .setPrivacyMode(false),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _PrivacyOption(
@@ -250,9 +258,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                       subtitle: 'Maximum anonymity',
                       selected: privacyMode,
                       green: green,
-                      onTap: () => ref
-                          .read(privacyModeProvider.notifier)
-                          .setPrivacyMode(true),
+                      onTap:
+                          () => ref
+                              .read(privacyModeProvider.notifier)
+                              .setPrivacyMode(true),
                     ),
                   ],
                 ),
@@ -319,85 +328,90 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   void _showInfoDialog(BuildContext context, String title, String content) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('OK'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
   void _confirmGenerateNewUser(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Generate New User?'),
-        content: const Text(
-          'This will create a brand-new identity. Your current secret words '
-          'will no longer work — make sure they are backed up before continuing.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Generate New User?'),
+            content: const Text(
+              'This will create a brand-new identity. Your current secret words '
+              'will no longer work — make sure they are backed up before continuing.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.pop(dialogContext);
+                  try {
+                    // Atomically replaces the stored identity: new mnemonic is
+                    // written before old data is cleared, so there is no window
+                    // where the user is left without a valid identity.
+                    await IdentityService.regenerate();
+                    ref.read(sessionProvider.notifier).clearSession();
+                    await ref
+                        .read(backupReminderProvider.notifier)
+                        .showBackupReminder();
+                    // Only clear UI state and navigate once the new identity exists.
+                    if (!context.mounted) return;
+                    setState(() {
+                      _wordsVisible = false;
+                      _showBackupCheckbox = false;
+                      _words = null;
+                    });
+                    context.go(AppRoute.home);
+                  } catch (e) {
+                    debugPrint('[account] generateNewUser error: $e');
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          kDebugMode
+                              ? 'Failed to generate identity: $e'
+                              : 'Failed to generate identity. Please try again.',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Continue'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              try {
-                // Atomically replaces the stored identity: new mnemonic is
-                // written before old data is cleared, so there is no window
-                // where the user is left without a valid identity.
-                await IdentityService.regenerate();
-                await ref
-                    .read(backupReminderProvider.notifier)
-                    .showBackupReminder();
-                // Only clear UI state and navigate once the new identity exists.
-                if (!context.mounted) return;
-                setState(() {
-                  _wordsVisible = false;
-                  _showBackupCheckbox = false;
-                  _words = null;
-                });
-                context.go(AppRoute.home);
-              } catch (e) {
-                debugPrint('[account] generateNewUser error: $e');
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      kDebugMode
-                          ? 'Failed to generate identity: $e'
-                          : 'Failed to generate identity. Please try again.',
-                    ),
-                  ),
-                );
-              }
-            },
-            child: const Text('Continue'),
-          ),
-        ],
-      ),
     );
   }
 
   void _showImportDialog(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => _ImportMnemonicDialog(
-        onImport: (words) => _importIdentity(context, words),
-      ),
+      builder:
+          (dialogContext) => _ImportMnemonicDialog(
+            onImport: (words) => _importIdentity(context, words),
+          ),
     );
   }
 
   Future<void> _importIdentity(BuildContext context, List<String> words) async {
     try {
       await IdentityService.importAndStore(words);
+      ref.read(sessionProvider.notifier).clearSession();
       await ref.read(backupReminderProvider.notifier).showBackupReminder();
       if (!context.mounted) return;
       setState(() {
@@ -424,26 +438,27 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   void _confirmRefresh(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Refresh User?'),
-        content: const Text(
-          'This will re-fetch your trades and orders from the Mostro instance. '
-          'Use this if you think your data is out of sync or orders are missing.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Refresh User?'),
+            content: const Text(
+              'This will re-fetch your trades and orders from the Mostro instance. '
+              'Use this if you think your data is out of sync or orders are missing.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  // TODO: wire restore-session action in Phase 7.
+                },
+                child: const Text('Refresh'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              // TODO: wire restore-session action in Phase 7.
-            },
-            child: const Text('Refresh'),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -490,9 +505,9 @@ class _CardHeader extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
         ),
         const Spacer(),
         IconButton(
@@ -551,19 +566,20 @@ class _BackupConfirmRowState extends State<_BackupConfirmRow> {
             SizedBox(
               width: 20,
               height: 20,
-              child: _pending
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Checkbox(
-                      value: _checked,
-                      activeColor: widget.green,
-                      onChanged: interactive ? (_) => _handleConfirm() : null,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
+              child:
+                  _pending
+                      ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : Checkbox(
+                        value: _checked,
+                        activeColor: widget.green,
+                        onChanged: interactive ? (_) => _handleConfirm() : null,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -606,47 +622,45 @@ class _PrivacyOption extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(4),
         child: Row(
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: selected ? green : Colors.white30,
-                width: 2,
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? green : Colors.white30,
+                  width: 2,
+                ),
               ),
+              child:
+                  selected
+                      ? Center(
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: green,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      )
+                      : null,
             ),
-            child: selected
-                ? Center(
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: green,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ],
+            const SizedBox(width: AppSpacing.md),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -678,8 +692,15 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
   }
 
   void _submit() {
-    final words = _controller.text.trim().split(RegExp(r'\s+'));
-    if (words.length != 12 && words.length != 24) {
+    final words =
+        _controller.text
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList();
+    final validLength = words.length == 12 || words.length == 24;
+    final validWords = words.every((w) => RegExp(r'^[a-zA-Z]+$').hasMatch(w));
+    if (!validLength || !validWords) {
       setState(() => _error = 'Enter a valid 12 or 24 word phrase.');
       return;
     }
@@ -701,17 +722,16 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
           hintText: 'Enter your 12 or 24 word phrase...',
           errorText: _error,
         ),
-        onChanged: (_) { if (_error != null) setState(() => _error = null); },
+        onChanged: (_) {
+          if (_error != null) setState(() => _error = null);
+        },
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Import'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Import')),
       ],
     );
   }
