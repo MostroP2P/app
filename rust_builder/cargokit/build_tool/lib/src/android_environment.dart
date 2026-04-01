@@ -190,6 +190,10 @@ class AndroidEnvironment {
       rustFlags = '$rustFlags\x1f';
     }
     rustFlags = '$rustFlags-L\x1f$workaroundDir';
+    // 16 KB page-size alignment required for Android 15+ (API 35) compliance.
+    // CARGO_ENCODED_RUSTFLAGS overrides .cargo/config.toml rustflags, so we
+    // must include this flag here rather than relying on the config file.
+    rustFlags = '$rustFlags\x1f-C\x1flink-arg=-Wl,-z,max-page-size=16384';
     return rustFlags;
   }
 }
