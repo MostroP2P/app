@@ -603,4 +603,8 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get removeRelayTooltip => 'Supprimer le relais';
+
+  @override
+  String get backupConfirmCheckbox =>
+      'J\'ai noté mes mots et les ai sauvegardés en lieu sûr';
 }
