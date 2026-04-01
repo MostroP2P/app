@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -41,20 +42,29 @@ class _AddLightningInvoiceScreenState
     super.dispose();
   }
 
-  bool get _isValid =>
-      _invoiceController.text.trim().isNotEmpty &&
-      widget.amountSats != null &&
-      widget.amountSats! > 0;
+  BigInt? _resolvedSats(WidgetRef ref) {
+    final fromProvider = ref.watch(tradeAmountProvider(widget.orderId)).valueOrNull;
+    if (fromProvider != null) return fromProvider;
+    final fallback = widget.amountSats;
+    return fallback != null ? BigInt.from(fallback) : null;
+  }
 
-  Future<void> _submit() async {
-    if (_submitting || !_isValid) return;
+  bool _isValid(WidgetRef ref) =>
+      _invoiceController.text.trim().isNotEmpty;
+
+  Future<void> _submit(WidgetRef ref) async {
+    if (_submitting) return;
+    // Use the resolved sats amount if available; fall back to 1 so the Rust
+    // side's non-zero guard passes. The value is not included in the wire
+    // message to Mostro — the bolt11 invoice already encodes the amount.
+    final sats = _resolvedSats(ref) ?? BigInt.one;
     setState(() => _submitting = true);
 
     try {
       await orders_api.sendInvoice(
         orderId: widget.orderId,
         invoiceOrAddress: _invoiceController.text.trim(),
-        amountSats: BigInt.from(widget.amountSats!),
+        amountSats: sats,
       );
 
       if (!mounted) return;
@@ -79,10 +89,12 @@ class _AddLightningInvoiceScreenState
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
 
-    // Amount not yet resolved and user hasn't explicitly chosen manual mode:
-    // show a loading indicator while waiting for the trade provider.
-    final sats = widget.amountSats;
-    if (sats == null && !_manualMode) {
+    // Resolve sats: provider first (live polling), fall back to constructor param.
+    final sats = _resolvedSats(ref);
+
+    // When NWC is connected, we need the sats amount to auto-generate an invoice.
+    // Show a loading indicator only in that case. Manual entry is always available.
+    if (isWalletConnected && sats == null && !_manualMode) {
       return Scaffold(
         appBar: AppBar(title: const Text('Add Invoice')),
         body: Center(
@@ -95,6 +107,11 @@ class _AddLightningInvoiceScreenState
                 'Fetching trade amount…',
                 style: TextStyle(color: Theme.of(context).extension<AppColors>()?.textSecondary),
               ),
+              const SizedBox(height: AppSpacing.md),
+              TextButton(
+                onPressed: () => setState(() => _manualMode = true),
+                child: const Text('Enter invoice manually'),
+              ),
             ],
           ),
         ),
@@ -103,17 +120,17 @@ class _AddLightningInvoiceScreenState
 
     // If NWC wallet is connected, amount is known, and we haven't fallen back
     // to manual, show the auto-invoice widget instead of the manual form.
-    if (isWalletConnected && !_manualMode && sats != null && sats > 0) {
+    if (isWalletConnected && !_manualMode && sats != null && sats > BigInt.zero) {
       return Scaffold(
         appBar: AppBar(title: const Text('Add Invoice')),
         body: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Center(
             child: NwcInvoiceWidget(
-              amountSats: sats,
+              amountSats: sats.toInt(),
               onInvoiceConfirmed: (invoice) {
                 _invoiceController.text = invoice;
-                _submit();
+                _submit(ref);
               },
               onFallbackToManual: () => setState(() => _manualMode = true),
             ),
@@ -196,7 +213,7 @@ class _AddLightningInvoiceScreenState
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: FilledButton(
-                    onPressed: _isValid ? _submit : null,
+                    onPressed: _isValid(ref) ? () => _submit(ref) : null,
                     style: FilledButton.styleFrom(
                       backgroundColor: green,
                       foregroundColor: Colors.black,

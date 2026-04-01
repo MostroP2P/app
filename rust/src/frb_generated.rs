@@ -2806,6 +2806,42 @@ fn wire__crate__api__orders__send_fiat_sent_impl(
         },
     )
 }
+fn wire__crate__api__orders__cancel_order_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cancel_order",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_order_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::orders::cancel_order(api_order_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__messages__send_file_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -4794,6 +4830,7 @@ fn pde_ffi_dispatcher_primary_impl(
         79 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
         80 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
         81 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
+        82 => wire__crate__api__orders__cancel_order_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

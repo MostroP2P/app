@@ -9,8 +9,12 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/settings.dart' as settings_api;
+import 'package:mostro/src/rust/api/types.dart';
 
 /// Take order screen — displays order details and allows the user
 /// to take (buy or sell) the order.
@@ -37,7 +41,6 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   Timer? _countdownTimer;
   Duration _remaining = Duration.zero;
   bool _submitting = false;
-  // ignore: unused_field — used when Rust bridge take_order() is wired (Phase 8+).
   double? _selectedAmount;
 
   @override
@@ -110,15 +113,31 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     setState(() => _submitting = true);
 
     try {
-      // TODO (Phase 8+): Call take_order(orderId, _selectedAmount) via Rust bridge.
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Dispatch take-order to Mostro via the Rust bridge.
+      await orders_api.takeOrder(
+        orderId: widget.orderId,
+        role: widget.isBuying ? TradeRole.buyer : TradeRole.seller,
+        fiatAmount: _selectedAmount,
+      );
 
       if (!mounted) return;
 
-      // Navigate based on role:
-      // Buyer → add invoice screen; Seller → pay invoice screen.
+      // Record the user's role so TradeDetailScreen can read it.
+      ref.read(tradeRoleProvider.notifier).update(
+            (map) => {...map, widget.orderId: widget.isBuying},
+          );
+
       if (widget.isBuying) {
-        context.push(AppRoute.addInvoicePath(widget.orderId));
+        // Check whether a default LN address is configured. If yes, Mostro
+        // will pay it directly and the buyer can skip the add-invoice step.
+        final settings = await settings_api.getSettings();
+        if (!mounted) return;
+        if (settings.defaultLightningAddress != null) {
+          // LN address was included in take-sell payload — go straight to trade.
+          context.go(AppRoute.tradeDetailPath(widget.orderId));
+        } else {
+          context.push(AppRoute.addInvoicePath(widget.orderId));
+        }
       } else {
         context.push(AppRoute.payInvoicePath(widget.orderId));
       }

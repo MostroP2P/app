@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
 
+export 'package:mostro/src/rust/api/types.dart' show OrderStatus;
+
 // ── Order type ────────────────────────────────────────────────────────────────
 
 enum OrderType { buy, sell }
@@ -60,6 +62,8 @@ class OrderItem {
     this.rating = 0.0,
     this.tradeCount = 0,
     this.daysActive = 0,
+    this.status = OrderStatus.pending,
+    this.amountSats,
   }) {
     final isFixed = fiatAmount != null &&
         fiatAmountMin == null &&
@@ -89,6 +93,10 @@ class OrderItem {
   final double rating;
   final int tradeCount;
   final int daysActive;
+  /// Current order status from the Mostro protocol.
+  final OrderStatus status;
+  /// Sats amount resolved by Mostro (non-null once Mostro accepts the take).
+  final BigInt? amountSats;
 
   bool get isRange => fiatAmountMin != null && fiatAmountMax != null;
 
@@ -118,6 +126,8 @@ class OrderItem {
         expiresAt: info.expiresAt != null
             ? DateTime.fromMillisecondsSinceEpoch(info.expiresAt! * 1000)
             : null,
+        status: info.status,
+        amountSats: info.amountSats,
       );
 }
 
