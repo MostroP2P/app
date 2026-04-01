@@ -408,7 +408,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get invalidLightningAddressFormat =>
-      'Muss im Format benutzer@domain.com vorliegen';
+      'Muss im Format benutzer@domain oder benutzer@domain.tld vorliegen';
 
   @override
   String get clearButtonLabel => 'Löschen';
