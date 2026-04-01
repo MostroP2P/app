@@ -599,4 +599,8 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get removeRelayTooltip => 'Rimuovi relay';
+
+  @override
+  String get backupConfirmCheckbox =>
+      'Ho annotato le mie parole e le ho salvate in modo sicuro';
 }

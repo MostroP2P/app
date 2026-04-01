@@ -195,5 +195,6 @@
   "retry": "Riprova",
   "disableRelayLabel": "Disabilita relay {url}",
   "enableRelayLabel": "Abilita relay {url}",
-  "removeRelayTooltip": "Rimuovi relay"
+  "removeRelayTooltip": "Rimuovi relay",
+  "backupConfirmCheckbox": "Ho annotato le mie parole e le ho salvate in modo sicuro"
 }
