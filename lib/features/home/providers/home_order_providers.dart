@@ -194,5 +194,6 @@ final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
     }
 
     return true;
-  }).toList();
+  }).toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 });
