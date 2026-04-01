@@ -24,6 +24,9 @@ Future<void> main() async {
   runApp(const ProviderScope(child: MostroApp()));
 }
 
+/// Guards against overlapping diagnostic order polls on rapid reconnects.
+bool _isPollingOrders = false;
+
 /// Background watcher: logs every relay pool connection state change.
 /// When Online, also polls the order cache after a short delay so we know
 /// whether the Kind 38383 subscription actually delivered events.
@@ -46,17 +49,23 @@ void _watchConnectionState() {
           }
           // Wait 5 seconds then poll the order cache — tells us if the
           // Kind 38383 subscription delivered any events.
-          Future.delayed(const Duration(seconds: 5), () async {
-            try {
-              final orders = await orders_api.getOrders(filters: null);
-              debugPrint('[diag] order cache after 5s: ${orders.length} orders');
-              if (orders.isNotEmpty) {
-                debugPrint('[diag] first order: id=${orders.first.id} kind=${orders.first.kind} fiat=${orders.first.fiatCode}');
+          // Guard against overlapping polls on rapid reconnects.
+          if (!_isPollingOrders) {
+            _isPollingOrders = true;
+            Future.delayed(const Duration(seconds: 5), () async {
+              try {
+                final orders = await orders_api.getOrders(filters: null);
+                debugPrint('[diag] order cache after 5s: ${orders.length} orders');
+                if (orders.isNotEmpty) {
+                  debugPrint('[diag] first order: id=${orders.first.id} kind=${orders.first.kind} fiat=${orders.first.fiatCode}');
+                }
+              } catch (e) {
+                debugPrint('[diag] order cache poll error: $e');
+              } finally {
+                _isPollingOrders = false;
               }
-            } catch (e) {
-              debugPrint('[diag] order cache poll error: $e');
-            }
-          });
+            });
+          }
         }
       }
     } catch (e) {

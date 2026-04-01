@@ -79,9 +79,30 @@ class _AddLightningInvoiceScreenState
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
 
+    // Amount not yet resolved and user hasn't explicitly chosen manual mode:
+    // show a loading indicator while waiting for the trade provider.
+    final sats = widget.amountSats;
+    if (sats == null && !_manualMode) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Add Invoice')),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Fetching trade amount…',
+                style: TextStyle(color: Theme.of(context).extension<AppColors>()?.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // If NWC wallet is connected, amount is known, and we haven't fallen back
     // to manual, show the auto-invoice widget instead of the manual form.
-    final sats = widget.amountSats;
     if (isWalletConnected && !_manualMode && sats != null && sats > 0) {
       return Scaffold(
         appBar: AppBar(title: const Text('Add Invoice')),
