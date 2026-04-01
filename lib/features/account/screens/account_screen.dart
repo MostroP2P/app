@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 
@@ -21,41 +22,37 @@ class AccountScreen extends ConsumerStatefulWidget {
 class _AccountScreenState extends ConsumerState<AccountScreen> {
   // Secret words state
   bool _wordsVisible = false;
+  bool _showBackupCheckbox = false;
   List<String>? _words;
   bool _loadingWords = false;
 
-  String _maskPhrase(List<String> words) {
-    if (words.length < 4) return words.join(' ');
-    final first = words.take(2).join(' ');
-    final last = words.skip(words.length - 2).join(' ');
-    final middleCount = words.length - 4;
-    final masked = List.filled(middleCount, '•••').join(' ');
-    return '$first $masked $last';
-  }
+  /// All 12 words are hidden until the user explicitly taps "Show".
+  String _fullyMaskedPhrase() =>
+      List.filled(12, '•••').join(' ');
 
   Future<void> _loadAndRevealWords() async {
     if (_loadingWords) return;
     setState(() => _loadingWords = true);
 
     try {
-      // TODO: call Rust bridge get_identity() in Phase 5 to fetch the mnemonic.
-      // For now simulate with placeholder.
-      await Future.delayed(const Duration(milliseconds: 200));
+      final words = await IdentityService.getMnemonicWords();
 
       if (!mounted) return;
+      final backupPending = ref.read(backupReminderProvider);
       setState(() {
         _wordsVisible = true;
-        // Placeholder: real words come from the Rust identity API.
-        _words ??= List.generate(12, (i) => 'word${i + 1}');
+        _showBackupCheckbox = backupPending;
+        _words = words.isNotEmpty ? words : _words;
       });
-
-      // Dismiss backup reminder permanently once the user views their words.
-      if (mounted) {
-        await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
-      }
+      // Backup is NOT confirmed here — user must tick the checkbox explicitly.
     } finally {
       if (mounted) setState(() => _loadingWords = false);
     }
+  }
+
+  Future<void> _confirmBackup() async {
+    await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
+    if (mounted) setState(() => _showBackupCheckbox = false);
   }
 
   @override
@@ -111,9 +108,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                       Text(
                         _wordsVisible && _words != null
                             ? _words!.join(' ')
-                            : (_words != null
-                                ? _maskPhrase(_words!)
-                                : '••• ••• ••• ••• ••• ••• ••• ••• ••• ••• ••• •••'),
+                            : _fullyMaskedPhrase(),
                         style: theme.textTheme.bodyMedium!.copyWith(
                           fontFamily: 'monospace',
                           height: 1.6,
@@ -130,7 +125,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                               )
                             : TextButton.icon(
                                 onPressed: _wordsVisible
-                                    ? () => setState(() => _wordsVisible = false)
+                                    ? () => setState(() {
+                                          _wordsVisible = false;
+                                          _showBackupCheckbox = false;
+                                        })
                                     : _loadAndRevealWords,
                                 icon: Icon(
                                   _wordsVisible
@@ -144,6 +142,18 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                                   style: TextStyle(color: green),
                                 ),
                               ),
+                      ),
+                      // Backup confirmation checkbox — appears when words are
+                      // visible and backup has not yet been confirmed.
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        child: _showBackupCheckbox
+                            ? _BackupConfirmRow(
+                                green: green,
+                                onConfirm: _confirmBackup,
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ],
                   ),
@@ -294,7 +304,15 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           FilledButton(
             onPressed: () async {
               Navigator.pop(context);
-              // TODO(bridge): call create_identity() via FFI (Phase 18+).
+              // Reset local state before generating new identity.
+              setState(() {
+                _wordsVisible = false;
+                _showBackupCheckbox = false;
+                _words = null;
+              });
+              // Delete old secure storage data, then generate + store new identity.
+              await IdentityService.deleteAll();
+              await IdentityService.initialize();
               await ref
                   .read(backupReminderProvider.notifier)
                   .showBackupReminder();
@@ -423,6 +441,68 @@ class _CardHeader extends StatelessWidget {
           constraints: const BoxConstraints(),
         ),
       ],
+    );
+  }
+}
+
+// ── Backup confirmation checkbox ──────────────────────────────────────────────
+
+class _BackupConfirmRow extends StatefulWidget {
+  const _BackupConfirmRow({required this.green, required this.onConfirm});
+
+  final Color green;
+  final VoidCallback onConfirm;
+
+  @override
+  State<_BackupConfirmRow> createState() => _BackupConfirmRowState();
+}
+
+class _BackupConfirmRowState extends State<_BackupConfirmRow> {
+  bool _checked = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      child: InkWell(
+        onTap: _checked
+            ? null
+            : () {
+                setState(() => _checked = true);
+                widget.onConfirm();
+              },
+        borderRadius: BorderRadius.circular(4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: _checked,
+                activeColor: widget.green,
+                onChanged: _checked
+                    ? null
+                    : (v) {
+                        if (v == true) {
+                          setState(() => _checked = true);
+                          widget.onConfirm();
+                        }
+                      },
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'I have written down my words and backed them up securely',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -11,34 +11,43 @@
 
 ### User Story 1 — First Launch & Identity Setup (Priority: P1)
 
-A new user opens the app for the first time. The app silently creates a unique cryptographic identity for them in the background (no sign-up required, no email, no KYC). The user is shown a 6-page illustrated walkthrough explaining the app's privacy model, security guarantees, encrypted chat, and how to trade. Once completed (or skipped), the user lands on the order book. A backup reminder activates to encourage saving the 12 secret recovery words.
+A new user opens the app for the first time. The app silently generates a unique cryptographic identity (12-word BIP-39 mnemonic + derived Nostr keypair) in the background — no sign-up, no email, no KYC, no internet connection required. The mnemonic is immediately stored in the platform's secure storage (iOS Keychain / Android Keystore). Once identity creation completes, a permanent backup reminder notification is pinned to the Notifications screen. The user is shown a 6-page illustrated walkthrough explaining the app's privacy model, security guarantees, encrypted chat, and how to trade. Once completed (or skipped), the user lands on the order book.
 
-**Why this priority**: Without identity creation and onboarding, no subsequent feature can function. This is the zero-state entry point for every user.
+The notification bell in the app bar displays a red dot (no number) as long as the user has not confirmed their backup. The bell plays a subtle left-right shake animation whenever any indicator — red dot or numbered badge — is active. The backup notification is always the first item in the Notifications list until the user explicitly confirms backup via the Account screen. Tapping that notification takes the user directly to the Account screen where the Secret Words card is displayed.
 
-**Independent Test**: Can be fully tested by fresh-installing the app and verifying: (a) the 6-slide walkthrough appears only once, (b) subsequent launches skip straight to the order book, (c) the notification bell shows a red dot and a backup reminder is pinned.
+**Why this priority**: Without identity creation and onboarding, no subsequent feature can function. This is the zero-state entry point for every user. Loss of the mnemonic means permanent loss of the account.
+
+**Independent Test**: Can be fully tested by fresh-installing the app and verifying: (a) the 6-slide walkthrough appears only once, (b) subsequent launches skip straight to the order book, (c) the notification bell shows a red dot, shakes, and a backup reminder is pinned as the first notification, (d) tapping the notification lands on the Account screen.
 
 **Acceptance Scenarios**:
 
-1. **Given** it is the app's first launch, **When** the app opens, **Then** a 6-slide walkthrough is shown covering: welcome, privacy, security, encrypted chat, taking offers, and creating offers.
-2. **Given** the user taps "Done" or "Skip" on the walkthrough, **When** the navigation completes, **Then** the user lands on the order book and a backup reminder appears as a pinned notification.
-3. **Given** the user has previously completed the walkthrough, **When** they reopen the app, **Then** they go directly to the order book with no walkthrough.
-4. **Given** the user has not yet viewed their secret words, **When** they look at the notification bell, **Then** a red dot (not a number) is shown and the bell animates with a left-right shake.
+1. **Given** it is the app's very first launch, **When** the app initializes, **Then** a 12-word BIP-39 mnemonic and derived Nostr keypair are generated silently in the background with no user interaction, no UI blocking, and no internet connection required, and the mnemonic is persisted to platform secure storage before any UI is shown.
+2. **Given** identity creation has completed on first launch, **When** the app proceeds, **Then** a backup reminder notification is created and pinned as the first item in the Notifications screen; this notification persists until the user explicitly confirms backup and cannot be dismissed by swiping or marking as read.
+3. **Given** it is the app's first launch, **When** the app opens, **Then** a 6-slide walkthrough is shown covering: welcome, privacy, security, encrypted chat, taking offers, and creating offers.
+4. **Given** the user taps "Done" or "Skip" on the walkthrough, **When** the navigation completes, **Then** the user lands on the order book.
+5. **Given** the user has previously completed the walkthrough, **When** they reopen the app, **Then** they go directly to the order book with no walkthrough.
+6. **Given** the user has not yet confirmed their backup, **When** they look at the notification bell in the app bar, **Then** a red dot indicator (not a number badge) is visible on the bell icon.
+7. **Given** the notification bell has an active red dot or a numbered unread badge, **When** the indicator first appears or the count changes, **Then** the bell icon plays a left-right shake animation (two oscillations, ~300 ms total, easing in and out).
+8. **Given** the backup reminder notification is pinned, **When** the user taps it in the Notifications screen, **Then** they are navigated directly to the Account screen.
 
 ---
 
 ### User Story 2 — Secret Words Backup (Priority: P1)
 
-The user taps the backup reminder or navigates to the Account screen to view their 12 secret recovery words. Viewing the words confirms backup — no re-entry or quiz required. After viewing, the red dot on the notification bell disappears permanently.
+The user taps the backup reminder or navigates to the Account screen. The Secret Words card displays the mnemonic fully masked (all 12 words hidden behind asterisks). The user taps "Show" to reveal the 12 words. At the exact moment the words become visible, a confirmation checkbox appears below them with the label "I have written down my words and backed them up securely". The backup is only confirmed when the user explicitly taps this checkbox — merely viewing the words is not sufficient. Once the checkbox is ticked, the backup notification is permanently removed, the red dot on the bell disappears permanently, and the checkbox state is persisted across sessions.
 
-**Why this priority**: Funds recovery depends on these words. Without this flow the user has no way to restore their account after device loss.
+**Why this priority**: Funds recovery depends on these words. Without this flow the user has no way to restore their account after device loss. The explicit checkbox — rather than passive viewing — ensures intentional confirmation.
 
-**Independent Test**: Can be fully tested by navigating to Account, tapping "Show" on the masked mnemonic, verifying all 12 words are revealed, then confirming the bell indicator has cleared.
+**Independent Test**: Can be fully tested by navigating to Account, tapping "Show" on the masked mnemonic, verifying all 12 words are revealed and the checkbox appears, ticking the checkbox, then confirming: (a) the backup notification is gone from the Notifications screen, (b) the red dot on the bell is gone, (c) reopening the app shows no backup reminder.
 
 **Acceptance Scenarios**:
 
-1. **Given** the backup reminder is active, **When** the user taps it, **Then** they are taken to the Account screen where the first card shows a masked mnemonic (first 2 + last 2 words visible, middle masked).
-2. **Given** the masked mnemonic is displayed, **When** the user taps "Show", **Then** all 12 words become visible.
-3. **Given** the user has viewed their words, **When** they return to the order book, **Then** the red dot on the bell is gone permanently and the backup notification is dismissed.
+1. **Given** the user arrives at the Account screen (via backup notification tap or direct navigation), **When** the screen loads, **Then** the first card is "Secret Words" and the mnemonic is fully masked — all 12 words are hidden (e.g., shown as bullet characters or asterisks) and none of the words are readable.
+2. **Given** the Secret Words card is showing the masked mnemonic, **When** the user taps the "Show" button, **Then** all 12 words become fully visible in order, AND simultaneously a confirmation checkbox appears below the word list with the label "I have written down my words and backed them up securely".
+3. **Given** the 12 words are visible and the confirmation checkbox is shown, **When** the user has NOT yet ticked the checkbox, **Then** the backup reminder notification remains pinned in the Notifications screen and the red dot on the bell remains active.
+4. **Given** the 12 words are visible and the confirmation checkbox is shown, **When** the user taps the checkbox, **Then** the checkbox becomes checked, the backup is marked as confirmed in persistent storage, the backup reminder notification is permanently removed from the Notifications screen, and the red dot on the notification bell permanently disappears.
+5. **Given** the user has confirmed backup in a previous session, **When** they navigate to the Account screen, **Then** the Secret Words card still shows the masked mnemonic and the "Show" button, but no backup reminder notification or red dot exists anywhere in the app.
+6. **Given** the user generates a new identity (User Story 15), **When** the new mnemonic is created, **Then** the backup confirmation is reset: the backup reminder notification is re-pinned, the red dot reappears, and the checkbox is unchecked.
 
 ---
 
@@ -290,86 +299,94 @@ Users manage their cryptographic identity from the Account screen: view their 12
 
 **Onboarding & Identity**
 
-- **FR-001**: The system MUST generate a cryptographic identity automatically on first launch without any user input, registration, or internet connection.
-- **FR-002**: The system MUST display a 6-page illustrated walkthrough on first launch only; it MUST NOT appear on subsequent launches.
-- **FR-003**: Users MUST be able to view their 12 secret recovery words from the Account screen; viewing them constitutes backup confirmation with no re-entry required.
-- **FR-004**: The notification bell MUST display a red dot (no number) until the user views their secret words, then transition to a numbered badge for subsequent unread notifications.
-- **FR-005**: The notification bell MUST animate (left-right shake) whenever any indicator — red dot or numbered badge — is active.
+- **FR-001**: The system MUST generate a 12-word BIP-39 mnemonic and derive a Nostr keypair automatically on first launch, with no user input, no registration, and no internet connection required. Generation MUST complete before any trade-related UI is accessible.
+- **FR-002**: The generated mnemonic MUST be persisted to platform secure storage (iOS Keychain / Android Keystore) immediately after generation, before any UI transition occurs.
+- **FR-003**: The system MUST display a 6-page illustrated walkthrough on first launch only; it MUST NOT appear on subsequent launches.
+- **FR-004**: Upon successful identity generation on first launch, the system MUST create a backup reminder notification and pin it as the first item in the Notifications screen. This notification MUST NOT be dismissible by swipe-to-dismiss or "Mark all as read" — it can only be removed by the user confirming their backup via the Secret Words checkbox.
+- **FR-005**: The notification bell icon in the app bar MUST display a red dot indicator (no number) whenever the backup has not yet been confirmed by the user. Once backup is confirmed, the red dot MUST disappear permanently and MUST NOT reappear unless a new identity is generated.
+- **FR-006**: The notification bell MUST display a numbered badge (pill shape, dark gold) showing the count of unread non-backup notifications once the backup is confirmed. The red dot and the numbered badge are mutually exclusive: the red dot takes priority while backup is pending.
+- **FR-007**: The notification bell MUST play a left-right shake animation (two oscillations, approximately 300 ms, ease-in-out) whenever any indicator becomes active (red dot appears, or unread badge count increases). The animation MUST NOT loop continuously — it fires once per state change.
+- **FR-008**: Tapping the backup reminder notification MUST navigate the user directly to the Account screen.
+- **FR-009**: The Secret Words card on the Account screen MUST display the mnemonic fully masked by default (all 12 words hidden). None of the words are visible until the user explicitly taps "Show".
+- **FR-010**: When the user taps "Show" on the Secret Words card, the system MUST simultaneously: (a) reveal all 12 mnemonic words in order, and (b) display a confirmation checkbox below the word list with the label "I have written down my words and backed them up securely".
+- **FR-011**: The backup MUST only be marked as confirmed when the user explicitly taps the confirmation checkbox. Viewing the words without ticking the checkbox MUST NOT confirm the backup.
+- **FR-012**: When the user ticks the backup confirmation checkbox, the system MUST: (a) persist the confirmed state to local storage, (b) permanently remove the backup reminder notification from the Notifications screen, and (c) permanently remove the red dot from the notification bell. These changes MUST survive app restart.
+- **FR-013**: If the user generates a new identity (via Account screen), the backup confirmation state MUST be reset to unconfirmed, re-triggering the backup reminder notification and the red dot on the bell.
 
 **Order Book**
 
-- **FR-006**: The system MUST display a public order book with two tabs (BUY BTC / SELL BTC) labeled from the taker's perspective.
-- **FR-007**: Each order card MUST display: fiat amount or range, currency code, country flag, price type, premium, payment methods, maker rating, total trade count, and days active.
-- **FR-008**: The order book MUST support filtering by fiat currency (multi-select), payment method (multi-select), rating range (slider), and premium range (slider).
-- **FR-009**: The system MUST display only orders with "pending" status in the public order book.
-- **FR-010**: Orders in the public order book MUST be sorted by ascending expiration time (soonest expiring first).
+- **FR-014**: The system MUST display a public order book with two tabs (BUY BTC / SELL BTC) labeled from the taker's perspective.
+- **FR-015**: Each order card MUST display: fiat amount or range, currency code, country flag, price type, premium, payment methods, maker rating, total trade count, and days active.
+- **FR-016**: The order book MUST support filtering by fiat currency (multi-select), payment method (multi-select), rating range (slider), and premium range (slider).
+- **FR-017**: The system MUST display only orders with "pending" status in the public order book.
+- **FR-018**: Orders in the public order book MUST be sorted by ascending expiration time (soonest expiring first).
 
 **Order Creation**
 
-- **FR-011**: Users MUST be able to create both buy and sell orders from the floating action button on the home screen.
-- **FR-012**: The create order form MUST require: fiat amount (or min/max range), fiat currency, at least one payment method, and price type (market or fixed).
-- **FR-013**: Market price orders MUST support a premium/discount slider ranging from -10% to +10%.
-- **FR-014**: Users MUST be able to add custom free-text payment methods in addition to selecting from the predefined list.
-- **FR-015**: The Submit button MUST remain disabled until all required fields are valid.
+- **FR-019**: Users MUST be able to create both buy and sell orders from the floating action button on the home screen.
+- **FR-020**: The create order form MUST require: fiat amount (or min/max range), fiat currency, at least one payment method, and price type (market or fixed).
+- **FR-021**: Market price orders MUST support a premium/discount slider ranging from -10% to +10%.
+- **FR-022**: Users MUST be able to add custom free-text payment methods in addition to selecting from the predefined list.
+- **FR-023**: The Submit button MUST remain disabled until all required fields are valid.
 
 **Taking an Order**
 
-- **FR-016**: Tapping an order card MUST navigate to a Take Order detail screen showing all order parameters and maker reputation.
-- **FR-017**: For range orders, the system MUST show a modal prompting the taker to enter a specific fiat amount within the order's min–max bounds before confirming.
-- **FR-018**: The Take Order screen MUST display a countdown timer showing time remaining until the order expires.
+- **FR-024**: Tapping an order card MUST navigate to a Take Order detail screen showing all order parameters and maker reputation.
+- **FR-025**: For range orders, the system MUST show a modal prompting the taker to enter a specific fiat amount within the order's min–max bounds before confirming.
+- **FR-026**: The Take Order screen MUST display a countdown timer showing time remaining until the order expires.
 
 **Trade Execution**
 
-- **FR-019**: When a buyer takes a sell order and NWC is NOT configured, the system MUST prompt them to manually enter a Lightning invoice or Lightning address.
-- **FR-020**: When NWC is configured, the system MUST automatically generate and submit a Lightning invoice on the buyer's behalf, bypassing the manual entry screen.
-- **FR-021**: When a seller takes a buy order and NWC is NOT configured, the system MUST display the hold invoice as a QR code with Copy and Share actions.
-- **FR-022**: When NWC is configured for a seller, the system MUST present a "Pay with Wallet" button that auto-pays the hold invoice.
-- **FR-023**: The Trade Detail screen MUST display role-appropriate action buttons based on the current order status and the user's role (buyer or seller).
-- **FR-024**: The buyer MUST have a "Fiat Sent" button available when the trade is in "active" status.
-- **FR-025**: The seller MUST have a "Release" button available when the trade is in "fiat-sent" status; tapping it MUST show a confirmation modal before executing.
-- **FR-026**: Both parties MUST have "Cancel" (cooperative) and "Dispute" buttons available during active trades.
+- **FR-027**: When a buyer takes a sell order and NWC is NOT configured, the system MUST prompt them to manually enter a Lightning invoice or Lightning address.
+- **FR-028**: When NWC is configured, the system MUST automatically generate and submit a Lightning invoice on the buyer's behalf, bypassing the manual entry screen.
+- **FR-029**: When a seller takes a buy order and NWC is NOT configured, the system MUST display the hold invoice as a QR code with Copy and Share actions.
+- **FR-030**: When NWC is configured for a seller, the system MUST present a "Pay with Wallet" button that auto-pays the hold invoice.
+- **FR-031**: The Trade Detail screen MUST display role-appropriate action buttons based on the current order status and the user's role (buyer or seller).
+- **FR-032**: The buyer MUST have a "Fiat Sent" button available when the trade is in "active" status.
+- **FR-033**: The seller MUST have a "Release" button available when the trade is in "fiat-sent" status; tapping it MUST show a confirmation modal before executing.
+- **FR-034**: Both parties MUST have "Cancel" (cooperative) and "Dispute" buttons available during active trades.
 
 **P2P Chat**
 
-- **FR-027**: Each active trade MUST have a dedicated encrypted chat room accessible from the Trade Detail screen via the Contact button.
-- **FR-028**: The chat MUST support text messages, encrypted image attachments, and encrypted file attachments.
-- **FR-029**: The chat room MUST display the peer's avatar, handle, and provide access to a Trade Information panel and a User Information panel.
-- **FR-030**: The User Information panel MUST display the shared ECDH encryption key as a copyable value so it can optionally be shared with a dispute admin.
-- **FR-031**: Messages MUST appear optimistically immediately after send, before relay confirmation.
-- **FR-032**: The Chat tab in the bottom navigation MUST show a red dot badge when there are unread messages in any chat room.
+- **FR-035**: Each active trade MUST have a dedicated encrypted chat room accessible from the Trade Detail screen via the Contact button.
+- **FR-036**: The chat MUST support text messages, encrypted image attachments, and encrypted file attachments.
+- **FR-037**: The chat room MUST display the peer's avatar, handle, and provide access to a Trade Information panel and a User Information panel.
+- **FR-038**: The User Information panel MUST display the shared ECDH encryption key as a copyable value so it can optionally be shared with a dispute admin.
+- **FR-039**: Messages MUST appear optimistically immediately after send, before relay confirmation.
+- **FR-040**: The Chat tab in the bottom navigation MUST show a red dot badge when there are unread messages in any chat room.
 
 **Dispute System**
 
-- **FR-033**: Users MUST be able to open a dispute from the Trade Detail screen when the trade is in "active" or "fiat-sent" status.
-- **FR-034**: All disputes MUST appear in a dedicated "Disputes" sub-tab within the Chat screen.
-- **FR-035**: Each dispute MUST have a separate encrypted chat room for communication between the user and the assigned admin.
-- **FR-036**: The dispute chat input MUST be hidden once the dispute is resolved or closed; the chat becomes read-only with a visible lock message.
-- **FR-037**: The seller MUST be able to voluntarily release sats from the Trade Detail screen even while a dispute is active.
-- **FR-038**: The system MUST display the dispute resolution outcome clearly (admin released sats vs. admin refunded seller).
+- **FR-041**: Users MUST be able to open a dispute from the Trade Detail screen when the trade is in "active" or "fiat-sent" status.
+- **FR-042**: All disputes MUST appear in a dedicated "Disputes" sub-tab within the Chat screen.
+- **FR-043**: Each dispute MUST have a separate encrypted chat room for communication between the user and the assigned admin.
+- **FR-044**: The dispute chat input MUST be hidden once the dispute is resolved or closed; the chat becomes read-only with a visible lock message.
+- **FR-045**: The seller MUST be able to voluntarily release sats from the Trade Detail screen even while a dispute is active.
+- **FR-046**: The system MUST display the dispute resolution outcome clearly (admin released sats vs. admin refunded seller).
 
 **Rating**
 
-- **FR-039**: Both parties MUST be prompted to rate each other after a trade completes: the seller when sats are released, the buyer when payment is confirmed received.
-- **FR-040**: The rating interface MUST display 5 tappable stars; the Submit button MUST remain disabled until at least 1 star is selected.
-- **FR-041**: Rating MUST be optional — users MUST be able to close the rating prompt without any penalty.
-- **FR-042**: Accumulated reputation (average rating, total reviews, days active) MUST be visible on order cards in the public order book.
+- **FR-047**: Both parties MUST be prompted to rate each other after a trade completes: the seller when sats are released, the buyer when payment is confirmed received.
+- **FR-048**: The rating interface MUST display 5 tappable stars; the Submit button MUST remain disabled until at least 1 star is selected.
+- **FR-049**: Rating MUST be optional — users MUST be able to close the rating prompt without any penalty.
+- **FR-050**: Accumulated reputation (average rating, total reviews, days active) MUST be visible on order cards in the public order book.
 
 **NWC Integration**
 
-- **FR-043**: Users MUST be able to connect a Lightning wallet via a NWC URI entered as text or scanned via QR code.
-- **FR-044**: The Settings screen MUST display wallet connection status and current balance when NWC is connected.
-- **FR-045**: When NWC auto-payment fails, the system MUST fall back to the appropriate manual payment flow without losing trade state.
+- **FR-051**: Users MUST be able to connect a Lightning wallet via a NWC URI entered as text or scanned via QR code.
+- **FR-052**: The Settings screen MUST display wallet connection status and current balance when NWC is connected.
+- **FR-053**: When NWC auto-payment fails, the system MUST fall back to the appropriate manual payment flow without losing trade state.
 
 **Navigation & App Structure**
 
-- **FR-046**: The app MUST have a persistent 3-tab bottom navigation bar: Order Book, My Trades, Chat.
-- **FR-047**: A slide-in drawer menu (from left, approximately 70% of screen width) MUST provide access to Account, Settings, and About.
-- **FR-048**: The My Trades tab MUST show a red dot badge when there are unseen trade status updates.
-- **FR-049**: The Notifications screen MUST be accessible from the notification bell in the app bar and MUST support "Mark all as read" and "Clear all" actions.
+- **FR-054**: The app MUST have a persistent 3-tab bottom navigation bar: Order Book, My Trades, Chat.
+- **FR-055**: A slide-in drawer menu (from left, approximately 70% of screen width) MUST provide access to Account, Settings, and About.
+- **FR-056**: The My Trades tab MUST show a red dot badge when there are unseen trade status updates.
+- **FR-057**: The Notifications screen MUST be accessible from the notification bell in the app bar and MUST support "Mark all as read" and "Clear all" actions. These actions MUST NOT affect the backup reminder notification.
 
 **Settings & Preferences**
 
-- **FR-050**: Users MUST be able to configure: app language (5 languages: EN, ES, IT, FR, DE), default fiat currency, default Lightning address, relay list (add/toggle), push notification preferences, and Mostro node.
+- **FR-058**: Users MUST be able to configure: app language (5 languages: EN, ES, IT, FR, DE), default fiat currency, default Lightning address, relay list (add/toggle), push notification preferences, and Mostro node.
 
 ### Key Entities
 

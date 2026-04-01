@@ -109,16 +109,16 @@ configuration.
 
 **V1 ref**: Section 2 (`NOTIFICATIONS_SYSTEM.md`, `ACCOUNT_SCREEN.md`)
 
-**Goal**: Backup reminder pinned in notifications, bell shows red dot, viewing secret words clears it permanently.
+**Goal**: Backup reminder pinned in notifications, bell shows red dot, explicit checkbox confirmation clears it permanently.
 
-**Independent Test**: After walkthrough → bell has red dot + shake animation. Open Notifications → pinned backup card. Tap → Account screen → "Show" → 12 words appear → return to home → red dot gone permanently.
+**Independent Test**: After walkthrough → bell has red dot + shake animation. Open Notifications → pinned backup card (not swipeable, not removed by "Mark all as read"). Tap → Account screen → "Show" → all 12 words appear (fully unmasked from fully hidden) + checkbox appears → tick checkbox → red dot gone permanently.
 
 - [x] T025 Implement notification bell widget in `lib/shared/widgets/notification_bell.dart`: two states — (1) red dot (no number, before backup complete), (2) dark-gold pill badge with white number (after backup, count of unreads). Bell plays left-right shake animation (`AnimationController`) whenever any indicator is active. Integrates with `backupReminderProvider` and `unreadNotificationCountProvider`.
 - [x] T026 [P] Implement backup reminder provider in `lib/features/account/providers/backup_reminder_provider.dart`: persists `backupReminderDismissed` bool in `SharedPreferences`. `showBackupReminder()` activates the red dot. `confirmBackupComplete()` sets dismissed = true, removes red dot permanently.
-- [x] T027 Implement account screen in `lib/features/account/screens/account_screen.dart` with first card: "Secret Words" — shows masked mnemonic (first 2 + last 2 words visible, middle dots `•••`). "Show" button calls `get_identity()` on Rust side to retrieve the 12 words via `export_encrypted_backup()`. On show: reveals all 12 words, calls `backupReminderProvider.confirmBackupComplete()` which dismisses the red dot permanently. Route: `/key_management`.
-- [x] T028 Implement notifications screen in `lib/features/notifications/screens/notifications_screen.dart`: scrollable card list, overflow menu with "Mark all as read" and "Clear all". Pinned backup reminder card always first (gavel/key icon, title "You must back up your account"). Tap on backup card → `/key_management`. Route: `/notifications`. Bell in AppBar taps to this screen.
+- [x] T027 Implement account screen in `lib/features/account/screens/account_screen.dart` with first card: "Secret Words". **Updated (spec.md US2)**: (1) mnemonic is FULLY masked by default (all 12 words as `•••`, none visible); (2) "Show" button reveals all 12 words AND simultaneously animates in a confirmation checkbox (`AnimatedSize`, 200ms ease-in-out) with label "I have written down my words and backed them up securely"; (3) `confirmBackupComplete()` is called ONLY when the user ticks the checkbox — viewing words alone does NOT confirm backup; (4) "Generate New User" resets `_wordsVisible`, `_showBackupCheckbox`, and `_words` before reactivating the reminder. Route: `/key_management`.
+- [x] T028 Implement notifications screen in `lib/features/notifications/screens/notifications_screen.dart`: scrollable card list, overflow menu with "Mark all as read" and "Clear all". Pinned backup reminder card always first (gavel/key icon, title "You must back up your account") — rendered from `backupReminderProvider` state, NOT from the notifications list, so it is immune to `markAllAsRead()`, `deleteAll()`, and swipe-to-dismiss. Tap on backup card → `/key_management`. Route: `/notifications`. Bell in AppBar taps to this screen.
 
-**Checkpoint**: Backup reminder flow works end-to-end: red dot → view words → dot clears permanently. Notification bell states correct.
+**Checkpoint**: Backup reminder flow works end-to-end: red dot → open notifications (reminder stays through mark-all-read) → tap reminder → Account screen → Show words (all 12 fully hidden initially) → checkbox appears → tick → dot clears permanently.
 
 ---
 
@@ -432,6 +432,21 @@ configuration.
 - [x] T143 [P] About screen snackbar: in `lib/features/about/screens/about_screen.dart`, call `ScaffoldMessenger.of(context).hideCurrentSnackBar()` before showing the copy-pubkey snackbar to prevent overlapping snackbars.
 - [x] T144 [P] Currency selector cleanup: in `lib/features/settings/widgets/currency_selector_dialog.dart`, remove `final c = colors;` alias (line 102) and replace all `c.` references with `colors.` directly.
 - [x] T145 Make `z` tag check lenient in `rust/src/nostr/order_events.rs`: older Mostro events may omit the `z=order` tag; since the author filter already scopes to the trusted node, log a debug warning instead of rejecting. This prevents valid orders from being silently dropped.
+
+---
+
+## Phase 20: US1/US2 Spec Update — Explicit Backup Confirmation (Priority: P1)
+
+**Spec coverage**: FR-001 – FR-013 (spec.md updated 2026-04-01); plan.md Phase 20
+**Depends on**: Phase 4 (T025–T028 done)
+
+**Purpose**: Implement the changes introduced by the US1/US2 spec revision:
+(1) mnemonic fully masked by default, (2) confirmation requires explicit checkbox tap, (3) backup reminder immune to "Mark all as read" / "Clear all" / swipe.
+
+- [x] T146 Update `_AccountScreenState` in `lib/features/account/screens/account_screen.dart`: (a) replace `_maskPhrase()` with `_fullyMaskedPhrase()` — returns `List.filled(12, '•••').join(' ')` so all 12 words are hidden until "Show" is tapped; (b) add `_showBackupCheckbox` state variable; (c) in `_loadAndRevealWords()` set `_showBackupCheckbox = true` and **remove** the `confirmBackupComplete()` call — viewing words no longer confirms backup; (d) add `_confirmBackup()` method that calls `confirmBackupComplete()` and resets `_showBackupCheckbox`; (e) in the mnemonic container add `AnimatedSize` (200ms ease-in-out) wrapping the new `_BackupConfirmRow` widget; (f) in "Generate New User" dialog reset `_words`, `_wordsVisible`, and `_showBackupCheckbox` before calling `showBackupReminder()`.
+- [x] T147 Add `_BackupConfirmRow` stateful widget inside `lib/features/account/screens/account_screen.dart`: checkbox + label "I have written down my words and backed them up securely". Once checked, calls `onConfirm` callback and becomes disabled (checked state is final). Uses `AppSpacing.md` top padding, `InkWell` for tap area.
+
+**Checkpoint**: Acceptance test from plan.md Phase 20 checklist: (a) fresh install → Show → all 12 `•••` before tap; (b) tap Show → 12 words visible + checkbox visible (not confirmed yet); (c) close and reopen Account → red dot still on bell; (d) tick checkbox → red dot gone + backup reminder gone from Notifications; (e) Generate New User → red dot reappears.
 
 ---
 
