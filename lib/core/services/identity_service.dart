@@ -71,6 +71,33 @@ class IdentityService {
     }
   }
 
+  /// Generate a new identity and atomically replace the stored one.
+  ///
+  /// The new mnemonic is written to secure storage **before** the old metadata
+  /// is cleared, so the user is never left without a valid identity if the
+  /// operation is interrupted. Use this instead of [deleteAll] + [initialize]
+  /// when rotating identities.
+  static Future<List<String>> regenerate() async {
+    final result = await identity_api.createIdentity();
+    final words = result.mnemonicWords;
+
+    // Write new mnemonic first — this is the critical write.
+    await _storage.write(key: _kMnemonic, value: words.join(' '));
+
+    // Reset metadata in parallel now that the new mnemonic is safe.
+    await Future.wait([
+      _storage.write(key: _kTradeKeyIndex, value: '0'),
+      _storage.write(key: _kPrivacyMode, value: 'false'),
+      _storage.write(
+        key: _kCreatedAt,
+        value: DateTime.now().millisecondsSinceEpoch.toString(),
+      ),
+    ]);
+
+    debugPrint('[identity] identity regenerated — pubkey=${result.publicKey}');
+    return words;
+  }
+
   /// Wipe all stored identity data. Called when generating a new user.
   static Future<void> deleteAll() async {
     await Future.wait([
@@ -95,8 +122,12 @@ class IdentityService {
     final result = await identity_api.createIdentity();
     final words = result.mnemonicWords;
 
+    // Write mnemonic first and await completion — this is the critical write.
+    // If it fails, the exception propagates to the caller; no metadata is written.
+    await _storage.write(key: _kMnemonic, value: words.join(' '));
+
+    // Metadata writes are secondary — proceed in parallel after mnemonic is safe.
     await Future.wait([
-      _storage.write(key: _kMnemonic, value: words.join(' ')),
       _storage.write(key: _kTradeKeyIndex, value: '0'),
       _storage.write(key: _kPrivacyMode, value: 'false'),
       _storage.write(

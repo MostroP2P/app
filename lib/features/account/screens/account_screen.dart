@@ -38,21 +38,43 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       final words = await IdentityService.getMnemonicWords();
 
       if (!mounted) return;
+      if (words.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No identity found — try restarting the app.')),
+        );
+        return;
+      }
       final backupPending = ref.read(backupReminderProvider);
       setState(() {
         _wordsVisible = true;
         _showBackupCheckbox = backupPending;
-        _words = words.isNotEmpty ? words : _words;
+        _words = words;
       });
       // Backup is NOT confirmed here — user must tick the checkbox explicitly.
+    } catch (e) {
+      debugPrint('[account] _loadAndRevealWords error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load secret words: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loadingWords = false);
     }
   }
 
   Future<void> _confirmBackup() async {
-    await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
-    if (mounted) setState(() => _showBackupCheckbox = false);
+    try {
+      await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
+      if (mounted) setState(() => _showBackupCheckbox = false);
+    } catch (e) {
+      debugPrint('[account] _confirmBackup error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to confirm backup: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -305,9 +327,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                // Delete old secure storage data, then generate + store new identity.
-                await IdentityService.deleteAll();
-                await IdentityService.initialize();
+                // Atomically replaces the stored identity: new mnemonic is
+                // written before old data is cleared, so there is no window
+                // where the user is left without a valid identity.
+                await IdentityService.regenerate();
                 await ref
                     .read(backupReminderProvider.notifier)
                     .showBackupReminder();
@@ -461,7 +484,7 @@ class _BackupConfirmRow extends StatefulWidget {
   const _BackupConfirmRow({required this.green, required this.onConfirm});
 
   final Color green;
-  final VoidCallback onConfirm;
+  final Future<void> Function() onConfirm;
 
   @override
   State<_BackupConfirmRow> createState() => _BackupConfirmRowState();
@@ -469,18 +492,29 @@ class _BackupConfirmRow extends StatefulWidget {
 
 class _BackupConfirmRowState extends State<_BackupConfirmRow> {
   bool _checked = false;
+  bool _pending = false;
+
+  Future<void> _handleConfirm() async {
+    if (_checked || _pending) return;
+    setState(() => _pending = true);
+    try {
+      await widget.onConfirm();
+      if (mounted) setState(() => _checked = true);
+    } catch (_) {
+      // Parent already shows a SnackBar; leave checkbox unchecked so
+      // the user can retry.
+    } finally {
+      if (mounted) setState(() => _pending = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final interactive = !_checked && !_pending;
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.md),
       child: InkWell(
-        onTap: _checked
-            ? null
-            : () {
-                setState(() => _checked = true);
-                widget.onConfirm();
-              },
+        onTap: interactive ? _handleConfirm : null,
         borderRadius: BorderRadius.circular(4),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,20 +522,19 @@ class _BackupConfirmRowState extends State<_BackupConfirmRow> {
             SizedBox(
               width: 20,
               height: 20,
-              child: Checkbox(
-                value: _checked,
-                activeColor: widget.green,
-                onChanged: _checked
-                    ? null
-                    : (v) {
-                        if (v == true) {
-                          setState(() => _checked = true);
-                          widget.onConfirm();
-                        }
-                      },
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
+              child: _pending
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Checkbox(
+                      value: _checked,
+                      activeColor: widget.green,
+                      onChanged: interactive ? (_) => _handleConfirm() : null,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
