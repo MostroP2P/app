@@ -28,6 +28,7 @@ android/.gradle/
 android/local.properties
 android/app/debug
 android/app/profile
+android/.kotlin/
 
 # Web service worker (generated at build time)
 web/flutter_service_worker.js
