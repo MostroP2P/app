@@ -1189,6 +1189,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove relay'**
   String get removeRelayTooltip;
+
+  /// Label for the backup confirmation checkbox on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'I have written down my words and backed them up securely'**
+  String get backupConfirmCheckbox;
 }
 
 class _AppLocalizationsDelegate

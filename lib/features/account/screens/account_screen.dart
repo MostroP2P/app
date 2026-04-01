@@ -8,6 +8,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Account screen — Route `/key_management`.
 ///
@@ -567,7 +568,7 @@ class _BackupConfirmRowState extends State<_BackupConfirmRow> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                'I have written down my words and backed them up securely',
+                AppLocalizations.of(context).backupConfirmCheckbox,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

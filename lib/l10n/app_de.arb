@@ -195,5 +195,6 @@
   "retry": "Erneut versuchen",
   "disableRelayLabel": "Relay {url} deaktivieren",
   "enableRelayLabel": "Relay {url} aktivieren",
-  "removeRelayTooltip": "Relay entfernen"
+  "removeRelayTooltip": "Relay entfernen",
+  "backupConfirmCheckbox": "Ich habe meine Wörter aufgeschrieben und sicher gespeichert"
 }
