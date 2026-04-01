@@ -409,5 +409,7 @@
     "placeholders": {"url": {"type": "String"}}
   },
   "removeRelayTooltip": "Remove relay",
-  "@removeRelayTooltip": {"description": "Tooltip for the remove-relay icon button"}
+  "@removeRelayTooltip": {"description": "Tooltip for the remove-relay icon button"},
+  "backupConfirmCheckbox": "I have written down my words and backed them up securely",
+  "@backupConfirmCheckbox": {"description": "Label for the backup confirmation checkbox on the Account screen"}
 }
