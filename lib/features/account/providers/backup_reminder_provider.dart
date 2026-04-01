@@ -10,11 +10,15 @@ const _kBackupReminderActive = 'backupReminderActive';
 /// Dismissed permanently after `confirmBackupComplete()` is called.
 final backupReminderProvider =
     StateNotifierProvider<BackupReminderNotifier, bool>(
-  (ref) => BackupReminderNotifier()..load(),
+  (ref) => BackupReminderNotifier(),
 );
 
 class BackupReminderNotifier extends StateNotifier<bool> {
-  BackupReminderNotifier() : super(false);
+  /// When [initialValue] is provided the notifier starts with the correct
+  /// state synchronously so the bell badge renders correctly on first frame.
+  BackupReminderNotifier({bool? initialValue}) : super(initialValue ?? false) {
+    if (initialValue == null) load();
+  }
 
   bool _loaded = false;
 

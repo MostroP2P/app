@@ -1,7 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mostro/core/app.dart';
+import 'package:mostro/core/services/identity_service.dart';
+import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
+import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -9,6 +13,20 @@ import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
+
+  // Initialize identity: creates on first launch, reloads on subsequent launches.
+  // Must run before Nostr init so the identity key is available for relay auth.
+  await IdentityService.initialize();
+
+  // Pre-read SharedPreferences so providers start with synchronous initial
+  // values — eliminates the AsyncValue.loading() race that caused the router
+  // to show the home screen before redirecting to /walkthrough on first launch.
+  final prefs = await SharedPreferences.getInstance();
+  final firstRunComplete = prefs.getBool('firstRunComplete') ?? false;
+  final backupDismissed = prefs.getBool('backupReminderDismissed') ?? false;
+  final backupActive = prefs.getBool('backupReminderActive') ?? false;
+  final backupPending = backupActive && !backupDismissed;
+
   // Initialize the Nostr relay pool with default relays (from config.rs).
   // This must happen before any Nostr/order API calls.
   await nostr_api.initialize(relays: null);
@@ -21,7 +39,17 @@ Future<void> main() async {
   // Watch for connection state changes in background (logs appear in flutter output).
   _watchConnectionState();
 
-  runApp(const ProviderScope(child: MostroApp()));
+  runApp(ProviderScope(
+    overrides: [
+      firstRunProvider.overrideWith(
+        (ref) => FirstRunNotifier(initialValue: firstRunComplete),
+      ),
+      backupReminderProvider.overrideWith(
+        (ref) => BackupReminderNotifier(initialValue: backupPending),
+      ),
+    ],
+    child: const MostroApp(),
+  ));
 }
 
 /// Guards against overlapping diagnostic order polls on rapid reconnects.

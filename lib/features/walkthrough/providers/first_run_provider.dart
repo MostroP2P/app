@@ -18,8 +18,13 @@ final firstRunProvider =
 );
 
 class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
-  FirstRunNotifier() : super(const AsyncValue.loading()) {
-    _load();
+  /// When [initialValue] is provided the notifier starts with a synchronous
+  /// [AsyncValue.data] so the router never enters the loading state.
+  FirstRunNotifier({bool? initialValue})
+      : super(initialValue != null
+            ? AsyncValue.data(initialValue)
+            : const AsyncValue.loading()) {
+    if (initialValue == null) _load();
   }
 
   Future<void> _load() async {
