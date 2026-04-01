@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _kBackupReminderDismissed = 'backupReminderDismissed';
-const _kBackupReminderActive = 'backupReminderActive';
+const kBackupReminderDismissedKey = 'backupReminderDismissed';
+const kBackupReminderActiveKey = 'backupReminderActive';
 
 /// Tracks whether the backup reminder (red dot on notification bell) is active.
 ///
@@ -10,19 +10,27 @@ const _kBackupReminderActive = 'backupReminderActive';
 /// Dismissed permanently after `confirmBackupComplete()` is called.
 final backupReminderProvider =
     StateNotifierProvider<BackupReminderNotifier, bool>(
-  (ref) => BackupReminderNotifier()..load(),
+  (ref) => BackupReminderNotifier(),
 );
 
 class BackupReminderNotifier extends StateNotifier<bool> {
-  BackupReminderNotifier() : super(false);
+  /// When [initialValue] is provided the notifier starts with the correct
+  /// state synchronously so the bell badge renders correctly on first frame.
+  BackupReminderNotifier({bool? initialValue}) : super(initialValue ?? false) {
+    if (initialValue == null) {
+      load();
+    } else {
+      _loaded = true;
+    }
+  }
 
   bool _loaded = false;
 
   Future<void> load() async {
     if (_loaded) return;
     final prefs = await SharedPreferences.getInstance();
-    final dismissed = prefs.getBool(_kBackupReminderDismissed) ?? false;
-    final active = prefs.getBool(_kBackupReminderActive) ?? false;
+    final dismissed = prefs.getBool(kBackupReminderDismissedKey) ?? false;
+    final active = prefs.getBool(kBackupReminderActiveKey) ?? false;
     state = active && !dismissed;
     _loaded = true;
   }
@@ -33,15 +41,15 @@ class BackupReminderNotifier extends StateNotifier<bool> {
     // a race where load() overwrites the state we are about to set.
     await load();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kBackupReminderActive, true);
-    final dismissed = prefs.getBool(_kBackupReminderDismissed) ?? false;
+    await prefs.setBool(kBackupReminderActiveKey, true);
+    final dismissed = prefs.getBool(kBackupReminderDismissedKey) ?? false;
     if (!dismissed) state = true;
   }
 
   /// Permanently dismiss the reminder. Called when user views their secret words.
   Future<void> confirmBackupComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kBackupReminderDismissed, true);
+    await prefs.setBool(kBackupReminderDismissedKey, true);
     state = false;
   }
 }

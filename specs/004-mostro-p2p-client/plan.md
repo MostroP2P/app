@@ -203,6 +203,97 @@ assets/
 
 ---
 
+## Phase 20: First-Launch Identity Setup & Backup Confirmation (US1 / US2)
+
+**Spec coverage**: FR-001 through FR-013 (spec.md §User Scenarios & Testing, User Story 1 and User Story 2)
+**V1 references**: `WALKTHROUGH_SCREEN.md`, `NOTIFICATIONS_SYSTEM.md`, `ACCOUNT_SCREEN.md`, `AUTHENTICATION.md`
+
+**Context**: spec.md was updated to expand US1 and US2 with precise behavioral requirements for: (a) silent background identity generation on first launch, (b) a non-dismissible pinned backup reminder notification, (c) a red-dot indicator on the notification bell with a shake animation, and (d) an explicit backup confirmation checkbox that appears alongside the revealed mnemonic on the Account screen. This phase closes the gap between the existing walkthrough/identity scaffolding and the full first-launch + backup-confirmation loop.
+
+**Deviation from V1 reference**:
+- V1 (`ACCOUNT_SCREEN.md`): tapping "Show" reveals all 12 words; revealing them alone marks backup as confirmed.
+- Updated spec (FR-010, FR-011): tapping "Show" reveals all 12 words **and** simultaneously displays a confirmation checkbox. Backup is only confirmed when the user explicitly ticks the checkbox. Viewing the words without ticking does **not** confirm backup.
+- V1 (`ACCOUNT_SCREEN.md`): masked mnemonic shows first 2 + last 2 words, middle 8 as `•••`.
+- Updated spec (FR-009): mnemonic is fully masked by default (all 12 words hidden as `•••`).
+- These are intentional deviations; spec.md supersedes V1 reference for these two behaviors.
+
+---
+
+### Objectives
+
+1. Ensure identity generation happens silently in Rust on first launch, persisted to secure storage before any UI renders.
+2. *(Implemented in Dart)* Track `backup_confirmed` state in `BackupReminderNotifier` (SharedPreferences keys `backupReminderActive` / `backupReminderDismissed`). Migrating this flag to the Rust storage layer (SQLite native / IndexedDB web) is **planned future work**.
+3. *(Planned future work)* Add `get_backup_confirmed()` / `set_backup_confirmed()` / `reset_backup_confirmation()` to the Rust `identity.rs` API surface once the Rust persistence layer is in place.
+4. *(Implemented in Dart)* `backupReminderProvider` (`BackupReminderNotifier`) drives the bell icon, notification list, and Account screen. It is pre-seeded synchronously in `main()` via `ProviderScope.overrides` to eliminate the startup loading race.
+5. Implement the pinned backup reminder notification: always first in the list, not removable via swipe, "Mark all as read", or "Clear all".
+6. Implement the `AnimatedBellIcon` widget: red dot (no number) while backup pending; numbered badge after; shake animation on any indicator change.
+7. Update the Secret Words card in the Account screen: fully masked by default → "Show" reveals words + checkbox; checkbox tap calls `confirmBackupComplete()`.
+8. Reset `backup_confirmed` to `false` on "Generate New User" (FR-013).
+
+---
+
+### Key Files
+
+> **Current implementation note**: backup confirmation state is managed entirely in Dart via `BackupReminderNotifier` and SharedPreferences (`backupReminderActive` / `backupReminderDismissed`). The Rust-side API and schema additions below are **planned future work** for when the Rust persistence layer is extended.
+
+**Rust core (planned future work):**
+
+| File | Change |
+|------|--------|
+| `rust/src/api/identity.rs` | Add `get_backup_confirmed() -> bool`, `set_backup_confirmed()`, `reset_backup_confirmation()`. Call `reset_backup_confirmation()` at the end of `generate_new_user()`. Store flag in the `identity` table (`backup_confirmed INTEGER NOT NULL DEFAULT 0`). |
+| `rust/src/db/schema.rs` | Add `backup_confirmed INTEGER NOT NULL DEFAULT 0` column to the identity table. Migration-safe. |
+
+**Dart/Flutter (current implementation):**
+
+| File | Change |
+|------|--------|
+| `lib/features/account/providers/backup_reminder_provider.dart` | `BackupReminderNotifier`: `StateNotifierProvider<bool>` backed by SharedPreferences keys `backupReminderActive` / `backupReminderDismissed`. Pre-seeded synchronously in `main()` via `ProviderScope.overrides` to avoid startup loading race. |
+| `lib/core/services/identity_service.dart` | `IdentityService`: manages identity lifecycle (create on first launch, reload on subsequent). `regenerate()` atomically replaces stored identity. |
+| `lib/shared/widgets/animated_bell_icon.dart` | **New.** Stateful widget wrapping the bell icon. Watches `backupReminderProvider` and `unreadCountProvider`. Shows red dot when backup pending; numbered gold badge otherwise. Fires a shake animation (2 oscillations, 300 ms, ease-in-out) on indicator state change. |
+| `lib/core/app.dart` or `lib/core/app_bar_builder.dart` | Replace static bell icon with `AnimatedBellIcon`. |
+| `lib/features/notifications/notifiers/notifications_notifier.dart` | Pin the backup reminder as the first list item when `backupReminderProvider == true`. Override `markAllAsRead()` and `deleteAll()` to skip the backup reminder item. |
+| `lib/features/notifications/screens/notifications_screen.dart` | Render the backup reminder card above all other items when backup is pending; not swipeable. |
+| `lib/features/account/screens/account_screen.dart` | `SecretWordsCard`: fully masked by default; "Show" reveals words + animates in confirmation checkbox; checkbox calls `confirmBackupComplete()`. |
+| `lib/l10n/app_en.arb` + all 4 locale files | Add keys: `backupReminderTitle`, `backupReminderMessage`, `backupConfirmCheckbox`, `secretWordsShowButton`, `secretWordsHideButton`. |
+
+---
+
+### Implementation Notes
+
+**Bell animation sequencing**: The shake must fire exactly once per *state change* (not continuously). Use `AnimationController` with a `addStatusListener` that resets to `forward()` only when the indicator value changes. Listening to `ref.listen(backupConfirmedProvider, ...)` and `ref.listen(unreadCountProvider, ...)` inside the widget's `ConsumerState` covers both triggers.
+
+**Pinned notification item identity**: The backup reminder is a synthetic item, not stored in `NotificationsHistoryRepository`. It is injected at position 0 by `NotificationsNotifier.build()` when `backupConfirmed == false`. This avoids polluting the trade-event notification history and makes dismissal purely a state-flag change (no DB delete needed).
+
+**Fully masked mnemonic**: Replace the V1 `_maskSeedPhrase()` helper (which showed first 2 + last 2 words) with a new implementation that returns `List.filled(12, '•••').join(' ')` when `_isHidden == true`. The "Show" button toggles `_isHidden` to `false` and also sets `_showCheckbox = true` in the same `setState` call.
+
+**Checkbox animation**: Use `AnimatedOpacity` + `AnimatedSize` wrapping the checkbox row, animating from `height: 0 / opacity: 0` to fully visible over 200 ms when `_showCheckbox` transitions from false to true.
+
+**Backup reset on new identity**: `IdentityService.regenerate()` atomically writes the new mnemonic before clearing old metadata. After `regenerate()` returns, the Dart layer calls `backupReminderProvider.notifier.showBackupReminder()` to re-activate the badge.
+
+**Constitution compliance**:
+- ⚠️ **I (Rust Core)**: `backup_confirmed` is currently tracked in Dart (SharedPreferences). Migration to Rust storage is planned future work once the persistence layer supports it.
+- ✅ **II (Privacy)**: No analytics. Confirmed state is local-only; never transmitted.
+- ✅ **IV (Offline-First)**: Flag is in SharedPreferences; readable with no connectivity.
+- ✅ **V (Multi-Platform)**: SharedPreferences works on all Flutter platforms without separate code paths.
+- ✅ **VI (Simplicity)**: Single `BackupReminderNotifier`, two SharedPreferences keys, pre-seeded at startup. No new architectural layers.
+
+---
+
+### Acceptance Test Checklist
+
+- [ ] Fresh install: identity is generated before walkthrough renders; after walkthrough completes `showBackupReminder()` is called and `backupReminderProvider` becomes `true`.
+- [ ] Bell shows red dot immediately after walkthrough is dismissed; no number badge.
+- [ ] Bell plays shake animation once when red dot first appears.
+- [ ] Notifications screen: backup reminder is pinned at position 0; swipe-to-dismiss is disabled; "Mark all as read" and "Clear all" do not remove it.
+- [ ] Tapping backup reminder navigates to `/key_management` (Account screen).
+- [ ] Account screen: Secret Words card shows all 12 words as `•••` by default.
+- [ ] Tapping "Show": all 12 words appear; checkbox appears (animated in); backup reminder notification is still present; bell still shows red dot.
+- [ ] Tapping checkbox: `confirmBackupComplete()` called; backup reminder removed; red dot gone; bell switches to numbered badge mode (or static if no unread notifications).
+- [ ] State survives app restart: confirmed flag persists across sessions (SharedPreferences).
+- [ ] "Generate New User": `IdentityService.regenerate()` + `showBackupReminder()` called; backup reminder re-appears; red dot re-appears.
+
+---
+
 ## Complexity Tracking
 
 No constitution violations identified. Architecture matches exactly what the constitution prescribes: Rust core + Flutter shell + single bridge. The storage trait with two backends (SQLite native / IndexedDB web) is required by Constitution Principle V (multi-platform from day one) — no alternative satisfies both native and web without violating Principle I.
