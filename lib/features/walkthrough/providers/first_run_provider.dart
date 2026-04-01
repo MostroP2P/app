@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 export 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 
 /// SharedPreferences key for the first-run flag.
-const _kFirstRunComplete = 'firstRunComplete';
+const kFirstRunCompleteKey = 'firstRunComplete';
 
 /// `true` once the user has completed (or skipped) the walkthrough.
 ///
@@ -30,7 +30,7 @@ class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
   Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      state = AsyncValue.data(prefs.getBool(_kFirstRunComplete) ?? false);
+      state = AsyncValue.data(prefs.getBool(kFirstRunCompleteKey) ?? false);
     } catch (_) {
       // Fail-safe: if SharedPreferences is unavailable treat first-run as
       // complete so the router sends the user to the home screen directly.
@@ -44,7 +44,7 @@ class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
   ///   `ref.read(backupReminderProvider.notifier).showBackupReminder()`
   Future<void> markFirstRunComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kFirstRunComplete, true);
+    await prefs.setBool(kFirstRunCompleteKey, true);
     state = const AsyncValue.data(true);
   }
 }

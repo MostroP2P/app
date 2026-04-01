@@ -22,9 +22,9 @@ Future<void> main() async {
   // values — eliminates the AsyncValue.loading() race that caused the router
   // to show the home screen before redirecting to /walkthrough on first launch.
   final prefs = await SharedPreferences.getInstance();
-  final firstRunComplete = prefs.getBool('firstRunComplete') ?? false;
-  final backupDismissed = prefs.getBool('backupReminderDismissed') ?? false;
-  final backupActive = prefs.getBool('backupReminderActive') ?? false;
+  final firstRunComplete = prefs.getBool(kFirstRunCompleteKey) ?? false;
+  final backupDismissed = prefs.getBool(kBackupReminderDismissedKey) ?? false;
+  final backupActive = prefs.getBool(kBackupReminderActiveKey) ?? false;
   final backupPending = backupActive && !backupDismissed;
 
   // Initialize the Nostr relay pool with default relays (from config.rs).
