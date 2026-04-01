@@ -281,7 +281,7 @@ assets/
 
 ### Acceptance Test Checklist
 
-- [ ] Fresh install: identity is generated before walkthrough renders; `backupReminderProvider` is `false`.
+- [ ] Fresh install: identity is generated before walkthrough renders; after walkthrough completes `showBackupReminder()` is called and `backupReminderProvider` becomes `true`.
 - [ ] Bell shows red dot immediately after walkthrough is dismissed; no number badge.
 - [ ] Bell plays shake animation once when red dot first appears.
 - [ ] Notifications screen: backup reminder is pinned at position 0; swipe-to-dismiss is disabled; "Mark all as read" and "Clear all" do not remove it.

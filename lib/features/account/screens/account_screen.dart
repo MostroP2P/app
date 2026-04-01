@@ -55,7 +55,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       debugPrint('[account] _loadAndRevealWords error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load secret words: $e')),
+          SnackBar(
+            content: Text(
+              kDebugMode
+                  ? 'Failed to load secret words: $e'
+                  : 'Failed to load secret words. Please try again.',
+            ),
+          ),
         );
       }
     } finally {
@@ -71,9 +77,18 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       debugPrint('[account] _confirmBackup error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to confirm backup: $e')),
+          SnackBar(
+            content: Text(
+              kDebugMode
+                  ? 'Failed to confirm backup: $e'
+                  : 'Failed to confirm backup. Please try again.',
+            ),
+          ),
         );
       }
+      // Rethrow so _BackupConfirmRowState._handleConfirm sees the failure
+      // and leaves the checkbox unchecked for retry.
+      rethrow;
     }
   }
 
