@@ -347,7 +347,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Failed to generate new identity: $e'),
+                    content: Text(
+                      kDebugMode
+                          ? 'Failed to generate identity: $e'
+                          : 'Failed to generate identity. Please try again.',
+                    ),
                   ),
                 );
               }
