@@ -591,4 +591,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get removeRelayTooltip => 'Remove relay';
+
+  @override
+  String get backupConfirmCheckbox =>
+      'I have written down my words and backed them up securely';
 }
