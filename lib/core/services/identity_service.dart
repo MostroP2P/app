@@ -71,6 +71,27 @@ class IdentityService {
     }
   }
 
+  /// Import an identity from a BIP-39 mnemonic phrase and persist it.
+  ///
+  /// Replaces any currently loaded identity. Throws if [words] is not a valid
+  /// 12- or 24-word BIP-39 phrase.
+  static Future<void> importAndStore(List<String> words) async {
+    await identity_api.deleteIdentity();
+    await identity_api.importFromMnemonic(words: words, recover: false);
+
+    await _storage.write(key: _kMnemonic, value: words.join(' '));
+    await Future.wait([
+      _storage.write(key: _kTradeKeyIndex, value: '0'),
+      _storage.write(key: _kPrivacyMode, value: 'false'),
+      _storage.write(
+        key: _kCreatedAt,
+        value: DateTime.now().millisecondsSinceEpoch.toString(),
+      ),
+    ]);
+
+    debugPrint('[identity] identity imported — ${words.length} words');
+  }
+
   /// Generate a new identity and atomically replace the stored one.
   ///
   /// The new mnemonic is written to secure storage **before** the old metadata
@@ -78,6 +99,19 @@ class IdentityService {
   /// operation is interrupted. Use this instead of [deleteAll] + [initialize]
   /// when rotating identities.
   static Future<List<String>> regenerate() async {
+    // Clear Rust's in-memory identity state first — createIdentity() returns
+    // AlreadyExists if any identity is currently loaded.
+    // deleteIdentity() may throw if no identity is loaded (e.g. fresh install
+    // followed immediately by regenerate); ignore that case and proceed.
+    try {
+      await identity_api.deleteIdentity();
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (!msg.contains('noidentity') && !msg.contains('no identity') && !msg.contains('not loaded')) {
+        rethrow;
+      }
+      debugPrint('[identity] regenerate: no identity loaded, skipping deleteIdentity');
+    }
     final result = await identity_api.createIdentity();
     final words = result.mnemonicWords;
 
