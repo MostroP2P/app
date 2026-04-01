@@ -130,10 +130,14 @@ final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) asyn
   // Subscribe first so no broadcast is missed between snapshot and loop.
   final stream = await orders_api.onOrdersUpdated();
 
-  // Emit current cache immediately — exits shimmer even with no orders yet.
+  // Fast-exit shimmer only if the cache already has orders. If the cache is
+  // empty we stay in loading state until the relay delivers the first update,
+  // preventing an "No orders available" flash before any relay data arrives.
   final snapshot = await orders_api.getOrders(filters: null);
   debugPrint('[orderBook] initial snapshot: ${snapshot.length} orders');
-  yield snapshot.map(OrderItem.fromInfo).toList();
+  if (snapshot.isNotEmpty) {
+    yield snapshot.map(OrderItem.fromInfo).toList();
+  }
 
   // Stream live updates from the relay subscription.
   while (true) {
