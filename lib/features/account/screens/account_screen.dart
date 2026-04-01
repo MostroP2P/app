@@ -143,15 +143,21 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _wordsVisible && _words != null
-                            ? _words!.join(' ')
-                            : _fullyMaskedPhrase(),
-                        style: theme.textTheme.bodyMedium!.copyWith(
-                          fontFamily: 'monospace',
-                          height: 1.6,
-                        ),
-                      ),
+                      _wordsVisible && _words != null
+                          ? SelectableText(
+                              _words!.join(' '),
+                              style: theme.textTheme.bodyMedium!.copyWith(
+                                fontFamily: 'monospace',
+                                height: 1.6,
+                              ),
+                            )
+                          : Text(
+                              _fullyMaskedPhrase(),
+                              style: theme.textTheme.bodyMedium!.copyWith(
+                                fontFamily: 'monospace',
+                                height: 1.6,
+                              ),
+                            ),
                       const SizedBox(height: AppSpacing.sm),
                       Align(
                         alignment: Alignment.centerRight,
@@ -312,12 +318,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   void _showInfoDialog(BuildContext context, String title, String content) {
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text(title),
         content: Text(content),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('OK'),
           ),
         ],
@@ -328,7 +334,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   void _confirmGenerateNewUser(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Generate New User?'),
         content: const Text(
           'This will create a brand-new identity. Your current secret words '
@@ -336,12 +342,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               try {
                 // Atomically replaces the stored identity: new mnemonic is
                 // written before old data is cleared, so there is no window
@@ -357,7 +363,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   _showBackupCheckbox = false;
                   _words = null;
                 });
-                context.go(AppRoute.walkthrough);
+                context.go(AppRoute.home);
               } catch (e) {
                 debugPrint('[account] generateNewUser error: $e');
                 if (!context.mounted) return;
@@ -380,42 +386,44 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   void _showImportDialog(BuildContext context) {
-    final controller = TextEditingController();
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Import Mnemonic'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          autocorrect: false,
-          enableSuggestions: false,
-          enableIMEPersonalizedLearning: false,
-          decoration: const InputDecoration(
-            hintText: 'Enter your 12 or 24 word phrase...',
+      builder: (dialogContext) => _ImportMnemonicDialog(
+        onImport: (words) => _importIdentity(context, words),
+      ),
+    );
+  }
+
+  Future<void> _importIdentity(BuildContext context, List<String> words) async {
+    try {
+      await IdentityService.importAndStore(words);
+      await ref.read(backupReminderProvider.notifier).showBackupReminder();
+      if (!context.mounted) return;
+      setState(() {
+        _wordsVisible = false;
+        _showBackupCheckbox = false;
+        _words = null;
+      });
+      context.go(AppRoute.home);
+    } catch (e) {
+      debugPrint('[account] importIdentity error: $e');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            kDebugMode
+                ? 'Import failed: $e'
+                : 'Invalid mnemonic. Please check your words and try again.',
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: wire to import_from_mnemonic() Rust bridge in Phase 5.
-            },
-            child: const Text('Import'),
-          ),
-        ],
-      ),
-    ).then((_) => controller.dispose());
+      );
+    }
   }
 
   void _confirmRefresh(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Refresh User?'),
         content: const Text(
           'This will re-fetch your trades and orders from the Mostro instance. '
@@ -423,12 +431,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               // TODO: wire restore-session action in Phase 7.
             },
             child: const Text('Refresh'),
@@ -640,6 +648,70 @@ class _PrivacyOption extends StatelessWidget {
         ],
         ),
       ),
+    );
+  }
+}
+
+// ── Import mnemonic dialog ─────────────────────────────────────────────────────
+
+/// Self-contained dialog that owns its [TextEditingController] lifecycle,
+/// preventing the controller from being disposed while the [TextField] is
+/// still mounted.
+class _ImportMnemonicDialog extends StatefulWidget {
+  const _ImportMnemonicDialog({required this.onImport});
+
+  final void Function(List<String> words) onImport;
+
+  @override
+  State<_ImportMnemonicDialog> createState() => _ImportMnemonicDialogState();
+}
+
+class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final words = _controller.text.trim().split(RegExp(r'\s+'));
+    if (words.length != 12 && words.length != 24) {
+      setState(() => _error = 'Enter a valid 12 or 24 word phrase.');
+      return;
+    }
+    Navigator.pop(context);
+    widget.onImport(words);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Import Mnemonic'),
+      content: TextField(
+        controller: _controller,
+        maxLines: 3,
+        autocorrect: false,
+        enableSuggestions: false,
+        enableIMEPersonalizedLearning: false,
+        decoration: InputDecoration(
+          hintText: 'Enter your 12 or 24 word phrase...',
+          errorText: _error,
+        ),
+        onChanged: (_) { if (_error != null) setState(() => _error = null); },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Import'),
+        ),
+      ],
     );
   }
 }
