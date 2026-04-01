@@ -304,20 +304,30 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           FilledButton(
             onPressed: () async {
               Navigator.pop(context);
-              // Reset local state before generating new identity.
-              setState(() {
-                _wordsVisible = false;
-                _showBackupCheckbox = false;
-                _words = null;
-              });
-              // Delete old secure storage data, then generate + store new identity.
-              await IdentityService.deleteAll();
-              await IdentityService.initialize();
-              await ref
-                  .read(backupReminderProvider.notifier)
-                  .showBackupReminder();
-              if (!context.mounted) return;
-              context.go(AppRoute.walkthrough);
+              try {
+                // Delete old secure storage data, then generate + store new identity.
+                await IdentityService.deleteAll();
+                await IdentityService.initialize();
+                await ref
+                    .read(backupReminderProvider.notifier)
+                    .showBackupReminder();
+                // Only clear UI state and navigate once the new identity exists.
+                if (!context.mounted) return;
+                setState(() {
+                  _wordsVisible = false;
+                  _showBackupCheckbox = false;
+                  _words = null;
+                });
+                context.go(AppRoute.walkthrough);
+              } catch (e) {
+                debugPrint('[account] generateNewUser error: $e');
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to generate new identity: $e'),
+                  ),
+                );
+              }
             },
             child: const Text('Continue'),
           ),

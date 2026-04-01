@@ -222,12 +222,12 @@ assets/
 ### Objectives
 
 1. Ensure identity generation happens silently in Rust on first launch, persisted to secure storage before any UI renders.
-2. Persist a `backup_confirmed` boolean flag in the Rust storage layer (SQLite native / IndexedDB web), gated alongside identity state.
-3. Add `get_backup_confirmed()` / `set_backup_confirmed()` / `reset_backup_confirmation()` to the Rust `identity.rs` API surface.
-4. Drive a `backupConfirmedProvider` in Dart that reflects the Rust state and is watched by the bell icon, notification list, and Account screen.
+2. *(Implemented in Dart)* Track `backup_confirmed` state in `BackupReminderNotifier` (SharedPreferences keys `backupReminderActive` / `backupReminderDismissed`). Migrating this flag to the Rust storage layer (SQLite native / IndexedDB web) is **planned future work**.
+3. *(Planned future work)* Add `get_backup_confirmed()` / `set_backup_confirmed()` / `reset_backup_confirmation()` to the Rust `identity.rs` API surface once the Rust persistence layer is in place.
+4. *(Implemented in Dart)* `backupReminderProvider` (`BackupReminderNotifier`) drives the bell icon, notification list, and Account screen. It is pre-seeded synchronously in `main()` via `ProviderScope.overrides` to eliminate the startup loading race.
 5. Implement the pinned backup reminder notification: always first in the list, not removable via swipe, "Mark all as read", or "Clear all".
 6. Implement the `AnimatedBellIcon` widget: red dot (no number) while backup pending; numbered badge after; shake animation on any indicator change.
-7. Update the Secret Words card in the Account screen: fully masked by default → "Show" reveals words + checkbox; checkbox tap calls `set_backup_confirmed()`.
+7. Update the Secret Words card in the Account screen: fully masked by default → "Show" reveals words + checkbox; checkbox tap calls `confirmBackupComplete()`.
 8. Reset `backup_confirmed` to `false` on "Generate New User" (FR-013).
 
 ---

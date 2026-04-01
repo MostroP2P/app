@@ -41,29 +41,52 @@ class IdentityService {
   /// Read the stored mnemonic words. Returns an empty list if none is found
   /// (should not happen after [initialize] has run).
   static Future<List<String>> getMnemonicWords() async {
-    final stored = await _storage.read(key: _kMnemonic);
-    if (stored == null || stored.trim().isEmpty) return [];
-    return stored.trim().split(' ');
+    try {
+      final stored = await _storage.read(key: _kMnemonic);
+      if (stored == null || stored.trim().isEmpty) return [];
+      return stored.trim().split(' ');
+    } catch (e) {
+      debugPrint('[identity] getMnemonicWords($_kMnemonic) error: $e');
+      return [];
+    }
   }
 
   /// Persist an updated trade-key index after each new trade key is derived.
   static Future<void> saveTradeKeyIndex(int index) async {
-    await _storage.write(key: _kTradeKeyIndex, value: index.toString());
+    try {
+      await _storage.write(key: _kTradeKeyIndex, value: index.toString());
+    } catch (e) {
+      debugPrint('[identity] saveTradeKeyIndex($_kTradeKeyIndex) error: $e');
+      rethrow;
+    }
   }
 
   /// Persist privacy mode setting.
   static Future<void> savePrivacyMode(bool enabled) async {
-    await _storage.write(key: _kPrivacyMode, value: enabled.toString());
+    try {
+      await _storage.write(key: _kPrivacyMode, value: enabled.toString());
+    } catch (e) {
+      debugPrint('[identity] savePrivacyMode($_kPrivacyMode) error: $e');
+      rethrow;
+    }
   }
 
   /// Wipe all stored identity data. Called when generating a new user.
   static Future<void> deleteAll() async {
     await Future.wait([
-      _storage.delete(key: _kMnemonic),
-      _storage.delete(key: _kTradeKeyIndex),
-      _storage.delete(key: _kPrivacyMode),
-      _storage.delete(key: _kCreatedAt),
+      _deleteKey(_kMnemonic),
+      _deleteKey(_kTradeKeyIndex),
+      _deleteKey(_kPrivacyMode),
+      _deleteKey(_kCreatedAt),
     ]);
+  }
+
+  static Future<void> _deleteKey(String key) async {
+    try {
+      await _storage.delete(key: key);
+    } catch (e) {
+      debugPrint('[identity] deleteAll($key) error: $e');
+    }
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
