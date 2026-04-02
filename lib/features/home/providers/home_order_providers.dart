@@ -174,6 +174,8 @@ final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
   final targetKind = orderType == OrderType.buy ? 'sell' : 'buy';
 
   return allOrders.where((o) {
+    // Order book shows only takeable orders.
+    if (o.status != OrderStatus.pending) return false;
     if (o.kind != targetKind) return false;
 
     if (selectedCurrencies.isNotEmpty &&
