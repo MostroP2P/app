@@ -621,12 +621,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cancelRequestSent => 'Abbruchanfrage gesendet';
 
   @override
-  String get cancelRequestFailed => 'Abbrechen fehlgeschlagen. Bitte erneut versuchen.';
+  String get cancelRequestFailed =>
+      'Abbrechen fehlgeschlagen. Bitte erneut versuchen.';
 
   @override
   String get fiatSentFailed =>
       'Fiat-Zahlung konnte nicht bestätigt werden. Bitte erneut versuchen.';
 
   @override
-  String get releaseFailed => 'Freigabe fehlgeschlagen. Bitte erneut versuchen.';
+  String get releaseFailed =>
+      'Freigabe fehlgeschlagen. Bitte erneut versuchen.';
 }

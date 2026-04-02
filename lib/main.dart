@@ -1,18 +1,28 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mostro/core/app.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
+import 'package:mostro/src/rust/api.dart' as rust_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
+
+  // Initialize persistent SQLite store. Must come before any trade / order
+  // operations that read or write trade keys and trade records.
+  if (!kIsWeb) {
+    final docsDir = await getApplicationDocumentsDirectory();
+    await rust_api.initDb(path: p.join(docsDir.path, 'mostro.db'));
+  }
 
   // Initialize identity: creates on first launch, reloads on subsequent launches.
   // Must run before Nostr init so the identity key is available for relay auth.

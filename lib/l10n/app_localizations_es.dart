@@ -621,12 +621,14 @@ class AppLocalizationsEs extends AppLocalizations {
   String get cancelRequestSent => 'Solicitud de cancelación enviada';
 
   @override
-  String get cancelRequestFailed => 'No se pudo cancelar. Por favor, inténtelo de nuevo.';
+  String get cancelRequestFailed =>
+      'No se pudo cancelar. Por favor, inténtelo de nuevo.';
 
   @override
   String get fiatSentFailed =>
       'Error al marcar el fiat como enviado. Por favor, inténtelo de nuevo.';
 
   @override
-  String get releaseFailed => 'Error al liberar. Por favor, inténtelo de nuevo.';
+  String get releaseFailed =>
+      'Error al liberar. Por favor, inténtelo de nuevo.';
 }
