@@ -5,7 +5,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/trades_list_item.dart';
-import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
+import 'package:mostro/shared/widgets/bottom_nav_bar.dart' show BottomNavBar;
 import 'package:mostro/shared/widgets/notification_bell.dart';
 
 /// My Trades screen — Route [AppRoute.orderBook] (`/order_book`, bottom nav tab 1).
@@ -23,14 +23,9 @@ class TradesScreen extends ConsumerWidget {
     final tradesAsync = ref.watch(filteredTradesWithOrderStateProvider);
     final selectedFilter = ref.watch(selectedStatusFilterProvider);
 
-    // Reset badge and snapshot statuses whenever this screen is shown.
+    // Snapshot current statuses when this screen loads so the badge resets.
     ref.listen(filteredTradesWithOrderStateProvider, (_, next) {
       next.whenData((_) => resetTradeNotifications(ref));
-    });
-
-    // Also wire the bottom nav badge to orderBookNotificationCountProvider.
-    ref.listen(orderBookNotificationCountProvider, (_, count) {
-      ref.read(tradesNotificationCountProvider.notifier).state = count;
     });
 
     return Scaffold(

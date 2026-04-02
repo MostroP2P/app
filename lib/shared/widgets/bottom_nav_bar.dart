@@ -4,12 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
-
-/// Currently active bottom-nav tab index.
-final bottomNavIndexProvider = StateProvider<int>((_) => 0);
-
-/// Badge count for the My Trades tab. Will be wired to Rust bridge.
-final tradesNotificationCountProvider = StateProvider<int>((_) => 0);
+import 'package:mostro/features/trades/providers/trades_providers.dart'
+    show orderBookNotificationCountProvider;
+import 'package:mostro/shared/providers/nav_providers.dart';
 
 /// Badge count for the Chat tab. Will be wired to Rust bridge.
 final chatNotificationCountProvider = StateProvider<int>((_) => 0);
@@ -29,7 +26,7 @@ class BottomNavBar extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final disabledColor = colors?.textDisabled ?? const Color(0xFF6C757D);
-    final tradesCount = ref.watch(tradesNotificationCountProvider);
+    final tradesCount = ref.watch(orderBookNotificationCountProvider);
     final chatCount = ref.watch(chatNotificationCountProvider);
 
     return BottomNavigationBar(

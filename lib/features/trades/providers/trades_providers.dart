@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
-import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
+import 'package:mostro/shared/providers/nav_providers.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
@@ -184,11 +184,24 @@ final filteredTradesWithOrderStateProvider =
 final _lastSeenStatusesProvider =
     StateProvider<Map<String, rust_types.OrderStatus>>((_) => const {});
 
-/// Counts trades whose live status differs from the last-seen snapshot AND
-/// whose status has moved out of a terminal state (success/canceled).
+// Terminal order statuses — trades in these states cannot change further,
+// so there is no need to create a polling watcher for them.
+const _terminalOrderStatuses = {
+  rust_types.OrderStatus.success,
+  rust_types.OrderStatus.settledHoldInvoice,
+  rust_types.OrderStatus.settledByAdmin,
+  rust_types.OrderStatus.completedByAdmin,
+  rust_types.OrderStatus.canceled,
+  rust_types.OrderStatus.expired,
+  rust_types.OrderStatus.cooperativelyCanceled,
+  rust_types.OrderStatus.canceledByAdmin,
+};
+
+/// Counts trades whose live status differs from the last-seen snapshot.
 ///
-/// Resets to 0 when the user opens My Trades (index 1 in the bottom nav).
-/// Called by [TradesScreen] via [resetTradeNotifications].
+/// Only non-terminal trades are polled to avoid creating O(N) long-lived
+/// watchers for trades that can no longer change status.
+/// Resets to 0 while the user is on the My Trades tab (index 1).
 final orderBookNotificationCountProvider = Provider<int>((ref) {
   final currentIndex = ref.watch(bottomNavIndexProvider);
 
@@ -201,6 +214,8 @@ final orderBookNotificationCountProvider = Provider<int>((ref) {
       final lastSeen = ref.watch(_lastSeenStatusesProvider);
       int count = 0;
       for (final trade in trades) {
+        // Skip terminal trades — they have no further status changes to show.
+        if (_terminalOrderStatuses.contains(trade.order.status)) continue;
         final live =
             ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
         if (live == null) continue;
