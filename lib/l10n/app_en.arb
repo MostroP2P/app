@@ -411,5 +411,22 @@
   "removeRelayTooltip": "Remove relay",
   "@removeRelayTooltip": {"description": "Tooltip for the remove-relay icon button"},
   "backupConfirmCheckbox": "I have written down my words and backed them up securely",
-  "@backupConfirmCheckbox": {"description": "Label for the backup confirmation checkbox on the Account screen"}
+  "@backupConfirmCheckbox": {"description": "Label for the backup confirmation checkbox on the Account screen"},
+
+  "cancelTradeDialogTitle": "Cancel trade?",
+  "@cancelTradeDialogTitle": {"description": "Title for the cancel-trade confirmation dialog"},
+  "cancelTradeDialogContent": "Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.",
+  "@cancelTradeDialogContent": {"description": "Body text for the cancel-trade confirmation dialog"},
+  "noButtonLabel": "No",
+  "@noButtonLabel": {"description": "Negative button label in a confirmation dialog"},
+  "yesCancelButtonLabel": "Yes, cancel",
+  "@yesCancelButtonLabel": {"description": "Affirmative cancel button label in the cancel-trade dialog"},
+  "cancelRequestSent": "Cancel request sent",
+  "@cancelRequestSent": {"description": "Snackbar shown after a cooperative cancel request is sent"},
+  "cancelRequestFailed": "Failed to cancel. Please try again.",
+  "@cancelRequestFailed": {"description": "Snackbar shown when the cancel request fails"},
+  "fiatSentFailed": "Failed to mark fiat as sent. Please try again.",
+  "@fiatSentFailed": {"description": "Snackbar shown when the fiat-sent action fails"},
+  "releaseFailed": "Failed to release. Please try again.",
+  "@releaseFailed": {"description": "Snackbar shown when the release-sats action fails"}
 }

@@ -112,22 +112,20 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   }
 
   Future<void> _cancelOrder() async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cancel trade?'),
-        content: const Text(
-          'Requesting a cooperative cancel. The other party must also agree '
-          'for the trade to be fully cancelled.',
-        ),
+        title: Text(l10n.cancelTradeDialogTitle),
+        content: Text(l10n.cancelTradeDialogContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('No'),
+            child: Text(l10n.noButtonLabel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Yes, cancel'),
+            child: Text(l10n.yesCancelButtonLabel),
           ),
         ],
       ),
@@ -137,12 +135,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       await orders_api.cancelOrder(orderId: widget.orderId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cancel request sent')),
+        SnackBar(content: Text(l10n.cancelRequestSent)),
       );
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[TradeDetailScreen] cancelOrder error: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cancel failed: $e')),
+        SnackBar(content: Text(l10n.cancelRequestFailed)),
       );
     }
   }
@@ -184,6 +183,49 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final m = (d.inMinutes % 60).toString().padLeft(2, '0');
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$h:$m:$s';
+  }
+
+  /// Shared style for destructive (cancel / dispute) outlined buttons.
+  ButtonStyle _destructiveOutlineStyle(Color destructiveRed) =>
+      OutlinedButton.styleFrom(
+        foregroundColor: destructiveRed,
+        side: BorderSide(color: destructiveRed),
+        minimumSize: const Size(0, 40),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.button),
+        ),
+      );
+
+  /// RELEASE button — shared between the Disputed and Fiat-Sent seller flows.
+  Widget _buildReleaseButton(Color green) {
+    return MostroReactiveButton(
+      label: 'RELEASE',
+      backgroundColor: green,
+      icon: Icons.lock_open,
+      onPressed: () async {
+        final confirmed = await showReleaseConfirmationDialog(context);
+        if (confirmed != true || !context.mounted) return;
+        try {
+          await orders_api.releaseOrder(orderId: widget.orderId);
+          if (context.mounted) {
+            context.push(AppRoute.rateUserPath(widget.orderId));
+          }
+        } catch (e, st) {
+          debugPrint('[TradeDetailScreen] releaseOrder error: $e\n$st');
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
+          );
+        }
+      },
+      onError: (e) {
+        debugPrint('[TradeDetailScreen] releaseOrder onError: $e');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
+        );
+      },
+    );
   }
 
   @override
@@ -317,9 +359,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 await orders_api.sendFiatSent(orderId: widget.orderId);
               },
               onError: (e) {
+                debugPrint('[TradeDetailScreen] sendFiatSent onError: $e');
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to mark fiat sent: $e')),
+                  SnackBar(content: Text(AppLocalizations.of(context).fiatSentFailed)),
                 );
               },
             ),
@@ -331,17 +374,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -355,17 +389,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     },
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -412,17 +437,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -436,17 +452,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     },
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -516,52 +523,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: MostroReactiveButton(
-                    label: 'RELEASE',
-                    backgroundColor: green,
-                    icon: Icons.lock_open,
-                    onPressed: () async {
-                      final confirmed =
-                          await showReleaseConfirmationDialog(context);
-                      if (confirmed != true || !context.mounted) return;
-                      try {
-                        await orders_api.releaseOrder(orderId: widget.orderId);
-                        if (context.mounted) {
-                          context.push(
-                            AppRoute.rateUserPath(widget.orderId),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Release failed: $e')),
-                        );
-                      }
-                    },
-                    onError: (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Release failed: $e')),
-                      );
-                    },
-                  ),
-                ),
+                Expanded(child: _buildReleaseButton(green)),
               ],
             ),
             ], // end if (!isBuyer)
@@ -615,37 +583,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: MostroReactiveButton(
-                    label: 'RELEASE',
-                    backgroundColor: green,
-                    icon: Icons.lock_open,
-                    onPressed: () async {
-                      final confirmed =
-                          await showReleaseConfirmationDialog(context);
-                      if (confirmed != true || !context.mounted) return;
-                      try {
-                        await orders_api.releaseOrder(orderId: widget.orderId);
-                        if (context.mounted) {
-                          context.push(
-                            AppRoute.rateUserPath(widget.orderId),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Release failed: $e')),
-                        );
-                      }
-                    },
-                    onError: (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Release failed: $e')),
-                      );
-                    },
-                  ),
-                ),
+                Expanded(child: _buildReleaseButton(green)),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -656,17 +594,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -680,17 +609,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     },
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),

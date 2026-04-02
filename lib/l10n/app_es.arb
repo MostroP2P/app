@@ -196,5 +196,14 @@
   "disableRelayLabel": "Desactivar relay {url}",
   "enableRelayLabel": "Activar relay {url}",
   "removeRelayTooltip": "Eliminar relay",
-  "backupConfirmCheckbox": "He anotado mis palabras y las he guardado de forma segura"
+  "backupConfirmCheckbox": "He anotado mis palabras y las he guardado de forma segura",
+
+  "cancelTradeDialogTitle": "¿Cancelar intercambio?",
+  "cancelTradeDialogContent": "Se solicita una cancelación cooperativa. La otra parte también debe aceptar para que el intercambio quede cancelado.",
+  "noButtonLabel": "No",
+  "yesCancelButtonLabel": "Sí, cancelar",
+  "cancelRequestSent": "Solicitud de cancelación enviada",
+  "cancelRequestFailed": "No se pudo cancelar. Por favor, inténtelo de nuevo.",
+  "fiatSentFailed": "Error al marcar el fiat como enviado. Por favor, inténtelo de nuevo.",
+  "releaseFailed": "Error al liberar. Por favor, inténtelo de nuevo."
 }

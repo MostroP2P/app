@@ -1195,6 +1195,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'I have written down my words and backed them up securely'**
   String get backupConfirmCheckbox;
+
+  /// Title for the cancel-trade confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel trade?'**
+  String get cancelTradeDialogTitle;
+
+  /// Body text for the cancel-trade confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.'**
+  String get cancelTradeDialogContent;
+
+  /// Negative button label in a confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get noButtonLabel;
+
+  /// Affirmative cancel button label in the cancel-trade dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, cancel'**
+  String get yesCancelButtonLabel;
+
+  /// Snackbar shown after a cooperative cancel request is sent
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel request sent'**
+  String get cancelRequestSent;
+
+  /// Snackbar shown when the cancel request fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to cancel. Please try again.'**
+  String get cancelRequestFailed;
+
+  /// Snackbar shown when the fiat-sent action fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to mark fiat as sent. Please try again.'**
+  String get fiatSentFailed;
+
+  /// Snackbar shown when the release-sats action fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to release. Please try again.'**
+  String get releaseFailed;
 }
 
 class _AppLocalizationsDelegate

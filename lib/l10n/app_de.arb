@@ -196,5 +196,14 @@
   "disableRelayLabel": "Relay {url} deaktivieren",
   "enableRelayLabel": "Relay {url} aktivieren",
   "removeRelayTooltip": "Relay entfernen",
-  "backupConfirmCheckbox": "Ich habe meine Wörter aufgeschrieben und sicher gespeichert"
+  "backupConfirmCheckbox": "Ich habe meine Wörter aufgeschrieben und sicher gespeichert",
+
+  "cancelTradeDialogTitle": "Handel abbrechen?",
+  "cancelTradeDialogContent": "Kooperativen Abbruch angefragt. Die andere Partei muss ebenfalls zustimmen, damit der Handel vollständig abgebrochen wird.",
+  "noButtonLabel": "Nein",
+  "yesCancelButtonLabel": "Ja, abbrechen",
+  "cancelRequestSent": "Abbruchanfrage gesendet",
+  "cancelRequestFailed": "Abbrechen fehlgeschlagen. Bitte erneut versuchen.",
+  "fiatSentFailed": "Fiat-Zahlung konnte nicht bestätigt werden. Bitte erneut versuchen.",
+  "releaseFailed": "Freigabe fehlgeschlagen. Bitte erneut versuchen."
 }
