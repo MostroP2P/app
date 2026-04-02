@@ -249,7 +249,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final order = allOrders.where((o) => o.id == widget.orderId).firstOrNull;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ORDER DETAILS')),
+      appBar: AppBar(
+        title: const Text('ORDER DETAILS'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(AppRoute.home),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
