@@ -7,6 +7,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/chat/widgets/chat_list_item.dart';
 import 'package:mostro/features/disputes/widgets/disputes_list.dart';
+import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 
 /// Route: /chat_list
@@ -21,27 +22,48 @@ class ChatRoomsScreen extends ConsumerWidget {
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Chat'),
-          bottom: TabBar(
-            indicatorColor: colors.mostroGreen,
-            labelColor: colors.mostroGreen,
-            unselectedLabelColor: colors.textSubtle,
-            tabs: const [
-              Tab(text: 'Messages'),
-              Tab(text: 'Disputes'),
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
+
+    final mainContent = Column(
+      children: [
+        TabBar(
+          indicatorColor: colors.mostroGreen,
+          labelColor: colors.mostroGreen,
+          unselectedLabelColor: colors.textSubtle,
+          tabs: const [
+            Tab(text: 'Messages'),
+            Tab(text: 'Disputes'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            children: [
+              _MessagesTab(colors: colors, textTheme: textTheme),
+              _DisputesTab(colors: colors, textTheme: textTheme),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _MessagesTab(colors: colors, textTheme: textTheme),
-            _DisputesTab(colors: colors, textTheme: textTheme),
-          ],
-        ),
+      ],
+    );
+
+    final body = isDesktop
+        ? Row(
+            children: [
+              const DrawerMenu(persistent: true),
+              const VerticalDivider(width: 1),
+              Expanded(child: SafeArea(child: mainContent)),
+            ],
+          )
+        : mainContent;
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: isDesktop
+            ? null
+            : AppBar(title: const Text('Chat')),
+        body: body,
         bottomNavigationBar: const BottomNavBar(),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/trades_list_item.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart' show BottomNavBar;
@@ -12,11 +13,18 @@ import 'package:mostro/shared/widgets/notification_bell.dart';
 ///
 /// Shows all user trades sorted newest-first with a status filter dropdown.
 /// Tapping a card navigates to `/trade_detail/:orderId`.
-class TradesScreen extends ConsumerWidget {
+class TradesScreen extends ConsumerStatefulWidget {
   const TradesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TradesScreen> createState() => _TradesScreenState();
+}
+
+class _TradesScreenState extends ConsumerState<TradesScreen> {
+  bool _drawerOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
 
@@ -28,14 +36,98 @@ class TradesScreen extends ConsumerWidget {
       next.whenData((_) => resetTradeNotifications(ref));
     });
 
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
+
+    final mainContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Sub-header ──────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'My Trades',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ),
+
+              // ── Status filter dropdown ────────────────────────────────
+              _StatusFilterButton(
+                selected: selectedFilter,
+                colors: colors,
+                onChanged: (filter) {
+                  if (filter != null) {
+                    ref.read(selectedStatusFilterProvider.notifier).state =
+                        filter;
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+
+        // ── Trade list / loading / empty / error ──────────────────────
+        Expanded(
+          child: tradesAsync.when(
+            data: (trades) => RefreshIndicator(
+              onRefresh: () {
+                refreshTrades(ref);
+                return ref.refresh(filteredTradesWithOrderStateProvider.future);
+              },
+              child: trades.isEmpty
+                  ? _EmptyState(colors: colors)
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(
+                        top: AppSpacing.xs,
+                        bottom: AppSpacing.lg,
+                      ),
+                      itemCount: trades.length,
+                      itemBuilder: (context, index) =>
+                          TradesListItem(trade: trades[index]),
+                    ),
+            ),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => _ErrorState(
+              colors: colors,
+              onRetry: () =>
+                  ref.invalidate(filteredTradesWithOrderStateProvider),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (isDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            const DrawerMenu(persistent: true),
+            const VerticalDivider(width: 1),
+            Expanded(child: SafeArea(child: mainContent)),
+          ],
+        ),
+        bottomNavigationBar: const BottomNavBar(),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            tooltip: 'Menu',
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => setState(() => _drawerOpen = true),
+          tooltip: 'Menu',
         ),
         title: Image.asset(
           'assets/images/mostro_logo.png',
@@ -48,73 +140,13 @@ class TradesScreen extends ConsumerWidget {
         centerTitle: true,
         actions: const [NotificationBell()],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
         children: [
-          // ── Sub-header ──────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              0,
+          mainContent,
+          if (_drawerOpen)
+            DrawerMenu(
+              onClose: () => setState(() => _drawerOpen = false),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'My Trades',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
-
-                // ── Status filter dropdown ──────────────────────────────
-                _StatusFilterButton(
-                  selected: selectedFilter,
-                  colors: colors,
-                  onChanged: (filter) {
-                    if (filter != null) {
-                      ref.read(selectedStatusFilterProvider.notifier).state =
-                          filter;
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // ── Trade list / loading / empty / error ─────────────────────
-          Expanded(
-            child: tradesAsync.when(
-              data: (trades) => RefreshIndicator(
-                  onRefresh: () {
-                    refreshTrades(ref);
-                    return ref.refresh(filteredTradesWithOrderStateProvider.future);
-                  },
-                  child: trades.isEmpty
-                      ? _EmptyState(colors: colors)
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(
-                            top: AppSpacing.xs,
-                            bottom: AppSpacing.lg,
-                          ),
-                          itemCount: trades.length,
-                          itemBuilder: (context, index) =>
-                              TradesListItem(trade: trades[index]),
-                        ),
-                ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => _ErrorState(
-                colors: colors,
-                onRetry: () =>
-                    ref.invalidate(filteredTradesWithOrderStateProvider),
-              ),
-            ),
-          ),
         ],
       ),
       bottomNavigationBar: const BottomNavBar(),
