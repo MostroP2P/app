@@ -49,15 +49,30 @@ class _AddLightningInvoiceScreenState
     return fallback != null ? BigInt.from(fallback) : null;
   }
 
-  bool _isValid(WidgetRef ref) =>
-      _invoiceController.text.trim().isNotEmpty;
+  bool _isLnAddress(String text) => text.contains('@');
+
+  bool _isValid(WidgetRef ref) {
+    final text = _invoiceController.text.trim();
+    if (text.isEmpty) return false;
+    // Lightning Address requires a known sats amount before submission.
+    if (_isLnAddress(text) && _resolvedSats(ref) == null) return false;
+    return true;
+  }
 
   Future<void> _submit(WidgetRef ref) async {
     if (_submitting) return;
-    // Use the resolved sats amount if available; fall back to 1 so the Rust
-    // side's non-zero guard passes. The value is not included in the wire
-    // message to Mostro — the bolt11 invoice already encodes the amount.
-    final sats = _resolvedSats(ref) ?? BigInt.one;
+    final input = _invoiceController.text.trim();
+    // For Lightning Addresses, the sats amount must be resolved before sending —
+    // the Rust side uses it to resolve the address. Bolt11 invoices encode
+    // their own amount so BigInt.one is an acceptable non-zero placeholder.
+    final resolvedSats = _resolvedSats(ref);
+    if (_isLnAddress(input) && resolvedSats == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Waiting for trade amount — please try again shortly.')),
+      );
+      return;
+    }
+    final sats = resolvedSats ?? BigInt.one;
     setState(() => _submitting = true);
 
     try {

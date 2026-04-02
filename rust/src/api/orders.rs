@@ -331,7 +331,8 @@ pub async fn take_order(
     // Derive a fresh trade key so each take uses a unique Nostr identity.
     let trade_key_info = crate::api::identity::derive_trade_key().await?;
     let trade_index = trade_key_info.index;
-    store_trade_key_index(&order_id, trade_index);
+    // Do NOT persist the mapping here — store only after the take event is
+    // successfully published so a publish failure doesn't leave a stale entry.
 
     let trade = TradeInfo {
         id: uuid::Uuid::new_v4().to_string(),
@@ -390,10 +391,13 @@ pub async fn take_order(
                         if let Err(e) = publish_event_json(&event_json).await {
                             log::warn!("[orders] take_order publish failed: {e}");
                         } else {
+                            // Persist the trade-key mapping only after a successful publish
+                            // so a publish failure doesn't leave a stale entry.
+                            store_trade_key_index(&order_id, trade_index);
                             log::info!(
                                 "[orders] take_order dispatched order={order_id} \
-                                 trade_index={trade_index} ln_address={:?}",
-                                ln_address_ref
+                                 trade_index={trade_index} ln_address={}",
+                                if ln_address_ref.is_some() { "present" } else { "none" }
                             );
                             // Subscribe to d-tag K38383 updates for this specific order so we
                             // receive status changes (pending → in-progress → waiting-payment …).
@@ -533,13 +537,16 @@ async fn subscribe_single_order(order_id: &str) {
         use nostr_sdk::RelayPoolNotification;
         use tokio::time::{timeout, Duration};
 
-        // Stop watching after 30 minutes of total time regardless of activity.
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(30 * 60);
+        // Exit after 30 minutes of inactivity (no order updates received).
+        // The timer resets on each relevant event so active trades stay subscribed.
+        const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
+        let mut last_activity = tokio::time::Instant::now();
 
         loop {
-            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            let remaining = Duration::from_secs(IDLE_TIMEOUT_SECS)
+                .saturating_sub(last_activity.elapsed());
             if remaining.is_zero() {
-                log::debug!("[orders] subscribe_single_order timeout for order={order_id}");
+                log::debug!("[orders] subscribe_single_order idle timeout for order={order_id}");
                 break;
             }
 
@@ -552,13 +559,14 @@ async fn subscribe_single_order(order_id: &str) {
                                 order_id,
                                 order.status
                             );
+                            last_activity = tokio::time::Instant::now();
                             order_book().upsert_order(order).await;
                         }
                     }
                 }
                 Ok(Ok(RelayPoolNotification::Shutdown)) => break,
                 Ok(Err(_)) => break,
-                Err(_) => break, // timeout
+                Err(_) => break, // idle timeout
                 Ok(Ok(_)) => continue,
             }
         }

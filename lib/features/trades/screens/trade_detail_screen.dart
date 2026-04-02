@@ -34,6 +34,8 @@ const _kCountdownSeconds = 900; // 15 minutes
 /// Type-safe trade status for the detail screen.
 /// Will map to/from Rust bridge TradeStep when wired.
 enum TradeStatus {
+  /// Status not yet resolved (initial loading state — no actions shown).
+  loading('Loading'),
   active('Active'),
   fiatSent('Fiat Sent'),
   completed('Completed'),
@@ -105,7 +107,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       case OrderStatus.dispute:
         return TradeStatus.disputed;
       default:
-        return TradeStatus.active;
+        return TradeStatus.loading;
     }
   }
 
