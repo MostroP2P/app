@@ -144,6 +144,19 @@ pub fn pending_orders_filter(mostro_pubkey: &PublicKey) -> Filter {
         .custom_tag(SingleLetterTag::lowercase(Alphabet::S), "pending")
 }
 
+/// Build a Nostr filter for **all** Kind 38383 orders from a specific Mostro node,
+/// regardless of status.
+///
+/// Use this for the global order-book subscription so that status transitions
+/// (e.g. `pending` → `canceled` / `in-progress`) are received and the order
+/// is removed from or updated in the order book in real time.
+/// Display-level filtering (show only `pending`) is done in the Dart layer.
+pub fn all_orders_filter(mostro_pubkey: &PublicKey) -> Filter {
+    Filter::new()
+        .kind(Kind::from(KIND_ORDER))
+        .author(*mostro_pubkey)
+}
+
 /// Build a Nostr filter for a **single** Kind 38383 order by `d`-tag (order ID).
 ///
 /// Unlike `pending_orders_filter`, this filter has **no status restriction** —

@@ -705,7 +705,10 @@ async fn _run_order_subscription() {
     // events that arrive between the subscribe call and receiver creation.
     let mut rx = client.notifications();
 
-    let filter = crate::nostr::order_events::pending_orders_filter(&mostro_pubkey);
+    // Subscribe to ALL orders (no status restriction) so we receive status-change
+    // events (e.g. pending → canceled) and can remove them from the order book.
+    // Display-level filtering (show only pending) is handled in the Dart layer.
+    let filter = crate::nostr::order_events::all_orders_filter(&mostro_pubkey);
     if let Err(e) = client.subscribe(filter, None).await {
         log::error!("[orders] subscribe failed: {e}");
         return;
