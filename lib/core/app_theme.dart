@@ -240,6 +240,15 @@ ThemeData _buildTheme({
   final base = ThemeData(
     brightness: brightness,
     scaffoldBackgroundColor: scaffold,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: _NoTransitionBuilder(),
+        TargetPlatform.iOS: _NoTransitionBuilder(),
+        TargetPlatform.linux: _NoTransitionBuilder(),
+        TargetPlatform.macOS: _NoTransitionBuilder(),
+        TargetPlatform.windows: _NoTransitionBuilder(),
+      },
+    ),
     colorScheme: ColorScheme(
       brightness: brightness,
       primary: colors.mostroGreen,
@@ -341,4 +350,19 @@ ThemeData _buildTheme({
     extensions: [colors],
   );
   return base;
+}
+
+// Instant page transition — no animation.
+class _NoTransitionBuilder extends PageTransitionsBuilder {
+  const _NoTransitionBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      child;
 }
