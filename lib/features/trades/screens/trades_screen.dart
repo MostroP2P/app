@@ -13,11 +13,18 @@ import 'package:mostro/shared/widgets/notification_bell.dart';
 ///
 /// Shows all user trades sorted newest-first with a status filter dropdown.
 /// Tapping a card navigates to `/trade_detail/:orderId`.
-class TradesScreen extends ConsumerWidget {
+class TradesScreen extends ConsumerStatefulWidget {
   const TradesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TradesScreen> createState() => _TradesScreenState();
+}
+
+class _TradesScreenState extends ConsumerState<TradesScreen> {
+  bool _drawerOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
 
@@ -102,39 +109,46 @@ class TradesScreen extends ConsumerWidget {
       ],
     );
 
-    final body = isDesktop
-        ? Row(
-            children: [
-              const DrawerMenu(persistent: true),
-              const VerticalDivider(width: 1),
-              Expanded(child: mainContent),
-            ],
-          )
-        : mainContent;
+    if (isDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            const DrawerMenu(persistent: true),
+            const VerticalDivider(width: 1),
+            Expanded(child: SafeArea(child: mainContent)),
+          ],
+        ),
+        bottomNavigationBar: const BottomNavBar(),
+      );
+    }
 
     return Scaffold(
-      appBar: isDesktop
-          ? null
-          : AppBar(
-              leading: Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  tooltip: 'Menu',
-                ),
-              ),
-              title: Image.asset(
-                'assets/images/mostro_logo.png',
-                height: 28,
-                errorBuilder: (_, __, ___) => Text(
-                  'Mostro',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-              ),
-              centerTitle: true,
-              actions: const [NotificationBell()],
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => setState(() => _drawerOpen = true),
+          tooltip: 'Menu',
+        ),
+        title: Image.asset(
+          'assets/images/mostro_logo.png',
+          height: 28,
+          errorBuilder: (_, __, ___) => Text(
+            'Mostro',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+        ),
+        centerTitle: true,
+        actions: const [NotificationBell()],
+      ),
+      body: Stack(
+        children: [
+          mainContent,
+          if (_drawerOpen)
+            DrawerMenu(
+              onClose: () => setState(() => _drawerOpen = false),
             ),
-      body: body,
+        ],
+      ),
       bottomNavigationBar: const BottomNavBar(),
     );
   }

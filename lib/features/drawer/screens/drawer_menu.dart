@@ -270,6 +270,7 @@ class _NavItem extends StatelessWidget {
       button: true,
       label: label,
       selected: isActive,
+      hint: badgeCount > 0 ? '$badgeCount new' : null,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

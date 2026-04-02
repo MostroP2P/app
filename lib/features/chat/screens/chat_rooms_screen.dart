@@ -52,7 +52,7 @@ class ChatRoomsScreen extends ConsumerWidget {
             children: [
               const DrawerMenu(persistent: true),
               const VerticalDivider(width: 1),
-              Expanded(child: mainContent),
+              Expanded(child: SafeArea(child: mainContent)),
             ],
           )
         : mainContent;
