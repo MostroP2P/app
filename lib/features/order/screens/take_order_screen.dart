@@ -12,6 +12,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart' show refreshTrades;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/types.dart';
@@ -121,6 +122,9 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       );
 
       if (!mounted) return;
+
+      // Bust the trades cache so My Trades picks up the newly saved trade.
+      refreshTrades(ref);
 
       // Record the user's role so TradeDetailScreen can read it.
       ref.read(tradeRoleProvider.notifier).update(

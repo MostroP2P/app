@@ -137,10 +137,17 @@ String _formatFiat(double? amount, double? min, double? max) {
 // ── Raw trade list from DB ────────────────────────────────────────────────────
 
 /// Loads all trades from the Rust DB, sorted newest-first.
-/// Refreshed once per session; per-row live status comes from [tradeStatusProvider].
-final _rawTradesProvider = FutureProvider<List<rust_types.TradeInfo>>((ref) {
+///
+/// Exposed so callers (e.g. [refreshTrades]) can invalidate it when new trades
+/// are added. Per-row live status comes from [tradeStatusProvider].
+final rawTradesProvider = FutureProvider<List<rust_types.TradeInfo>>((ref) {
   return orders_api.listTrades();
 });
+
+/// Invalidates the raw trades cache, forcing a fresh DB fetch on next read.
+///
+/// Call this after a trade is successfully saved (e.g. after [takeOrder]).
+void refreshTrades(WidgetRef ref) => ref.invalidate(rawTradesProvider);
 
 // ── Providers ─────────────────────────────────────────────────────────────────
 
@@ -150,13 +157,13 @@ final selectedStatusFilterProvider =
 
 /// Filtered and sorted list of the user's trades.
 ///
-/// Pulls persisted trades from the Rust DB via [_rawTradesProvider] and
+/// Pulls persisted trades from the Rust DB via [rawTradesProvider] and
 /// applies the active [selectedStatusFilterProvider].  Per-row status chips
 /// update independently via [tradeStatusProvider] inside [TradesListItem].
 final filteredTradesWithOrderStateProvider =
     FutureProvider<List<TradeListItem>>((ref) async {
   final filter = ref.watch(selectedStatusFilterProvider);
-  final trades = await ref.watch(_rawTradesProvider.future);
+  final trades = await ref.watch(rawTradesProvider.future);
 
   final items = trades.map(_tradeInfoToItem).toList();
 
@@ -188,7 +195,7 @@ final orderBookNotificationCountProvider = Provider<int>((ref) {
   // While the user is on the My Trades tab no badge is needed.
   if (currentIndex == 1) return 0;
 
-  final tradesAsync = ref.watch(_rawTradesProvider);
+  final tradesAsync = ref.watch(rawTradesProvider);
   return tradesAsync.when(
     data: (trades) {
       final lastSeen = ref.watch(_lastSeenStatusesProvider);
@@ -211,7 +218,7 @@ final orderBookNotificationCountProvider = Provider<int>((ref) {
 /// Call this when the My Trades tab becomes active to snapshot current
 /// statuses and reset the badge to 0.
 void resetTradeNotifications(WidgetRef ref) {
-  final tradesAsync = ref.read(_rawTradesProvider);
+  final tradesAsync = ref.read(rawTradesProvider);
   tradesAsync.whenData((trades) {
     final snapshot = <String, rust_types.OrderStatus>{};
     for (final trade in trades) {
