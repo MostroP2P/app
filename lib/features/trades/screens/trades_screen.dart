@@ -20,8 +20,18 @@ class TradesScreen extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
 
-    final trades = ref.watch(filteredTradesWithOrderStateProvider);
+    final tradesAsync = ref.watch(filteredTradesWithOrderStateProvider);
     final selectedFilter = ref.watch(selectedStatusFilterProvider);
+
+    // Reset badge and snapshot statuses whenever this screen is shown.
+    ref.listen(filteredTradesWithOrderStateProvider, (_, next) {
+      next.whenData((_) => resetTradeNotifications(ref));
+    });
+
+    // Also wire the bottom nav badge to orderBookNotificationCountProvider.
+    ref.listen(orderBookNotificationCountProvider, (_, count) {
+      ref.read(tradesNotificationCountProvider.notifier).state = count;
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -82,19 +92,32 @@ class TradesScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // ── Trade list / empty state ─────────────────────────────────────
+          // ── Trade list / loading / empty / error ─────────────────────
           Expanded(
-            child: trades.isEmpty
-                ? _EmptyState(colors: colors)
-                : ListView.builder(
-                    padding: const EdgeInsets.only(
-                      top: AppSpacing.xs,
-                      bottom: AppSpacing.lg,
+            child: tradesAsync.when(
+              data: (trades) => trades.isEmpty
+                  ? _EmptyState(colors: colors)
+                  : RefreshIndicator(
+                      onRefresh: () async {
+                        ref.invalidate(filteredTradesWithOrderStateProvider);
+                      },
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(
+                          top: AppSpacing.xs,
+                          bottom: AppSpacing.lg,
+                        ),
+                        itemCount: trades.length,
+                        itemBuilder: (context, index) =>
+                            TradesListItem(trade: trades[index]),
+                      ),
                     ),
-                    itemCount: trades.length,
-                    itemBuilder: (context, index) =>
-                        TradesListItem(trade: trades[index]),
-                  ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => _ErrorState(
+                colors: colors,
+                onRetry: () =>
+                    ref.invalidate(filteredTradesWithOrderStateProvider),
+              ),
+            ),
           ),
         ],
       ),
@@ -187,6 +210,36 @@ class _EmptyState extends StatelessWidget {
                 ),
             textAlign: TextAlign.center,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Error state ───────────────────────────────────────────────────────────────
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.colors, required this.onRetry});
+
+  final AppColors colors;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline, size: 48, color: colors.textSubtle),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Could not load trades',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );

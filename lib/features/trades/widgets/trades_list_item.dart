@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 
 /// A single card row in the My Trades list.
@@ -14,8 +16,11 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 /// │ 🏦 966 ARS · 2 hours ago    Mercado Pago                   │
 /// └─────────────────────────────────────────────────────────────┘
 ///
+/// Watches [tradeStatusProvider] to keep the status chip current without
+/// requiring a full list reload.
+///
 /// Tap → navigates to `/trade_detail/:orderId`.
-class TradesListItem extends StatelessWidget {
+class TradesListItem extends ConsumerWidget {
   const TradesListItem({
     super.key,
     required this.trade,
@@ -24,20 +29,23 @@ class TradesListItem extends StatelessWidget {
   final TradeListItem trade;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
 
-    final titleText =
-        trade.isSelling ? 'Selling Bitcoin' : 'Buying Bitcoin';
+    // Live status from the polling provider; falls back to the DB snapshot.
+    final liveStatusAsync = ref.watch(tradeStatusProvider(trade.orderId));
+    final effectiveStatus = liveStatusAsync.whenOrNull(
+          data: orderStatusToFilter,
+        ) ??
+        trade.status;
 
-    final (statusBg, statusFg) = _statusColors(trade.status);
-    final statusLabel = trade.status.label;
-
+    final titleText = trade.isSelling ? 'Selling Bitcoin' : 'Buying Bitcoin';
+    final (statusBg, statusFg) = _statusColors(effectiveStatus);
+    final statusLabel = effectiveStatus.label;
     final roleLabel =
         trade.role == TradeRole.creator ? 'Created by you' : 'Taken by you';
-
     final timeAgo = _timeAgo(trade.createdAt);
 
     return Card(
@@ -150,8 +158,7 @@ class TradesListItem extends StatelessWidget {
       TradeStatusFilter.success => AppColors.statusSuccess,
       TradeStatusFilter.canceled => AppColors.statusInactive,
       TradeStatusFilter.dispute => AppColors.statusDispute,
-      // `all` is a filter sentinel, not a real trade status — shouldn't occur
-      // in practice since TradesListItem only renders individual trades.
+      // `all` is a filter sentinel, not a real trade status.
       TradeStatusFilter.all => AppColors.statusInactive,
     };
   }
@@ -161,7 +168,6 @@ class TradesListItem extends StatelessWidget {
     final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
     final diff = DateTime.now().difference(dt);
 
-    // Guard against clock skew producing a negative (future) timestamp.
     if (diff.isNegative || diff.inSeconds < 60) return 'just now';
     if (diff.inMinutes < 60) {
       final m = diff.inMinutes;

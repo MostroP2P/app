@@ -779,6 +779,19 @@ pub(crate) async fn process_order_event(event: &nostr_sdk::Event, my_pubkey: Opt
     }
 }
 
+/// Return all trades persisted in the local DB, sorted newest-first.
+///
+/// Returns an empty vec when the DB has not been initialised yet (e.g. during
+/// early startup, unit tests, or web builds before IndexedDB is wired).
+pub async fn list_trades() -> Result<Vec<crate::api::types::TradeInfo>> {
+    let Some(db) = crate::db::app_db::db() else {
+        return Ok(vec![]);
+    };
+    let mut trades = db.list_trades().await?;
+    trades.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+    Ok(trades)
+}
+
 /// Return the persisted [`TradeRole`] for the given `order_id`.
 ///
 /// Returns `Some(role)` when a matching trade record exists in the DB,
