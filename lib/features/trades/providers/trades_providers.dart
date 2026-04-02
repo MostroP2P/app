@@ -188,16 +188,16 @@ final orderBookNotificationCountProvider = Provider<int>((ref) {
   // While the user is on the My Trades tab no badge is needed.
   if (currentIndex == 1) return 0;
 
-  final tradesAsync = ref.watch(filteredTradesWithOrderStateProvider);
+  final tradesAsync = ref.watch(_rawTradesProvider);
   return tradesAsync.when(
     data: (trades) {
       final lastSeen = ref.watch(_lastSeenStatusesProvider);
       int count = 0;
       for (final trade in trades) {
         final live =
-            ref.watch(tradeStatusProvider(trade.orderId)).valueOrNull;
+            ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
         if (live == null) continue;
-        final seen = lastSeen[trade.orderId];
+        final seen = lastSeen[trade.order.id];
         // Unseen if no prior snapshot or status changed.
         if (seen == null || seen != live) count++;
       }
@@ -211,13 +211,13 @@ final orderBookNotificationCountProvider = Provider<int>((ref) {
 /// Call this when the My Trades tab becomes active to snapshot current
 /// statuses and reset the badge to 0.
 void resetTradeNotifications(WidgetRef ref) {
-  final tradesAsync = ref.read(filteredTradesWithOrderStateProvider);
+  final tradesAsync = ref.read(_rawTradesProvider);
   tradesAsync.whenData((trades) {
     final snapshot = <String, rust_types.OrderStatus>{};
     for (final trade in trades) {
       final live =
-          ref.read(tradeStatusProvider(trade.orderId)).valueOrNull;
-      if (live != null) snapshot[trade.orderId] = live;
+          ref.read(tradeStatusProvider(trade.order.id)).valueOrNull;
+      if (live != null) snapshot[trade.order.id] = live;
     }
     ref.read(_lastSeenStatusesProvider.notifier).state = snapshot;
   });

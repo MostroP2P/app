@@ -98,9 +98,7 @@ class TradesScreen extends ConsumerWidget {
               data: (trades) => trades.isEmpty
                   ? _EmptyState(colors: colors)
                   : RefreshIndicator(
-                      onRefresh: () async {
-                        ref.invalidate(filteredTradesWithOrderStateProvider);
-                      },
+                      onRefresh: () => ref.refresh(filteredTradesWithOrderStateProvider.future),
                       child: ListView.builder(
                         padding: const EdgeInsets.only(
                           top: AppSpacing.xs,
