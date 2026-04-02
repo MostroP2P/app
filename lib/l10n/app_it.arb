@@ -196,5 +196,14 @@
   "disableRelayLabel": "Disabilita relay {url}",
   "enableRelayLabel": "Abilita relay {url}",
   "removeRelayTooltip": "Rimuovi relay",
-  "backupConfirmCheckbox": "Ho annotato le mie parole e le ho salvate in modo sicuro"
+  "backupConfirmCheckbox": "Ho annotato le mie parole e le ho salvate in modo sicuro",
+
+  "cancelTradeDialogTitle": "Annullare lo scambio?",
+  "cancelTradeDialogContent": "Annullamento cooperativo richiesto. Anche l'altra parte deve accettare affinché lo scambio venga annullato.",
+  "noButtonLabel": "No",
+  "yesCancelButtonLabel": "Sì, annulla",
+  "cancelRequestSent": "Richiesta di annullamento inviata",
+  "cancelRequestFailed": "Annullamento fallito. Riprovare.",
+  "fiatSentFailed": "Impossibile contrassegnare il fiat come inviato. Riprovare.",
+  "releaseFailed": "Rilascio fallito. Riprovare."
 }

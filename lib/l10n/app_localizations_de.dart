@@ -603,4 +603,30 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get backupConfirmCheckbox =>
       'Ich habe meine Wörter aufgeschrieben und sicher gespeichert';
+
+  @override
+  String get cancelTradeDialogTitle => 'Handel abbrechen?';
+
+  @override
+  String get cancelTradeDialogContent =>
+      'Kooperativen Abbruch angefragt. Die andere Partei muss ebenfalls zustimmen, damit der Handel vollständig abgebrochen wird.';
+
+  @override
+  String get noButtonLabel => 'Nein';
+
+  @override
+  String get yesCancelButtonLabel => 'Ja, abbrechen';
+
+  @override
+  String get cancelRequestSent => 'Abbruchanfrage gesendet';
+
+  @override
+  String get cancelRequestFailed => 'Abbrechen fehlgeschlagen. Bitte erneut versuchen.';
+
+  @override
+  String get fiatSentFailed =>
+      'Fiat-Zahlung konnte nicht bestätigt werden. Bitte erneut versuchen.';
+
+  @override
+  String get releaseFailed => 'Freigabe fehlgeschlagen. Bitte erneut versuchen.';
 }

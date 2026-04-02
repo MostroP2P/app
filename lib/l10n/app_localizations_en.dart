@@ -595,4 +595,29 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get backupConfirmCheckbox =>
       'I have written down my words and backed them up securely';
+
+  @override
+  String get cancelTradeDialogTitle => 'Cancel trade?';
+
+  @override
+  String get cancelTradeDialogContent =>
+      'Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.';
+
+  @override
+  String get noButtonLabel => 'No';
+
+  @override
+  String get yesCancelButtonLabel => 'Yes, cancel';
+
+  @override
+  String get cancelRequestSent => 'Cancel request sent';
+
+  @override
+  String get cancelRequestFailed => 'Failed to cancel. Please try again.';
+
+  @override
+  String get fiatSentFailed => 'Failed to mark fiat as sent. Please try again.';
+
+  @override
+  String get releaseFailed => 'Failed to release. Please try again.';
 }

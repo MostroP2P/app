@@ -134,7 +134,6 @@ fn parse_fiat_range(raw: &Option<String>) -> (Option<f64>, Option<f64>) {
 /// orders on behalf of makers after they send a `new-order` NIP-59 message.
 /// Filtering by `author = mostro_pubkey` ensures we only receive orders that
 /// belong to the trusted Mostro instance configured in the app.
-/// Build a Nostr filter for pending orders from a specific Mostro node.
 ///
 /// The `s` tag value is `"pending"` (kebab-case) — mostro-core serialises
 /// the `Status` enum with `#[serde(rename_all = "kebab-case")]`.
@@ -143,4 +142,17 @@ pub fn pending_orders_filter(mostro_pubkey: &PublicKey) -> Filter {
         .kind(Kind::from(KIND_ORDER))
         .author(*mostro_pubkey)
         .custom_tag(SingleLetterTag::lowercase(Alphabet::S), "pending")
+}
+
+/// Build a Nostr filter for a **single** Kind 38383 order by `d`-tag (order ID).
+///
+/// Unlike `pending_orders_filter`, this filter has **no status restriction** —
+/// it captures every K38383 update for the given order ID regardless of status.
+/// Use this after taking an order to track status changes: `pending` →
+/// `in-progress` → `waiting-buyer-invoice` / `waiting-payment` → `active` etc.
+pub fn trade_order_filter(mostro_pubkey: &PublicKey, order_id: &str) -> Filter {
+    Filter::new()
+        .kind(Kind::from(KIND_ORDER))
+        .author(*mostro_pubkey)
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::D), order_id)
 }

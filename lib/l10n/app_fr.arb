@@ -196,5 +196,14 @@
   "disableRelayLabel": "Désactiver le relais {url}",
   "enableRelayLabel": "Activer le relais {url}",
   "removeRelayTooltip": "Supprimer le relais",
-  "backupConfirmCheckbox": "J'ai noté mes mots et les ai sauvegardés en lieu sûr"
+  "backupConfirmCheckbox": "J'ai noté mes mots et les ai sauvegardés en lieu sûr",
+
+  "cancelTradeDialogTitle": "Annuler l'échange ?",
+  "cancelTradeDialogContent": "Annulation coopérative demandée. L'autre partie doit également accepter pour que l'échange soit entièrement annulé.",
+  "noButtonLabel": "Non",
+  "yesCancelButtonLabel": "Oui, annuler",
+  "cancelRequestSent": "Demande d'annulation envoyée",
+  "cancelRequestFailed": "Échec de l'annulation. Veuillez réessayer.",
+  "fiatSentFailed": "Échec de la confirmation du paiement fiat. Veuillez réessayer.",
+  "releaseFailed": "Échec de la libération. Veuillez réessayer."
 }

@@ -9,6 +9,8 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
+import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
 import 'package:mostro/features/trades/widgets/trade_info_cards.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
@@ -32,6 +34,8 @@ const _kCountdownSeconds = 900; // 15 minutes
 /// Type-safe trade status for the detail screen.
 /// Will map to/from Rust bridge TradeStep when wired.
 enum TradeStatus {
+  /// Status not yet resolved (initial loading state — no actions shown).
+  loading('Loading'),
   active('Active'),
   fiatSent('Fiat Sent'),
   completed('Completed'),
@@ -51,14 +55,6 @@ enum TradeStatus {
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
   Duration _remaining = const Duration(seconds: _kCountdownSeconds);
-
-  // TODO(bridge): Replace with real state from a TradeInfo Riverpod
-  // provider backed by the Rust bridge once FFI bindings expose
-  // TradeInfo for widget.orderId. Map TradeInfo.current_step to
-  // TradeStatus and TradeInfo.role to _isBuyer.
-  TradeStatus _status = TradeStatus.active;
-  // ignore: prefer_final_fields
-  bool _isBuyer = true;
 
   @override
   void initState() {
@@ -87,32 +83,95 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     });
   }
 
-  String _getInstructionText() {
-    if (_isBuyer) {
-      if (_status == TradeStatus.active) {
+  String _formatDate(DateTime dt) =>
+      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
+      '${dt.day.toString().padLeft(2, '0')} '
+      '${dt.hour.toString().padLeft(2, '0')}:'
+      '${dt.minute.toString().padLeft(2, '0')}';
+
+  static TradeStatus _mapOrderStatus(OrderStatus s) {
+    switch (s) {
+      case OrderStatus.active:
+        return TradeStatus.active;
+      case OrderStatus.fiatSent:
+        return TradeStatus.fiatSent;
+      case OrderStatus.settledHoldInvoice:
+      case OrderStatus.success:
+      case OrderStatus.completedByAdmin:
+      case OrderStatus.settledByAdmin:
+        return TradeStatus.pendingRating;
+      case OrderStatus.canceled:
+      case OrderStatus.canceledByAdmin:
+      case OrderStatus.expired:
+        return TradeStatus.cancelled;
+      case OrderStatus.dispute:
+        return TradeStatus.disputed;
+      default:
+        return TradeStatus.loading;
+    }
+  }
+
+  Future<void> _cancelOrder() async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.cancelTradeDialogTitle),
+        content: Text(l10n.cancelTradeDialogContent),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.noButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.yesCancelButtonLabel),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await orders_api.cancelOrder(orderId: widget.orderId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.cancelRequestSent)),
+      );
+    } catch (e, st) {
+      debugPrint('[TradeDetailScreen] cancelOrder error: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.cancelRequestFailed)),
+      );
+    }
+  }
+
+  String _getInstructionText(bool isBuyer, TradeStatus status) {
+    if (isBuyer) {
+      if (status == TradeStatus.active) {
         return 'Send the fiat payment to the seller, then tap "Fiat Sent".';
-      } else if (_status == TradeStatus.fiatSent) {
+      } else if (status == TradeStatus.fiatSent) {
         return 'Fiat payment marked as sent. Waiting for the seller '
             'to confirm receipt and release your sats.';
       }
     } else {
       // Seller
-      if (_status == TradeStatus.active) {
+      if (status == TradeStatus.active) {
         return 'Contact the buyer with payment instructions.';
-      } else if (_status == TradeStatus.fiatSent) {
+      } else if (status == TradeStatus.fiatSent) {
         return 'The buyer has confirmed they sent the fiat payment. '
             'Once you verify receipt, release the sats.';
       }
     }
-    if (_status == TradeStatus.disputed) {
+    if (status == TradeStatus.disputed) {
       return 'A dispute resolver has been assigned. '
           'They will contact you through the app.';
     }
-    if (_status == TradeStatus.pendingRating) {
+    if (status == TradeStatus.pendingRating) {
       return 'The trade completed successfully. '
           'Rate your counterpart to help build trust in the community.';
     }
-    if (_status == TradeStatus.rated) {
+    if (status == TradeStatus.rated) {
       return 'Thank you for your rating!';
     }
     return 'Trade in progress.';
@@ -126,12 +185,68 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     return '$h:$m:$s';
   }
 
+  /// Shared style for destructive (cancel / dispute) outlined buttons.
+  ButtonStyle _destructiveOutlineStyle(Color destructiveRed) =>
+      OutlinedButton.styleFrom(
+        foregroundColor: destructiveRed,
+        side: BorderSide(color: destructiveRed),
+        minimumSize: const Size(0, 40),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.button),
+        ),
+      );
+
+  /// RELEASE button — shared between the Disputed and Fiat-Sent seller flows.
+  Widget _buildReleaseButton(Color green) {
+    return MostroReactiveButton(
+      label: 'RELEASE',
+      backgroundColor: green,
+      icon: Icons.lock_open,
+      onPressed: () async {
+        final confirmed = await showReleaseConfirmationDialog(context);
+        if (confirmed != true || !context.mounted) return;
+        try {
+          await orders_api.releaseOrder(orderId: widget.orderId);
+          if (context.mounted) {
+            context.push(AppRoute.rateUserPath(widget.orderId));
+          }
+        } catch (e, st) {
+          debugPrint('[TradeDetailScreen] releaseOrder error: $e\n$st');
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
+          );
+        }
+      },
+      onError: (e) {
+        debugPrint('[TradeDetailScreen] releaseOrder onError: $e');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+
+    // Derive role from provider (set by TakeOrderScreen before navigation).
+    final roleMap = ref.watch(tradeRoleProvider);
+    final isBuyer = roleMap[widget.orderId] ?? true;
+
+    // Derive trade status from the polled order status.
+    final orderStatus = ref.watch(tradeStatusProvider(widget.orderId)).valueOrNull
+        ?? OrderStatus.pending;
+    final status = _mapOrderStatus(orderStatus);
+
+    // Look up order details from the live order book.
+    final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
+    final order = allOrders.where((o) => o.id == widget.orderId).firstOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('ORDER DETAILS')),
@@ -144,11 +259,18 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isBuyer
+                  isBuyer
                       ? 'You are buying sats'
                       : 'You are selling sats',
                   style: theme.textTheme.headlineSmall,
                 ),
+                if (order != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '${order.displayAmount} ${order.fiatCode}',
+                    style: TextStyle(color: green, fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Order ${widget.orderId}',
@@ -165,7 +287,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               children: [
                 Icon(Icons.payment_outlined, size: 18, color: textSec),
                 const SizedBox(width: AppSpacing.sm),
-                Text('Mercado Pago', style: theme.textTheme.bodyMedium),
+                Text(order?.paymentMethod ?? '—', style: theme.textTheme.bodyMedium),
               ],
             ),
           ),
@@ -177,7 +299,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               children: [
                 Icon(Icons.calendar_today_outlined, size: 18, color: textSec),
                 const SizedBox(width: AppSpacing.sm),
-                Text('2024-01-15 14:30', style: theme.textTheme.bodyMedium),
+                Text(
+                  order != null ? _formatDate(order.createdAt) : '—',
+                  style: theme.textTheme.bodyMedium,
+                ),
               ],
             ),
           ),
@@ -189,8 +314,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
           // Card 5: Instructions + status
           InstructionsCard(
-            text: _getInstructionText(),
-            statusLabel: _status.label,
+            text: _getInstructionText(isBuyer, status),
+            statusLabel: status.label,
           ),
           const SizedBox(height: AppSpacing.xl),
 
@@ -225,21 +350,19 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ],
 
           // Action buttons (buyer flow — T060)
-          if (_isBuyer && _status == TradeStatus.active) ...[
+          if (isBuyer && status == TradeStatus.active) ...[
             MostroReactiveButton(
               label: 'FIAT SENT',
               backgroundColor: green,
               icon: Icons.send,
               onPressed: () async {
                 await orders_api.sendFiatSent(orderId: widget.orderId);
-                if (mounted) {
-                  setState(() => _status = TradeStatus.fiatSent);
-                }
               },
               onError: (e) {
+                debugPrint('[TradeDetailScreen] sendFiatSent onError: $e');
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to mark fiat sent: $e')),
+                  SnackBar(content: Text(AppLocalizations.of(context).fiatSentFailed)),
                 );
               },
             ),
@@ -248,24 +371,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -279,17 +389,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     },
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -313,7 +414,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ],
 
           // ── Seller: Active — CLOSE + CANCEL + DISPUTE + CONTACT ──
-          if (!_isBuyer && _status == TradeStatus.active) ...[
+          if (!isBuyer && status == TradeStatus.active) ...[
             Row(
               children: [
                 Expanded(
@@ -333,24 +434,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -364,17 +452,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     },
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -398,7 +477,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ],
 
           // ── Disputed — CLOSE + CONTACT + CANCEL + RELEASE + VIEW DISPUTE ──
-          if (_status == TradeStatus.disputed) ...[
+          if (status == TradeStatus.disputed) ...[
             Row(
               children: [
                 Expanded(
@@ -435,68 +514,25 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               ],
             ),
             // CANCEL + RELEASE only available to the seller during a dispute.
-            if (!_isBuyer) ...[
+            if (!isBuyer) ...[
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: MostroReactiveButton(
-                    label: 'RELEASE',
-                    backgroundColor: green,
-                    icon: Icons.lock_open,
-                    onPressed: () async {
-                      final confirmed =
-                          await showReleaseConfirmationDialog(context);
-                      if (confirmed != true || !context.mounted) return;
-                      try {
-                        await orders_api.releaseOrder(orderId: widget.orderId);
-                        if (context.mounted) {
-                          context.push(
-                            AppRoute.rateUserPath(widget.orderId),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Release failed: $e')),
-                        );
-                      }
-                    },
-                    onError: (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Release failed: $e')),
-                      );
-                    },
-                  ),
-                ),
+                Expanded(child: _buildReleaseButton(green)),
               ],
             ),
-            ], // end if (!_isBuyer)
+            ], // end if (!isBuyer)
             const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
               onPressed: () {
@@ -529,7 +565,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ],
 
           // ── Seller: Fiat Sent — CLOSE + RELEASE + CANCEL + DISPUTE + CONTACT ──
-          if (!_isBuyer && _status == TradeStatus.fiatSent) ...[
+          if (!isBuyer && status == TradeStatus.fiatSent) ...[
             Row(
               children: [
                 Expanded(
@@ -547,37 +583,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: MostroReactiveButton(
-                    label: 'RELEASE',
-                    backgroundColor: green,
-                    icon: Icons.lock_open,
-                    onPressed: () async {
-                      final confirmed =
-                          await showReleaseConfirmationDialog(context);
-                      if (confirmed != true || !context.mounted) return;
-                      try {
-                        await orders_api.releaseOrder(orderId: widget.orderId);
-                        if (context.mounted) {
-                          context.push(
-                            AppRoute.rateUserPath(widget.orderId),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Release failed: $e')),
-                        );
-                      }
-                    },
-                    onError: (e) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Release failed: $e')),
-                      );
-                    },
-                  ),
-                ),
+                Expanded(child: _buildReleaseButton(green)),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -585,24 +591,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: _cancelOrder,
                     icon: const Icon(Icons.cancel_outlined, size: 16),
                     label: const Text('CANCEL'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -616,17 +609,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     },
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      side: BorderSide(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
+                    style: _destructiveOutlineStyle(
+                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
                     ),
                   ),
                 ),
@@ -650,7 +634,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ],
 
           // ── Pending rating — RATE + CLOSE ─────────────────────────────
-          if (_status == TradeStatus.pendingRating) ...[
+          if (status == TradeStatus.pendingRating) ...[
             FilledButton.icon(
               onPressed: () =>
                   context.push(AppRoute.rateUserPath(widget.orderId)),
@@ -681,7 +665,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ],
 
           // ── Rated — CLOSE only (no further actions) ───────────────────
-          if (_status == TradeStatus.rated) ...[
+          if (status == TradeStatus.rated) ...[
             OutlinedButton(
               onPressed: () => context.pop(),
               style: OutlinedButton.styleFrom(

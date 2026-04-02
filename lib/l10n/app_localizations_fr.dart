@@ -607,4 +607,30 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get backupConfirmCheckbox =>
       'J\'ai noté mes mots et les ai sauvegardés en lieu sûr';
+
+  @override
+  String get cancelTradeDialogTitle => 'Annuler l\'échange ?';
+
+  @override
+  String get cancelTradeDialogContent =>
+      'Annulation coopérative demandée. L\'autre partie doit également accepter pour que l\'échange soit entièrement annulé.';
+
+  @override
+  String get noButtonLabel => 'Non';
+
+  @override
+  String get yesCancelButtonLabel => 'Oui, annuler';
+
+  @override
+  String get cancelRequestSent => 'Demande d\'annulation envoyée';
+
+  @override
+  String get cancelRequestFailed => 'Échec de l\'annulation. Veuillez réessayer.';
+
+  @override
+  String get fiatSentFailed =>
+      'Échec de la confirmation du paiement fiat. Veuillez réessayer.';
+
+  @override
+  String get releaseFailed => 'Échec de la libération. Veuillez réessayer.';
 }

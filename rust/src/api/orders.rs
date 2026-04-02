@@ -3,6 +3,7 @@
 /// Subscribes to Kind 38383 events from the relay pool, caches locally,
 /// applies filters, and exposes a stream for UI updates.
 use anyhow::Result;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{broadcast, RwLock};
@@ -11,6 +12,33 @@ use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
 use crate::config::DEFAULT_MOSTRO_PUBKEY;
 use crate::mostro::actions;
 use crate::nostr::order_events::parse_order_event;
+
+// ── Per-trade key index map ───────────────────────────────────────────────────
+
+/// Maps `order_id` → `trade_key_index` for trades initiated in this session.
+/// Allows subsequent actions (add-invoice, fiat-sent, release) to sign with the
+/// same trade key that was used when taking the order.
+use std::sync::OnceLock;
+
+static TRADE_KEY_MAP: OnceLock<std::sync::RwLock<HashMap<String, u32>>> = OnceLock::new();
+
+fn trade_key_map() -> &'static std::sync::RwLock<HashMap<String, u32>> {
+    TRADE_KEY_MAP.get_or_init(|| std::sync::RwLock::new(HashMap::new()))
+}
+
+fn store_trade_key_index(order_id: &str, index: u32) {
+    if let Ok(mut map) = trade_key_map().write() {
+        map.insert(order_id.to_string(), index);
+    }
+}
+
+fn get_trade_key_index(order_id: &str) -> u32 {
+    trade_key_map()
+        .read()
+        .ok()
+        .and_then(|m| m.get(order_id).copied())
+        .unwrap_or(0)
+}
 
 /// Filter parameters for the order list.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -221,9 +249,8 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // Cache locally (optimistic — daemon will publish the real Kind 38383).
     order_book().upsert_order(order.clone()).await;
 
-    // Dispatch new_order to Mostro (fire-and-forget; daemon publishes Kind 38383
-    // when it accepts the order, which arrives via the subscription loop).
-    if let Ok(sender_keys) = crate::api::identity::get_active_keys().await {
+    // Dispatch new_order to Mostro using the identity key (index 0).
+    if let Ok(sender_keys) = crate::api::identity::get_active_trade_keys(0).await {
         if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
             match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch).await {
                 Ok(event_json) => {
@@ -243,11 +270,10 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
 
 /// Take an existing order, starting a trade.
 ///
-/// Sends a `take-buy` or `take-sell` MostroMessage via NIP-59.
+/// Sends a `take-buy` or `take-sell` MostroMessage via NIP-59 using a freshly
+/// derived trade key.  Automatically includes the user's default Lightning
+/// Address in the payload when taking a sell order (take-sell-ln-address flow).
 /// Returns a `TradeInfo` with the initial trade state.
-///
-/// TODO: Wire to actual Rust bridge identity + relay pool in Phase 8+.
-/// Currently validates params and returns a mock TradeInfo.
 pub async fn take_order(
     order_id: String,
     role: crate::api::types::TradeRole,
@@ -266,7 +292,7 @@ pub async fn take_order(
         return Err(anyhow::anyhow!("OrderAlreadyTaken"));
     }
 
-    // Validate range amount.
+    // Validate range amount when order has a range.
     let is_range = order.fiat_amount_min.is_some() && order.fiat_amount_max.is_some();
     if is_range {
         let amt = fiat_amount.ok_or_else(|| anyhow::anyhow!("FiatAmountRequired"))?;
@@ -282,7 +308,7 @@ pub async fn take_order(
 
     use crate::api::types::*;
 
-    // Validate role matches order kind.
+    // Role must match order kind: buyers take sell orders; sellers take buy orders.
     let expected_role = match order.kind {
         OrderKind::Buy => TradeRole::Seller,
         OrderKind::Sell => TradeRole::Buyer,
@@ -302,6 +328,12 @@ pub async fn take_order(
         TradeRole::Seller => TradeStep::Seller(SellerStep::TakerFound),
     };
 
+    // Derive a fresh trade key so each take uses a unique Nostr identity.
+    let trade_key_info = crate::api::identity::derive_trade_key().await?;
+    let trade_index = trade_key_info.index;
+    // Do NOT persist the mapping here — store only after the take event is
+    // successfully published so a publish failure doesn't leave a stale entry.
+
     let trade = TradeInfo {
         id: uuid::Uuid::new_v4().to_string(),
         order: order.clone(),
@@ -310,37 +342,73 @@ pub async fn take_order(
         current_step: initial_step,
         hold_invoice: None,
         buyer_invoice: None,
-        trade_key_index: 0,
+        trade_key_index: trade_index,
         cooperative_cancel_state: None,
-        timeout_at: Some(now + 900), // 15 min default
+        timeout_at: Some(now + 900),
         started_at: now,
         completed_at: None,
         outcome: None,
     };
 
-    // Dispatch the take action to Mostro (fire-and-forget; the daemon responds
-    // asynchronously via NIP-59 gift wrap with the next trade step).
-    if let Ok(sender_keys) = crate::api::identity::get_active_keys().await {
-        if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
-            let action_result = match dispatch_role {
-                TradeRole::Buyer => {
-                    actions::take_sell(&sender_keys, &mostro_pubkey, &order_id, fiat_amount).await
-                }
-                TradeRole::Seller => {
-                    actions::take_buy(&sender_keys, &mostro_pubkey, &order_id, fiat_amount).await
-                }
-            };
-            match action_result {
-                Ok(event_json) => {
-                    if let Err(e) = publish_event_json(&event_json).await {
-                        log::warn!("[orders] take_order publish failed: {e}");
-                    } else {
-                        log::info!("[orders] take_order dispatched for order={order_id}");
+    // Dispatch the take action to Mostro using the trade key for signing.
+    match crate::api::identity::get_active_trade_keys(trade_index).await {
+        Ok(sender_keys) => {
+            if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+                // Read default LN address from settings (take-sell-ln-address flow).
+                let ln_address: Option<String> =
+                    crate::api::settings::get_settings()
+                        .await
+                        .ok()
+                        .and_then(|s| s.default_lightning_address);
+                let ln_address_ref = ln_address.as_deref();
+
+                let action_result = match dispatch_role {
+                    TradeRole::Buyer => {
+                        actions::take_sell(
+                            &sender_keys,
+                            &mostro_pubkey,
+                            &order_id,
+                            trade_index,
+                            fiat_amount,
+                            ln_address_ref,
+                        )
+                        .await
                     }
+                    TradeRole::Seller => {
+                        actions::take_buy(
+                            &sender_keys,
+                            &mostro_pubkey,
+                            &order_id,
+                            trade_index,
+                            fiat_amount,
+                        )
+                        .await
+                    }
+                };
+
+                match action_result {
+                    Ok(event_json) => {
+                        if let Err(e) = publish_event_json(&event_json).await {
+                            log::warn!("[orders] take_order publish failed: {e}");
+                        } else {
+                            // Persist the trade-key mapping only after a successful publish
+                            // so a publish failure doesn't leave a stale entry.
+                            store_trade_key_index(&order_id, trade_index);
+                            log::info!(
+                                "[orders] take_order dispatched order={order_id} \
+                                 trade_index={trade_index} ln_address={}",
+                                if ln_address_ref.is_some() { "present" } else { "none" }
+                            );
+                            // Subscribe to d-tag K38383 updates for this specific order so we
+                            // receive status changes (pending → in-progress → waiting-payment …).
+                            subscribe_single_order(&order_id).await;
+                        }
+                    }
+                    Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
                 }
-                Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
             }
         }
+        Err(e) => log::warn!("[orders] take_order: could not get trade keys: {e}"),
     }
 
     Ok(trade)
@@ -348,9 +416,8 @@ pub async fn take_order(
 
 /// Submit buyer's Lightning invoice for a trade.
 ///
-/// Sends an `AddInvoice` MostroMessage to the daemon.
-///
-/// TODO: Wire to actual NIP-59 message dispatch in Phase 9+.
+/// Sends an `AddInvoice` MostroMessage to the daemon signed with the trade key
+/// that was used when taking the order.
 pub async fn send_invoice(
     order_id: String,
     invoice_or_address: String,
@@ -359,80 +426,151 @@ pub async fn send_invoice(
     if invoice_or_address.trim().is_empty() {
         return Err(anyhow::anyhow!("Invoice or address must not be empty"));
     }
-    if amount_sats == 0 {
-        return Err(anyhow::anyhow!("Amount must be greater than zero"));
-    }
 
-    let order = order_book()
-        .get_order(&order_id)
-        .await
-        .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
+    // For bolt11 invoices the amount is encoded in the invoice; pass None.
+    // For Lightning Addresses Mostro needs the amount to resolve the address.
+    let amount_opt = if invoice_or_address.contains('@') && amount_sats > 0 {
+        Some(amount_sats)
+    } else {
+        None
+    };
 
-    if order.status != OrderStatus::WaitingBuyerInvoice
-        && order.status != OrderStatus::Pending
-    {
-        return Err(anyhow::anyhow!("WrongTradeState"));
-    }
-
-    let sender_keys = crate::api::identity::get_active_keys().await?;
+    let trade_index = get_trade_key_index(&order_id);
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::add_invoice(
         &sender_keys,
         &mostro_pubkey,
         &order_id,
+        trade_index,
         &invoice_or_address,
+        amount_opt,
     )
     .await?;
     publish_event_json(&event_json).await?;
-    log::info!("[orders] add_invoice published for order={order_id}");
+    log::info!(
+        "[orders] add_invoice published for order={order_id} trade_index={trade_index} \
+         ln_address={} amount={:?}",
+        invoice_or_address.contains('@'),
+        amount_opt
+    );
     Ok(())
 }
 
 /// Mark fiat payment as sent by the buyer.
 ///
-/// Sends a `FiatSent` MostroMessage to the Mostro daemon.
-///
-/// Not yet implemented — requires NIP-59 message dispatch.
+/// Sends a `FiatSent` MostroMessage to the Mostro daemon signed with the trade
+/// key that was used when taking the order.
 pub async fn send_fiat_sent(order_id: String) -> Result<()> {
-    let order = order_book()
-        .get_order(&order_id)
-        .await
-        .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
-
-    if order.status != OrderStatus::Active {
-        return Err(anyhow::anyhow!("WrongTradeState"));
-    }
-
-    let sender_keys = crate::api::identity::get_active_keys().await?;
+    let trade_index = get_trade_key_index(&order_id);
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
-    let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id).await?;
+    let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
     publish_event_json(&event_json).await?;
-    log::info!("[orders] fiat_sent published for order={order_id}");
+    log::info!("[orders] fiat_sent published for order={order_id} trade_index={trade_index}");
     Ok(())
 }
 
 /// Seller confirms fiat received and releases escrowed sats.
 ///
-/// Sends a `Release` MostroMessage to the Mostro daemon.
-/// Transitions trade status: FiatSent → SettledHoldInvoice → Success.
-///
-/// Not yet implemented — requires NIP-59 message dispatch.
+/// Sends a `Release` MostroMessage to the Mostro daemon signed with the trade
+/// key that was used when taking the order.
 pub async fn release_order(order_id: String) -> Result<()> {
-    let order = order_book()
-        .get_order(&order_id)
-        .await
-        .ok_or_else(|| anyhow::anyhow!("OrderNotFound"))?;
-
-    if order.status != OrderStatus::FiatSent {
-        return Err(anyhow::anyhow!("WrongTradeState"));
-    }
-
-    let sender_keys = crate::api::identity::get_active_keys().await?;
+    let trade_index = get_trade_key_index(&order_id);
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
-    let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id).await?;
+    let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
     publish_event_json(&event_json).await?;
-    log::info!("[orders] release published for order={order_id}");
+    log::info!("[orders] release published for order={order_id} trade_index={trade_index}");
     Ok(())
+}
+
+/// Cancel an active trade cooperatively.
+///
+/// Sends a `Cancel` MostroMessage signed with the trade key used when the order
+/// was taken.  Both parties must cancel for it to take effect; the Mostro daemon
+/// handles the cooperative-cancel state machine.
+pub async fn cancel_order(order_id: String) -> Result<()> {
+    let trade_index = get_trade_key_index(&order_id);
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let event_json = actions::cancel(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
+    publish_event_json(&event_json).await?;
+    log::info!("[orders] cancel published for order={order_id} trade_index={trade_index}");
+    Ok(())
+}
+
+// ── Single-order subscription ─────────────────────────────────────────────────
+
+/// Subscribe to K38383 updates for a single order (by `d`-tag) so that status
+/// changes after taking the order are reflected in the local order book.
+///
+/// Spawns a short-lived background task that watches for Kind 38383 events with
+/// `d = order_id` and upserts them.  The task exits when the relay pool shuts
+/// down or after a generous idle timeout (no updates for 30 minutes).
+async fn subscribe_single_order(order_id: &str) {
+    let order_id = order_id.to_string();
+    tokio::spawn(async move {
+        let Ok(pool) = crate::api::nostr::get_pool() else {
+            log::warn!("[orders] subscribe_single_order: relay pool not initialized");
+            return;
+        };
+        let client = pool.client();
+        let mostro_pubkey =
+            match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
+                Ok(pk) => pk,
+                Err(e) => {
+                    log::error!("[orders] subscribe_single_order: invalid pubkey: {e}");
+                    return;
+                }
+            };
+
+        let mut rx = client.notifications();
+        let filter =
+            crate::nostr::order_events::trade_order_filter(&mostro_pubkey, &order_id);
+        if let Err(e) = client.subscribe(filter, None).await {
+            log::warn!("[orders] subscribe_single_order subscribe failed: {e}");
+            return;
+        }
+        log::info!("[orders] subscribed to d-tag updates for order={order_id}");
+
+        use nostr_sdk::RelayPoolNotification;
+        use tokio::time::{timeout, Duration};
+
+        // Exit after 30 minutes of inactivity (no order updates received).
+        // The timer resets on each relevant event so active trades stay subscribed.
+        const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
+        let mut last_activity = tokio::time::Instant::now();
+
+        loop {
+            let remaining = Duration::from_secs(IDLE_TIMEOUT_SECS)
+                .saturating_sub(last_activity.elapsed());
+            if remaining.is_zero() {
+                log::debug!("[orders] subscribe_single_order idle timeout for order={order_id}");
+                break;
+            }
+
+            match timeout(remaining, rx.recv()).await {
+                Ok(Ok(RelayPoolNotification::Event { event, .. })) => {
+                    if let Some(order) = crate::nostr::order_events::parse_order_event(&event, None) {
+                        if order.id == order_id {
+                            log::info!(
+                                "[orders] d-tag update: order={} status={:?}",
+                                order_id,
+                                order.status
+                            );
+                            last_activity = tokio::time::Instant::now();
+                            order_book().upsert_order(order).await;
+                        }
+                    }
+                }
+                Ok(Ok(RelayPoolNotification::Shutdown)) => break,
+                Ok(Err(_)) => break,
+                Err(_) => break, // idle timeout
+                Ok(Ok(_)) => continue,
+            }
+        }
+    });
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
