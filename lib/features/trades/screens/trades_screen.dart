@@ -90,23 +90,23 @@ class TradesScreen extends ConsumerWidget {
           // ── Trade list / loading / empty / error ─────────────────────
           Expanded(
             child: tradesAsync.when(
-              data: (trades) => trades.isEmpty
-                  ? _EmptyState(colors: colors)
-                  : RefreshIndicator(
-                      onRefresh: () {
-                        refreshTrades(ref);
-                        return ref.refresh(filteredTradesWithOrderStateProvider.future);
-                      },
-                      child: ListView.builder(
-                        padding: const EdgeInsets.only(
-                          top: AppSpacing.xs,
-                          bottom: AppSpacing.lg,
+              data: (trades) => RefreshIndicator(
+                  onRefresh: () {
+                    refreshTrades(ref);
+                    return ref.refresh(filteredTradesWithOrderStateProvider.future);
+                  },
+                  child: trades.isEmpty
+                      ? _EmptyState(colors: colors)
+                      : ListView.builder(
+                          padding: const EdgeInsets.only(
+                            top: AppSpacing.xs,
+                            bottom: AppSpacing.lg,
+                          ),
+                          itemCount: trades.length,
+                          itemBuilder: (context, index) =>
+                              TradesListItem(trade: trades[index]),
                         ),
-                        itemCount: trades.length,
-                        itemBuilder: (context, index) =>
-                            TradesListItem(trade: trades[index]),
-                      ),
-                    ),
+                ),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => _ErrorState(
                 colors: colors,
