@@ -1,7 +1,10 @@
-/// Database schema version. Bump when migrations change the schema.
-pub const SCHEMA_VERSION: u32 = 1;
+/// Database schema version. Currently unused at runtime — kept as a reference
+/// for future migration logic (e.g. ALTER TABLE guards or schema-diff checks).
+pub const SCHEMA_VERSION: u32 = 2;
 
-/// SQLite DDL — applied on first launch and when SCHEMA_VERSION increases.
+/// SQLite DDL executed unconditionally on every `SqliteStorage::open()` call.
+/// Safe to run repeatedly because every statement uses `CREATE TABLE IF NOT
+/// EXISTS` / `CREATE INDEX IF NOT EXISTS`.
 #[cfg(not(target_arch = "wasm32"))]
 pub const SQLITE_INIT_SQL: &str = r#"
 PRAGMA journal_mode = WAL;
@@ -51,5 +54,13 @@ CREATE TABLE IF NOT EXISTS queued_messages (
     created_at      INTEGER NOT NULL,
     retry_count     INTEGER NOT NULL DEFAULT 0,
     next_retry_at   INTEGER
+);
+
+-- Maps order_id → BIP-32 trade key index used when taking/creating that order.
+-- Persists across restarts so fiat-sent, release, and cancel can re-derive the
+-- correct signing key even after the app is killed between protocol steps.
+CREATE TABLE IF NOT EXISTS trade_keys (
+    order_id        TEXT PRIMARY KEY,
+    key_index       INTEGER NOT NULL
 );
 "#;

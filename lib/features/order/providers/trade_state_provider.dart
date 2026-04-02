@@ -36,3 +36,22 @@ final tradeStatusProvider =
     if (info != null) yield info.status;
   }
 });
+
+/// Loads the buyer/seller role for a trade from the persistent DB.
+///
+/// Returns `true` when the local user is the buyer, `false` for seller, or
+/// `null` while loading / when no record exists (trade was never taken on
+/// this device, or [initDb] has not been called yet).
+///
+/// Consumed by [TradeDetailScreen] as a fallback when [tradeRoleProvider]
+/// has no in-memory entry for the order — i.e. the app was restarted after
+/// the trade was already taken in a previous session.
+final tradeRoleFromDbProvider =
+    FutureProvider.family.autoDispose<bool?, String>((ref, orderId) async {
+  final role = await orders_api.getTradeRole(orderId: orderId);
+  return switch (role) {
+    TradeRole.buyer => true,
+    TradeRole.seller => false,
+    null => null,
+  };
+});

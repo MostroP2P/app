@@ -25,3 +25,4 @@ pub fn init_app() {
     );
     log::info!("[init] Rust core initialized");
 }
+

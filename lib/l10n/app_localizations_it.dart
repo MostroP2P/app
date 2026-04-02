@@ -624,7 +624,8 @@ class AppLocalizationsIt extends AppLocalizations {
   String get cancelRequestFailed => 'Annullamento fallito. Riprovare.';
 
   @override
-  String get fiatSentFailed => 'Impossibile contrassegnare il fiat come inviato. Riprovare.';
+  String get fiatSentFailed =>
+      'Impossibile contrassegnare il fiat come inviato. Riprovare.';
 
   @override
   String get releaseFailed => 'Rilascio fallito. Riprovare.';

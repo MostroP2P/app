@@ -625,7 +625,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get cancelRequestSent => 'Demande d\'annulation envoyée';
 
   @override
-  String get cancelRequestFailed => 'Échec de l\'annulation. Veuillez réessayer.';
+  String get cancelRequestFailed =>
+      'Échec de l\'annulation. Veuillez réessayer.';
 
   @override
   String get fiatSentFailed =>
