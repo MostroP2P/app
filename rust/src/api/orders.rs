@@ -10,6 +10,7 @@ use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
 use crate::config::DEFAULT_MOSTRO_PUBKEY;
+use crate::db::Storage;
 use crate::mostro::actions;
 use crate::nostr::order_events::parse_order_event;
 
@@ -26,18 +27,53 @@ fn trade_key_map() -> &'static std::sync::RwLock<HashMap<String, u32>> {
     TRADE_KEY_MAP.get_or_init(|| std::sync::RwLock::new(HashMap::new()))
 }
 
-fn store_trade_key_index(order_id: &str, index: u32) {
+/// Persist `index` for `order_id` in both the in-memory cache and the DB.
+///
+/// The in-memory write is synchronous and always succeeds.  The DB write is
+/// best-effort — a failure is logged but does not prevent the trade from
+/// proceeding (the in-memory value is still available for the remainder of
+/// this session).
+async fn store_trade_key_index(order_id: &str, index: u32) {
     if let Ok(mut map) = trade_key_map().write() {
         map.insert(order_id.to_string(), index);
     }
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db.save_trade_key(order_id, index).await {
+            log::warn!("[orders] failed to persist trade key for order={order_id}: {e}");
+        }
+    }
 }
 
-fn get_trade_key_index(order_id: &str) -> u32 {
-    trade_key_map()
+/// Return the BIP-32 index for `order_id`.
+///
+/// Lookup order:
+/// 1. In-memory cache (always up-to-date for the current session).
+/// 2. Persistent DB (covers trades taken in a previous session).
+/// 3. Falls back to `0` with a warning if neither source has the value.
+async fn get_trade_key_index(order_id: &str) -> u32 {
+    // Fast path: in-memory cache.
+    if let Some(idx) = trade_key_map()
         .read()
         .ok()
         .and_then(|m| m.get(order_id).copied())
-        .unwrap_or(0)
+    {
+        return idx;
+    }
+    // Slow path: DB (populates cache on hit for subsequent calls).
+    if let Some(db) = crate::db::app_db::db() {
+        match db.get_trade_key(order_id).await {
+            Ok(Some(idx)) => {
+                if let Ok(mut map) = trade_key_map().write() {
+                    map.insert(order_id.to_string(), idx);
+                }
+                return idx;
+            }
+            Ok(None) => {}
+            Err(e) => log::warn!("[orders] DB trade key lookup failed for order={order_id}: {e}"),
+        }
+    }
+    log::warn!("[orders] trade key not found for order={order_id}, using index 0");
+    0
 }
 
 /// Filter parameters for the order list.
@@ -391,9 +427,14 @@ pub async fn take_order(
                         if let Err(e) = publish_event_json(&event_json).await {
                             log::warn!("[orders] take_order publish failed: {e}");
                         } else {
-                            // Persist the trade-key mapping only after a successful publish
-                            // so a publish failure doesn't leave a stale entry.
-                            store_trade_key_index(&order_id, trade_index);
+                            // Persist trade-key mapping and trade record only after a
+                            // successful publish so failures leave no stale state.
+                            store_trade_key_index(&order_id, trade_index).await;
+                            if let Some(db) = crate::db::app_db::db() {
+                                if let Err(e) = db.save_trade(&trade).await {
+                                    log::warn!("[orders] failed to persist trade: {e}");
+                                }
+                            }
                             log::info!(
                                 "[orders] take_order dispatched order={order_id} \
                                  trade_index={trade_index} ln_address={}",
@@ -435,7 +476,7 @@ pub async fn send_invoice(
         None
     };
 
-    let trade_index = get_trade_key_index(&order_id);
+    let trade_index = get_trade_key_index(&order_id).await;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::add_invoice(
@@ -462,7 +503,7 @@ pub async fn send_invoice(
 /// Sends a `FiatSent` MostroMessage to the Mostro daemon signed with the trade
 /// key that was used when taking the order.
 pub async fn send_fiat_sent(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id);
+    let trade_index = get_trade_key_index(&order_id).await;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
@@ -476,7 +517,7 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
 /// Sends a `Release` MostroMessage to the Mostro daemon signed with the trade
 /// key that was used when taking the order.
 pub async fn release_order(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id);
+    let trade_index = get_trade_key_index(&order_id).await;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
@@ -491,7 +532,7 @@ pub async fn release_order(order_id: String) -> Result<()> {
 /// was taken.  Both parties must cancel for it to take effect; the Mostro daemon
 /// handles the cooperative-cancel state machine.
 pub async fn cancel_order(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id);
+    let trade_index = get_trade_key_index(&order_id).await;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::cancel(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
@@ -728,5 +769,29 @@ impl OrdersStream {
 pub(crate) async fn process_order_event(event: &nostr_sdk::Event, my_pubkey: Option<&nostr_sdk::PublicKey>) {
     if let Some(order) = parse_order_event(event, my_pubkey) {
         order_book().upsert_order(order).await;
+    }
+}
+
+/// Return the persisted [`TradeRole`] for the given `order_id`.
+///
+/// Returns `Some(role)` when a matching trade record exists in the DB,
+/// `None` when the DB has no record for this order (e.g. it was never taken
+/// in this installation, or `init_db` has not been called yet).
+///
+/// Used by the Flutter layer to restore the buyer/seller role after an app
+/// restart so the trade-detail screen shows the correct actions.
+pub async fn get_trade_role(
+    order_id: String,
+) -> Result<Option<crate::api::types::TradeRole>> {
+    let Some(db) = crate::db::app_db::db() else {
+        return Ok(None);
+    };
+    match db.get_trade_by_order_id(&order_id).await {
+        Ok(Some(trade)) => Ok(Some(trade.role)),
+        Ok(None) => Ok(None),
+        Err(e) => {
+            log::warn!("[orders] get_trade_role DB error for order={order_id}: {e}");
+            Ok(None)
+        }
     }
 }

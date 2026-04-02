@@ -235,9 +235,18 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
 
-    // Derive role from provider (set by TakeOrderScreen before navigation).
+    // Derive role: in-memory map (set by TakeOrderScreen in this session) takes
+    // priority; fall back to the DB-backed provider so reopened trades after an
+    // app restart still show the correct buyer/seller actions.
     final roleMap = ref.watch(tradeRoleProvider);
-    final isBuyer = roleMap[widget.orderId] ?? true;
+    final bool isBuyer;
+    if (roleMap.containsKey(widget.orderId)) {
+      isBuyer = roleMap[widget.orderId]!;
+    } else {
+      final dbRole =
+          ref.watch(tradeRoleFromDbProvider(widget.orderId)).valueOrNull;
+      isBuyer = dbRole ?? true; // default to buyer while DB result is loading
+    }
 
     // Derive trade status from the polled order status.
     final orderStatus = ref.watch(tradeStatusProvider(widget.orderId)).valueOrNull

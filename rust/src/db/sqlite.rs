@@ -262,4 +262,39 @@ impl Storage for SqliteStorage {
             .await?;
         Ok(())
     }
+
+    async fn save_trade_key(&self, order_id: &str, key_index: u32) -> Result<()> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO trade_keys (order_id, key_index) VALUES (?, ?)",
+        )
+        .bind(order_id)
+        .bind(key_index as i64)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_trade_key(&self, order_id: &str) -> Result<Option<u32>> {
+        let row: Option<(i64,)> =
+            sqlx::query_as("SELECT key_index FROM trade_keys WHERE order_id = ?")
+                .bind(order_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(idx,)| idx as u32))
+    }
+
+    async fn get_trade_by_order_id(&self, order_id: &str) -> Result<Option<TradeInfo>> {
+        // The `data` column holds the full JSON-serialised TradeInfo; use
+        // SQLite's json_extract to filter by the nested order id without
+        // deserialising every row.
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT data FROM trades \
+             WHERE json_extract(data, '$.order.id') = ? \
+             LIMIT 1",
+        )
+        .bind(order_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|(data,)| serde_json::from_str(&data)).transpose()?)
+    }
 }

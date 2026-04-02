@@ -1,3 +1,4 @@
+pub mod app_db;
 pub mod schema;
 pub mod seeds;
 #[cfg(not(target_arch = "wasm32"))]
@@ -52,4 +53,18 @@ pub trait Storage: Send + Sync {
         status: crate::api::types::QueuedMessageStatus,
     ) -> Result<()>;
     async fn delete_queued_message(&self, id: &str) -> Result<()>;
+
+    // ── Trade key index ──────────────────────────────────────────────────────
+
+    /// Persist the BIP-32 key index used for `order_id`.
+    async fn save_trade_key(&self, order_id: &str, key_index: u32) -> Result<()>;
+
+    /// Retrieve the BIP-32 key index for `order_id`, or `None` if not found.
+    async fn get_trade_key(&self, order_id: &str) -> Result<Option<u32>>;
+
+    /// Look up a persisted trade by the order ID it is associated with.
+    async fn get_trade_by_order_id(
+        &self,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::TradeInfo>>;
 }
