@@ -82,17 +82,17 @@ impl Storage for IndexedDbStorage {
     }
 
     async fn save_trade_key(&self, _order_id: &str, _key_index: u32) -> Result<()> {
-        Err(anyhow!("IndexedDB not yet implemented"))
+        Ok(()) // no-op: IndexedDB persistence not yet implemented
     }
 
     async fn get_trade_key(&self, _order_id: &str) -> Result<Option<u32>> {
-        Err(anyhow!("IndexedDB not yet implemented"))
+        Ok(None) // no persisted key: caller will treat absence correctly
     }
 
     async fn get_trade_by_order_id(
         &self,
         _order_id: &str,
     ) -> Result<Option<crate::api::types::TradeInfo>> {
-        Err(anyhow!("IndexedDB not yet implemented"))
+        Ok(None) // no persisted trade: role lookup returns None
     }
 }

@@ -23,13 +23,10 @@ static APP_DB: OnceCell<AppStorage> = OnceCell::const_new();
 ///
 /// Subsequent calls are no-ops — the singleton is only written once.
 pub async fn init_db(path: &str) -> Result<()> {
-    if APP_DB.get().is_none() {
-        let storage = AppStorage::open(path).await?;
-        // A concurrent init racing here is harmless — OnceCell guarantees
-        // only the first value is stored.
-        let _ = APP_DB.set(storage);
-        log::info!("[db] persistent store initialised (path={})", path);
-    }
+    APP_DB
+        .get_or_try_init(|| async { AppStorage::open(path).await })
+        .await?;
+    log::info!("[db] persistent store ready (path={})", path);
     Ok(())
 }
 

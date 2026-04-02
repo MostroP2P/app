@@ -20,8 +20,15 @@ Future<void> main() async {
   // Initialize persistent SQLite store. Must come before any trade / order
   // operations that read or write trade keys and trade records.
   if (!kIsWeb) {
-    final docsDir = await getApplicationDocumentsDirectory();
-    await rust_api.initDb(path: p.join(docsDir.path, 'mostro.db'));
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      await rust_api.initDb(path: p.join(docsDir.path, 'mostro.db'));
+    } catch (e, st) {
+      // DB init failure is non-fatal: trade-key and role persistence won't
+      // work for this session, but the app can still browse orders and relay
+      // messages.  All Rust callers already handle db() == None gracefully.
+      debugPrint('[main] DB init failed — running in memory-only mode: $e\n$st');
+    }
   }
 
   // Initialize identity: creates on first launch, reloads on subsequent launches.

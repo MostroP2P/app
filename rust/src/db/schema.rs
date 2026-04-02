@@ -1,7 +1,10 @@
-/// Database schema version. Bump when migrations change the schema.
+/// Database schema version. Currently unused at runtime — kept as a reference
+/// for future migration logic (e.g. ALTER TABLE guards or schema-diff checks).
 pub const SCHEMA_VERSION: u32 = 2;
 
-/// SQLite DDL — applied on first launch and when SCHEMA_VERSION increases.
+/// SQLite DDL executed unconditionally on every `SqliteStorage::open()` call.
+/// Safe to run repeatedly because every statement uses `CREATE TABLE IF NOT
+/// EXISTS` / `CREATE INDEX IF NOT EXISTS`.
 #[cfg(not(target_arch = "wasm32"))]
 pub const SQLITE_INIT_SQL: &str = r#"
 PRAGMA journal_mode = WAL;

@@ -44,20 +44,23 @@ async fn store_trade_key_index(order_id: &str, index: u32) {
     }
 }
 
-/// Return the BIP-32 index for `order_id`.
+/// Return the BIP-32 index for `order_id`, or `None` if not found.
 ///
 /// Lookup order:
 /// 1. In-memory cache (always up-to-date for the current session).
 /// 2. Persistent DB (covers trades taken in a previous session).
-/// 3. Falls back to `0` with a warning if neither source has the value.
-async fn get_trade_key_index(order_id: &str) -> u32 {
+///
+/// Returns `None` when neither source has a record for the order.
+/// Callers must treat `None` as an error rather than silently using index 0,
+/// which would cause signature verification failures on the daemon side.
+async fn get_trade_key_index(order_id: &str) -> Option<u32> {
     // Fast path: in-memory cache.
     if let Some(idx) = trade_key_map()
         .read()
         .ok()
         .and_then(|m| m.get(order_id).copied())
     {
-        return idx;
+        return Some(idx);
     }
     // Slow path: DB (populates cache on hit for subsequent calls).
     if let Some(db) = crate::db::app_db::db() {
@@ -66,14 +69,14 @@ async fn get_trade_key_index(order_id: &str) -> u32 {
                 if let Ok(mut map) = trade_key_map().write() {
                     map.insert(order_id.to_string(), idx);
                 }
-                return idx;
+                return Some(idx);
             }
             Ok(None) => {}
             Err(e) => log::warn!("[orders] DB trade key lookup failed for order={order_id}: {e}"),
         }
     }
-    log::warn!("[orders] trade key not found for order={order_id}, using index 0");
-    0
+    log::warn!("[orders] trade key not found for order={order_id}");
+    None
 }
 
 /// Filter parameters for the order list.
@@ -476,7 +479,8 @@ pub async fn send_invoice(
         None
     };
 
-    let trade_index = get_trade_key_index(&order_id).await;
+    let trade_index = get_trade_key_index(&order_id).await
+        .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::add_invoice(
@@ -503,7 +507,8 @@ pub async fn send_invoice(
 /// Sends a `FiatSent` MostroMessage to the Mostro daemon signed with the trade
 /// key that was used when taking the order.
 pub async fn send_fiat_sent(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id).await;
+    let trade_index = get_trade_key_index(&order_id).await
+        .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
@@ -517,7 +522,8 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
 /// Sends a `Release` MostroMessage to the Mostro daemon signed with the trade
 /// key that was used when taking the order.
 pub async fn release_order(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id).await;
+    let trade_index = get_trade_key_index(&order_id).await
+        .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
@@ -532,7 +538,8 @@ pub async fn release_order(order_id: String) -> Result<()> {
 /// was taken.  Both parties must cancel for it to take effect; the Mostro daemon
 /// handles the cooperative-cancel state machine.
 pub async fn cancel_order(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id).await;
+    let trade_index = get_trade_key_index(&order_id).await
+        .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json = actions::cancel(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
