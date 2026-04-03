@@ -60,6 +60,7 @@ enum TradeStatus {
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
   Duration _remaining = const Duration(seconds: _kCountdownSeconds);
+  int _totalCountdownSeconds = _kCountdownSeconds;
 
   @override
   void initState() {
@@ -89,6 +90,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       final diff = expiresAtSeconds - now;
       if (!mounted) return;
       setState(() {
+        _totalCountdownSeconds = diff > 0 ? diff : _kCountdownSeconds;
         _remaining = diff > 0 ? Duration(seconds: diff) : Duration.zero;
       });
     } catch (_) {
@@ -418,8 +420,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     width: 80,
                     height: 80,
                     child: CircularProgressIndicator(
-                      value: (_remaining.inSeconds / _kCountdownSeconds)
-                          .clamp(0.0, 1.0),
+                      value: _totalCountdownSeconds > 0
+                          ? (_remaining.inSeconds / _totalCountdownSeconds)
+                              .clamp(0.0, 1.0)
+                          : 1.0,
                       strokeWidth: 4,
                       color: _remaining.inMinutes < 5
                           ? colors?.destructiveRed ?? const Color(0xFFD84D4D)

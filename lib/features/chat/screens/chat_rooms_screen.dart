@@ -14,14 +14,14 @@ import 'package:mostro/shared/widgets/notification_bell.dart';
 /// Route: /chat_list
 ///
 /// Top-level chat screen with two tabs: Messages and Disputes.
-class ChatRoomsScreen extends ConsumerStatefulWidget {
+class ChatRoomsScreen extends StatefulWidget {
   const ChatRoomsScreen({super.key});
 
   @override
-  ConsumerState<ChatRoomsScreen> createState() => _ChatRoomsScreenState();
+  State<ChatRoomsScreen> createState() => _ChatRoomsScreenState();
 }
 
-class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
+class _ChatRoomsScreenState extends State<ChatRoomsScreen> {
   bool _drawerOpen = false;
 
   @override

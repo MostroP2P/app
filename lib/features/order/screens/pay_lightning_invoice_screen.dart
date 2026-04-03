@@ -9,6 +9,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 
 /// Pay Lightning Invoice screen — Route `/pay_invoice/:orderId`.
@@ -58,8 +59,8 @@ class _PayLightningInvoiceScreenState
         debugPrint('[PayLightningInvoiceScreen] load error: $e\n$st');
         return Scaffold(
           appBar: AppBar(title: const Text('Pay Lightning Invoice')),
-          body: const Center(
-            child: Text('An error occurred while loading the trade.'),
+          body: Center(
+            child: Text(AppLocalizations.of(context).tradeLoadError),
           ),
         );
       },
@@ -78,7 +79,7 @@ class _PayLightningInvoiceScreenState
                   CircularProgressIndicator(color: green),
                   const SizedBox(height: 16),
                   Text(
-                    'Waiting for hold invoice...',
+                    AppLocalizations.of(context).tradeWaitingForHoldInvoice,
                     style: TextStyle(color: colors?.textSecondary),
                   ),
                 ],

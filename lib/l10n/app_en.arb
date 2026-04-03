@@ -628,5 +628,7 @@
   "tradeWaitingPaymentSellerInstruction": "Pay the hold invoice to lock the funds and start the trade.",
   "@tradeWaitingPaymentSellerInstruction": {"description": "Instruction shown to the seller prompting them to pay the hold invoice"},
   "tradeLoadError": "An error occurred while loading the trade.",
-  "@tradeLoadError": {"description": "Error message shown when a trade fails to load"}
+  "@tradeLoadError": {"description": "Error message shown when a trade fails to load"},
+  "tradeWaitingForHoldInvoice": "Waiting for hold invoice...",
+  "@tradeWaitingForHoldInvoice": {"description": "Loading message shown while the Mostro daemon has not yet sent the hold invoice"}
 }

@@ -309,5 +309,6 @@
   "tradeWaitingInvoiceSellerInstruction": "Warte auf die Lightning-Rechnung des Käufers.",
   "tradeWaitingPaymentBuyerInstruction": "Der Verkäufer bezahlt die Hold-Rechnung. Bitte warten.",
   "tradeWaitingPaymentSellerInstruction": "Bezahle die Hold-Rechnung, um die Gelder zu sperren und den Handel zu starten.",
-  "tradeLoadError": "Beim Laden des Handels ist ein Fehler aufgetreten."
+  "tradeLoadError": "Beim Laden des Handels ist ein Fehler aufgetreten.",
+  "tradeWaitingForHoldInvoice": "Warte auf Hold-Rechnung..."
 }

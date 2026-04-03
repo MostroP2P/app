@@ -309,5 +309,6 @@
   "tradeWaitingInvoiceSellerInstruction": "In attesa che il compratore invii la propria fattura Lightning.",
   "tradeWaitingPaymentBuyerInstruction": "Il venditore sta pagando la fattura hold. Attendere.",
   "tradeWaitingPaymentSellerInstruction": "Paga la fattura hold per bloccare i fondi e avviare lo scambio.",
-  "tradeLoadError": "Si è verificato un errore durante il caricamento dello scambio."
+  "tradeLoadError": "Si è verificato un errore durante il caricamento dello scambio.",
+  "tradeWaitingForHoldInvoice": "In attesa della fattura hold..."
 }
