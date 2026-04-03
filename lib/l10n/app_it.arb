@@ -286,7 +286,7 @@
   "aboutMostroPublicKeyExplanation": "La chiave pubblica Nostr del daemon Mostro. Tutti gli ordini e i messaggi cifrati di questa istanza sono pubblicati o instradati da questa chiave.",
   "aboutMaxOrderAmountExplanation": "L'importo fiat massimo consentito per un singolo ordine su questa istanza Mostro.",
   "aboutMinOrderAmountExplanation": "L'importo fiat minimo richiesto per un singolo ordine su questa istanza Mostro.",
-  "aboutOrderLifespanExplanation": "Per quanto tempo un ordine in attesa rimane aperto prima di scadere automaticamente se non viene trovato un prendere.",
+  "aboutOrderLifespanExplanation": "Per quanto tempo un ordine in attesa rimane aperto prima di scadere automaticamente se non viene trovato un prenditore.",
   "aboutServiceFeeExplanation": "La percentuale dell'importo della transazione addebitata dal daemon Mostro come commissione di servizio.",
   "aboutFiatCurrenciesExplanation": "Le valute fiat accettate su questa istanza Mostro. 'Tutte' significa che non ci sono restrizioni.",
   "aboutMostroVersionExplanation": "La versione del software daemon Mostro in esecuzione su questa istanza.",

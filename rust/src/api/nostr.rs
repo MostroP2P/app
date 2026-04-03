@@ -180,9 +180,14 @@ pub async fn fetch_mostro_instance_tags(
     let pubkey = nostr_sdk::PublicKey::from_hex(&mostro_pubkey_hex)
         .map_err(|e| anyhow::anyhow!("invalid pubkey hex: {e}"))?;
 
+    // Kind 38385 is a NIP-33 addressable event; the `d` tag uniquely identifies
+    // the Mostro instance and equals the daemon's pubkey (hex). Adding the
+    // d-tag constraint prevents the relay from returning a stale or unrelated
+    // event from the same author.
     let filter = Filter::new()
         .kind(Kind::from(38385u16))
         .author(pubkey)
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::D), &mostro_pubkey_hex)
         .limit(1);
 
     let events = client

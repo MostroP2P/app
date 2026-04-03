@@ -856,7 +856,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get aboutOrderLifespanExplanation =>
-      'Per quanto tempo un ordine in attesa rimane aperto prima di scadere automaticamente se non viene trovato un prendere.';
+      'Per quanto tempo un ordine in attesa rimane aperto prima di scadere automaticamente se non viene trovato un prenditore.';
 
   @override
   String get aboutServiceFeeExplanation =>

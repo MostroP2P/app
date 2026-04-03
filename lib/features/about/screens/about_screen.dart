@@ -618,6 +618,7 @@ class _InfoRowLink extends StatelessWidget {
     // url_launcher is not in pubspec — show a SnackBar with copy action.
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
         content: Text(url),
@@ -741,9 +742,12 @@ class _NodeInfoRowInfo extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 14, color: colors.textSecondary),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 14, color: colors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: AppSpacing.xs),
               GestureDetector(
@@ -797,9 +801,12 @@ class _NodeInfoRowCopyable extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 14, color: colors.textSecondary),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 14, color: colors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: AppSpacing.xs),
               GestureDetector(
