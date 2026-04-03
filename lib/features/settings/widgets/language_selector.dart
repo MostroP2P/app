@@ -75,8 +75,15 @@ class LanguageSelector extends ConsumerWidget {
                   ? Icon(Icons.check_circle, color: colors.mostroGreen)
                   : null,
               onTap: () {
-                ref.read(settingsProvider.notifier).setLanguage(lang.code);
+                // Pop first, then change locale. Changing locale while the
+                // bottom sheet is still mounted causes MostroApp to rebuild
+                // with a new AppLocalizations before the sheet's widgets are
+                // deactivated, triggering _dependents.isEmpty assertions.
+                final notifier = ref.read(settingsProvider.notifier);
                 Navigator.of(context).pop();
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => notifier.setLanguage(lang.code),
+                );
               },
             );
           }),
