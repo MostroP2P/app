@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/mostro_defaults.dart';
+import 'package:mostro/src/rust/api.dart' as rust_api;
 
 // Default Mostro node info — imported from core/mostro_defaults.dart.
 const _defaultPubkey = defaultMostroPubkey;
 const _defaultRelays = defaultMostroRelays;
 
+/// Provides the app version string from the Rust layer.
+///
+/// Returns `'unknown'` on error so the UI always renders a legible value.
+final appVersionProvider = FutureProvider<String>((ref) async {
+  return rust_api.getAppVersion();
+});
+
 /// About screen — shows app version, Mostro branding, docs link, and default
 /// node information.
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
-
-  // TODO(bridge): replace with get_app_version() when bridge is wired
-  static const _appVersion = '1.0.0';
 
   String _truncatePubkey(String pubkey) {
     if (pubkey.length <= 16) return pubkey;
@@ -46,10 +52,19 @@ class AboutScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final c = colors;
+
+    final appVersion = ref.watch(appVersionProvider).when(
+      data: (v) => v,
+      loading: () => '…',
+      error: (e, _) {
+        debugPrint('[AboutScreen] getAppVersion failed: $e');
+        return 'unknown';
+      },
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -83,7 +98,7 @@ class AboutScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'v$_appVersion',
+                  'v$appVersion',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: c.textSubtle,
                       ),

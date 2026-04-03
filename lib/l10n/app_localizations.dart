@@ -1190,6 +1190,18 @@ abstract class AppLocalizations {
   /// **'Remove relay'**
   String get removeRelayTooltip;
 
+  /// SnackBar message shown when adding a relay fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to add relay'**
+  String get relayAddFailed;
+
+  /// SnackBar message shown when removing a relay fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to remove relay'**
+  String get relayRemoveFailed;
+
   /// Label for the backup confirmation checkbox on the Account screen
   ///
   /// In en, this message translates to:

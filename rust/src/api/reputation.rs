@@ -73,6 +73,21 @@ impl RatingStore {
         Ok(())
     }
 
+    /// Remove the local user's reserved rating slot for a trade.
+    ///
+    /// Called to roll back a slot reservation when the outbound dispatch fails
+    /// so the caller can retry.  No-op if no slot exists for the trade.
+    async fn remove_mine(&self, trade_id: &str) {
+        let mut store = self.ratings.write().await;
+        if let Some(entry) = store.get_mut(trade_id) {
+            entry.mine = None;
+            // Evict the map entry entirely when both sides are empty.
+            if entry.peer.is_none() {
+                store.remove(trade_id);
+            }
+        }
+    }
+
     /// Insert or update the peer's incoming rating for a trade.
     /// Can be called multiple times safely (handles re-delivery).
     async fn insert_peer(&self, info: RatingInfo) {
@@ -125,18 +140,58 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
         bail!("PrivacyModeEnabled: cannot submit rating while privacy mode is active");
     }
 
-    // TODO(Phase 14+): Look up the session to get trade key + mostro pubkey,
-    // then send a RateUser MostroMessage via NIP-59 Gift Wrap.
-
-    // Atomic check-and-insert under write lock — prevents TOCTOU races.
+    // Reserve the slot atomically before attempting any outbound send.
+    // This prevents two concurrent submit_rating calls from both reaching
+    // publish_event — the second call fails here with AlreadyRated rather than
+    // sending a duplicate RateUser message to Mostro.
     store
         .try_insert_mine(RatingInfo {
-            trade_id,
+            trade_id: trade_id.clone(),
             score,
             is_mine: true,
             created_at: unix_now(),
         })
         .await?;
+
+    // Send the RateUser message via NIP-59 Gift Wrap.  Roll back the slot
+    // reservation if any step fails so the caller can retry after a transient
+    // network error without hitting AlreadyRated.
+    if let Some(trade_index) = crate::api::orders::trade_key_for_order(&trade_id).await {
+        let dispatch_result: anyhow::Result<()> = async {
+            let sender_keys =
+                crate::api::identity::get_active_trade_keys(trade_index).await?;
+            let mostro_pubkey =
+                nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
+                    .map_err(|e| anyhow::anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+            let event_json = crate::mostro::actions::rate_user(
+                &sender_keys,
+                &mostro_pubkey,
+                &trade_id,
+                trade_index,
+                score,
+            )
+            .await?;
+            crate::api::orders::publish_event(&event_json).await
+        }
+        .await;
+
+        match dispatch_result {
+            Ok(()) => log::info!(
+                "[reputation] rate_user published trade={trade_id} score={score}"
+            ),
+            Err(e) => {
+                // Rollback: remove the reservation so the caller can retry.
+                store.remove_mine(&trade_id).await;
+                bail!("RateUserDispatchFailed: {e}");
+            }
+        }
+    } else {
+        // No trade key for this trade — store locally only (e.g. older session
+        // where the key index was not persisted).
+        log::warn!(
+            "[reputation] no trade key found for trade={trade_id}; rating stored locally only"
+        );
+    }
 
     Ok(())
 }
@@ -153,7 +208,13 @@ pub fn get_privacy_mode() -> bool {
 ///
 /// **Errors**: `NoIdentity` (identity check deferred to Phase 14+ bridge).
 pub fn set_privacy_mode(enabled: bool) {
-    // TODO(Phase 14+): Verify that an identity exists before toggling.
+    // Best-effort identity check: log a warning if no identity is configured but
+    // proceed anyway so the UI setting is never silently stuck.
+    tokio::spawn(async move {
+        if crate::api::identity::get_active_keys().await.is_err() {
+            log::warn!("[reputation] set_privacy_mode({enabled}): no identity configured");
+        }
+    });
     rating_store()
         .privacy_mode
         .store(enabled, Ordering::SeqCst);

@@ -176,6 +176,16 @@ async fn get_trade_key_index(order_id: &str) -> Option<u32> {
     None
 }
 
+/// Expose trade key lookup for inter-module use (e.g. reputation rating).
+pub(crate) async fn trade_key_for_order(order_id: &str) -> Option<u32> {
+    get_trade_key_index(order_id).await
+}
+
+/// Expose event publishing for inter-module use.
+pub(crate) async fn publish_event(event_json: &str) -> Result<()> {
+    publish_event_json(event_json).await
+}
+
 /// Filter parameters for the order list.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct OrderFilters {
@@ -329,8 +339,6 @@ pub async fn get_order(order_id: String) -> Result<Option<OrderInfo>> {
 /// Validates params, builds the MostroMessage, wraps via NIP-59, and
 /// publishes to relays. Queues if offline.
 ///
-/// TODO: Wire to actual Rust bridge identity + relay pool in Phase 7.
-/// Currently validates params and returns a mock OrderInfo.
 pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // Validate: fiat_amount XOR range
     let has_fixed = params.fiat_amount.is_some();
@@ -400,6 +408,11 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     let trade_key_info = crate::api::identity::derive_trade_key().await?;
     let trade_index = trade_key_info.index;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+
+    // Subscribe to gift-wrap (Kind 1059) responses from the daemon addressed to
+    // this trade key. This gives us the daemon-assigned order UUID faster and
+    // more reliably than waiting for the Kind 38383 content-fingerprint match.
+    subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
 
     // Build the content fingerprint key BEFORE publishing so the subscription
     // loop never races against an empty TRADE_KEY_MAP when the daemon replies
@@ -679,6 +692,179 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     publish_event_json(&event_json).await?;
     log::info!("[orders] cancel published for order={order_id} trade_index={trade_index}");
     Ok(())
+}
+
+// ── Gift-wrap (Kind 1059) subscription ───────────────────────────────────────
+
+/// Subscribe to NIP-59 Gift Wrap (Kind 1059) events addressed to a maker's
+/// trade key, spawning a background task that decrypts daemon responses.
+///
+/// Called immediately after creating a new maker order. Handles:
+/// - `Action::NewOrder` — daemon confirmed the order; bridges daemon UUID into
+///   `TRADE_KEY_MAP` via `resolve_maker_order`.
+/// - All other actions are logged (full trade-session routing is Phase 7+).
+pub(crate) async fn subscribe_gift_wraps(
+    trade_pubkey: nostr_sdk::PublicKey,
+    trade_index: u32,
+) {
+    tokio::spawn(async move {
+        // Fetch keys first — if this fails there is no point subscribing and
+        // we avoid leaving an orphan relay subscription with no decryption path.
+        let recipient_keys =
+            match crate::api::identity::get_active_trade_keys(trade_index).await {
+                Ok(k) => k,
+                Err(e) => {
+                    log::error!("[orders] subscribe_gift_wraps: no trade keys: {e}");
+                    return;
+                }
+            };
+
+        let Ok(pool) = crate::api::nostr::get_pool() else {
+            log::warn!("[orders] subscribe_gift_wraps: relay pool not initialized");
+            return;
+        };
+        let client = pool.client();
+
+        // Obtain the notifications receiver BEFORE subscribing to avoid a
+        // window where daemon responses arrive but aren't captured.
+        let mut rx = client.notifications();
+
+        let filter = nostr_sdk::Filter::new()
+            .kind(nostr_sdk::Kind::from(1059u16))
+            .pubkey(trade_pubkey);
+        if let Err(e) = client.subscribe(filter, None).await {
+            log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
+            return;
+        }
+
+        let trade_pubkey_hex = trade_pubkey.to_hex();
+        log::info!("[orders] gift-wrap subscription active for trade_pubkey={trade_pubkey_hex}");
+
+        use nostr_sdk::RelayPoolNotification;
+        use tokio::time::{timeout, Duration};
+
+        const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
+        let mut last_activity = tokio::time::Instant::now();
+
+        loop {
+            let remaining = Duration::from_secs(IDLE_TIMEOUT_SECS)
+                .saturating_sub(last_activity.elapsed());
+            if remaining.is_zero() {
+                log::debug!(
+                    "[orders] gift-wrap idle timeout for trade={trade_pubkey_hex}"
+                );
+                break;
+            }
+
+            match timeout(remaining, rx.recv()).await {
+                Ok(Ok(RelayPoolNotification::Event { event, .. })) => {
+                    if event.kind != nostr_sdk::Kind::from(1059u16) {
+                        continue;
+                    }
+                    // Only process events addressed to our trade pubkey.
+                    let is_for_us = event.tags.iter().any(|t| {
+                        let s = t.as_slice();
+                        s.first().map(|v| v.as_str()) == Some("p")
+                            && s.get(1).map(|v| v.as_str()) == Some(trade_pubkey_hex.as_str())
+                    });
+                    if !is_for_us {
+                        continue;
+                    }
+
+                    let event_json = match serde_json::to_string(&*event) {
+                        Ok(j) => j,
+                        Err(e) => {
+                            log::warn!("[orders] gift-wrap event serialize failed: {e}");
+                            continue;
+                        }
+                    };
+                    match crate::nostr::gift_wrap::unwrap(&recipient_keys, &event_json).await {
+                        Ok(rumor_json) => {
+                            process_gift_wrap_rumor(&rumor_json, &trade_pubkey_hex).await;
+                            last_activity = tokio::time::Instant::now();
+                        }
+                        Err(e) => log::warn!("[orders] gift-wrap decrypt failed: {e}"),
+                    }
+                }
+                Ok(Ok(RelayPoolNotification::Shutdown)) => break,
+                Ok(Err(broadcast::error::RecvError::Lagged(n))) => {
+                    log::warn!("[orders] gift-wrap lagged by {n} messages");
+                    continue;
+                }
+                Ok(Err(broadcast::error::RecvError::Closed)) => break,
+                Err(_) => break, // idle timeout
+                Ok(Ok(_)) => continue,
+            }
+        }
+
+        log::debug!(
+            "[orders] gift-wrap subscription exiting for trade={trade_pubkey_hex}"
+        );
+    });
+}
+
+/// Parse the inner rumor JSON from a decrypted gift-wrap and dispatch by action.
+async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
+    use mostro_core::message::{Action, Message};
+
+    // The rumor is a serialised UnsignedEvent; extract its content string.
+    let content = match serde_json::from_str::<serde_json::Value>(rumor_json) {
+        Ok(v) => match v.get("content").and_then(|c| c.as_str()) {
+            Some(s) => s.to_string(),
+            None => {
+                log::warn!("[orders] gift-wrap rumor has no content field");
+                return;
+            }
+        },
+        Err(e) => {
+            log::warn!("[orders] gift-wrap rumor JSON parse failed: {e}");
+            return;
+        }
+    };
+
+    // Mostro wire format: [message, null_or_peer]
+    let (msg, _peer): (Message, Option<mostro_core::message::Peer>) =
+        match serde_json::from_str(&content) {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!("[orders] gift-wrap content deserialize failed: {e}");
+                return;
+            }
+        };
+
+    let kind = msg.get_inner_message_kind();
+
+    log::info!(
+        "[orders] gift-wrap action={:?} order_id={:?} trade_pubkey={}",
+        kind.action,
+        kind.id,
+        trade_pubkey_hex
+    );
+
+    match &kind.action {
+        Action::NewOrder => {
+            if let Some(order_id) = &kind.id {
+                let order_id_str = order_id.to_string();
+                resolve_maker_order(&order_id_str, trade_pubkey_hex).await;
+                log::info!(
+                    "[orders] gift-wrap NewOrder: daemon order={order_id_str} confirmed"
+                );
+            } else {
+                log::warn!("[orders] gift-wrap NewOrder has no order id");
+            }
+        }
+        Action::Canceled => {
+            log::info!("[orders] gift-wrap Canceled for trade={trade_pubkey_hex}");
+            if let Some(order_id) = &kind.id {
+                order_book().remove_order(&order_id.to_string()).await;
+            }
+        }
+        action => {
+            log::debug!(
+                "[orders] gift-wrap unhandled action={action:?} (Phase 7+)"
+            );
+        }
+    }
 }
 
 // ── Single-order subscription ─────────────────────────────────────────────────

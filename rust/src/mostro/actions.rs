@@ -136,6 +136,39 @@ pub async fn cancel(
     simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::Cancel).await
 }
 
+/// Build and wrap a Dispute MostroMessage.
+pub async fn dispute(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+    trade_index: u32,
+) -> Result<String> {
+    simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::Dispute).await
+}
+
+/// Build and wrap a RateUser MostroMessage.
+///
+/// Sends a 1–5 star rating for the counterparty to the Mostro daemon via
+/// NIP-59 Gift Wrap after a trade completes.
+pub async fn rate_user(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+    trade_index: u32,
+    score: u8,
+) -> Result<String> {
+    let id = Uuid::parse_str(order_id)?;
+    let payload = Some(Payload::RatingUser(score));
+    let msg = Message::new_order(
+        Some(id),
+        None,
+        Some(trade_index as i64),
+        Action::RateUser,
+        payload,
+    );
+    wrap_message(sender_keys, mostro_pubkey, msg).await
+}
+
 /// Build and wrap an AddInvoice MostroMessage (buyer submits Lightning invoice
 /// or LN address).
 ///

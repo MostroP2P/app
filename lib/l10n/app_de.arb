@@ -196,6 +196,8 @@
   "disableRelayLabel": "Relay {url} deaktivieren",
   "enableRelayLabel": "Relay {url} aktivieren",
   "removeRelayTooltip": "Relay entfernen",
+  "relayAddFailed": "Relay konnte nicht hinzugefügt werden",
+  "relayRemoveFailed": "Relay konnte nicht entfernt werden",
   "backupConfirmCheckbox": "Ich habe meine Wörter aufgeschrieben und sicher gespeichert",
 
   "cancelTradeDialogTitle": "Handel abbrechen?",

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
   // by the Rust bridge (get_relays / add_relay / remove_relay) so configuration
   // persists across navigations and stays in sync with the backend (Phase 18+).
   late List<_RelayEntry> _relays;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -48,18 +50,48 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
     _relays = _defaultRelays
         .map((url) => _RelayEntry(url: url, isActive: true, isDefault: true))
         .toList();
+    _loadRelays();
+  }
+
+  Future<void> _loadRelays() async {
+    if (_loading) return;
+    _loading = true;
+    try {
+      final relays = await nostr_api.getRelays();
+      if (!mounted) return;
+      setState(() {
+        _relays = relays.map((r) => _RelayEntry(
+          url: r.url,
+          isActive: r.isActive,
+          isDefault: r.isDefault,
+        )).toList();
+      });
+    } catch (e) {
+      debugPrint('[RelayManagement] failed to load relays: $e');
+    } finally {
+      _loading = false;
+    }
   }
 
   void _toggleRelay(int index, bool value) {
     setState(() => _relays[index].isActive = value);
-    // TODO(bridge): call set_relay_active(_relays[index].url, value)
   }
 
-  void _removeRelay(int index) {
-    // ignore: unused_local_variable — used by the pending bridge call below.
+  Future<void> _removeRelay(int index) async {
     final url = _relays[index].url;
+    final removed = _relays[index];
     setState(() => _relays.removeAt(index));
-    // TODO(bridge): call remove_relay(url)
+    try {
+      await nostr_api.removeRelay(url: url);
+    } catch (e) {
+      debugPrint('[RelayManagement] removeRelay failed: $e');
+      if (!mounted) return;
+      setState(() => _relays.insert(index, removed));
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.relayRemoveFailed)),
+      );
+    }
   }
 
   Future<void> _showAddRelayDialog() async {
@@ -114,17 +146,23 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       return;
                     }
-                    setState(() {
-                      _relays.add(
-                        _RelayEntry(
-                          url: url,
-                          isActive: true,
-                          isDefault: false,
+                    final newEntry = _RelayEntry(
+                      url: url,
+                      isActive: true,
+                      isDefault: false,
+                    );
+                    setState(() => _relays.add(newEntry));
+                    Navigator.of(ctx).pop();
+                    nostr_api.addRelay(url: url).then((_) {}, onError: (e) {
+                      debugPrint('[RelayManagement] addRelay failed: $e');
+                      if (!mounted) return;
+                      setState(() => _relays.removeWhere((r) => r.url == url));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context).relayAddFailed),
                         ),
                       );
                     });
-                    Navigator.of(ctx).pop();
-                    // TODO(bridge): call add_relay(url)
                   },
                   child: Text(l10n.addButtonLabel),
                 ),
