@@ -47,6 +47,32 @@ fn store_pending_maker_key(trade_pubkey_hex: &str, index: u32) {
     }
 }
 
+/// Maps `content_key` → `local_uuid` for newly created maker orders.
+///
+/// At create time the order is added to the order book with a locally-generated
+/// UUID.  When the daemon later publishes its own Kind 38383 event (with a
+/// daemon-assigned UUID), the subscription loop uses this map to remove the
+/// stale local entry so there is only one entry in the book — keyed by the
+/// daemon's UUID — and `cancel_order` sends the correct ID.
+static PENDING_LOCAL_IDS: OnceLock<std::sync::RwLock<HashMap<String, String>>> = OnceLock::new();
+
+fn pending_local_ids() -> &'static std::sync::RwLock<HashMap<String, String>> {
+    PENDING_LOCAL_IDS.get_or_init(|| std::sync::RwLock::new(HashMap::new()))
+}
+
+fn store_pending_local_id(content_key: &str, local_uuid: &str) {
+    if let Ok(mut map) = pending_local_ids().write() {
+        map.insert(content_key.to_string(), local_uuid.to_string());
+    }
+}
+
+fn take_pending_local_id(content_key: &str) -> Option<String> {
+    pending_local_ids()
+        .write()
+        .ok()
+        .and_then(|mut m| m.remove(content_key))
+}
+
 /// Resolve a pending maker order once the daemon's gift-wrapped acknowledgement
 /// is processed and the real order ID becomes known.
 ///
@@ -253,6 +279,19 @@ impl OrderBook {
             .cloned()
     }
 
+    /// Remove the order with the given ID from the cache and notify listeners.
+    /// No-op if the ID is not present.
+    pub async fn remove_order(&self, order_id: &str) {
+        let mut orders = self.orders.write().await;
+        let before = orders.len();
+        orders.retain(|o| o.id != order_id);
+        if orders.len() != before {
+            let snapshot = orders.clone();
+            drop(orders);
+            let _ = self.tx.send(snapshot);
+        }
+    }
+
     pub(crate) fn subscribe(&self) -> broadcast::Receiver<Vec<OrderInfo>> {
         self.tx.subscribe()
     }
@@ -386,6 +425,9 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         &params_for_dispatch.payment_method,
     );
     store_trade_key_index(&ck, trade_index).await;
+    // Track local UUID so the subscription loop can remove this temporary
+    // entry once the daemon publishes its own UUID via Kind 38383.
+    store_pending_local_id(&ck, &order.id);
     log::info!(
         "[orders] create_order dispatched id={} trade_index={trade_index}",
         order.id
@@ -830,10 +872,21 @@ async fn _run_order_subscription() {
                                 // Bridge content fingerprint → daemon UUID so subsequent
                                 // actions (cancel) can look up the trade key by real order ID.
                                 store_trade_key_index(&info.id, trade_idx).await;
-                                log::info!(
-                                    "[orders] own order={} detected via content match trade_index={trade_idx}",
-                                    info.id
-                                );
+                                // Remove the temporary local-UUID entry that was
+                                // added optimistically at create_order time so the
+                                // order book only contains the daemon's real UUID.
+                                if let Some(local_id) = take_pending_local_id(&ck) {
+                                    order_book().remove_order(&local_id).await;
+                                    log::info!(
+                                        "[orders] replaced local order={local_id} with daemon order={}",
+                                        info.id
+                                    );
+                                } else {
+                                    log::info!(
+                                        "[orders] own order={} detected via content match trade_index={trade_idx}",
+                                        info.id
+                                    );
+                                }
                             }
                         }
                         order_book().upsert_order(info).await;
