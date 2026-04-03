@@ -23,7 +23,14 @@ class WalletSettingsScreen extends ConsumerWidget {
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Wallet Configuration')),
+      appBar: AppBar(
+        title: const Text('Wallet Configuration'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(AppRoute.settings),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: wallet == null
