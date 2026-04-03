@@ -123,9 +123,6 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         bail!("TradeNotDisputable: trade_id must not be empty");
     }
 
-    // TODO(Phase 12+): Look up session to get trade key + mostro pubkey, then
-    // send a Dispute MostroMessage via NIP-59 Gift Wrap.
-
     let dispute = Dispute {
         id: uuid::Uuid::new_v4().to_string(),
         trade_id: trade_id.clone(),
@@ -139,9 +136,44 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         is_read: true,
     };
 
-    dispute_store()
+    let dispute = dispute_store()
         .try_insert_if_absent_or_resolved(dispute)
-        .await
+        .await?;
+
+    // Dispatch Action::Dispute to the Mostro daemon via NIP-59 Gift Wrap.
+    if let Some(trade_index) = crate::api::orders::trade_key_for_order(&trade_id).await {
+        match crate::api::identity::get_active_trade_keys(trade_index).await {
+            Ok(sender_keys) => {
+                match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
+                    Ok(mostro_pubkey) => {
+                        match crate::mostro::actions::dispute(
+                            &sender_keys,
+                            &mostro_pubkey,
+                            &trade_id,
+                            trade_index,
+                        )
+                        .await
+                        {
+                            Ok(event_json) => {
+                                if let Err(e) = crate::api::orders::publish_event(&event_json).await {
+                                    log::warn!("[disputes] dispute publish failed: {e}");
+                                } else {
+                                    log::info!("[disputes] Dispute dispatched for trade={trade_id}");
+                                }
+                            }
+                            Err(e) => log::warn!("[disputes] dispute build failed: {e}"),
+                        }
+                    }
+                    Err(e) => log::error!("[disputes] invalid mostro pubkey: {e}"),
+                }
+            }
+            Err(e) => log::warn!("[disputes] could not get trade keys: {e}"),
+        }
+    } else {
+        log::warn!("[disputes] no trade key for trade={trade_id}; dispute stored locally only");
+    }
+
+    Ok(dispute)
 }
 
 /// Submit free-text evidence for an open dispute.

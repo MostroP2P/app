@@ -136,6 +136,16 @@ pub async fn cancel(
     simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::Cancel).await
 }
 
+/// Build and wrap a Dispute MostroMessage.
+pub async fn dispute(
+    sender_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+    trade_index: u32,
+) -> Result<String> {
+    simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::Dispute).await
+}
+
 /// Build and wrap a RateUser MostroMessage.
 ///
 /// Sends a 1–5 star rating for the counterparty to the Mostro daemon via

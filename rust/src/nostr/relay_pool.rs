@@ -140,13 +140,10 @@ impl RelayPool {
 
     /// Subscribe to Kind 38383 (public orders) and Kind 1059 (gift wraps) separately.
     ///
-    /// **TODO (Phase 3)**: After subscribing, spawn an event-processing loop
-    /// that pulls from `client.notifications()` and dispatches:
-    /// - `RelayPoolNotification::Event` with `Kind::from(38383)` →
-    ///   `parse_order_event` → update order-book provider
-    /// - `RelayPoolNotification::Event` with `Kind::from(KIND_GIFT_WRAP)` →
-    ///   `gift_wrap::unwrap` → route to trade/chat handlers
-    /// - `RelayPoolNotification::Shutdown` → update connection state
+    /// Note: Kind 38383 processing is handled by `orders::subscribe_orders()`.
+    /// Kind 1059 processing is handled per-trade by `orders::subscribe_gift_wraps()`
+    /// which is called automatically from `orders::create_order()`.
+    /// This method exists for bulk re-subscription (e.g. reconnect after restart).
     pub async fn subscribe_order_and_dm_feeds(&self, trade_pubkeys: Vec<PublicKey>) -> Result<()> {
         let mostro_pubkey = nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
             .map_err(|e| anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
