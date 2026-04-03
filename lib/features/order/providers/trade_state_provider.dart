@@ -26,14 +26,15 @@ final tradeAmountProvider =
 
 /// Live order status for a single trade, polled from the order book every 2 s.
 ///
-/// Returns [OrderStatus.pending] as the initial / fallback value while loading.
+/// Starts with an immediate fetch (no initial delay) so the first emission
+/// reflects the real relay status. While loading, callers fall back to the
+/// DB-stored [TradeListItem.status] via [AsyncValue.whenOrNull].
 final tradeStatusProvider =
     StreamProvider.family.autoDispose<OrderStatus, String>((ref, orderId) async* {
-  yield OrderStatus.pending; // immediate first emission so UI doesn't hang
   while (true) {
-    await Future.delayed(const Duration(seconds: 2));
     final info = await orders_api.getOrder(orderId: orderId);
     if (info != null) yield info.status;
+    await Future.delayed(const Duration(seconds: 2));
   }
 });
 

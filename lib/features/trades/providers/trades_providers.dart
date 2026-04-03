@@ -220,8 +220,10 @@ final orderBookNotificationCountProvider = Provider<int>((ref) {
             ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
         if (live == null) continue;
         final seen = lastSeen[trade.order.id];
-        // Unseen if no prior snapshot or status changed.
-        if (seen == null || seen != live) count++;
+        // Only count as unseen when status changed from a known prior state.
+        // No snapshot yet (seen == null) means the user hasn't visited the tab
+        // in this session — don't treat existing trades as new notifications.
+        if (seen != null && seen != live) count++;
       }
       return count;
     },
