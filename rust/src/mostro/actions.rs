@@ -25,6 +25,7 @@ pub async fn new_order(
     sender_keys: &Keys,
     mostro_pubkey: &PublicKey,
     params: &NewOrderParams,
+    trade_index: u32,
 ) -> Result<String> {
     use mostro_core::order::{Kind, SmallOrder, Status};
 
@@ -57,7 +58,7 @@ pub async fn new_order(
     );
 
     let payload = Some(Payload::Order(small_order));
-    let msg = Message::new_order(None, None, Some(0), Action::NewOrder, payload);
+    let msg = Message::new_order(None, None, Some(trade_index as i64), Action::NewOrder, payload);
     wrap_message(sender_keys, mostro_pubkey, msg).await
 }
 

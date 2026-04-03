@@ -288,20 +288,34 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // Cache locally (optimistic — daemon will publish the real Kind 38383).
     order_book().upsert_order(order.clone()).await;
 
-    // Dispatch new_order to Mostro using the identity key (index 0).
-    if let Ok(sender_keys) = crate::api::identity::get_active_trade_keys(0).await {
-        if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
-            match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch).await {
-                Ok(event_json) => {
-                    if let Err(e) = publish_event_json(&event_json).await {
-                        log::warn!("[orders] create_order publish failed: {e}");
-                    } else {
-                        log::info!("[orders] create_order dispatched for id={}", order.id);
+    // Derive a fresh trade key for this order — each order must use a unique
+    // derived key index so the daemon can verify the trade index in the message.
+    match crate::api::identity::derive_trade_key().await {
+        Ok(trade_key_info) => {
+            let trade_index = trade_key_info.index;
+            match crate::api::identity::get_active_trade_keys(trade_index).await {
+                Ok(sender_keys) => {
+                    if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+                        match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index).await {
+                            Ok(event_json) => {
+                                if let Err(e) = publish_event_json(&event_json).await {
+                                    log::warn!("[orders] create_order publish failed: {e}");
+                                } else {
+                                    store_trade_key_index(&order.id, trade_index).await;
+                                    log::info!(
+                                        "[orders] create_order dispatched id={} trade_index={trade_index}",
+                                        order.id
+                                    );
+                                }
+                            }
+                            Err(e) => log::warn!("[orders] create_order action build failed: {e}"),
+                        }
                     }
                 }
-                Err(e) => log::warn!("[orders] create_order action build failed: {e}"),
+                Err(e) => log::warn!("[orders] create_order: could not get trade keys: {e}"),
             }
         }
+        Err(e) => log::warn!("[orders] create_order: could not derive trade key: {e}"),
     }
 
     Ok(order)

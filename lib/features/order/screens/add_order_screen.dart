@@ -7,6 +7,8 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/order/widgets/payment_method_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
+import 'package:mostro/src/rust/api/orders.dart' as rust_orders;
+import 'package:mostro/src/rust/api/types.dart';
 
 /// Create order screen — Route `/add_order`.
 ///
@@ -56,6 +58,13 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final hasPayment = selectedMethods.isNotEmpty || customMethod.isNotEmpty;
     if (!hasPayment) return false;
 
+    final isMarket = ref.read(isMarketPriceProvider);
+    if (!isMarket) {
+      final fixedSatsStr = ref.read(fixedSatsProvider);
+      final sats = BigInt.tryParse(fixedSatsStr);
+      if (sats == null || sats <= BigInt.zero) return false;
+    }
+
     if (_isRange) {
       final min = double.tryParse(_minController.text);
       final max = double.tryParse(_maxController.text);
@@ -73,14 +82,47 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     setState(() => _submitting = true);
 
     try {
-      // TODO (Phase 7): Call create_order() via Rust bridge.
-      // For now, simulate a short delay and navigate to My Trades.
-      await Future.delayed(const Duration(milliseconds: 300));
+      final fiatCode = ref.read(selectedFiatCodeProvider);
+      final isMarket = ref.read(isMarketPriceProvider);
+      final premium = isMarket ? ref.read(premiumValueProvider) : 0.0;
+      final fixedSatsStr = ref.read(fixedSatsProvider);
+
+      // Sanitize and join payment methods (comma-separated, no special chars).
+      final sanitized = customMethod
+          .trim()
+          .replaceAll(RegExp(r'[,"\\\[\]{}]'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      final allMethods = [
+        ...selectedMethods,
+        if (sanitized.isNotEmpty) sanitized,
+      ];
+      final paymentMethod = allMethods.join(',');
+
+      final params = NewOrderParams(
+        kind: _isBuy ? OrderKind.buy : OrderKind.sell,
+        fiatAmount: _isRange ? null : double.tryParse(_amountController.text),
+        fiatAmountMin:
+            _isRange ? double.tryParse(_minController.text) : null,
+        fiatAmountMax:
+            _isRange ? double.tryParse(_maxController.text) : null,
+        fiatCode: fiatCode,
+        paymentMethod: paymentMethod,
+        premium: premium,
+        amountSats: (!isMarket && fixedSatsStr.isNotEmpty)
+            ? BigInt.tryParse(fixedSatsStr)
+            : null,
+      );
+
+      await rust_orders.createOrder(params: params);
 
       if (!mounted) return;
-
-      // Navigate to My Trades tab (order book / trades screen).
       context.go(AppRoute.orderBook);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to create order: $e')),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
