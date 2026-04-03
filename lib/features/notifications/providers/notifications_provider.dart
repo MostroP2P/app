@@ -8,7 +8,7 @@ import 'package:mostro/features/notifications/models/notification_model.dart';
 
 // Platform-specific imports — path_provider is only needed on non-web.
 import 'package:path_provider/path_provider.dart'
-    if (dart.library.html) 'dart:html';
+    if (dart.library.html) 'package:mostro/core/stubs/path_provider_stub.dart';
 import 'package:sembast/sembast_io.dart';
 import 'package:sembast/sembast_memory.dart' show databaseFactoryMemory;
 

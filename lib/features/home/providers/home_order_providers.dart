@@ -36,6 +36,11 @@ final ratingFilterProvider =
 final premiumRangeFilterProvider =
     StateProvider<({double min, double max})>((_) => defaultPremiumRange);
 
+/// Converts a `PlatformInt64` value (int on native, BigInt on web/dart2js)
+/// to a plain Dart `int`.
+// ignore: unnecessary_cast
+int _platformInt64ToInt(dynamic v) => v is BigInt ? v.toInt() : v as int;
+
 // ── Order model ───────────────────────────────────────────────────────────────
 
 /// Lightweight Dart-side order model for the UI layer.
@@ -125,9 +130,11 @@ class OrderItem {
         paymentMethod: info.paymentMethod,
         premium: info.premium,
         creatorPubkey: info.creatorPubkey,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(info.createdAt * 1000),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(
+            _platformInt64ToInt(info.createdAt) * 1000),
         expiresAt: info.expiresAt != null
-            ? DateTime.fromMillisecondsSinceEpoch(info.expiresAt! * 1000)
+            ? DateTime.fromMillisecondsSinceEpoch(
+                _platformInt64ToInt(info.expiresAt!) * 1000)
             : null,
         status: info.status,
         amountSats: info.amountSats,
