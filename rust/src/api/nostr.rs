@@ -161,6 +161,52 @@ impl RelayStatusStream {
     }
 }
 
+/// Fetch the Mostro daemon's Kind 38385 (instance status) tags.
+///
+/// Queries the relay pool for a Kind 38385 event published by `mostro_pubkey_hex`.
+/// Returns the raw tag list as `Vec<Vec<String>>` so the Dart layer can parse
+/// each tag into the `MostroInstance` model.
+///
+/// Returns `None` if no matching event arrives within 10 seconds (relay
+/// not reachable, or daemon has never published a Kind 38385 event).
+pub async fn fetch_mostro_instance_tags(
+    mostro_pubkey_hex: String,
+) -> Result<Option<Vec<Vec<String>>>> {
+    use nostr_sdk::prelude::*;
+    use std::time::Duration;
+
+    let client = pool()?.client();
+
+    let pubkey = nostr_sdk::PublicKey::from_hex(&mostro_pubkey_hex)
+        .map_err(|e| anyhow::anyhow!("invalid pubkey hex: {e}"))?;
+
+    // Kind 38385 is a NIP-33 addressable event; the `d` tag uniquely identifies
+    // the Mostro instance and equals the daemon's pubkey (hex). Adding the
+    // d-tag constraint prevents the relay from returning a stale or unrelated
+    // event from the same author.
+    let filter = Filter::new()
+        .kind(Kind::from(38385u16))
+        .author(pubkey)
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::D), &mostro_pubkey_hex)
+        .limit(1);
+
+    let events = client
+        .fetch_events(filter, Duration::from_secs(10))
+        .await
+        .map_err(|e| anyhow::anyhow!("fetch_events failed: {e}"))?;
+
+    if let Some(event) = events.first() {
+        let tags = event
+            .tags
+            .iter()
+            .map(|t| t.as_slice().to_vec())
+            .collect::<Vec<Vec<String>>>();
+        Ok(Some(tags))
+    } else {
+        Ok(None)
+    }
+}
+
 // ── Internals ───────────────────────────────────────────────────────────────
 
 fn default_relays() -> Vec<String> {

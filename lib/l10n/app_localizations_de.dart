@@ -674,6 +674,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get closeButtonLabel => 'Schließen';
 
   @override
+  String get copyButtonLabel => 'Kopieren';
+
+  @override
   String get orderStatusWaitingForTaker => 'Warte auf Taker';
 
   @override
@@ -699,4 +702,229 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get orderCancelledSuccess => 'Auftrag erfolgreich storniert.';
+
+  @override
+  String get aboutAppInfoTitle => 'App-Informationen';
+
+  @override
+  String get aboutDocumentationTitle => 'Dokumentation';
+
+  @override
+  String get aboutMostroNodeTitle => 'Mostro-Knoten';
+
+  @override
+  String get aboutVersionLabel => 'Version';
+
+  @override
+  String get aboutGithubRepoLabel => 'GitHub-Repository';
+
+  @override
+  String get aboutCommitHashLabel => 'Commit-Hash';
+
+  @override
+  String get aboutLicenseLabel => 'Lizenz';
+
+  @override
+  String get aboutLicenseName => 'MIT';
+
+  @override
+  String get aboutGithubRepoName => 'mostro-mobile';
+
+  @override
+  String get aboutDocsUsersEnglish => 'Nutzer (Englisch)';
+
+  @override
+  String get aboutDocsUsersSpanish => 'Nutzer (Spanisch)';
+
+  @override
+  String get aboutDocsTechnical => 'Technisch';
+
+  @override
+  String get aboutDocsRead => 'Lesen';
+
+  @override
+  String get aboutCopiedToClipboard => 'In die Zwischenablage kopiert';
+
+  @override
+  String get aboutLicenseDialogTitle => 'MIT-Lizenz';
+
+  @override
+  String get aboutNodeLoadingText => 'Knoteninformationen werden geladen…';
+
+  @override
+  String get aboutNodeUnavailable => 'Knoteninformationen nicht verfügbar';
+
+  @override
+  String get aboutNodeRetry => 'Erneut versuchen';
+
+  @override
+  String get aboutGeneralInfoSection => 'Allgemeine Informationen';
+
+  @override
+  String get aboutTechnicalDetailsSection => 'Technische Details';
+
+  @override
+  String get aboutLightningNetworkSection => 'Lightning-Netzwerk';
+
+  @override
+  String get aboutMostroPublicKeyLabel => 'Öffentlicher Mostro-Schlüssel';
+
+  @override
+  String get aboutMaxOrderAmountLabel => 'Maximaler Auftragsbetrag';
+
+  @override
+  String get aboutMinOrderAmountLabel => 'Minimaler Auftragsbetrag';
+
+  @override
+  String get aboutOrderLifespanLabel => 'Auftragslaufzeit';
+
+  @override
+  String get aboutServiceFeeLabel => 'Servicegebühr';
+
+  @override
+  String get aboutFiatCurrenciesLabel => 'Fiat-Währungen';
+
+  @override
+  String get aboutMostroVersionLabel => 'Mostro-Version';
+
+  @override
+  String get aboutMostroCommitLabel => 'Mostro-Commit';
+
+  @override
+  String get aboutOrderExpirationLabel => 'Auftragsablauf';
+
+  @override
+  String get aboutHoldInvoiceExpLabel => 'Hold-Invoice-Ablauf';
+
+  @override
+  String get aboutHoldInvoiceCltvLabel => 'Hold-Invoice CLTV';
+
+  @override
+  String get aboutInvoiceExpWindowLabel => 'Rechnungsablauffenster';
+
+  @override
+  String get aboutProofOfWorkLabel => 'Proof of Work';
+
+  @override
+  String get aboutMaxOrdersPerResponseLabel => 'Max. Aufträge/Antwort';
+
+  @override
+  String get aboutLndVersionLabel => 'LND-Version';
+
+  @override
+  String get aboutLndNodePublicKeyLabel => 'Öffentlicher LND-Knotenschlüssel';
+
+  @override
+  String get aboutLndCommitLabel => 'LND-Commit';
+
+  @override
+  String get aboutLndNodeAliasLabel => 'LND-Knotenalias';
+
+  @override
+  String get aboutSupportedChainsLabel => 'Unterstützte Chains';
+
+  @override
+  String get aboutSupportedNetworksLabel => 'Unterstützte Netzwerke';
+
+  @override
+  String get aboutLndNodeUriLabel => 'LND-Knoten-URI';
+
+  @override
+  String get aboutSatoshisSuffix => 'Satoshis';
+
+  @override
+  String get aboutHoursSuffix => 'Stunden';
+
+  @override
+  String get aboutSecondsSuffix => 'Sekunden';
+
+  @override
+  String get aboutBlocksSuffix => 'Blöcke';
+
+  @override
+  String get aboutFiatCurrenciesAll => 'Alle';
+
+  @override
+  String get aboutMostroPublicKeyExplanation =>
+      'Der öffentliche Nostr-Schlüssel des Mostro-Daemons. Alle Aufträge und verschlüsselten Nachrichten dieser Instanz werden von diesem Schlüssel veröffentlicht oder weitergeleitet.';
+
+  @override
+  String get aboutMaxOrderAmountExplanation =>
+      'Der maximale Fiat-Betrag für einen einzelnen Auftrag auf dieser Mostro-Instanz.';
+
+  @override
+  String get aboutMinOrderAmountExplanation =>
+      'Der minimale Fiat-Betrag für einen einzelnen Auftrag auf dieser Mostro-Instanz.';
+
+  @override
+  String get aboutOrderLifespanExplanation =>
+      'Wie lange ein ausstehender Auftrag offen bleibt, bevor er automatisch abläuft, wenn kein Abnehmer gefunden wird.';
+
+  @override
+  String get aboutServiceFeeExplanation =>
+      'Der Prozentsatz des Handelsbetrags, der vom Mostro-Daemon als Servicegebühr erhoben wird.';
+
+  @override
+  String get aboutFiatCurrenciesExplanation =>
+      'Die auf dieser Mostro-Instanz akzeptierten Fiat-Währungen. \'Alle\' bedeutet, dass es keine Einschränkungen gibt.';
+
+  @override
+  String get aboutMostroVersionExplanation =>
+      'Die Version der Mostro-Daemon-Software, die auf dieser Instanz ausgeführt wird.';
+
+  @override
+  String get aboutMostroCommitExplanation =>
+      'Der Git-Commit-Hash des Mostro-Daemon-Builds zur Identifizierung der genauen Software-Revision.';
+
+  @override
+  String get aboutOrderExpirationExplanation =>
+      'Die Zeitüberschreitung in Sekunden, nach der ein auf Aktion wartender Handel (z.B. Rechnung oder Zahlung) automatisch storniert wird.';
+
+  @override
+  String get aboutHoldInvoiceExpExplanation =>
+      'Das Zeitfenster in Sekunden, in dem die Lightning-Hold-Invoice abgerechnet werden muss.';
+
+  @override
+  String get aboutHoldInvoiceCltvExplanation =>
+      'Das CLTV-Delta (Blockanzahl) für Hold-Invoices, das steuert, wie lange der HTLC gesperrt bleiben kann.';
+
+  @override
+  String get aboutInvoiceExpWindowExplanation =>
+      'Das Zeitfenster in Sekunden, in dem der Käufer nach Handelsbeginn eine Lightning-Rechnung einreichen muss.';
+
+  @override
+  String get aboutProofOfWorkExplanation =>
+      'Die minimale Proof-of-Work-Schwierigkeit für Nostr-Events auf dieser Instanz. 0 bedeutet, dass kein PoW erforderlich ist.';
+
+  @override
+  String get aboutMaxOrdersPerResponseExplanation =>
+      'Die maximale Anzahl von Aufträgen in einer einzelnen Relay-Antwort. Begrenzt die Bandbreitennutzung.';
+
+  @override
+  String get aboutLndVersionExplanation =>
+      'Die Version des LND-Knotens (Lightning Network Daemon), der mit dieser Mostro-Instanz verbunden ist.';
+
+  @override
+  String get aboutLndNodePublicKeyExplanation =>
+      'Der öffentliche Schlüssel des LND-Knotens zur Identifizierung und Verifizierung des Lightning-Netzwerk-Knotens.';
+
+  @override
+  String get aboutLndCommitExplanation =>
+      'Der Git-Commit-Hash des LND-Builds zur Identifizierung der genauen Software-Revision des Lightning-Knotens.';
+
+  @override
+  String get aboutLndNodeAliasExplanation =>
+      'Der lesbare Alias des LND-Knotens, wie vom Knotenbetreiber konfiguriert.';
+
+  @override
+  String get aboutSupportedChainsExplanation =>
+      'Die vom LND-Knoten unterstützten Blockchain(s) (z.B. \'bitcoin\').';
+
+  @override
+  String get aboutSupportedNetworksExplanation =>
+      'Die Netzwerke, in denen der LND-Knoten betrieben wird (z.B. \'mainnet\', \'testnet\').';
+
+  @override
+  String get aboutLndNodeUriExplanation =>
+      'Die Verbindungs-URI des LND-Knotens im Format pubkey@host:port. Wird zum Öffnen direkter Zahlungskanäle verwendet.';
 }

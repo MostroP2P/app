@@ -662,6 +662,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeButtonLabel => 'Close';
 
   @override
+  String get copyButtonLabel => 'Copy';
+
+  @override
   String get orderStatusWaitingForTaker => 'Waiting for a taker';
 
   @override
@@ -687,4 +690,229 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get orderCancelledSuccess => 'Order cancelled successfully.';
+
+  @override
+  String get aboutAppInfoTitle => 'App Information';
+
+  @override
+  String get aboutDocumentationTitle => 'Documentation';
+
+  @override
+  String get aboutMostroNodeTitle => 'Mostro Node';
+
+  @override
+  String get aboutVersionLabel => 'Version';
+
+  @override
+  String get aboutGithubRepoLabel => 'GitHub Repository';
+
+  @override
+  String get aboutCommitHashLabel => 'Commit Hash';
+
+  @override
+  String get aboutLicenseLabel => 'License';
+
+  @override
+  String get aboutLicenseName => 'MIT';
+
+  @override
+  String get aboutGithubRepoName => 'mostro-mobile';
+
+  @override
+  String get aboutDocsUsersEnglish => 'Users (English)';
+
+  @override
+  String get aboutDocsUsersSpanish => 'Users (Spanish)';
+
+  @override
+  String get aboutDocsTechnical => 'Technical';
+
+  @override
+  String get aboutDocsRead => 'Read';
+
+  @override
+  String get aboutCopiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String get aboutLicenseDialogTitle => 'MIT License';
+
+  @override
+  String get aboutNodeLoadingText => 'Loading node information…';
+
+  @override
+  String get aboutNodeUnavailable => 'Node information unavailable';
+
+  @override
+  String get aboutNodeRetry => 'Retry';
+
+  @override
+  String get aboutGeneralInfoSection => 'General Info';
+
+  @override
+  String get aboutTechnicalDetailsSection => 'Technical Details';
+
+  @override
+  String get aboutLightningNetworkSection => 'Lightning Network';
+
+  @override
+  String get aboutMostroPublicKeyLabel => 'Mostro Public Key';
+
+  @override
+  String get aboutMaxOrderAmountLabel => 'Max Order Amount';
+
+  @override
+  String get aboutMinOrderAmountLabel => 'Min Order Amount';
+
+  @override
+  String get aboutOrderLifespanLabel => 'Order Lifespan';
+
+  @override
+  String get aboutServiceFeeLabel => 'Service Fee';
+
+  @override
+  String get aboutFiatCurrenciesLabel => 'Fiat Currencies';
+
+  @override
+  String get aboutMostroVersionLabel => 'Mostro Version';
+
+  @override
+  String get aboutMostroCommitLabel => 'Mostro Commit';
+
+  @override
+  String get aboutOrderExpirationLabel => 'Order Expiration';
+
+  @override
+  String get aboutHoldInvoiceExpLabel => 'Hold Invoice Expiration';
+
+  @override
+  String get aboutHoldInvoiceCltvLabel => 'Hold Invoice CLTV';
+
+  @override
+  String get aboutInvoiceExpWindowLabel => 'Invoice Expiration Window';
+
+  @override
+  String get aboutProofOfWorkLabel => 'Proof of Work';
+
+  @override
+  String get aboutMaxOrdersPerResponseLabel => 'Max Orders/Response';
+
+  @override
+  String get aboutLndVersionLabel => 'LND Version';
+
+  @override
+  String get aboutLndNodePublicKeyLabel => 'LND Node Public Key';
+
+  @override
+  String get aboutLndCommitLabel => 'LND Commit';
+
+  @override
+  String get aboutLndNodeAliasLabel => 'LND Node Alias';
+
+  @override
+  String get aboutSupportedChainsLabel => 'Supported Chains';
+
+  @override
+  String get aboutSupportedNetworksLabel => 'Supported Networks';
+
+  @override
+  String get aboutLndNodeUriLabel => 'LND Node URI';
+
+  @override
+  String get aboutSatoshisSuffix => 'Satoshis';
+
+  @override
+  String get aboutHoursSuffix => 'hours';
+
+  @override
+  String get aboutSecondsSuffix => 'seconds';
+
+  @override
+  String get aboutBlocksSuffix => 'blocks';
+
+  @override
+  String get aboutFiatCurrenciesAll => 'All';
+
+  @override
+  String get aboutMostroPublicKeyExplanation =>
+      'The Nostr public key of the Mostro daemon. All orders and encrypted messages on this instance are published or routed by this key.';
+
+  @override
+  String get aboutMaxOrderAmountExplanation =>
+      'The maximum fiat amount allowed for a single order on this Mostro instance.';
+
+  @override
+  String get aboutMinOrderAmountExplanation =>
+      'The minimum fiat amount required for a single order on this Mostro instance.';
+
+  @override
+  String get aboutOrderLifespanExplanation =>
+      'How long a pending order stays open before it automatically expires if no taker is found.';
+
+  @override
+  String get aboutServiceFeeExplanation =>
+      'The percentage of the trade amount charged by the Mostro daemon as a service fee.';
+
+  @override
+  String get aboutFiatCurrenciesExplanation =>
+      'The fiat currencies accepted on this Mostro instance. \'All\' means there are no restrictions.';
+
+  @override
+  String get aboutMostroVersionExplanation =>
+      'The version of the Mostro daemon software running this instance.';
+
+  @override
+  String get aboutMostroCommitExplanation =>
+      'The Git commit hash of the Mostro daemon build, used to identify the exact software revision.';
+
+  @override
+  String get aboutOrderExpirationExplanation =>
+      'The timeout in seconds after which a trade waiting for action (e.g. invoice or payment) is automatically canceled.';
+
+  @override
+  String get aboutHoldInvoiceExpExplanation =>
+      'The time window in seconds during which the Lightning hold invoice must be settled.';
+
+  @override
+  String get aboutHoldInvoiceCltvExplanation =>
+      'The CLTV delta (block count) used for hold invoices, controlling how long the HTLC can remain locked.';
+
+  @override
+  String get aboutInvoiceExpWindowExplanation =>
+      'The time window in seconds within which the buyer must submit a Lightning invoice after the trade is initiated.';
+
+  @override
+  String get aboutProofOfWorkExplanation =>
+      'The minimum proof-of-work difficulty required for Nostr events on this instance. 0 means no PoW is required.';
+
+  @override
+  String get aboutMaxOrdersPerResponseExplanation =>
+      'The maximum number of orders returned in a single relay response. Limits bandwidth usage.';
+
+  @override
+  String get aboutLndVersionExplanation =>
+      'The version of the LND (Lightning Network Daemon) node connected to this Mostro instance.';
+
+  @override
+  String get aboutLndNodePublicKeyExplanation =>
+      'The public key of the LND node. Used to identify and verify the Lightning Network node.';
+
+  @override
+  String get aboutLndCommitExplanation =>
+      'The Git commit hash of the LND build, identifying the exact software revision of the Lightning node.';
+
+  @override
+  String get aboutLndNodeAliasExplanation =>
+      'The human-readable alias of the LND node as configured by the node operator.';
+
+  @override
+  String get aboutSupportedChainsExplanation =>
+      'The blockchain(s) supported by the LND node (e.g. \'bitcoin\').';
+
+  @override
+  String get aboutSupportedNetworksExplanation =>
+      'The network(s) the LND node operates on (e.g. \'mainnet\', \'testnet\').';
+
+  @override
+  String get aboutLndNodeUriExplanation =>
+      'The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.';
 }
