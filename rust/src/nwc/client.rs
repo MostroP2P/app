@@ -209,8 +209,12 @@ mod native {
                 bail!("NoWalletConnected: wallet is not connected");
             }
 
+            let msats = amount_sats
+                .checked_mul(1000)
+                .ok_or_else(|| anyhow::anyhow!("Amount overflow: {amount_sats} sats exceeds maximum"))?;
+
             let request = Request::make_invoice(MakeInvoiceRequest {
-                amount: amount_sats * 1000, // convert sats → msats
+                amount: msats,
                 description,
                 description_hash: None,
                 expiry: None,
@@ -314,16 +318,13 @@ mod tests {
     }
 
     /// URI parsing is delegated to nostr-sdk's `NostrWalletConnectURI::parse`.
-    #[test]
-    fn parse_rejects_invalid_uri() {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let result = tokio::runtime::Runtime::new()
-                .unwrap()
-                .block_on(NwcClient::new("not-a-valid-uri"));
-            let err = result.err().expect("should fail for invalid URI");
-            assert!(err.to_string().contains("InvalidNwcUri"));
-        }
+    #[tokio::test]
+    async fn parse_rejects_invalid_uri() {
+        let err = NwcClient::new("not-a-valid-uri")
+            .await
+            .err()
+            .expect("should fail for invalid URI");
+        assert!(err.to_string().contains("InvalidNwcUri"));
     }
 
     /// Tests that previously checked for NotImplemented now require a live

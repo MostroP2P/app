@@ -5,17 +5,17 @@
 ///
 /// The underlying NIP-47 protocol exchange is handled by [`crate::nwc::client`].
 use anyhow::{anyhow, bail, Result};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::{broadcast, RwLock};
 use tokio::sync::broadcast::error::RecvError;
 
-use crate::api::types::{NwcWalletInfo, PaymentResult, WalletStatus};
+use crate::api::types::{NwcWalletInfo, PaymentResult};
 use crate::nwc::client::NwcClient;
 
 // ── Wallet store ──────────────────────────────────────────────────────────────
 
 struct WalletStore {
-    client: RwLock<Option<NwcClient>>,
+    client: RwLock<Option<Arc<NwcClient>>>,
     status_tx: broadcast::Sender<Option<NwcWalletInfo>>,
 }
 
@@ -70,16 +70,17 @@ pub async fn connect_wallet(nwc_uri: String) -> Result<NwcWalletInfo> {
     };
 
     let store = wallet_store();
-    let had_existing = {
+    let (had_existing, old_client) = {
         let mut guard = store.client.write().await;
-        let had = guard.is_some();
-        // Disconnect the old client if present.
-        if let Some(old) = guard.take() {
-            old.disconnect().await;
-        }
-        *guard = Some(client);
-        had
+        let old = guard.take();
+        let had = old.is_some();
+        *guard = Some(Arc::new(client));
+        (had, old)
     };
+    // Disconnect the old client outside the lock.
+    if let Some(old) = old_client {
+        old.disconnect().await;
+    }
     // Notify disconnect before the new connection event so listeners can
     // cleanly transition from the old connection to the new one.
     if had_existing {
@@ -94,13 +95,13 @@ pub async fn connect_wallet(nwc_uri: String) -> Result<NwcWalletInfo> {
 /// **Errors**: `NoWalletConnected`.
 pub async fn disconnect_wallet() -> Result<()> {
     let store = wallet_store();
-    {
+    let old = {
         let mut guard = store.client.write().await;
-        match guard.take() {
-            Some(old) => old.disconnect().await,
-            None => bail!("NoWalletConnected: no wallet is currently connected"),
-        }
-    }
+        guard
+            .take()
+            .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?
+    };
+    old.disconnect().await;
     store.notify(None);
     Ok(())
 }
@@ -115,10 +116,14 @@ pub async fn get_wallet() -> Result<Option<NwcWalletInfo>> {
 ///
 /// **Errors**: `NoWalletConnected`, `WalletError`.
 pub async fn get_balance() -> Result<Option<u64>> {
-    let guard = wallet_store().client.read().await;
-    let client = guard
-        .as_ref()
-        .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?;
+    let client = {
+        let guard = wallet_store().client.read().await;
+        Arc::clone(
+            guard
+                .as_ref()
+                .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?,
+        )
+    };
     client.get_balance().await
 }
 
@@ -130,14 +135,14 @@ pub async fn pay_invoice(bolt11: String) -> Result<PaymentResult> {
         bail!("InvoiceInvalid: bolt11 must not be empty");
     }
 
-    let guard = wallet_store().client.read().await;
-    let client = guard
-        .as_ref()
-        .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?;
-
-    if client.info.status != WalletStatus::Connected {
-        bail!("NoWalletConnected: wallet is not connected");
-    }
+    let client = {
+        let guard = wallet_store().client.read().await;
+        Arc::clone(
+            guard
+                .as_ref()
+                .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?,
+        )
+    };
 
     client.pay_invoice(&bolt11).await
 }
@@ -180,6 +185,7 @@ pub fn on_wallet_status_changed() -> WalletStatusStream {
 #[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
+    use crate::api::types::WalletStatus;
     use std::sync::{Mutex, OnceLock as StdOnceLock};
 
     /// Serializes tests that modify the global WALLET_STORE so they don't
