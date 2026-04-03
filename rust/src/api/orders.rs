@@ -340,10 +340,14 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
             .await?;
     publish_event_json(&event_json).await?;
 
-    // Cache locally and persist the pending trade-key entry only after a
+    // Cache locally and persist the pending trade-key entries only after a
     // successful publish so a failure doesn't surface as a successful response.
     order_book().upsert_order(order.clone()).await;
+    // Keyed by trade pubkey for future reconciliation with the daemon-assigned UUID.
     store_pending_maker_key(&sender_keys.public_key().to_hex(), trade_index);
+    // Also keyed by the local UUID so cancel_order can look up the trade key
+    // while the daemon's real order ID is not yet known.
+    store_trade_key_index(&order.id, trade_index).await;
     log::info!(
         "[orders] create_order dispatched id={} trade_index={trade_index}",
         order.id

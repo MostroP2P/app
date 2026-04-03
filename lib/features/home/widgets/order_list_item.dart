@@ -27,7 +27,9 @@ class OrderListItem extends StatelessWidget {
     final sellColor = colors?.sellColor ?? const Color(0xFFFF8A8A);
 
     final isSelling = order.kind == 'sell';
-    final pillLabel = isSelling ? 'SELLING' : 'BUYING';
+    final pillLabel = order.isMine
+        ? (isSelling ? 'YOU ARE SELLING' : 'YOU ARE BUYING')
+        : (isSelling ? 'SELLING' : 'BUYING');
     final pillColor = isSelling ? sellColor : green;
     final premiumPositive = order.premium >= 0;
     final premiumColor = premiumPositive ? green : sellColor;

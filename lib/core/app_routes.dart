@@ -8,6 +8,7 @@ import 'package:mostro/features/notifications/screens/notifications_screen.dart'
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/add_order_screen.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
+import 'package:mostro/features/order/screens/my_order_screen.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
 import 'package:mostro/features/chat/screens/chat_room_screen.dart';
 import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
@@ -31,6 +32,7 @@ abstract final class AppRoute {
   static const home = '/';
   static const orderBook = '/order_book';
   static const addOrder = '/add_order';
+  static const myOrder = '/my_order/:orderId';
   static const takeSell = '/take_sell/:orderId';
   static const takeBuy = '/take_buy/:orderId';
   static const payInvoice = '/pay_invoice/:orderId';
@@ -54,6 +56,7 @@ abstract final class AppRoute {
   /// Build a path with a single [id] substituted for the `:orderId` segment.
   static String tradeDetailPath(String orderId) =>
       '/trade_detail/$orderId';
+  static String myOrderPath(String orderId) => '/my_order/$orderId';
   static String takeSellPath(String orderId) => '/take_sell/$orderId';
   static String takeBuyPath(String orderId) => '/take_buy/$orderId';
   static String payInvoicePath(String orderId) => '/pay_invoice/$orderId';
@@ -119,6 +122,12 @@ final GoRouter appRouter = GoRouter(
         final type = state.uri.queryParameters['type'] ?? 'sell';
         return AddOrderScreen(orderType: type);
       },
+    ),
+    GoRoute(
+      path: AppRoute.myOrder,
+      builder: (context, state) => MyOrderScreen(
+        orderId: state.pathParameters['orderId']!,
+      ),
     ),
     GoRoute(
       path: AppRoute.takeSell,
