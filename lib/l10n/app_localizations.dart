@@ -1825,6 +1825,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'An error occurred while loading the trade.'**
   String get tradeLoadError;
+
+  /// Loading message shown while the Mostro daemon has not yet sent the hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for hold invoice...'**
+  String get tradeWaitingForHoldInvoice;
 }
 
 class _AppLocalizationsDelegate

@@ -951,4 +951,7 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get tradeLoadError =>
       'Beim Laden des Handels ist ein Fehler aufgetreten.';
+
+  @override
+  String get tradeWaitingForHoldInvoice => 'Warte auf Hold-Rechnung...';
 }
