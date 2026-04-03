@@ -106,7 +106,7 @@ TradeListItem _tradeInfoToItem(rust_types.TradeInfo trade) {
   // yet implemented; the BigInt branch guards future correctness.
   final createdAt = trade.startedAt is BigInt
       ? (trade.startedAt as BigInt).toInt()
-      : trade.startedAt;
+      : trade.startedAt as int; // ignore: unnecessary_cast
 
   return TradeListItem(
     orderId: trade.order.id,

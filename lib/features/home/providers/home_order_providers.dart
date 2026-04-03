@@ -125,9 +125,19 @@ class OrderItem {
         paymentMethod: info.paymentMethod,
         premium: info.premium,
         creatorPubkey: info.creatorPubkey,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(info.createdAt * 1000),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(
+            (info.createdAt is BigInt
+                    ? (info.createdAt as BigInt).toInt()
+                    // ignore: unnecessary_cast
+                    : info.createdAt as int) *
+                1000),
         expiresAt: info.expiresAt != null
-            ? DateTime.fromMillisecondsSinceEpoch(info.expiresAt! * 1000)
+            ? DateTime.fromMillisecondsSinceEpoch(
+                (info.expiresAt! is BigInt
+                        ? (info.expiresAt! as BigInt).toInt()
+                        // ignore: unnecessary_cast
+                        : info.expiresAt! as int) *
+                    1000)
             : null,
         status: info.status,
         amountSats: info.amountSats,
