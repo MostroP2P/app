@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -189,7 +188,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.relays,
-      builder: (_, __) => const _Stub('Relays'),
+      redirect: (_, __) => AppRoute.settings,
     ),
     GoRoute(
       path: AppRoute.walletSettings,
@@ -228,20 +227,3 @@ final GoRouter appRouter = GoRouter(
   ],
 );
 
-// ── Placeholder screen ─────────────────────────────────────────────────────────
-
-class _Stub extends StatelessWidget {
-  const _Stub(this.name);
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(name)),
-      body: Center(
-        child: Text(name, style: Theme.of(context).textTheme.bodyLarge),
-      ),
-    );
-  }
-}

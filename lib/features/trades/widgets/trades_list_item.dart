@@ -163,22 +163,15 @@ class TradesListItem extends ConsumerWidget {
     };
   }
 
-  /// Returns a human-readable "time ago" string from a unix timestamp.
+  /// Returns a compact "time ago" string from a unix timestamp (e.g. "4m", "2h", "3d").
   static String _timeAgo(int unixSeconds) {
     final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
     final diff = DateTime.now().difference(dt);
 
-    if (diff.isNegative || diff.inSeconds < 60) return 'just now';
-    if (diff.inMinutes < 60) {
-      final m = diff.inMinutes;
-      return '$m ${m == 1 ? 'minute' : 'minutes'} ago';
-    }
-    if (diff.inHours < 24) {
-      final h = diff.inHours;
-      return '$h ${h == 1 ? 'hour' : 'hours'} ago';
-    }
-    final d = diff.inDays;
-    return '$d ${d == 1 ? 'day' : 'days'} ago';
+    if (diff.isNegative || diff.inSeconds < 60) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    return '${diff.inDays}d';
   }
 }
 

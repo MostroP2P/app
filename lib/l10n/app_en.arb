@@ -616,5 +616,19 @@
   "aboutSupportedNetworksExplanation": "The network(s) the LND node operates on (e.g. 'mainnet', 'testnet').",
   "@aboutSupportedNetworksExplanation": {"description": "Info dialog explanation for the Supported Networks field"},
   "aboutLndNodeUriExplanation": "The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.",
-  "@aboutLndNodeUriExplanation": {"description": "Info dialog explanation for the LND Node URI field"}
+  "@aboutLndNodeUriExplanation": {"description": "Info dialog explanation for the LND Node URI field"},
+  "openDisputeFailed": "Could not open dispute. Please try again.",
+  "@openDisputeFailed": {"description": "Snackbar shown when opening a dispute fails"},
+  "tradeWaitingInvoiceBuyerInstruction": "Submit your Lightning invoice so the seller can lock the funds.",
+  "@tradeWaitingInvoiceBuyerInstruction": {"description": "Instruction shown to the buyer while waiting to submit their Lightning invoice"},
+  "tradeWaitingInvoiceSellerInstruction": "Waiting for the buyer to submit their Lightning invoice.",
+  "@tradeWaitingInvoiceSellerInstruction": {"description": "Instruction shown to the seller while waiting for the buyer's Lightning invoice"},
+  "tradeWaitingPaymentBuyerInstruction": "The seller is paying the hold invoice. Please wait.",
+  "@tradeWaitingPaymentBuyerInstruction": {"description": "Instruction shown to the buyer while the seller pays the hold invoice"},
+  "tradeWaitingPaymentSellerInstruction": "Pay the hold invoice to lock the funds and start the trade.",
+  "@tradeWaitingPaymentSellerInstruction": {"description": "Instruction shown to the seller prompting them to pay the hold invoice"},
+  "tradeLoadError": "An error occurred while loading the trade.",
+  "@tradeLoadError": {"description": "Error message shown when a trade fails to load"},
+  "tradeWaitingForHoldInvoice": "Waiting for hold invoice...",
+  "@tradeWaitingForHoldInvoice": {"description": "Loading message shown while the Mostro daemon has not yet sent the hold invoice"}
 }

@@ -303,5 +303,12 @@
   "aboutLndNodeAliasExplanation": "L'alias lisible par l'homme du nœud LND tel que configuré par l'opérateur du nœud.",
   "aboutSupportedChainsExplanation": "La ou les blockchain(s) supportée(s) par le nœud LND (ex. 'bitcoin').",
   "aboutSupportedNetworksExplanation": "Le ou les réseau(x) sur lesquels le nœud LND opère (ex. 'mainnet', 'testnet').",
-  "aboutLndNodeUriExplanation": "L'URI de connexion du nœud LND au format pubkey@hôte:port. Utilisée pour ouvrir des canaux de paiement directs."
+  "aboutLndNodeUriExplanation": "L'URI de connexion du nœud LND au format pubkey@hôte:port. Utilisée pour ouvrir des canaux de paiement directs.",
+  "openDisputeFailed": "Impossible d'ouvrir le litige. Veuillez réessayer.",
+  "tradeWaitingInvoiceBuyerInstruction": "Soumettez votre facture Lightning pour que le vendeur puisse bloquer les fonds.",
+  "tradeWaitingInvoiceSellerInstruction": "En attente de la facture Lightning de l'acheteur.",
+  "tradeWaitingPaymentBuyerInstruction": "Le vendeur est en train de payer la facture hold. Veuillez patienter.",
+  "tradeWaitingPaymentSellerInstruction": "Payez la facture hold pour bloquer les fonds et démarrer l'échange.",
+  "tradeLoadError": "Une erreur s'est produite lors du chargement de l'échange.",
+  "tradeWaitingForHoldInvoice": "En attente de la facture hold..."
 }

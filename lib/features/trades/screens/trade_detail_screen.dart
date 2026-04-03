@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/src/rust/api/disputes.dart' as disputes_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
@@ -36,6 +37,10 @@ const _kCountdownSeconds = 900; // 15 minutes
 enum TradeStatus {
   /// Status not yet resolved (initial loading state — no actions shown).
   loading('Loading'),
+  /// Buyer must submit Lightning invoice (waitingBuyerInvoice).
+  waitingInvoice('Waiting Invoice'),
+  /// Seller must pay hold invoice (waitingPayment).
+  waitingPayment('Waiting Payment'),
   active('Active'),
   fiatSent('Fiat Sent'),
   completed('Completed'),
@@ -55,10 +60,12 @@ enum TradeStatus {
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
   Duration _remaining = const Duration(seconds: _kCountdownSeconds);
+  int _totalCountdownSeconds = _kCountdownSeconds;
 
   @override
   void initState() {
     super.initState();
+    _loadExpiresAt();
     _startCountdown();
   }
 
@@ -66,6 +73,29 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   void dispose() {
     _countdownTimer?.cancel();
     super.dispose();
+  }
+
+  /// Fetches the real `expiresAt` from the order and resets [_remaining].
+  ///
+  /// Falls back to the default [_kCountdownSeconds] when the field is null or
+  /// the order is no longer available.
+  Future<void> _loadExpiresAt() async {
+    try {
+      final info = await orders_api.getOrder(orderId: widget.orderId);
+      final raw = info?.expiresAt;
+      if (raw == null || !mounted) return;
+      // PlatformInt64 = int on native, BigInt on web.
+      final expiresAtSeconds = raw is BigInt ? raw.toInt() : raw;
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final diff = expiresAtSeconds - now;
+      if (!mounted) return;
+      setState(() {
+        _totalCountdownSeconds = diff > 0 ? diff : _kCountdownSeconds;
+        _remaining = diff > 0 ? Duration(seconds: diff) : Duration.zero;
+      });
+    } catch (_) {
+      // Keep the default remaining time on error.
+    }
   }
 
   void _startCountdown() {
@@ -91,7 +121,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   static TradeStatus _mapOrderStatus(OrderStatus s) {
     switch (s) {
+      case OrderStatus.waitingBuyerInvoice:
+        return TradeStatus.waitingInvoice;
+      case OrderStatus.waitingPayment:
+        return TradeStatus.waitingPayment;
       case OrderStatus.active:
+      case OrderStatus.inProgress:
         return TradeStatus.active;
       case OrderStatus.fiatSent:
         return TradeStatus.fiatSent;
@@ -102,6 +137,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         return TradeStatus.pendingRating;
       case OrderStatus.canceled:
       case OrderStatus.canceledByAdmin:
+      case OrderStatus.cooperativelyCanceled:
       case OrderStatus.expired:
         return TradeStatus.cancelled;
       case OrderStatus.dispute:
@@ -147,6 +183,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   }
 
   String _getInstructionText(bool isBuyer, TradeStatus status) {
+    final l10n = AppLocalizations.of(context);
+    if (status == TradeStatus.waitingInvoice) {
+      return isBuyer
+          ? l10n.tradeWaitingInvoiceBuyerInstruction
+          : l10n.tradeWaitingInvoiceSellerInstruction;
+    }
+    if (status == TradeStatus.waitingPayment) {
+      return isBuyer
+          ? l10n.tradeWaitingPaymentBuyerInstruction
+          : l10n.tradeWaitingPaymentSellerInstruction;
+    }
     if (isBuyer) {
       if (status == TradeStatus.active) {
         return 'Send the fiat payment to the seller, then tap "Fiat Sent".';
@@ -183,6 +230,35 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final m = (d.inMinutes % 60).toString().padLeft(2, '0');
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$h:$m:$s';
+  }
+
+  /// Open a dispute for this trade, upsert into the local dispute notifier,
+  /// and navigate to the dispute chat.
+  Future<void> _openDispute() async {
+    try {
+      final dispute = await disputes_api.openDispute(tradeId: widget.orderId);
+      if (!context.mounted) return;
+      final raw = dispute.openedAt;
+      // PlatformInt64 = int on native, BigInt on web.
+      final openedAt = raw is BigInt ? raw.toInt() : raw;
+      ref.read(disputeNotifierProvider.notifier).upsert(
+            DisputeItem(
+              id: dispute.id,
+              tradeId: dispute.tradeId,
+              status: DisputeStatus.open,
+              initiatedByMe: true,
+              openedAt: openedAt,
+            ),
+          );
+      if (!context.mounted) return;
+      context.push(AppRoute.disputeDetailsPath(dispute.id));
+    } catch (e, st) {
+      debugPrint('[TradeDetailScreen] openDispute error: $e\n$st');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).openDisputeFailed)),
+      );
+    }
   }
 
   /// Shared style for destructive (cancel / dispute) outlined buttons.
@@ -344,8 +420,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     width: 80,
                     height: 80,
                     child: CircularProgressIndicator(
-                      value: (_remaining.inSeconds / _kCountdownSeconds)
-                          .clamp(0.0, 1.0),
+                      value: _totalCountdownSeconds > 0
+                          ? (_remaining.inSeconds / _totalCountdownSeconds)
+                              .clamp(0.0, 1.0)
+                          : 1.0,
                       strokeWidth: 4,
                       color: _remaining.inMinutes < 5
                           ? colors?.destructiveRed ?? const Color(0xFFD84D4D)
@@ -363,6 +441,42 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
+          ],
+
+          // ── Buyer: Waiting Invoice — ADD INVOICE button ────────
+          if (isBuyer && status == TradeStatus.waitingInvoice) ...[
+            FilledButton.icon(
+              onPressed: () =>
+                  context.push(AppRoute.addInvoicePath(widget.orderId)),
+              icon: const Icon(Icons.receipt_long_outlined, size: 16),
+              label: const Text('ADD INVOICE'),
+              style: FilledButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+            ),
+          ],
+
+          // ── Seller: Waiting Payment — PAY INVOICE button ───────
+          if (!isBuyer && status == TradeStatus.waitingPayment) ...[
+            FilledButton.icon(
+              onPressed: () =>
+                  context.push(AppRoute.payInvoicePath(widget.orderId)),
+              icon: const Icon(Icons.bolt, size: 16),
+              label: const Text('PAY INVOICE'),
+              style: FilledButton.styleFrom(
+                backgroundColor: green,
+                foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+            ),
           ],
 
           // Action buttons (buyer flow — T060)
@@ -398,11 +512,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: _openDispute,
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
                     style: _destructiveOutlineStyle(
@@ -461,11 +571,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: _openDispute,
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
                     style: _destructiveOutlineStyle(
@@ -618,11 +724,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Coming soon')),
-                      );
-                    },
+                    onPressed: _openDispute,
                     icon: const Icon(Icons.gavel, size: 16),
                     label: const Text('DISPUTE'),
                     style: _destructiveOutlineStyle(

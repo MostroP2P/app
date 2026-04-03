@@ -931,4 +931,28 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get aboutLndNodeUriExplanation =>
       'L\'URI de connexion du nœud LND au format pubkey@hôte:port. Utilisée pour ouvrir des canaux de paiement directs.';
+
+  @override
+  String get openDisputeFailed =>
+      'Impossible d\'ouvrir le litige. Veuillez réessayer.';
+
+  @override
+  String get tradeWaitingInvoiceBuyerInstruction =>
+      'Soumettez votre facture Lightning pour que le vendeur puisse bloquer les fonds.';
+
+  @override
+  String get tradeWaitingInvoiceSellerInstruction =>
+      'En attente de la facture Lightning de l\'acheteur.';
+
+  @override
+  String get tradeWaitingPaymentBuyerInstruction =>
+      'Le vendeur est en train de payer la facture hold. Veuillez patienter.';
+
+  @override
+  String get tradeWaitingPaymentSellerInstruction =>
+      'Payez la facture hold pour bloquer les fonds et démarrer l\'échange.';
+
+  @override
+  String get tradeLoadError =>
+      'Une erreur s\'est produite lors du chargement de l\'échange.';
 }

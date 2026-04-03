@@ -915,4 +915,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get aboutLndNodeUriExplanation =>
       'The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.';
+
+  @override
+  String get openDisputeFailed => 'Could not open dispute. Please try again.';
+
+  @override
+  String get tradeWaitingInvoiceBuyerInstruction =>
+      'Submit your Lightning invoice so the seller can lock the funds.';
+
+  @override
+  String get tradeWaitingInvoiceSellerInstruction =>
+      'Waiting for the buyer to submit their Lightning invoice.';
+
+  @override
+  String get tradeWaitingPaymentBuyerInstruction =>
+      'The seller is paying the hold invoice. Please wait.';
+
+  @override
+  String get tradeWaitingPaymentSellerInstruction =>
+      'Pay the hold invoice to lock the funds and start the trade.';
+
+  @override
+  String get tradeLoadError => 'An error occurred while loading the trade.';
 }

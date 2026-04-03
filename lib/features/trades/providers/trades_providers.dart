@@ -144,6 +144,18 @@ final rawTradesProvider = FutureProvider<List<rust_types.TradeInfo>>((ref) {
   return orders_api.listTrades();
 });
 
+/// Returns the [rust_types.TradeInfo] for a given [orderId], or null if not found.
+///
+/// Used by screens that need trade-level fields (e.g. [holdInvoice], [timeoutAt])
+/// that are not present on the order-book [OrderInfo].
+final tradeInfoProvider =
+    FutureProvider.autoDispose.family<rust_types.TradeInfo?, String>(
+  (ref, orderId) async {
+    final trades = await ref.watch(rawTradesProvider.future);
+    return trades.where((t) => t.order.id == orderId).firstOrNull;
+  },
+);
+
 /// Invalidates the raw trades cache, forcing a fresh DB fetch on next read.
 ///
 /// Call this after a trade is successfully saved (e.g. after [takeOrder]).
