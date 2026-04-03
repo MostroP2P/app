@@ -400,22 +400,10 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     let trade_key_info = crate::api::identity::derive_trade_key().await?;
     let trade_index = trade_key_info.index;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
-    let event_json =
-        actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index)
-            .await?;
-    publish_event_json(&event_json).await?;
 
-    // Cache locally and persist the pending trade-key entries only after a
-    // successful publish so a failure doesn't surface as a successful response.
-    order_book().upsert_order(order.clone()).await;
-    // Keyed by trade pubkey for future reconciliation with the daemon-assigned UUID.
-    store_pending_maker_key(&sender_keys.public_key().to_hex(), trade_index);
-    // Also keyed by the local UUID so cancel_order can look up the trade key
-    // while the daemon's real order ID is not yet known.
-    store_trade_key_index(&order.id, trade_index).await;
-    // Index by content fingerprint so the subscription loop can restore
-    // is_mine=true after a cold restart without needing the daemon's UUID.
+    // Build the content fingerprint key BEFORE publishing so the subscription
+    // loop never races against an empty TRADE_KEY_MAP when the daemon replies
+    // faster than our post-publish bookkeeping runs.
     let ck = order_content_key(
         &params_for_dispatch.kind,
         &params_for_dispatch.fiat_code,
@@ -424,12 +412,25 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         params_for_dispatch.fiat_amount_max,
         &params_for_dispatch.payment_method,
     );
-    store_trade_key_index(&ck, trade_index).await;
-    // Track local UUID so the subscription loop can remove this temporary
-    // entry once the daemon publishes its own UUID via Kind 38383.
+
+    // Register all bookkeeping entries before publishing the event.
+    // The daemon can respond with a Kind 38383 event within milliseconds; if
+    // we stored these after publish the subscription loop could arrive before
+    // the keys are written and miss the fingerprint match entirely.
+    store_trade_key_index(&order.id, trade_index).await; // local UUID fallback
+    store_trade_key_index(&ck, trade_index).await;       // content fingerprint
+    store_pending_maker_key(&sender_keys.public_key().to_hex(), trade_index);
     store_pending_local_id(&ck, &order.id);
+    order_book().upsert_order(order.clone()).await;
+
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let event_json =
+        actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index)
+            .await?;
+    publish_event_json(&event_json).await?;
+
     log::info!(
-        "[orders] create_order dispatched id={} trade_index={trade_index}",
+        "[orders] create_order dispatched id={} trade_index={trade_index} ck={ck}",
         order.id
     );
 
@@ -867,6 +868,7 @@ async fn _run_order_subscription() {
                                 info.fiat_amount_max,
                                 &info.payment_method,
                             );
+                            log::debug!("[orders] fingerprint check order={} ck={ck}", info.id);
                             if let Some(trade_idx) = get_trade_key_index(&ck).await {
                                 info.is_mine = true;
                                 // Bridge content fingerprint → daemon UUID so subsequent
