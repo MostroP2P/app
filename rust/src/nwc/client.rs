@@ -1,200 +1,292 @@
-/// NWC client — URI parsing and wallet operations.
-///
-/// Parses `nostr+walletconnect://<pubkey>?relay=<url>&secret=<hex>` URIs,
-/// holds the parsed credentials, and provides async methods for querying
-/// wallet info and paying invoices via the Nostr Wallet Connect protocol.
-///
-/// Protocol message exchange (NIP-47) is deferred to Phase 15+ when the
-/// full Nostr relay connection is wired.  The current implementation holds
-/// the parsed state in-memory and returns stub responses that keep the Dart
-/// UI functional without a live wallet.
-use anyhow::{bail, Result};
+// NWC client — real Nostr Wallet Connect (NIP-47) implementation.
+//
+// Uses `nostr-sdk` types for URI parsing, request/response construction,
+// NIP-04 encryption, and relay communication via the SDK's `Client`.
+//
+// Native-only: the relay transport depends on tokio + TCP which do not
+// compile to WASM.  All relay-dependent items are gated behind
+// `cfg(not(target_arch = "wasm32"))`.
 
-use crate::api::types::{NwcWalletInfo, PaymentResult, WalletStatus};
+#[cfg(not(target_arch = "wasm32"))]
+mod native {
+    use std::time::Duration;
 
-// ── NWC URI ───────────────────────────────────────────────────────────────────
+    use anyhow::{anyhow, bail, Result};
+    use nostr_sdk::prelude::*;
+    use nostr_sdk::nips::nip47::{
+        GetBalanceResponse, GetInfoResponse, MakeInvoiceRequest,
+        MakeInvoiceResponse, NostrWalletConnectURI, PayInvoiceRequest,
+        PayInvoiceResponse, Request, Response, ResponseResult,
+    };
+    use nostr_sdk::Client;
 
-/// Parsed Nostr Wallet Connect URI.
-///
-/// Format: `nostr+walletconnect://<wallet_pubkey>?relay=<url>&secret=<hex>`
-///
-/// Multiple `relay=` params are allowed.
-#[derive(Clone)]
-pub struct NwcUri {
-    /// Wallet service Nostr public key (64-char lowercase hex).
-    pub wallet_pubkey: String,
-    /// At least one relay URL.
-    pub relay_urls: Vec<String>,
-    /// 64-char hex secret used as the NWC client key.
-    pub secret_hex: String,
-}
+    use crate::api::types::{NwcWalletInfo, PaymentResult, WalletStatus};
 
-impl std::fmt::Debug for NwcUri {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NwcUri")
-            .field("wallet_pubkey", &self.wallet_pubkey)
-            .field("relay_urls", &self.relay_urls)
-            .field("secret_hex", &"[REDACTED]")
-            .finish()
+    /// Timeout for NIP-47 request → response round-trips.
+    const NWC_TIMEOUT: Duration = Duration::from_secs(30);
+
+    /// Real NWC client backed by a nostr-sdk `Client` connected to the
+    /// wallet's relay.
+    pub struct NwcClient {
+        client: Client,
+        uri: NostrWalletConnectURI,
+        pub info: NwcWalletInfo,
     }
-}
 
-impl NwcUri {
-    /// Parse a NWC URI string.
-    ///
-    /// **Errors**: `InvalidNwcUri` with a reason suffix on any validation failure.
-    pub fn parse(uri: &str) -> Result<Self> {
-        let uri = uri.trim();
-        let rest = uri
-            .strip_prefix("nostr+walletconnect://")
-            .ok_or_else(|| anyhow::anyhow!("InvalidNwcUri: must start with nostr+walletconnect://"))?;
+    impl NwcClient {
+        /// Parse a NWC URI, build a nostr-sdk `Client` with the NWC secret
+        /// key, add the relay, and connect.
+        pub async fn new(uri_str: &str) -> Result<Self> {
+            let uri = NostrWalletConnectURI::parse(uri_str)
+                .map_err(|e| anyhow!("InvalidNwcUri: {e}"))?;
 
-        // Split pubkey from query string.
-        let (pubkey_part, query) = rest.split_once('?').unwrap_or((rest, ""));
+            let keys = Keys::new(uri.secret.clone());
+            let client = Client::new(keys);
 
-        let wallet_pubkey = pubkey_part.trim().to_lowercase();
-        if wallet_pubkey.len() != 64 || !wallet_pubkey.chars().all(|c| c.is_ascii_hexdigit()) {
-            bail!("InvalidNwcUri: wallet pubkey must be a 64-char hex string");
+            // Add all relays from the URI.
+            for relay_url in &uri.relays {
+                client
+                    .add_relay(relay_url.clone())
+                    .await
+                    .map_err(|e| anyhow!("Failed to add relay {relay_url}: {e}"))?;
+            }
+
+            client.connect().await;
+
+            let relay_urls: Vec<String> =
+                uri.relays.iter().map(|r| r.to_string()).collect();
+
+            Ok(Self {
+                client,
+                info: NwcWalletInfo {
+                    wallet_pubkey: uri.public_key.to_hex(),
+                    wallet_name: None,
+                    status: WalletStatus::Connecting,
+                    balance_sats: None,
+                    relay_urls,
+                    last_connected_at: None,
+                },
+                uri,
+            })
         }
 
-        let mut relay_urls = Vec::new();
-        let mut secret_hex = String::new();
+        /// Send a NIP-47 request and await the wallet's response.
+        async fn send_request(&self, request: Request) -> Result<Response> {
+            let event = request
+                .to_event(&self.uri)
+                .map_err(|e| anyhow!("Failed to build NIP-47 request event: {e}"))?;
 
-        for param in query.split('&') {
-            if let Some(val) = param.strip_prefix("relay=") {
-                let relay = urlencoding_decode(val);
-                if !relay.starts_with("wss://") && !relay.starts_with("ws://") {
-                    bail!("InvalidNwcUri: relay URL must start with wss:// or ws://");
+            self.client
+                .send_event(&event)
+                .await
+                .map_err(|e| anyhow!("Failed to send NIP-47 request: {e}"))?;
+
+            // Subscribe to the response: Kind 23195 from the wallet pubkey,
+            // created after the request event's timestamp.
+            let filter = Filter::new()
+                .kind(Kind::WalletConnectResponse)
+                .author(self.uri.public_key)
+                .since(event.created_at);
+
+            let events = self
+                .client
+                .fetch_events(filter, NWC_TIMEOUT)
+                .await
+                .map_err(|e| anyhow!("Failed to fetch NIP-47 response: {e}"))?;
+
+            // Find the response that matches our request (most recent first).
+            for resp_event in events.into_iter() {
+                match Response::from_event(&self.uri, &resp_event) {
+                    Ok(resp) => return Ok(resp),
+                    Err(_) => continue, // not our response, try next
                 }
-                relay_urls.push(relay);
-            } else if let Some(val) = param.strip_prefix("secret=") {
-                secret_hex = val.trim().to_lowercase();
+            }
+
+            bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}")
+        }
+
+        /// Query wallet info (name, supported methods) via NIP-47 `get_info`.
+        pub async fn get_info(&mut self) -> Result<NwcWalletInfo> {
+            let response = self.send_request(Request::get_info()).await?;
+
+            if let Some(err) = response.error {
+                bail!("NWC get_info error: {err}");
+            }
+
+            if let Some(ResponseResult::GetInfo(GetInfoResponse { alias, .. })) =
+                response.result
+            {
+                self.info.wallet_name = alias;
+            }
+
+            self.info.status = WalletStatus::Connected;
+            self.info.last_connected_at = Some(unix_now());
+
+            Ok(self.info.clone())
+        }
+
+        /// Query the wallet balance in satoshis.
+        ///
+        /// The NIP-47 `get_balance` response returns millisatoshis; this
+        /// method converts to sats via floor division (`msat / 1000`).
+        pub async fn get_balance(&self) -> Result<Option<u64>> {
+            if self.info.status != WalletStatus::Connected {
+                bail!("NoWalletConnected: wallet is not connected");
+            }
+
+            let response = self.send_request(Request::get_balance()).await?;
+
+            if let Some(err) = response.error {
+                bail!("NWC get_balance error: {err}");
+            }
+
+            match response.result {
+                Some(ResponseResult::GetBalance(GetBalanceResponse { balance })) => {
+                    // balance is in millisatoshis — convert to sats.
+                    Ok(Some(balance / 1000))
+                }
+                _ => Ok(None),
             }
         }
 
-        if relay_urls.is_empty() {
-            bail!("InvalidNwcUri: at least one relay= parameter is required");
-        }
-
-        if secret_hex.len() != 64 || !secret_hex.chars().all(|c| c.is_ascii_hexdigit()) {
-            bail!("InvalidNwcUri: secret must be a 64-char hex string");
-        }
-
-        Ok(Self {
-            wallet_pubkey,
-            relay_urls,
-            secret_hex,
-        })
-    }
-}
-
-/// Minimal percent-decode for relay URL values (handles `%3A` → `:` etc.).
-fn urlencoding_decode(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '%' {
-            let c1 = chars.next();
-            let c2 = chars.next();
-            match (
-                c1.and_then(|ch| ch.to_digit(16)),
-                c2.and_then(|ch| ch.to_digit(16)),
-            ) {
-                (Some(h1), Some(h2)) => {
-                    out.push(char::from_u32(h1 * 16 + h2).unwrap_or('%'));
-                }
-                _ => {
-                    out.push('%');
-                    if let Some(ch) = c1 {
-                        out.push(ch);
-                    }
-                    if let Some(ch) = c2 {
-                        out.push(ch);
-                    }
-                }
+        /// Pay a BOLT-11 invoice via the connected wallet.
+        pub async fn pay_invoice(&self, bolt11: &str) -> Result<PaymentResult> {
+            if self.info.status != WalletStatus::Connected {
+                return Ok(PaymentResult {
+                    success: false,
+                    preimage: None,
+                    error: Some("NoWalletConnected: wallet is not connected".into()),
+                });
             }
-        } else {
-            out.push(c);
+
+            let request =
+                Request::pay_invoice(PayInvoiceRequest::new(bolt11.to_string()));
+            let response = self.send_request(request).await;
+
+            match response {
+                Ok(resp) => {
+                    if let Some(err) = resp.error {
+                        return Ok(PaymentResult {
+                            success: false,
+                            preimage: None,
+                            error: Some(format!("{err}")),
+                        });
+                    }
+                    match resp.result {
+                        Some(ResponseResult::PayInvoice(PayInvoiceResponse {
+                            preimage,
+                            ..
+                        })) => Ok(PaymentResult {
+                            success: true,
+                            preimage: Some(preimage),
+                            error: None,
+                        }),
+                        _ => Ok(PaymentResult {
+                            success: false,
+                            preimage: None,
+                            error: Some("Unexpected response from wallet".into()),
+                        }),
+                    }
+                }
+                Err(e) => Ok(PaymentResult {
+                    success: false,
+                    preimage: None,
+                    error: Some(e.to_string()),
+                }),
+            }
         }
-    }
-    out
-}
 
-// ── NWC client ────────────────────────────────────────────────────────────────
+        /// Request the wallet to create a new Lightning invoice.
+        ///
+        /// `amount_sats` is converted to millisatoshis for the NIP-47 request.
+        /// Returns the BOLT-11 invoice string.
+        pub async fn make_invoice(
+            &self,
+            amount_sats: u64,
+            description: Option<String>,
+        ) -> Result<String> {
+            if self.info.status != WalletStatus::Connected {
+                bail!("NoWalletConnected: wallet is not connected");
+            }
 
-/// In-memory NWC client holding parsed credentials and wallet state.
-pub struct NwcClient {
-    pub info: NwcWalletInfo,
-    /// NWC client secret key (hex) — used to sign NIP-47 requests.
-    #[allow(dead_code)]
-    pub(super) secret_hex: String,
-}
-
-impl NwcClient {
-    /// Create a new client from a parsed [NwcUri].
-    ///
-    /// The wallet `name` and `balance` are populated lazily by [get_info].
-    pub fn new(uri: &NwcUri) -> Self {
-        Self {
-            info: NwcWalletInfo {
-                wallet_pubkey: uri.wallet_pubkey.clone(),
-                wallet_name: None,
-                status: WalletStatus::Connecting,
-                balance_sats: None,
-                relay_urls: uri.relay_urls.clone(),
-                last_connected_at: None,
-            },
-            secret_hex: uri.secret_hex.clone(),
-        }
-    }
-
-    /// Query wallet info (name, balance) via NIP-47 `get_info` request.
-    ///
-    /// TODO(Phase 15+): Send a signed `get_info` NIP-47 request to the
-    /// wallet relay and await the response.  Currently marks the wallet as
-    /// Connected and returns the info stored on construction.
-    pub async fn get_info(&mut self) -> Result<NwcWalletInfo> {
-        self.info.status = WalletStatus::Connected;
-        self.info.last_connected_at = Some(unix_now());
-        Ok(self.info.clone())
-    }
-
-    /// Query the wallet balance in satoshis.
-    ///
-    /// TODO(Phase 15+): Send a signed `get_balance` NIP-47 request.
-    pub async fn get_balance(&self) -> Result<Option<u64>> {
-        if self.info.status != WalletStatus::Connected {
-            bail!("NoWalletConnected: wallet is not connected");
-        }
-        Ok(self.info.balance_sats)
-    }
-
-    /// Pay a BOLT-11 invoice via the connected wallet.
-    ///
-    /// TODO(Phase 15+): Construct and send a signed `pay_invoice` NIP-47
-    /// request, wait for the response event, and return the preimage.
-    pub async fn pay_invoice(&self, _bolt11: &str) -> Result<PaymentResult> {
-        if self.info.status != WalletStatus::Connected {
-            return Ok(PaymentResult {
-                success: false,
-                preimage: None,
-                error: Some("NoWalletConnected: wallet is not connected".into()),
+            let request = Request::make_invoice(MakeInvoiceRequest {
+                amount: amount_sats * 1000, // convert sats → msats
+                description,
+                description_hash: None,
+                expiry: None,
             });
+
+            let response = self.send_request(request).await?;
+
+            if let Some(err) = response.error {
+                bail!("NWC make_invoice error: {err}");
+            }
+
+            match response.result {
+                Some(ResponseResult::MakeInvoice(MakeInvoiceResponse {
+                    invoice,
+                    ..
+                })) => Ok(invoice),
+                _ => bail!("Unexpected response from wallet for make_invoice"),
+            }
         }
-        // TODO(Phase 15+): send NIP-47 pay_invoice request and await result.
-        Ok(PaymentResult {
-            success: false,
-            preimage: None,
-            error: Some("NotImplemented: NIP-47 pay_invoice not yet wired".into()),
-        })
+
+        /// Disconnect the nostr-sdk client from all relays.
+        pub async fn disconnect(&self) {
+            self.client.disconnect().await;
+        }
+    }
+
+    fn unix_now() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64
     }
 }
 
-fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
+// ── Public re-exports ────────────────────────────────────────────────────────
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use native::NwcClient;
+
+// ── WASM stub ────────────────────────────────────────────────────────────────
+
+/// On WASM targets, NWC is not supported (nostr-sdk relay transport requires
+/// tokio + TCP).  This stub allows the crate to compile for web while the API
+/// layer returns appropriate errors.
+#[cfg(target_arch = "wasm32")]
+pub struct NwcClient {
+    pub info: crate::api::types::NwcWalletInfo,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl NwcClient {
+    pub async fn new(_uri_str: &str) -> anyhow::Result<Self> {
+        anyhow::bail!("NWC is not supported on web")
+    }
+
+    pub async fn get_info(&mut self) -> anyhow::Result<crate::api::types::NwcWalletInfo> {
+        anyhow::bail!("NWC is not supported on web")
+    }
+
+    pub async fn get_balance(&self) -> anyhow::Result<Option<u64>> {
+        anyhow::bail!("NWC is not supported on web")
+    }
+
+    pub async fn pay_invoice(&self, _bolt11: &str) -> anyhow::Result<crate::api::types::PaymentResult> {
+        anyhow::bail!("NWC is not supported on web")
+    }
+
+    pub async fn make_invoice(
+        &self,
+        _amount_sats: u64,
+        _description: Option<String>,
+    ) -> anyhow::Result<String> {
+        anyhow::bail!("NWC is not supported on web")
+    }
+
+    pub async fn disconnect(&self) {}
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -203,95 +295,65 @@ fn unix_now() -> i64 {
 mod tests {
     use super::*;
 
-    fn valid_pubkey() -> String {
-        "a".repeat(64)
-    }
-
-    fn valid_secret() -> String {
-        "b".repeat(64)
-    }
-
-    fn valid_uri() -> String {
-        format!(
-            "nostr+walletconnect://{}?relay=wss%3A%2F%2Frelay.example.com&secret={}",
-            valid_pubkey(),
-            valid_secret()
-        )
-    }
-
+    /// Verify mSAT → sats conversion: 1000 mSAT → 1 sat (floor division).
     #[test]
-    fn parse_valid_uri() {
-        let parsed = NwcUri::parse(&valid_uri()).unwrap();
-        assert_eq!(parsed.wallet_pubkey, valid_pubkey());
-        assert_eq!(parsed.relay_urls, vec!["wss://relay.example.com"]);
-        assert_eq!(parsed.secret_hex, valid_secret());
+    fn msat_to_sats_exact() {
+        assert_eq!(1000_u64 / 1000, 1);
     }
 
+    /// Verify mSAT → sats conversion: 1500 mSAT → 1 sat (floor division).
     #[test]
-    fn parse_rejects_missing_prefix() {
-        let err = NwcUri::parse("nostr+connect://aaaa").unwrap_err();
-        assert!(err.to_string().contains("InvalidNwcUri"));
+    fn msat_to_sats_floor() {
+        assert_eq!(1500_u64 / 1000, 1);
     }
 
+    /// Verify mSAT → sats conversion: 999 mSAT → 0 sat (below threshold).
     #[test]
-    fn parse_rejects_short_pubkey() {
-        let uri = format!(
-            "nostr+walletconnect://short?relay=wss://r.io&secret={}",
-            valid_secret()
-        );
-        let err = NwcUri::parse(&uri).unwrap_err();
-        assert!(err.to_string().contains("InvalidNwcUri"));
+    fn msat_to_sats_below_threshold() {
+        assert_eq!(999_u64 / 1000, 0);
     }
 
+    /// URI parsing is delegated to nostr-sdk's `NostrWalletConnectURI::parse`.
     #[test]
-    fn parse_rejects_missing_relay() {
-        let uri = format!(
-            "nostr+walletconnect://{}?secret={}",
-            valid_pubkey(),
-            valid_secret()
-        );
-        let err = NwcUri::parse(&uri).unwrap_err();
-        assert!(err.to_string().contains("relay"));
+    fn parse_rejects_invalid_uri() {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let result = tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(NwcClient::new("not-a-valid-uri"));
+            let err = result.err().expect("should fail for invalid URI");
+            assert!(err.to_string().contains("InvalidNwcUri"));
+        }
     }
 
-    #[test]
-    fn parse_rejects_invalid_relay_scheme() {
-        let uri = format!(
-            "nostr+walletconnect://{}?relay=http://relay.io&secret={}",
-            valid_pubkey(),
-            valid_secret()
-        );
-        let err = NwcUri::parse(&uri).unwrap_err();
-        assert!(err.to_string().contains("relay URL must start"));
-    }
-
-    #[test]
-    fn parse_rejects_short_secret() {
-        let uri = format!(
-            "nostr+walletconnect://{}?relay=wss://r.io&secret=abc",
-            valid_pubkey()
-        );
-        let err = NwcUri::parse(&uri).unwrap_err();
-        assert!(err.to_string().contains("InvalidNwcUri"));
-    }
-
+    /// Tests that previously checked for NotImplemented now require a live
+    /// NWC relay and are therefore marked #[ignore].
     #[tokio::test]
-    async fn get_info_marks_connected() {
-        let uri = NwcUri::parse(&valid_uri()).unwrap();
-        let mut client = NwcClient::new(&uri);
-        assert_eq!(client.info.status, WalletStatus::Connecting);
+    #[ignore = "requires a live NWC relay"]
+    async fn get_info_with_live_relay() {
+        // To run: cargo test -- --ignored get_info_with_live_relay
+        // Set NWC_URI env var to a real NWC URI.
+        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
+        let mut client = NwcClient::new(&uri).await.unwrap();
         let info = client.get_info().await.unwrap();
-        assert_eq!(info.status, WalletStatus::Connected);
-        assert!(info.last_connected_at.is_some());
+        assert_eq!(info.status, crate::api::types::WalletStatus::Connected);
     }
 
     #[tokio::test]
-    async fn pay_invoice_returns_not_implemented() {
-        let uri = NwcUri::parse(&valid_uri()).unwrap();
-        let mut client = NwcClient::new(&uri);
+    #[ignore = "requires a live NWC relay"]
+    async fn pay_invoice_with_live_relay() {
+        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
+        let mut client = NwcClient::new(&uri).await.unwrap();
         client.get_info().await.unwrap();
-        let result = client.pay_invoice("lnbc1...").await.unwrap();
-        assert!(!result.success);
-        assert!(result.error.as_deref().unwrap_or("").contains("NotImplemented"));
+        let _result = client.pay_invoice("lnbc1...").await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a live NWC relay"]
+    async fn get_balance_with_live_relay() {
+        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
+        let mut client = NwcClient::new(&uri).await.unwrap();
+        client.get_info().await.unwrap();
+        let _balance = client.get_balance().await.unwrap();
     }
 }

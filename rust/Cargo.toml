@@ -10,7 +10,7 @@ crate-type = ["cdylib", "staticlib"]
 flutter_rust_bridge = "=2.11.1"
 
 # Nostr & Mostro protocol
-nostr-sdk = { version = "0.44", default-features = false, features = ["nip44", "nip59"] }
+nostr-sdk = { version = "0.44", default-features = false, features = ["nip44", "nip47", "nip59"] }
 mostro-core = "0.8.0"
 
 # Serialization
