@@ -33,6 +33,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.of(context).settingsScreenTitle),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(AppRoute.home),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
