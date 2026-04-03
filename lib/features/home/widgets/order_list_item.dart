@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Order list item card with 5 rows per V1 spec.
 class OrderListItem extends StatelessWidget {
@@ -26,10 +27,14 @@ class OrderListItem extends StatelessWidget {
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final sellColor = colors?.sellColor ?? const Color(0xFFFF8A8A);
 
+    final l10n = AppLocalizations.of(context);
     final isSelling = order.kind == 'sell';
-    final pillLabel = order.isMine
-        ? (isSelling ? 'YOU ARE SELLING' : 'YOU ARE BUYING')
-        : (isSelling ? 'SELLING' : 'BUYING');
+    final pillLabel = switch ((order.isMine, isSelling)) {
+      (true, true) => l10n.orderPillYouAreSelling,
+      (true, false) => l10n.orderPillYouAreBuying,
+      (false, true) => l10n.orderPillSelling,
+      (false, false) => l10n.orderPillBuying,
+    };
     final pillColor = isSelling ? sellColor : green;
     final premiumPositive = order.premium >= 0;
     final premiumColor = premiumPositive ? green : sellColor;

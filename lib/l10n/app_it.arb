@@ -205,5 +205,24 @@
   "cancelRequestSent": "Richiesta di annullamento inviata",
   "cancelRequestFailed": "Annullamento fallito. Riprovare.",
   "fiatSentFailed": "Impossibile contrassegnare il fiat come inviato. Riprovare.",
-  "releaseFailed": "Rilascio fallito. Riprovare."
+  "releaseFailed": "Rilascio fallito. Riprovare.",
+
+  "orderPillYouAreSelling": "STAI VENDENDO",
+  "orderPillYouAreBuying": "STAI COMPRANDO",
+  "orderPillSelling": "VENDITA",
+  "orderPillBuying": "ACQUISTO",
+
+  "myOrderSellTitle": "IL TUO ORDINE DI VENDITA",
+  "myOrderBuyTitle": "IL TUO ORDINE DI ACQUISTO",
+  "cancelOrderButton": "Annulla ordine",
+  "cancelOrderDialogTitle": "Annulla ordine",
+  "cancelOrderDialogContent": "Sei sicuro di voler annullare questo ordine? Questa azione non può essere annullata.",
+  "cancelOrderFailed": "Annullamento fallito. Riprovare.",
+  "closeButtonLabel": "Chiudi",
+
+  "orderStatusWaitingForTaker": "In attesa di un taker",
+  "orderStatusWaitingBuyerInvoice": "In attesa della fattura dell'acquirente",
+  "orderStatusWaitingPayment": "In attesa del pagamento",
+  "orderStatusInProgress": "In corso",
+  "orderStatusExpired": "Scaduto"
 }

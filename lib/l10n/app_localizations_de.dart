@@ -631,4 +631,54 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get releaseFailed =>
       'Freigabe fehlgeschlagen. Bitte erneut versuchen.';
+
+  @override
+  String get orderPillYouAreSelling => 'SIE VERKAUFEN';
+
+  @override
+  String get orderPillYouAreBuying => 'SIE KAUFEN';
+
+  @override
+  String get orderPillSelling => 'VERKAUF';
+
+  @override
+  String get orderPillBuying => 'KAUF';
+
+  @override
+  String get myOrderSellTitle => 'IHR VERKAUFSANGEBOT';
+
+  @override
+  String get myOrderBuyTitle => 'IHR KAUFANGEBOT';
+
+  @override
+  String get cancelOrderButton => 'Angebot stornieren';
+
+  @override
+  String get cancelOrderDialogTitle => 'Angebot stornieren';
+
+  @override
+  String get cancelOrderDialogContent =>
+      'Sind Sie sicher, dass Sie dieses Angebot stornieren möchten? Diese Aktion kann nicht rückgängig gemacht werden.';
+
+  @override
+  String get cancelOrderFailed =>
+      'Stornierung fehlgeschlagen. Bitte erneut versuchen.';
+
+  @override
+  String get closeButtonLabel => 'Schließen';
+
+  @override
+  String get orderStatusWaitingForTaker => 'Warte auf Taker';
+
+  @override
+  String get orderStatusWaitingBuyerInvoice => 'Warte auf Käufer-Rechnung';
+
+  @override
+  String get orderStatusWaitingPayment => 'Warte auf Zahlung';
+
+  @override
+  String get orderStatusInProgress => 'In Bearbeitung';
+
+  @override
+  String get orderStatusExpired => 'Abgelaufen';
 }

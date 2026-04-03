@@ -205,5 +205,24 @@
   "cancelRequestSent": "Solicitud de cancelación enviada",
   "cancelRequestFailed": "No se pudo cancelar. Por favor, inténtelo de nuevo.",
   "fiatSentFailed": "Error al marcar el fiat como enviado. Por favor, inténtelo de nuevo.",
-  "releaseFailed": "Error al liberar. Por favor, inténtelo de nuevo."
+  "releaseFailed": "Error al liberar. Por favor, inténtelo de nuevo.",
+
+  "orderPillYouAreSelling": "USTED ESTÁ VENDIENDO",
+  "orderPillYouAreBuying": "USTED ESTÁ COMPRANDO",
+  "orderPillSelling": "VENDIENDO",
+  "orderPillBuying": "COMPRANDO",
+
+  "myOrderSellTitle": "SU ORDEN DE VENTA",
+  "myOrderBuyTitle": "SU ORDEN DE COMPRA",
+  "cancelOrderButton": "Cancelar orden",
+  "cancelOrderDialogTitle": "Cancelar orden",
+  "cancelOrderDialogContent": "¿Está seguro de que desea cancelar esta orden? Esta acción no se puede deshacer.",
+  "cancelOrderFailed": "No se pudo cancelar la orden. Por favor, inténtelo de nuevo.",
+  "closeButtonLabel": "Cerrar",
+
+  "orderStatusWaitingForTaker": "Esperando un tomador",
+  "orderStatusWaitingBuyerInvoice": "Esperando factura del comprador",
+  "orderStatusWaitingPayment": "Esperando pago",
+  "orderStatusInProgress": "En progreso",
+  "orderStatusExpired": "Expirada"
 }

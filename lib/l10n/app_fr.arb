@@ -205,5 +205,24 @@
   "cancelRequestSent": "Demande d'annulation envoyée",
   "cancelRequestFailed": "Échec de l'annulation. Veuillez réessayer.",
   "fiatSentFailed": "Échec de la confirmation du paiement fiat. Veuillez réessayer.",
-  "releaseFailed": "Échec de la libération. Veuillez réessayer."
+  "releaseFailed": "Échec de la libération. Veuillez réessayer.",
+
+  "orderPillYouAreSelling": "VOUS VENDEZ",
+  "orderPillYouAreBuying": "VOUS ACHETEZ",
+  "orderPillSelling": "VENTE",
+  "orderPillBuying": "ACHAT",
+
+  "myOrderSellTitle": "VOTRE ORDRE DE VENTE",
+  "myOrderBuyTitle": "VOTRE ORDRE D'ACHAT",
+  "cancelOrderButton": "Annuler la commande",
+  "cancelOrderDialogTitle": "Annuler la commande",
+  "cancelOrderDialogContent": "Êtes-vous sûr de vouloir annuler cette commande ? Cette action est irréversible.",
+  "cancelOrderFailed": "Échec de l'annulation de la commande. Veuillez réessayer.",
+  "closeButtonLabel": "Fermer",
+
+  "orderStatusWaitingForTaker": "En attente d'un preneur",
+  "orderStatusWaitingBuyerInvoice": "En attente de la facture de l'acheteur",
+  "orderStatusWaitingPayment": "En attente du paiement",
+  "orderStatusInProgress": "En cours",
+  "orderStatusExpired": "Expirée"
 }

@@ -620,4 +620,53 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get releaseFailed => 'Failed to release. Please try again.';
+
+  @override
+  String get orderPillYouAreSelling => 'YOU ARE SELLING';
+
+  @override
+  String get orderPillYouAreBuying => 'YOU ARE BUYING';
+
+  @override
+  String get orderPillSelling => 'SELLING';
+
+  @override
+  String get orderPillBuying => 'BUYING';
+
+  @override
+  String get myOrderSellTitle => 'YOUR SELL ORDER';
+
+  @override
+  String get myOrderBuyTitle => 'YOUR BUY ORDER';
+
+  @override
+  String get cancelOrderButton => 'Cancel order';
+
+  @override
+  String get cancelOrderDialogTitle => 'Cancel order';
+
+  @override
+  String get cancelOrderDialogContent =>
+      'Are you sure you want to cancel this order? This action cannot be undone.';
+
+  @override
+  String get cancelOrderFailed => 'Failed to cancel order. Please try again.';
+
+  @override
+  String get closeButtonLabel => 'Close';
+
+  @override
+  String get orderStatusWaitingForTaker => 'Waiting for a taker';
+
+  @override
+  String get orderStatusWaitingBuyerInvoice => 'Waiting for buyer invoice';
+
+  @override
+  String get orderStatusWaitingPayment => 'Waiting for payment';
+
+  @override
+  String get orderStatusInProgress => 'In progress';
+
+  @override
+  String get orderStatusExpired => 'Expired';
 }

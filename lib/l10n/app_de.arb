@@ -205,5 +205,24 @@
   "cancelRequestSent": "Abbruchanfrage gesendet",
   "cancelRequestFailed": "Abbrechen fehlgeschlagen. Bitte erneut versuchen.",
   "fiatSentFailed": "Fiat-Zahlung konnte nicht bestätigt werden. Bitte erneut versuchen.",
-  "releaseFailed": "Freigabe fehlgeschlagen. Bitte erneut versuchen."
+  "releaseFailed": "Freigabe fehlgeschlagen. Bitte erneut versuchen.",
+
+  "orderPillYouAreSelling": "SIE VERKAUFEN",
+  "orderPillYouAreBuying": "SIE KAUFEN",
+  "orderPillSelling": "VERKAUF",
+  "orderPillBuying": "KAUF",
+
+  "myOrderSellTitle": "IHR VERKAUFSANGEBOT",
+  "myOrderBuyTitle": "IHR KAUFANGEBOT",
+  "cancelOrderButton": "Angebot stornieren",
+  "cancelOrderDialogTitle": "Angebot stornieren",
+  "cancelOrderDialogContent": "Sind Sie sicher, dass Sie dieses Angebot stornieren möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+  "cancelOrderFailed": "Stornierung fehlgeschlagen. Bitte erneut versuchen.",
+  "closeButtonLabel": "Schließen",
+
+  "orderStatusWaitingForTaker": "Warte auf Taker",
+  "orderStatusWaitingBuyerInvoice": "Warte auf Käufer-Rechnung",
+  "orderStatusWaitingPayment": "Warte auf Zahlung",
+  "orderStatusInProgress": "In Bearbeitung",
+  "orderStatusExpired": "Abgelaufen"
 }
