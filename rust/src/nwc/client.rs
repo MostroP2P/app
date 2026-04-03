@@ -13,14 +13,68 @@ mod native {
 
     use anyhow::{anyhow, bail, Result};
     use nostr_sdk::prelude::*;
+    use nostr_sdk::nips::nip04;
     use nostr_sdk::nips::nip47::{
-        GetBalanceResponse, GetInfoResponse, MakeInvoiceRequest,
+        GetBalanceResponse, MakeInvoiceRequest,
         MakeInvoiceResponse, NostrWalletConnectURI, PayInvoiceRequest,
-        PayInvoiceResponse, Request, Response, ResponseResult,
+        PayInvoiceResponse, Request,
     };
     use nostr_sdk::Client;
 
     use crate::api::types::{NwcWalletInfo, PaymentResult, WalletStatus};
+
+    // ── Lenient NIP-47 response parsing ──────────────────────────────────────
+    //
+    // nostr-sdk's `Response::from_event` uses strict deserialization that
+    // rejects unknown methods (e.g. Alby's `get_budget`).  We decrypt
+    // manually and parse just the fields we need.
+
+    /// Parsed NIP-47 response — lenient version that tolerates unknown methods.
+    #[derive(Debug)]
+    struct Nip47Response {
+        #[allow(dead_code)]
+        result_type: String,
+        error: Option<Nip47Error>,
+        result: Option<serde_json::Value>,
+    }
+
+    #[derive(Debug, serde::Deserialize)]
+    struct Nip47Error {
+        #[allow(dead_code)]
+        code: String,
+        message: String,
+    }
+
+    impl std::fmt::Display for Nip47Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{} [{}]", self.message, self.code)
+        }
+    }
+
+    /// Decrypt a Kind 23195 event and parse it leniently.
+    fn parse_nip47_response(
+        uri: &NostrWalletConnectURI,
+        event: &Event,
+    ) -> Result<Nip47Response> {
+        let json = nip04::decrypt(&uri.secret, &event.pubkey, &event.content)
+            .map_err(|e| anyhow!("NIP-04 decrypt failed: {e}"))?;
+
+        #[derive(serde::Deserialize)]
+        struct RawResponse {
+            result_type: String,
+            error: Option<Nip47Error>,
+            result: Option<serde_json::Value>,
+        }
+
+        let raw: RawResponse = serde_json::from_str(&json)
+            .map_err(|e| anyhow!("NIP-47 response parse failed: {e}"))?;
+
+        Ok(Nip47Response {
+            result_type: raw.result_type,
+            error: raw.error,
+            result: raw.result,
+        })
+    }
 
     /// Timeout for NIP-47 request → response round-trips.
     const NWC_TIMEOUT: Duration = Duration::from_secs(30);
@@ -53,6 +107,12 @@ mod native {
 
             client.connect().await;
 
+            // connect() only spawns background tasks — wait for at least
+            // one relay to be actually connected before returning.
+            client
+                .wait_for_connection(Duration::from_secs(10))
+                .await;
+
             let relay_urls: Vec<String> =
                 uri.relays.iter().map(|r| r.to_string()).collect();
 
@@ -75,7 +135,7 @@ mod native {
         /// Uses a subscribe-then-send pattern: subscribes to response events
         /// BEFORE publishing the request so the response is never missed,
         /// even if the wallet replies before EOSE.
-        async fn send_request(&self, request: Request) -> Result<Response> {
+        async fn send_request(&self, request: Request) -> Result<Nip47Response> {
             let event = request
                 .to_event(&self.uri)
                 .map_err(|e| anyhow!("Failed to build NIP-47 request event: {e}"))?;
@@ -113,7 +173,7 @@ mod native {
                         event: resp_event, ..
                     })) => {
                         if resp_event.kind == Kind::WalletConnectResponse {
-                            match Response::from_event(&self.uri, &resp_event) {
+                            match parse_nip47_response(&self.uri, &resp_event) {
                                 Ok(resp) => return Ok(resp),
                                 Err(_) => continue,
                             }
@@ -136,10 +196,18 @@ mod native {
                 bail!("NWC get_info error: {err}");
             }
 
-            if let Some(ResponseResult::GetInfo(GetInfoResponse { alias, .. })) =
-                response.result
-            {
-                self.info.wallet_name = alias;
+            if let Some(result) = response.result {
+                // GetInfoResponse.methods uses a strict Method enum that rejects
+                // unknown methods (e.g. Alby's "get_budget"). Parse just the
+                // alias field we need.
+                #[derive(serde::Deserialize)]
+                struct LenientGetInfo {
+                    #[serde(default)]
+                    alias: Option<String>,
+                }
+                if let Ok(info) = serde_json::from_value::<LenientGetInfo>(result) {
+                    self.info.wallet_name = info.alias;
+                }
             }
 
             self.info.status = WalletStatus::Connected;
@@ -164,11 +232,13 @@ mod native {
             }
 
             match response.result {
-                Some(ResponseResult::GetBalance(GetBalanceResponse { balance })) => {
+                Some(result) => {
+                    let bal: GetBalanceResponse = serde_json::from_value(result)
+                        .map_err(|e| anyhow!("NWC get_balance parse error: {e}"))?;
                     // balance is in millisatoshis — convert to sats.
-                    Ok(Some(balance / 1000))
+                    Ok(Some(bal.balance / 1000))
                 }
-                _ => Ok(None),
+                None => Ok(None),
             }
         }
 
@@ -196,14 +266,17 @@ mod native {
                         });
                     }
                     match resp.result {
-                        Some(ResponseResult::PayInvoice(PayInvoiceResponse {
-                            preimage,
-                            ..
-                        })) => Ok(PaymentResult {
-                            success: true,
-                            preimage: Some(preimage),
-                            error: None,
-                        }),
+                        Some(result) => {
+                            let pay: PayInvoiceResponse =
+                                serde_json::from_value(result).map_err(|e| {
+                                    anyhow!("NWC pay_invoice parse error: {e}")
+                                })?;
+                            Ok(PaymentResult {
+                                success: true,
+                                preimage: Some(pay.preimage),
+                                error: None,
+                            })
+                        }
                         _ => Ok(PaymentResult {
                             success: false,
                             preimage: None,
@@ -250,10 +323,11 @@ mod native {
             }
 
             match response.result {
-                Some(ResponseResult::MakeInvoice(MakeInvoiceResponse {
-                    invoice,
-                    ..
-                })) => Ok(invoice),
+                Some(result) => {
+                    let inv: MakeInvoiceResponse = serde_json::from_value(result)
+                        .map_err(|e| anyhow!("NWC make_invoice parse error: {e}"))?;
+                    Ok(inv.invoice)
+                }
                 _ => bail!("Unexpected response from wallet for make_invoice"),
             }
         }
@@ -350,34 +424,40 @@ mod tests {
         assert!(err.to_string().contains("InvalidNwcUri"));
     }
 
-    /// Tests that previously checked for NotImplemented now require a live
-    /// NWC relay and are therefore marked #[ignore].
+    fn test_uri() -> &'static str {
+        "nostr+walletconnect://0cc2b404a3ff52138e489db480048b3c096eb7d6438c872b5ecd386494b06084?relay=wss://relay.getalby.com&relay=wss://relay2.getalby.com&secret=09ef2ea6bb48dc1786529254dae8bf5f9340ec93576baea91f3bdc8f8493903a&lud16=lncurl_blighted_waffle@getalby.com"
+    }
+
     #[tokio::test]
-    #[ignore = "requires a live NWC relay"]
-    async fn get_info_with_live_relay() {
-        // To run: cargo test -- --ignored get_info_with_live_relay
-        // Set NWC_URI env var to a real NWC URI.
-        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
-        let mut client = NwcClient::new(&uri).await.unwrap();
+    async fn connect_to_alby_relay() {
+        let client = NwcClient::new(test_uri()).await.unwrap();
+        assert_eq!(client.info.status, crate::api::types::WalletStatus::Connecting);
+        assert!(!client.info.relay_urls.is_empty());
+        // Verify the URI was parsed correctly.
+        assert_eq!(
+            client.info.wallet_pubkey,
+            "0cc2b404a3ff52138e489db480048b3c096eb7d6438c872b5ecd386494b06084"
+        );
+        client.disconnect().await;
+    }
+
+    #[tokio::test]
+    async fn get_info_from_alby() {
+        let mut client = NwcClient::new(test_uri()).await.unwrap();
         let info = client.get_info().await.unwrap();
         assert_eq!(info.status, crate::api::types::WalletStatus::Connected);
+        assert!(info.last_connected_at.is_some());
+        println!("wallet_name: {:?}", info.wallet_name);
+        client.disconnect().await;
     }
 
     #[tokio::test]
-    #[ignore = "requires a live NWC relay"]
-    async fn pay_invoice_with_live_relay() {
-        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
-        let mut client = NwcClient::new(&uri).await.unwrap();
+    async fn get_balance_from_alby() {
+        let mut client = NwcClient::new(test_uri()).await.unwrap();
         client.get_info().await.unwrap();
-        let _result = client.pay_invoice("lnbc1...").await.unwrap();
-    }
-
-    #[tokio::test]
-    #[ignore = "requires a live NWC relay"]
-    async fn get_balance_with_live_relay() {
-        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
-        let mut client = NwcClient::new(&uri).await.unwrap();
-        client.get_info().await.unwrap();
-        let _balance = client.get_balance().await.unwrap();
+        let balance = client.get_balance().await.unwrap();
+        println!("balance_sats: {:?}", balance);
+        assert!(balance.is_some());
+        client.disconnect().await;
     }
 }
