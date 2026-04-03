@@ -228,5 +228,7 @@
 
   "copyOrderIdTooltip": "Copiar ID de orden",
   "orderNotFoundTitle": "Orden no encontrada",
-  "orderNotFoundMessage": "Esta orden ya no está disponible."
+  "orderNotFoundMessage": "Esta orden ya no está disponible.",
+
+  "orderCancelledSuccess": "Orden cancelada exitosamente."
 }

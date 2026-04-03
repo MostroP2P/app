@@ -1357,6 +1357,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This order is no longer available.'**
   String get orderNotFoundMessage;
+
+  /// Snackbar shown after a maker successfully cancels their own pending order
+  ///
+  /// In en, this message translates to:
+  /// **'Order cancelled successfully.'**
+  String get orderCancelledSuccess;
 }
 
 class _AppLocalizationsDelegate

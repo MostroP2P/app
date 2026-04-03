@@ -60,7 +60,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
       await orders_api.cancelOrder(orderId: widget.orderId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.cancelRequestSent)),
+        SnackBar(content: Text(l10n.orderCancelledSuccess)),
       );
       context.go(AppRoute.home);
     } catch (e, stackTrace) {
@@ -154,7 +154,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 Icon(Icons.calendar_today_outlined, size: 18, color: textSec),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  _formatDate(order.createdAt),
+                  _formatDate(order.createdAt, Localizations.localeOf(context).toString()),
                   style: theme.textTheme.bodyMedium,
                 ),
               ],
@@ -335,8 +335,8 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     };
   }
 
-  String _formatDate(DateTime dt) {
-    return DateFormat.yMd().add_jm().format(dt);
+  String _formatDate(DateTime dt, String locale) {
+    return DateFormat.yMd(locale).add_jm().format(dt);
   }
 }
 

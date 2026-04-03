@@ -470,5 +470,8 @@
   "orderNotFoundTitle": "Order Not Found",
   "@orderNotFoundTitle": {"description": "AppBar title when the requested order no longer exists"},
   "orderNotFoundMessage": "This order is no longer available.",
-  "@orderNotFoundMessage": {"description": "Body text shown when the requested order no longer exists"}
+  "@orderNotFoundMessage": {"description": "Body text shown when the requested order no longer exists"},
+
+  "orderCancelledSuccess": "Order cancelled successfully.",
+  "@orderCancelledSuccess": {"description": "Snackbar shown after a maker successfully cancels their own pending order"}
 }

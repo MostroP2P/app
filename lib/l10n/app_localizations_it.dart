@@ -688,4 +688,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get orderNotFoundMessage => 'Questo ordine non è più disponibile.';
+
+  @override
+  String get orderCancelledSuccess => 'Ordine annullato con successo.';
 }

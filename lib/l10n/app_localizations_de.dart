@@ -690,4 +690,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get orderNotFoundMessage => 'Dieser Auftrag ist nicht mehr verfügbar.';
+
+  @override
+  String get orderCancelledSuccess => 'Auftrag erfolgreich storniert.';
 }

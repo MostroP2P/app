@@ -228,5 +228,7 @@
 
   "copyOrderIdTooltip": "Auftrags-ID kopieren",
   "orderNotFoundTitle": "Auftrag nicht gefunden",
-  "orderNotFoundMessage": "Dieser Auftrag ist nicht mehr verfügbar."
+  "orderNotFoundMessage": "Dieser Auftrag ist nicht mehr verfügbar.",
+
+  "orderCancelledSuccess": "Auftrag erfolgreich storniert."
 }

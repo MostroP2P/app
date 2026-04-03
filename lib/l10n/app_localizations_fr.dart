@@ -687,11 +687,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get orderStatusExpired => 'Expirée';
 
   @override
-  String get copyOrderIdTooltip => "Copier l'ID de la commande";
+  String get copyOrderIdTooltip => 'Copier l\'ID de la commande';
 
   @override
   String get orderNotFoundTitle => 'Commande introuvable';
 
   @override
-  String get orderNotFoundMessage => "Cette commande n'est plus disponible.";
+  String get orderNotFoundMessage => 'Cette commande n\'est plus disponible.';
+
+  @override
+  String get orderCancelledSuccess => 'Commande annulée avec succès.';
 }
