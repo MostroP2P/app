@@ -54,15 +54,20 @@ class _PayLightningInvoiceScreenState
         appBar: AppBar(title: const Text('Pay Lightning Invoice')),
         body: const Center(child: CircularProgressIndicator()),
       ),
-      error: (e, _) => Scaffold(
-        appBar: AppBar(title: const Text('Pay Lightning Invoice')),
-        body: Center(child: Text('Error loading trade: $e')),
-      ),
+      error: (e, st) {
+        debugPrint('[PayLightningInvoiceScreen] load error: $e\n$st');
+        return Scaffold(
+          appBar: AppBar(title: const Text('Pay Lightning Invoice')),
+          body: const Center(
+            child: Text('An error occurred while loading the trade.'),
+          ),
+        );
+      },
       data: (trade) {
         final invoice = trade?.holdInvoice ?? '';
         final amountSats = trade?.order.amountSats?.toInt() ?? 0;
 
-        if (invoice.isEmpty) {
+        if (invoice.isEmpty || amountSats <= 0) {
           // Hold invoice not yet available — waiting for Mostro daemon.
           return Scaffold(
             appBar: AppBar(title: const Text('Pay Lightning Invoice')),

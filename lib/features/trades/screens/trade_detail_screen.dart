@@ -181,15 +181,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   }
 
   String _getInstructionText(bool isBuyer, TradeStatus status) {
+    final l10n = AppLocalizations.of(context);
     if (status == TradeStatus.waitingInvoice) {
       return isBuyer
-          ? 'Submit your Lightning invoice so the seller can lock the funds.'
-          : 'Waiting for the buyer to submit their Lightning invoice.';
+          ? l10n.tradeWaitingInvoiceBuyerInstruction
+          : l10n.tradeWaitingInvoiceSellerInstruction;
     }
     if (status == TradeStatus.waitingPayment) {
       return isBuyer
-          ? 'The seller is paying the hold invoice. Please wait.'
-          : 'Pay the hold invoice to lock the funds and start the trade.';
+          ? l10n.tradeWaitingPaymentBuyerInstruction
+          : l10n.tradeWaitingPaymentSellerInstruction;
     }
     if (isBuyer) {
       if (status == TradeStatus.active) {
@@ -253,7 +254,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       debugPrint('[TradeDetailScreen] openDispute error: $e\n$st');
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open dispute')),
+        SnackBar(content: Text(AppLocalizations.of(context).openDisputeFailed)),
       );
     }
   }
