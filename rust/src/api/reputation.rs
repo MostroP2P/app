@@ -125,8 +125,42 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
         bail!("PrivacyModeEnabled: cannot submit rating while privacy mode is active");
     }
 
-    // TODO(Phase 14+): Look up the session to get trade key + mostro pubkey,
-    // then send a RateUser MostroMessage via NIP-59 Gift Wrap.
+    // Send the RateUser message to the Mostro daemon via NIP-59 Gift Wrap using
+    // the trade key that was used when the order was taken or created.
+    if let Some(trade_index) = crate::api::orders::trade_key_for_order(&trade_id).await {
+        match crate::api::identity::get_active_trade_keys(trade_index).await {
+            Ok(sender_keys) => {
+                match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
+                    Ok(mostro_pubkey) => {
+                        match crate::mostro::actions::rate_user(
+                            &sender_keys,
+                            &mostro_pubkey,
+                            &trade_id,
+                            trade_index,
+                            score,
+                        )
+                        .await
+                        {
+                            Ok(event_json) => {
+                                if let Err(e) = crate::api::orders::publish_event(&event_json).await {
+                                    log::warn!("[reputation] rate_user publish failed: {e}");
+                                } else {
+                                    log::info!(
+                                        "[reputation] rate_user published trade={trade_id} score={score}"
+                                    );
+                                }
+                            }
+                            Err(e) => log::warn!("[reputation] rate_user build failed: {e}"),
+                        }
+                    }
+                    Err(e) => log::error!("[reputation] invalid mostro pubkey: {e}"),
+                }
+            }
+            Err(e) => log::warn!("[reputation] could not get trade keys for index={trade_index}: {e}"),
+        }
+    } else {
+        log::warn!("[reputation] no trade key found for trade={trade_id}; rating stored locally only");
+    }
 
     // Atomic check-and-insert under write lock — prevents TOCTOU races.
     store
@@ -153,7 +187,13 @@ pub fn get_privacy_mode() -> bool {
 ///
 /// **Errors**: `NoIdentity` (identity check deferred to Phase 14+ bridge).
 pub fn set_privacy_mode(enabled: bool) {
-    // TODO(Phase 14+): Verify that an identity exists before toggling.
+    // Best-effort identity check: log a warning if no identity is configured but
+    // proceed anyway so the UI setting is never silently stuck.
+    tokio::spawn(async move {
+        if crate::api::identity::get_active_keys().await.is_err() {
+            log::warn!("[reputation] set_privacy_mode({enabled}): no identity configured");
+        }
+    });
     rating_store()
         .privacy_mode
         .store(enabled, Ordering::SeqCst);

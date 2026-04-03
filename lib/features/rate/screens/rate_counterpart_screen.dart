@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
+import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 
 /// Rate counterpart screen — Route `/rate_user/:orderId`.
 ///
@@ -37,9 +38,10 @@ class _RateCounterpartScreenState
     if (_rating == 0) return;
     setState(() => _isSubmitting = true);
     try {
-      // TODO(bridge): Call reputation.submit_rating(widget.orderId, _rating)
-      // via Rust bridge once FFI bindings are generated.
-      await Future.delayed(const Duration(milliseconds: 300));
+      await reputation_api.submitRating(
+        tradeId: widget.orderId,
+        score: _rating,
+      );
       if (mounted) context.pop();
     } catch (e) {
       if (!mounted) return;

@@ -7,6 +7,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
 /// Connect Wallet screen — Route `/connect_wallet`.
 ///
@@ -50,32 +51,14 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
     if (_connecting || !_isValid) return;
     setState(() => _connecting = true);
     try {
-      // TODO(bridge): Call nwc_api.connect_wallet(_uriController.text) via
-      // Rust bridge once FFI bindings are generated.  On success, populate
-      // NwcWalletState from the returned NwcWalletInfo.
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      // Stub: store minimal wallet state from the parsed URI.
-      final parsed = Uri.parse(_uriController.text.trim());
-      final pubkey = parsed.host; // Dart normalises host to lowercase.
-      final relayUrls = (parsed.queryParametersAll['relay'] ?? const [])
-          .where((r) => r.startsWith('wss://') || r.startsWith('ws://'))
-          .toList();
-
+      final info = await nwc_api.connectWallet(nwcUri: _uriController.text.trim());
       if (!mounted) return;
-      if (relayUrls.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No valid relay URL found in NWC URI.'),
-          ),
-        );
-        setState(() => _connecting = false);
-        return;
-      }
       ref.read(nwcProvider.notifier).setConnected(
             NwcWalletState(
-              walletPubkey: pubkey,
-              relayUrls: relayUrls,
+              walletPubkey: info.walletPubkey,
+              relayUrls: info.relayUrls,
+              walletName: info.walletName,
+              balanceSats: info.balanceSats?.toInt(),
             ),
           );
       context.go(AppRoute.walletSettings);

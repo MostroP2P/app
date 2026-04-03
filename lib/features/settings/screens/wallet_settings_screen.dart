@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
 /// Wallet Settings screen — Route `/wallet_settings`.
 ///
@@ -40,7 +41,11 @@ class WalletSettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _disconnect(BuildContext context, WidgetRef ref) async {
-    // TODO(bridge): Call nwc_api.disconnect_wallet() via Rust bridge.
+    try {
+      await nwc_api.disconnectWallet();
+    } catch (e) {
+      debugPrint('[WalletSettings] disconnect failed: $e');
+    }
     ref.read(nwcProvider.notifier).setDisconnected();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/mostro_defaults.dart';
+import 'package:mostro/src/rust/api.dart' as rust_api;
 
 // Default Mostro node info — imported from core/mostro_defaults.dart.
 const _defaultPubkey = defaultMostroPubkey;
@@ -10,11 +11,23 @@ const _defaultRelays = defaultMostroRelays;
 
 /// About screen — shows app version, Mostro branding, docs link, and default
 /// node information.
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
 
-  // TODO(bridge): replace with get_app_version() when bridge is wired
-  static const _appVersion = '1.0.0';
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  String _appVersion = '…';
+
+  @override
+  void initState() {
+    super.initState();
+    rust_api.getAppVersion().then((v) {
+      if (mounted) setState(() => _appVersion = v);
+    }).catchError((_) {});
+  }
 
   String _truncatePubkey(String pubkey) {
     if (pubkey.length <= 16) return pubkey;

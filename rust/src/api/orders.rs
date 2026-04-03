@@ -176,6 +176,16 @@ async fn get_trade_key_index(order_id: &str) -> Option<u32> {
     None
 }
 
+/// Expose trade key lookup for inter-module use (e.g. reputation rating).
+pub(crate) async fn trade_key_for_order(order_id: &str) -> Option<u32> {
+    get_trade_key_index(order_id).await
+}
+
+/// Expose event publishing for inter-module use.
+pub(crate) async fn publish_event(event_json: &str) -> Result<()> {
+    publish_event_json(event_json).await
+}
+
 /// Filter parameters for the order list.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct OrderFilters {
@@ -329,8 +339,6 @@ pub async fn get_order(order_id: String) -> Result<Option<OrderInfo>> {
 /// Validates params, builds the MostroMessage, wraps via NIP-59, and
 /// publishes to relays. Queues if offline.
 ///
-/// TODO: Wire to actual Rust bridge identity + relay pool in Phase 7.
-/// Currently validates params and returns a mock OrderInfo.
 pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // Validate: fiat_amount XOR range
     let has_fixed = params.fiat_amount.is_some();

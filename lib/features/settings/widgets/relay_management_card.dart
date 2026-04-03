@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -48,18 +49,35 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
     _relays = _defaultRelays
         .map((url) => _RelayEntry(url: url, isActive: true, isDefault: true))
         .toList();
+    _loadRelays();
+  }
+
+  Future<void> _loadRelays() async {
+    try {
+      final relays = await nostr_api.getRelays();
+      if (!mounted) return;
+      setState(() {
+        _relays = relays.map((r) => _RelayEntry(
+          url: r.url,
+          isActive: r.isActive,
+          isDefault: r.isDefault,
+        )).toList();
+      });
+    } catch (e) {
+      debugPrint('[RelayManagement] failed to load relays: $e');
+    }
   }
 
   void _toggleRelay(int index, bool value) {
     setState(() => _relays[index].isActive = value);
-    // TODO(bridge): call set_relay_active(_relays[index].url, value)
   }
 
   void _removeRelay(int index) {
-    // ignore: unused_local_variable — used by the pending bridge call below.
     final url = _relays[index].url;
     setState(() => _relays.removeAt(index));
-    // TODO(bridge): call remove_relay(url)
+    nostr_api.removeRelay(url: url).catchError((e) {
+      debugPrint('[RelayManagement] removeRelay failed: $e');
+    });
   }
 
   Future<void> _showAddRelayDialog() async {
@@ -124,7 +142,9 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                       );
                     });
                     Navigator.of(ctx).pop();
-                    // TODO(bridge): call add_relay(url)
+                    nostr_api.addRelay(url: url).then((_) {}, onError: (e) {
+                      debugPrint('[RelayManagement] addRelay failed: $e');
+                    });
                   },
                   child: Text(l10n.addButtonLabel),
                 ),
