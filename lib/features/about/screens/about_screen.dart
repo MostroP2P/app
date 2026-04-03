@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/mostro_defaults.dart';
@@ -9,28 +10,17 @@ import 'package:mostro/src/rust/api.dart' as rust_api;
 const _defaultPubkey = defaultMostroPubkey;
 const _defaultRelays = defaultMostroRelays;
 
+/// Provides the app version string from the Rust layer.
+///
+/// Returns `'unknown'` on error so the UI always renders a legible value.
+final appVersionProvider = FutureProvider<String>((ref) async {
+  return rust_api.getAppVersion();
+});
+
 /// About screen — shows app version, Mostro branding, docs link, and default
 /// node information.
-class AboutScreen extends StatefulWidget {
+class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
-
-  @override
-  State<AboutScreen> createState() => _AboutScreenState();
-}
-
-class _AboutScreenState extends State<AboutScreen> {
-  String _appVersion = '…';
-
-  @override
-  void initState() {
-    super.initState();
-    rust_api.getAppVersion().then((v) {
-      if (mounted) setState(() => _appVersion = v);
-    }).catchError((e) {
-      debugPrint('[AboutScreen] getAppVersion failed: $e');
-      if (mounted) setState(() => _appVersion = 'unknown');
-    });
-  }
 
   String _truncatePubkey(String pubkey) {
     if (pubkey.length <= 16) return pubkey;
@@ -62,10 +52,19 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final c = colors;
+
+    final appVersion = ref.watch(appVersionProvider).when(
+      data: (v) => v,
+      loading: () => '…',
+      error: (e, _) {
+        debugPrint('[AboutScreen] getAppVersion failed: $e');
+        return 'unknown';
+      },
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -99,7 +98,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'v$_appVersion',
+                  'v$appVersion',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: c.textSubtle,
                       ),

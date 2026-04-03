@@ -123,6 +123,32 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         bail!("TradeNotDisputable: trade_id must not be empty");
     }
 
+    // Dispatch Action::Dispute to Mostro BEFORE creating the local record so
+    // that a failed publish does not leave an un-retryable "open" slot in the
+    // dispute store.  Only on a successful publish do we persist the dispute.
+    let trade_index = crate::api::orders::trade_key_for_order(&trade_id)
+        .await
+        .ok_or_else(|| anyhow!("TradeNotDisputable: no trade key for trade {trade_id}"))?;
+
+    let event_json: String = async {
+        let sender_keys =
+            crate::api::identity::get_active_trade_keys(trade_index).await?;
+        let mostro_pubkey =
+            nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
+                .map_err(|e| anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+        crate::mostro::actions::dispute(&sender_keys, &mostro_pubkey, &trade_id, trade_index)
+            .await
+    }
+    .await
+    .map_err(|e| anyhow!("ProtocolError: could not build Dispute message: {e}"))?;
+
+    crate::api::orders::publish_event(&event_json)
+        .await
+        .map_err(|e| anyhow!("ProtocolError: publish failed: {e}"))?;
+
+    log::info!("[disputes] Dispute dispatched for trade={trade_id}");
+
+    // Publish succeeded — persist the dispute record.
     let dispute = Dispute {
         id: uuid::Uuid::new_v4().to_string(),
         trade_id: trade_id.clone(),
@@ -136,44 +162,9 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         is_read: true,
     };
 
-    let dispute = dispute_store()
+    dispute_store()
         .try_insert_if_absent_or_resolved(dispute)
-        .await?;
-
-    // Dispatch Action::Dispute to the Mostro daemon via NIP-59 Gift Wrap.
-    if let Some(trade_index) = crate::api::orders::trade_key_for_order(&trade_id).await {
-        match crate::api::identity::get_active_trade_keys(trade_index).await {
-            Ok(sender_keys) => {
-                match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
-                    Ok(mostro_pubkey) => {
-                        match crate::mostro::actions::dispute(
-                            &sender_keys,
-                            &mostro_pubkey,
-                            &trade_id,
-                            trade_index,
-                        )
-                        .await
-                        {
-                            Ok(event_json) => {
-                                if let Err(e) = crate::api::orders::publish_event(&event_json).await {
-                                    log::warn!("[disputes] dispute publish failed: {e}");
-                                } else {
-                                    log::info!("[disputes] Dispute dispatched for trade={trade_id}");
-                                }
-                            }
-                            Err(e) => log::warn!("[disputes] dispute build failed: {e}"),
-                        }
-                    }
-                    Err(e) => log::error!("[disputes] invalid mostro pubkey: {e}"),
-                }
-            }
-            Err(e) => log::warn!("[disputes] could not get trade keys: {e}"),
-        }
-    } else {
-        log::warn!("[disputes] no trade key for trade={trade_id}; dispute stored locally only");
-    }
-
-    Ok(dispute)
+        .await
 }
 
 /// Submit free-text evidence for an open dispute.
@@ -295,12 +286,48 @@ pub async fn on_dispute_updated(trade_id: String) -> Result<DisputeStream> {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn open_dispute_creates_record() {
-        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
-        let dispute = open_dispute(trade_id.clone(), Some("Price disagreement".into()))
+    /// Insert a dispute directly into the store, bypassing dispatch.
+    ///
+    /// Used in unit tests that exercise store operations (admin events,
+    /// evidence validation, etc.) without needing a live relay or trade key.
+    async fn seed_dispute(trade_id: &str, reason: Option<String>) -> Dispute {
+        let dispute = Dispute {
+            id: uuid::Uuid::new_v4().to_string(),
+            trade_id: trade_id.to_string(),
+            status: DisputeStatus::Open,
+            initiated_by_me: true,
+            reason,
+            admin_pubkey: None,
+            resolution: None,
+            opened_at: unix_now(),
+            resolved_at: None,
+            is_read: true,
+        };
+        dispute_store()
+            .try_insert_if_absent_or_resolved(dispute)
             .await
-            .unwrap();
+            .expect("seed_dispute: insert failed")
+    }
+
+    #[tokio::test]
+    async fn open_dispute_requires_trade_key() {
+        // open_dispute now dispatches to Mostro before persisting; without a
+        // trade key it must return TradeNotDisputable rather than silently
+        // storing a local-only dispute that the daemon never received.
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let err = open_dispute(trade_id, Some("Price disagreement".into()))
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("TradeNotDisputable"),
+            "expected TradeNotDisputable, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn dispute_store_creates_record() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let dispute = seed_dispute(&trade_id, Some("Price disagreement".into())).await;
 
         assert_eq!(dispute.trade_id, trade_id);
         assert_eq!(dispute.status, DisputeStatus::Open);
@@ -311,16 +338,32 @@ mod tests {
     #[tokio::test]
     async fn duplicate_dispute_is_rejected() {
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
-        open_dispute(trade_id.clone(), None).await.unwrap();
+        seed_dispute(&trade_id, None).await;
 
-        let err = open_dispute(trade_id, None).await.unwrap_err();
+        // Second insert into the same trade must fail.
+        let dispute = Dispute {
+            id: uuid::Uuid::new_v4().to_string(),
+            trade_id: trade_id.clone(),
+            status: DisputeStatus::Open,
+            initiated_by_me: true,
+            reason: None,
+            admin_pubkey: None,
+            resolution: None,
+            opened_at: unix_now(),
+            resolved_at: None,
+            is_read: true,
+        };
+        let err = dispute_store()
+            .try_insert_if_absent_or_resolved(dispute)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("DisputeAlreadyOpen"));
     }
 
     #[tokio::test]
     async fn empty_evidence_is_rejected() {
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
-        open_dispute(trade_id.clone(), None).await.unwrap();
+        seed_dispute(&trade_id, None).await;
 
         let err = submit_evidence(trade_id, "  ".into()).await.unwrap_err();
         assert!(err.to_string().contains("EvidenceEmpty"));
@@ -329,7 +372,7 @@ mod tests {
     #[tokio::test]
     async fn admin_took_dispute_sets_in_review() {
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
-        open_dispute(trade_id.clone(), None).await.unwrap();
+        seed_dispute(&trade_id, None).await;
 
         handle_admin_took_dispute(trade_id.clone(), "adminpubkey123".into())
             .await
@@ -343,7 +386,7 @@ mod tests {
     #[tokio::test]
     async fn admin_settled_resolves_dispute() {
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
-        open_dispute(trade_id.clone(), None).await.unwrap();
+        seed_dispute(&trade_id, None).await;
 
         handle_admin_settled(trade_id.clone()).await.unwrap();
 

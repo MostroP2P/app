@@ -787,7 +787,11 @@ pub(crate) async fn subscribe_gift_wraps(
                     }
                 }
                 Ok(Ok(RelayPoolNotification::Shutdown)) => break,
-                Ok(Err(_)) => break,
+                Ok(Err(broadcast::error::RecvError::Lagged(n))) => {
+                    log::warn!("[orders] gift-wrap lagged by {n} messages");
+                    continue;
+                }
+                Ok(Err(broadcast::error::RecvError::Closed)) => break,
                 Err(_) => break, // idle timeout
                 Ok(Ok(_)) => continue,
             }

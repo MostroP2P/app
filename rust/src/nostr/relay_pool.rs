@@ -138,13 +138,22 @@ impl RelayPool {
         self.relay_tx.subscribe()
     }
 
-    /// Subscribe to Kind 38383 (public orders) and Kind 1059 (gift wraps) separately.
+    /// Re-subscribe to Kind 38383 (public orders) and Kind 1059 (gift wraps)
+    /// after a reconnect or cold start, respawning per-trade gift-wrap workers.
     ///
-    /// Note: Kind 38383 processing is handled by `orders::subscribe_orders()`.
-    /// Kind 1059 processing is handled per-trade by `orders::subscribe_gift_wraps()`
-    /// which is called automatically from `orders::create_order()`.
-    /// This method exists for bulk re-subscription (e.g. reconnect after restart).
-    pub async fn subscribe_order_and_dm_feeds(&self, trade_pubkeys: Vec<PublicKey>) -> Result<()> {
+    /// `trade_keys` is a list of `(trade_pubkey, trade_index)` pairs gathered
+    /// from persisted state (e.g. the trade-key DB table).  For each pair this
+    /// method:
+    /// 1. Adds the pubkey to the bulk Kind 1059 relay filter so events are
+    ///    delivered to this client.
+    /// 2. Spawns a `subscribe_gift_wraps` worker (same as `create_order` does)
+    ///    so decryption keys are available and daemon responses are routed.
+    ///
+    /// Kind 38383 processing is handled by `orders::subscribe_orders()`.
+    pub async fn subscribe_order_and_dm_feeds(
+        &self,
+        trade_keys: Vec<(PublicKey, u32)>,
+    ) -> Result<()> {
         let mostro_pubkey = nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
             .map_err(|e| anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
         let order_filter = pending_orders_filter(&mostro_pubkey);
@@ -153,13 +162,23 @@ impl RelayPool {
             .await
             .map_err(|e| anyhow!("order subscribe failed: {e}"))?;
 
-        let dm_filter = Filter::new()
-            .kind(Kind::from(KIND_GIFT_WRAP))
-            .pubkeys(trade_pubkeys);
-        self.client
-            .subscribe(dm_filter, None)
-            .await
-            .map_err(|e| anyhow!("dm subscribe failed: {e}"))?;
+        let pubkeys: Vec<PublicKey> = trade_keys.iter().map(|(pk, _)| *pk).collect();
+        if !pubkeys.is_empty() {
+            let dm_filter = Filter::new()
+                .kind(Kind::from(KIND_GIFT_WRAP))
+                .pubkeys(pubkeys);
+            self.client
+                .subscribe(dm_filter, None)
+                .await
+                .map_err(|e| anyhow!("dm subscribe failed: {e}"))?;
+
+            // Respawn per-trade gift-wrap workers so each trade key's decrypt
+            // path is live.  Without this, the relay delivers events but no
+            // worker is running to unwrap and route them.
+            for (pubkey, trade_index) in trade_keys {
+                crate::api::orders::subscribe_gift_wraps(pubkey, trade_index).await;
+            }
+        }
 
         Ok(())
     }

@@ -73,6 +73,21 @@ impl RatingStore {
         Ok(())
     }
 
+    /// Remove the local user's reserved rating slot for a trade.
+    ///
+    /// Called to roll back a slot reservation when the outbound dispatch fails
+    /// so the caller can retry.  No-op if no slot exists for the trade.
+    async fn remove_mine(&self, trade_id: &str) {
+        let mut store = self.ratings.write().await;
+        if let Some(entry) = store.get_mut(trade_id) {
+            entry.mine = None;
+            // Evict the map entry entirely when both sides are empty.
+            if entry.peer.is_none() {
+                store.remove(trade_id);
+            }
+        }
+    }
+
     /// Insert or update the peer's incoming rating for a trade.
     /// Can be called multiple times safely (handles re-delivery).
     async fn insert_peer(&self, info: RatingInfo) {
@@ -125,52 +140,58 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
         bail!("PrivacyModeEnabled: cannot submit rating while privacy mode is active");
     }
 
-    // Send the RateUser message to the Mostro daemon via NIP-59 Gift Wrap using
-    // the trade key that was used when the order was taken or created.
-    if let Some(trade_index) = crate::api::orders::trade_key_for_order(&trade_id).await {
-        match crate::api::identity::get_active_trade_keys(trade_index).await {
-            Ok(sender_keys) => {
-                match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
-                    Ok(mostro_pubkey) => {
-                        match crate::mostro::actions::rate_user(
-                            &sender_keys,
-                            &mostro_pubkey,
-                            &trade_id,
-                            trade_index,
-                            score,
-                        )
-                        .await
-                        {
-                            Ok(event_json) => {
-                                if let Err(e) = crate::api::orders::publish_event(&event_json).await {
-                                    log::warn!("[reputation] rate_user publish failed: {e}");
-                                } else {
-                                    log::info!(
-                                        "[reputation] rate_user published trade={trade_id} score={score}"
-                                    );
-                                }
-                            }
-                            Err(e) => log::warn!("[reputation] rate_user build failed: {e}"),
-                        }
-                    }
-                    Err(e) => log::error!("[reputation] invalid mostro pubkey: {e}"),
-                }
-            }
-            Err(e) => log::warn!("[reputation] could not get trade keys for index={trade_index}: {e}"),
-        }
-    } else {
-        log::warn!("[reputation] no trade key found for trade={trade_id}; rating stored locally only");
-    }
-
-    // Atomic check-and-insert under write lock — prevents TOCTOU races.
+    // Reserve the slot atomically before attempting any outbound send.
+    // This prevents two concurrent submit_rating calls from both reaching
+    // publish_event — the second call fails here with AlreadyRated rather than
+    // sending a duplicate RateUser message to Mostro.
     store
         .try_insert_mine(RatingInfo {
-            trade_id,
+            trade_id: trade_id.clone(),
             score,
             is_mine: true,
             created_at: unix_now(),
         })
         .await?;
+
+    // Send the RateUser message via NIP-59 Gift Wrap.  Roll back the slot
+    // reservation if any step fails so the caller can retry after a transient
+    // network error without hitting AlreadyRated.
+    if let Some(trade_index) = crate::api::orders::trade_key_for_order(&trade_id).await {
+        let dispatch_result: anyhow::Result<()> = async {
+            let sender_keys =
+                crate::api::identity::get_active_trade_keys(trade_index).await?;
+            let mostro_pubkey =
+                nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
+                    .map_err(|e| anyhow::anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+            let event_json = crate::mostro::actions::rate_user(
+                &sender_keys,
+                &mostro_pubkey,
+                &trade_id,
+                trade_index,
+                score,
+            )
+            .await?;
+            crate::api::orders::publish_event(&event_json).await
+        }
+        .await;
+
+        match dispatch_result {
+            Ok(()) => log::info!(
+                "[reputation] rate_user published trade={trade_id} score={score}"
+            ),
+            Err(e) => {
+                // Rollback: remove the reservation so the caller can retry.
+                store.remove_mine(&trade_id).await;
+                bail!("RateUserDispatchFailed: {e}");
+            }
+        }
+    } else {
+        // No trade key for this trade — store locally only (e.g. older session
+        // where the key index was not persisted).
+        log::warn!(
+            "[reputation] no trade key found for trade={trade_id}; rating stored locally only"
+        );
+    }
 
     Ok(())
 }
