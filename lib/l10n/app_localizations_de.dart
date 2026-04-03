@@ -927,4 +927,28 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get aboutLndNodeUriExplanation =>
       'Die Verbindungs-URI des LND-Knotens im Format pubkey@host:port. Wird zum Öffnen direkter Zahlungskanäle verwendet.';
+
+  @override
+  String get openDisputeFailed =>
+      'Streit konnte nicht eröffnet werden. Bitte erneut versuchen.';
+
+  @override
+  String get tradeWaitingInvoiceBuyerInstruction =>
+      'Sende deine Lightning-Rechnung, damit der Verkäufer die Gelder sperren kann.';
+
+  @override
+  String get tradeWaitingInvoiceSellerInstruction =>
+      'Warte auf die Lightning-Rechnung des Käufers.';
+
+  @override
+  String get tradeWaitingPaymentBuyerInstruction =>
+      'Der Verkäufer bezahlt die Hold-Rechnung. Bitte warten.';
+
+  @override
+  String get tradeWaitingPaymentSellerInstruction =>
+      'Bezahle die Hold-Rechnung, um die Gelder zu sperren und den Handel zu starten.';
+
+  @override
+  String get tradeLoadError =>
+      'Beim Laden des Handels ist ein Fehler aufgetreten.';
 }

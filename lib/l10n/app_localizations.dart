@@ -1789,6 +1789,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.'**
   String get aboutLndNodeUriExplanation;
+
+  /// Snackbar shown when opening a dispute fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open dispute. Please try again.'**
+  String get openDisputeFailed;
+
+  /// Instruction shown to the buyer while waiting to submit their Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Submit your Lightning invoice so the seller can lock the funds.'**
+  String get tradeWaitingInvoiceBuyerInstruction;
+
+  /// Instruction shown to the seller while waiting for the buyer's Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the buyer to submit their Lightning invoice.'**
+  String get tradeWaitingInvoiceSellerInstruction;
+
+  /// Instruction shown to the buyer while the seller pays the hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'The seller is paying the hold invoice. Please wait.'**
+  String get tradeWaitingPaymentBuyerInstruction;
+
+  /// Instruction shown to the seller prompting them to pay the hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Pay the hold invoice to lock the funds and start the trade.'**
+  String get tradeWaitingPaymentSellerInstruction;
+
+  /// Error message shown when a trade fails to load
+  ///
+  /// In en, this message translates to:
+  /// **'An error occurred while loading the trade.'**
+  String get tradeLoadError;
 }
 
 class _AppLocalizationsDelegate
