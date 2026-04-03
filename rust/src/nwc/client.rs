@@ -71,38 +71,61 @@ mod native {
         }
 
         /// Send a NIP-47 request and await the wallet's response.
+        ///
+        /// Uses a subscribe-then-send pattern: subscribes to response events
+        /// BEFORE publishing the request so the response is never missed,
+        /// even if the wallet replies before EOSE.
         async fn send_request(&self, request: Request) -> Result<Response> {
             let event = request
                 .to_event(&self.uri)
                 .map_err(|e| anyhow!("Failed to build NIP-47 request event: {e}"))?;
 
-            self.client
-                .send_event(&event)
-                .await
-                .map_err(|e| anyhow!("Failed to send NIP-47 request: {e}"))?;
+            // 1. Start listening for Kind 23195 responses from the wallet
+            //    BEFORE sending the request to avoid a race condition.
+            let mut notifications = self.client.notifications();
 
-            // Subscribe to the response: Kind 23195 from the wallet pubkey,
-            // created after the request event's timestamp.
             let filter = Filter::new()
                 .kind(Kind::WalletConnectResponse)
                 .author(self.uri.public_key)
                 .since(event.created_at);
 
-            let events = self
-                .client
-                .fetch_events(filter, NWC_TIMEOUT)
+            self.client
+                .subscribe(filter, None)
                 .await
-                .map_err(|e| anyhow!("Failed to fetch NIP-47 response: {e}"))?;
+                .map_err(|e| anyhow!("Failed to subscribe for NIP-47 response: {e}"))?;
 
-            // Find the response that matches our request (most recent first).
-            for resp_event in events.into_iter() {
-                match Response::from_event(&self.uri, &resp_event) {
-                    Ok(resp) => return Ok(resp),
-                    Err(_) => continue, // not our response, try next
+            // 2. Send the request event.
+            self.client
+                .send_event(&event)
+                .await
+                .map_err(|e| anyhow!("Failed to send NIP-47 request: {e}"))?;
+
+            // 3. Wait for the matching response on the notification channel.
+            let deadline = tokio::time::Instant::now() + NWC_TIMEOUT;
+            loop {
+                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+                if remaining.is_zero() {
+                    bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
+                }
+
+                match tokio::time::timeout(remaining, notifications.recv()).await {
+                    Ok(Ok(RelayPoolNotification::Event {
+                        event: resp_event, ..
+                    })) => {
+                        if resp_event.kind == Kind::WalletConnectResponse {
+                            match Response::from_event(&self.uri, &resp_event) {
+                                Ok(resp) => return Ok(resp),
+                                Err(_) => continue,
+                            }
+                        }
+                    }
+                    Ok(Ok(_)) => continue, // other notification types
+                    Ok(Err(_)) => continue, // lagged, retry
+                    Err(_) => {
+                        bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
+                    }
                 }
             }
-
-            bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}")
         }
 
         /// Query wallet info (name, supported methods) via NIP-47 `get_info`.
