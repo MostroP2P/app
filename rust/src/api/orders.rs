@@ -708,6 +708,17 @@ pub(crate) async fn subscribe_gift_wraps(
     trade_index: u32,
 ) {
     tokio::spawn(async move {
+        // Fetch keys first — if this fails there is no point subscribing and
+        // we avoid leaving an orphan relay subscription with no decryption path.
+        let recipient_keys =
+            match crate::api::identity::get_active_trade_keys(trade_index).await {
+                Ok(k) => k,
+                Err(e) => {
+                    log::error!("[orders] subscribe_gift_wraps: no trade keys: {e}");
+                    return;
+                }
+            };
+
         let Ok(pool) = crate::api::nostr::get_pool() else {
             log::warn!("[orders] subscribe_gift_wraps: relay pool not initialized");
             return;
@@ -728,15 +739,6 @@ pub(crate) async fn subscribe_gift_wraps(
 
         let trade_pubkey_hex = trade_pubkey.to_hex();
         log::info!("[orders] gift-wrap subscription active for trade_pubkey={trade_pubkey_hex}");
-
-        let recipient_keys =
-            match crate::api::identity::get_active_trade_keys(trade_index).await {
-                Ok(k) => k,
-                Err(e) => {
-                    log::error!("[orders] subscribe_gift_wraps: no trade keys: {e}");
-                    return;
-                }
-            };
 
         use nostr_sdk::RelayPoolNotification;
         use tokio::time::{timeout, Duration};

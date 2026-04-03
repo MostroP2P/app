@@ -601,6 +601,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get removeRelayTooltip => 'Rimuovi relay';
 
   @override
+  String get relayAddFailed => 'Impossibile aggiungere il relay';
+
+  @override
+  String get relayRemoveFailed => 'Impossibile rimuovere il relay';
+
+  @override
   String get backupConfirmCheckbox =>
       'Ho annotato le mie parole e le ho salvate in modo sicuro';
 

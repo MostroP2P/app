@@ -23,8 +23,15 @@ class PrivacyModeNotifier extends StateNotifier<bool> {
   }
 
   /// Set privacy mode to [enabled] and propagate to the Rust layer.
-  void setPrivacyMode(bool enabled) {
+  ///
+  /// Optimistically updates local state and rolls back on failure.
+  Future<void> setPrivacyMode(bool enabled) async {
+    final previous = state;
     state = enabled;
-    reputation_api.setPrivacyMode(enabled: enabled).ignore();
+    try {
+      await reputation_api.setPrivacyMode(enabled: enabled);
+    } catch (e) {
+      if (mounted) state = previous;
+    }
   }
 }

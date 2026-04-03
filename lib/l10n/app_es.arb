@@ -196,6 +196,8 @@
   "disableRelayLabel": "Desactivar relay {url}",
   "enableRelayLabel": "Activar relay {url}",
   "removeRelayTooltip": "Eliminar relay",
+  "relayAddFailed": "Error al añadir el relay",
+  "relayRemoveFailed": "Error al eliminar el relay",
   "backupConfirmCheckbox": "He anotado mis palabras y las he guardado de forma segura",
 
   "cancelTradeDialogTitle": "¿Cancelar intercambio?",

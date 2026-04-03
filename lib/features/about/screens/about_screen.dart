@@ -26,7 +26,10 @@ class _AboutScreenState extends State<AboutScreen> {
     super.initState();
     rust_api.getAppVersion().then((v) {
       if (mounted) setState(() => _appVersion = v);
-    }).catchError((_) {});
+    }).catchError((e) {
+      debugPrint('[AboutScreen] getAppVersion failed: $e');
+      if (mounted) setState(() => _appVersion = 'unknown');
+    });
   }
 
   String _truncatePubkey(String pubkey) {

@@ -42,6 +42,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
   // by the Rust bridge (get_relays / add_relay / remove_relay) so configuration
   // persists across navigations and stays in sync with the backend (Phase 18+).
   late List<_RelayEntry> _relays;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -53,6 +54,8 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
   }
 
   Future<void> _loadRelays() async {
+    if (_loading) return;
+    _loading = true;
     try {
       final relays = await nostr_api.getRelays();
       if (!mounted) return;
@@ -65,6 +68,8 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
       });
     } catch (e) {
       debugPrint('[RelayManagement] failed to load relays: $e');
+    } finally {
+      _loading = false;
     }
   }
 
@@ -72,12 +77,21 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
     setState(() => _relays[index].isActive = value);
   }
 
-  void _removeRelay(int index) {
+  Future<void> _removeRelay(int index) async {
     final url = _relays[index].url;
+    final removed = _relays[index];
     setState(() => _relays.removeAt(index));
-    nostr_api.removeRelay(url: url).catchError((e) {
+    try {
+      await nostr_api.removeRelay(url: url);
+    } catch (e) {
       debugPrint('[RelayManagement] removeRelay failed: $e');
-    });
+      if (!mounted) return;
+      setState(() => _relays.insert(index, removed));
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.relayRemoveFailed)),
+      );
+    }
   }
 
   Future<void> _showAddRelayDialog() async {
@@ -132,18 +146,22 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       return;
                     }
-                    setState(() {
-                      _relays.add(
-                        _RelayEntry(
-                          url: url,
-                          isActive: true,
-                          isDefault: false,
-                        ),
-                      );
-                    });
+                    final newEntry = _RelayEntry(
+                      url: url,
+                      isActive: true,
+                      isDefault: false,
+                    );
+                    setState(() => _relays.add(newEntry));
                     Navigator.of(ctx).pop();
                     nostr_api.addRelay(url: url).then((_) {}, onError: (e) {
                       debugPrint('[RelayManagement] addRelay failed: $e');
+                      if (!mounted) return;
+                      setState(() => _relays.removeWhere((r) => r.url == url));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(AppLocalizations.of(context).relayAddFailed),
+                        ),
+                      );
                     });
                   },
                   child: Text(l10n.addButtonLabel),

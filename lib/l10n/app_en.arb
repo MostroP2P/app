@@ -410,6 +410,10 @@
   },
   "removeRelayTooltip": "Remove relay",
   "@removeRelayTooltip": {"description": "Tooltip for the remove-relay icon button"},
+  "relayAddFailed": "Failed to add relay",
+  "@relayAddFailed": {"description": "SnackBar message shown when adding a relay fails"},
+  "relayRemoveFailed": "Failed to remove relay",
+  "@relayRemoveFailed": {"description": "SnackBar message shown when removing a relay fails"},
   "backupConfirmCheckbox": "I have written down my words and backed them up securely",
   "@backupConfirmCheckbox": {"description": "Label for the backup confirmation checkbox on the Account screen"},
 
