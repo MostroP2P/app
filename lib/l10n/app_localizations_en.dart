@@ -662,6 +662,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeButtonLabel => 'Close';
 
   @override
+  String get copyButtonLabel => 'Copy';
+
+  @override
   String get orderStatusWaitingForTaker => 'Waiting for a taker';
 
   @override
@@ -779,13 +782,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutOrderExpirationLabel => 'Order Expiration';
 
   @override
-  String get aboutHoldInvoiceExpLabel => 'Hold Invoice Exp.';
+  String get aboutHoldInvoiceExpLabel => 'Hold Invoice Expiration';
 
   @override
   String get aboutHoldInvoiceCltvLabel => 'Hold Invoice CLTV';
 
   @override
-  String get aboutInvoiceExpWindowLabel => 'Invoice Exp. Window';
+  String get aboutInvoiceExpWindowLabel => 'Invoice Expiration Window';
 
   @override
   String get aboutProofOfWorkLabel => 'Proof of Work';
@@ -821,7 +824,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutHoursSuffix => 'hours';
 
   @override
-  String get aboutSecondsSuffix => 'sec';
+  String get aboutSecondsSuffix => 'seconds';
 
   @override
   String get aboutBlocksSuffix => 'blocks';

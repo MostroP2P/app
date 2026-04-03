@@ -616,19 +616,20 @@ class _InfoRowLink extends StatelessWidget {
 
   void _openLink(BuildContext context, String url) {
     // url_launcher is not in pubspec — show a SnackBar with copy action.
+    final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
       SnackBar(
         content: Text(url),
         action: SnackBarAction(
-          label: 'Copy',
+          label: l10n.copyButtonLabel,
           onPressed: () {
             Clipboard.setData(ClipboardData(text: url));
             messenger.hideCurrentSnackBar();
             messenger.showSnackBar(
-              const SnackBar(
-                content: Text('Link copied to clipboard'),
-                duration: Duration(seconds: 2),
+              SnackBar(
+                content: Text(l10n.linkCopiedToClipboard),
+                duration: const Duration(seconds: 2),
               ),
             );
           },
@@ -698,6 +699,27 @@ class _InfoRowTappable extends StatelessWidget {
 
 // ── Node info row with ℹ️ button ──────────────────────────────────────────────
 
+// ── Shared dialog helper ──────────────────────────────────────────────────────
+
+void _showInfoDialog(BuildContext context, String title, String body) {
+  final l10n = AppLocalizations.of(context);
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: Text(body),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text(l10n.closeButtonLabel),
+        ),
+      ],
+    ),
+  );
+}
+
+// ── Node info row with ℹ️ button ──────────────────────────────────────────────
+
 class _NodeInfoRowInfo extends StatelessWidget {
   const _NodeInfoRowInfo({
     required this.label,
@@ -725,7 +747,7 @@ class _NodeInfoRowInfo extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.xs),
               GestureDetector(
-                onTap: () => _showInfo(context, label, explanation),
+                onTap: () => _showInfoDialog(context, label, explanation),
                 child: Icon(
                   Icons.info_outline,
                   size: 16,
@@ -742,22 +764,6 @@ class _NodeInfoRowInfo extends StatelessWidget {
               fontWeight: FontWeight.w500,
               color: colors.textPrimary,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showInfo(BuildContext context, String title, String body) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
           ),
         ],
       ),
@@ -797,7 +803,7 @@ class _NodeInfoRowCopyable extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.xs),
               GestureDetector(
-                onTap: () => _showInfo(context, label, explanation),
+                onTap: () => _showInfoDialog(context, label, explanation),
                 child: Icon(
                   Icons.info_outline,
                   size: 16,
@@ -830,28 +836,15 @@ class _NodeInfoRowCopyable extends StatelessWidget {
     );
   }
 
-  void _showInfo(BuildContext context, String title, String body) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _copy(BuildContext context, String v) {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     Clipboard.setData(ClipboardData(text: v));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied to clipboard'),
-        duration: Duration(seconds: 2),
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(l10n.aboutCopiedToClipboard),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

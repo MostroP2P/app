@@ -1322,6 +1322,12 @@ abstract class AppLocalizations {
   /// **'Close'**
   String get closeButtonLabel;
 
+  /// Generic copy action button label (e.g. in SnackBar actions)
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyButtonLabel;
+
   /// Status label shown on a pending maker order
   ///
   /// In en, this message translates to:
@@ -1559,7 +1565,7 @@ abstract class AppLocalizations {
   /// About screen — Hold Invoice Expiration row label
   ///
   /// In en, this message translates to:
-  /// **'Hold Invoice Exp.'**
+  /// **'Hold Invoice Expiration'**
   String get aboutHoldInvoiceExpLabel;
 
   /// About screen — Hold Invoice CLTV Delta row label
@@ -1571,7 +1577,7 @@ abstract class AppLocalizations {
   /// About screen — Invoice Expiration Window row label
   ///
   /// In en, this message translates to:
-  /// **'Invoice Exp. Window'**
+  /// **'Invoice Expiration Window'**
   String get aboutInvoiceExpWindowLabel;
 
   /// About screen — Proof of Work row label
@@ -1643,7 +1649,7 @@ abstract class AppLocalizations {
   /// Suffix appended to second durations on the About screen
   ///
   /// In en, this message translates to:
-  /// **'sec'**
+  /// **'seconds'**
   String get aboutSecondsSuffix;
 
   /// Suffix appended to block counts on the About screen
