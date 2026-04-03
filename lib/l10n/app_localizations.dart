@@ -1339,6 +1339,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Expired'**
   String get orderStatusExpired;
+
+  /// Tooltip for the copy-order-ID icon button
+  ///
+  /// In en, this message translates to:
+  /// **'Copy order ID'**
+  String get copyOrderIdTooltip;
+
+  /// AppBar title when the requested order no longer exists
+  ///
+  /// In en, this message translates to:
+  /// **'Order Not Found'**
+  String get orderNotFoundTitle;
+
+  /// Body text shown when the requested order no longer exists
+  ///
+  /// In en, this message translates to:
+  /// **'This order is no longer available.'**
+  String get orderNotFoundMessage;
 }
 
 class _AppLocalizationsDelegate

@@ -224,5 +224,9 @@
   "orderStatusWaitingBuyerInvoice": "Esperando factura del comprador",
   "orderStatusWaitingPayment": "Esperando pago",
   "orderStatusInProgress": "En progreso",
-  "orderStatusExpired": "Expirada"
+  "orderStatusExpired": "Expirada",
+
+  "copyOrderIdTooltip": "Copiar ID de orden",
+  "orderNotFoundTitle": "Orden no encontrada",
+  "orderNotFoundMessage": "Esta orden ya no está disponible."
 }

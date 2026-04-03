@@ -669,4 +669,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get orderStatusExpired => 'Expired';
+
+  @override
+  String get copyOrderIdTooltip => 'Copy order ID';
+
+  @override
+  String get orderNotFoundTitle => 'Order Not Found';
+
+  @override
+  String get orderNotFoundMessage => 'This order is no longer available.';
 }

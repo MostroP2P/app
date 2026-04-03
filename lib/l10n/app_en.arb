@@ -463,5 +463,12 @@
   "orderStatusInProgress": "In progress",
   "@orderStatusInProgress": {"description": "Status label when a trade is active"},
   "orderStatusExpired": "Expired",
-  "@orderStatusExpired": {"description": "Status label when an order has expired"}
+  "@orderStatusExpired": {"description": "Status label when an order has expired"},
+
+  "copyOrderIdTooltip": "Copy order ID",
+  "@copyOrderIdTooltip": {"description": "Tooltip for the copy-order-ID icon button"},
+  "orderNotFoundTitle": "Order Not Found",
+  "@orderNotFoundTitle": {"description": "AppBar title when the requested order no longer exists"},
+  "orderNotFoundMessage": "This order is no longer available.",
+  "@orderNotFoundMessage": {"description": "Body text shown when the requested order no longer exists"}
 }

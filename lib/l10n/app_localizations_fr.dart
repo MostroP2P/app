@@ -651,7 +651,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get myOrderSellTitle => 'VOTRE ORDRE DE VENTE';
 
   @override
-  String get myOrderBuyTitle => "VOTRE ORDRE D'ACHAT";
+  String get myOrderBuyTitle => 'VOTRE ORDRE D\'ACHAT';
 
   @override
   String get cancelOrderButton => 'Annuler la commande';
@@ -665,17 +665,17 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cancelOrderFailed =>
-      "Échec de l'annulation de la commande. Veuillez réessayer.";
+      'Échec de l\'annulation de la commande. Veuillez réessayer.';
 
   @override
   String get closeButtonLabel => 'Fermer';
 
   @override
-  String get orderStatusWaitingForTaker => "En attente d'un preneur";
+  String get orderStatusWaitingForTaker => 'En attente d\'un preneur';
 
   @override
   String get orderStatusWaitingBuyerInvoice =>
-      "En attente de la facture de l'acheteur";
+      'En attente de la facture de l\'acheteur';
 
   @override
   String get orderStatusWaitingPayment => 'En attente du paiement';
@@ -685,4 +685,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get orderStatusExpired => 'Expirée';
+
+  @override
+  String get copyOrderIdTooltip => "Copier l'ID de la commande";
+
+  @override
+  String get orderNotFoundTitle => 'Commande introuvable';
+
+  @override
+  String get orderNotFoundMessage => "Cette commande n'est plus disponible.";
 }

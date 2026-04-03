@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
@@ -62,7 +63,8 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
         SnackBar(content: Text(l10n.cancelRequestSent)),
       );
       context.go(AppRoute.home);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[MyOrderScreen] cancel failed: $e\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.cancelOrderFailed)),
@@ -85,9 +87,10 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     final flags = ref.watch(currencyFlagsProvider);
 
     if (order == null) {
+      final l10nNull = AppLocalizations.of(context);
       return Scaffold(
-        appBar: AppBar(title: const Text('Order Not Found')),
-        body: const Center(child: Text('This order is no longer available.')),
+        appBar: AppBar(title: Text(l10nNull.orderNotFoundTitle)),
+        body: Center(child: Text(l10nNull.orderNotFoundMessage)),
       );
     }
 
@@ -177,14 +180,14 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: order.id));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Order ID copied'),
-                        duration: Duration(seconds: 1),
+                      SnackBar(
+                        content: Text(l10n.orderIdCopied),
+                        duration: const Duration(seconds: 1),
                       ),
                     );
                   },
                   icon: const Icon(Icons.copy, size: 18),
-                  tooltip: 'Copy order ID',
+                  tooltip: l10n.copyOrderIdTooltip,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -333,10 +336,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
   }
 
   String _formatDate(DateTime dt) {
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
-        '${dt.day.toString().padLeft(2, '0')} '
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
+    return DateFormat.yMd().add_jm().format(dt);
   }
 }
 

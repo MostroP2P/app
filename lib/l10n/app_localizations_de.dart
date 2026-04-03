@@ -681,4 +681,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get orderStatusExpired => 'Abgelaufen';
+
+  @override
+  String get copyOrderIdTooltip => 'Auftrags-ID kopieren';
+
+  @override
+  String get orderNotFoundTitle => 'Auftrag nicht gefunden';
+
+  @override
+  String get orderNotFoundMessage => 'Dieser Auftrag ist nicht mehr verfügbar.';
 }

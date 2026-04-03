@@ -671,7 +671,8 @@ class AppLocalizationsEs extends AppLocalizations {
   String get orderStatusWaitingForTaker => 'Esperando un tomador';
 
   @override
-  String get orderStatusWaitingBuyerInvoice => 'Esperando factura del comprador';
+  String get orderStatusWaitingBuyerInvoice =>
+      'Esperando factura del comprador';
 
   @override
   String get orderStatusWaitingPayment => 'Esperando pago';
@@ -681,4 +682,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get orderStatusExpired => 'Expirada';
+
+  @override
+  String get copyOrderIdTooltip => 'Copiar ID de orden';
+
+  @override
+  String get orderNotFoundTitle => 'Orden no encontrada';
+
+  @override
+  String get orderNotFoundMessage => 'Esta orden ya no está disponible.';
 }

@@ -224,5 +224,9 @@
   "orderStatusWaitingBuyerInvoice": "Warte auf Käufer-Rechnung",
   "orderStatusWaitingPayment": "Warte auf Zahlung",
   "orderStatusInProgress": "In Bearbeitung",
-  "orderStatusExpired": "Abgelaufen"
+  "orderStatusExpired": "Abgelaufen",
+
+  "copyOrderIdTooltip": "Auftrags-ID kopieren",
+  "orderNotFoundTitle": "Auftrag nicht gefunden",
+  "orderNotFoundMessage": "Dieser Auftrag ist nicht mehr verfügbar."
 }
