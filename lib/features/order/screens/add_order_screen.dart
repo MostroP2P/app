@@ -54,13 +54,16 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     super.dispose();
   }
 
-  bool _checkValid(List<String> selectedMethods, String customMethod) {
+  bool _checkValid(
+    List<String> selectedMethods,
+    String customMethod,
+    bool isMarket,
+    String fixedSatsStr,
+  ) {
     final hasPayment = selectedMethods.isNotEmpty || customMethod.isNotEmpty;
     if (!hasPayment) return false;
 
-    final isMarket = ref.read(isMarketPriceProvider);
     if (!isMarket) {
-      final fixedSatsStr = ref.read(fixedSatsProvider);
       final sats = BigInt.tryParse(fixedSatsStr);
       if (sats == null || sats <= BigInt.zero) return false;
     }
@@ -78,7 +81,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
   Future<void> _submit() async {
     final selectedMethods = ref.read(selectedPaymentMethodsProvider);
     final customMethod = ref.read(customPaymentMethodProvider);
-    if (_submitting || !_checkValid(selectedMethods, customMethod)) return;
+    final isMarket = ref.read(isMarketPriceProvider);
+    final fixedSatsStr = ref.read(fixedSatsProvider);
+    if (_submitting || !_checkValid(selectedMethods, customMethod, isMarket, fixedSatsStr)) return;
     setState(() => _submitting = true);
 
     try {
@@ -137,7 +142,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final selectedMethods = ref.watch(selectedPaymentMethodsProvider);
     final customMethod = ref.watch(customPaymentMethodProvider);
-    final isValid = _checkValid(selectedMethods, customMethod);
+    final isMarket = ref.watch(isMarketPriceProvider);
+    final fixedSatsStr = ref.watch(fixedSatsProvider);
+    final isValid = _checkValid(selectedMethods, customMethod, isMarket, fixedSatsStr);
 
     return Scaffold(
       appBar: AppBar(title: const Text('CREATING NEW ORDER')),

@@ -27,6 +27,50 @@ fn trade_key_map() -> &'static std::sync::RwLock<HashMap<String, u32>> {
     TRADE_KEY_MAP.get_or_init(|| std::sync::RwLock::new(HashMap::new()))
 }
 
+/// Maps `trade_pubkey_hex` → `trade_key_index` for newly created maker orders.
+///
+/// The daemon assigns its own UUID to a new order and publishes it as a Kind
+/// 38383 event signed by the daemon (not the maker), so there is no way to
+/// derive the real order ID from the Kind 38383 event itself.  Instead we keep
+/// a short-lived entry keyed by the trade public key and call
+/// `resolve_maker_order` once the daemon's gift-wrapped acknowledgement arrives
+/// and the real order ID is known.
+static PENDING_MAKER_KEYS: OnceLock<std::sync::RwLock<HashMap<String, u32>>> = OnceLock::new();
+
+fn pending_maker_keys() -> &'static std::sync::RwLock<HashMap<String, u32>> {
+    PENDING_MAKER_KEYS.get_or_init(|| std::sync::RwLock::new(HashMap::new()))
+}
+
+fn store_pending_maker_key(trade_pubkey_hex: &str, index: u32) {
+    if let Ok(mut map) = pending_maker_keys().write() {
+        map.insert(trade_pubkey_hex.to_string(), index);
+    }
+}
+
+/// Resolve a pending maker order once the daemon's gift-wrapped acknowledgement
+/// is processed and the real order ID becomes known.
+///
+/// Moves the entry from `PENDING_MAKER_KEYS` into the regular `TRADE_KEY_MAP`
+/// so that subsequent maker actions (e.g. cancel) can find the trade key via
+/// `get_trade_key_index(real_order_id)`.
+pub async fn resolve_maker_order(order_id: &str, trade_pubkey_hex: &str) {
+    let index = pending_maker_keys()
+        .read()
+        .ok()
+        .and_then(|m| m.get(trade_pubkey_hex).copied());
+    if let Some(idx) = index {
+        if let Ok(mut map) = pending_maker_keys().write() {
+            map.remove(trade_pubkey_hex);
+        }
+        store_trade_key_index(order_id, idx).await;
+        log::info!("[orders] resolved maker order={order_id} trade_index={idx}");
+    } else {
+        log::warn!(
+            "[orders] resolve_maker_order: no pending entry for pubkey={trade_pubkey_hex}"
+        );
+    }
+}
+
 /// Persist `index` for `order_id` in both the in-memory cache and the DB.
 ///
 /// The in-memory write is synchronous and always succeeds.  The DB write is
@@ -285,41 +329,25 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         is_mine: true,
     };
 
-    // Cache locally (optimistic — daemon will publish the real Kind 38383).
-    order_book().upsert_order(order.clone()).await;
+    // Derive a fresh trade key — each order must use a unique derived key index
+    // so the daemon can verify the trade index in the message.
+    let trade_key_info = crate::api::identity::derive_trade_key().await?;
+    let trade_index = trade_key_info.index;
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let event_json =
+        actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index)
+            .await?;
+    publish_event_json(&event_json).await?;
 
-    // Derive a fresh trade key for this order — each order must use a unique
-    // derived key index so the daemon can verify the trade index in the message.
-    match crate::api::identity::derive_trade_key().await {
-        Ok(trade_key_info) => {
-            let trade_index = trade_key_info.index;
-            match crate::api::identity::get_active_trade_keys(trade_index).await {
-                Ok(sender_keys) => {
-                    match nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
-                        Ok(mostro_pubkey) => {
-                            match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index).await {
-                                Ok(event_json) => {
-                                    if let Err(e) = publish_event_json(&event_json).await {
-                                        log::warn!("[orders] create_order publish failed: {e}");
-                                    } else {
-                                        store_trade_key_index(&order.id, trade_index).await;
-                                        log::info!(
-                                            "[orders] create_order dispatched id={} trade_index={trade_index}",
-                                            order.id
-                                        );
-                                    }
-                                }
-                                Err(e) => log::warn!("[orders] create_order action build failed: {e}"),
-                            }
-                        }
-                        Err(e) => log::error!("[orders] create_order: invalid mostro pubkey: {e}"),
-                    }
-                }
-                Err(e) => log::warn!("[orders] create_order: could not get trade keys: {e}"),
-            }
-        }
-        Err(e) => log::warn!("[orders] create_order: could not derive trade key: {e}"),
-    }
+    // Cache locally and persist the pending trade-key entry only after a
+    // successful publish so a failure doesn't surface as a successful response.
+    order_book().upsert_order(order.clone()).await;
+    store_pending_maker_key(&sender_keys.public_key().to_hex(), trade_index);
+    log::info!(
+        "[orders] create_order dispatched id={} trade_index={trade_index}",
+        order.id
+    );
 
     Ok(order)
 }
