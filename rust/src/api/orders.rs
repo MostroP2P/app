@@ -295,21 +295,24 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
             let trade_index = trade_key_info.index;
             match crate::api::identity::get_active_trade_keys(trade_index).await {
                 Ok(sender_keys) => {
-                    if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
-                        match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index).await {
-                            Ok(event_json) => {
-                                if let Err(e) = publish_event_json(&event_json).await {
-                                    log::warn!("[orders] create_order publish failed: {e}");
-                                } else {
-                                    store_trade_key_index(&order.id, trade_index).await;
-                                    log::info!(
-                                        "[orders] create_order dispatched id={} trade_index={trade_index}",
-                                        order.id
-                                    );
+                    match nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+                        Ok(mostro_pubkey) => {
+                            match actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index).await {
+                                Ok(event_json) => {
+                                    if let Err(e) = publish_event_json(&event_json).await {
+                                        log::warn!("[orders] create_order publish failed: {e}");
+                                    } else {
+                                        store_trade_key_index(&order.id, trade_index).await;
+                                        log::info!(
+                                            "[orders] create_order dispatched id={} trade_index={trade_index}",
+                                            order.id
+                                        );
+                                    }
                                 }
+                                Err(e) => log::warn!("[orders] create_order action build failed: {e}"),
                             }
-                            Err(e) => log::warn!("[orders] create_order action build failed: {e}"),
                         }
+                        Err(e) => log::error!("[orders] create_order: invalid mostro pubkey: {e}"),
                     }
                 }
                 Err(e) => log::warn!("[orders] create_order: could not get trade keys: {e}"),
@@ -406,64 +409,67 @@ pub async fn take_order(
     // Dispatch the take action to Mostro using the trade key for signing.
     match crate::api::identity::get_active_trade_keys(trade_index).await {
         Ok(sender_keys) => {
-            if let Ok(mostro_pubkey) = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
-                // Read default LN address from settings (take-sell-ln-address flow).
-                let ln_address: Option<String> =
-                    crate::api::settings::get_settings()
-                        .await
-                        .ok()
-                        .and_then(|s| s.default_lightning_address);
-                let ln_address_ref = ln_address.as_deref();
+            match nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+                Ok(mostro_pubkey) => {
+                    // Read default LN address from settings (take-sell-ln-address flow).
+                    let ln_address: Option<String> =
+                        crate::api::settings::get_settings()
+                            .await
+                            .ok()
+                            .and_then(|s| s.default_lightning_address);
+                    let ln_address_ref = ln_address.as_deref();
 
-                let action_result = match dispatch_role {
-                    TradeRole::Buyer => {
-                        actions::take_sell(
-                            &sender_keys,
-                            &mostro_pubkey,
-                            &order_id,
-                            trade_index,
-                            fiat_amount,
-                            ln_address_ref,
-                        )
-                        .await
-                    }
-                    TradeRole::Seller => {
-                        actions::take_buy(
-                            &sender_keys,
-                            &mostro_pubkey,
-                            &order_id,
-                            trade_index,
-                            fiat_amount,
-                        )
-                        .await
-                    }
-                };
-
-                match action_result {
-                    Ok(event_json) => {
-                        if let Err(e) = publish_event_json(&event_json).await {
-                            log::warn!("[orders] take_order publish failed: {e}");
-                        } else {
-                            // Persist trade-key mapping and trade record only after a
-                            // successful publish so failures leave no stale state.
-                            store_trade_key_index(&order_id, trade_index).await;
-                            if let Some(db) = crate::db::app_db::db() {
-                                if let Err(e) = db.save_trade(&trade).await {
-                                    log::warn!("[orders] failed to persist trade: {e}");
-                                }
-                            }
-                            log::info!(
-                                "[orders] take_order dispatched order={order_id} \
-                                 trade_index={trade_index} ln_address={}",
-                                if ln_address_ref.is_some() { "present" } else { "none" }
-                            );
-                            // Subscribe to d-tag K38383 updates for this specific order so we
-                            // receive status changes (pending → in-progress → waiting-payment …).
-                            subscribe_single_order(&order_id).await;
+                    let action_result = match dispatch_role {
+                        TradeRole::Buyer => {
+                            actions::take_sell(
+                                &sender_keys,
+                                &mostro_pubkey,
+                                &order_id,
+                                trade_index,
+                                fiat_amount,
+                                ln_address_ref,
+                            )
+                            .await
                         }
+                        TradeRole::Seller => {
+                            actions::take_buy(
+                                &sender_keys,
+                                &mostro_pubkey,
+                                &order_id,
+                                trade_index,
+                                fiat_amount,
+                            )
+                            .await
+                        }
+                    };
+
+                    match action_result {
+                        Ok(event_json) => {
+                            if let Err(e) = publish_event_json(&event_json).await {
+                                log::warn!("[orders] take_order publish failed: {e}");
+                            } else {
+                                // Persist trade-key mapping and trade record only after a
+                                // successful publish so failures leave no stale state.
+                                store_trade_key_index(&order_id, trade_index).await;
+                                if let Some(db) = crate::db::app_db::db() {
+                                    if let Err(e) = db.save_trade(&trade).await {
+                                        log::warn!("[orders] failed to persist trade: {e}");
+                                    }
+                                }
+                                log::info!(
+                                    "[orders] take_order dispatched order={order_id} \
+                                     trade_index={trade_index} ln_address={}",
+                                    if ln_address_ref.is_some() { "present" } else { "none" }
+                                );
+                                // Subscribe to d-tag K38383 updates for this specific order so we
+                                // receive status changes (pending → in-progress → waiting-payment …).
+                                subscribe_single_order(&order_id).await;
+                            }
+                        }
+                        Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
                     }
-                    Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
                 }
+                Err(e) => log::error!("[orders] take_order: invalid mostro pubkey: {e}"),
             }
         }
         Err(e) => log::warn!("[orders] take_order: could not get trade keys: {e}"),
