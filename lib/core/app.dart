@@ -25,7 +25,7 @@ class MostroApp extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
 
     // Theme mode from settings; dark is the default.
-    final themeMode = ref.watch(settingsProvider).themeMode;
+    final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
 
     return MaterialApp.router(
       title: 'Mostro',

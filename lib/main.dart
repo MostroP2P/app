@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mostro/core/app.dart';
 import 'package:mostro/core/services/identity_service.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
@@ -43,6 +44,7 @@ Future<void> main() async {
   final backupDismissed = prefs.getBool(kBackupReminderDismissedKey) ?? false;
   final backupActive = prefs.getBool(kBackupReminderActiveKey) ?? false;
   final backupPending = backupActive && !backupDismissed;
+  final savedSettings = AppSettingsState.fromPrefs(prefs);
 
   // Initialize the Nostr relay pool with default relays (from config.rs).
   // This must happen before any Nostr/order API calls.
@@ -63,6 +65,9 @@ Future<void> main() async {
       ),
       backupReminderProvider.overrideWith(
         (ref) => BackupReminderNotifier(initialValue: backupPending),
+      ),
+      settingsProvider.overrideWith(
+        (ref) => SettingsNotifier(prefs: prefs, initial: savedSettings),
       ),
     ],
     child: const MostroApp(),
