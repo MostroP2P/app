@@ -60,6 +60,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
               walletName: info.walletName,
               balanceSats: info.balanceSats?.toInt(),
             ),
+            nwcUri: _uriController.text.trim(),
           );
       context.go(AppRoute.walletSettings);
     } catch (e) {

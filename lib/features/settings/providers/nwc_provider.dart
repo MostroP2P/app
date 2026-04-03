@@ -1,7 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Sentinel for copyWith nullable fields.
 const _unset = Object();
+
+/// SharedPreferences key for the persisted NWC URI.
+const kNwcUriKey = 'settings.nwcUri';
 
 /// Wallet connection state held in memory.
 ///
@@ -40,13 +44,24 @@ class NwcWalletState {
 // ── Notifier ───────────────────────────────────────────────────────────────────
 
 class NwcNotifier extends StateNotifier<NwcWalletState?> {
-  NwcNotifier() : super(null);
+  NwcNotifier({SharedPreferences? prefs}) : _prefs = prefs, super(null);
+
+  final SharedPreferences? _prefs;
 
   /// Store wallet state after a successful `connect_wallet` call.
-  void setConnected(NwcWalletState wallet) => state = wallet;
+  /// Persists the NWC URI so it survives app restarts.
+  void setConnected(NwcWalletState wallet, {String? nwcUri}) {
+    state = wallet;
+    if (nwcUri != null) {
+      _prefs?.setString(kNwcUriKey, nwcUri);
+    }
+  }
 
   /// Clear wallet state after `disconnect_wallet`.
-  void setDisconnected() => state = null;
+  void setDisconnected() {
+    state = null;
+    _prefs?.remove(kNwcUriKey);
+  }
 
   /// Update balance from a `get_balance` result.
   void updateBalance(int? sats) {
@@ -59,6 +74,7 @@ class NwcNotifier extends StateNotifier<NwcWalletState?> {
 // ── Providers ─────────────────────────────────────────────────────────────────
 
 /// Wallet connection state. `null` when no wallet is connected.
+/// Override in `main()` via [ProviderScope] to inject [SharedPreferences].
 final nwcProvider =
     StateNotifierProvider<NwcNotifier, NwcWalletState?>((ref) => NwcNotifier());
 

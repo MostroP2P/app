@@ -11,6 +11,8 @@ import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
 import 'package:mostro/src/rust/api.dart' as rust_api;
+import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
@@ -58,7 +60,7 @@ Future<void> main() async {
   // Watch for connection state changes in background (logs appear in flutter output).
   _watchConnectionState();
 
-  runApp(ProviderScope(
+  final container = ProviderContainer(
     overrides: [
       firstRunProvider.overrideWith(
         (ref) => FirstRunNotifier(initialValue: firstRunComplete),
@@ -69,9 +71,42 @@ Future<void> main() async {
       settingsProvider.overrideWith(
         (ref) => SettingsNotifier(prefs: prefs, initial: savedSettings),
       ),
+      nwcProvider.overrideWith(
+        (ref) => NwcNotifier(prefs: prefs),
+      ),
     ],
+  );
+
+  // Restore NWC wallet connection if a URI was saved from a previous session.
+  final savedNwcUri = prefs.getString(kNwcUriKey);
+  if (savedNwcUri != null) {
+    _restoreNwcConnection(savedNwcUri, container);
+  }
+
+  runApp(UncontrolledProviderScope(
+    container: container,
     child: const MostroApp(),
   ));
+}
+
+/// Reconnect a previously saved NWC wallet in the background.
+void _restoreNwcConnection(String nwcUri, ProviderContainer container) {
+  Future.microtask(() async {
+    try {
+      final info = await nwc_api.connectWallet(nwcUri: nwcUri);
+      container.read(nwcProvider.notifier).setConnected(
+            NwcWalletState(
+              walletPubkey: info.walletPubkey,
+              relayUrls: info.relayUrls,
+              walletName: info.walletName,
+              balanceSats: info.balanceSats?.toInt(),
+            ),
+          );
+      debugPrint('[nwc] wallet restored: ${info.walletName ?? info.walletPubkey}');
+    } catch (e) {
+      debugPrint('[nwc] wallet restore failed: $e');
+    }
+  });
 }
 
 /// Guards against overlapping diagnostic order polls on rapid reconnects.
