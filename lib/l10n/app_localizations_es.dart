@@ -631,4 +631,67 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get releaseFailed =>
       'Error al liberar. Por favor, inténtelo de nuevo.';
+
+  @override
+  String get orderPillYouAreSelling => 'USTED ESTÁ VENDIENDO';
+
+  @override
+  String get orderPillYouAreBuying => 'USTED ESTÁ COMPRANDO';
+
+  @override
+  String get orderPillSelling => 'VENDIENDO';
+
+  @override
+  String get orderPillBuying => 'COMPRANDO';
+
+  @override
+  String get myOrderSellTitle => 'SU ORDEN DE VENTA';
+
+  @override
+  String get myOrderBuyTitle => 'SU ORDEN DE COMPRA';
+
+  @override
+  String get cancelOrderButton => 'Cancelar orden';
+
+  @override
+  String get cancelOrderDialogTitle => 'Cancelar orden';
+
+  @override
+  String get cancelOrderDialogContent =>
+      '¿Está seguro de que desea cancelar esta orden? Esta acción no se puede deshacer.';
+
+  @override
+  String get cancelOrderFailed =>
+      'No se pudo cancelar la orden. Por favor, inténtelo de nuevo.';
+
+  @override
+  String get closeButtonLabel => 'Cerrar';
+
+  @override
+  String get orderStatusWaitingForTaker => 'Esperando un tomador';
+
+  @override
+  String get orderStatusWaitingBuyerInvoice =>
+      'Esperando factura del comprador';
+
+  @override
+  String get orderStatusWaitingPayment => 'Esperando pago';
+
+  @override
+  String get orderStatusInProgress => 'En progreso';
+
+  @override
+  String get orderStatusExpired => 'Expirada';
+
+  @override
+  String get copyOrderIdTooltip => 'Copiar ID de orden';
+
+  @override
+  String get orderNotFoundTitle => 'Orden no encontrada';
+
+  @override
+  String get orderNotFoundMessage => 'Esta orden ya no está disponible.';
+
+  @override
+  String get orderCancelledSuccess => 'Orden cancelada exitosamente.';
 }

@@ -64,6 +64,7 @@ class OrderItem {
     this.daysActive = 0,
     this.status = OrderStatus.pending,
     this.amountSats,
+    this.isMine = false,
   }) {
     final isFixed = fiatAmount != null &&
         fiatAmountMin == null &&
@@ -97,6 +98,8 @@ class OrderItem {
   final OrderStatus status;
   /// Sats amount resolved by Mostro (non-null once Mostro accepts the take).
   final BigInt? amountSats;
+  /// True when this order was created by the current user.
+  final bool isMine;
 
   bool get isRange => fiatAmountMin != null && fiatAmountMax != null;
 
@@ -128,6 +131,7 @@ class OrderItem {
             : null,
         status: info.status,
         amountSats: info.amountSats,
+        isMine: info.isMine,
       );
 }
 
@@ -174,9 +178,10 @@ final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
   final targetKind = orderType == OrderType.buy ? 'sell' : 'buy';
 
   return allOrders.where((o) {
-    // Order book shows only takeable orders.
+    // Order book shows only pending orders.
     if (o.status != OrderStatus.pending) return false;
-    if (o.kind != targetKind) return false;
+    // Own orders are always shown regardless of which tab is active.
+    if (!o.isMine && o.kind != targetKind) return false;
 
     if (selectedCurrencies.isNotEmpty &&
         !selectedCurrencies.contains(o.fiatCode)) {

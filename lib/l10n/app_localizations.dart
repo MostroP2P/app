@@ -1243,6 +1243,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to release. Please try again.'**
   String get releaseFailed;
+
+  /// Order card pill label when the current user is the maker of a sell order
+  ///
+  /// In en, this message translates to:
+  /// **'YOU ARE SELLING'**
+  String get orderPillYouAreSelling;
+
+  /// Order card pill label when the current user is the maker of a buy order
+  ///
+  /// In en, this message translates to:
+  /// **'YOU ARE BUYING'**
+  String get orderPillYouAreBuying;
+
+  /// Order card pill label for another user's sell order
+  ///
+  /// In en, this message translates to:
+  /// **'SELLING'**
+  String get orderPillSelling;
+
+  /// Order card pill label for another user's buy order
+  ///
+  /// In en, this message translates to:
+  /// **'BUYING'**
+  String get orderPillBuying;
+
+  /// Screen title when viewing the maker's own sell order
+  ///
+  /// In en, this message translates to:
+  /// **'YOUR SELL ORDER'**
+  String get myOrderSellTitle;
+
+  /// Screen title when viewing the maker's own buy order
+  ///
+  /// In en, this message translates to:
+  /// **'YOUR BUY ORDER'**
+  String get myOrderBuyTitle;
+
+  /// Button label to cancel a pending maker order
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel order'**
+  String get cancelOrderButton;
+
+  /// Title of the cancel-order confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel order'**
+  String get cancelOrderDialogTitle;
+
+  /// Body text of the cancel-order confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to cancel this order? This action cannot be undone.'**
+  String get cancelOrderDialogContent;
+
+  /// Snackbar shown when the cancel-order action fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to cancel order. Please try again.'**
+  String get cancelOrderFailed;
+
+  /// Generic close button label
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get closeButtonLabel;
+
+  /// Status label shown on a pending maker order
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for a taker'**
+  String get orderStatusWaitingForTaker;
+
+  /// Status label when waiting for the buyer to submit an invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for buyer invoice'**
+  String get orderStatusWaitingBuyerInvoice;
+
+  /// Status label when waiting for the Lightning payment
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for payment'**
+  String get orderStatusWaitingPayment;
+
+  /// Status label when a trade is active
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get orderStatusInProgress;
+
+  /// Status label when an order has expired
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get orderStatusExpired;
+
+  /// Tooltip for the copy-order-ID icon button
+  ///
+  /// In en, this message translates to:
+  /// **'Copy order ID'**
+  String get copyOrderIdTooltip;
+
+  /// AppBar title when the requested order no longer exists
+  ///
+  /// In en, this message translates to:
+  /// **'Order Not Found'**
+  String get orderNotFoundTitle;
+
+  /// Body text shown when the requested order no longer exists
+  ///
+  /// In en, this message translates to:
+  /// **'This order is no longer available.'**
+  String get orderNotFoundMessage;
+
+  /// Snackbar shown after a maker successfully cancels their own pending order
+  ///
+  /// In en, this message translates to:
+  /// **'Order cancelled successfully.'**
+  String get orderCancelledSuccess;
 }
 
 class _AppLocalizationsDelegate

@@ -629,4 +629,66 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get releaseFailed => 'Rilascio fallito. Riprovare.';
+
+  @override
+  String get orderPillYouAreSelling => 'STAI VENDENDO';
+
+  @override
+  String get orderPillYouAreBuying => 'STAI COMPRANDO';
+
+  @override
+  String get orderPillSelling => 'VENDITA';
+
+  @override
+  String get orderPillBuying => 'ACQUISTO';
+
+  @override
+  String get myOrderSellTitle => 'IL TUO ORDINE DI VENDITA';
+
+  @override
+  String get myOrderBuyTitle => 'IL TUO ORDINE DI ACQUISTO';
+
+  @override
+  String get cancelOrderButton => 'Annulla ordine';
+
+  @override
+  String get cancelOrderDialogTitle => 'Annulla ordine';
+
+  @override
+  String get cancelOrderDialogContent =>
+      'Sei sicuro di voler annullare questo ordine? Questa azione non può essere annullata.';
+
+  @override
+  String get cancelOrderFailed => 'Annullamento fallito. Riprovare.';
+
+  @override
+  String get closeButtonLabel => 'Chiudi';
+
+  @override
+  String get orderStatusWaitingForTaker => 'In attesa di un taker';
+
+  @override
+  String get orderStatusWaitingBuyerInvoice =>
+      'In attesa della fattura dell\'acquirente';
+
+  @override
+  String get orderStatusWaitingPayment => 'In attesa del pagamento';
+
+  @override
+  String get orderStatusInProgress => 'In corso';
+
+  @override
+  String get orderStatusExpired => 'Scaduto';
+
+  @override
+  String get copyOrderIdTooltip => 'Copia ID ordine';
+
+  @override
+  String get orderNotFoundTitle => 'Ordine non trovato';
+
+  @override
+  String get orderNotFoundMessage => 'Questo ordine non è più disponibile.';
+
+  @override
+  String get orderCancelledSuccess => 'Ordine annullato con successo.';
 }

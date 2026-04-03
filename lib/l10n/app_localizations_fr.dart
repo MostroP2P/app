@@ -634,4 +634,67 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get releaseFailed => 'Échec de la libération. Veuillez réessayer.';
+
+  @override
+  String get orderPillYouAreSelling => 'VOUS VENDEZ';
+
+  @override
+  String get orderPillYouAreBuying => 'VOUS ACHETEZ';
+
+  @override
+  String get orderPillSelling => 'VENTE';
+
+  @override
+  String get orderPillBuying => 'ACHAT';
+
+  @override
+  String get myOrderSellTitle => 'VOTRE ORDRE DE VENTE';
+
+  @override
+  String get myOrderBuyTitle => 'VOTRE ORDRE D\'ACHAT';
+
+  @override
+  String get cancelOrderButton => 'Annuler la commande';
+
+  @override
+  String get cancelOrderDialogTitle => 'Annuler la commande';
+
+  @override
+  String get cancelOrderDialogContent =>
+      'Êtes-vous sûr de vouloir annuler cette commande ? Cette action est irréversible.';
+
+  @override
+  String get cancelOrderFailed =>
+      'Échec de l\'annulation de la commande. Veuillez réessayer.';
+
+  @override
+  String get closeButtonLabel => 'Fermer';
+
+  @override
+  String get orderStatusWaitingForTaker => 'En attente d\'un preneur';
+
+  @override
+  String get orderStatusWaitingBuyerInvoice =>
+      'En attente de la facture de l\'acheteur';
+
+  @override
+  String get orderStatusWaitingPayment => 'En attente du paiement';
+
+  @override
+  String get orderStatusInProgress => 'En cours';
+
+  @override
+  String get orderStatusExpired => 'Expirée';
+
+  @override
+  String get copyOrderIdTooltip => 'Copier l\'ID de la commande';
+
+  @override
+  String get orderNotFoundTitle => 'Commande introuvable';
+
+  @override
+  String get orderNotFoundMessage => 'Cette commande n\'est plus disponible.';
+
+  @override
+  String get orderCancelledSuccess => 'Commande annulée avec succès.';
 }

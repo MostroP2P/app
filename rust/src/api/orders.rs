@@ -47,6 +47,32 @@ fn store_pending_maker_key(trade_pubkey_hex: &str, index: u32) {
     }
 }
 
+/// Maps `content_key` → `local_uuid` for newly created maker orders.
+///
+/// At create time the order is added to the order book with a locally-generated
+/// UUID.  When the daemon later publishes its own Kind 38383 event (with a
+/// daemon-assigned UUID), the subscription loop uses this map to remove the
+/// stale local entry so there is only one entry in the book — keyed by the
+/// daemon's UUID — and `cancel_order` sends the correct ID.
+static PENDING_LOCAL_IDS: OnceLock<std::sync::RwLock<HashMap<String, String>>> = OnceLock::new();
+
+fn pending_local_ids() -> &'static std::sync::RwLock<HashMap<String, String>> {
+    PENDING_LOCAL_IDS.get_or_init(|| std::sync::RwLock::new(HashMap::new()))
+}
+
+fn store_pending_local_id(content_key: &str, local_uuid: &str) {
+    if let Ok(mut map) = pending_local_ids().write() {
+        map.insert(content_key.to_string(), local_uuid.to_string());
+    }
+}
+
+fn take_pending_local_id(content_key: &str) -> Option<String> {
+    pending_local_ids()
+        .write()
+        .ok()
+        .and_then(|mut m| m.remove(content_key))
+}
+
 /// Resolve a pending maker order once the daemon's gift-wrapped acknowledgement
 /// is processed and the real order ID becomes known.
 ///
@@ -69,6 +95,33 @@ pub async fn resolve_maker_order(order_id: &str, trade_pubkey_hex: &str) {
             "[orders] resolve_maker_order: no pending entry for pubkey={trade_pubkey_hex}"
         );
     }
+}
+
+/// Build a stable content key for a maker order.
+///
+/// The key is stored in `TRADE_KEY_MAP` at creation time (prefixed with
+/// `"content:"` so it never collides with real UUIDs).  On cold start the
+/// relay subscription can compute the same key from an incoming Kind 38383
+/// event and look up the trade index, restoring `is_mine = true` without
+/// needing the daemon's gift-wrap acknowledgement.
+fn order_content_key(
+    kind: &crate::api::types::OrderKind,
+    fiat_code: &str,
+    fiat_amount: Option<f64>,
+    fiat_amount_min: Option<f64>,
+    fiat_amount_max: Option<f64>,
+    payment_method: &str,
+) -> String {
+    let amount = match (fiat_amount, fiat_amount_min, fiat_amount_max) {
+        (Some(a), _, _) => format!("f{}", a as i64),
+        (_, Some(mn), Some(mx)) => format!("r{}:{}", mn as i64, mx as i64),
+        _ => "?".to_string(),
+    };
+    let k = match kind {
+        crate::api::types::OrderKind::Buy => "buy",
+        crate::api::types::OrderKind::Sell => "sell",
+    };
+    format!("content:{k}:{fiat_code}:{amount}:{payment_method}")
 }
 
 /// Persist `index` for `order_id` in both the in-memory cache and the DB.
@@ -226,6 +279,19 @@ impl OrderBook {
             .cloned()
     }
 
+    /// Remove the order with the given ID from the cache and notify listeners.
+    /// No-op if the ID is not present.
+    pub async fn remove_order(&self, order_id: &str) {
+        let mut orders = self.orders.write().await;
+        let before = orders.len();
+        orders.retain(|o| o.id != order_id);
+        if orders.len() != before {
+            let snapshot = orders.clone();
+            drop(orders);
+            let _ = self.tx.send(snapshot);
+        }
+    }
+
     pub(crate) fn subscribe(&self) -> broadcast::Receiver<Vec<OrderInfo>> {
         self.tx.subscribe()
     }
@@ -334,18 +400,37 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     let trade_key_info = crate::api::identity::derive_trade_key().await?;
     let trade_index = trade_key_info.index;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+
+    // Build the content fingerprint key BEFORE publishing so the subscription
+    // loop never races against an empty TRADE_KEY_MAP when the daemon replies
+    // faster than our post-publish bookkeeping runs.
+    let ck = order_content_key(
+        &params_for_dispatch.kind,
+        &params_for_dispatch.fiat_code,
+        params_for_dispatch.fiat_amount,
+        params_for_dispatch.fiat_amount_min,
+        params_for_dispatch.fiat_amount_max,
+        &params_for_dispatch.payment_method,
+    );
+
+    // Register all bookkeeping entries before publishing the event.
+    // The daemon can respond with a Kind 38383 event within milliseconds; if
+    // we stored these after publish the subscription loop could arrive before
+    // the keys are written and miss the fingerprint match entirely.
+    store_trade_key_index(&order.id, trade_index).await; // local UUID fallback
+    store_trade_key_index(&ck, trade_index).await;       // content fingerprint
+    store_pending_maker_key(&sender_keys.public_key().to_hex(), trade_index);
+    store_pending_local_id(&ck, &order.id);
+    order_book().upsert_order(order.clone()).await;
+
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
     let event_json =
         actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index)
             .await?;
     publish_event_json(&event_json).await?;
 
-    // Cache locally and persist the pending trade-key entry only after a
-    // successful publish so a failure doesn't surface as a successful response.
-    order_book().upsert_order(order.clone()).await;
-    store_pending_maker_key(&sender_keys.public_key().to_hex(), trade_index);
     log::info!(
-        "[orders] create_order dispatched id={} trade_index={trade_index}",
+        "[orders] create_order dispatched id={} trade_index={trade_index} ck={ck}",
         order.id
     );
 
@@ -770,8 +855,42 @@ async fn _run_order_subscription() {
             Ok(RelayPoolNotification::Event { event, .. }) => {
                 log::info!("[orders] event kind={} author={}", event.kind, &event.pubkey.to_hex()[..8]);
                 match parse_order_event(&event, None) {
-                    Some(info) => {
+                    Some(mut info) => {
                         log::info!("[orders] parsed order id={} kind={:?} status={:?}", info.id, info.kind, info.status);
+                        // Restore is_mine=true for maker orders on cold start by
+                        // comparing against the content fingerprint stored at creation time.
+                        if !info.is_mine {
+                            let ck = order_content_key(
+                                &info.kind,
+                                &info.fiat_code,
+                                info.fiat_amount,
+                                info.fiat_amount_min,
+                                info.fiat_amount_max,
+                                &info.payment_method,
+                            );
+                            log::debug!("[orders] fingerprint check order={} ck={ck}", info.id);
+                            if let Some(trade_idx) = get_trade_key_index(&ck).await {
+                                info.is_mine = true;
+                                // Bridge content fingerprint → daemon UUID so subsequent
+                                // actions (cancel) can look up the trade key by real order ID.
+                                store_trade_key_index(&info.id, trade_idx).await;
+                                // Remove the temporary local-UUID entry that was
+                                // added optimistically at create_order time so the
+                                // order book only contains the daemon's real UUID.
+                                if let Some(local_id) = take_pending_local_id(&ck) {
+                                    order_book().remove_order(&local_id).await;
+                                    log::info!(
+                                        "[orders] replaced local order={local_id} with daemon order={}",
+                                        info.id
+                                    );
+                                } else {
+                                    log::info!(
+                                        "[orders] own order={} detected via content match trade_index={trade_idx}",
+                                        info.id
+                                    );
+                                }
+                            }
+                        }
                         order_book().upsert_order(info).await;
                     }
                     None => {

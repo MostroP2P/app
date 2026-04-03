@@ -123,7 +123,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
 
     void onOrderTap(String id, OrderType type) {
-      if (type == OrderType.buy) {
+      final allOrders = ref.read(orderBookProvider).valueOrNull ?? [];
+      final order = allOrders.where((o) => o.id == id).firstOrNull;
+      if (order?.isMine == true) {
+        context.push(AppRoute.myOrderPath(id));
+      } else if (type == OrderType.buy) {
         context.push(AppRoute.takeSellPath(id));
       } else {
         context.push(AppRoute.takeBuyPath(id));
