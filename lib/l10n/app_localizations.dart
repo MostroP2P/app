@@ -1375,6 +1375,414 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Order cancelled successfully.'**
   String get orderCancelledSuccess;
+
+  /// About screen — App Information card title
+  ///
+  /// In en, this message translates to:
+  /// **'App Information'**
+  String get aboutAppInfoTitle;
+
+  /// About screen — Documentation card title
+  ///
+  /// In en, this message translates to:
+  /// **'Documentation'**
+  String get aboutDocumentationTitle;
+
+  /// About screen — Mostro Node card title
+  ///
+  /// In en, this message translates to:
+  /// **'Mostro Node'**
+  String get aboutMostroNodeTitle;
+
+  /// About screen — Version row label
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get aboutVersionLabel;
+
+  /// About screen — GitHub Repository row label
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub Repository'**
+  String get aboutGithubRepoLabel;
+
+  /// About screen — Commit Hash row label
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Hash'**
+  String get aboutCommitHashLabel;
+
+  /// About screen — License row label
+  ///
+  /// In en, this message translates to:
+  /// **'License'**
+  String get aboutLicenseLabel;
+
+  /// About screen — License name value
+  ///
+  /// In en, this message translates to:
+  /// **'MIT'**
+  String get aboutLicenseName;
+
+  /// About screen — GitHub repository display name
+  ///
+  /// In en, this message translates to:
+  /// **'mostro-mobile'**
+  String get aboutGithubRepoName;
+
+  /// About screen — English user docs link label
+  ///
+  /// In en, this message translates to:
+  /// **'Users (English)'**
+  String get aboutDocsUsersEnglish;
+
+  /// About screen — Spanish user docs link label
+  ///
+  /// In en, this message translates to:
+  /// **'Users (Spanish)'**
+  String get aboutDocsUsersSpanish;
+
+  /// About screen — Technical docs link label
+  ///
+  /// In en, this message translates to:
+  /// **'Technical'**
+  String get aboutDocsTechnical;
+
+  /// About screen — action label for documentation links
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get aboutDocsRead;
+
+  /// Snackbar shown after copying a value to clipboard on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get aboutCopiedToClipboard;
+
+  /// Title for the MIT license dialog on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'MIT License'**
+  String get aboutLicenseDialogTitle;
+
+  /// Text shown while the Mostro node info is being fetched
+  ///
+  /// In en, this message translates to:
+  /// **'Loading node information…'**
+  String get aboutNodeLoadingText;
+
+  /// Text shown when the Mostro node info cannot be fetched
+  ///
+  /// In en, this message translates to:
+  /// **'Node information unavailable'**
+  String get aboutNodeUnavailable;
+
+  /// Button to retry fetching the Mostro node info
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get aboutNodeRetry;
+
+  /// About screen — Mostro Node general info section header
+  ///
+  /// In en, this message translates to:
+  /// **'General Info'**
+  String get aboutGeneralInfoSection;
+
+  /// About screen — Mostro Node technical details section header
+  ///
+  /// In en, this message translates to:
+  /// **'Technical Details'**
+  String get aboutTechnicalDetailsSection;
+
+  /// About screen — Mostro Node Lightning Network section header
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning Network'**
+  String get aboutLightningNetworkSection;
+
+  /// About screen — Mostro Public Key row label
+  ///
+  /// In en, this message translates to:
+  /// **'Mostro Public Key'**
+  String get aboutMostroPublicKeyLabel;
+
+  /// About screen — Max Order Amount row label
+  ///
+  /// In en, this message translates to:
+  /// **'Max Order Amount'**
+  String get aboutMaxOrderAmountLabel;
+
+  /// About screen — Min Order Amount row label
+  ///
+  /// In en, this message translates to:
+  /// **'Min Order Amount'**
+  String get aboutMinOrderAmountLabel;
+
+  /// About screen — Order Lifespan row label
+  ///
+  /// In en, this message translates to:
+  /// **'Order Lifespan'**
+  String get aboutOrderLifespanLabel;
+
+  /// About screen — Service Fee row label
+  ///
+  /// In en, this message translates to:
+  /// **'Service Fee'**
+  String get aboutServiceFeeLabel;
+
+  /// About screen — Fiat Currencies row label
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat Currencies'**
+  String get aboutFiatCurrenciesLabel;
+
+  /// About screen — Mostro Version row label
+  ///
+  /// In en, this message translates to:
+  /// **'Mostro Version'**
+  String get aboutMostroVersionLabel;
+
+  /// About screen — Mostro Commit row label
+  ///
+  /// In en, this message translates to:
+  /// **'Mostro Commit'**
+  String get aboutMostroCommitLabel;
+
+  /// About screen — Order Expiration row label
+  ///
+  /// In en, this message translates to:
+  /// **'Order Expiration'**
+  String get aboutOrderExpirationLabel;
+
+  /// About screen — Hold Invoice Expiration row label
+  ///
+  /// In en, this message translates to:
+  /// **'Hold Invoice Exp.'**
+  String get aboutHoldInvoiceExpLabel;
+
+  /// About screen — Hold Invoice CLTV Delta row label
+  ///
+  /// In en, this message translates to:
+  /// **'Hold Invoice CLTV'**
+  String get aboutHoldInvoiceCltvLabel;
+
+  /// About screen — Invoice Expiration Window row label
+  ///
+  /// In en, this message translates to:
+  /// **'Invoice Exp. Window'**
+  String get aboutInvoiceExpWindowLabel;
+
+  /// About screen — Proof of Work row label
+  ///
+  /// In en, this message translates to:
+  /// **'Proof of Work'**
+  String get aboutProofOfWorkLabel;
+
+  /// About screen — Max Orders Per Response row label
+  ///
+  /// In en, this message translates to:
+  /// **'Max Orders/Response'**
+  String get aboutMaxOrdersPerResponseLabel;
+
+  /// About screen — LND Version row label
+  ///
+  /// In en, this message translates to:
+  /// **'LND Version'**
+  String get aboutLndVersionLabel;
+
+  /// About screen — LND Node Public Key row label
+  ///
+  /// In en, this message translates to:
+  /// **'LND Node Public Key'**
+  String get aboutLndNodePublicKeyLabel;
+
+  /// About screen — LND Commit row label
+  ///
+  /// In en, this message translates to:
+  /// **'LND Commit'**
+  String get aboutLndCommitLabel;
+
+  /// About screen — LND Node Alias row label
+  ///
+  /// In en, this message translates to:
+  /// **'LND Node Alias'**
+  String get aboutLndNodeAliasLabel;
+
+  /// About screen — Supported Chains row label
+  ///
+  /// In en, this message translates to:
+  /// **'Supported Chains'**
+  String get aboutSupportedChainsLabel;
+
+  /// About screen — Supported Networks row label
+  ///
+  /// In en, this message translates to:
+  /// **'Supported Networks'**
+  String get aboutSupportedNetworksLabel;
+
+  /// About screen — LND Node URI row label
+  ///
+  /// In en, this message translates to:
+  /// **'LND Node URI'**
+  String get aboutLndNodeUriLabel;
+
+  /// Suffix appended to sats amounts on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'Satoshis'**
+  String get aboutSatoshisSuffix;
+
+  /// Suffix appended to hour durations on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'hours'**
+  String get aboutHoursSuffix;
+
+  /// Suffix appended to second durations on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'sec'**
+  String get aboutSecondsSuffix;
+
+  /// Suffix appended to block counts on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'blocks'**
+  String get aboutBlocksSuffix;
+
+  /// Value shown when the node accepts all fiat currencies
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get aboutFiatCurrenciesAll;
+
+  /// Info dialog explanation for the Mostro Public Key field
+  ///
+  /// In en, this message translates to:
+  /// **'The Nostr public key of the Mostro daemon. All orders and encrypted messages on this instance are published or routed by this key.'**
+  String get aboutMostroPublicKeyExplanation;
+
+  /// Info dialog explanation for the Max Order Amount field
+  ///
+  /// In en, this message translates to:
+  /// **'The maximum fiat amount allowed for a single order on this Mostro instance.'**
+  String get aboutMaxOrderAmountExplanation;
+
+  /// Info dialog explanation for the Min Order Amount field
+  ///
+  /// In en, this message translates to:
+  /// **'The minimum fiat amount required for a single order on this Mostro instance.'**
+  String get aboutMinOrderAmountExplanation;
+
+  /// Info dialog explanation for the Order Lifespan field
+  ///
+  /// In en, this message translates to:
+  /// **'How long a pending order stays open before it automatically expires if no taker is found.'**
+  String get aboutOrderLifespanExplanation;
+
+  /// Info dialog explanation for the Service Fee field
+  ///
+  /// In en, this message translates to:
+  /// **'The percentage of the trade amount charged by the Mostro daemon as a service fee.'**
+  String get aboutServiceFeeExplanation;
+
+  /// Info dialog explanation for the Fiat Currencies field
+  ///
+  /// In en, this message translates to:
+  /// **'The fiat currencies accepted on this Mostro instance. \'All\' means there are no restrictions.'**
+  String get aboutFiatCurrenciesExplanation;
+
+  /// Info dialog explanation for the Mostro Version field
+  ///
+  /// In en, this message translates to:
+  /// **'The version of the Mostro daemon software running this instance.'**
+  String get aboutMostroVersionExplanation;
+
+  /// Info dialog explanation for the Mostro Commit field
+  ///
+  /// In en, this message translates to:
+  /// **'The Git commit hash of the Mostro daemon build, used to identify the exact software revision.'**
+  String get aboutMostroCommitExplanation;
+
+  /// Info dialog explanation for the Order Expiration field
+  ///
+  /// In en, this message translates to:
+  /// **'The timeout in seconds after which a trade waiting for action (e.g. invoice or payment) is automatically canceled.'**
+  String get aboutOrderExpirationExplanation;
+
+  /// Info dialog explanation for the Hold Invoice Expiration field
+  ///
+  /// In en, this message translates to:
+  /// **'The time window in seconds during which the Lightning hold invoice must be settled.'**
+  String get aboutHoldInvoiceExpExplanation;
+
+  /// Info dialog explanation for the Hold Invoice CLTV Delta field
+  ///
+  /// In en, this message translates to:
+  /// **'The CLTV delta (block count) used for hold invoices, controlling how long the HTLC can remain locked.'**
+  String get aboutHoldInvoiceCltvExplanation;
+
+  /// Info dialog explanation for the Invoice Expiration Window field
+  ///
+  /// In en, this message translates to:
+  /// **'The time window in seconds within which the buyer must submit a Lightning invoice after the trade is initiated.'**
+  String get aboutInvoiceExpWindowExplanation;
+
+  /// Info dialog explanation for the Proof of Work field
+  ///
+  /// In en, this message translates to:
+  /// **'The minimum proof-of-work difficulty required for Nostr events on this instance. 0 means no PoW is required.'**
+  String get aboutProofOfWorkExplanation;
+
+  /// Info dialog explanation for the Max Orders Per Response field
+  ///
+  /// In en, this message translates to:
+  /// **'The maximum number of orders returned in a single relay response. Limits bandwidth usage.'**
+  String get aboutMaxOrdersPerResponseExplanation;
+
+  /// Info dialog explanation for the LND Version field
+  ///
+  /// In en, this message translates to:
+  /// **'The version of the LND (Lightning Network Daemon) node connected to this Mostro instance.'**
+  String get aboutLndVersionExplanation;
+
+  /// Info dialog explanation for the LND Node Public Key field
+  ///
+  /// In en, this message translates to:
+  /// **'The public key of the LND node. Used to identify and verify the Lightning Network node.'**
+  String get aboutLndNodePublicKeyExplanation;
+
+  /// Info dialog explanation for the LND Commit field
+  ///
+  /// In en, this message translates to:
+  /// **'The Git commit hash of the LND build, identifying the exact software revision of the Lightning node.'**
+  String get aboutLndCommitExplanation;
+
+  /// Info dialog explanation for the LND Node Alias field
+  ///
+  /// In en, this message translates to:
+  /// **'The human-readable alias of the LND node as configured by the node operator.'**
+  String get aboutLndNodeAliasExplanation;
+
+  /// Info dialog explanation for the Supported Chains field
+  ///
+  /// In en, this message translates to:
+  /// **'The blockchain(s) supported by the LND node (e.g. \'bitcoin\').'**
+  String get aboutSupportedChainsExplanation;
+
+  /// Info dialog explanation for the Supported Networks field
+  ///
+  /// In en, this message translates to:
+  /// **'The network(s) the LND node operates on (e.g. \'mainnet\', \'testnet\').'**
+  String get aboutSupportedNetworksExplanation;
+
+  /// Info dialog explanation for the LND Node URI field
+  ///
+  /// In en, this message translates to:
+  /// **'The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.'**
+  String get aboutLndNodeUriExplanation;
 }
 
 class _AppLocalizationsDelegate
