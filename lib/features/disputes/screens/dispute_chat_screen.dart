@@ -43,7 +43,9 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
   }
 
   void _onSendText(String text) {
-    // TODO(bridge): Encrypt with adminSharedKey and publish via Rust bridge.
+    // Dispute messaging requires an adminSharedKey derived from the trade key
+    // and the admin's pubkey (Phase 12). The Rust bridge will expose
+    // `send_dispute_message(dispute_id, text, admin_shared_key)` when ready.
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -54,7 +56,8 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
   }
 
   void _onAttachFile() {
-    // TODO(bridge): Open file picker, encrypt with adminSharedKey, upload.
+    // File attachments in disputes require the same adminSharedKey as text
+    // messages (Phase 12). Will use file picker + encrypt + upload flow.
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

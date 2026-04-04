@@ -14,15 +14,15 @@ pub mod nwc;
 pub mod queue;
 
 /// Called once by Flutter during `RustLib.init()` — sets up logging so Rust
-/// messages appear in `adb logcat` under the tag `mostro_rust`.
+/// messages appear in `adb logcat` / stderr and are forwarded to the Flutter
+/// log stream via `BridgeLogger`.
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
-    #[cfg(target_os = "android")]
-    android_logger::init_once(
-        android_logger::Config::default()
-            .with_max_level(log::LevelFilter::Debug)
-            .with_tag("mostro_rust"),
-    );
+    // Install the log bridge so every log::info!/warn!/error! is forwarded
+    // to the Flutter on_log_entry() stream AND printed to stderr (logcat on
+    // Android).  Must be called before any other log::set_logger() call.
+    api::logging::install_log_bridge();
+
     log::info!("[init] Rust core initialized");
 }
 

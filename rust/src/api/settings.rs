@@ -180,6 +180,26 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
     Ok(())
 }
 
+/// Set or clear the active Mostro node pubkey.
+///
+/// Pass `Some("hex...")` to route orders to a custom Mostro node, or `None`
+/// to revert to the compiled-in default.
+///
+/// **Errors**: `InvalidPubkey` if `pubkey` is Some but not a valid 64-char hex key.
+pub fn set_mostro_pubkey(pubkey: Option<String>) -> Result<()> {
+    if let Some(ref pk) = pubkey {
+        nostr_sdk::PublicKey::from_hex(pk)
+            .map_err(|e| anyhow::anyhow!("InvalidPubkey: {e}"))?;
+    }
+    crate::config::set_active_mostro_pubkey(pubkey);
+    Ok(())
+}
+
+/// Return the currently active Mostro node pubkey (override or default).
+pub fn get_mostro_pubkey() -> String {
+    crate::config::active_mostro_pubkey()
+}
+
 /// Toggle the in-memory logging flag (not persisted to disk).
 ///
 /// When a Tokio runtime is available the update is dispatched asynchronously

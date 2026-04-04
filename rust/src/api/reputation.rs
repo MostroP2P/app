@@ -161,8 +161,8 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
             let sender_keys =
                 crate::api::identity::get_active_trade_keys(trade_index).await?;
             let mostro_pubkey =
-                nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
-                    .map_err(|e| anyhow::anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+                nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
+                    .map_err(|e| anyhow::anyhow!("invalid mostro pubkey: {e}"))?;
             let event_json = crate::mostro::actions::rate_user(
                 &sender_keys,
                 &mostro_pubkey,

@@ -1,5 +1,6 @@
 pub mod disputes;
 pub mod identity;
+pub mod logging;
 pub mod messages;
 pub mod nostr;
 pub mod nwc;
