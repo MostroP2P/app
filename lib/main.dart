@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
+import 'package:mostro/firebase_options.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
 import 'package:mostro/src/rust/api.dart' as rust_api;
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
@@ -18,6 +20,16 @@ import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase (no-op if firebase_options.dart is the placeholder).
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on UnsupportedError catch (e) {
+    debugPrint('[main] Firebase not configured: $e — push notifications disabled.');
+  }
+
   await RustLib.init();
 
   // Initialize persistent SQLite store. Must come before any trade / order

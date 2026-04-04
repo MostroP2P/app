@@ -10,7 +10,8 @@ import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:path_provider/path_provider.dart'
     if (dart.library.html) 'package:mostro/core/stubs/path_provider_stub.dart';
 import 'package:sembast/sembast_io.dart';
-import 'package:sembast/sembast_memory.dart' show databaseFactoryMemory;
+import 'package:mostro/features/notifications/providers/sembast_factory_web.dart'
+    if (dart.library.io) 'package:mostro/features/notifications/providers/sembast_factory_stub.dart';
 
 // ── Sembast persistence store ─────────────────────────────────────────────────
 
@@ -30,17 +31,7 @@ class SembastNotificationsStore {
     try {
       final Database db;
       if (kIsWeb) {
-        // TODO(web-push): Replace databaseFactoryMemory with databaseFactoryWeb
-        // once sembast_web is added to pubspec.yaml. Without this, web users
-        // lose all notifications on page reload (notificationsProviderWithDb
-        // regresses to in-memory-only behavior).  Fix: add sembast_web, switch
-        // to databaseFactoryWeb, remove the sembast_memory import.
-        debugPrint(
-          '[notifications] WARNING: Using in-memory DB on web — '
-          'notifications will not persist across reloads. '
-          'Add sembast_web to pubspec.yaml to fix.',
-        );
-        db = await databaseFactoryMemory.openDatabase(_dbName);
+        db = await databaseFactoryWeb.openDatabase(_dbName);
       } else {
         final dir = await getApplicationDocumentsDirectory();
         final path = '${dir.path}/$_dbName';

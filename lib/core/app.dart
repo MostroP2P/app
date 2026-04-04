@@ -5,6 +5,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/notifications/services/push_notification_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 
 /// Root application widget.
@@ -12,11 +13,22 @@ import 'package:mostro/features/settings/providers/settings_provider.dart';
 /// Wraps the widget tree with [ProviderScope] and wires GoRouter +
 /// localisation. RustLib initialisation is deferred to Phase 3 (US1)
 /// when the identity API is ready.
-class MostroApp extends ConsumerWidget {
+class MostroApp extends ConsumerStatefulWidget {
   const MostroApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MostroApp> createState() => _MostroAppState();
+}
+
+class _MostroAppState extends ConsumerState<MostroApp> {
+  @override
+  void initState() {
+    super.initState();
+    PushNotificationService.instance.initialize(ref: ref);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Expose the Riverpod container to the router's redirect callback so it
     // can read firstRunProvider without a BuildContext.
     routerContainer = ProviderScope.containerOf(context, listen: false);
@@ -27,21 +39,23 @@ class MostroApp extends ConsumerWidget {
     // Theme mode from settings; dark is the default.
     final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
 
-    return MaterialApp.router(
-      title: 'Mostro',
-      debugShowCheckedModeBanner: false,
-      theme: buildLightTheme(),
-      darkTheme: buildDarkTheme(),
-      themeMode: themeMode,
-      locale: locale,
-      routerConfig: appRouter,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
+    return NotificationListenerWidget(
+      child: MaterialApp.router(
+        title: 'Mostro',
+        debugShowCheckedModeBanner: false,
+        theme: buildLightTheme(),
+        darkTheme: buildDarkTheme(),
+        themeMode: themeMode,
+        locale: locale,
+        routerConfig: appRouter,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+      ),
     );
   }
 }
