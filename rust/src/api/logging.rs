@@ -1,9 +1,9 @@
 //! Log sink — captures `log` crate records and exposes them to Flutter
 //! via a flutter_rust_bridge stream.
 //!
-//! [`install_log_bridge`] replaces the active `log` backend with a forwarder
-//! that sends every record to both the platform logger (android_logger on
-//! Android, stderr elsewhere) **and** the Flutter [`on_log_entry`] stream.
+//! [`install_log_bridge`] sets the global `log` backend to a [`BridgeLogger`]
+//! that sends every record to both stderr (logcat on Android) **and** the
+//! Flutter [`on_log_entry`] stream.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{mpsc, Mutex, OnceLock};
@@ -59,7 +59,7 @@ pub fn install_log_bridge() {
 }
 
 /// Global logger instance that forwards records to the Flutter stream
-/// and also prints to stderr (or android_logger on Android).
+/// and prints to stderr (logcat on Android).
 static BRIDGE_LOGGER: BridgeLogger = BridgeLogger;
 
 struct BridgeLogger;
@@ -77,25 +77,13 @@ impl log::Log for BridgeLogger {
         // Forward to Flutter stream.
         forward_log(record.level(), record.target(), &record.args().to_string());
 
-        // Also print to platform output so adb logcat / stderr still works.
-        #[cfg(target_os = "android")]
-        {
-            // android_logger is no longer the active backend, so print manually.
-            let tag = record.target().split("::").last().unwrap_or(record.target());
-            let msg = format!("[{}] {}", tag, record.args());
-            // Use __android_log_print via the log crate's Android integration
-            // or just eprintln as a fallback — logcat picks up stderr.
-            eprintln!("{msg}");
-        }
-        #[cfg(not(target_os = "android"))]
-        {
-            eprintln!(
-                "[{level}] {target}: {msg}",
-                level = record.level(),
-                target = record.target(),
-                msg = record.args(),
-            );
-        }
+        // Also print to stderr so adb logcat / terminal output still works.
+        eprintln!(
+            "[{level}] {target}: {msg}",
+            level = record.level(),
+            target = record.target(),
+            msg = record.args(),
+        );
     }
 
     fn flush(&self) {}
