@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS queued_messages (
     next_retry_at   INTEGER
 );
 
+-- Generic key-value settings store (Mostro node, preferences, etc.).
+CREATE TABLE IF NOT EXISTS settings (
+    key             TEXT PRIMARY KEY,
+    value           TEXT NOT NULL
+);
+
 -- Maps order_id → BIP-32 trade key index used when taking/creating that order.
 -- Persists across restarts so fiat-sent, release, and cancel can re-derive the
 -- correct signing key even after the app is killed between protocol steps.

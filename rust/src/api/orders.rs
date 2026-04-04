@@ -1002,6 +1002,17 @@ pub async fn subscribe_orders() {
     });
 }
 
+/// Force-restart the orders subscription.
+///
+/// Tears down the existing subscription (if any) by resetting the guard,
+/// then spawns a fresh subscription loop. Used by the UI "Refresh" action
+/// so users get a real re-subscribe instead of a silent no-op.
+pub async fn restart_orders_subscription() {
+    // Clear the guard so subscribe_orders can acquire it again.
+    SUBSCRIPTION_ACTIVE.store(false, Ordering::Release);
+    subscribe_orders().await;
+}
+
 async fn _run_order_subscription() {
     let Ok(pool) = crate::api::nostr::get_pool() else {
         log::error!("[orders] subscription failed: relay pool not initialized");

@@ -44,13 +44,6 @@ int _platformInt64ToInt(dynamic v) => v is BigInt ? v.toInt() : v as int;
 // ── Order model ───────────────────────────────────────────────────────────────
 
 /// Lightweight Dart-side order model for the UI layer.
-///
-/// TODO(Phase 18+): Add `OrderItem.fromInfo(OrderInfo info)` factory once
-/// `flutter_rust_bridge_codegen generate` has been run and the generated
-/// `OrderInfo` type is available at `package:rust/src/rust/api/orders.dart`.
-/// Field mapping: id, kind.name.toLowerCase(), fiatAmount, fiatAmountMin,
-/// fiatAmountMax, fiatCode, paymentMethod, premium, creatorPubkey,
-/// DateTime.fromMillisecondsSinceEpoch(createdAt * 1000), expiresAt.
 class OrderItem {
   OrderItem({
     required this.id,

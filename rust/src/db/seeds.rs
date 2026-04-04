@@ -40,18 +40,13 @@ async fn seed_default_relays<S: Storage>(storage: &S) -> Result<()> {
 }
 
 /// Seed the default Mostro node if no active node is configured.
-///
-/// Stores the node info in the settings table. Since the `Storage` trait
-/// doesn't have Mostro-node-specific methods yet, we store it as a relay
-/// with a special source marker and use a separate settings key.
-///
-/// TODO: Add `save_mostro_node` / `get_active_mostro_node` to Storage
-/// trait when the settings/about screens are implemented (Phase 16-17).
 async fn seed_default_mostro_node<S: Storage>(storage: &S) -> Result<()> {
-    // For now, the default Mostro node info is served from the compiled
-    // constant via `get_default_mostro_node()`. Persistence will be added
-    // when the Storage trait gains Mostro-node methods.
-    let _ = storage;
+    if storage.get_active_mostro_node().await?.is_some() {
+        return Ok(());
+    }
+    let node = get_default_mostro_node();
+    storage.save_mostro_node(&node).await?;
+    log::info!("[seeds] default Mostro node seeded: {}", node.pubkey);
     Ok(())
 }
 

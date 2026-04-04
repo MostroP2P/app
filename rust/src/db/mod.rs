@@ -62,6 +62,14 @@ pub trait Storage: Send + Sync {
     /// Retrieve the BIP-32 key index for `order_id`, or `None` if not found.
     async fn get_trade_key(&self, order_id: &str) -> Result<Option<u32>>;
 
+    // ── Settings / Mostro node ────────────────────────────────────────────────
+
+    /// Persist a Mostro node info record, replacing any existing one.
+    async fn save_mostro_node(&self, node: &crate::api::types::MostroNodeInfo) -> Result<()>;
+
+    /// Return the currently active Mostro node, or `None` if none has been saved.
+    async fn get_active_mostro_node(&self) -> Result<Option<crate::api::types::MostroNodeInfo>>;
+
     /// Look up a persisted trade by the order ID it is associated with.
     async fn get_trade_by_order_id(
         &self,
