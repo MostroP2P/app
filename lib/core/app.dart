@@ -5,6 +5,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/notifications/services/push_notification_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 
 /// Root application widget.
@@ -12,11 +13,29 @@ import 'package:mostro/features/settings/providers/settings_provider.dart';
 /// Wraps the widget tree with [ProviderScope] and wires GoRouter +
 /// localisation. RustLib initialisation is deferred to Phase 3 (US1)
 /// when the identity API is ready.
-class MostroApp extends ConsumerWidget {
+class MostroApp extends ConsumerStatefulWidget {
   const MostroApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MostroApp> createState() => _MostroAppState();
+}
+
+class _MostroAppState extends ConsumerState<MostroApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final container = ProviderScope.containerOf(context, listen: false);
+      try {
+        await PushNotificationService.instance.initialize(container: container);
+      } catch (e) {
+        debugPrint('[app] push notification init failed: $e');
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Expose the Riverpod container to the router's redirect callback so it
     // can read firstRunProvider without a BuildContext.
     routerContainer = ProviderScope.containerOf(context, listen: false);
@@ -42,6 +61,8 @@ class MostroApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) =>
+          NotificationListenerWidget(child: child ?? const SizedBox.shrink()),
     );
   }
 }

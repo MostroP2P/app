@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mostro/core/app_theme.dart';
 
 /// Notification preferences screen.
 ///
-/// Local state only — TODO(bridge): persist via settings API.
+/// Settings are persisted via SharedPreferences. When the Rust settings API
+/// gains notification fields (notify_trade_updates, etc.), replace the
+/// SharedPreferences calls with settings_api calls.
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
 
@@ -19,6 +22,41 @@ class _NotificationSettingsScreenState
   bool _newMessages = true;
   bool _paymentAlerts = true;
   bool _disputeUpdates = true;
+
+  static const _kTradeUpdates = 'notify_trade_updates';
+  static const _kNewMessages = 'notify_new_messages';
+  static const _kPaymentAlerts = 'notify_payments';
+  static const _kDisputeUpdates = 'notify_disputes';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _tradeUpdates = prefs.getBool(_kTradeUpdates) ?? true;
+        _newMessages = prefs.getBool(_kNewMessages) ?? true;
+        _paymentAlerts = prefs.getBool(_kPaymentAlerts) ?? true;
+        _disputeUpdates = prefs.getBool(_kDisputeUpdates) ?? true;
+      });
+    } catch (e) {
+      debugPrint('[notification_settings] load failed: $e');
+    }
+  }
+
+  Future<void> _saveBool(String key, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    } catch (e) {
+      debugPrint('[notification_settings] save failed: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +88,10 @@ class _NotificationSettingsScreenState
             title: 'Trade updates',
             subtitle: 'Status changes in your active trades',
             value: _tradeUpdates,
-            onChanged: (v) => setState(() => _tradeUpdates = v),
+            onChanged: (v) {
+              setState(() => _tradeUpdates = v);
+              _saveBool(_kTradeUpdates, v);
+            },
           ),
           _buildSwitch(
             context,
@@ -59,7 +100,10 @@ class _NotificationSettingsScreenState
             title: 'New messages',
             subtitle: 'Messages from your trade counterparty',
             value: _newMessages,
-            onChanged: (v) => setState(() => _newMessages = v),
+            onChanged: (v) {
+              setState(() => _newMessages = v);
+              _saveBool(_kNewMessages, v);
+            },
           ),
           _buildSwitch(
             context,
@@ -68,7 +112,10 @@ class _NotificationSettingsScreenState
             title: 'Payment alerts',
             subtitle: 'Lightning payment confirmations and failures',
             value: _paymentAlerts,
-            onChanged: (v) => setState(() => _paymentAlerts = v),
+            onChanged: (v) {
+              setState(() => _paymentAlerts = v);
+              _saveBool(_kPaymentAlerts, v);
+            },
           ),
           _buildSwitch(
             context,
@@ -77,7 +124,10 @@ class _NotificationSettingsScreenState
             title: 'Dispute updates',
             subtitle: 'Admin actions and dispute resolutions',
             value: _disputeUpdates,
-            onChanged: (v) => setState(() => _disputeUpdates = v),
+            onChanged: (v) {
+              setState(() => _disputeUpdates = v);
+              _saveBool(_kDisputeUpdates, v);
+            },
           ),
         ],
       ),
