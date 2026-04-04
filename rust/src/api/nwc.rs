@@ -157,6 +157,9 @@ pub async fn make_invoice(amount_sats: u64, description: Option<String>) -> Resu
     if amount_sats == 0 {
         bail!("InvalidAmount: amount_sats must be greater than zero");
     }
+    if amount_sats > u64::MAX / 1000 {
+        bail!("InvalidAmount: amount_sats too large");
+    }
 
     let client = {
         let guard = wallet_store().client.read().await;
@@ -250,6 +253,12 @@ mod tests {
     #[tokio::test]
     async fn make_invoice_rejects_zero_amount() {
         let err = make_invoice(0, None).await.unwrap_err();
+        assert!(err.to_string().contains("InvalidAmount"));
+    }
+
+    #[tokio::test]
+    async fn make_invoice_rejects_overflow_amount() {
+        let err = make_invoice(u64::MAX, None).await.unwrap_err();
         assert!(err.to_string().contains("InvalidAmount"));
     }
 
