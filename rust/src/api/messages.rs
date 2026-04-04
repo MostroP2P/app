@@ -428,7 +428,9 @@ pub async fn download_attachment(message_id: String) -> Result<FileDownloadResul
         .to_string_lossy()
         .into_owned();
 
-    std::fs::write(&local_path, &plaintext).map_err(|e| anyhow!("WriteFailed: {e}"))?;
+    tokio::fs::write(&local_path, &plaintext)
+        .await
+        .map_err(|e| anyhow!("WriteFailed: {e}"))?;
 
     let _ = message_store()
         .attachment_tx

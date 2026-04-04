@@ -146,7 +146,10 @@ async fn try_upload(
         // identity is set), attempt upload without auth header.
         let auth_header: Option<String> =
             match crate::api::identity::get_active_keys().await {
-                Err(_) => None,
+                Err(e) => {
+                    log::debug!("[blossom] no active keys for upload {sha256}: {e}");
+                    None
+                }
                 Ok(keys) => {
                     let event = EventBuilder::new(
                         Kind::Custom(24242),
