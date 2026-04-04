@@ -250,28 +250,26 @@ pub async fn send_file(
         bail!("UnsupportedFileType: {mime_type}");
     }
 
-    // 1. Get the shared key from session (derive it fresh if not yet cached).
-    let shared_key: [u8; 32] = {
-        let session = crate::mostro::session::session_manager()
-            .get_session(&trade_id)
-            .await
-            .ok_or_else(|| anyhow!("SessionNotFound: {trade_id}"))?;
+    // 1. Fetch session once and extract everything needed for the entire flow.
+    let session = crate::mostro::session::session_manager()
+        .get_session(&trade_id)
+        .await
+        .ok_or_else(|| anyhow!("SessionNotFound: {trade_id}"))?;
 
-        if let Some(k) = session.shared_key {
-            k
-        } else {
-            let sender_keys = crate::api::identity::get_active_trade_keys(
-                session.trade_key_index,
-            )
-            .await?;
-            let peer_hex = session
-                .peer_pubkey
-                .as_deref()
-                .ok_or_else(|| anyhow!("PeerUnknown: cannot encrypt attachment without peer pubkey"))?;
-            let peer_pubkey = nostr_sdk::PublicKey::from_hex(peer_hex)
-                .map_err(|e| anyhow!("invalid peer pubkey: {e}"))?;
-            crate::crypto::ecdh::derive_nip04_shared_key(&sender_keys, &peer_pubkey)?
-        }
+    let trade_key_index = session.trade_key_index;
+    let peer_pubkey_hex = session.peer_pubkey.clone();
+
+    let shared_key: [u8; 32] = if let Some(k) = session.shared_key {
+        k
+    } else {
+        let sender_keys =
+            crate::api::identity::get_active_trade_keys(trade_key_index).await?;
+        let peer_hex = peer_pubkey_hex
+            .as_deref()
+            .ok_or_else(|| anyhow!("PeerUnknown: cannot encrypt attachment without peer pubkey"))?;
+        let peer_pubkey = nostr_sdk::PublicKey::from_hex(peer_hex)
+            .map_err(|e| anyhow!("invalid peer pubkey: {e}"))?;
+        crate::crypto::ecdh::derive_nip04_shared_key(&sender_keys, &peer_pubkey)?
     };
 
     // 2. Encrypt the file bytes.
@@ -300,16 +298,11 @@ pub async fn send_file(
     })
     .to_string();
 
-    let session = crate::mostro::session::session_manager()
-        .get_session(&trade_id)
-        .await
-        .ok_or_else(|| anyhow!("SessionNotFound: {trade_id}"))?;
-
     let sender_keys =
-        crate::api::identity::get_active_trade_keys(session.trade_key_index).await?;
+        crate::api::identity::get_active_trade_keys(trade_key_index).await?;
     let sender_pubkey = sender_keys.public_key().to_hex();
 
-    if let Some(peer_hex) = &session.peer_pubkey {
+    if let Some(peer_hex) = &peer_pubkey_hex {
         match nostr_sdk::PublicKey::from_hex(peer_hex) {
             Err(e) => log::warn!("[messages] send_file invalid peer pubkey: {e}"),
             Ok(peer_pubkey) => match crate::nostr::gift_wrap::wrap(
