@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
 /// NWC auto-pay widget — single "Pay with Wallet" button.
 ///
 /// Calls NWC pay_invoice(bolt11) via Rust bridge.
 /// On success → [onPaymentSuccess]. On failure → [onFallbackToManual].
-///
-/// TODO: Wire to NWC wallet bridge in Phase 14.
 class NwcPaymentWidget extends StatefulWidget {
   const NwcPaymentWidget({
     super.key,
@@ -32,17 +31,16 @@ class _NwcPaymentWidgetState extends State<NwcPaymentWidget> {
   Future<void> _pay() async {
     setState(() => _paying = true);
     try {
-      // TODO(Phase 14): Replace with nwc_api.pay_invoice(widget.bolt11)
-      // via Rust bridge once NWC module is implemented.
-      // On success: call widget.onPaymentSuccess().
-      // On API failure: call widget.onFallbackToManual().
-      await Future.delayed(const Duration(seconds: 1));
-
+      final result = await nwc_api.payInvoice(bolt11: widget.bolt11);
       if (!mounted) return;
-      // NWC not wired yet — fall back to manual payment.
-      widget.onFallbackToManual();
+      if (result.success) {
+        widget.onPaymentSuccess();
+      } else {
+        debugPrint('NWC payment failed: ${result.error}');
+        widget.onFallbackToManual();
+      }
     } catch (e) {
-      debugPrint('NWC payment failed: $e');
+      debugPrint('NWC payment error: $e');
       if (!mounted) return;
       widget.onFallbackToManual();
     } finally {

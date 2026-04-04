@@ -147,6 +147,29 @@ pub async fn pay_invoice(bolt11: String) -> Result<PaymentResult> {
     client.pay_invoice(&bolt11).await
 }
 
+/// Request the wallet to create a new Lightning invoice.
+///
+/// `amount_sats` is the invoice amount in satoshis (converted to msats
+/// for the NIP-47 request).  Returns the BOLT-11 invoice string.
+///
+/// **Errors**: `NoWalletConnected`, `WalletError`.
+pub async fn make_invoice(amount_sats: u64, description: Option<String>) -> Result<String> {
+    if amount_sats == 0 {
+        bail!("InvalidAmount: amount_sats must be greater than zero");
+    }
+
+    let client = {
+        let guard = wallet_store().client.read().await;
+        Arc::clone(
+            guard
+                .as_ref()
+                .ok_or_else(|| anyhow!("NoWalletConnected: no wallet is currently connected"))?,
+        )
+    };
+
+    client.make_invoice(amount_sats, description).await
+}
+
 // ── Stream ────────────────────────────────────────────────────────────────────
 
 /// Stream that emits [NwcWalletInfo] (or `None` on disconnect) whenever the
@@ -221,6 +244,20 @@ mod tests {
         let _g = wallet_lock().lock().unwrap();
         let _ = disconnect_wallet().await;
         let err = pay_invoice("lnbc1...".into()).await.unwrap_err();
+        assert!(err.to_string().contains("NoWalletConnected"));
+    }
+
+    #[tokio::test]
+    async fn make_invoice_rejects_zero_amount() {
+        let err = make_invoice(0, None).await.unwrap_err();
+        assert!(err.to_string().contains("InvalidAmount"));
+    }
+
+    #[tokio::test]
+    async fn make_invoice_errors_when_not_connected() {
+        let _g = wallet_lock().lock().unwrap();
+        let _ = disconnect_wallet().await;
+        let err = make_invoice(1000, None).await.unwrap_err();
         assert!(err.to_string().contains("NoWalletConnected"));
     }
 
