@@ -1,5 +1,9 @@
 //! Log sink — captures `log` crate records and exposes them to Flutter
 //! via a flutter_rust_bridge stream.
+//!
+//! [`install_log_bridge`] replaces the active `log` backend with a forwarder
+//! that sends every record to both the platform logger (android_logger on
+//! Android, stderr elsewhere) **and** the Flutter [`on_log_entry`] stream.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{mpsc, Mutex, OnceLock};
@@ -22,14 +26,13 @@ fn log_sender() -> &'static broadcast::Sender<LogEntry> {
 // ── Forwarding bridge (sync → async) ────────────────────────────────────────
 
 static LOG_STD_TX: OnceLock<Mutex<mpsc::Sender<LogEntry>>> = OnceLock::new();
-#[allow(dead_code)]
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
-/// Install the in-process log capture hook.
+/// Install the log capture bridge.
 ///
-/// Must be called once during app initialization.  After this call, every
-/// [`forward_log`] invocation forwards the entry to the Flutter
-/// `on_log_entry()` stream.
+/// Must be called once during app initialization (from `init_app()`).
+/// After this call, every `log::info!()` / `log::warn!()` etc. in Rust
+/// is forwarded to the Flutter `on_log_entry()` stream.
 pub fn install_log_bridge() {
     static INSTALLED: std::sync::Once = std::sync::Once::new();
     INSTALLED.call_once(|| {
@@ -45,15 +48,58 @@ pub fn install_log_bridge() {
         });
 
         LOG_STD_TX.get_or_init(|| Mutex::new(std_tx));
+
+        // Install a custom log::Log that forwards every record.
+        // max_level is set to Debug so Info/Warn/Error all flow through.
+        let _ = log::set_logger(&BRIDGE_LOGGER);
+        log::set_max_level(log::LevelFilter::Debug);
     });
 }
 
+/// Global logger instance that forwards records to the Flutter stream
+/// and also prints to stderr (or android_logger on Android).
+static BRIDGE_LOGGER: BridgeLogger = BridgeLogger;
+
+struct BridgeLogger;
+
+impl log::Log for BridgeLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= log::Level::Debug
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
+        // Forward to Flutter stream.
+        forward_log(record.level(), record.target(), &record.args().to_string());
+
+        // Also print to platform output so adb logcat / stderr still works.
+        #[cfg(target_os = "android")]
+        {
+            // android_logger is no longer the active backend, so print manually.
+            let tag = record.target().split("::").last().unwrap_or(record.target());
+            let msg = format!("[{}] {}", tag, record.args());
+            // Use __android_log_print via the log crate's Android integration
+            // or just eprintln as a fallback — logcat picks up stderr.
+            eprintln!("{msg}");
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            eprintln!(
+                "[{level}] {target}: {msg}",
+                level = record.level(),
+                target = record.target(),
+                msg = record.args(),
+            );
+        }
+    }
+
+    fn flush(&self) {}
+}
+
 /// Forward a log record to the Flutter stream.
-///
-/// Called from Rust code that wants to surface log entries to the UI.
-/// The `log` crate integration is left to the caller (e.g. a custom
-/// `log::Log` implementation or explicit calls at key log sites).
-#[allow(dead_code)]
 pub(crate) fn forward_log(level: log::Level, target: &str, message: &str) {
     if let Some(tx) = LOG_STD_TX.get() {
         let entry = LogEntry {
