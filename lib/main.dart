@@ -48,7 +48,11 @@ Future<void> main() async {
 
   // Initialize identity: creates on first launch, reloads on subsequent launches.
   // Must run before Nostr init so the identity key is available for relay auth.
-  await IdentityService.initialize();
+  try {
+    await IdentityService.initialize();
+  } catch (e, st) {
+    debugPrint('[main] Identity init failed — secure storage unavailable: $e\n$st');
+  }
 
   // Pre-read SharedPreferences so providers start with synchronous initial
   // values — eliminates the AsyncValue.loading() race that caused the router
