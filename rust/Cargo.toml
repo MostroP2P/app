@@ -28,6 +28,9 @@ hex = "0.4"
 # Logging
 log = "0.4"
 
+# Base64 encoding (Blossom auth events)
+base64 = "0.22"
+
 # File attachment encryption (ChaCha20-Poly1305)
 chacha20poly1305 = "0.10"
 rand = { version = "0.8", features = ["getrandom"] }
