@@ -9,6 +9,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/src/rust/api/disputes.dart' as disputes_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
@@ -283,7 +284,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         if (confirmed != true || !context.mounted) return;
         try {
           await orders_api.releaseOrder(orderId: widget.orderId);
-          if (context.mounted) {
+          if (!context.mounted) return;
+          final settings = await settings_api.getSettings();
+          if (!context.mounted) return;
+          if (settings.privacyMode) {
+            context.go(AppRoute.home);
+          } else {
             context.push(AppRoute.rateUserPath(widget.orderId));
           }
         } catch (e, st) {
@@ -754,8 +760,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           // ── Pending rating — RATE + CLOSE ─────────────────────────────
           if (status == TradeStatus.pendingRating) ...[
             FilledButton.icon(
-              onPressed: () =>
-                  context.push(AppRoute.rateUserPath(widget.orderId)),
+              onPressed: () async {
+                final settings = await settings_api.getSettings();
+                if (!context.mounted) return;
+                if (settings.privacyMode) {
+                  context.go(AppRoute.home);
+                } else {
+                  context.push(AppRoute.rateUserPath(widget.orderId));
+                }
+              },
               icon: const Icon(Icons.star_outline, size: 16),
               label: const Text('RATE'),
               style: FilledButton.styleFrom(

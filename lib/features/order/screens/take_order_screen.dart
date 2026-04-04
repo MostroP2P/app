@@ -284,8 +284,8 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
           const SizedBox(height: AppSpacing.sm),
 
           // Card 5: Creator reputation — hidden in full privacy mode.
-          // TODO(bridge): the rate_counterpart route should also be skipped
-          // when privacy mode is on (controlled via the trade flow, not here).
+          // Rating step is skipped in trade_detail_screen.dart when privacy
+          // mode is active.
           if (!privacyMode) ...[
             _InfoCard(
               color: cardBg,

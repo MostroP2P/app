@@ -89,6 +89,14 @@ impl Storage for IndexedDbStorage {
         Ok(None) // no persisted key: caller will treat absence correctly
     }
 
+    async fn save_mostro_node(&self, _node: &crate::api::types::MostroNodeInfo) -> Result<()> {
+        Ok(()) // WASM: not persisted
+    }
+
+    async fn get_active_mostro_node(&self) -> Result<Option<crate::api::types::MostroNodeInfo>> {
+        Ok(None) // WASM: not persisted
+    }
+
     async fn get_trade_by_order_id(
         &self,
         _order_id: &str,

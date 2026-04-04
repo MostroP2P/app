@@ -10,6 +10,7 @@ import 'package:mostro/features/account/providers/backup_reminder_provider.dart'
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/providers/session_provider.dart';
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 /// Account screen — Route `/key_management`.
 ///
@@ -451,9 +452,21 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.pop(dialogContext);
-                  // TODO: wire restore-session action in Phase 7.
+                  try {
+                    await orders_api.subscribeOrders();
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Order book refreshed')),
+                    );
+                  } catch (e) {
+                    debugPrint('[account] refresh error: $e');
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Refresh failed: $e')),
+                    );
+                  }
                 },
                 child: const Text('Refresh'),
               ),

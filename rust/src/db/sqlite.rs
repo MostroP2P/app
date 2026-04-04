@@ -283,6 +283,31 @@ impl Storage for SqliteStorage {
         Ok(row.map(|(idx,)| idx as u32))
     }
 
+    async fn save_mostro_node(&self, node: &crate::api::types::MostroNodeInfo) -> Result<()> {
+        let json = serde_json::to_string(node)?;
+        sqlx::query(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('active_mostro_node', ?)",
+        )
+        .bind(&json)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_active_mostro_node(
+        &self,
+    ) -> Result<Option<crate::api::types::MostroNodeInfo>> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT value FROM settings WHERE key = 'active_mostro_node'",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            None => Ok(None),
+            Some((json,)) => Ok(Some(serde_json::from_str(&json)?)),
+        }
+    }
+
     async fn get_trade_by_order_id(&self, order_id: &str) -> Result<Option<TradeInfo>> {
         // The `data` column holds the full JSON-serialised TradeInfo; use
         // SQLite's json_extract to filter by the nested order id without
