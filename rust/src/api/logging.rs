@@ -26,6 +26,8 @@ fn log_sender() -> &'static broadcast::Sender<LogEntry> {
 // ── Forwarding bridge (sync → async) ────────────────────────────────────────
 
 static LOG_STD_TX: OnceLock<Mutex<mpsc::Sender<LogEntry>>> = OnceLock::new();
+
+/// Monotonically increasing ID for log entries.
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// Install the log capture bridge.
