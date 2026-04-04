@@ -448,20 +448,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_admin_took_dispute_logs_warning_without_identity() {
-        // Without a loaded identity, key derivation fails — but the function
-        // must still return Ok(()) (best-effort, warning only).
+    async fn key_derivation_failure_does_not_block_dispute_status_update() {
+        // Verifies the best-effort contract: even when adminSharedKey derivation
+        // fails (here because there is no registered trade key for this trade_id,
+        // so `trade_key_for_order` returns None), the function must still:
+        //   1. Return Ok(())
+        //   2. Set the dispute status to InReview
+        //   3. Store the admin pubkey
+        //
+        // The derivation failure path reached here is "no trade key" (the most
+        // common failure mode in tests). In production the equivalent happens
+        // when the session has been cleaned up before adminTookDispute arrives.
+        // The important invariant is that the store update is never rolled back
+        // by a derivation error.
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         seed_dispute(&trade_id, None).await;
-        // Known valid secp256k1 point (generator G).
+        // Generator point G — a known valid secp256k1 pubkey.
         let fake_admin_pk =
             "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        // No trade key registered for trade_id → trade_key_for_order returns
+        // None → derivation returns Err → logged as warning, not propagated.
         let result = handle_admin_took_dispute(trade_id.clone(), fake_admin_pk.into()).await;
-        assert!(result.is_ok(), "expected Ok, got: {:?}", result);
+        assert!(result.is_ok(), "expected Ok(()) despite derivation failure, got: {:?}", result);
 
         let d = get_dispute(trade_id).await.unwrap().unwrap();
-        assert_eq!(d.status, DisputeStatus::InReview);
-        assert_eq!(d.admin_pubkey.as_deref(), Some(fake_admin_pk));
+        assert_eq!(d.status, DisputeStatus::InReview, "dispute must be InReview after admin took it");
+        assert_eq!(d.admin_pubkey.as_deref(), Some(fake_admin_pk), "admin pubkey must be stored");
     }
 
     #[tokio::test]
