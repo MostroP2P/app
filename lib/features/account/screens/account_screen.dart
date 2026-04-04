@@ -455,7 +455,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 onPressed: () async {
                   Navigator.pop(dialogContext);
                   try {
-                    await orders_api.subscribeOrders();
+                    await orders_api.restartOrdersSubscription();
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Order book refreshed')),
@@ -464,7 +464,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     debugPrint('[account] refresh error: $e');
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Refresh failed: $e')),
+                      SnackBar(
+                        content: Text(
+                          kDebugMode
+                              ? 'Refresh failed: $e'
+                              : 'Refresh failed',
+                        ),
+                      ),
                     );
                   }
                 },

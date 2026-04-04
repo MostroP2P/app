@@ -216,6 +216,9 @@ pub async fn get_mostro_node() -> Result<crate::api::types::MostroNodeInfo> {
 ///
 /// Also updates the in-memory pubkey override so the relay pool and
 /// outgoing events use the new node immediately.
+///
+/// TODO(#93): After updating the pubkey, refresh relay subscriptions so
+/// `subscribe_order_and_dm_feeds` re-subscribes with the new node's key.
 pub async fn set_mostro_node(node: crate::api::types::MostroNodeInfo) -> Result<()> {
     let pubkey = node.pubkey.clone();
     if let Some(db) = crate::db::app_db::db() {
