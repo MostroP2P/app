@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
 /// Auto-generates a Lightning invoice via NWC when wallet is connected.
 ///
 /// Shows loading state while generating. Calls [onInvoiceConfirmed] when
 /// the invoice is ready, or [onFallbackToManual] on failure.
-///
-/// TODO: Wire to NWC wallet bridge in Phase 14.
 class NwcInvoiceWidget extends StatefulWidget {
   const NwcInvoiceWidget({
     super.key,
@@ -36,16 +35,15 @@ class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
 
   Future<void> _generateInvoice() async {
     try {
-      // TODO: Call NWC make_invoice(amount_sats) via Rust bridge.
-      // When wired, this will await the actual NWC response.
-
+      final bolt11 = await nwc_api.makeInvoice(
+        amountSats: BigInt.from(widget.amountSats),
+        description: null,
+      );
       if (!mounted) return;
-
-      // NWC not configured — fall back to manual entry immediately.
       setState(() => _loading = false);
-      widget.onFallbackToManual();
-    } catch (e, stack) {
-      debugPrint('NWC invoice generation failed: $e\n$stack');
+      widget.onInvoiceConfirmed(bolt11);
+    } catch (e) {
+      debugPrint('NWC invoice generation failed: $e');
       if (!mounted) return;
       setState(() {
         _loading = false;

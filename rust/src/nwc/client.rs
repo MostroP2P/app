@@ -149,43 +149,51 @@ mod native {
                 .author(self.uri.public_key)
                 .since(event.created_at);
 
-            self.client
+            let sub_output = self.client
                 .subscribe(filter, None)
                 .await
                 .map_err(|e| anyhow!("Failed to subscribe for NIP-47 response: {e}"))?;
+            let sub_id = sub_output.val;
 
             // 2. Send the request event.
-            self.client
-                .send_event(&event)
-                .await
-                .map_err(|e| anyhow!("Failed to send NIP-47 request: {e}"))?;
+            let result: Result<Nip47Response> = async {
+                self.client
+                    .send_event(&event)
+                    .await
+                    .map_err(|e| anyhow!("Failed to send NIP-47 request: {e}"))?;
 
-            // 3. Wait for the matching response on the notification channel.
-            let deadline = tokio::time::Instant::now() + NWC_TIMEOUT;
-            loop {
-                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-                if remaining.is_zero() {
-                    bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
-                }
-
-                match tokio::time::timeout(remaining, notifications.recv()).await {
-                    Ok(Ok(RelayPoolNotification::Event {
-                        event: resp_event, ..
-                    })) => {
-                        if resp_event.kind == Kind::WalletConnectResponse {
-                            match parse_nip47_response(&self.uri, &resp_event) {
-                                Ok(resp) => return Ok(resp),
-                                Err(_) => continue,
-                            }
-                        }
-                    }
-                    Ok(Ok(_)) => continue, // other notification types
-                    Ok(Err(_)) => continue, // lagged, retry
-                    Err(_) => {
+                // 3. Wait for the matching response on the notification channel.
+                let deadline = tokio::time::Instant::now() + NWC_TIMEOUT;
+                loop {
+                    let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+                    if remaining.is_zero() {
                         bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
                     }
+
+                    match tokio::time::timeout(remaining, notifications.recv()).await {
+                        Ok(Ok(RelayPoolNotification::Event {
+                            event: resp_event, ..
+                        })) => {
+                            if resp_event.kind == Kind::WalletConnectResponse {
+                                match parse_nip47_response(&self.uri, &resp_event) {
+                                    Ok(resp) => return Ok(resp),
+                                    Err(_) => continue,
+                                }
+                            }
+                        }
+                        Ok(Ok(_)) => continue, // other notification types
+                        Ok(Err(_)) => continue, // lagged, retry
+                        Err(_) => {
+                            bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
+                        }
+                    }
                 }
-            }
+            }.await;
+
+            // Always clean up the subscription, even on timeout/error.
+            self.client.unsubscribe(&sub_id).await;
+
+            result
         }
 
         /// Query wallet info (name, supported methods) via NIP-47 `get_info`.
@@ -424,26 +432,30 @@ mod tests {
         assert!(err.to_string().contains("InvalidNwcUri"));
     }
 
+    /// Placeholder URI for parsing tests. Replace with a real NWC URI
+    /// (e.g. via NWC_URI env var) to run the ignored integration tests.
+    #[allow(dead_code)]
     fn test_uri() -> &'static str {
-        "nostr+walletconnect://0cc2b404a3ff52138e489db480048b3c096eb7d6438c872b5ecd386494b06084?relay=wss://relay.getalby.com&relay=wss://relay2.getalby.com&secret=09ef2ea6bb48dc1786529254dae8bf5f9340ec93576baea91f3bdc8f8493903a&lud16=lncurl_blighted_waffle@getalby.com"
+        "nostr+walletconnect://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa?relay=wss://relay.example.com&secret=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     }
 
+    /// Requires a live NWC wallet — set NWC_URI env var before running.
     #[tokio::test]
-    async fn connect_to_alby_relay() {
-        let client = NwcClient::new(test_uri()).await.unwrap();
+    #[ignore = "requires a live NWC wallet — set NWC_URI env var before running"]
+    async fn connect_to_live_relay() {
+        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
+        let client = NwcClient::new(&uri).await.unwrap();
         assert_eq!(client.info.status, crate::api::types::WalletStatus::Connecting);
         assert!(!client.info.relay_urls.is_empty());
-        // Verify the URI was parsed correctly.
-        assert_eq!(
-            client.info.wallet_pubkey,
-            "0cc2b404a3ff52138e489db480048b3c096eb7d6438c872b5ecd386494b06084"
-        );
         client.disconnect().await;
     }
 
+    /// Requires a live NWC wallet — set NWC_URI env var before running.
     #[tokio::test]
-    async fn get_info_from_alby() {
-        let mut client = NwcClient::new(test_uri()).await.unwrap();
+    #[ignore = "requires a live NWC wallet — set NWC_URI env var before running"]
+    async fn get_info_from_live_wallet() {
+        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
+        let mut client = NwcClient::new(&uri).await.unwrap();
         let info = client.get_info().await.unwrap();
         assert_eq!(info.status, crate::api::types::WalletStatus::Connected);
         assert!(info.last_connected_at.is_some());
@@ -451,9 +463,12 @@ mod tests {
         client.disconnect().await;
     }
 
+    /// Requires a live NWC wallet — set NWC_URI env var before running.
     #[tokio::test]
-    async fn get_balance_from_alby() {
-        let mut client = NwcClient::new(test_uri()).await.unwrap();
+    #[ignore = "requires a live NWC wallet — set NWC_URI env var before running"]
+    async fn get_balance_from_live_wallet() {
+        let uri = std::env::var("NWC_URI").expect("NWC_URI env var required");
+        let mut client = NwcClient::new(&uri).await.unwrap();
         client.get_info().await.unwrap();
         let balance = client.get_balance().await.unwrap();
         println!("balance_sats: {:?}", balance);
