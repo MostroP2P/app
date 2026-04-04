@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
@@ -27,6 +28,7 @@ class PushNotificationService {
   FirebaseMessaging get _fcm => _fcmInstance ??= FirebaseMessaging.instance;
   String? _token;
   bool _initialized = false;
+  SharedPreferences? _cachedPrefs;
   final Set<String> _registeredTradePubkeys = {};
 
   // Push server base URL — update when the Mostro push server is deployed.
@@ -88,6 +90,9 @@ class PushNotificationService {
       reRegisterAllTokens();
     });
 
+    // 8. Cache SharedPreferences for synchronous notification gating.
+    _cachedPrefs = await SharedPreferences.getInstance();
+
     _initialized = true;
   }
 
@@ -100,6 +105,9 @@ class PushNotificationService {
     final disputeId = data['disputeId'] as String?;
 
     if (type == null) return;
+
+    // Respect per-type notification preferences.
+    if (!_isTypeEnabled(type)) return;
 
     final notification = NotificationModel(
       id: message.messageId ?? DateTime.now().toIso8601String(),
@@ -125,6 +133,21 @@ class PushNotificationService {
     final r = _pendingRoute;
     _pendingRoute = null;
     return r;
+  }
+
+  // ── Notification preferences gating ───────────────────────────────────────
+
+  /// Check if a notification type is enabled in user preferences.
+  /// Uses the same SharedPreferences keys as notification_settings_screen.dart.
+  bool _isTypeEnabled(String type) {
+    final prefs = _cachedPrefs;
+    if (prefs == null) return true; // allow until prefs are loaded
+    return switch (type) {
+      'tradeUpdate' || 'orderTaken' => prefs.getBool('notify_trade_updates') ?? true,
+      'invoiceRequest' || 'paymentReceived' => prefs.getBool('notify_payments') ?? true,
+      'dispute' => prefs.getBool('notify_disputes') ?? true,
+      _ => true,
+    };
   }
 
   // ── Token registration with push server ──────────────────────────────────

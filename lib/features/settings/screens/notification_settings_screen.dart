@@ -52,6 +52,7 @@ class _NotificationSettingsScreenState
   Future<void> _saveBool(String key, bool value) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
       await prefs.setBool(key, value);
     } catch (e) {
       debugPrint('[notification_settings] save failed: $e');
