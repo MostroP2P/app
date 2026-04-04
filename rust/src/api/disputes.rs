@@ -469,6 +469,11 @@ mod tests {
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         seed_dispute(&trade_id, None).await;
 
+        // "adminpubkey123" is intentionally invalid hex — this test only checks
+        // that the dispute store is updated correctly (status → InReview,
+        // admin_pubkey stored). ECDH key derivation will fail silently
+        // (best-effort, logged as warning) because the string is not a valid
+        // secp256k1 pubkey. That is acceptable here.
         handle_admin_took_dispute(trade_id.clone(), "adminpubkey123".into())
             .await
             .unwrap();
