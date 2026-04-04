@@ -120,13 +120,9 @@ pub async fn download_blob(url: String) -> Result<Vec<u8>> {
 
 /// Attempt to upload a blob to a single Blossom server.
 ///
-/// Uses `PUT /{sha256}` per BUD-01. The `Authorization: Nostr {base64_event}`
-/// header is required by most servers — here we send the SHA-256 only and
-/// expect open servers that don't require auth to accept.
-///
-/// TODO(Phase 10+): Build and sign a Kind-24242 Blossom auth event using
-/// `crate::api::identity::get_active_keys()` and attach it as the
-/// Authorization header once the key infrastructure is exposed here.
+/// Uses `PUT /{sha256}` per BUD-01.  Builds a Kind-24242 Nostr auth event
+/// and attaches it as `Authorization: Nostr {base64_event}` per BUD-02.
+/// If no identity is loaded the upload is attempted without auth.
 async fn try_upload(
     server: &str,
     sha256: &str,
@@ -135,23 +131,59 @@ async fn try_upload(
 ) -> Result<String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        use nostr_sdk::prelude::*;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let expiration = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            + 600; // 10 minutes
+
+        // Build and sign the auth event.
+        // Fallback: if no identity is loaded (e.g. first-run upload before
+        // identity is set), attempt upload without auth header.
+        let auth_header: Option<String> =
+            match crate::api::identity::get_active_keys().await {
+                Err(_) => None,
+                Ok(keys) => {
+                    let event = EventBuilder::new(
+                        Kind::Custom(24242),
+                        format!("Upload {sha256}"),
+                    )
+                    .tag(Tag::parse(["t", "upload"])?)
+                    .tag(Tag::parse(["x", sha256])?)
+                    .tag(Tag::parse(["expiration", &expiration.to_string()])?)
+                    .sign_with_keys(&keys)?;
+
+                    let event_json = event.as_json();
+                    Some(format!("Nostr {}", STANDARD.encode(event_json)))
+                }
+            };
+
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
             .build()
             .map_err(|e| anyhow!("HTTP client build failed: {e}"))?;
 
         let url = format!("{server}/{sha256}");
-        let response = client
+        let mut request = client
             .put(&url)
             .header("Content-Type", mime_type)
             .header("Content-Length", bytes.len().to_string())
-            .body(bytes.to_vec())
+            .body(bytes.to_vec());
+
+        if let Some(auth) = auth_header {
+            request = request.header("Authorization", auth);
+        }
+
+        let response = request
             .send()
             .await
             .map_err(|e| anyhow!("PUT {url} failed: {e}"))?;
 
         if response.status().is_success() {
-            // Return the canonical URL for this blob
             Ok(format!("{server}/{sha256}"))
         } else {
             Err(anyhow!(

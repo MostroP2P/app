@@ -250,30 +250,99 @@ pub async fn send_file(
         bail!("UnsupportedFileType: {mime_type}");
     }
 
-    // TODO(Phase 10+): Derive ECDH shared key from session, encrypt file,
-    // upload encrypted bytes to Blossom via blossom::upload_blob, then
-    // publish NIP-59 gift-wrapped message with Blossom URL + metadata.
-    //
-    // For now, construct the message with a placeholder URL.
+    // 1. Get the shared key from session (derive it fresh if not yet cached).
+    let shared_key: [u8; 32] = {
+        let session = crate::mostro::session::session_manager()
+            .get_session(&trade_id)
+            .await
+            .ok_or_else(|| anyhow!("SessionNotFound: {trade_id}"))?;
+
+        if let Some(k) = session.shared_key {
+            k
+        } else {
+            let sender_keys = crate::api::identity::get_active_trade_keys(
+                session.trade_key_index,
+            )
+            .await?;
+            let peer_hex = session
+                .peer_pubkey
+                .as_deref()
+                .ok_or_else(|| anyhow!("PeerUnknown: cannot encrypt attachment without peer pubkey"))?;
+            let peer_pubkey = nostr_sdk::PublicKey::from_hex(peer_hex)
+                .map_err(|e| anyhow!("invalid peer pubkey: {e}"))?;
+            crate::crypto::ecdh::derive_nip04_shared_key(&sender_keys, &peer_pubkey)?
+        }
+    };
+
+    // 2. Encrypt the file bytes.
+    let encrypted_bytes = crate::crypto::file_enc::encrypt_file(&file_bytes, &shared_key)
+        .map_err(|e| anyhow!("FileEncryptionFailed: {e}"))?;
+
+    // 3. Upload encrypted blob to Blossom.
     let file_type = mime_to_file_type(&mime_type);
     let file_size = file_bytes.len() as u64;
+    let msg_id = uuid::Uuid::new_v4().to_string();
+    let _ = message_store().attachment_tx.send((msg_id.clone(), 0.1));
+
+    let blossom_url = blossom::upload_blob(encrypted_bytes, mime_type.clone(), None)
+        .await
+        .map_err(|e| anyhow!("UploadFailed: {e}"))?;
+
+    let _ = message_store().attachment_tx.send((msg_id.clone(), 1.0));
+
+    // 4. Build attachment metadata and publish via NIP-59 gift wrap.
+    let payload = serde_json::json!({
+        "url": blossom_url,
+        "name": file_name,
+        "mime_type": mime_type,
+        "size": file_size,
+        "type": "file",
+    })
+    .to_string();
+
+    let session = crate::mostro::session::session_manager()
+        .get_session(&trade_id)
+        .await
+        .ok_or_else(|| anyhow!("SessionNotFound: {trade_id}"))?;
+
+    let sender_keys =
+        crate::api::identity::get_active_trade_keys(session.trade_key_index).await?;
+    let sender_pubkey = sender_keys.public_key().to_hex();
+
+    if let Some(peer_hex) = &session.peer_pubkey {
+        if let Ok(peer_pubkey) = nostr_sdk::PublicKey::from_hex(peer_hex) {
+            if let Ok(event_json) = crate::nostr::gift_wrap::wrap(
+                &sender_keys,
+                &peer_pubkey,
+                &payload,
+                nostr_sdk::Kind::from(14u16),
+            )
+            .await
+            {
+                if let Ok(pool) = crate::api::nostr::get_pool() {
+                    if let Ok(event) = serde_json::from_str::<nostr_sdk::Event>(&event_json) {
+                        let _ = pool.client().send_event(&event).await;
+                    }
+                }
+            }
+        }
+    }
 
     let attachment = AttachmentInfo {
         file_name: file_name.clone(),
         mime_type: mime_type.clone(),
         file_size,
         file_type,
-        download_status: DownloadStatus::Pending,
+        download_status: DownloadStatus::Downloaded,
         local_path: None,
     };
 
     let now = unix_now();
-    let msg_id = uuid::Uuid::new_v4().to_string();
     let msg = ChatMessage {
         id: msg_id.clone(),
         trade_id: trade_id.clone(),
-        sender_pubkey: String::new(),
-        content: file_name.clone(),
+        sender_pubkey,
+        content: blossom_url,
         message_type: MessageType::Peer,
         is_mine: true,
         is_read: true,
@@ -283,17 +352,6 @@ pub async fn send_file(
     };
 
     message_store().add_message(msg.clone()).await;
-
-    // Simulate upload progress
-    let tx = message_store().attachment_tx.clone();
-    let id = msg_id.clone();
-    tokio::spawn(async move {
-        for pct in [0.25, 0.5, 0.75, 1.0_f64] {
-            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-            let _ = tx.send((id.clone(), pct));
-        }
-    });
-
     Ok(msg)
 }
 
@@ -315,20 +373,68 @@ pub async fn download_attachment(message_id: String) -> Result<FileDownloadResul
         .attachment
         .ok_or_else(|| anyhow!("AttachmentNotFound: message has no attachment"))?;
 
-    // TODO(Phase 10+): Download encrypted bytes from Blossom URL, derive
-    // decryption key from session shared key, decrypt, write to temp dir.
-    //
-    // For now return a stub result.
+    // 1. Get Blossom URL from message content.
+    let blossom_url = msg.content.clone();
+    if blossom_url.is_empty()
+        || (!blossom_url.starts_with("http://") && !blossom_url.starts_with("https://"))
+    {
+        bail!("AttachmentNotFound: message has no valid Blossom URL in content");
+    }
+
+    // 2. Get the session shared key to decrypt.
+    let session = crate::mostro::session::session_manager()
+        .get_session(&msg.trade_id)
+        .await;
+
+    let shared_key: [u8; 32] = match session {
+        None => bail!("SessionNotFound: cannot decrypt attachment without session"),
+        Some(s) => {
+            if let Some(k) = s.shared_key {
+                k
+            } else {
+                let sender_keys =
+                    crate::api::identity::get_active_trade_keys(s.trade_key_index).await?;
+                let peer_hex = s
+                    .peer_pubkey
+                    .as_deref()
+                    .ok_or_else(|| anyhow!("PeerUnknown: cannot derive key without peer pubkey"))?;
+                let peer_pubkey = nostr_sdk::PublicKey::from_hex(peer_hex)
+                    .map_err(|e| anyhow!("invalid peer pubkey: {e}"))?;
+                crate::crypto::ecdh::derive_nip04_shared_key(&sender_keys, &peer_pubkey)?
+            }
+        }
+    };
+
+    // 3. Download encrypted blob from Blossom.
+    let _ = message_store()
+        .attachment_tx
+        .send((message_id.clone(), 0.1));
+    let encrypted_bytes = blossom::download_blob(blossom_url)
+        .await
+        .map_err(|e| anyhow!("DownloadFailed: {e}"))?;
+
+    // 4. Decrypt.
+    let plaintext = crate::crypto::file_enc::decrypt_file(&encrypted_bytes, &shared_key)
+        .map_err(|e| anyhow!("DecryptionFailed: {e}"))?;
+
+    // 5. Write to temp dir with safe filename.
     let safe_name = safe_filename(&attachment.file_name);
     let local_path = std::env::temp_dir()
         .join(&safe_name)
         .to_string_lossy()
         .into_owned();
+
+    std::fs::write(&local_path, &plaintext).map_err(|e| anyhow!("WriteFailed: {e}"))?;
+
+    let _ = message_store()
+        .attachment_tx
+        .send((message_id.clone(), 1.0));
+
     let result = FileDownloadResult {
-        local_path,
-        file_name: attachment.file_name,
-        mime_type: attachment.mime_type,
-        file_size: attachment.file_size,
+        local_path: local_path.clone(),
+        file_name: attachment.file_name.clone(),
+        mime_type: attachment.mime_type.clone(),
+        file_size: plaintext.len() as u64,
     };
 
     // Update the local message to reflect Downloaded status
@@ -559,6 +665,54 @@ mod tests {
         assert_eq!(safe_filename("normal.jpg"), "normal.jpg");
         assert_eq!(safe_filename(""), "attachment");
         assert_eq!(safe_filename("/"), "attachment");
+    }
+
+    #[tokio::test]
+    async fn send_file_fails_without_session() {
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let result = send_file(
+            trade_id,
+            vec![1, 2, 3],
+            "photo.jpg".to_string(),
+            "image/jpeg".to_string(),
+        )
+        .await;
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("SessionNotFound"), "got: {msg}");
+    }
+
+    #[tokio::test]
+    async fn download_attachment_fails_without_session() {
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let store = message_store();
+        let msg_id = uuid::Uuid::new_v4().to_string();
+        let fake_att = AttachmentInfo {
+            file_name: "file.jpg".to_string(),
+            mime_type: "image/jpeg".to_string(),
+            file_size: 100,
+            file_type: FileType::Image,
+            download_status: DownloadStatus::Pending,
+            local_path: None,
+        };
+        let msg = ChatMessage {
+            id: msg_id.clone(),
+            trade_id: trade_id.clone(),
+            sender_pubkey: "peer".to_string(),
+            content: "https://blossom.example.com/abc123".to_string(),
+            message_type: MessageType::Peer,
+            is_mine: false,
+            is_read: false,
+            has_attachment: true,
+            attachment: Some(fake_att),
+            created_at: unix_now(),
+        };
+        store.add_message(msg).await;
+
+        let result = download_attachment(msg_id).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("SessionNotFound"), "got: {err}");
     }
 
     #[test]
