@@ -148,8 +148,9 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
       for (final n in state)
         if (n.id == id) n.copyWith(isRead: true) else n,
     ];
+    final updated = state.where((n) => n.id == id).firstOrNull;
+    if (updated == null) return;
     try {
-      final updated = state.firstWhere((n) => n.id == id);
       await store?.save(updated);
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to persist markAsRead: $e');
