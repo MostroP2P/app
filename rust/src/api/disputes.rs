@@ -186,11 +186,46 @@ pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
         bail!("NoOpenDispute: dispute for trade {trade_id} is already resolved");
     }
 
-    // TODO(Phase 12+): Send the text as an admin-type NIP-59 message to the
-    // admin's pubkey (stored in dispute.admin_pubkey once assigned).
-    let _ = dispute;
+    // Admin pubkey must be known (set by handle_admin_took_dispute).
+    let admin_pubkey_hex = dispute
+        .admin_pubkey
+        .as_deref()
+        .ok_or_else(|| anyhow!("AdminNotAssigned: dispute has no admin yet"))?;
 
-    bail!("NotImplemented: evidence submission not yet implemented")
+    let admin_pubkey = nostr_sdk::PublicKey::from_hex(admin_pubkey_hex)
+        .map_err(|e| anyhow!("invalid admin pubkey: {e}"))?;
+
+    // Look up the trade key index.
+    let trade_index = crate::api::orders::trade_key_for_order(&trade_id)
+        .await
+        .ok_or_else(|| anyhow!("TradeNotFound: no trade key for {trade_id}"))?;
+
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+
+    // Build the evidence payload.
+    let payload = serde_json::json!({
+        "type": "evidence",
+        "trade_id": trade_id,
+        "text": text,
+    })
+    .to_string();
+
+    // Wrap and send as NIP-59 Kind-14 DM to the admin.
+    let event_json = crate::nostr::gift_wrap::wrap(
+        &sender_keys,
+        &admin_pubkey,
+        &payload,
+        nostr_sdk::Kind::from(14u16),
+    )
+    .await
+    .map_err(|e| anyhow!("gift wrap failed: {e}"))?;
+
+    crate::api::orders::publish_event(&event_json)
+        .await
+        .map_err(|e| anyhow!("publish failed: {e}"))?;
+
+    log::info!("[disputes] evidence submitted for trade={trade_id}");
+    Ok(())
 }
 
 /// Get dispute details for a trade.
@@ -202,12 +237,11 @@ pub async fn get_dispute(trade_id: String) -> Result<Option<Dispute>> {
 
 /// Handle an incoming `adminTookDispute` event.
 ///
-/// Extracts the admin pubkey, marks the dispute as `InReview`, and triggers
-/// ECDH admin shared key derivation via the session manager.
-///
-/// TODO(Phase 12+): Derive `adminSharedKey` from trade key + admin pubkey
-/// and store in the session via `SessionManager::set_admin_shared_key`.
+/// Extracts the admin pubkey, marks the dispute as `InReview`, and derives
+/// the ECDH admin shared key for dispute chat encryption.
 pub async fn handle_admin_took_dispute(trade_id: String, admin_pubkey: String) -> Result<()> {
+    let admin_pubkey_for_key = admin_pubkey.clone();
+
     dispute_store()
         .update_conditional(&trade_id, move |dispute| {
             if dispute.status != DisputeStatus::Open {
@@ -221,7 +255,36 @@ pub async fn handle_admin_took_dispute(trade_id: String, admin_pubkey: String) -
             dispute.is_read = false;
             Ok(())
         })
-        .await
+        .await?;
+
+    // Derive adminSharedKey and store in session.
+    //
+    // This key allows the user to decrypt admin messages in the dispute
+    // chat (the admin encrypts to the trade pubkey, not the identity key).
+    //
+    // Best-effort: if no trade key or session exists we log a warning but
+    // do not fail — the dispute status update already succeeded.
+    let derive_result: Result<()> = async {
+        let trade_index = crate::api::orders::trade_key_for_order(&trade_id)
+            .await
+            .ok_or_else(|| anyhow!("no trade key for trade {trade_id}"))?;
+        let trade_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+        let admin_pk = nostr_sdk::PublicKey::from_hex(&admin_pubkey_for_key)
+            .map_err(|e| anyhow!("invalid admin pubkey: {e}"))?;
+        let shared_key = crate::crypto::ecdh::derive_nip04_shared_key(&trade_keys, &admin_pk)?;
+        crate::mostro::session::session_manager()
+            .set_admin_shared_key(&trade_id, shared_key)
+            .await?;
+        log::info!("[disputes] adminSharedKey derived for trade={trade_id}");
+        Ok(())
+    }
+    .await;
+
+    if let Err(e) = derive_result {
+        log::warn!("[disputes] could not derive adminSharedKey for trade={trade_id}: {e}");
+    }
+
+    Ok(())
 }
 
 /// Handle an incoming `adminSettled` event (admin resolved in buyer's favour).
@@ -370,10 +433,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn submit_evidence_fails_without_admin() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        seed_dispute(&trade_id, None).await;
+
+        // Dispute is Open but no admin assigned yet — must fail with AdminNotAssigned
+        let err = submit_evidence(trade_id, "my evidence text".into())
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("AdminNotAssigned"),
+            "expected AdminNotAssigned, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn key_derivation_failure_does_not_block_dispute_status_update() {
+        // Verifies the best-effort contract: even when adminSharedKey derivation
+        // fails (here because there is no registered trade key for this trade_id,
+        // so `trade_key_for_order` returns None), the function must still:
+        //   1. Return Ok(())
+        //   2. Set the dispute status to InReview
+        //   3. Store the admin pubkey
+        //
+        // The derivation failure path reached here is "no trade key" (the most
+        // common failure mode in tests). In production the equivalent happens
+        // when the session has been cleaned up before adminTookDispute arrives.
+        // The important invariant is that the store update is never rolled back
+        // by a derivation error.
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        seed_dispute(&trade_id, None).await;
+        // Generator point G — a known valid secp256k1 pubkey.
+        let fake_admin_pk =
+            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        // No trade key registered for trade_id → trade_key_for_order returns
+        // None → derivation returns Err → logged as warning, not propagated.
+        let result = handle_admin_took_dispute(trade_id.clone(), fake_admin_pk.into()).await;
+        assert!(result.is_ok(), "expected Ok(()) despite derivation failure, got: {:?}", result);
+
+        let d = get_dispute(trade_id).await.unwrap().unwrap();
+        assert_eq!(d.status, DisputeStatus::InReview, "dispute must be InReview after admin took it");
+        assert_eq!(d.admin_pubkey.as_deref(), Some(fake_admin_pk), "admin pubkey must be stored");
+    }
+
+    #[tokio::test]
     async fn admin_took_dispute_sets_in_review() {
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         seed_dispute(&trade_id, None).await;
 
+        // "adminpubkey123" is intentionally invalid hex — this test only checks
+        // that the dispute store is updated correctly (status → InReview,
+        // admin_pubkey stored). ECDH key derivation will fail silently
+        // (best-effort, logged as warning) because the string is not a valid
+        // secp256k1 pubkey. That is acceptable here.
         handle_admin_took_dispute(trade_id.clone(), "adminpubkey123".into())
             .await
             .unwrap();
