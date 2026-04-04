@@ -38,9 +38,6 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
   // Defaults mirror rust/src/config.rs — imported from core/mostro_defaults.dart.
   static const _defaultRelays = defaultMostroRelays;
 
-  // TODO(bridge): replace _relays local state with a Riverpod provider backed
-  // by the Rust bridge (get_relays / add_relay / remove_relay) so configuration
-  // persists across navigations and stays in sync with the backend (Phase 18+).
   late List<_RelayEntry> _relays;
   bool _loading = false;
 
@@ -73,8 +70,29 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
     }
   }
 
-  void _toggleRelay(int index, bool value) {
+  Future<void> _toggleRelay(int index, bool value) async {
+    final url = _relays[index].url;
     setState(() => _relays[index].isActive = value);
+    try {
+      if (value) {
+        await nostr_api.addRelay(url: url);
+      } else {
+        await nostr_api.removeRelay(url: url);
+      }
+    } catch (e) {
+      debugPrint('[RelayManagement] toggleRelay failed: $e');
+      if (!mounted) return;
+      setState(() {
+        final currentIndex = _relays.indexWhere((r) => r.url == url);
+        if (currentIndex != -1) {
+          _relays[currentIndex].isActive = !value;
+        }
+      });
+      final l10n = AppLocalizations.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(value ? l10n.relayAddFailed : l10n.relayRemoveFailed)),
+      );
+    }
   }
 
   Future<void> _removeRelay(int index) async {

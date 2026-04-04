@@ -3,29 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/settings/providers/log_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
-
-// ── Local log level enum (mirrors Rust LogLevel) ──────────────────────────────
-
-enum _LogLevel { debug, info, warning, error }
-
-// ── Local log entry model ─────────────────────────────────────────────────────
-
-class _LogEntry {
-  const _LogEntry({
-    required this.id,
-    required this.level,
-    required this.tag,
-    required this.message,
-    required this.timestamp,
-  });
-
-  final int id;
-  final _LogLevel level;
-  final String tag;
-  final String message;
-  final int timestamp; // Unix seconds
-}
+import 'package:mostro/src/rust/api/types.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -37,42 +17,15 @@ class LogReportScreen extends ConsumerStatefulWidget {
 }
 
 class _LogReportScreenState extends ConsumerState<LogReportScreen> {
-  // Sample data shown when no bridge is connected.
-  // TODO(bridge): replace _mockEntries with a live stream from the Rust log
-  // sink once the log bridge API is implemented (Phase 18+).  The bridge
-  // should expose an on_log_entry() stream that emits LogEntry structs; consume
-  // it here via a StreamBuilder or a Riverpod StreamProvider and remove the
-  // static list below.
-  static final List<_LogEntry> _mockEntries = List.unmodifiable([
-    _LogEntry(
-      id: 1,
-      level: _LogLevel.info,
-      tag: 'App',
-      message: 'Application started successfully',
-      timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000 - 120,
-    ),
-    _LogEntry(
-      id: 2,
-      level: _LogLevel.warning,
-      tag: 'Relay',
-      message: 'Connection to wss://nos.lol timed out, retrying…',
-      timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000 - 60,
-    ),
-    _LogEntry(
-      id: 3,
-      level: _LogLevel.debug,
-      tag: 'Order',
-      message: 'Fetched 42 orders from relay',
-      timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000 - 10,
-    ),
-  ]);
-
   @override
   Widget build(BuildContext context) {
     final loggingEnabled = ref.watch(settingsProvider).loggingEnabled;
     final colorsRaw = Theme.of(context).extension<AppColors>();
     if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
     final colors = colorsRaw;
+
+    final logAsync = ref.watch(logEntriesProvider);
+    final entries = logAsync.valueOrNull ?? const [];
 
     return Scaffold(
       appBar: AppBar(
@@ -81,8 +34,8 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
           // Share logs — disabled when no entries exist.
           IconButton(
             icon: const Icon(Icons.share_outlined),
-            tooltip: _mockEntries.isNotEmpty ? 'Share logs' : 'No logs to share',
-            onPressed: _mockEntries.isNotEmpty ? _shareLogs : null,
+            tooltip: entries.isNotEmpty ? 'Share logs' : 'No logs to share',
+            onPressed: entries.isNotEmpty ? () => _shareLogs(entries) : null,
           ),
           // Toggle logging
           IconButton(
@@ -138,7 +91,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
           ),
           // Log entries
           Expanded(
-            child: _mockEntries.isEmpty
+            child: entries.isEmpty
                 ? Center(
                     child: Text(
                       'No log entries',
@@ -147,10 +100,10 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.all(AppSpacing.md),
-                    itemCount: _mockEntries.length,
+                    itemCount: entries.length,
                     itemBuilder: (context, index) {
                       return _LogEntryTile(
-                        entry: _mockEntries[index],
+                        entry: entries[index],
                         colors: colors,
                       );
                     },
@@ -161,8 +114,8 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
     );
   }
 
-  Future<void> _shareLogs() async {
-    final lines = _mockEntries.map((e) {
+  Future<void> _shareLogs(List<LogEntry> entries) async {
+    final lines = entries.map((e) {
       final time = _formatTimestamp(e.timestamp);
       final level = e.level.name.toUpperCase().padRight(7);
       final tag = _sanitizeForShare(e.tag);
@@ -192,7 +145,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
 class _LogEntryTile extends StatelessWidget {
   const _LogEntryTile({required this.entry, required this.colors});
 
-  final _LogEntry entry;
+  final LogEntry entry;
   final AppColors colors;
 
   @override
@@ -258,12 +211,12 @@ class _LogEntryTile extends StatelessWidget {
     );
   }
 
-  (Color, Color) _levelColors(_LogLevel level) {
+  (Color, Color) _levelColors(LogLevel level) {
     return switch (level) {
-      _LogLevel.debug => (const Color(0xFF374151), const Color(0xFFD1D5DB)),
-      _LogLevel.info => (const Color(0xFF1E3A8A), const Color(0xFF93C5FD)),
-      _LogLevel.warning => (const Color(0xFF854D0E), const Color(0xFFFCD34D)),
-      _LogLevel.error => (const Color(0xFF7F1D1D), const Color(0xFFFCA5A5)),
+      LogLevel.debug => (const Color(0xFF374151), const Color(0xFFD1D5DB)),
+      LogLevel.info => (const Color(0xFF1E3A8A), const Color(0xFF93C5FD)),
+      LogLevel.warning => (const Color(0xFF854D0E), const Color(0xFFFCD34D)),
+      LogLevel.error => (const Color(0xFF7F1D1D), const Color(0xFFFCA5A5)),
     };
   }
 }

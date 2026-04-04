@@ -154,8 +154,8 @@ impl RelayPool {
         &self,
         trade_keys: Vec<(PublicKey, u32)>,
     ) -> Result<()> {
-        let mostro_pubkey = nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
-            .map_err(|e| anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+        let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
+            .map_err(|e| anyhow!("invalid mostro pubkey: {e}"))?;
         let order_filter = pending_orders_filter(&mostro_pubkey);
         self.client
             .subscribe(order_filter, None)

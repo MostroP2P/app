@@ -134,8 +134,8 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         let sender_keys =
             crate::api::identity::get_active_trade_keys(trade_index).await?;
         let mostro_pubkey =
-            nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY)
-                .map_err(|e| anyhow!("invalid DEFAULT_MOSTRO_PUBKEY: {e}"))?;
+            nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
+                .map_err(|e| anyhow!("invalid mostro pubkey: {e}"))?;
         crate::mostro::actions::dispute(&sender_keys, &mostro_pubkey, &trade_id, trade_index)
             .await
     }

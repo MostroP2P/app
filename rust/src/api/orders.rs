@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
-use crate::config::DEFAULT_MOSTRO_PUBKEY;
+use crate::config::active_mostro_pubkey;
 use crate::db::Storage;
 use crate::mostro::actions;
 use crate::nostr::order_events::parse_order_event;
@@ -436,7 +436,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     store_pending_local_id(&ck, &order.id);
     order_book().upsert_order(order.clone()).await;
 
-    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let event_json =
         actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index)
             .await?;
@@ -535,7 +535,7 @@ pub async fn take_order(
     // Dispatch the take action to Mostro using the trade key for signing.
     match crate::api::identity::get_active_trade_keys(trade_index).await {
         Ok(sender_keys) => {
-            match nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY) {
+            match nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey()) {
                 Ok(mostro_pubkey) => {
                     // Read default LN address from settings (take-sell-ln-address flow).
                     let ln_address: Option<String> =
@@ -628,7 +628,7 @@ pub async fn send_invoice(
     let trade_index = get_trade_key_index(&order_id).await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let event_json = actions::add_invoice(
         &sender_keys,
         &mostro_pubkey,
@@ -656,7 +656,7 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
     let trade_index = get_trade_key_index(&order_id).await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
     publish_event_json(&event_json).await?;
     log::info!("[orders] fiat_sent published for order={order_id} trade_index={trade_index}");
@@ -671,7 +671,7 @@ pub async fn release_order(order_id: String) -> Result<()> {
     let trade_index = get_trade_key_index(&order_id).await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
     publish_event_json(&event_json).await?;
     log::info!("[orders] release published for order={order_id} trade_index={trade_index}");
@@ -687,7 +687,7 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     let trade_index = get_trade_key_index(&order_id).await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(DEFAULT_MOSTRO_PUBKEY)?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let event_json = actions::cancel(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
     publish_event_json(&event_json).await?;
     log::info!("[orders] cancel published for order={order_id} trade_index={trade_index}");
@@ -884,7 +884,7 @@ async fn subscribe_single_order(order_id: &str) {
         };
         let client = pool.client();
         let mostro_pubkey =
-            match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
+            match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
                 Ok(pk) => pk,
                 Err(e) => {
                     log::error!("[orders] subscribe_single_order: invalid pubkey: {e}");
@@ -1011,10 +1011,10 @@ async fn _run_order_subscription() {
 
     // The Mostro daemon is the author of all Kind 38383 events.
     // Use the compiled-in default pubkey (mirrors config.rs / settings screen).
-    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(crate::config::DEFAULT_MOSTRO_PUBKEY) {
+    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
         Ok(pk) => pk,
         Err(e) => {
-            log::error!("[orders] invalid DEFAULT_MOSTRO_PUBKEY: {e}");
+            log::error!("[orders] invalid mostro pubkey: {e}");
             return;
         }
     };
