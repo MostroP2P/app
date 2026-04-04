@@ -310,8 +310,9 @@ pub async fn send_file(
     let sender_pubkey = sender_keys.public_key().to_hex();
 
     if let Some(peer_hex) = &session.peer_pubkey {
-        if let Ok(peer_pubkey) = nostr_sdk::PublicKey::from_hex(peer_hex) {
-            if let Ok(event_json) = crate::nostr::gift_wrap::wrap(
+        match nostr_sdk::PublicKey::from_hex(peer_hex) {
+            Err(e) => log::warn!("[messages] send_file invalid peer pubkey: {e}"),
+            Ok(peer_pubkey) => match crate::nostr::gift_wrap::wrap(
                 &sender_keys,
                 &peer_pubkey,
                 &payload,
@@ -319,13 +320,22 @@ pub async fn send_file(
             )
             .await
             {
-                if let Ok(pool) = crate::api::nostr::get_pool() {
-                    if let Ok(event) = serde_json::from_str::<nostr_sdk::Event>(&event_json) {
-                        let _ = pool.client().send_event(&event).await;
-                    }
-                }
-            }
+                Err(e) => log::warn!("[messages] send_file gift wrap failed: {e}"),
+                Ok(event_json) => match crate::api::nostr::get_pool() {
+                    Err(_) => log::warn!("[messages] send_file relay pool not ready"),
+                    Ok(pool) => match serde_json::from_str::<nostr_sdk::Event>(&event_json) {
+                        Err(e) => log::warn!("[messages] send_file event parse failed: {e}"),
+                        Ok(event) => {
+                            if let Err(e) = pool.client().send_event(&event).await {
+                                log::warn!("[messages] send_file publish failed: {e}");
+                            }
+                        }
+                    },
+                },
+            },
         }
+    } else {
+        log::warn!("[messages] send_file peer not yet known — local-only");
     }
 
     let attachment = AttachmentInfo {
@@ -417,10 +427,11 @@ pub async fn download_attachment(message_id: String) -> Result<FileDownloadResul
     let plaintext = crate::crypto::file_enc::decrypt_file(&encrypted_bytes, &shared_key)
         .map_err(|e| anyhow!("DecryptionFailed: {e}"))?;
 
-    // 5. Write to temp dir with safe filename.
+    // 5. Write to temp dir with unique filename to avoid collisions.
     let safe_name = safe_filename(&attachment.file_name);
+    let unique_name = format!("{message_id}_{safe_name}");
     let local_path = std::env::temp_dir()
-        .join(&safe_name)
+        .join(&unique_name)
         .to_string_lossy()
         .into_owned();
 
