@@ -63,12 +63,17 @@ class PushNotificationService {
     // TODO: Replace 'YOUR_VAPID_KEY' with the real VAPID key from Firebase console.
     const vapidKey = 'YOUR_VAPID_KEY';
     if (kIsWeb && vapidKey == 'YOUR_VAPID_KEY') {
-      debugPrint('[push] WARNING: VAPID key not configured — web push token will fail');
+      debugPrint('[push] WARNING: VAPID key not configured — skipping web token');
+    } else {
+      try {
+        _token = await _fcm.getToken(
+          vapidKey: kIsWeb ? vapidKey : null,
+        );
+        debugPrint('[push] FCM token acquired (${_token?.length ?? 0} chars)');
+      } catch (e) {
+        debugPrint('[push] FCM getToken failed: $e');
+      }
     }
-    _token = await _fcm.getToken(
-      vapidKey: kIsWeb ? vapidKey : null,
-    );
-    debugPrint('[push] FCM token: $_token');
 
     // 4. Handle foreground messages — create in-app notification.
     FirebaseMessaging.onMessage.listen((message) {

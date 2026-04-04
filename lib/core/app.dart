@@ -46,23 +46,23 @@ class _MostroAppState extends ConsumerState<MostroApp> {
     // Theme mode from settings; dark is the default.
     final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
 
-    return NotificationListenerWidget(
-      child: MaterialApp.router(
-        title: 'Mostro',
-        debugShowCheckedModeBanner: false,
-        theme: buildLightTheme(),
-        darkTheme: buildDarkTheme(),
-        themeMode: themeMode,
-        locale: locale,
-        routerConfig: appRouter,
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: AppLocalizations.supportedLocales,
-      ),
+    return MaterialApp.router(
+      title: 'Mostro',
+      debugShowCheckedModeBanner: false,
+      theme: buildLightTheme(),
+      darkTheme: buildDarkTheme(),
+      themeMode: themeMode,
+      locale: locale,
+      routerConfig: appRouter,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) =>
+          NotificationListenerWidget(child: child ?? const SizedBox.shrink()),
     );
   }
 }

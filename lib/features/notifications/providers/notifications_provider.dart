@@ -9,9 +9,9 @@ import 'package:mostro/features/notifications/models/notification_model.dart';
 // Platform-specific imports — path_provider is only needed on non-web.
 import 'package:path_provider/path_provider.dart'
     if (dart.library.html) 'package:mostro/core/stubs/path_provider_stub.dart';
-import 'package:sembast/sembast_io.dart';
-import 'package:mostro/features/notifications/providers/sembast_factory_web.dart'
-    if (dart.library.io) 'package:mostro/features/notifications/providers/sembast_factory_stub.dart';
+import 'package:sembast/sembast.dart';
+import 'package:mostro/features/notifications/providers/sembast_factory_io.dart'
+    if (dart.library.html) 'package:mostro/features/notifications/providers/sembast_factory_web.dart';
 
 // ── Sembast persistence store ─────────────────────────────────────────────────
 
