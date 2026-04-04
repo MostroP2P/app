@@ -24,7 +24,14 @@ class _MostroAppState extends ConsumerState<MostroApp> {
   @override
   void initState() {
     super.initState();
-    PushNotificationService.instance.initialize(ref: ref);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final container = ProviderScope.containerOf(context, listen: false);
+      try {
+        await PushNotificationService.instance.initialize(container: container);
+      } catch (e) {
+        debugPrint('[app] push notification init failed: $e');
+      }
+    });
   }
 
   @override

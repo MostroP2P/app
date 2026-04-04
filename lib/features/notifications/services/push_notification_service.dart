@@ -1,10 +1,12 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
@@ -24,12 +26,13 @@ class PushNotificationService {
   FirebaseMessaging? _fcmInstance;
   FirebaseMessaging get _fcm => _fcmInstance ??= FirebaseMessaging.instance;
   String? _token;
+  bool _initialized = false;
   final Set<String> _registeredTradePubkeys = {};
 
   // Push server base URL — update when the Mostro push server is deployed.
   static const _pushServerUrl = 'https://push.mostro.network';
 
-  Future<void> initialize({WidgetRef? ref}) async {
+  Future<void> initialize({ProviderContainer? container}) async {
     if (!_isSupported) return;
 
     // Bail out if Firebase hasn't been initialized (placeholder firebase_options).
@@ -55,14 +58,19 @@ class PushNotificationService {
     FirebaseMessaging.onBackgroundMessage(_backgroundMessageHandler);
 
     // 3. Get initial FCM token.
+    // TODO: Replace 'YOUR_VAPID_KEY' with the real VAPID key from Firebase console.
+    const vapidKey = 'YOUR_VAPID_KEY';
+    if (kIsWeb && vapidKey == 'YOUR_VAPID_KEY') {
+      debugPrint('[push] WARNING: VAPID key not configured — web push token will fail');
+    }
     _token = await _fcm.getToken(
-      vapidKey: kIsWeb ? 'YOUR_VAPID_KEY' : null,
+      vapidKey: kIsWeb ? vapidKey : null,
     );
     debugPrint('[push] FCM token: $_token');
 
     // 4. Handle foreground messages — create in-app notification.
     FirebaseMessaging.onMessage.listen((message) {
-      _handleForeground(message, ref: ref);
+      _handleForeground(message, container: container);
     });
 
     // 5. Handle notification tap when app was in background (not terminated).
@@ -79,9 +87,11 @@ class PushNotificationService {
       _token = newToken;
       reRegisterAllTokens();
     });
+
+    _initialized = true;
   }
 
-  void _handleForeground(RemoteMessage message, {WidgetRef? ref}) {
+  void _handleForeground(RemoteMessage message, {ProviderContainer? container}) {
     final data = message.data;
     if (data.isEmpty) return;
 
@@ -101,7 +111,7 @@ class PushNotificationService {
       disputeId: disputeId,
     );
 
-    ref?.read(notificationsProviderWithDb.notifier).add(notification);
+    container?.read(notificationsProviderWithDb.notifier).add(notification);
   }
 
   void _handleTap(RemoteMessage message) {
@@ -122,17 +132,21 @@ class PushNotificationService {
   Future<void> registerToken(String tradePubkey) async {
     if (!_isSupported || _token == null) return;
     try {
-      final client = HttpClient();
-      final req = await client.postUrl(
+      final response = await http.post(
         Uri.parse('$_pushServerUrl/api/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'trade_pubkey': tradePubkey,
+          'token': _token,
+          'platform': _platform,
+        }),
       );
-      req.headers.contentType = ContentType.json;
-      req.write(
-        '{"trade_pubkey":"$tradePubkey","token":"$_token","platform":"$_platform"}',
-      );
-      await req.close();
-      _registeredTradePubkeys.add(tradePubkey);
-      debugPrint('[push] registered $tradePubkey');
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        _registeredTradePubkeys.add(tradePubkey);
+        debugPrint('[push] registered $tradePubkey');
+      } else {
+        debugPrint('[push] register failed: HTTP ${response.statusCode}');
+      }
     } catch (e) {
       debugPrint('[push] register failed: $e');
     }
@@ -141,14 +155,19 @@ class PushNotificationService {
   Future<void> unregisterToken(String tradePubkey) async {
     if (!_isSupported || _token == null) return;
     try {
-      final client = HttpClient();
-      final req = await client.postUrl(
+      final response = await http.post(
         Uri.parse('$_pushServerUrl/api/unregister'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'trade_pubkey': tradePubkey,
+          'token': _token,
+        }),
       );
-      req.headers.contentType = ContentType.json;
-      req.write('{"trade_pubkey":"$tradePubkey","token":"$_token"}');
-      await req.close();
-      _registeredTradePubkeys.remove(tradePubkey);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        _registeredTradePubkeys.remove(tradePubkey);
+      } else {
+        debugPrint('[push] unregister failed: HTTP ${response.statusCode}');
+      }
     } catch (e) {
       debugPrint('[push] unregister failed: $e');
     }
@@ -164,7 +183,9 @@ class PushNotificationService {
     for (final pubkey in Set.of(_registeredTradePubkeys)) {
       await unregisterToken(pubkey);
     }
-    await _fcm.deleteToken();
+    if (_initialized) {
+      await _fcm.deleteToken();
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -202,7 +223,9 @@ class PushNotificationService {
       };
 
   String _defaultBody(String type, String? orderId) {
-    final id = orderId != null ? ' for order ${orderId.substring(0, 8)}' : '';
+    final id = orderId != null
+        ? ' for order ${orderId.substring(0, math.min(8, orderId.length))}'
+        : '';
     return switch (type) {
       'tradeUpdate' => 'Your trade status changed$id.',
       'invoiceRequest' => 'Add your Lightning invoice$id.',

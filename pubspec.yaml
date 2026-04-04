@@ -41,6 +41,9 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.2.0
 
+  # Cross-platform HTTP client (push server registration)
+  http: ^1.2.2
+
   # System share sheet (invoice sharing)
   share_plus: ^12.0.1
 
