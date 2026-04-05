@@ -896,9 +896,15 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
             // Determine which pubkey is the peer based on action:
             // - BuyerTookOrder  → we are the seller, peer is the buyer
             // - HoldInvoicePaymentAccepted → we are the buyer, peer is the seller
+            // Determine the peer pubkey from the order payload.
+            //   BuyerTookOrder          → we are the seller, peer is the buyer.
+            //   HoldInvoicePaymentAccepted → we are the buyer, peer is the seller.
+            // Both are the only arms that reach this branch (see outer match guard).
             let peer_pubkey_hex = match kind.action {
                 Action::BuyerTookOrder => small_order.buyer_trade_pubkey.clone(),
-                _ => small_order.seller_trade_pubkey.clone(),
+                Action::HoldInvoicePaymentAccepted => small_order.seller_trade_pubkey.clone(),
+                // Safety: unreachable — outer match only routes these two variants here.
+                _ => unreachable!("unexpected action in peer-pubkey resolution"),
             };
             let peer_pubkey_hex = match peer_pubkey_hex {
                 Some(pk) if !pk.is_empty() => pk,
@@ -990,7 +996,7 @@ async fn on_peer_pubkey_received(order_id: &str, trade_pubkey_hex: &str, peer_pu
         // Session may not exist if we received the event after a restart but
         // before create_session ran (rare race). Create it now best-effort.
         log::warn!(
-            "[orders] on_peer_pubkey_received: session not found for order={order_id},              skipping session update — incoming subscription still spawned"
+            "[orders] on_peer_pubkey_received: session not found for              order={order_id}, skipping session update —              incoming subscription still spawned"
         );
     }
     // Spawn incoming-chat subscription on shared-key pubkey.
