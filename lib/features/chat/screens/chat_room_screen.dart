@@ -70,9 +70,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       final msgs = await messages_api.getMessages(tradeId: widget.orderId);
       if (!mounted) return;
       setState(() {
-        _messages
-          ..clear()
-          ..addAll(msgs);
+        // Merge history into the existing list rather than clearing it.
+        // The stream listener (_onIncomingMessage) may already have added
+        // messages that arrived between initState and this await completing.
+        // Deduplication uses the same id check as _onIncomingMessage so the
+        // invariant is identical in both paths.
+        for (final msg in msgs) {
+          if (!_messages.any((m) => m.id == msg.id)) {
+            _messages.add(msg);
+          }
+        }
+        _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
         _historyLoaded = true;
       });
       _scrollToBottom();
@@ -165,8 +173,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final rooms = ref.watch(chatRoomsNotifierProvider);
     return rooms.firstWhere(
       (r) => r.orderId == widget.orderId,
-      orElse: () => const ChatRoomState(
-        orderId: '',
+      orElse: () => ChatRoomState(
+        orderId: widget.orderId,
         peerPubkey: '',
         peerHandle: 'Unknown',
         peerIconIndex: 0,

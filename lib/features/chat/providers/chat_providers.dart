@@ -228,11 +228,13 @@ final chatRoomsFromTradesProvider =
     FutureProvider<List<ChatRoomState>>((ref) async {
   final trades = await ref.watch(rawTradesProvider.future);
 
-  final rooms = <ChatRoomState>[];
-  for (final trade in trades) {
-    final room = await tradeInfoToChatRoom(trade);
-    if (room != null) rooms.add(room);
-  }
+  // Resolve all rooms concurrently — each call does async I/O (NymIdentity
+  // lookup + message history fetch) so parallel execution is significantly
+  // faster than the previous sequential await loop.
+  final results = await Future.wait(
+    trades.map((t) => tradeInfoToChatRoom(t)),
+  );
+  final rooms = results.whereType<ChatRoomState>().toList();
 
   rooms.sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
   return rooms;

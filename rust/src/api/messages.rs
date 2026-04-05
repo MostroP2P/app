@@ -650,13 +650,13 @@ pub(crate) async fn subscribe_incoming_chat(
     };
     let client = pool.client();
 
-    // Subscribe BEFORE obtaining the receiver to avoid missing events that
-    // arrive between the two calls.
     let filter = nostr_sdk::Filter::new()
         .kind(nostr_sdk::Kind::from(1059u16))
         .pubkey(shared_pubkey);
 
-    // Obtain receiver first, THEN subscribe — same pattern as subscribe_gift_wraps.
+    // Obtain the receiver BEFORE subscribing — same pattern as subscribe_gift_wraps.
+    // This avoids a race where an event arrives between subscribe() and notifications()
+    // and would otherwise be missed.
     let mut rx = client.notifications();
 
     if let Err(e) = client.subscribe(filter, None).await {
@@ -666,7 +666,7 @@ pub(crate) async fn subscribe_incoming_chat(
 
     let shared_pubkey_hex = shared_pubkey.to_hex();
     log::info!(
-        "[messages] incoming-chat subscription active          order={order_id} shared_pubkey={shared_pubkey_hex}"
+        "[messages] incoming-chat subscription active order={order_id} shared_pubkey={shared_pubkey_hex}"
     );
 
     let mut last_activity = tokio::time::Instant::now();
@@ -924,10 +924,13 @@ mod tests {
         assert!(!is_supported_mime_type("application/zip"));
     }
 
-    /// Verify that the message store deduplicates by id.
-    /// subscribe_incoming_chat relies on this to ignore echo messages.
+    /// Verify that the Rust message store does NOT deduplicate by id.
+    ///
+    /// Two `ChatMessage`s with the same `id` are both stored. Deduplication is
+    /// the responsibility of the Dart layer (`_onIncomingMessage` checks `id`
+    /// before appending to the local list).
     #[tokio::test]
-    async fn add_duplicate_message_is_ignored_in_count() {
+    async fn add_duplicate_message_is_not_deduplicated_in_store() {
         let trade_id = uuid::Uuid::new_v4().to_string();
         let store = message_store();
         let msg = ChatMessage {
