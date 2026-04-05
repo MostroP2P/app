@@ -722,13 +722,26 @@ pub(crate) async fn subscribe_incoming_chat(
                 };
 
                 // Sender pubkey lives in the inner event `pubkey` field.
+                //
+                // Protocol guarantee (Mostro P2P chat spec): the inner kind-1
+                // event MUST be signed by the sender's trade key. `inner.pubkey`
+                // is therefore the sender's trade pubkey. Key rotation is not
+                // supported — a trader always uses the same BIP-32 derived key
+                // for the entire lifetime of a trade session.
+                //
+                // We compare against `trade_pubkey_hex` (our own trade key) to
+                // filter echo messages: relays reflect our own gift-wraps back
+                // to us because the subscription filter uses only the shared-key
+                // p-tag, which both parties share. The outer event pubkey is an
+                // ephemeral key generated per-message and carries no identity
+                // information — only the inner `pubkey` is authoritative here.
                 let sender_pubkey = inner
                     .get("pubkey")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
 
-                // Ignore echoes of our own messages (sender == our trade key).
+                // Ignore echoes of our own messages (inner sender == our trade key).
                 if sender_pubkey == trade_pubkey_hex {
                     log::debug!("[messages] incoming-chat ignoring own echo");
                     continue;

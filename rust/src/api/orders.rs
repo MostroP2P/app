@@ -996,7 +996,7 @@ async fn on_peer_pubkey_received(order_id: &str, trade_pubkey_hex: &str, peer_pu
         // Session may not exist if we received the event after a restart but
         // before create_session ran (rare race). Create it now best-effort.
         log::warn!(
-            "[orders] on_peer_pubkey_received: session not found for              order={order_id}, skipping session update —              incoming subscription still spawned"
+            "[orders] on_peer_pubkey_received: session not found for order={order_id}, skipping session update — incoming subscription still spawned"
         );
     }
     // Spawn incoming-chat subscription on shared-key pubkey.

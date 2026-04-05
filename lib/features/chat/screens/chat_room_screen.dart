@@ -186,7 +186,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   ChatRoomState _buildRoomPreview({required rust_types.ChatMessage lastMsg}) {
     final room = _resolveRoom();
-    final unread = _messages.where((m) => !m.isRead && !m.isMine).length;
+    // Use the bridge-provided isRead / isMine flags rather than recomputing
+    // from local _messages, which may not yet reflect the latest markAsRead
+    // call (the bridge call is async and may still be in flight).
+    //
+    // Strategy: start from room.unreadCount (as last set by the bridge) and
+    // increment by one only when the incoming message is unread and not ours.
+    // _markRead will reset this to 0 once the async call completes.
+    final unread = (lastMsg.isMine || lastMsg.isRead)
+        ? room.unreadCount
+        : room.unreadCount + 1;
     return room.copyWith(
       lastMessage: lastMsg.content,
       lastMessageIsOwn: lastMsg.isMine,
