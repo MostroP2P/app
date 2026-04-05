@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,15 +15,44 @@ import 'package:mostro/shared/widgets/notification_bell.dart';
 /// Route: /chat_list
 ///
 /// Top-level chat screen with two tabs: Messages and Disputes.
-class ChatRoomsScreen extends StatefulWidget {
+///
+/// On init, syncs [chatRoomsFromTradesProvider] into [chatRoomsNotifierProvider]
+/// so the Messages tab is populated from the trade DB rather than always empty.
+class ChatRoomsScreen extends ConsumerStatefulWidget {
   const ChatRoomsScreen({super.key});
 
   @override
-  State<ChatRoomsScreen> createState() => _ChatRoomsScreenState();
+  ConsumerState<ChatRoomsScreen> createState() => _ChatRoomsScreenState();
 }
 
-class _ChatRoomsScreenState extends State<ChatRoomsScreen> {
+class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
   bool _drawerOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Populate the chat rooms list from trades asynchronously.
+    // Any subsequent live updates are pushed by ChatRoomScreen via upsertRoom.
+    _syncRoomsFromTrades();
+  }
+
+  Future<void> _syncRoomsFromTrades() async {
+    try {
+      final rooms =
+          await ref.read(chatRoomsFromTradesProvider.future);
+      if (!mounted) return;
+      // Upsert each room rather than replacing the whole list.
+      // This preserves any rooms that were added concurrently via
+      // ChatRoomScreen.upsertRoom (e.g. a message arrived while the fetch
+      // was in flight).
+      final notifier = ref.read(chatRoomsNotifierProvider.notifier);
+      for (final room in rooms) {
+        notifier.upsertRoom(room);
+      }
+    } catch (e) {
+      debugPrint('[chat] syncRoomsFromTrades failed: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

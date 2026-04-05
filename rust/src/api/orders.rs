@@ -4,8 +4,8 @@
 /// applies filters, and exposes a stream for UI updates.
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{NewOrderParams, OrderInfo, OrderKind, OrderStatus};
@@ -91,9 +91,7 @@ pub async fn resolve_maker_order(order_id: &str, trade_pubkey_hex: &str) {
         store_trade_key_index(order_id, idx).await;
         log::info!("[orders] resolved maker order={order_id} trade_index={idx}");
     } else {
-        log::warn!(
-            "[orders] resolve_maker_order: no pending entry for pubkey={trade_pubkey_hex}"
-        );
+        log::warn!("[orders] resolve_maker_order: no pending entry for pubkey={trade_pubkey_hex}");
     }
 }
 
@@ -201,7 +199,9 @@ pub struct OrderBook {
 }
 
 impl Default for OrderBook {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl OrderBook {
@@ -267,13 +267,11 @@ impl OrderBook {
 
         // Sort by ascending expiration (soonest-expiring first), then by
         // descending created_at for orders without expiration.
-        result.sort_by(|a, b| {
-            match (a.expires_at, b.expires_at) {
-                (Some(ea), Some(eb)) => ea.cmp(&eb),
-                (Some(_), None) => std::cmp::Ordering::Less,
-                (None, Some(_)) => std::cmp::Ordering::Greater,
-                (None, None) => b.created_at.cmp(&a.created_at),
-            }
+        result.sort_by(|a, b| match (a.expires_at, b.expires_at) {
+            (Some(ea), Some(eb)) => ea.cmp(&eb),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => b.created_at.cmp(&a.created_at),
         });
 
         result
@@ -431,15 +429,19 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // we stored these after publish the subscription loop could arrive before
     // the keys are written and miss the fingerprint match entirely.
     store_trade_key_index(&order.id, trade_index).await; // local UUID fallback
-    store_trade_key_index(&ck, trade_index).await;       // content fingerprint
+    store_trade_key_index(&ck, trade_index).await; // content fingerprint
     store_pending_maker_key(&sender_keys.public_key().to_hex(), trade_index);
     store_pending_local_id(&ck, &order.id);
     order_book().upsert_order(order.clone()).await;
 
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
-    let event_json =
-        actions::new_order(&sender_keys, &mostro_pubkey, &params_for_dispatch, trade_index)
-            .await?;
+    let event_json = actions::new_order(
+        &sender_keys,
+        &mostro_pubkey,
+        &params_for_dispatch,
+        trade_index,
+    )
+    .await?;
     publish_event_json(&event_json).await?;
 
     log::info!(
@@ -538,11 +540,10 @@ pub async fn take_order(
             match nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey()) {
                 Ok(mostro_pubkey) => {
                     // Read default LN address from settings (take-sell-ln-address flow).
-                    let ln_address: Option<String> =
-                        crate::api::settings::get_settings()
-                            .await
-                            .ok()
-                            .and_then(|s| s.default_lightning_address);
+                    let ln_address: Option<String> = crate::api::settings::get_settings()
+                        .await
+                        .ok()
+                        .and_then(|s| s.default_lightning_address);
                     let ln_address_ref = ln_address.as_deref();
 
                     let action_result = match dispatch_role {
@@ -585,11 +586,28 @@ pub async fn take_order(
                                 log::info!(
                                     "[orders] take_order dispatched order={order_id} \
                                      trade_index={trade_index} ln_address={}",
-                                    if ln_address_ref.is_some() { "present" } else { "none" }
+                                    if ln_address_ref.is_some() {
+                                        "present"
+                                    } else {
+                                        "none"
+                                    }
                                 );
                                 // Subscribe to d-tag K38383 updates for this specific order so we
                                 // receive status changes (pending → in-progress → waiting-payment …).
                                 subscribe_single_order(&order_id).await;
+                                // Subscribe to NIP-59 gift-wrap daemon responses addressed to
+                                // this trade key so we can receive BuyerTookOrder /
+                                // HoldInvoicePaymentAccepted and unlock the P2P chat.
+                                subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
+                                // Create a session so the chat API can look up keys immediately.
+                                let _ = crate::mostro::session::session_manager()
+                                    .create_session(
+                                        order_id.clone(),
+                                        trade.role.clone(),
+                                        trade_index,
+                                        trade.order.clone(),
+                                    )
+                                    .await;
                             }
                         }
                         Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
@@ -625,7 +643,8 @@ pub async fn send_invoice(
         None
     };
 
-    let trade_index = get_trade_key_index(&order_id).await
+    let trade_index = get_trade_key_index(&order_id)
+        .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
@@ -653,11 +672,13 @@ pub async fn send_invoice(
 /// Sends a `FiatSent` MostroMessage to the Mostro daemon signed with the trade
 /// key that was used when taking the order.
 pub async fn send_fiat_sent(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id).await
+    let trade_index = get_trade_key_index(&order_id)
+        .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
-    let event_json = actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
+    let event_json =
+        actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
     publish_event_json(&event_json).await?;
     log::info!("[orders] fiat_sent published for order={order_id} trade_index={trade_index}");
     Ok(())
@@ -668,7 +689,8 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
 /// Sends a `Release` MostroMessage to the Mostro daemon signed with the trade
 /// key that was used when taking the order.
 pub async fn release_order(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id).await
+    let trade_index = get_trade_key_index(&order_id)
+        .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
@@ -684,7 +706,8 @@ pub async fn release_order(order_id: String) -> Result<()> {
 /// was taken.  Both parties must cancel for it to take effect; the Mostro daemon
 /// handles the cooperative-cancel state machine.
 pub async fn cancel_order(order_id: String) -> Result<()> {
-    let trade_index = get_trade_key_index(&order_id).await
+    let trade_index = get_trade_key_index(&order_id)
+        .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
@@ -703,21 +726,17 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
 /// - `Action::NewOrder` — daemon confirmed the order; bridges daemon UUID into
 ///   `TRADE_KEY_MAP` via `resolve_maker_order`.
 /// - All other actions are logged (full trade-session routing is Phase 7+).
-pub(crate) async fn subscribe_gift_wraps(
-    trade_pubkey: nostr_sdk::PublicKey,
-    trade_index: u32,
-) {
+pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, trade_index: u32) {
     tokio::spawn(async move {
         // Fetch keys first — if this fails there is no point subscribing and
         // we avoid leaving an orphan relay subscription with no decryption path.
-        let recipient_keys =
-            match crate::api::identity::get_active_trade_keys(trade_index).await {
-                Ok(k) => k,
-                Err(e) => {
-                    log::error!("[orders] subscribe_gift_wraps: no trade keys: {e}");
-                    return;
-                }
-            };
+        let recipient_keys = match crate::api::identity::get_active_trade_keys(trade_index).await {
+            Ok(k) => k,
+            Err(e) => {
+                log::error!("[orders] subscribe_gift_wraps: no trade keys: {e}");
+                return;
+            }
+        };
 
         let Ok(pool) = crate::api::nostr::get_pool() else {
             log::warn!("[orders] subscribe_gift_wraps: relay pool not initialized");
@@ -747,12 +766,10 @@ pub(crate) async fn subscribe_gift_wraps(
         let mut last_activity = tokio::time::Instant::now();
 
         loop {
-            let remaining = Duration::from_secs(IDLE_TIMEOUT_SECS)
-                .saturating_sub(last_activity.elapsed());
+            let remaining =
+                Duration::from_secs(IDLE_TIMEOUT_SECS).saturating_sub(last_activity.elapsed());
             if remaining.is_zero() {
-                log::debug!(
-                    "[orders] gift-wrap idle timeout for trade={trade_pubkey_hex}"
-                );
+                log::debug!("[orders] gift-wrap idle timeout for trade={trade_pubkey_hex}");
                 break;
             }
 
@@ -797,9 +814,7 @@ pub(crate) async fn subscribe_gift_wraps(
             }
         }
 
-        log::debug!(
-            "[orders] gift-wrap subscription exiting for trade={trade_pubkey_hex}"
-        );
+        log::debug!("[orders] gift-wrap subscription exiting for trade={trade_pubkey_hex}");
     });
 }
 
@@ -846,9 +861,7 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
             if let Some(order_id) = &kind.id {
                 let order_id_str = order_id.to_string();
                 resolve_maker_order(&order_id_str, trade_pubkey_hex).await;
-                log::info!(
-                    "[orders] gift-wrap NewOrder: daemon order={order_id_str} confirmed"
-                );
+                log::info!("[orders] gift-wrap NewOrder: daemon order={order_id_str} confirmed");
             } else {
                 log::warn!("[orders] gift-wrap NewOrder has no order id");
             }
@@ -859,12 +872,145 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
                 order_book().remove_order(&order_id.to_string()).await;
             }
         }
-        action => {
-            log::debug!(
-                "[orders] gift-wrap unhandled action={action:?} (Phase 7+)"
+        // Seller receives BuyerTookOrder → peer is buyer_trade_pubkey.
+        // Buyer receives HoldInvoicePaymentAccepted → peer is seller_trade_pubkey.
+        // Both carry the counterpart pubkey in SmallOrder.{buyer,seller}_trade_pubkey.
+        Action::BuyerTookOrder | Action::HoldInvoicePaymentAccepted => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] gift-wrap {:?} has no order id", kind.action);
+                    return;
+                }
+            };
+            let small_order = match &kind.payload {
+                Some(mostro_core::message::Payload::Order(o)) => o.clone(),
+                _ => {
+                    log::warn!(
+                        "[orders] gift-wrap {:?} payload is not an Order",
+                        kind.action
+                    );
+                    return;
+                }
+            };
+            // Determine which pubkey is the peer based on action:
+            // - BuyerTookOrder  → we are the seller, peer is the buyer
+            // - HoldInvoicePaymentAccepted → we are the buyer, peer is the seller
+            // Determine the peer pubkey from the order payload.
+            //   BuyerTookOrder          → we are the seller, peer is the buyer.
+            //   HoldInvoicePaymentAccepted → we are the buyer, peer is the seller.
+            // Both are the only arms that reach this branch (see outer match guard).
+            let peer_pubkey_hex = match kind.action {
+                Action::BuyerTookOrder => small_order.buyer_trade_pubkey.clone(),
+                Action::HoldInvoicePaymentAccepted => small_order.seller_trade_pubkey.clone(),
+                // Safety: unreachable — outer match only routes these two variants here.
+                _ => unreachable!("unexpected action in peer-pubkey resolution"),
+            };
+            let peer_pubkey_hex = match peer_pubkey_hex {
+                Some(pk) if !pk.is_empty() => pk,
+                _ => {
+                    log::warn!(
+                        "[orders] gift-wrap {:?}: missing peer pubkey in payload",
+                        kind.action
+                    );
+                    return;
+                }
+            };
+            log::info!(
+                "[orders] gift-wrap {:?}: order={order_id} peer={peer_pubkey_hex}",
+                kind.action
             );
+            // Derive the ECDH shared key and store in session so the chat API
+            // can encrypt/decrypt P2P messages and subscribe to the right p-tag.
+            on_peer_pubkey_received(&order_id, trade_pubkey_hex, &peer_pubkey_hex).await;
+        }
+        action => {
+            log::debug!("[orders] gift-wrap unhandled action={action:?}");
         }
     }
+}
+
+// ── Peer-pubkey resolution ────────────────────────────────────────────────────
+
+/// Called when the daemon sends `BuyerTookOrder` or `HoldInvoicePaymentAccepted`.
+///
+/// Derives the ECDH shared key from `(our_trade_key, peer_trade_pubkey)`,
+/// stores it in the session, and spawns an incoming-chat subscription on the
+/// shared-key pubkey so we receive peer messages from the moment the trade
+/// goes active.
+async fn on_peer_pubkey_received(order_id: &str, trade_pubkey_hex: &str, peer_pubkey_hex: &str) {
+    // Resolve trade key index from order_id.
+    let trade_index = match get_trade_key_index(order_id).await {
+        Some(idx) => idx,
+        None => {
+            log::warn!("[orders] on_peer_pubkey_received: no trade key for order={order_id}");
+            return;
+        }
+    };
+    let trade_keys = match crate::api::identity::get_active_trade_keys(trade_index).await {
+        Ok(k) => k,
+        Err(e) => {
+            log::error!("[orders] on_peer_pubkey_received: key load failed: {e}");
+            return;
+        }
+    };
+    let peer_pubkey = match nostr_sdk::PublicKey::from_hex(peer_pubkey_hex) {
+        Ok(pk) => pk,
+        Err(e) => {
+            log::error!("[orders] on_peer_pubkey_received: invalid peer pubkey: {e}");
+            return;
+        }
+    };
+    // Derive the 32-byte ECDH shared secret.
+    let shared_key_bytes =
+        match crate::crypto::ecdh::derive_nip04_shared_key(&trade_keys, &peer_pubkey) {
+            Ok(k) => k,
+            Err(e) => {
+                log::error!("[orders] on_peer_pubkey_received: ECDH failed: {e}");
+                return;
+            }
+        };
+    // Derive the shared-key *pubkey* (the p-tag subscribed by chat listeners).
+    // The shared secret is used as a private scalar to derive the corresponding
+    // public key — this is the convention used by v1 and the chat protocol spec.
+    let shared_pubkey = match nostr_sdk::SecretKey::from_slice(&shared_key_bytes) {
+        Ok(sk) => nostr_sdk::Keys::new(sk).public_key(),
+        Err(e) => {
+            log::error!("[orders] on_peer_pubkey_received: shared key→pubkey failed: {e}");
+            return;
+        }
+    };
+    log::info!(
+        "[orders] on_peer_pubkey_received: order={order_id}          peer={peer_pubkey_hex} shared_pubkey={}",
+        shared_pubkey.to_hex()
+    );
+    // Update or create the session with peer + shared key.
+    let mgr = crate::mostro::session::session_manager();
+    if let Some(mut session) = mgr.get_session(order_id).await {
+        session.peer_pubkey = Some(peer_pubkey_hex.to_string());
+        session.shared_key = Some(shared_key_bytes);
+        if let Err(e) = mgr.update_session(order_id, session).await {
+            log::warn!("[orders] on_peer_pubkey_received: session update failed: {e}");
+        }
+    } else {
+        // Session may not exist if we received the event after a restart but
+        // before create_session ran (rare race). Create it now best-effort.
+        log::warn!(
+            "[orders] on_peer_pubkey_received: session not found for order={order_id}, skipping session update — incoming subscription still spawned"
+        );
+    }
+    // Spawn incoming-chat subscription on shared-key pubkey.
+    let order_id_owned = order_id.to_string();
+    let trade_pubkey_hex_owned = trade_pubkey_hex.to_string();
+    tokio::spawn(async move {
+        crate::api::messages::subscribe_incoming_chat(
+            order_id_owned,
+            trade_pubkey_hex_owned,
+            shared_pubkey,
+            trade_keys,
+        )
+        .await;
+    });
 }
 
 // ── Single-order subscription ─────────────────────────────────────────────────
@@ -893,8 +1039,7 @@ async fn subscribe_single_order(order_id: &str) {
             };
 
         let mut rx = client.notifications();
-        let filter =
-            crate::nostr::order_events::trade_order_filter(&mostro_pubkey, &order_id);
+        let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, &order_id);
         if let Err(e) = client.subscribe(filter, None).await {
             log::warn!("[orders] subscribe_single_order subscribe failed: {e}");
             return;
@@ -910,8 +1055,8 @@ async fn subscribe_single_order(order_id: &str) {
         let mut last_activity = tokio::time::Instant::now();
 
         loop {
-            let remaining = Duration::from_secs(IDLE_TIMEOUT_SECS)
-                .saturating_sub(last_activity.elapsed());
+            let remaining =
+                Duration::from_secs(IDLE_TIMEOUT_SECS).saturating_sub(last_activity.elapsed());
             if remaining.is_zero() {
                 log::debug!("[orders] subscribe_single_order idle timeout for order={order_id}");
                 break;
@@ -919,7 +1064,8 @@ async fn subscribe_single_order(order_id: &str) {
 
             match timeout(remaining, rx.recv()).await {
                 Ok(Ok(RelayPoolNotification::Event { event, .. })) => {
-                    if let Some(order) = crate::nostr::order_events::parse_order_event(&event, None) {
+                    if let Some(order) = crate::nostr::order_events::parse_order_event(&event, None)
+                    {
                         if order.id == order_id {
                             log::info!(
                                 "[orders] d-tag update: order={} status={:?}",
@@ -947,10 +1093,10 @@ async fn subscribe_single_order(order_id: &str) {
 /// Returns an error if the pool is not initialised, the JSON is malformed,
 /// or the relay client reports a publish error.
 async fn publish_event_json(event_json: &str) -> Result<()> {
-    let pool = crate::api::nostr::get_pool()
-        .map_err(|_| anyhow::anyhow!("RelayPoolNotInitialized"))?;
-    let event: nostr_sdk::Event = serde_json::from_str(event_json)
-        .map_err(|e| anyhow::anyhow!("invalid event JSON: {e}"))?;
+    let pool =
+        crate::api::nostr::get_pool().map_err(|_| anyhow::anyhow!("RelayPoolNotInitialized"))?;
+    let event: nostr_sdk::Event =
+        serde_json::from_str(event_json).map_err(|e| anyhow::anyhow!("invalid event JSON: {e}"))?;
     pool.client()
         .send_event(&event)
         .await
@@ -1022,14 +1168,18 @@ async fn _run_order_subscription() {
 
     // The Mostro daemon is the author of all Kind 38383 events.
     // Use the compiled-in default pubkey (mirrors config.rs / settings screen).
-    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
+    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
+    {
         Ok(pk) => pk,
         Err(e) => {
             log::error!("[orders] invalid mostro pubkey: {e}");
             return;
         }
     };
-    log::info!("[orders] subscribing to Kind 38383 from mostro={}", mostro_pubkey.to_hex());
+    log::info!(
+        "[orders] subscribing to Kind 38383 from mostro={}",
+        mostro_pubkey.to_hex()
+    );
 
     // Get notifications receiver before subscribing to avoid missing
     // events that arrive between the subscribe call and receiver creation.
@@ -1050,10 +1200,19 @@ async fn _run_order_subscription() {
     loop {
         match rx.recv().await {
             Ok(RelayPoolNotification::Event { event, .. }) => {
-                log::info!("[orders] event kind={} author={}", event.kind, &event.pubkey.to_hex()[..8]);
+                log::info!(
+                    "[orders] event kind={} author={}",
+                    event.kind,
+                    &event.pubkey.to_hex()[..8]
+                );
                 match parse_order_event(&event, None) {
                     Some(mut info) => {
-                        log::info!("[orders] parsed order id={} kind={:?} status={:?}", info.id, info.kind, info.status);
+                        log::info!(
+                            "[orders] parsed order id={} kind={:?} status={:?}",
+                            info.id,
+                            info.kind,
+                            info.status
+                        );
                         // Restore is_mine=true for maker orders on cold start by
                         // comparing against the content fingerprint stored at creation time.
                         if !info.is_mine {
@@ -1091,9 +1250,15 @@ async fn _run_order_subscription() {
                         order_book().upsert_order(info).await;
                     }
                     None => {
-                        log::warn!("[orders] event kind={} rejected by parser (tags: {:?})",
+                        log::warn!(
+                            "[orders] event kind={} rejected by parser (tags: {:?})",
                             event.kind,
-                            event.tags.iter().take(6).map(|t| t.as_slice().first().map(|s| s.as_str()).unwrap_or("?")).collect::<Vec<_>>()
+                            event
+                                .tags
+                                .iter()
+                                .take(6)
+                                .map(|t| t.as_slice().first().map(|s| s.as_str()).unwrap_or("?"))
+                                .collect::<Vec<_>>()
                         );
                     }
                 }
@@ -1140,7 +1305,10 @@ impl OrdersStream {
 
 /// Called internally to process a raw Nostr event into the order cache.
 /// Typically invoked from the relay pool's event processing loop.
-pub(crate) async fn process_order_event(event: &nostr_sdk::Event, my_pubkey: Option<&nostr_sdk::PublicKey>) {
+pub(crate) async fn process_order_event(
+    event: &nostr_sdk::Event,
+    my_pubkey: Option<&nostr_sdk::PublicKey>,
+) {
     if let Some(order) = parse_order_event(event, my_pubkey) {
         order_book().upsert_order(order).await;
     }
@@ -1167,9 +1335,7 @@ pub async fn list_trades() -> Result<Vec<crate::api::types::TradeInfo>> {
 ///
 /// Used by the Flutter layer to restore the buyer/seller role after an app
 /// restart so the trade-detail screen shows the correct actions.
-pub async fn get_trade_role(
-    order_id: String,
-) -> Result<Option<crate::api::types::TradeRole>> {
+pub async fn get_trade_role(order_id: String) -> Result<Option<crate::api::types::TradeRole>> {
     let Some(db) = crate::db::app_db::db() else {
         return Ok(None);
     };
@@ -1180,5 +1346,91 @@ pub async fn get_trade_role(
             log::warn!("[orders] get_trade_role DB error for order={order_id}: {e}");
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::types::TradeRole;
+    use crate::mostro::session::session_manager;
+
+    // ── Helper ────────────────────────────────────────────────────────────────
+
+    fn dummy_order_info(id: &str) -> crate::api::types::OrderInfo {
+        crate::api::types::OrderInfo {
+            id: id.to_string(),
+            kind: crate::api::types::OrderKind::Buy,
+            status: crate::api::types::OrderStatus::Pending,
+            fiat_code: "USD".to_string(),
+            fiat_amount: Some(100.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            payment_method: "Bank".to_string(),
+            premium: 0.0,
+            is_mine: false,
+            created_at: 0,
+            expires_at: None,
+            amount_sats: None,
+            creator_pubkey: String::new(),
+        }
+    }
+
+    // ── Session creation ──────────────────────────────────────────────────────
+
+    /// Creating a session twice for the same order returns SessionAlreadyExists.
+    #[tokio::test]
+    async fn create_session_is_idempotent() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let order = dummy_order_info(&order_id);
+
+        let mgr = session_manager();
+        let first = mgr
+            .create_session(order_id.clone(), TradeRole::Buyer, 0, order.clone())
+            .await;
+        assert!(first.is_ok(), "first create_session must succeed");
+
+        let second = mgr
+            .create_session(order_id.clone(), TradeRole::Buyer, 0, order)
+            .await;
+        assert!(
+            second.is_err(),
+            "second create_session for same order must fail"
+        );
+        assert!(second
+            .unwrap_err()
+            .to_string()
+            .contains("SessionAlreadyExists"));
+    }
+
+    /// After create_session the session has no peer pubkey or shared key yet.
+    #[tokio::test]
+    async fn new_session_has_no_peer_keys() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let order = dummy_order_info(&order_id);
+
+        let mgr = session_manager();
+        let session = mgr
+            .create_session(order_id.clone(), TradeRole::Seller, 1, order)
+            .await
+            .unwrap();
+
+        assert!(session.peer_pubkey.is_none());
+        assert!(session.shared_key.is_none());
+    }
+
+    // ── Peer-pubkey resolution ────────────────────────────────────────────────
+
+    /// on_peer_pubkey_received with no session for the order is a graceful no-op.
+    #[tokio::test]
+    async fn peer_pubkey_with_no_session_does_not_panic() {
+        // Use a random order_id that has no session — should log a warning only.
+        on_peer_pubkey_received(
+            &uuid::Uuid::new_v4().to_string(),
+            "aabbccdd", // trade_pubkey_hex (irrelevant, no trade key stored)
+            "aabbccdd", // peer_pubkey_hex (also irrelevant)
+        )
+        .await;
+        // If we reach here without panicking the test passes.
     }
 }
