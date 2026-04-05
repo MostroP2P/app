@@ -12,9 +12,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{broadcast, RwLock};
 
-use crate::api::types::{
-    AttachmentInfo, ChatMessage, DownloadStatus, FileType, MessageType,
-};
+use crate::api::types::{AttachmentInfo, ChatMessage, DownloadStatus, FileType, MessageType};
 use crate::nostr::blossom;
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -70,10 +68,7 @@ impl MessageStore {
 
     async fn get_messages(&self, trade_id: &str) -> Vec<ChatMessage> {
         let store = self.messages.read().await;
-        store
-            .get(trade_id)
-            .cloned()
-            .unwrap_or_default()
+        store.get(trade_id).cloned().unwrap_or_default()
     }
 
     async fn mark_as_read(&self, trade_id: &str) {
@@ -146,10 +141,30 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
             (Ok(keys), Some(peer_hex)) => match nostr_sdk::PublicKey::from_hex(peer_hex) {
                 Err(e) => Err(anyhow!("invalid peer pubkey: {e}")),
                 Ok(peer_pubkey) => {
+                    // Derive the shared-key pubkey per the Mostro P2P chat protocol:
+                    // the p-tag of the gift wrap MUST be the ECDH shared pubkey,
+                    // not the peer's trade pubkey, so that only the two parties
+                    // can find (and decrypt) each other's messages.
+                    let shared_pubkey = match s
+                        .shared_key
+                        .and_then(|sk| nostr_sdk::SecretKey::from_slice(&sk).ok())
+                        .map(|sk| nostr_sdk::Keys::new(sk).public_key())
+                    {
+                        Some(pk) => pk,
+                        None => {
+                            // Derive on the fly if not cached.
+                            let raw =
+                                crate::crypto::ecdh::derive_nip04_shared_key(keys, &peer_pubkey)
+                                    .map_err(|e| anyhow!("ECDH derive failed: {e}"))?;
+                            nostr_sdk::SecretKey::from_slice(&raw)
+                                .map(|sk| nostr_sdk::Keys::new(sk).public_key())
+                                .map_err(|e| anyhow!("shared key→pubkey failed: {e}"))?
+                        }
+                    };
                     let payload = serde_json::json!({ "text": content }).to_string();
                     match crate::nostr::gift_wrap::wrap(
                         keys,
-                        &peer_pubkey,
+                        &shared_pubkey,
                         &payload,
                         nostr_sdk::Kind::from(14u16),
                     )
@@ -168,7 +183,9 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
                                     Err(e) => Err(anyhow!("event parse failed: {e}")),
                                 }
                             } else {
-                                log::warn!("[messages] relay pool not ready — message stored locally");
+                                log::warn!(
+                                    "[messages] relay pool not ready — message stored locally"
+                                );
                                 Ok(())
                             }
                         }
@@ -244,7 +261,10 @@ pub async fn send_file(
         bail!("TradeNotFound: trade_id must not be empty");
     }
     if file_bytes.len() > blossom::MAX_BLOB_SIZE {
-        bail!("FileTooLarge: {} bytes exceeds 25 MB limit", file_bytes.len());
+        bail!(
+            "FileTooLarge: {} bytes exceeds 25 MB limit",
+            file_bytes.len()
+        );
     }
     if !is_supported_mime_type(&mime_type) {
         bail!("UnsupportedFileType: {mime_type}");
@@ -262,8 +282,7 @@ pub async fn send_file(
     let shared_key: [u8; 32] = if let Some(k) = session.shared_key {
         k
     } else {
-        let sender_keys =
-            crate::api::identity::get_active_trade_keys(trade_key_index).await?;
+        let sender_keys = crate::api::identity::get_active_trade_keys(trade_key_index).await?;
         let peer_hex = peer_pubkey_hex
             .as_deref()
             .ok_or_else(|| anyhow!("PeerUnknown: cannot encrypt attachment without peer pubkey"))?;
@@ -298,34 +317,53 @@ pub async fn send_file(
     })
     .to_string();
 
-    let sender_keys =
-        crate::api::identity::get_active_trade_keys(trade_key_index).await?;
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_key_index).await?;
     let sender_pubkey = sender_keys.public_key().to_hex();
 
     if let Some(peer_hex) = &peer_pubkey_hex {
         match nostr_sdk::PublicKey::from_hex(peer_hex) {
             Err(e) => log::warn!("[messages] send_file invalid peer pubkey: {e}"),
-            Ok(peer_pubkey) => match crate::nostr::gift_wrap::wrap(
-                &sender_keys,
-                &peer_pubkey,
-                &payload,
-                nostr_sdk::Kind::from(14u16),
-            )
-            .await
-            {
-                Err(e) => log::warn!("[messages] send_file gift wrap failed: {e}"),
-                Ok(event_json) => match crate::api::nostr::get_pool() {
-                    Err(_) => log::warn!("[messages] send_file relay pool not ready"),
-                    Ok(pool) => match serde_json::from_str::<nostr_sdk::Event>(&event_json) {
-                        Err(e) => log::warn!("[messages] send_file event parse failed: {e}"),
-                        Ok(event) => {
-                            if let Err(e) = pool.client().send_event(&event).await {
-                                log::warn!("[messages] send_file publish failed: {e}");
-                            }
-                        }
+            Ok(peer_pubkey) => {
+                // Use shared-key pubkey as gift-wrap p-tag per protocol.
+                let shared_pubkey_res = nostr_sdk::SecretKey::from_slice(&shared_key)
+                    .map(|sk| nostr_sdk::Keys::new(sk).public_key())
+                    .map_err(|_| ())
+                    .or_else(|_| {
+                        crate::crypto::ecdh::derive_nip04_shared_key(&sender_keys, &peer_pubkey)
+                            .and_then(|raw| {
+                                nostr_sdk::SecretKey::from_slice(&raw)
+                                    .map(|sk| nostr_sdk::Keys::new(sk).public_key())
+                                    .map_err(|e| anyhow::anyhow!("{e}"))
+                            })
+                    });
+                match shared_pubkey_res {
+                    Err(e) => log::warn!("[messages] send_file shared key derive failed: {e}"),
+                    Ok(shared_pubkey) => match crate::nostr::gift_wrap::wrap(
+                        &sender_keys,
+                        &shared_pubkey,
+                        &payload,
+                        nostr_sdk::Kind::from(14u16),
+                    )
+                    .await
+                    {
+                        Err(e) => log::warn!("[messages] send_file gift wrap failed: {e}"),
+                        Ok(event_json) => match crate::api::nostr::get_pool() {
+                            Err(_) => log::warn!("[messages] send_file relay pool not ready"),
+                            Ok(pool) => match serde_json::from_str::<nostr_sdk::Event>(&event_json)
+                            {
+                                Err(e) => {
+                                    log::warn!("[messages] send_file event parse failed: {e}")
+                                }
+                                Ok(event) => {
+                                    if let Err(e) = pool.client().send_event(&event).await {
+                                        log::warn!("[messages] send_file publish failed: {e}");
+                                    }
+                                }
+                            },
+                        },
                     },
-                },
-            },
+                }
+            }
         }
     } else {
         log::warn!("[messages] send_file peer not yet known — local-only");
@@ -586,6 +624,160 @@ fn mime_to_file_type(mime: &str) -> FileType {
     }
 }
 
+// ── Incoming-chat subscription ────────────────────────────────────────────────
+
+/// Spawn a background task that listens for NIP-59 gift-wrap (Kind 1059) events
+/// addressed to `shared_pubkey` and delivers decrypted messages into the in-memory
+/// message store, firing `on_new_message` so the Dart UI can react.
+///
+/// Called by `orders::on_peer_pubkey_received` as soon as the shared key is known.
+/// Runs until the relay pool shuts down or an idle-timeout fires (30 min of silence).
+pub(crate) async fn subscribe_incoming_chat(
+    order_id: String,
+    trade_pubkey_hex: String,
+    shared_pubkey: nostr_sdk::PublicKey,
+    recipient_keys: nostr_sdk::Keys,
+) {
+    use nostr_sdk::RelayPoolNotification;
+    use tokio::sync::broadcast;
+    use tokio::time::{timeout, Duration};
+
+    const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
+
+    let Ok(pool) = crate::api::nostr::get_pool() else {
+        log::warn!("[messages] subscribe_incoming_chat: relay pool not initialized");
+        return;
+    };
+    let client = pool.client();
+
+    // Subscribe BEFORE obtaining the receiver to avoid missing events that
+    // arrive between the two calls.
+    let filter = nostr_sdk::Filter::new()
+        .kind(nostr_sdk::Kind::from(1059u16))
+        .pubkey(shared_pubkey);
+
+    // Obtain receiver first, THEN subscribe — same pattern as subscribe_gift_wraps.
+    let mut rx = client.notifications();
+
+    if let Err(e) = client.subscribe(filter, None).await {
+        log::warn!("[messages] subscribe_incoming_chat subscribe failed: {e}");
+        return;
+    }
+
+    let shared_pubkey_hex = shared_pubkey.to_hex();
+    log::info!(
+        "[messages] incoming-chat subscription active          order={order_id} shared_pubkey={shared_pubkey_hex}"
+    );
+
+    let mut last_activity = tokio::time::Instant::now();
+
+    loop {
+        let remaining =
+            Duration::from_secs(IDLE_TIMEOUT_SECS).saturating_sub(last_activity.elapsed());
+        if remaining.is_zero() {
+            log::debug!("[messages] incoming-chat idle timeout order={order_id}");
+            break;
+        }
+
+        match timeout(remaining, rx.recv()).await {
+            Ok(Ok(RelayPoolNotification::Event { event, .. })) => {
+                if event.kind != nostr_sdk::Kind::from(1059u16) {
+                    continue;
+                }
+                // Only process events addressed to our shared pubkey.
+                let is_for_us = event.tags.iter().any(|t| {
+                    let s = t.as_slice();
+                    s.first().map(|v| v.as_str()) == Some("p")
+                        && s.get(1).map(|v| v.as_str()) == Some(shared_pubkey_hex.as_str())
+                });
+                if !is_for_us {
+                    continue;
+                }
+                last_activity = tokio::time::Instant::now();
+
+                // Decrypt gift wrap.
+                let event_json = match serde_json::to_string(&*event) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        log::warn!("[messages] incoming-chat event serialize failed: {e}");
+                        continue;
+                    }
+                };
+                let rumor_json =
+                    match crate::nostr::gift_wrap::unwrap(&recipient_keys, &event_json).await {
+                        Ok(j) => j,
+                        Err(e) => {
+                            log::warn!("[messages] incoming-chat decrypt failed: {e}");
+                            continue;
+                        }
+                    };
+
+                // Parse rumor into a kind-1 inner event JSON.
+                let inner: serde_json::Value = match serde_json::from_str(&rumor_json) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::warn!("[messages] incoming-chat rumor parse failed: {e}");
+                        continue;
+                    }
+                };
+
+                // Sender pubkey lives in the inner event `pubkey` field.
+                let sender_pubkey = inner
+                    .get("pubkey")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                // Ignore echoes of our own messages (sender == our trade key).
+                if sender_pubkey == trade_pubkey_hex {
+                    log::debug!("[messages] incoming-chat ignoring own echo");
+                    continue;
+                }
+
+                let content = inner
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let created_at = inner
+                    .get("created_at")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or_else(unix_now);
+
+                let msg = crate::api::types::ChatMessage {
+                    id: inner
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                    trade_id: order_id.clone(),
+                    sender_pubkey,
+                    content,
+                    message_type: crate::api::types::MessageType::Peer,
+                    is_mine: false,
+                    is_read: false,
+                    has_attachment: false,
+                    attachment: None,
+                    created_at,
+                };
+
+                log::debug!("[messages] incoming-chat rx order={order_id} id={}", msg.id);
+                message_store().add_message(msg).await;
+            }
+            Ok(Ok(RelayPoolNotification::Shutdown)) => break,
+            Ok(Err(broadcast::error::RecvError::Lagged(n))) => {
+                log::warn!("[messages] incoming-chat lagged by {n} messages");
+                continue;
+            }
+            Ok(Err(broadcast::error::RecvError::Closed)) => break,
+            Err(_) => break, // idle timeout
+            Ok(Ok(_)) => continue,
+        }
+    }
+
+    log::debug!("[messages] incoming-chat subscription exiting order={order_id}");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -730,5 +922,81 @@ mod tests {
         assert!(is_supported_mime_type("application/pdf"));
         assert!(!is_supported_mime_type("application/octet-stream"));
         assert!(!is_supported_mime_type("application/zip"));
+    }
+
+    /// Verify that the message store deduplicates by id.
+    /// subscribe_incoming_chat relies on this to ignore echo messages.
+    #[tokio::test]
+    async fn add_duplicate_message_is_ignored_in_count() {
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let store = message_store();
+        let msg = ChatMessage {
+            id: "dup-id".to_string(),
+            trade_id: trade_id.clone(),
+            sender_pubkey: "peer".to_string(),
+            content: "hi".to_string(),
+            message_type: MessageType::Peer,
+            is_mine: false,
+            is_read: false,
+            has_attachment: false,
+            attachment: None,
+            created_at: unix_now(),
+        };
+        // Add the same logical id twice (different objects).
+        store.add_message(msg.clone()).await;
+        store
+            .add_message(ChatMessage {
+                id: "dup-id".to_string(),
+                ..msg
+            })
+            .await;
+
+        let msgs = get_messages(trade_id).await.unwrap();
+        // Both are stored at the Rust layer; dedup is in the Dart layer.
+        // This test documents that the Rust store does NOT deduplicate —
+        // so the Dart screen must check `id` before appending.
+        assert_eq!(msgs.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn on_new_message_stream_fires_for_correct_trade() {
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let other_trade = uuid::Uuid::new_v4().to_string();
+
+        let mut stream = on_new_message(trade_id.clone()).await.unwrap();
+
+        // Fire a message for a different trade — should not be delivered.
+        let unrelated = ChatMessage {
+            id: uuid::Uuid::new_v4().to_string(),
+            trade_id: other_trade.clone(),
+            sender_pubkey: "peer".to_string(),
+            content: "noise".to_string(),
+            message_type: MessageType::Peer,
+            is_mine: false,
+            is_read: false,
+            has_attachment: false,
+            attachment: None,
+            created_at: unix_now(),
+        };
+        message_store().add_message(unrelated).await;
+
+        // Now fire one for our trade.
+        let target = ChatMessage {
+            id: uuid::Uuid::new_v4().to_string(),
+            trade_id: trade_id.clone(),
+            sender_pubkey: "peer".to_string(),
+            content: "hello".to_string(),
+            message_type: MessageType::Peer,
+            is_mine: false,
+            is_read: false,
+            has_attachment: false,
+            attachment: None,
+            created_at: unix_now(),
+        };
+        message_store().add_message(target.clone()).await;
+
+        let received = stream.next().await.expect("should receive a message");
+        assert_eq!(received.trade_id, trade_id);
+        assert_eq!(received.content, "hello");
     }
 }

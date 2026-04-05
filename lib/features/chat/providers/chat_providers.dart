@@ -1,6 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/src/rust/api/identity.dart' as identity_api;
+import 'package:mostro/src/rust/api/messages.dart' as messages_api;
+import 'package:mostro/src/rust/api/types.dart' as rust_types;
+
 // ── ChatRoomState ─────────────────────────────────────────────────────────────
 
 /// Immutable UI-layer model representing one active chat room (trade session).
@@ -93,9 +98,8 @@ class ChatRoomState {
 
 /// Manages the list of active chat rooms.
 ///
-/// Only includes sessions that have a peer pubkey AND at least one message.
-/// Currently returns an empty list; will be wired to the Rust bridge in a
-/// later phase.
+/// Only includes trades that have a non-empty [counterpartyPubkey] — i.e.
+/// trades where the peer's identity has been exchanged (hold invoice accepted).
 class ChatRoomsNotifier extends StateNotifier<List<ChatRoomState>> {
   ChatRoomsNotifier() : super(const []);
 
@@ -161,3 +165,100 @@ final chatCountProvider = Provider<int>((ref) {
 /// In-memory only. Sembast persistence deferred to a future phase.
 final chatReadStatusProvider =
     StateProvider<Map<String, int>>((_) => const {});
+
+// ── Trade → ChatRoom bridge ───────────────────────────────────────────────────
+
+/// Converts a [rust_types.TradeInfo] to a [ChatRoomState] asynchronously.
+///
+/// Returns `null` when [TradeInfo.counterpartyPubkey] is empty — meaning the
+/// peer identity has not been exchanged yet and there is no chat room to show.
+Future<ChatRoomState?> tradeInfoToChatRoom(
+  rust_types.TradeInfo trade,
+) async {
+  final peerPubkey = trade.counterpartyPubkey;
+  if (peerPubkey.isEmpty) return null;
+
+  // Derive NymIdentity from the peer's trade public key.
+  rust_types.NymIdentity nym;
+  try {
+    nym = await identity_api.getNymIdentity(pubkeyHex: peerPubkey);
+  } catch (e) {
+    debugPrint('[chat] getNymIdentity failed for $peerPubkey: $e');
+    // Fallback: generic identity derived from first bytes of pubkey hex.
+    final hash = peerPubkey.codeUnits.fold(0, (a, b) => a ^ b);
+    nym = rust_types.NymIdentity(
+      pseudonym: 'Trader ${peerPubkey.substring(0, 6)}',
+      iconIndex: hash % 37,
+      colorHue: hash % 360,
+    );
+  }
+
+  // Fetch persisted messages to populate last-message preview.
+  List<rust_types.ChatMessage> msgs;
+  try {
+    msgs = await messages_api.getMessages(tradeId: trade.order.id);
+  } catch (_) {
+    msgs = const [];
+  }
+
+  final last = msgs.isNotEmpty ? msgs.last : null;
+  final unreadCount = msgs.where((m) => !m.isRead && !m.isMine).length;
+
+  final iconIndex = nym.iconIndex.clamp(0, 36).toInt();
+  final colorHue = nym.colorHue.clamp(0, 359).toInt();
+
+  return ChatRoomState(
+    orderId: trade.order.id,
+    peerPubkey: peerPubkey,
+    peerHandle: nym.pseudonym,
+    peerIconIndex: iconIndex,
+    peerColorHue: colorHue,
+    isSelling: trade.role == rust_types.TradeRole.seller,
+    lastMessage: last?.content,
+    lastMessageIsOwn: last?.isMine ?? false,
+    lastMessageAt: last?.createdAt.toInt() ?? 0,
+    unreadCount: unreadCount,
+  );
+}
+
+/// FutureProvider that converts the full trade list into [ChatRoomState]s.
+///
+/// Only trades with a known peer pubkey are included. Sorted newest-message first.
+final chatRoomsFromTradesProvider =
+    FutureProvider<List<ChatRoomState>>((ref) async {
+  final trades = await ref.watch(rawTradesProvider.future);
+
+  final rooms = <ChatRoomState>[];
+  for (final trade in trades) {
+    final room = await tradeInfoToChatRoom(trade);
+    if (room != null) rooms.add(room);
+  }
+
+  rooms.sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
+  return rooms;
+});
+
+/// Stream provider that emits new [rust_types.ChatMessage]s for a given trade.
+///
+/// Used by [ChatRoomScreen] to update its local list in real-time without
+/// polling.
+final incomingMessageProvider =
+    StreamProvider.autoDispose.family<rust_types.ChatMessage, String>(
+  (ref, tradeId) async* {
+    final stream = await messages_api.onNewMessage(tradeId: tradeId);
+    while (true) {
+      final msg = await stream.next();
+      if (msg == null) break;
+      yield msg;
+    }
+  },
+);
+
+/// FutureProvider that loads the full message history for a trade once.
+///
+/// [ChatRoomScreen] seeds its local state from this, then appends live
+/// updates via [incomingMessageProvider].
+final messageHistoryProvider =
+    FutureProvider.autoDispose.family<List<rust_types.ChatMessage>, String>(
+  (ref, tradeId) => messages_api.getMessages(tradeId: tradeId),
+);
