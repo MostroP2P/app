@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/order/widgets/payment_method_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
 import 'package:mostro/src/rust/api/orders.dart' as rust_orders;
@@ -39,7 +40,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     Future.microtask(() {
       ref.read(selectedPaymentMethodsProvider.notifier).state = [];
       ref.read(customPaymentMethodProvider.notifier).state = '';
-      ref.read(selectedFiatCodeProvider.notifier).state = 'USD';
+      final defaultFiat =
+          ref.read(settingsProvider).defaultFiatCode ?? 'USD';
+      ref.read(selectedFiatCodeProvider.notifier).state = defaultFiat;
       ref.read(isMarketPriceProvider.notifier).state = true;
       ref.read(premiumValueProvider.notifier).state = 0.0;
       ref.read(fixedSatsProvider.notifier).state = '';
