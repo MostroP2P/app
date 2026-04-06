@@ -444,6 +444,41 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     .await?;
     publish_event_json(&event_json).await?;
 
+    // Persist a TradeInfo for the maker so the order appears in My Trades
+    // immediately after creation with status Pending / OrderPublished.
+    let maker_role = match order.kind {
+        OrderKind::Sell => crate::api::types::TradeRole::Seller,
+        OrderKind::Buy => crate::api::types::TradeRole::Buyer,
+    };
+    let maker_step = match maker_role {
+        crate::api::types::TradeRole::Seller => {
+            crate::api::types::TradeStep::Seller(crate::api::types::SellerStep::OrderPublished)
+        }
+        crate::api::types::TradeRole::Buyer => {
+            crate::api::types::TradeStep::Buyer(crate::api::types::BuyerStep::OrderTaken)
+        }
+    };
+    let trade = crate::api::types::TradeInfo {
+        id: order.id.clone(),
+        order: order.clone(),
+        role: maker_role,
+        counterparty_pubkey: String::new(),
+        current_step: maker_step,
+        hold_invoice: None,
+        buyer_invoice: None,
+        trade_key_index: trade_index,
+        cooperative_cancel_state: None,
+        timeout_at: None,
+        started_at: now,
+        completed_at: None,
+        outcome: None,
+    };
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db.save_trade(&trade).await {
+            log::warn!("[orders] failed to persist maker trade: {e}");
+        }
+    }
+
     log::info!(
         "[orders] create_order dispatched id={} trade_index={trade_index} ck={ck}",
         order.id
