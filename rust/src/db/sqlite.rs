@@ -18,8 +18,37 @@ impl SqliteStorage {
             .max_connections(4)
             .connect(&format!("sqlite://{}?mode=rwc", path))
             .await?;
+        Self::migrate(&pool).await?;
         sqlx::query(SQLITE_INIT_SQL).execute(&pool).await?;
         Ok(Self { pool })
+    }
+
+    /// Applies any schema migrations needed before the main DDL runs.
+    ///
+    /// Each migration checks for a specific old-schema marker and drops/recreates
+    /// the affected table.  Data loss is acceptable for tables that held no
+    /// user-critical data (e.g. cached order/trade state that is rebuilt from
+    /// the network), but the migration logs a warning so it is visible in debug
+    /// output.
+    async fn migrate(pool: &SqlitePool) -> Result<()> {
+        // Migration 1 → 2: trades table changed from individual columns to a
+        // single JSON `data` blob.  Detect the old schema by checking for the
+        // `order_id` column which does not exist in the new schema.
+        let old_trades: bool = sqlx::query_scalar(
+            "SELECT COUNT(*) > 0 FROM pragma_table_info('trades') WHERE name = 'order_id'",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap_or(false);
+
+        if old_trades {
+            log::warn!("[db] migrating trades table from schema v1 to v2 (dropping old rows)");
+            sqlx::query("DROP TABLE IF EXISTS trades")
+                .execute(pool)
+                .await?;
+        }
+
+        Ok(())
     }
 }
 
