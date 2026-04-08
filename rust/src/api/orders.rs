@@ -971,7 +971,15 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
             };
             let (bolt11, amount) = match &kind.payload {
                 Some(mostro_core::message::Payload::PaymentRequest(_, pr, amt)) => {
-                    (pr.clone(), amt.map(|a| a as u64))
+                    let sats = amt.and_then(|a| {
+                        u64::try_from(a).ok().or_else(|| {
+                            log::warn!(
+                                "[orders] gift-wrap PayInvoice: negative amount {a}, ignoring"
+                            );
+                            None
+                        })
+                    });
+                    (pr.clone(), sats)
                 }
                 _ => {
                     log::warn!(

@@ -113,7 +113,8 @@ impl Storage for IndexedDbStorage {
         _old_order_id: &str,
         _new_order_id: &str,
     ) -> Result<()> {
-        Ok(()) // no-op: IndexedDB persistence not yet implemented
+        log::warn!("update_trade_order_id: IndexedDB backend not implemented — trade order ID will not persist");
+        Ok(())
     }
 
     async fn update_trade_fields(
@@ -123,6 +124,7 @@ impl Storage for IndexedDbStorage {
         _hold_invoice: Option<String>,
         _amount_sats: Option<u64>,
     ) -> Result<()> {
-        Ok(()) // no-op: IndexedDB persistence not yet implemented
+        log::warn!("update_trade_fields: IndexedDB backend not implemented — trade fields will not persist");
+        Ok(())
     }
 }

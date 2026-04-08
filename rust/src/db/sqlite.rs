@@ -357,13 +357,17 @@ impl Storage for SqliteStorage {
         old_order_id: &str,
         new_order_id: &str,
     ) -> Result<()> {
-        let Some(mut trade) = self.get_trade_by_order_id(old_order_id).await? else {
-            return Ok(());
-        };
-        trade.order.id = new_order_id.to_string();
-        // Delete the old row (keyed by trade.id which hasn't changed) and re-save
-        // with the updated order.id embedded in the JSON blob.
-        self.save_trade(&trade).await
+        // Atomic single-statement update via json_set — no read-modify-write race.
+        sqlx::query(
+            "UPDATE trades \
+             SET data = json_set(data, '$.order.id', ?) \
+             WHERE json_extract(data, '$.order.id') = ?",
+        )
+        .bind(new_order_id)
+        .bind(old_order_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     async fn update_trade_fields(
@@ -373,18 +377,50 @@ impl Storage for SqliteStorage {
         hold_invoice: Option<String>,
         amount_sats: Option<u64>,
     ) -> Result<()> {
-        let Some(mut trade) = self.get_trade_by_order_id(order_id).await? else {
-            return Ok(());
-        };
-        if let Some(s) = status {
-            trade.order.status = s;
+        // Build the update atomically with json_set to avoid read-modify-write races.
+        // Start from `data` and layer each mutation.
+        let mut set_expr = String::from("data");
+        let mut binds: Vec<String> = Vec::new();
+
+        if let Some(ref s) = status {
+            let status_json = serde_json::to_string(s)?;
+            set_expr = format!("json_set({set_expr}, '$.order.status', json(?))");
+            binds.push(status_json);
         }
-        if hold_invoice.is_some() {
-            trade.hold_invoice = hold_invoice;
+        if let Some(ref inv) = hold_invoice {
+            set_expr = format!("json_set({set_expr}, '$.hold_invoice', ?)");
+            binds.push(inv.clone());
         }
         if let Some(sats) = amount_sats {
-            trade.order.amount_sats = Some(sats);
+            set_expr = format!("json_set({set_expr}, '$.order.amount_sats', ?)");
+            binds.push(sats.to_string());
         }
-        self.save_trade(&trade).await
+
+        if binds.is_empty() {
+            return Ok(());
+        }
+
+        // Also update the denormalised `status` column when status changes.
+        let status_col_update = if status.is_some() {
+            ", status = ?"
+        } else {
+            ""
+        };
+
+        let sql = format!(
+            "UPDATE trades SET data = {set_expr}{status_col_update} \
+             WHERE json_extract(data, '$.order.id') = ?"
+        );
+
+        let mut query = sqlx::query(&sql);
+        for val in &binds {
+            query = query.bind(val);
+        }
+        if let Some(ref s) = status {
+            query = query.bind(format!("{s:?}"));
+        }
+        query = query.bind(order_id);
+        query.execute(&self.pool).await?;
+        Ok(())
     }
 }
