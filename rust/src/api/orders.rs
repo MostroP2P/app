@@ -959,6 +959,123 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
             // can encrypt/decrypt P2P messages and subscribe to the right p-tag.
             on_peer_pubkey_received(&order_id, trade_pubkey_hex, &peer_pubkey_hex).await;
         }
+        // Mostro sends PayInvoice to the seller with the hold invoice bolt11
+        // when a buyer takes a sell order (or a seller takes a buy order).
+        Action::PayInvoice => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] gift-wrap PayInvoice has no order id");
+                    return;
+                }
+            };
+            let (bolt11, amount) = match &kind.payload {
+                Some(mostro_core::message::Payload::PaymentRequest(_, pr, amt)) => {
+                    (pr.clone(), amt.map(|a| a as u64))
+                }
+                _ => {
+                    log::warn!(
+                        "[orders] gift-wrap PayInvoice payload is not a PaymentRequest"
+                    );
+                    return;
+                }
+            };
+            log::info!(
+                "[orders] gift-wrap PayInvoice: order={order_id} invoice_len={} amount={:?}",
+                bolt11.len(),
+                amount
+            );
+            // Save the hold invoice and update status to WaitingPayment in the DB.
+            if let Some(db) = crate::db::app_db::db() {
+                if let Err(e) = db
+                    .update_trade_fields(
+                        &order_id,
+                        Some(crate::api::types::OrderStatus::WaitingPayment),
+                        Some(bolt11),
+                        amount,
+                    )
+                    .await
+                {
+                    log::warn!(
+                        "[orders] failed to save hold invoice for order={order_id}: {e}"
+                    );
+                }
+            }
+        }
+        // Handle remaining status-update actions from the daemon by syncing
+        // the trade status in the DB so My Trades reflects the current state.
+        Action::WaitingSellerToPay
+        | Action::WaitingBuyerInvoice
+        | Action::BuyerInvoiceAccepted
+        | Action::FiatSentOk
+        | Action::HoldInvoicePaymentSettled
+        | Action::HoldInvoicePaymentCanceled
+        | Action::Released
+        | Action::PurchaseCompleted
+        | Action::CooperativeCancelAccepted
+        | Action::CooperativeCancelInitiatedByPeer
+        | Action::CooperativeCancelInitiatedByYou
+        | Action::DisputeInitiatedByYou
+        | Action::DisputeInitiatedByPeer
+        | Action::AdminSettled
+        | Action::AdminCanceled => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::debug!("[orders] gift-wrap {:?} has no order id", kind.action);
+                    return;
+                }
+            };
+            // Map action → OrderStatus for DB sync.
+            let new_status = match kind.action {
+                Action::WaitingSellerToPay => Some(crate::api::types::OrderStatus::WaitingPayment),
+                Action::WaitingBuyerInvoice => {
+                    Some(crate::api::types::OrderStatus::WaitingBuyerInvoice)
+                }
+                Action::BuyerInvoiceAccepted | Action::FiatSentOk => {
+                    Some(crate::api::types::OrderStatus::Active)
+                }
+                Action::HoldInvoicePaymentSettled | Action::Released | Action::PurchaseCompleted => {
+                    Some(crate::api::types::OrderStatus::SettledHoldInvoice)
+                }
+                Action::HoldInvoicePaymentCanceled => {
+                    Some(crate::api::types::OrderStatus::Canceled)
+                }
+                Action::CooperativeCancelAccepted => {
+                    Some(crate::api::types::OrderStatus::CooperativelyCanceled)
+                }
+                Action::CooperativeCancelInitiatedByPeer
+                | Action::CooperativeCancelInitiatedByYou => None, // status doesn't change yet
+                Action::DisputeInitiatedByYou | Action::DisputeInitiatedByPeer => {
+                    Some(crate::api::types::OrderStatus::Dispute)
+                }
+                Action::AdminSettled => Some(crate::api::types::OrderStatus::SettledByAdmin),
+                Action::AdminCanceled => Some(crate::api::types::OrderStatus::CanceledByAdmin),
+                _ => None,
+            };
+            if let Some(status) = new_status {
+                log::info!(
+                    "[orders] gift-wrap {:?}: syncing order={order_id} status={:?}",
+                    kind.action,
+                    status
+                );
+                if let Some(db) = crate::db::app_db::db() {
+                    if let Err(e) = db
+                        .update_trade_fields(&order_id, Some(status), None, None)
+                        .await
+                    {
+                        log::warn!(
+                            "[orders] failed to sync trade status for order={order_id}: {e}"
+                        );
+                    }
+                }
+            } else {
+                log::debug!(
+                    "[orders] gift-wrap {:?}: order={order_id} (no status change)",
+                    kind.action
+                );
+            }
+        }
         action => {
             log::debug!("[orders] gift-wrap unhandled action={action:?}");
         }
@@ -1108,6 +1225,23 @@ async fn subscribe_single_order(order_id: &str) {
                                 order.status
                             );
                             last_activity = tokio::time::Instant::now();
+                            // Sync trade status in DB so My Trades reflects it.
+                            if let Some(db) = crate::db::app_db::db() {
+                                if let Err(e) = db
+                                    .update_trade_fields(
+                                        &order.id,
+                                        Some(order.status.clone()),
+                                        None,
+                                        order.amount_sats,
+                                    )
+                                    .await
+                                {
+                                    log::warn!(
+                                        "[orders] failed to sync d-tag trade status for order={}: {e}",
+                                        order.id
+                                    );
+                                }
+                            }
                             order_book().upsert_order(order).await;
                         }
                     }
@@ -1270,6 +1404,21 @@ async fn _run_order_subscription() {
                                 // order book only contains the daemon's real UUID.
                                 if let Some(local_id) = take_pending_local_id(&ck) {
                                     order_book().remove_order(&local_id).await;
+                                    // Update the DB trade record so it references the
+                                    // daemon UUID — otherwise tradeStatusProvider polls
+                                    // with the stale local UUID and never finds the order.
+                                    if let Some(db) = crate::db::app_db::db() {
+                                        if let Err(e) = db
+                                            .update_trade_order_id(&local_id, &info.id)
+                                            .await
+                                        {
+                                            log::warn!(
+                                                "[orders] failed to update trade order_id \
+                                                 {local_id} → {}: {e}",
+                                                info.id
+                                            );
+                                        }
+                                    }
                                     log::info!(
                                         "[orders] replaced local order={local_id} with daemon order={}",
                                         info.id
@@ -1277,6 +1426,26 @@ async fn _run_order_subscription() {
                                 } else {
                                     log::info!(
                                         "[orders] own order={} detected via content match trade_index={trade_idx}",
+                                        info.id
+                                    );
+                                }
+                            }
+                        }
+                        // Sync trade status in DB for own orders so My Trades
+                        // reflects status changes even without gift-wrap delivery.
+                        if info.is_mine && info.status != crate::api::types::OrderStatus::Pending {
+                            if let Some(db) = crate::db::app_db::db() {
+                                if let Err(e) = db
+                                    .update_trade_fields(
+                                        &info.id,
+                                        Some(info.status.clone()),
+                                        None,
+                                        info.amount_sats,
+                                    )
+                                    .await
+                                {
+                                    log::warn!(
+                                        "[orders] failed to sync trade status for order={}: {e}",
                                         info.id
                                     );
                                 }

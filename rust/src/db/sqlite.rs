@@ -351,4 +351,40 @@ impl Storage for SqliteStorage {
         .await?;
         Ok(row.map(|(data,)| serde_json::from_str(&data)).transpose()?)
     }
+
+    async fn update_trade_order_id(
+        &self,
+        old_order_id: &str,
+        new_order_id: &str,
+    ) -> Result<()> {
+        let Some(mut trade) = self.get_trade_by_order_id(old_order_id).await? else {
+            return Ok(());
+        };
+        trade.order.id = new_order_id.to_string();
+        // Delete the old row (keyed by trade.id which hasn't changed) and re-save
+        // with the updated order.id embedded in the JSON blob.
+        self.save_trade(&trade).await
+    }
+
+    async fn update_trade_fields(
+        &self,
+        order_id: &str,
+        status: Option<crate::api::types::OrderStatus>,
+        hold_invoice: Option<String>,
+        amount_sats: Option<u64>,
+    ) -> Result<()> {
+        let Some(mut trade) = self.get_trade_by_order_id(order_id).await? else {
+            return Ok(());
+        };
+        if let Some(s) = status {
+            trade.order.status = s;
+        }
+        if hold_invoice.is_some() {
+            trade.hold_invoice = hold_invoice;
+        }
+        if let Some(sats) = amount_sats {
+            trade.order.amount_sats = Some(sats);
+        }
+        self.save_trade(&trade).await
+    }
 }

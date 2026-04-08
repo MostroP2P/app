@@ -75,4 +75,26 @@ pub trait Storage: Send + Sync {
         &self,
         order_id: &str,
     ) -> Result<Option<crate::api::types::TradeInfo>>;
+
+    /// Update the order ID inside a persisted trade (e.g. local UUID → daemon UUID).
+    ///
+    /// Loads the trade whose `order.id == old_order_id`, replaces `order.id`
+    /// with `new_order_id`, and re-saves it. No-op when no matching trade exists.
+    async fn update_trade_order_id(
+        &self,
+        old_order_id: &str,
+        new_order_id: &str,
+    ) -> Result<()>;
+
+    /// Update fields on a persisted trade identified by `order.id`.
+    ///
+    /// Applies the provided mutations and re-saves. No-op when no matching
+    /// trade exists.
+    async fn update_trade_fields(
+        &self,
+        order_id: &str,
+        status: Option<crate::api::types::OrderStatus>,
+        hold_invoice: Option<String>,
+        amount_sats: Option<u64>,
+    ) -> Result<()>;
 }
