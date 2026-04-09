@@ -12,6 +12,8 @@ import 'package:mostro/src/rust/api/types.dart' as rust_types;
 enum TradeStatusFilter {
   all('All'),
   pending('Pending'),
+  waitingInvoice('Waiting Invoice'),
+  waitingPayment('Waiting Payment'),
   active('Active'),
   fiatSent('Fiat Sent'),
   success('Success'),
@@ -75,8 +77,8 @@ class TradeListItem {
 TradeStatusFilter orderStatusToFilter(rust_types.OrderStatus status) {
   return switch (status) {
     rust_types.OrderStatus.pending => TradeStatusFilter.pending,
-    rust_types.OrderStatus.waitingBuyerInvoice => TradeStatusFilter.pending,
-    rust_types.OrderStatus.waitingPayment => TradeStatusFilter.pending,
+    rust_types.OrderStatus.waitingBuyerInvoice => TradeStatusFilter.waitingInvoice,
+    rust_types.OrderStatus.waitingPayment => TradeStatusFilter.waitingPayment,
     rust_types.OrderStatus.active => TradeStatusFilter.active,
     rust_types.OrderStatus.inProgress => TradeStatusFilter.active,
     rust_types.OrderStatus.fiatSent => TradeStatusFilter.fiatSent,
