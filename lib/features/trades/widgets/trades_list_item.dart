@@ -19,7 +19,8 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 /// Watches [tradeStatusProvider] to keep the status chip current without
 /// requiring a full list reload.
 ///
-/// Tap → navigates to `/trade_detail/:orderId`.
+/// Tap → navigates to `/my_order/:orderId` for pending creator orders,
+/// or `/trade_detail/:orderId` otherwise (active creators and all takers).
 class TradesListItem extends ConsumerWidget {
   const TradesListItem({
     super.key,
@@ -58,7 +59,11 @@ class TradesListItem extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: () => context.push(AppRoute.tradeDetailPath(trade.orderId)),
+        onTap: () => context.push(
+          trade.role == TradeRole.creator && effectiveStatus == TradeStatusFilter.pending
+              ? AppRoute.myOrderPath(trade.orderId)
+              : AppRoute.tradeDetailPath(trade.orderId),
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,

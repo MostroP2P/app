@@ -748,6 +748,25 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let event_json = actions::cancel(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
     publish_event_json(&event_json).await?;
+
+    // Optimistic update: mark the trade as Canceled in the local DB immediately
+    // so the UI reflects the change without waiting for the daemon's gift-wrap
+    // response. Also remove the order from the in-memory order book.
+    order_book().remove_order(&order_id).await;
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db
+            .update_trade_fields(
+                &order_id,
+                Some(crate::api::types::OrderStatus::Canceled),
+                None,
+                None,
+            )
+            .await
+        {
+            log::warn!("[orders] failed to optimistically update cancel status for {order_id}: {e}");
+        }
+    }
+
     log::info!("[orders] cancel published for order={order_id} trade_index={trade_index}");
     Ok(())
 }
@@ -904,7 +923,23 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
         Action::Canceled => {
             log::info!("[orders] gift-wrap Canceled for trade={trade_pubkey_hex}");
             if let Some(order_id) = &kind.id {
-                order_book().remove_order(&order_id.to_string()).await;
+                let oid = order_id.to_string();
+                order_book().remove_order(&oid).await;
+                // Sync the Canceled status into the trade DB so My Trades
+                // reflects the cancellation immediately.
+                if let Some(db) = crate::db::app_db::db() {
+                    if let Err(e) = db
+                        .update_trade_fields(
+                            &oid,
+                            Some(crate::api::types::OrderStatus::Canceled),
+                            None,
+                            None,
+                        )
+                        .await
+                    {
+                        log::warn!("[orders] failed to sync Canceled status for {oid}: {e}");
+                    }
+                }
             }
         }
         // Seller receives BuyerTookOrder → peer is buyer_trade_pubkey.

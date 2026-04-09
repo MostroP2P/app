@@ -99,11 +99,16 @@ class _TradesScreenState extends ConsumerState<TradesScreen> {
                     ),
             ),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => _ErrorState(
-              colors: colors,
-              onRetry: () =>
-                  ref.invalidate(filteredTradesWithOrderStateProvider),
-            ),
+            error: (e, st) {
+              debugPrint('[TradesScreen] load error: $e\n$st');
+              return _ErrorState(
+                colors: colors,
+                onRetry: () {
+                  ref.invalidate(rawTradesProvider);
+                  ref.invalidate(filteredTradesWithOrderStateProvider);
+                },
+              );
+            },
           ),
         ),
       ],

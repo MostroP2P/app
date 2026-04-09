@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -58,6 +59,8 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     setState(() => _cancelling = true);
     try {
       await orders_api.cancelOrder(orderId: widget.orderId);
+      // Force the trades list to reload from DB so the Canceled status shows.
+      ref.invalidate(rawTradesProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.orderCancelledSuccess)),
@@ -77,7 +80,20 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
   @override
   Widget build(BuildContext context) {
     final orders = ref.watch(orderBookProvider).valueOrNull ?? [];
-    final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
+    var order = orders.where((o) => o.id == widget.orderId).firstOrNull;
+    // Fallback to the persisted trade DB when the order is no longer in the
+    // in-memory order book (e.g. it was taken and moved out of pending).
+    if (order == null) {
+      final tradeInfo = ref.watch(tradeInfoProvider(widget.orderId));
+      if (tradeInfo.valueOrNull?.order != null) {
+        order = OrderItem.fromInfo(tradeInfo.value!.order);
+      } else if (tradeInfo.isLoading) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('')),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+      }
+    }
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
@@ -93,12 +109,13 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
         body: Center(child: Text(l10nNull.orderNotFoundMessage)),
       );
     }
+    final resolvedOrder = order;
 
     final l10n = AppLocalizations.of(context);
-    final flag = flags[order.fiatCode] ?? '';
-    final isSelling = order.kind == 'sell';
+    final flag = flags[resolvedOrder.fiatCode] ?? '';
+    final isSelling = resolvedOrder.kind == 'sell';
     final title = isSelling ? l10n.myOrderSellTitle : l10n.myOrderBuyTitle;
-    final premiumPositive = order.premium >= 0;
+    final premiumPositive = resolvedOrder.premium >= 0;
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
@@ -112,12 +129,12 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${order.displayAmount} ${order.fiatCode} $flag',
+                  '${resolvedOrder.displayAmount} ${resolvedOrder.fiatCode} $flag',
                   style: theme.textTheme.headlineMedium,
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Market Price (${premiumPositive ? '+' : ''}${order.premium.toStringAsFixed(1)}%)',
+                  'Market Price (${premiumPositive ? '+' : ''}${resolvedOrder.premium.toStringAsFixed(1)}%)',
                   style: TextStyle(
                     color: premiumPositive ? green : sellColor,
                     fontSize: 13,
@@ -137,7 +154,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    order.paymentMethod,
+                    resolvedOrder.paymentMethod,
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
@@ -154,7 +171,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 Icon(Icons.calendar_today_outlined, size: 18, color: textSec),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  _formatDate(order.createdAt, Localizations.localeOf(context).toString()),
+                  _formatDate(resolvedOrder.createdAt, Localizations.localeOf(context).toString()),
                   style: theme.textTheme.bodyMedium,
                 ),
               ],
@@ -169,7 +186,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    order.id,
+                    resolvedOrder.id,
                     style: theme.textTheme.bodySmall!.copyWith(
                       fontFamily: 'monospace',
                     ),
@@ -178,7 +195,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 ),
                 IconButton(
                   onPressed: () {
-                    Clipboard.setData(ClipboardData(text: order.id));
+                    Clipboard.setData(ClipboardData(text: resolvedOrder.id));
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(l10n.orderIdCopied),
@@ -200,7 +217,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
           _InfoCard(
             color: cardBg,
             child: Builder(builder: (ctx) {
-              final status = _statusInfo(ctx, order.status);
+              final status = _statusInfo(ctx, resolvedOrder.status);
               return Row(
                 children: [
                   Icon(status.icon, size: 18, color: status.color),
