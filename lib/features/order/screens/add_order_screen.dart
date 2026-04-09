@@ -129,10 +129,13 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       await rust_orders.createOrder(params: params);
 
       // Persist the updated trade key index so it survives app restarts.
-      final identity = await identity_api.getIdentity();
-      if (identity != null) {
-        await IdentityService.saveTradeKeyIndex(identity.tradeKeyIndex);
-      }
+      // Failures here are non-fatal — the order was already created.
+      try {
+        final identity = await identity_api.getIdentity();
+        if (identity != null) {
+          await IdentityService.saveTradeKeyIndex(identity.tradeKeyIndex);
+        }
+      } catch (_) {}
 
       refreshTrades(ref);
 
@@ -142,7 +145,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       if (!mounted) return;
       // CantDo rejections from Mostro arrive as errors from createOrder.
       // Strip the Rust error prefix for a cleaner message.
-      final msg = e.toString().replaceFirst(RegExp(r'^.*?AnyhowException\('), '').replaceFirst(RegExp(r'\)$'), '');
+      final raw = e.toString();
+      final anyhowMatch = RegExp(r'^.*?AnyhowException\((.+)\)$').firstMatch(raw);
+      final msg = anyhowMatch != null ? anyhowMatch.group(1)! : raw;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg)),
       );

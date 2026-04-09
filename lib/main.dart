@@ -131,10 +131,6 @@ void _restoreNwcConnection(String nwcUri, ProviderContainer container) {
 
 /// Forward Rust log entries to debugPrint so they are visible in `flutter run`.
 ///
-/// Only active in debug builds. Filters to gift-wrap, orders, and trade-related
-/// tags to avoid flooding the console.
-/// Forward Rust log entries to debugPrint so they are visible in `flutter run`.
-///
 /// Only active in debug builds.
 void _forwardRustLogs() {
   if (!kDebugMode) return;

@@ -544,7 +544,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         _ => {
             // Timeout — optimistic: use local UUID and add to book/DB.
             crate::api::logging::blog_info("orders", format!(
-                "create_order: no daemon response within 15s, using local id={}", order.id
+                "create_order: no daemon response within 5s, using local id={}", order.id
             ));
             order.id.clone()
         }
