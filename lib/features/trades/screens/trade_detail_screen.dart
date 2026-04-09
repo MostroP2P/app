@@ -326,9 +326,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     }
 
     // Derive trade status from the polled order status.
-    final orderStatus = ref.watch(tradeStatusProvider(widget.orderId)).valueOrNull
-        ?? OrderStatus.pending;
-    final status = _mapOrderStatus(orderStatus);
+    // Use TradeStatus.loading while the provider hasn't resolved so the UI
+    // doesn't flash the pending CTA before the real status is known.
+    final tradeStatusAsync = ref.watch(tradeStatusProvider(widget.orderId));
+    final TradeStatus status;
+    if (tradeStatusAsync.hasValue) {
+      status = _mapOrderStatus(tradeStatusAsync.value!);
+    } else if (tradeStatusAsync.hasError) {
+      status = TradeStatus.loading;
+    } else {
+      status = TradeStatus.loading;
+    }
 
     // Look up order details from the live order book.
     final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
