@@ -13,6 +13,7 @@ import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
 import 'package:mostro/features/trades/widgets/trade_info_cards.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
@@ -161,6 +162,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     if (confirmed != true || !mounted) return;
     try {
       await orders_api.cancelOrder(orderId: widget.orderId);
+      ref.invalidate(rawTradesProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.cancelRequestSent)),

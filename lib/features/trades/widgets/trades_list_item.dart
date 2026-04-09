@@ -58,7 +58,11 @@ class TradesListItem extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: () => context.push(AppRoute.myOrderPath(trade.orderId)),
+        onTap: () => context.push(
+          trade.role == TradeRole.taker
+              ? AppRoute.tradeDetailPath(trade.orderId)
+              : AppRoute.myOrderPath(trade.orderId),
+        ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,

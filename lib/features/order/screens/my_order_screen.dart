@@ -84,8 +84,15 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     // Fallback to the persisted trade DB when the order is no longer in the
     // in-memory order book (e.g. it was taken and moved out of pending).
     if (order == null) {
-      final tradeOrder = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull?.order;
-      if (tradeOrder != null) order = OrderItem.fromInfo(tradeOrder);
+      final tradeInfo = ref.watch(tradeInfoProvider(widget.orderId));
+      if (tradeInfo.valueOrNull?.order != null) {
+        order = OrderItem.fromInfo(tradeInfo.value!.order);
+      } else if (tradeInfo.isLoading) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('')),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+      }
     }
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();

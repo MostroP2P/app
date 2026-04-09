@@ -36,6 +36,7 @@ final tradeStatusProvider =
     final info = await orders_api.getOrder(orderId: orderId);
     if (info != null) {
       yield info.status;
+      if (_isTerminal(info.status)) return;
     } else {
       // Order removed from in-memory book — check the persisted trade DB.
       final trades = await orders_api.listTrades();
