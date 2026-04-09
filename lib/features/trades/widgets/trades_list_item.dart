@@ -158,6 +158,8 @@ class TradesListItem extends ConsumerWidget {
   static (Color, Color) _statusColors(TradeStatusFilter status) {
     return switch (status) {
       TradeStatusFilter.pending => AppColors.statusPending,
+      TradeStatusFilter.waitingInvoice => AppColors.statusWaiting,
+      TradeStatusFilter.waitingPayment => AppColors.statusWaiting,
       TradeStatusFilter.active => AppColors.statusActive,
       TradeStatusFilter.fiatSent => AppColors.statusActive,
       TradeStatusFilter.success => AppColors.statusSuccess,

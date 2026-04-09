@@ -53,8 +53,16 @@ pub fn install_log_bridge() {
 
         // Install a custom log::Log that forwards every record.
         // max_level is set to Debug so Info/Warn/Error all flow through.
-        let _ = log::set_logger(&BRIDGE_LOGGER);
-        log::set_max_level(log::LevelFilter::Debug);
+        // If a dependency already set a logger, this fails silently —
+        // the eprintln! fallback in BridgeLogger::log still works, but the
+        // Flutter stream won't receive entries via the log crate.
+        match log::set_logger(&BRIDGE_LOGGER) {
+            Ok(()) => log::set_max_level(log::LevelFilter::Debug),
+            Err(e) => eprintln!(
+                "[logging] WARN: set_logger failed ({e}), another logger is already active. \
+                 Using direct bridge for Flutter stream."
+            ),
+        }
     });
 }
 
@@ -112,6 +120,21 @@ pub(crate) fn forward_log(level: log::Level, target: &str, message: &str) {
         }
     }
 }
+
+/// Send a log entry directly to the Flutter stream, bypassing the `log` crate.
+///
+/// Use this when the `log` crate logger may have been hijacked by a dependency.
+/// The entry is also printed to stderr for terminal visibility.
+pub(crate) fn bridge_log(level: log::Level, tag: &str, message: &str) {
+    eprintln!("[{level}] {tag}: {message}");
+    forward_log(level, tag, message);
+}
+
+/// Shorthand helpers — always reach both stderr and the Flutter log stream.
+pub(crate) fn blog_info(tag: &str, msg: String) { bridge_log(log::Level::Info, tag, &msg); }
+pub(crate) fn blog_warn(tag: &str, msg: String) { bridge_log(log::Level::Warn, tag, &msg); }
+pub(crate) fn blog_debug(tag: &str, msg: String) { bridge_log(log::Level::Debug, tag, &msg); }
+
 
 // ── FRB stream ───────────────────────────────────────────────────────────────
 

@@ -157,7 +157,6 @@ final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) asyn
   while (true) {
     final orders = await stream.next();
     if (orders == null) break;
-    debugPrint('[orderBook] update: ${orders.length} orders');
     yield orders.map(OrderItem.fromInfo).toList();
   }
 });
