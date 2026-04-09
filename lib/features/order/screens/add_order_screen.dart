@@ -8,8 +8,10 @@ import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/order/widgets/payment_method_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
+import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades;
+import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/src/rust/api/orders.dart' as rust_orders;
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -125,14 +127,24 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       );
 
       await rust_orders.createOrder(params: params);
+
+      // Persist the updated trade key index so it survives app restarts.
+      final identity = await identity_api.getIdentity();
+      if (identity != null) {
+        await IdentityService.saveTradeKeyIndex(identity.tradeKeyIndex);
+      }
+
       refreshTrades(ref);
 
       if (!mounted) return;
       context.go(AppRoute.orderBook);
     } catch (e) {
       if (!mounted) return;
+      // CantDo rejections from Mostro arrive as errors from createOrder.
+      // Strip the Rust error prefix for a cleaner message.
+      final msg = e.toString().replaceFirst(RegExp(r'^.*?AnyhowException\('), '').replaceFirst(RegExp(r'\)$'), '');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create order: $e')),
+        SnackBar(content: Text(msg)),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

@@ -7,8 +7,6 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/notifications/services/push_notification_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
-import 'package:mostro/features/trades/providers/trades_providers.dart';
-import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 /// Root application widget.
 ///
@@ -22,9 +20,6 @@ class MostroApp extends ConsumerStatefulWidget {
   ConsumerState<MostroApp> createState() => _MostroAppState();
 }
 
-/// Global key for showing snackbars from anywhere (e.g. Rust order events).
-final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-
 class _MostroAppState extends ConsumerState<MostroApp> {
   @override
   void initState() {
@@ -35,40 +30,6 @@ class _MostroAppState extends ConsumerState<MostroApp> {
         await PushNotificationService.instance.initialize(container: container);
       } catch (e) {
         debugPrint('[app] push notification init failed: $e');
-      }
-    });
-    _listenOrderEvents();
-  }
-
-  /// Listen for daemon order rejection events and show a snackbar + refresh trades.
-  ///
-  /// Guarded by [_orderEventListenerActive] so hot reload/restart doesn't
-  /// create duplicate listeners on the same broadcast channel.
-  static bool _orderEventListenerActive = false;
-
-  void _listenOrderEvents() {
-    if (_orderEventListenerActive) return;
-    _orderEventListenerActive = true;
-    Future.microtask(() async {
-      try {
-        final stream = await orders_api.onOrderEvent();
-        while (mounted) {
-          final event = await stream.next();
-          if (event == null || !mounted) break;
-          debugPrint('[order-event] ${event.reason}: ${event.message}');
-          rootScaffoldMessengerKey.currentState?.showSnackBar(
-            SnackBar(
-              content: Text(event.message),
-              duration: const Duration(seconds: 4),
-            ),
-          );
-          // Refresh the trades list so the removed/canceled order disappears.
-          ref.invalidate(rawTradesProvider);
-        }
-      } catch (e) {
-        debugPrint('[order-event] listener error: $e');
-      } finally {
-        _orderEventListenerActive = false;
       }
     });
   }
@@ -86,7 +47,6 @@ class _MostroAppState extends ConsumerState<MostroApp> {
     final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
 
     return MaterialApp.router(
-      scaffoldMessengerKey: rootScaffoldMessengerKey,
       title: 'Mostro',
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
