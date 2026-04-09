@@ -351,4 +351,76 @@ impl Storage for SqliteStorage {
         .await?;
         Ok(row.map(|(data,)| serde_json::from_str(&data)).transpose()?)
     }
+
+    async fn update_trade_order_id(
+        &self,
+        old_order_id: &str,
+        new_order_id: &str,
+    ) -> Result<()> {
+        // Atomic single-statement update via json_set — no read-modify-write race.
+        sqlx::query(
+            "UPDATE trades \
+             SET data = json_set(data, '$.order.id', ?) \
+             WHERE json_extract(data, '$.order.id') = ?",
+        )
+        .bind(new_order_id)
+        .bind(old_order_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn update_trade_fields(
+        &self,
+        order_id: &str,
+        status: Option<crate::api::types::OrderStatus>,
+        hold_invoice: Option<String>,
+        amount_sats: Option<u64>,
+    ) -> Result<()> {
+        // Build the update atomically with json_set to avoid read-modify-write races.
+        // Start from `data` and layer each mutation.
+        let mut set_expr = String::from("data");
+        let mut binds: Vec<String> = Vec::new();
+
+        if let Some(ref s) = status {
+            let status_json = serde_json::to_string(s)?;
+            set_expr = format!("json_set({set_expr}, '$.order.status', json(?))");
+            binds.push(status_json);
+        }
+        if let Some(ref inv) = hold_invoice {
+            set_expr = format!("json_set({set_expr}, '$.hold_invoice', ?)");
+            binds.push(inv.clone());
+        }
+        if let Some(sats) = amount_sats {
+            set_expr = format!("json_set({set_expr}, '$.order.amount_sats', ?)");
+            binds.push(sats.to_string());
+        }
+
+        if binds.is_empty() {
+            return Ok(());
+        }
+
+        // Also update the denormalised `status` column when status changes.
+        let status_col_update = if status.is_some() {
+            ", status = ?"
+        } else {
+            ""
+        };
+
+        let sql = format!(
+            "UPDATE trades SET data = {set_expr}{status_col_update} \
+             WHERE json_extract(data, '$.order.id') = ?"
+        );
+
+        let mut query = sqlx::query(&sql);
+        for val in &binds {
+            query = query.bind(val);
+        }
+        if let Some(ref s) = status {
+            query = query.bind(format!("{s:?}"));
+        }
+        query = query.bind(order_id);
+        query.execute(&self.pool).await?;
+        Ok(())
+    }
 }

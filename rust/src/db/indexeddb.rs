@@ -107,4 +107,24 @@ impl Storage for IndexedDbStorage {
     ) -> Result<Option<crate::api::types::TradeInfo>> {
         Ok(None) // no persisted trade: role lookup returns None
     }
+
+    async fn update_trade_order_id(
+        &self,
+        _old_order_id: &str,
+        _new_order_id: &str,
+    ) -> Result<()> {
+        log::warn!("update_trade_order_id: IndexedDB backend not implemented — trade order ID will not persist");
+        Ok(())
+    }
+
+    async fn update_trade_fields(
+        &self,
+        _order_id: &str,
+        _status: Option<crate::api::types::OrderStatus>,
+        _hold_invoice: Option<String>,
+        _amount_sats: Option<u64>,
+    ) -> Result<()> {
+        log::warn!("update_trade_fields: IndexedDB backend not implemented — trade fields will not persist");
+        Ok(())
+    }
 }
