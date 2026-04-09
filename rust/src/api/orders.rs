@@ -508,7 +508,14 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // find the entry and notify us instead of being silently discarded.
     subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
 
-    publish_event_json(&event_json).await?;
+    if let Err(e) = publish_event_json(&event_json).await {
+        // Rollback all in-memory bookkeeping on publish failure.
+        if let Ok(mut m) = trade_key_map().write() { m.remove(&order.id); m.remove(&ck); }
+        if let Ok(mut m) = pending_maker_keys().write() { m.remove(&trade_pk_hex); }
+        if let Ok(mut m) = pending_local_ids().write() { m.remove(&ck); }
+        if let Ok(mut m) = pending_confirmations().lock() { m.remove(&trade_pk_hex); }
+        return Err(e.into());
+    }
 
     crate::api::logging::blog_info("orders", format!(
         "create_order published id={} trade_index={trade_index} — waiting for daemon",
@@ -883,39 +890,46 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
 /// - `Action::NewOrder` — daemon confirmed the order; bridges daemon UUID into
 ///   `TRADE_KEY_MAP` via `resolve_maker_order`.
 /// - All other actions are logged (full trade-session routing is Phase 7+).
+///
+/// The relay subscription is established synchronously (awaited) before returning,
+/// then the event loop is spawned as a background task. This guarantees the
+/// subscription is active before the caller publishes the order event.
 pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, trade_index: u32) {
-    tokio::spawn(async move {
-        // Fetch keys first — if this fails there is no point subscribing and
-        // we avoid leaving an orphan relay subscription with no decryption path.
-        let recipient_keys = match crate::api::identity::get_active_trade_keys(trade_index).await {
-            Ok(k) => k,
-            Err(e) => {
-                log::error!("[orders] subscribe_gift_wraps: no trade keys: {e}");
-                return;
-            }
-        };
-
-        let Ok(pool) = crate::api::nostr::get_pool() else {
-            log::warn!("[orders] subscribe_gift_wraps: relay pool not initialized");
-            return;
-        };
-        let client = pool.client();
-
-        // Obtain the notifications receiver BEFORE subscribing to avoid a
-        // window where daemon responses arrive but aren't captured.
-        let mut rx = client.notifications();
-
-        let filter = nostr_sdk::Filter::new()
-            .kind(nostr_sdk::Kind::from(1059u16))
-            .pubkey(trade_pubkey);
-        if let Err(e) = client.subscribe(filter, None).await {
-            log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
+    // ── Synchronous setup: awaited by the caller ──
+    let recipient_keys = match crate::api::identity::get_active_trade_keys(trade_index).await {
+        Ok(k) => k,
+        Err(e) => {
+            log::error!("[orders] subscribe_gift_wraps: no trade keys: {e}");
             return;
         }
+    };
 
-        let trade_pubkey_hex = trade_pubkey.to_hex();
-        crate::api::logging::blog_info("orders", format!("gift-wrap subscription active for trade_pubkey={trade_pubkey_hex}"));
+    let Ok(pool) = crate::api::nostr::get_pool() else {
+        log::warn!("[orders] subscribe_gift_wraps: relay pool not initialized");
+        return;
+    };
+    let client = pool.client();
 
+    // Obtain the notifications receiver BEFORE subscribing to avoid a
+    // window where daemon responses arrive but aren't captured.
+    let mut rx = client.notifications();
+
+    let filter = nostr_sdk::Filter::new()
+        .kind(nostr_sdk::Kind::from(1059u16))
+        .pubkey(trade_pubkey);
+    if let Err(e) = client.subscribe(filter, None).await {
+        log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
+        return;
+    }
+
+    let trade_pubkey_hex = trade_pubkey.to_hex();
+    crate::api::logging::blog_info("orders", format!(
+        "gift-wrap subscription active for trade={}",
+        &trade_pubkey_hex[..8]
+    ));
+
+    // ── Event loop: spawned as a background task ──
+    tokio::spawn(async move {
         use nostr_sdk::RelayPoolNotification;
         use tokio::time::{timeout, Duration};
 
@@ -926,7 +940,6 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
             let remaining =
                 Duration::from_secs(IDLE_TIMEOUT_SECS).saturating_sub(last_activity.elapsed());
             if remaining.is_zero() {
-                log::debug!("[orders] gift-wrap idle timeout for trade={trade_pubkey_hex}");
                 break;
             }
 
@@ -935,7 +948,6 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                     if event.kind != nostr_sdk::Kind::from(1059u16) {
                         continue;
                     }
-                    // Only process events addressed to our trade pubkey.
                     let is_for_us = event.tags.iter().any(|t| {
                         let s = t.as_slice();
                         s.first().map(|v| v.as_str()) == Some("p")
@@ -967,7 +979,9 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                             process_gift_wrap_rumor(&rumor_json, &trade_pubkey_hex).await;
                             last_activity = tokio::time::Instant::now();
                         }
-                        Err(e) => crate::api::logging::blog_warn("gift-wrap", format!("decrypt failed for trade={}: {e}", &trade_pubkey_hex[..8])),
+                        Err(e) => crate::api::logging::blog_warn("gift-wrap", format!(
+                            "decrypt failed for trade={}: {e}", &trade_pubkey_hex[..8]
+                        )),
                     }
                 }
                 Ok(Ok(RelayPoolNotification::Shutdown)) => break,
@@ -980,8 +994,6 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                 Ok(Ok(_)) => continue,
             }
         }
-
-        log::debug!("[orders] gift-wrap subscription exiting for trade={trade_pubkey_hex}");
     });
 }
 
@@ -989,32 +1001,33 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
     use mostro_core::message::{Action, Message};
 
-    crate::api::logging::blog_debug("gift-wrap", format!("raw rumor for trade={}: {}", &trade_pubkey_hex[..8], rumor_json));
-
     // The rumor is a serialised UnsignedEvent; extract its content string.
     let content = match serde_json::from_str::<serde_json::Value>(rumor_json) {
         Ok(v) => match v.get("content").and_then(|c| c.as_str()) {
             Some(s) => s.to_string(),
             None => {
-                crate::api::logging::blog_warn("gift-wrap", format!("rumor has no content field"));
+                crate::api::logging::blog_warn("gift-wrap", format!(
+                    "rumor has no content field for trade={}", &trade_pubkey_hex[..8]
+                ));
                 return;
             }
         },
         Err(e) => {
-            crate::api::logging::blog_warn("gift-wrap", format!("rumor JSON parse failed: {e}"));
+            crate::api::logging::blog_warn("gift-wrap", format!(
+                "rumor JSON parse failed for trade={}: {e}", &trade_pubkey_hex[..8]
+            ));
             return;
         }
     };
-
-    crate::api::logging::blog_info("gift-wrap", format!("decrypted content for trade={}: {}", &trade_pubkey_hex[..8], &content));
 
     // Mostro wire format: [message, null_or_peer]
     let (msg, _peer): (Message, Option<mostro_core::message::Peer>) =
         match serde_json::from_str(&content) {
             Ok(p) => p,
             Err(e) => {
-                crate::api::logging::blog_warn("gift-wrap", format!("content deserialize failed: {e}"));
-                crate::api::logging::blog_warn("gift-wrap", format!("raw content was: {content}"));
+                crate::api::logging::blog_warn("gift-wrap", format!(
+                    "content deserialize failed for trade={}: {e}", &trade_pubkey_hex[..8]
+                ));
                 return;
             }
         };
@@ -1062,12 +1075,37 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
                         "NewOrder: notified waiting create_order daemon={daemon_id}"
                     ));
                 } else {
-                    // No waiting caller — cold start or reconnect. Replace UUID
-                    // directly if the local order is still in the order book.
-                    // Look up local UUID from PENDING_LOCAL_IDS via content key.
-                    crate::api::logging::blog_info("gift-wrap", format!(
-                        "NewOrder: daemon order={daemon_id} confirmed (no waiting caller)"
-                    ));
+                    // No waiting caller — either cold start, reconnect, or
+                    // create_order timed out. Reconcile the local UUID with
+                    // the daemon UUID if the order was persisted under a local ID.
+                    let local_id = pending_local_ids()
+                        .write()
+                        .ok()
+                        .and_then(|mut m| {
+                            // Find the entry whose local_uuid is in the order book.
+                            let key = m.iter()
+                                .find(|(_, uuid)| uuid.as_str() != daemon_id)
+                                .map(|(k, _)| k.clone());
+                            key.and_then(|k| m.remove(&k))
+                        });
+                    if let Some(local_id) = local_id {
+                        if order_book().get_order(&local_id).await.is_some() {
+                            let mut info = order_book().get_order(&local_id).await.unwrap();
+                            order_book().remove_order(&local_id).await;
+                            info.id = daemon_id.clone();
+                            order_book().upsert_order(info).await;
+                            if let Some(db) = crate::db::app_db::db() {
+                                let _ = db.update_trade_order_id(&local_id, &daemon_id).await;
+                            }
+                            crate::api::logging::blog_info("gift-wrap", format!(
+                                "NewOrder: late reconciliation local={local_id} → daemon={daemon_id}"
+                            ));
+                        }
+                    } else {
+                        crate::api::logging::blog_info("gift-wrap", format!(
+                            "NewOrder: daemon order={daemon_id} confirmed (no local order to reconcile)"
+                        ));
+                    }
                 }
             } else {
                 log::warn!("[orders] gift-wrap NewOrder has no order id");

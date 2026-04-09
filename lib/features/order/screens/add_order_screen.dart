@@ -135,7 +135,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
         if (identity != null) {
           await IdentityService.saveTradeKeyIndex(identity.tradeKeyIndex);
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[orders] save tradeKeyIndex failed: $e');
+      }
 
       refreshTrades(ref);
 
