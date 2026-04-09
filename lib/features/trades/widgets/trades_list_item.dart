@@ -19,7 +19,7 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 /// Watches [tradeStatusProvider] to keep the status chip current without
 /// requiring a full list reload.
 ///
-/// Tap → navigates to `/trade_detail/:orderId`.
+/// Tap → navigates to `/my_order/:orderId`.
 class TradesListItem extends ConsumerWidget {
   const TradesListItem({
     super.key,
@@ -58,7 +58,7 @@ class TradesListItem extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: () => context.push(AppRoute.tradeDetailPath(trade.orderId)),
+        onTap: () => context.push(AppRoute.myOrderPath(trade.orderId)),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,

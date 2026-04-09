@@ -38,6 +38,8 @@ const _kCountdownSeconds = 900; // 15 minutes
 enum TradeStatus {
   /// Status not yet resolved (initial loading state — no actions shown).
   loading('Loading'),
+  /// Order published but not yet taken by a counterpart.
+  pending('Pending'),
   /// Buyer must submit Lightning invoice (waitingBuyerInvoice).
   waitingInvoice('Waiting Invoice'),
   /// Seller must pay hold invoice (waitingPayment).
@@ -120,33 +122,22 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       '${dt.hour.toString().padLeft(2, '0')}:'
       '${dt.minute.toString().padLeft(2, '0')}';
 
-  static TradeStatus _mapOrderStatus(OrderStatus s) {
-    switch (s) {
-      case OrderStatus.waitingBuyerInvoice:
-        return TradeStatus.waitingInvoice;
-      case OrderStatus.waitingPayment:
-        return TradeStatus.waitingPayment;
-      case OrderStatus.active:
-      case OrderStatus.inProgress:
-        return TradeStatus.active;
-      case OrderStatus.fiatSent:
-        return TradeStatus.fiatSent;
-      case OrderStatus.settledHoldInvoice:
-      case OrderStatus.success:
-      case OrderStatus.completedByAdmin:
-      case OrderStatus.settledByAdmin:
-        return TradeStatus.pendingRating;
-      case OrderStatus.canceled:
-      case OrderStatus.canceledByAdmin:
-      case OrderStatus.cooperativelyCanceled:
-      case OrderStatus.expired:
-        return TradeStatus.cancelled;
-      case OrderStatus.dispute:
-        return TradeStatus.disputed;
-      default:
-        return TradeStatus.loading;
-    }
-  }
+  static TradeStatus _mapOrderStatus(OrderStatus s) => switch (s) {
+    OrderStatus.pending => TradeStatus.pending,
+    OrderStatus.waitingBuyerInvoice => TradeStatus.waitingInvoice,
+    OrderStatus.waitingPayment => TradeStatus.waitingPayment,
+    OrderStatus.active || OrderStatus.inProgress => TradeStatus.active,
+    OrderStatus.fiatSent => TradeStatus.fiatSent,
+    OrderStatus.settledHoldInvoice ||
+    OrderStatus.success ||
+    OrderStatus.completedByAdmin ||
+    OrderStatus.settledByAdmin => TradeStatus.pendingRating,
+    OrderStatus.canceled ||
+    OrderStatus.canceledByAdmin ||
+    OrderStatus.cooperativelyCanceled ||
+    OrderStatus.expired => TradeStatus.cancelled,
+    OrderStatus.dispute => TradeStatus.disputed,
+  };
 
   Future<void> _cancelOrder() async {
     final l10n = AppLocalizations.of(context);
@@ -221,6 +212,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     }
     if (status == TradeStatus.rated) {
       return 'Thank you for your rating!';
+    }
+    if (status == TradeStatus.pending) {
+      return 'Your order is published and waiting for a counterpart to take it. '
+          'You can cancel it at any time.';
     }
     return 'Trade in progress.';
   }
@@ -445,6 +440,23 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
+          ],
+
+          // ── Pending — CANCEL button (maker can cancel before taken) ──
+          if (status == TradeStatus.pending) ...[
+            OutlinedButton.icon(
+              onPressed: _cancelOrder,
+              icon: const Icon(Icons.cancel_outlined, size: 16),
+              label: const Text('CANCEL'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                side: BorderSide(color: colors?.destructiveRed ?? const Color(0xFFD84D4D)),
+                minimumSize: const Size.fromHeight(40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+              ),
+            ),
           ],
 
           // ── Buyer: Waiting Invoice — ADD INVOICE button ────────

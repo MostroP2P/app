@@ -27,16 +27,40 @@ final tradeAmountProvider =
 /// Live order status for a single trade, polled from the order book every 2 s.
 ///
 /// Starts with an immediate fetch (no initial delay) so the first emission
-/// reflects the real relay status. While loading, callers fall back to the
-/// DB-stored [TradeListItem.status] via [AsyncValue.whenOrNull].
+/// reflects the real relay status. When the order is no longer in the in-memory
+/// order book (e.g. after cancellation), falls back to the persisted trade DB
+/// so terminal statuses like Canceled are reflected in the UI.
 final tradeStatusProvider =
     StreamProvider.family.autoDispose<OrderStatus, String>((ref, orderId) async* {
   while (true) {
     final info = await orders_api.getOrder(orderId: orderId);
-    if (info != null) yield info.status;
+    if (info != null) {
+      yield info.status;
+    } else {
+      // Order removed from in-memory book — check the persisted trade DB.
+      final trades = await orders_api.listTrades();
+      final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+      if (trade != null) {
+        yield trade.order.status;
+        // Terminal status — no need to keep polling.
+        if (_isTerminal(trade.order.status)) return;
+      }
+    }
     await Future.delayed(const Duration(seconds: 2));
   }
 });
+
+/// Whether a status is terminal (no further changes possible).
+bool _isTerminal(OrderStatus s) => const {
+  OrderStatus.success,
+  OrderStatus.settledHoldInvoice,
+  OrderStatus.settledByAdmin,
+  OrderStatus.completedByAdmin,
+  OrderStatus.canceled,
+  OrderStatus.expired,
+  OrderStatus.cooperativelyCanceled,
+  OrderStatus.canceledByAdmin,
+}.contains(s);
 
 /// Loads the buyer/seller role for a trade from the persistent DB.
 ///

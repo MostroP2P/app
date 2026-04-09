@@ -126,13 +126,20 @@ impl Storage for SqliteStorage {
     }
 
     async fn list_trades(&self) -> Result<Vec<TradeInfo>> {
-        let rows: Vec<(String,)> =
-            sqlx::query_as("SELECT data FROM trades ORDER BY started_at DESC")
+        let rows: Vec<(String, String)> =
+            sqlx::query_as("SELECT id, data FROM trades ORDER BY started_at DESC")
                 .fetch_all(&self.pool)
                 .await?;
-        rows.into_iter()
-            .map(|(data,)| serde_json::from_str(&data).map_err(Into::into))
-            .collect()
+        let mut trades = Vec::with_capacity(rows.len());
+        for (id, data) in rows {
+            match serde_json::from_str::<TradeInfo>(&data) {
+                Ok(trade) => trades.push(trade),
+                Err(e) => {
+                    log::warn!("[db] skipping trade {id}: deserialization failed: {e}");
+                }
+            }
+        }
+        Ok(trades)
     }
 
     async fn save_message(&self, msg: &ChatMessage) -> Result<()> {
