@@ -976,7 +976,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                     };
                     match crate::nostr::gift_wrap::unwrap(&recipient_keys, &event_json).await {
                         Ok(rumor_json) => {
-                            process_gift_wrap_rumor(&rumor_json, &trade_pubkey_hex).await;
+                            process_gift_wrap_rumor(&rumor_json, &trade_pubkey_hex, trade_index).await;
                             last_activity = tokio::time::Instant::now();
                         }
                         Err(e) => crate::api::logging::blog_warn("gift-wrap", format!(
@@ -998,7 +998,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 }
 
 /// Parse the inner rumor JSON from a decrypted gift-wrap and dispatch by action.
-async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
+async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str, trade_index: u32) {
     use mostro_core::message::{Action, Message};
 
     // The rumor is a serialised UnsignedEvent; extract its content string.
@@ -1053,6 +1053,34 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
         "action={:?} order_id={:?} trade_index={:?} trade_pubkey={} payload={}",
         kind.action, kind.id, kind.trade_index, &trade_pubkey_hex[..8], payload_desc
     ));
+
+    // Reconcile local UUID → daemon UUID if needed.  Gift wrap actions
+    // arrive with the daemon's order ID, but if create_order timed out the
+    // order book and DB still use the local UUID.  Reconcile before any
+    // status update so that update_order_status / update_trade_fields find
+    // the order by the daemon ID.
+    if let Some(daemon_id) = &kind.id {
+        let did = daemon_id.to_string();
+        if order_book().get_order(&did).await.is_none() {
+            if let Some(db) = crate::db::app_db::db() {
+                if let Ok(Some(local_id)) = db.get_order_id_by_trade_index(trade_index).await {
+                    if local_id != did {
+                        log::info!(
+                            "[orders] reconciling order ID: local={local_id} → daemon={did}"
+                        );
+                        if let Some(mut info) = order_book().get_order(&local_id).await {
+                            order_book().remove_order(&local_id).await;
+                            info.id = did.clone();
+                            order_book().upsert_order(info).await;
+                        }
+                        let _ = db.update_trade_order_id(&local_id, &did).await;
+                        let _ = db.save_trade_key(&did, trade_index).await;
+                        store_trade_key_index(&did, trade_index).await;
+                    }
+                }
+            }
+        }
+    }
 
     match &kind.action {
         Action::NewOrder => {
@@ -1217,13 +1245,20 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str) {
                 }
             };
             let (bolt11, amount) = match &kind.payload {
-                Some(mostro_core::message::Payload::PaymentRequest(_, pr, amt)) => {
+                Some(mostro_core::message::Payload::PaymentRequest(small_order, pr, amt)) => {
                     let sats = amt.and_then(|a| {
                         u64::try_from(a).ok().or_else(|| {
                             log::warn!(
                                 "[orders] gift-wrap PayInvoice: negative amount {a}, ignoring"
                             );
                             None
+                        })
+                    }).or_else(|| {
+                        // Fallback: extract amount from the SmallOrder when the
+                        // third PaymentRequest field is None.
+                        small_order.as_ref().and_then(|so| {
+                            let a = so.amount;
+                            if a > 0 { Some(a as u64) } else { None }
                         })
                     });
                     (pr.clone(), sats)
@@ -1681,14 +1716,14 @@ async fn handle_global_gift_wrap(
     trade_key_map: &HashMap<String, (nostr_sdk::Keys, u32)>,
 ) {
     // Find the p-tag that matches one of our trade keys.
-    let (recipient_hex, recipient_keys) = {
+    let (recipient_hex, recipient_keys, trade_idx) = {
         let mut found = None;
         for tag in event.tags.iter() {
             let s = tag.as_slice();
             if s.first().map(|v| v.as_str()) == Some("p") {
                 if let Some(pk_hex) = s.get(1).map(|v| v.as_str()) {
-                    if let Some((keys, _idx)) = trade_key_map.get(pk_hex) {
-                        found = Some((pk_hex.to_string(), keys.clone()));
+                    if let Some((keys, idx)) = trade_key_map.get(pk_hex) {
+                        found = Some((pk_hex.to_string(), keys.clone(), *idx));
                         break;
                     }
                 }
@@ -1723,7 +1758,7 @@ async fn handle_global_gift_wrap(
     };
     match crate::nostr::gift_wrap::unwrap(&recipient_keys, &event_json).await {
         Ok(rumor_json) => {
-            process_gift_wrap_rumor(&rumor_json, &recipient_hex).await;
+            process_gift_wrap_rumor(&rumor_json, &recipient_hex, trade_idx).await;
         }
         Err(e) => crate::api::logging::blog_warn("gift-wrap", format!(
             "decrypt failed for trade={}: {e}", &recipient_hex[..8]

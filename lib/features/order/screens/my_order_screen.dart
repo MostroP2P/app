@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
@@ -31,6 +32,7 @@ class MyOrderScreen extends ConsumerStatefulWidget {
 
 class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
   bool _cancelling = false;
+  bool _hasNavigated = false;
 
   Future<void> _onCancel() async {
     final l10n = AppLocalizations.of(context);
@@ -79,6 +81,13 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch the live trade status FIRST — before any early return — so the
+    // provider stays subscribed even when the order book temporarily drops
+    // the order (Kind 38383 set_orders replaces the list with only pending
+    // orders, removing taken ones).
+    final liveStatus =
+        ref.watch(tradeStatusProvider(widget.orderId)).valueOrNull;
+
     final orders = ref.watch(orderBookProvider).valueOrNull ?? [];
     var order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     // Fallback to the persisted trade DB when the order is no longer in the
@@ -111,14 +120,51 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     }
     final resolvedOrder = order;
 
+    // Auto-navigate when the order is taken and status transitions away
+    // from Pending.
+    final isSelling = resolvedOrder.kind == 'sell';
+
+    debugPrint('[MyOrderScreen] build: orderId=${widget.orderId} '
+        'isSelling=$isSelling liveStatus=$liveStatus '
+        'hasNavigated=$_hasNavigated orderStatus=${resolvedOrder.status}');
+
+    if (!_hasNavigated && liveStatus != null && liveStatus != OrderStatus.pending) {
+      // Seller: skip intermediate WaitingBuyerInvoice.
+      final skip = (isSelling && liveStatus == OrderStatus.waitingBuyerInvoice) ||
+          (!isSelling && liveStatus == OrderStatus.waitingPayment);
+
+      debugPrint('[MyOrderScreen] non-pending status detected: $liveStatus skip=$skip');
+
+      if (!skip) {
+        _hasNavigated = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (liveStatus == OrderStatus.waitingPayment && isSelling) {
+            debugPrint('[MyOrderScreen] navigating to PayLightningInvoiceScreen');
+            context.go(AppRoute.payInvoicePath(widget.orderId));
+          } else if (liveStatus == OrderStatus.waitingBuyerInvoice &&
+              !isSelling) {
+            context.go(AppRoute.addInvoicePath(widget.orderId));
+          } else {
+            context.go(AppRoute.tradeDetailPath(widget.orderId));
+          }
+        });
+      }
+    }
+
     final l10n = AppLocalizations.of(context);
     final flag = flags[resolvedOrder.fiatCode] ?? '';
-    final isSelling = resolvedOrder.kind == 'sell';
     final title = isSelling ? l10n.myOrderSellTitle : l10n.myOrderBuyTitle;
     final premiumPositive = resolvedOrder.premium >= 0;
 
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        title: Text(title),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go(AppRoute.home),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
@@ -245,7 +291,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => context.pop(),
+                  onPressed: () => context.canPop()
+                      ? context.pop()
+                      : context.go(AppRoute.home),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: green,
                     side: BorderSide(color: green),

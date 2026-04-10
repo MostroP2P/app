@@ -53,6 +53,8 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
                     let _ = flush_message_queue().await;
                     // Start (or re-start) Kind 38383 order book subscription.
                     crate::api::orders::subscribe_orders().await;
+                    // Fetch PoW requirement from the daemon's Kind 38385 event.
+                    fetch_and_set_pow().await;
                 }
                 Ok(state) => {
                     log::info!("[nostr] connection state changed: {state:?}");
@@ -204,6 +206,31 @@ pub async fn fetch_mostro_instance_tags(
         Ok(Some(tags))
     } else {
         Ok(None)
+    }
+}
+
+/// Fetch the Mostro daemon's PoW requirement from its Kind 38385 event
+/// and store it globally.  Called each time the relay pool goes Online so
+/// the value stays current if the daemon updates its configuration.
+async fn fetch_and_set_pow() {
+    let mostro_pubkey_hex = crate::config::active_mostro_pubkey();
+    match fetch_mostro_instance_tags(mostro_pubkey_hex).await {
+        Ok(Some(tags)) => {
+            let difficulty = tags
+                .iter()
+                .find(|t| t.first().map(|s| s.as_str()) == Some("pow"))
+                .and_then(|t| t.get(1))
+                .and_then(|v| v.parse::<u8>().ok())
+                .unwrap_or(0);
+            crate::mostro::pow::set_pow(difficulty);
+        }
+        Ok(None) => {
+            log::warn!("[nostr] no Kind 38385 event found — PoW defaults to 0");
+            crate::mostro::pow::set_pow(0);
+        }
+        Err(e) => {
+            log::warn!("[nostr] failed to fetch Kind 38385 for PoW: {e}");
+        }
     }
 }
 

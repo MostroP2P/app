@@ -126,7 +126,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
             : null,
       );
 
-      await rust_orders.createOrder(params: params);
+      final order = await rust_orders.createOrder(params: params);
 
       // Persist the updated trade key index so it survives app restarts.
       // Failures here are non-fatal — the order was already created.
@@ -142,7 +142,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       refreshTrades(ref);
 
       if (!mounted) return;
-      context.go(AppRoute.orderBook);
+      context.go(AppRoute.myOrderPath(order.id));
     } catch (e) {
       if (!mounted) return;
       // CantDo rejections from Mostro arrive as errors from createOrder.
