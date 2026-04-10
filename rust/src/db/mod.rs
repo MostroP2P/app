@@ -62,6 +62,12 @@ pub trait Storage: Send + Sync {
     /// Retrieve the BIP-32 key index for `order_id`, or `None` if not found.
     async fn get_trade_key(&self, order_id: &str) -> Result<Option<u32>>;
 
+    /// Reverse lookup: find the order ID associated with a given trade key index.
+    async fn get_order_id_by_trade_index(&self, key_index: u32) -> Result<Option<String>>;
+
+    /// Delete the trade key entry for `order_id`.
+    async fn delete_trade_key(&self, order_id: &str) -> Result<()>;
+
     // ── Settings / Mostro node ────────────────────────────────────────────────
 
     /// Persist a Mostro node info record, replacing any existing one.

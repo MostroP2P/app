@@ -319,6 +319,23 @@ impl Storage for SqliteStorage {
         Ok(row.map(|(idx,)| idx as u32))
     }
 
+    async fn get_order_id_by_trade_index(&self, key_index: u32) -> Result<Option<String>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT order_id FROM trade_keys WHERE key_index = ? LIMIT 1")
+                .bind(key_index as i64)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(id,)| id))
+    }
+
+    async fn delete_trade_key(&self, order_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM trade_keys WHERE order_id = ?")
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn save_mostro_node(&self, node: &crate::api::types::MostroNodeInfo) -> Result<()> {
         let json = serde_json::to_string(node)?;
         sqlx::query(

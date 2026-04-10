@@ -89,6 +89,14 @@ impl Storage for IndexedDbStorage {
         Ok(None) // no persisted key: caller will treat absence correctly
     }
 
+    async fn get_order_id_by_trade_index(&self, _key_index: u32) -> Result<Option<String>> {
+        Ok(None) // IndexedDB not yet implemented
+    }
+
+    async fn delete_trade_key(&self, _order_id: &str) -> Result<()> {
+        Ok(()) // IndexedDB not yet implemented
+    }
+
     async fn save_mostro_node(&self, _node: &crate::api::types::MostroNodeInfo) -> Result<()> {
         log::warn!("save_mostro_node: IndexedDB backend not implemented — node selection will not survive reload");
         // TODO(#93): implement IndexedDB persistence for Mostro node selection
