@@ -328,6 +328,14 @@ impl Storage for SqliteStorage {
         Ok(row.map(|(id,)| id))
     }
 
+    async fn delete_trade_key(&self, order_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM trade_keys WHERE order_id = ?")
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn save_mostro_node(&self, node: &crate::api::types::MostroNodeInfo) -> Result<()> {
         let json = serde_json::to_string(node)?;
         sqlx::query(

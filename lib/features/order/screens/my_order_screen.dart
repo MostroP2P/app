@@ -162,7 +162,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
         title: Text(title),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(AppRoute.home),
+          onPressed: () => context.canPop()
+              ? context.pop()
+              : context.go(AppRoute.home),
         ),
       ),
       body: ListView(

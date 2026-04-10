@@ -1074,7 +1074,13 @@ async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str, trade
                             order_book().upsert_order(info).await;
                         }
                         let _ = db.update_trade_order_id(&local_id, &did).await;
+                        // Replace the stale local_id → trade_index mapping
+                        // with daemon_id → trade_index in both DB and memory.
+                        let _ = db.delete_trade_key(&local_id).await;
                         let _ = db.save_trade_key(&did, trade_index).await;
+                        if let Ok(mut map) = trade_key_map().write() {
+                            map.remove(&local_id);
+                        }
                         store_trade_key_index(&did, trade_index).await;
                     }
                 }

@@ -49,12 +49,13 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
         loop {
             match rx.recv().await {
                 Ok(ConnectionState::Online) => {
-                    log::info!("[nostr] relay pool ONLINE — flushing queue + subscribing orders");
+                    log::info!("[nostr] relay pool ONLINE — fetching PoW, flushing queue, subscribing orders");
+                    // Fetch PoW first so queued messages are wrapped with the
+                    // correct difficulty before being flushed.
+                    fetch_and_set_pow().await;
                     let _ = flush_message_queue().await;
                     // Start (or re-start) Kind 38383 order book subscription.
                     crate::api::orders::subscribe_orders().await;
-                    // Fetch PoW requirement from the daemon's Kind 38385 event.
-                    fetch_and_set_pow().await;
                 }
                 Ok(state) => {
                     log::info!("[nostr] connection state changed: {state:?}");
@@ -216,12 +217,19 @@ async fn fetch_and_set_pow() {
     let mostro_pubkey_hex = crate::config::active_mostro_pubkey();
     match fetch_mostro_instance_tags(mostro_pubkey_hex).await {
         Ok(Some(tags)) => {
-            let difficulty = tags
+            let pow_tag = tags
                 .iter()
-                .find(|t| t.first().map(|s| s.as_str()) == Some("pow"))
-                .and_then(|t| t.get(1))
-                .and_then(|v| v.parse::<u8>().ok())
-                .unwrap_or(0);
+                .find(|t| t.first().map(|s| s.as_str()) == Some("pow"));
+            let difficulty = match pow_tag.and_then(|t| t.get(1)) {
+                Some(v) => match v.parse::<u8>() {
+                    Ok(d) => d,
+                    Err(_) => {
+                        log::warn!("[nostr] malformed pow tag value: {v:?} — defaulting to 0");
+                        0
+                    }
+                },
+                None => 0,
+            };
             crate::mostro::pow::set_pow(difficulty);
         }
         Ok(None) => {
