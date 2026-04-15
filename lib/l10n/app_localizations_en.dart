@@ -942,14 +942,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tradeWaitingForHoldInvoice => 'Waiting for hold invoice...';
 
   @override
-  String get payInvoiceScreenTitle => 'Pay Lightning Invoice';
-
-  @override
   String get payInvoiceInstruction =>
       'Pay this hold invoice to start the trade';
 
   @override
   String get shareButtonLabel => 'Share';
+
+  @override
+  String get shareFailed => 'Could not share the invoice';
 
   @override
   String get waitingForPaymentConfirmation =>
@@ -963,5 +963,5 @@ class AppLocalizationsEn extends AppLocalizations {
       'No Lightning wallet found on this device';
 
   @override
-  String get cancelButtonLabel => 'Cancel';
+  String get orderNoLongerActive => 'This order is no longer active';
 }

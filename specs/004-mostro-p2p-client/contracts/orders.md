@@ -238,6 +238,22 @@ via `json_set` layering. Constraints:
 
 Web backend (`indexeddb.rs::update_trade_fields`) is currently a stub
 and does not yet persist — feature-gated via `#[cfg(target_arch = "wasm32")]`.
+It logs a `log::warn!` on every call so web builds fail loudly (not
+silently) when seller pay-invoice flows hit this path; a full
+read-modify-write port of the sqlite.rs logic using `indexed_db_futures`
+is tracked as follow-up work.
+
+### One-time migration: `amount_sats` string → integer repair
+
+A previous version of `update_trade_fields` bound `amount_sats` as a raw
+text parameter, so `json_set` stored it as a JSON **string** instead of
+a JSON integer, silently corrupting the row for future deserialization.
+`SqliteStorage::migrate` now runs a one-time repair on boot that walks
+the `trades` table and rewrites any row where
+`json_type(data, '$.order.amount_sats') = 'text'` to cast the value back
+into a JSON integer via `CAST(... AS INTEGER)` inside `json_set`. The
+migration logs the number of rows repaired (or 0 if none) so affected
+installations self-heal on the next app start.
 
 ### Flutter-side live subscriptions (all platforms)
 

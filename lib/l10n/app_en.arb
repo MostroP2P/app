@@ -631,18 +631,18 @@
   "@tradeLoadError": {"description": "Error message shown when a trade fails to load"},
   "tradeWaitingForHoldInvoice": "Waiting for hold invoice...",
   "@tradeWaitingForHoldInvoice": {"description": "Loading message shown while the Mostro daemon has not yet sent the hold invoice"},
-  "payInvoiceScreenTitle": "Pay Lightning Invoice",
-  "@payInvoiceScreenTitle": {"description": "AppBar title for the pay Lightning invoice screen"},
   "payInvoiceInstruction": "Pay this hold invoice to start the trade",
   "@payInvoiceInstruction": {"description": "Instruction text shown on the pay invoice screen above the QR code"},
   "shareButtonLabel": "Share",
   "@shareButtonLabel": {"description": "Share action button label on the pay invoice screen"},
+  "shareFailed": "Could not share the invoice",
+  "@shareFailed": {"description": "Snackbar shown when the system share sheet fails"},
   "waitingForPaymentConfirmation": "Waiting for payment confirmation...",
   "@waitingForPaymentConfirmation": {"description": "Text shown while waiting for the Lightning payment to be confirmed after paying the hold invoice"},
   "payWithLightningWallet": "Pay with Lightning wallet",
   "@payWithLightningWallet": {"description": "Button label that opens the hold invoice in an external Lightning wallet via the lightning: URI scheme"},
   "noLightningWalletFound": "No Lightning wallet found on this device",
   "@noLightningWalletFound": {"description": "Snackbar shown when no app can handle the lightning: URI"},
-  "cancelButtonLabel": "Cancel",
-  "@cancelButtonLabel": {"description": "Generic cancel button label"}
+  "orderNoLongerActive": "This order is no longer active",
+  "@orderNoLongerActive": {"description": "Neutral notice shown when the order reaches a terminal state (canceled, cooperatively canceled, canceled by admin, or expired) while the user is on the pay invoice screen"}
 }

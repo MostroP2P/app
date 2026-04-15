@@ -81,7 +81,7 @@ class _PayLightningInvoiceScreenState
           case OrderStatus.expired:
             _navigated = true;
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.orderCancelledSuccess)),
+              SnackBar(content: Text(l10n.orderNoLongerActive)),
             );
             context.go(AppRoute.home);
             break;
@@ -93,13 +93,13 @@ class _PayLightningInvoiceScreenState
 
     return tradeAsync.when(
       loading: () => Scaffold(
-        appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
+        appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (e, st) {
         debugPrint('[PayLightningInvoiceScreen] load error: $e\n$st');
         return Scaffold(
-          appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
+          appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
           body: Center(
             child: Text(l10n.tradeLoadError),
           ),
@@ -112,7 +112,7 @@ class _PayLightningInvoiceScreenState
         if (invoice.isEmpty || amountSats <= 0) {
           // Hold invoice not yet available — waiting for Mostro daemon.
           return Scaffold(
-            appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
+            appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
             body: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -132,7 +132,7 @@ class _PayLightningInvoiceScreenState
         // If NWC wallet is connected and payment hasn't failed yet, show auto-pay.
         if (isWalletConnected && !_manualMode) {
           return Scaffold(
-            appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
+            appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
             body: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Center(
@@ -148,7 +148,7 @@ class _PayLightningInvoiceScreenState
         }
 
         return Scaffold(
-          appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
+          appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
           body: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
@@ -276,13 +276,14 @@ class _PayLightningInvoiceScreenState
                                   try {
                                     await SharePlus.instance
                                         .share(ShareParams(text: invoice));
-                                  } catch (e) {
+                                  } catch (e, st) {
+                                    debugPrint(
+                                      '[PayLightningInvoiceScreen] share failed: $e\n$st',
+                                    );
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text(
-                                          'Share failed: $e',
-                                        ),
+                                        content: Text(l10n.shareFailed),
                                       ),
                                     );
                                   }
@@ -336,7 +337,7 @@ class _PayLightningInvoiceScreenState
                           borderRadius: BorderRadius.circular(AppRadius.button),
                         ),
                       ),
-                      child: Text(l10n.cancelButtonLabel),
+                      child: Text(l10n.cancel),
                     ),
                   ),
               ],

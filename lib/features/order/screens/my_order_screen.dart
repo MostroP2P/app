@@ -12,7 +12,6 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
-import 'package:mostro/src/rust/api/types.dart';
 
 /// Detail screen for an order created by the current user.
 ///
@@ -141,13 +140,28 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
       debugPrint('[MyOrderScreen] non-pending status detected: $liveStatus shouldNavigate=$shouldNavigate');
 
       if (shouldNavigate) {
-        _lastHandledStatus = liveStatus;
+        final intendedStatus = liveStatus;
+        _lastHandledStatus = intendedStatus;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          if (liveStatus == OrderStatus.waitingPayment && isSelling) {
+          // Re-read the latest status; between build() and this callback
+          // the provider may have emitted a newer value, in which case the
+          // intended navigation is stale and we should let the next build
+          // handle the new state instead of going to the wrong screen.
+          final latest = ref
+              .read(tradeStatusProvider(widget.orderId))
+              .valueOrNull;
+          if (latest != null && latest != intendedStatus) {
+            debugPrint(
+                '[MyOrderScreen] status changed before post-frame: '
+                'intended=$intendedStatus latest=$latest — skipping');
+            _lastHandledStatus = null;
+            return;
+          }
+          if (intendedStatus == OrderStatus.waitingPayment && isSelling) {
             debugPrint('[MyOrderScreen] navigating to PayLightningInvoiceScreen');
             context.go(AppRoute.payInvoicePath(widget.orderId));
-          } else if (liveStatus == OrderStatus.waitingBuyerInvoice &&
+          } else if (intendedStatus == OrderStatus.waitingBuyerInvoice &&
               !isSelling) {
             context.go(AppRoute.addInvoicePath(widget.orderId));
           } else {

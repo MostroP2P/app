@@ -311,11 +311,11 @@
   "tradeWaitingPaymentSellerInstruction": "Paga la fattura hold per bloccare i fondi e avviare lo scambio.",
   "tradeLoadError": "Si è verificato un errore durante il caricamento dello scambio.",
   "tradeWaitingForHoldInvoice": "In attesa della fattura hold...",
-  "payInvoiceScreenTitle": "Paga Fattura Lightning",
   "payInvoiceInstruction": "Paga questa fattura hold per avviare lo scambio.",
   "shareButtonLabel": "Condividi",
+  "shareFailed": "Impossibile condividere la fattura",
   "waitingForPaymentConfirmation": "In attesa di conferma del pagamento...",
   "payWithLightningWallet": "Paga con wallet Lightning",
   "noLightningWalletFound": "Nessun wallet Lightning trovato su questo dispositivo",
-  "cancelButtonLabel": "Annulla"
+  "orderNoLongerActive": "Questo ordine non è più attivo"
 }
