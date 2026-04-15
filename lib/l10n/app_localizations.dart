@@ -1831,6 +1831,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for hold invoice...'**
   String get tradeWaitingForHoldInvoice;
+
+  /// AppBar title for the pay Lightning invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Pay Lightning Invoice'**
+  String get payInvoiceScreenTitle;
+
+  /// Instruction text shown on the pay invoice screen above the QR code
+  ///
+  /// In en, this message translates to:
+  /// **'Pay this hold invoice to start the trade'**
+  String get payInvoiceInstruction;
+
+  /// Share action button label on the pay invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareButtonLabel;
+
+  /// Text shown while waiting for the Lightning payment to be confirmed after paying the hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for payment confirmation...'**
+  String get waitingForPaymentConfirmation;
+
+  /// Button label that opens the hold invoice in an external Lightning wallet via the lightning: URI scheme
+  ///
+  /// In en, this message translates to:
+  /// **'Pay with Lightning wallet'**
+  String get payWithLightningWallet;
+
+  /// Snackbar shown when no app can handle the lightning: URI
+  ///
+  /// In en, this message translates to:
+  /// **'No Lightning wallet found on this device'**
+  String get noLightningWalletFound;
+
+  /// Generic cancel button label
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancelButtonLabel;
 }
 
 class _AppLocalizationsDelegate

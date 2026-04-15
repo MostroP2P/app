@@ -32,7 +32,7 @@ class MyOrderScreen extends ConsumerStatefulWidget {
 
 class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
   bool _cancelling = false;
-  bool _hasNavigated = false;
+  OrderStatus? _lastHandledStatus;
 
   Future<void> _onCancel() async {
     final l10n = AppLocalizations.of(context);
@@ -126,17 +126,22 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
 
     debugPrint('[MyOrderScreen] build: orderId=${widget.orderId} '
         'isSelling=$isSelling liveStatus=$liveStatus '
-        'hasNavigated=$_hasNavigated orderStatus=${resolvedOrder.status}');
+        'lastHandledStatus=$_lastHandledStatus orderStatus=${resolvedOrder.status}');
 
-    if (!_hasNavigated && liveStatus != null && liveStatus != OrderStatus.pending) {
-      // Seller: skip intermediate WaitingBuyerInvoice.
-      final skip = (isSelling && liveStatus == OrderStatus.waitingBuyerInvoice) ||
-          (!isSelling && liveStatus == OrderStatus.waitingPayment);
+    if (liveStatus != null && liveStatus != OrderStatus.pending && liveStatus != _lastHandledStatus) {
+      // For sellers: skip intermediate WaitingBuyerInvoice but still track it
+      // so we don't re-process it. Navigate to the appropriate screen when
+      // status reaches WaitingPayment or beyond.
+      final shouldNavigate = switch (liveStatus) {
+        OrderStatus.waitingBuyerInvoice when isSelling => false, // skip — intermediate state
+        OrderStatus.waitingPayment when !isSelling => false,    // skip — buyer doesn't see this
+        _ => true,
+      };
 
-      debugPrint('[MyOrderScreen] non-pending status detected: $liveStatus skip=$skip');
+      debugPrint('[MyOrderScreen] non-pending status detected: $liveStatus shouldNavigate=$shouldNavigate');
 
-      if (!skip) {
-        _hasNavigated = true;
+      if (shouldNavigate) {
+        _lastHandledStatus = liveStatus;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           if (liveStatus == OrderStatus.waitingPayment && isSelling) {
@@ -149,6 +154,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             context.go(AppRoute.tradeDetailPath(widget.orderId));
           }
         });
+      } else {
+        // Mark this status as handled so we don't re-process it on next build.
+        _lastHandledStatus = liveStatus;
       }
     }
 

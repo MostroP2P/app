@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
-import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 
 /// Pay Lightning Invoice screen — Route `/pay_invoice/:orderId`.
@@ -31,13 +33,15 @@ class _PayLightningInvoiceScreenState
   bool _waiting = false;
   /// `true` when NWC is connected but payment failed → show QR fallback.
   bool _manualMode = false;
+  /// One-shot guard so we don't navigate twice as further statuses stream in.
+  bool _navigated = false;
 
+  /// NWC success callback: just show the spinner — the actual navigation is
+  /// driven by the [tradeStatusProvider] listener below, which waits for
+  /// mostrod to confirm the HTLC and flip the order status to Active.
   void _onPaymentDetected() {
+    if (!mounted) return;
     setState(() => _waiting = true);
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      context.go(AppRoute.tradeDetailPath(widget.orderId));
-    });
   }
 
   @override
@@ -46,21 +50,58 @@ class _PayLightningInvoiceScreenState
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final l10n = AppLocalizations.of(context);
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
-    final tradeAsync = ref.watch(tradeInfoProvider(widget.orderId));
+    final tradeAsync = ref.watch(tradeInfoStreamProvider(widget.orderId));
+
+    // Listen to live status updates from mostrod. Once the hold invoice is
+    // settled, mostrod broadcasts a BuyerTookOrder/HoldInvoicePaymentAccepted
+    // gift wrap that the Rust handler writes as OrderStatus.active. We react
+    // here because `tradeInfoStreamProvider` terminates as soon as the hold
+    // invoice is delivered and does not observe later transitions.
+    ref.listen<AsyncValue<OrderStatus>>(
+      tradeStatusProvider(widget.orderId),
+      (prev, next) {
+        final status = next.valueOrNull;
+        if (status == null || _navigated || !mounted) return;
+        switch (status) {
+          case OrderStatus.active:
+          case OrderStatus.fiatSent:
+          case OrderStatus.settledHoldInvoice:
+          case OrderStatus.success:
+          case OrderStatus.dispute:
+            _navigated = true;
+            if (!_waiting) setState(() => _waiting = true);
+            context.go(AppRoute.tradeDetailPath(widget.orderId));
+            break;
+          case OrderStatus.canceled:
+          case OrderStatus.cooperativelyCanceled:
+          case OrderStatus.canceledByAdmin:
+          case OrderStatus.expired:
+            _navigated = true;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.orderCancelledSuccess)),
+            );
+            context.go(AppRoute.home);
+            break;
+          default:
+            break;
+        }
+      },
+    );
 
     return tradeAsync.when(
       loading: () => Scaffold(
-        appBar: AppBar(title: const Text('Pay Lightning Invoice')),
+        appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (e, st) {
         debugPrint('[PayLightningInvoiceScreen] load error: $e\n$st');
         return Scaffold(
-          appBar: AppBar(title: const Text('Pay Lightning Invoice')),
+          appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
           body: Center(
-            child: Text(AppLocalizations.of(context).tradeLoadError),
+            child: Text(l10n.tradeLoadError),
           ),
         );
       },
@@ -71,7 +112,7 @@ class _PayLightningInvoiceScreenState
         if (invoice.isEmpty || amountSats <= 0) {
           // Hold invoice not yet available — waiting for Mostro daemon.
           return Scaffold(
-            appBar: AppBar(title: const Text('Pay Lightning Invoice')),
+            appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
             body: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -79,7 +120,7 @@ class _PayLightningInvoiceScreenState
                   CircularProgressIndicator(color: green),
                   const SizedBox(height: 16),
                   Text(
-                    AppLocalizations.of(context).tradeWaitingForHoldInvoice,
+                    l10n.tradeWaitingForHoldInvoice,
                     style: TextStyle(color: colors?.textSecondary),
                   ),
                 ],
@@ -91,7 +132,7 @@ class _PayLightningInvoiceScreenState
         // If NWC wallet is connected and payment hasn't failed yet, show auto-pay.
         if (isWalletConnected && !_manualMode) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Pay Lightning Invoice')),
+            appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
             body: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Center(
@@ -107,7 +148,7 @@ class _PayLightningInvoiceScreenState
         }
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Pay Lightning Invoice')),
+          appBar: AppBar(title: Text(l10n.payInvoiceScreenTitle)),
           body: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
@@ -129,7 +170,7 @@ class _PayLightningInvoiceScreenState
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: Text(
-                                'Pay this hold invoice to start the trade',
+                                l10n.payInvoiceInstruction,
                                 style: theme.textTheme.bodyMedium,
                               ),
                             ),
@@ -158,6 +199,47 @@ class _PayLightningInvoiceScreenState
                         ),
                         const SizedBox(height: AppSpacing.lg),
 
+                        // Pay with external Lightning wallet (lightning: URI)
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () async {
+                              final uri = Uri.parse('lightning:$invoice');
+                              bool launched = false;
+                              try {
+                                launched = await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              } catch (_) {
+                                launched = false;
+                              }
+                              if (!launched && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content:
+                                        Text(l10n.noLightningWalletFound),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.bolt, size: 18),
+                            label: Text(l10n.payWithLightningWallet),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: green,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.md,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.button),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+
                         // Copy + Share buttons
                         Row(
                           children: [
@@ -169,14 +251,14 @@ class _PayLightningInvoiceScreenState
                                   );
                                   if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Invoice copied'),
-                                      duration: Duration(seconds: 1),
+                                    SnackBar(
+                                      content: Text(l10n.invoiceCopied),
+                                      duration: const Duration(seconds: 1),
                                     ),
                                   );
                                 },
                                 icon: const Icon(Icons.copy, size: 16),
-                                label: const Text('Copy'),
+                                label: Text(l10n.copyButtonLabel),
                                 style: FilledButton.styleFrom(
                                   backgroundColor: green,
                                   foregroundColor: Colors.black,
@@ -198,13 +280,15 @@ class _PayLightningInvoiceScreenState
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('Share failed: $e'),
+                                        content: Text(
+                                          'Share failed: $e',
+                                        ),
                                       ),
                                     );
                                   }
                                 },
                                 icon: const Icon(Icons.share, size: 16),
-                                label: const Text('Share'),
+                                label: Text(l10n.shareButtonLabel),
                                 style: FilledButton.styleFrom(
                                   backgroundColor: green,
                                   foregroundColor: Colors.black,
@@ -230,7 +314,7 @@ class _PayLightningInvoiceScreenState
                       CircularProgressIndicator(color: green),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        'Waiting for payment confirmation...',
+                        l10n.waitingForPaymentConfirmation,
                         style: TextStyle(color: colors?.textSecondary),
                       ),
                     ],
@@ -252,7 +336,7 @@ class _PayLightningInvoiceScreenState
                           borderRadius: BorderRadius.circular(AppRadius.button),
                         ),
                       ),
-                      child: const Text('Cancel'),
+                      child: Text(l10n.cancelButtonLabel),
                     ),
                   ),
               ],

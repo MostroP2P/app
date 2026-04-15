@@ -81,3 +81,36 @@ final tradeRoleFromDbProvider =
     null => null,
   };
 });
+
+/// Poll `listTrades()` every 1 s until `holdInvoice` is non-null, then stop.
+///
+/// Returns `null` while waiting for the hold invoice to arrive from the
+/// Mostro node.  Used by [PayLightningInvoiceScreen] to display the invoice
+/// as soon as it becomes available, rather than relying on the one-shot
+/// [tradeInfoProvider] which may return stale cached data.
+final tradeHoldInvoiceProvider =
+    StreamProvider.family.autoDispose<String?, String>((ref, orderId) async* {
+  while (true) {
+    final trades = await orders_api.listTrades();
+    final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+    yield trade?.holdInvoice;
+    if (trade?.holdInvoice != null) return;
+    await Future.delayed(const Duration(seconds: 1));
+  }
+});
+
+/// Poll `listTrades()` every 1 s until `holdInvoice` is non-null, then stop.
+///
+/// Returns the full [TradeInfo] when available.  Used by
+/// [PayLightningInvoiceScreen] to get both the hold invoice and the sats
+/// amount without relying on the cached [rawTradesProvider].
+final tradeInfoStreamProvider =
+    StreamProvider.family.autoDispose<TradeInfo?, String>((ref, orderId) async* {
+  while (true) {
+    final trades = await orders_api.listTrades();
+    final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+    yield trade;
+    if (trade?.holdInvoice != null) return;
+    await Future.delayed(const Duration(seconds: 1));
+  }
+});

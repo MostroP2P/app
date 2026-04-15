@@ -958,4 +958,28 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeWaitingForHoldInvoice => 'En attente de la facture hold...';
+
+  @override
+  String get payInvoiceScreenTitle => 'Payer la facture Lightning';
+
+  @override
+  String get payInvoiceInstruction =>
+      'Payez cette facture hold pour démarrer l\'échange.';
+
+  @override
+  String get shareButtonLabel => 'Partager';
+
+  @override
+  String get waitingForPaymentConfirmation =>
+      'En attente de la confirmation du paiement...';
+
+  @override
+  String get payWithLightningWallet => 'Payer avec un portefeuille Lightning';
+
+  @override
+  String get noLightningWalletFound =>
+      'Aucun portefeuille Lightning trouvé sur cet appareil';
+
+  @override
+  String get cancelButtonLabel => 'Annuler';
 }

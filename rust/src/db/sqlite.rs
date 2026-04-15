@@ -416,7 +416,10 @@ impl Storage for SqliteStorage {
             binds.push(inv.clone());
         }
         if let Some(sats) = amount_sats {
-            set_expr = format!("json_set({set_expr}, '$.order.amount_sats', ?)");
+            // Bind via json(?) so SQLite parses "6307" as a JSON integer,
+            // otherwise json_set stores it as a JSON string and the row
+            // fails to deserialize back into TradeInfo (amount_sats: Option<u64>).
+            set_expr = format!("json_set({set_expr}, '$.order.amount_sats', json(?))");
             binds.push(sats.to_string());
         }
 
