@@ -1,0 +1,7 @@
+{
+  "integration": "qwen",
+  "version": "0.6.1",
+  "scripts": {
+    "update-context": ".specify/integrations/qwen/scripts/update-context.sh"
+  }
+}

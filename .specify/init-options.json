@@ -1,0 +1,9 @@
+{
+  "ai": "qwen",
+  "branch_numbering": "sequential",
+  "here": true,
+  "integration": "qwen",
+  "preset": null,
+  "script": "sh",
+  "speckit_version": "0.6.1"
+}
