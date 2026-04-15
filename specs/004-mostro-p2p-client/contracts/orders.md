@@ -188,3 +188,74 @@ TradeTimeoutInfo {
   state: TradeStep
 }
 ```
+
+---
+
+## Seller hold-invoice flow (Nostr → DB → UI)
+
+The seller never receives the bolt11 hold invoice via a synchronous API
+call — it arrives as a NIP-59 gift-wrap (Kind 1059) from mostrod. This
+section documents the full chain so Flutter providers and screens know
+what to listen to. Reference: <https://mostro.network/protocol/seller_pay_hold_invoice.html>.
+
+### Inbound gift-wrap actions consumed by `process_gift_wrap_rumor`
+
+| Action                             | Payload variant                                     | Effect on the seller's trade row                                                 |
+|------------------------------------|-----------------------------------------------------|----------------------------------------------------------------------------------|
+| `WaitingBuyerInvoice`              | (status sync)                                       | `status → WaitingBuyerInvoice`                                                   |
+| `PayInvoice`                       | `Payload::PaymentRequest(small_order, bolt11, amt)` | `hold_invoice ← bolt11`, `amount_sats ← amt ?? small_order.amount`, `status → WaitingPayment` |
+| `BuyerTookOrder` / `HoldInvoicePaymentAccepted` | `SmallOrder` with `status = active`      | `status → Active` (routed through `map_core_status` kebab-case)                  |
+| `FiatSentOk`                       | (status sync)                                       | `status → FiatSent`                                                              |
+| `HoldInvoicePaymentSettled` / `Released` / `PurchaseCompleted` | (status sync)             | `status → SettledHoldInvoice`                                                    |
+| `CooperativeCancelAccepted`        | (status sync)                                       | `status → CooperativelyCanceled`                                                 |
+| `AdminSettled` / `AdminCanceled`   | (status sync)                                       | `status → SettledByAdmin` / `CanceledByAdmin`                                    |
+
+`process_gift_wrap_rumor` MUST update **both** the in-memory order book
+(`order_book().update_order_status`) **and** the persisted trade row
+(`db.update_trade_fields`) on every status transition, otherwise UI
+screens reading from the DB (e.g. `tradeInfoStreamProvider`) will miss
+transitions that only affected in-memory state.
+
+### `update_trade_fields(order_id, status?, hold_invoice?, amount_sats?)` (DB contract)
+
+SQLite native backend updates the `trades.data` JSON column atomically
+via `json_set` layering. Constraints:
+
+- Numeric parameters (`amount_sats`) MUST be wrapped via `json(?)` so
+  SQLite parses them as JSON numbers. Binding a plain `sats.to_string()`
+  through `?` stores the value as a JSON **string**, which breaks
+  `serde_json::from_str::<TradeInfo>` on the next read and causes
+  `list_trades()` to silently skip the row (see `sqlite.rs::list_trades`
+  which logs a warn and continues). This is a permanent corruption of
+  the row until a subsequent update rewrites the field.
+- Enum parameters (`status`) follow the same rule — already implemented
+  via `serde_json::to_string(&status)` + `json(?)`.
+- String parameters (`hold_invoice`) are bound as raw text; SQLite's
+  `json_set` auto-quotes and escapes them into a valid JSON string.
+- The `WHERE` clause is `json_extract(data, '$.order.id') = ?`. An
+  UPDATE matching zero rows is NOT an error; callers MUST ensure the
+  trade row has been inserted via `save_trade` before the first update.
+
+Web backend (`indexeddb.rs::update_trade_fields`) is currently a stub
+and does not yet persist — feature-gated via `#[cfg(target_arch = "wasm32")]`.
+
+### Flutter-side live subscriptions (all platforms)
+
+The seller pay-invoice flow uses two complementary providers from
+`lib/features/order/providers/trade_state_provider.dart`:
+
+- **`tradeInfoStreamProvider(orderId)`** — polls `listTrades()` every
+  1 s, yields the full `TradeInfo`, and **terminates as soon as
+  `holdInvoice != null`**. Used by `PayLightningInvoiceScreen` to
+  resolve the bolt11 + amount for rendering the QR. Consumers that
+  need post-invoice updates MUST compose this with
+  `tradeStatusProvider`.
+- **`tradeStatusProvider(orderId)`** — polls `getOrder()` every 2 s
+  with a `listTrades()` fallback when the order has left the in-memory
+  order book. Runs until the status is terminal. `PayLightningInvoiceScreen`
+  subscribes via `ref.listen` and navigates to `/trade_detail/:orderId`
+  on `Active` (or later non-cancel statuses), and away to `/home` on
+  any cancellation/expiry. This is the single source of truth for
+  advancing past the pay-invoice screen; the NWC widget's local
+  `onPaymentSuccess` callback only flips a spinner flag and does not
+  navigate.

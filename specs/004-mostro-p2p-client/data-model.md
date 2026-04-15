@@ -97,7 +97,7 @@ trade at a time (v2.0 scope constraint).
 | role | Enum | `Buyer` or `Seller` |
 | counterparty_pubkey | String | Other party's public key |
 | current_step | Enum | Current progress step (see below) |
-| hold_invoice | String? | Lightning hold invoice (if issued) |
+| hold_invoice | String? | Lightning hold invoice (bolt11) delivered by mostrod via a Kind 1059 gift wrap with `Action::PayInvoice` + `Payload::PaymentRequest`; persisted via `db.update_trade_fields` into `trades.data` (`$.hold_invoice`) so the pay-invoice UI can render the QR |
 | buyer_invoice | String? | Buyer-provided invoice for sell orders |
 | trade_key_index | u32 | BIP-32 key index for this trade |
 | shared_key | String? | ECDH-derived key for P2P chat (hex) |
