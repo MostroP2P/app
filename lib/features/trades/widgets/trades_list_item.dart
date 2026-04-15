@@ -19,8 +19,11 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 /// Watches [tradeStatusProvider] to keep the status chip current without
 /// requiring a full list reload.
 ///
-/// Tap → navigates to `/my_order/:orderId` for pending creator orders,
-/// or `/trade_detail/:orderId` otherwise (active creators and all takers).
+/// Tap → navigates to:
+/// - `/my_order/:orderId` for pending creator orders
+/// - `/pay_invoice/:orderId` for creator orders in WaitingPayment (seller)
+/// - `/add_invoice/:orderId` for creator orders in WaitingInvoice (buyer)
+/// - `/trade_detail/:orderId` otherwise (active creators and all takers).
 class TradesListItem extends ConsumerWidget {
   const TradesListItem({
     super.key,
@@ -59,11 +62,28 @@ class TradesListItem extends ConsumerWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: () => context.push(
-          trade.role == TradeRole.creator && effectiveStatus == TradeStatusFilter.pending
-              ? AppRoute.myOrderPath(trade.orderId)
-              : AppRoute.tradeDetailPath(trade.orderId),
-        ),
+        onTap: () {
+          // Creator + pending → MyOrderScreen (order management)
+          // Creator + waitingPayment (seller) → PayLightningInvoiceScreen (pay hold invoice)
+          // Creator + waitingInvoice (buyer) → AddLightningInvoiceScreen (add invoice)
+          // All others → TradeDetailScreen
+          final isCreator = trade.role == TradeRole.creator;
+          final isPending = effectiveStatus == TradeStatusFilter.pending;
+          final isWaitingPaymentSeller =
+              isCreator && effectiveStatus == TradeStatusFilter.waitingPayment && trade.isSelling;
+          final isWaitingInvoiceBuyer =
+              isCreator && effectiveStatus == TradeStatusFilter.waitingInvoice && !trade.isSelling;
+
+          if (isPending && isCreator) {
+            context.push(AppRoute.myOrderPath(trade.orderId));
+          } else if (isWaitingPaymentSeller) {
+            context.push(AppRoute.payInvoicePath(trade.orderId));
+          } else if (isWaitingInvoiceBuyer) {
+            context.push(AppRoute.addInvoicePath(trade.orderId));
+          } else {
+            context.push(AppRoute.tradeDetailPath(trade.orderId));
+          }
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,

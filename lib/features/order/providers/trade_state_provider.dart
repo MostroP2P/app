@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
@@ -80,4 +81,49 @@ final tradeRoleFromDbProvider =
     TradeRole.seller => false,
     null => null,
   };
+});
+
+/// Poll `listTrades()` every 1 s until `holdInvoice` is non-null, then stop.
+///
+/// Returns `null` while waiting for the hold invoice to arrive from the
+/// Mostro node.  Used by [PayLightningInvoiceScreen] to display the invoice
+/// as soon as it becomes available, rather than relying on the one-shot
+/// [tradeInfoProvider] which may return stale cached data.
+final tradeHoldInvoiceProvider =
+    StreamProvider.family.autoDispose<String?, String>((ref, orderId) async* {
+  while (true) {
+    try {
+      final trades = await orders_api.listTrades();
+      final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+      yield trade?.holdInvoice;
+      if (trade?.holdInvoice != null) return;
+    } catch (e, st) {
+      // Transient DB/bridge error — log and keep polling so the stream
+      // stays subscribed across reconnects and brief failures.
+      debugPrint('[tradeHoldInvoiceProvider] listTrades failed: $e\n$st');
+    }
+    await Future.delayed(const Duration(seconds: 1));
+  }
+});
+
+/// Poll `listTrades()` every 1 s until `holdInvoice` is non-null, then stop.
+///
+/// Returns the full [TradeInfo] when available.  Used by
+/// [PayLightningInvoiceScreen] to get both the hold invoice and the sats
+/// amount without relying on the cached [rawTradesProvider].
+final tradeInfoStreamProvider =
+    StreamProvider.family.autoDispose<TradeInfo?, String>((ref, orderId) async* {
+  while (true) {
+    try {
+      final trades = await orders_api.listTrades();
+      final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+      yield trade;
+      if (trade?.holdInvoice != null) return;
+    } catch (e, st) {
+      // Transient DB/bridge error — log and keep polling so the stream
+      // stays subscribed across reconnects and brief failures.
+      debugPrint('[tradeInfoStreamProvider] listTrades failed: $e\n$st');
+    }
+    await Future.delayed(const Duration(seconds: 1));
+  }
 });

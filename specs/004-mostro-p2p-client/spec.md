@@ -131,8 +131,11 @@ A seller (taker of a buy order) completes a trade. They must pay a hold Lightnin
 
 **Acceptance Scenarios**:
 
-1. **Given** a seller takes a buy order and NWC is NOT configured, **When** the hold invoice is ready, **Then** the seller sees a QR code with the invoice amount, a Copy button, and a Share button.
-2. **Given** a seller takes a buy order and NWC IS configured, **When** the hold invoice is ready, **Then** a simplified screen appears with a "Pay with Wallet" button that auto-pays via the connected wallet.
+1. **Given** a seller takes a buy order and NWC is NOT configured, **When** the hold invoice is ready, **Then** the seller sees a QR code with the invoice amount, a Copy button, a Share button, and a "Pay with Lightning wallet" button that launches the bolt11 into an external wallet via the `lightning:<bolt11>` URI scheme.
+1a. **Given** no app on the device can handle the `lightning:` URI, **When** the seller taps "Pay with Lightning wallet", **Then** the app MUST surface a SnackBar explaining that no Lightning wallet was found, leaving the QR, Copy, and Share options still usable.
+2. **Given** a seller takes a buy order and NWC IS configured, **When** the hold invoice is ready, **Then** a simplified screen appears with a "Pay with Wallet" button that auto-pays via the connected wallet. If NWC payment fails, the screen falls back to the QR view of scenario 1.
+2a. **Given** the seller has paid the hold invoice (QR or NWC path), **When** mostrod confirms the HTLC and broadcasts the order update as Active, **Then** the app MUST auto-navigate from the pay-invoice screen to Trade Detail without any further user action; the navigation is driven by the live order status stream, not by the local wallet success callback.
+2b. **Given** the seller is still on the pay-invoice screen, **When** mostrod broadcasts a terminal cancellation (canceled / cooperativelyCanceled / canceledByAdmin / expired), **Then** the app MUST leave the pay-invoice screen and surface a cancellation notice so the user is not stranded on a dead invoice.
 3. **Given** the trade is active, **When** the seller views Trade Detail, **Then** they see instructions to contact the buyer with payment details and buttons: Close, Cancel, Dispute, Contact.
 4. **Given** the buyer confirms "Fiat Sent", **When** the seller views Trade Detail, **Then** the status changes to "Fiat Sent" and a "Release" button becomes available.
 5. **Given** the seller taps "Release", **When** the confirmation modal appears, **Then** tapping "Yes" releases the sats and transitions to the success/rating screen.
@@ -340,8 +343,10 @@ Users manage their cryptographic identity from the Account screen: view their 12
 
 - **FR-027**: When a buyer takes a sell order and NWC is NOT configured, the system MUST prompt them to manually enter a Lightning invoice or Lightning address.
 - **FR-028**: When NWC is configured, the system MUST automatically generate and submit a Lightning invoice on the buyer's behalf, bypassing the manual entry screen.
-- **FR-029**: When a seller takes a buy order and NWC is NOT configured, the system MUST display the hold invoice as a QR code with Copy and Share actions.
-- **FR-030**: When NWC is configured for a seller, the system MUST present a "Pay with Wallet" button that auto-pays the hold invoice.
+- **FR-029**: When a seller takes a buy order and NWC is NOT configured, the system MUST display the hold invoice as a QR code with Copy, Share, and "Pay with Lightning wallet" actions. The "Pay with Lightning wallet" action MUST launch the bolt11 via the `lightning:<bolt11>` URI (using `url_launcher` with `LaunchMode.externalApplication`), and MUST surface a "no Lightning wallet found" SnackBar if no handler is available. Android builds MUST declare a `<queries>` intent for the `lightning` scheme so the launcher can resolve it on Android 11+.
+- **FR-030**: When NWC is configured for a seller, the system MUST present a "Pay with Wallet" button that auto-pays the hold invoice. On NWC failure, the system MUST fall back to the manual QR flow defined in FR-029.
+- **FR-030a**: The pay-invoice screen MUST subscribe to the live order-status stream (`tradeStatusProvider`) and auto-navigate to Trade Detail on `Active` (or any later non-cancel status) regardless of the local wallet's success callback. This guarantees that the navigation is driven by mostrod's confirmation of the HTLC, not by the seller's wallet reporting a local send, so both QR and NWC paths converge on the same source of truth.
+- **FR-030b**: While the seller remains on the pay-invoice screen, terminal cancellation statuses (`canceled`, `cooperativelyCanceled`, `canceledByAdmin`, `expired`) MUST trigger navigation away from the dead invoice with a user-visible cancellation notice.
 - **FR-031**: The Trade Detail screen MUST display role-appropriate action buttons based on the current order status and the user's role (buyer or seller).
 - **FR-032**: The buyer MUST have a "Fiat Sent" button available when the trade is in "active" status.
 - **FR-033**: The seller MUST have a "Release" button available when the trade is in "fiat-sent" status; tapping it MUST show a confirmation modal before executing.

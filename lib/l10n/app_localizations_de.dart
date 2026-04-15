@@ -954,4 +954,28 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tradeWaitingForHoldInvoice => 'Warte auf Hold-Rechnung...';
+
+  @override
+  String get payInvoiceInstruction =>
+      'Bezahle diese Hold-Rechnung, um den Handel zu starten.';
+
+  @override
+  String get shareButtonLabel => 'Teilen';
+
+  @override
+  String get shareFailed => 'Rechnung konnte nicht geteilt werden';
+
+  @override
+  String get waitingForPaymentConfirmation =>
+      'Warte auf Zahlungsbestätigung...';
+
+  @override
+  String get payWithLightningWallet => 'Mit Lightning-Wallet bezahlen';
+
+  @override
+  String get noLightningWalletFound =>
+      'Keine Lightning-Wallet auf diesem Gerät gefunden';
+
+  @override
+  String get orderNoLongerActive => 'Diese Bestellung ist nicht mehr aktiv';
 }

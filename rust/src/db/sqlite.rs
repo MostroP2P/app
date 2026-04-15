@@ -48,6 +48,44 @@ impl SqliteStorage {
                 .await?;
         }
 
+        // Repair: a prior version of `update_trade_fields` bound `amount_sats`
+        // as a raw text parameter, so SQLite's `json_set` stored it as a JSON
+        // string (e.g. `"6307"`) instead of a JSON integer. Rows in that state
+        // cannot be deserialized back into `TradeInfo` (`amount_sats: Option<u64>`)
+        // and are silently skipped by `list_trades()`, which breaks the
+        // seller pay-invoice screen. Walk the table once and rewrite any
+        // offending rows so the field becomes a JSON number.
+        //
+        // The `pragma_table_info` check guards against running on a table
+        // that doesn't exist yet (first boot after the CREATE TABLE below).
+        let trades_exists: bool = sqlx::query_scalar(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'trades'",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap_or(false);
+        if trades_exists {
+            let repaired: Result<u64, _> = sqlx::query(
+                "UPDATE trades \
+                 SET data = json_set( \
+                     data, \
+                     '$.order.amount_sats', \
+                     CAST(json_extract(data, '$.order.amount_sats') AS INTEGER) \
+                 ) \
+                 WHERE json_type(data, '$.order.amount_sats') = 'text'",
+            )
+            .execute(pool)
+            .await
+            .map(|r| r.rows_affected());
+            match repaired {
+                Ok(0) => {}
+                Ok(n) => log::warn!(
+                    "[db] repaired {n} trade row(s) with string-encoded amount_sats"
+                ),
+                Err(e) => log::warn!("[db] amount_sats repair failed: {e}"),
+            }
+        }
+
         Ok(())
     }
 }
@@ -416,7 +454,10 @@ impl Storage for SqliteStorage {
             binds.push(inv.clone());
         }
         if let Some(sats) = amount_sats {
-            set_expr = format!("json_set({set_expr}, '$.order.amount_sats', ?)");
+            // Bind via json(?) so SQLite parses "6307" as a JSON integer,
+            // otherwise json_set stores it as a JSON string and the row
+            // fails to deserialize back into TradeInfo (amount_sats: Option<u64>).
+            set_expr = format!("json_set({set_expr}, '$.order.amount_sats', json(?))");
             binds.push(sats.to_string());
         }
 

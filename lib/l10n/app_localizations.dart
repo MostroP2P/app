@@ -1831,6 +1831,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting for hold invoice...'**
   String get tradeWaitingForHoldInvoice;
+
+  /// Instruction text shown on the pay invoice screen above the QR code
+  ///
+  /// In en, this message translates to:
+  /// **'Pay this hold invoice to start the trade'**
+  String get payInvoiceInstruction;
+
+  /// Share action button label on the pay invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareButtonLabel;
+
+  /// Snackbar shown when the system share sheet fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not share the invoice'**
+  String get shareFailed;
+
+  /// Text shown while waiting for the Lightning payment to be confirmed after paying the hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for payment confirmation...'**
+  String get waitingForPaymentConfirmation;
+
+  /// Button label that opens the hold invoice in an external Lightning wallet via the lightning: URI scheme
+  ///
+  /// In en, this message translates to:
+  /// **'Pay with Lightning wallet'**
+  String get payWithLightningWallet;
+
+  /// Snackbar shown when no app can handle the lightning: URI
+  ///
+  /// In en, this message translates to:
+  /// **'No Lightning wallet found on this device'**
+  String get noLightningWalletFound;
+
+  /// Neutral notice shown when the order reaches a terminal state (canceled, cooperatively canceled, canceled by admin, or expired) while the user is on the pay invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'This order is no longer active'**
+  String get orderNoLongerActive;
 }
 
 class _AppLocalizationsDelegate

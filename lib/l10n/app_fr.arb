@@ -310,5 +310,12 @@
   "tradeWaitingPaymentBuyerInstruction": "Le vendeur est en train de payer la facture hold. Veuillez patienter.",
   "tradeWaitingPaymentSellerInstruction": "Payez la facture hold pour bloquer les fonds et démarrer l'échange.",
   "tradeLoadError": "Une erreur s'est produite lors du chargement de l'échange.",
-  "tradeWaitingForHoldInvoice": "En attente de la facture hold..."
+  "tradeWaitingForHoldInvoice": "En attente de la facture hold...",
+  "payInvoiceInstruction": "Payez cette facture hold pour démarrer l'échange.",
+  "shareButtonLabel": "Partager",
+  "shareFailed": "Impossible de partager la facture",
+  "waitingForPaymentConfirmation": "En attente de la confirmation du paiement...",
+  "payWithLightningWallet": "Payer avec un portefeuille Lightning",
+  "noLightningWalletFound": "Aucun portefeuille Lightning trouvé sur cet appareil",
+  "orderNoLongerActive": "Cet ordre n'est plus actif"
 }

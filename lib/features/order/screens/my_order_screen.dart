@@ -12,7 +12,6 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
-import 'package:mostro/src/rust/api/types.dart';
 
 /// Detail screen for an order created by the current user.
 ///
@@ -32,7 +31,7 @@ class MyOrderScreen extends ConsumerStatefulWidget {
 
 class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
   bool _cancelling = false;
-  bool _hasNavigated = false;
+  OrderStatus? _lastHandledStatus;
 
   Future<void> _onCancel() async {
     final l10n = AppLocalizations.of(context);
@@ -126,29 +125,52 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
 
     debugPrint('[MyOrderScreen] build: orderId=${widget.orderId} '
         'isSelling=$isSelling liveStatus=$liveStatus '
-        'hasNavigated=$_hasNavigated orderStatus=${resolvedOrder.status}');
+        'lastHandledStatus=$_lastHandledStatus orderStatus=${resolvedOrder.status}');
 
-    if (!_hasNavigated && liveStatus != null && liveStatus != OrderStatus.pending) {
-      // Seller: skip intermediate WaitingBuyerInvoice.
-      final skip = (isSelling && liveStatus == OrderStatus.waitingBuyerInvoice) ||
-          (!isSelling && liveStatus == OrderStatus.waitingPayment);
+    if (liveStatus != null && liveStatus != OrderStatus.pending && liveStatus != _lastHandledStatus) {
+      // For sellers: skip intermediate WaitingBuyerInvoice but still track it
+      // so we don't re-process it. Navigate to the appropriate screen when
+      // status reaches WaitingPayment or beyond.
+      final shouldNavigate = switch (liveStatus) {
+        OrderStatus.waitingBuyerInvoice when isSelling => false, // skip — intermediate state
+        OrderStatus.waitingPayment when !isSelling => false,    // skip — buyer doesn't see this
+        _ => true,
+      };
 
-      debugPrint('[MyOrderScreen] non-pending status detected: $liveStatus skip=$skip');
+      debugPrint('[MyOrderScreen] non-pending status detected: $liveStatus shouldNavigate=$shouldNavigate');
 
-      if (!skip) {
-        _hasNavigated = true;
+      if (shouldNavigate) {
+        final intendedStatus = liveStatus;
+        _lastHandledStatus = intendedStatus;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          if (liveStatus == OrderStatus.waitingPayment && isSelling) {
+          // Re-read the latest status; between build() and this callback
+          // the provider may have emitted a newer value, in which case the
+          // intended navigation is stale and we should let the next build
+          // handle the new state instead of going to the wrong screen.
+          final latest = ref
+              .read(tradeStatusProvider(widget.orderId))
+              .valueOrNull;
+          if (latest != null && latest != intendedStatus) {
+            debugPrint(
+                '[MyOrderScreen] status changed before post-frame: '
+                'intended=$intendedStatus latest=$latest — skipping');
+            _lastHandledStatus = null;
+            return;
+          }
+          if (intendedStatus == OrderStatus.waitingPayment && isSelling) {
             debugPrint('[MyOrderScreen] navigating to PayLightningInvoiceScreen');
             context.go(AppRoute.payInvoicePath(widget.orderId));
-          } else if (liveStatus == OrderStatus.waitingBuyerInvoice &&
+          } else if (intendedStatus == OrderStatus.waitingBuyerInvoice &&
               !isSelling) {
             context.go(AppRoute.addInvoicePath(widget.orderId));
           } else {
             context.go(AppRoute.tradeDetailPath(widget.orderId));
           }
         });
+      } else {
+        // Mark this status as handled so we don't re-process it on next build.
+        _lastHandledStatus = liveStatus;
       }
     }
 
