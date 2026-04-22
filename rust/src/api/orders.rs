@@ -967,17 +967,18 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                         &event.pubkey.to_hex()[..8],
                         &eid[..16],
                     ));
-                    let event_json = match serde_json::to_string(&*event) {
-                        Ok(j) => j,
-                        Err(e) => {
-                            crate::api::logging::blog_warn("gift-wrap", format!("event serialize failed: {e}"));
-                            continue;
-                        }
-                    };
-                    match crate::nostr::gift_wrap::unwrap(&recipient_keys, &event_json).await {
-                        Ok(rumor_json) => {
-                            process_gift_wrap_rumor(&rumor_json, &trade_pubkey_hex, trade_index).await;
+                    match crate::nostr::gift_wrap::unwrap_mostro_message(&recipient_keys, &event).await {
+                        Ok(Some(unwrapped)) => {
+                            dispatch_mostro_message(unwrapped, &trade_pubkey_hex, trade_index).await;
                             last_activity = tokio::time::Instant::now();
+                        }
+                        Ok(None) => {
+                            // Wrap was not addressed to this trade key — the per-trade
+                            // filter already matched, so this is either a relay echo
+                            // or a legitimate "wrong key" after a p-tag collision.
+                            crate::api::logging::blog_warn("gift-wrap", format!(
+                                "decrypt returned None for trade={}", &trade_pubkey_hex[..8]
+                            ));
                         }
                         Err(e) => crate::api::logging::blog_warn("gift-wrap", format!(
                             "decrypt failed for trade={}: {e}", &trade_pubkey_hex[..8]
@@ -997,40 +998,57 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
     });
 }
 
-/// Parse the inner rumor JSON from a decrypted gift-wrap and dispatch by action.
-async fn process_gift_wrap_rumor(rumor_json: &str, trade_pubkey_hex: &str, trade_index: u32) {
-    use mostro_core::message::{Action, Message};
+/// Dispatch a Mostro `Message` recovered from a gift-wrap.
+///
+/// Authenticates the sender against the active Mostro pubkey, runs the
+/// centralized `validate_response` check (catches `CantDo` responses and
+/// malformed `request_id` fields), then routes by action.
+async fn dispatch_mostro_message(
+    unwrapped: mostro_core::nip59::UnwrappedMessage,
+    trade_pubkey_hex: &str,
+    trade_index: u32,
+) {
+    use mostro_core::message::Action;
 
-    // The rumor is a serialised UnsignedEvent; extract its content string.
-    let content = match serde_json::from_str::<serde_json::Value>(rumor_json) {
-        Ok(v) => match v.get("content").and_then(|c| c.as_str()) {
-            Some(s) => s.to_string(),
-            None => {
-                crate::api::logging::blog_warn("gift-wrap", format!(
-                    "rumor has no content field for trade={}", &trade_pubkey_hex[..8]
-                ));
-                return;
-            }
-        },
-        Err(e) => {
+    let mostro_core::nip59::UnwrappedMessage {
+        message: msg,
+        sender,
+        signature: _,
+        created_at: _,
+    } = unwrapped;
+
+    // Daemon authentication: the active Mostro pubkey is the only legitimate
+    // sender for protocol responses. Reject anything else loudly — previously
+    // we trusted whatever decrypted under our trade key.
+    match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
+        Ok(expected) if expected == sender => {}
+        Ok(expected) => {
             crate::api::logging::blog_warn("gift-wrap", format!(
-                "rumor JSON parse failed for trade={}: {e}", &trade_pubkey_hex[..8]
+                "rejecting gift-wrap: sender={} != active mostro={} (trade={})",
+                &sender.to_hex()[..8],
+                &expected.to_hex()[..8],
+                &trade_pubkey_hex[..8],
             ));
             return;
         }
-    };
+        Err(e) => {
+            crate::api::logging::blog_warn("gift-wrap", format!(
+                "active mostro pubkey is invalid: {e} — cannot authenticate gift-wrap"
+            ));
+            return;
+        }
+    }
 
-    // Mostro wire format: [message, null_or_peer]
-    let (msg, _peer): (Message, Option<mostro_core::message::Peer>) =
-        match serde_json::from_str(&content) {
-            Ok(p) => p,
-            Err(e) => {
-                crate::api::logging::blog_warn("gift-wrap", format!(
-                    "content deserialize failed for trade={}: {e}", &trade_pubkey_hex[..8]
-                ));
-                return;
-            }
-        };
+    // Centralized response validation: short-circuits `CantDo` and enforces
+    // `request_id` rules. We pass `None` because the app does not yet track
+    // outstanding request_ids per action (see issue #101 §5 follow-up).
+    if let Err(e) = mostro_core::nip59::validate_response(&msg, None) {
+        crate::api::logging::blog_warn("gift-wrap", format!(
+            "validate_response rejected message for trade={}: {e:?}",
+            &trade_pubkey_hex[..8]
+        ));
+        return;
+    }
 
     let kind = msg.get_inner_message_kind();
 
@@ -1715,8 +1733,9 @@ async fn build_trade_key_map() -> HashMap<String, (nostr_sdk::Keys, u32)> {
 
 /// Handle a Kind 1059 event received on the global subscription.
 ///
-/// Finds which trade key the event is addressed to (via `p` tag), decrypts,
-/// logs the full content, and dispatches to `process_gift_wrap_rumor`.
+/// Finds which trade key the event is addressed to (via `p` tag), decrypts
+/// via `mostro_core::nip59::unwrap_message`, and dispatches the recovered
+/// `Message` through `dispatch_mostro_message`.
 async fn handle_global_gift_wrap(
     event: &nostr_sdk::Event,
     trade_key_map: &HashMap<String, (nostr_sdk::Keys, u32)>,
@@ -1755,16 +1774,15 @@ async fn handle_global_gift_wrap(
         &eid[..16],
     ));
 
-    let event_json = match serde_json::to_string(event) {
-        Ok(j) => j,
-        Err(e) => {
-            crate::api::logging::blog_warn("gift-wrap", format!("event serialize failed: {e}"));
-            return;
+    match crate::nostr::gift_wrap::unwrap_mostro_message(&recipient_keys, event).await {
+        Ok(Some(unwrapped)) => {
+            dispatch_mostro_message(unwrapped, &recipient_hex, trade_idx).await;
         }
-    };
-    match crate::nostr::gift_wrap::unwrap(&recipient_keys, &event_json).await {
-        Ok(rumor_json) => {
-            process_gift_wrap_rumor(&rumor_json, &recipient_hex, trade_idx).await;
+        Ok(None) => {
+            // `Ok(None)` = NIP-44 outer decrypt failed. On the global path
+            // this is expected whenever trade_key_map contains multiple
+            // entries and the event is addressed to a different key; here
+            // the p-tag already matched so it only happens on p-tag collisions.
         }
         Err(e) => crate::api::logging::blog_warn("gift-wrap", format!(
             "decrypt failed for trade={}: {e}", &recipient_hex[..8]
