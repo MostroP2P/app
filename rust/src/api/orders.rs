@@ -1039,15 +1039,28 @@ async fn dispatch_mostro_message(
         }
     }
 
-    // Centralized response validation: short-circuits `CantDo` and enforces
-    // `request_id` rules. We pass `None` because the app does not yet track
-    // outstanding request_ids per action (see issue #101 §5 follow-up).
-    if let Err(e) = mostro_core::nip59::validate_response(&msg, None) {
-        crate::api::logging::blog_warn("gift-wrap", format!(
-            "validate_response rejected message for trade={}: {e:?}",
-            &trade_pubkey_hex[..8]
-        ));
-        return;
+    // Centralized response validation: catches malformed `request_id` fields
+    // and flags `CantDo` responses. We pass `None` because the app does not
+    // yet track outstanding request_ids per action (see issue #101 §5).
+    //
+    // `MostroCantDo` is NOT a reason to drop the message — the `Action::CantDo`
+    // arm below is what unblocks `create_order` callers waiting on a
+    // `pending_confirmations` oneshot. Without propagating it, rejected orders
+    // time out and fall back to the optimistic local-ID path, leaving phantom
+    // pending orders in the book.
+    match mostro_core::nip59::validate_response(&msg, None) {
+        Ok(()) => {}
+        Err(mostro_core::prelude::MostroError::MostroCantDo(_)) => {
+            // Fall through to dispatch so the Action::CantDo arm can resolve
+            // any waiting `create_order` confirmation.
+        }
+        Err(e) => {
+            crate::api::logging::blog_warn("gift-wrap", format!(
+                "validate_response rejected message for trade={}: {e:?}",
+                &trade_pubkey_hex[..8]
+            ));
+            return;
+        }
     }
 
     let kind = msg.get_inner_message_kind();
