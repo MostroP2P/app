@@ -54,7 +54,7 @@ pub async fn new_order(
 
     let payload = Some(Payload::Order(small_order));
     let msg = Message::new_order(None, None, Some(trade_index as i64), Action::NewOrder, payload);
-    wrap_for_mostro(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap a TakeBuy MostroMessage.
@@ -161,7 +161,7 @@ pub async fn rate_user(
         Action::RateUser,
         payload,
     );
-    wrap_for_mostro(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap an AddInvoice MostroMessage (buyer submits Lightning invoice
@@ -195,7 +195,7 @@ pub async fn add_invoice(
         Action::AddInvoice,
         payload,
     );
-    wrap_for_mostro(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ async fn take_order_impl(
         action,
         payload,
     );
-    wrap_for_mostro(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 /// Helper for actions that only need an order ID and no additional payload.
@@ -245,12 +245,12 @@ async fn simple_action(
 ) -> Result<String> {
     let id = Uuid::parse_str(order_id)?;
     let msg = Message::new_order(Some(id), None, Some(trade_index as i64), action, None);
-    wrap_for_mostro(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 /// Wrap `msg` as a NIP-59 Gift Wrap via `mostro_core::nip59::wrap_message`,
 /// applying the daemon-advertised PoW difficulty, and return the event JSON.
-async fn wrap_for_mostro(
+async fn wrap_message(
     sender_keys: &Keys,
     mostro_pubkey: &PublicKey,
     msg: &Message,
