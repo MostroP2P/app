@@ -1,12 +1,8 @@
-/// Mostro action dispatch — builds and wraps MostroMessages.
+/// Mostro action dispatch — builds and wraps `mostro_core::Message` values.
 ///
-/// Each function constructs a `MostroMessage` JSON payload using the
-/// `mostro-core` types and wraps it via NIP-59 Gift Wrap, returning the
-/// event JSON ready for publication.
-///
-/// Wire format: `[{"order":{...}}, null]` — a JSON-serialised
-/// `(Message, Option<Peer>)` tuple where the second element is always `null`
-/// (no peer info is sent by the client).
+/// Each function constructs a `Message` using the `mostro-core` types,
+/// wraps it via NIP-59 Gift Wrap using `mostro_core::nip59::wrap_message`,
+/// and returns the event JSON ready for publication.
 use anyhow::Result;
 use mostro_core::message::{Action, Message, Payload};
 use nostr_sdk::prelude::*;
@@ -14,7 +10,6 @@ use uuid::Uuid;
 
 use crate::api::types::{NewOrderParams, OrderKind};
 use crate::nostr::gift_wrap;
-use crate::nostr::order_events::KIND_ORDER;
 
 // ── Public action builders ────────────────────────────────────────────────────
 
@@ -59,7 +54,7 @@ pub async fn new_order(
 
     let payload = Some(Payload::Order(small_order));
     let msg = Message::new_order(None, None, Some(trade_index as i64), Action::NewOrder, payload);
-    wrap_message(sender_keys, mostro_pubkey, msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap a TakeBuy MostroMessage.
@@ -166,7 +161,7 @@ pub async fn rate_user(
         Action::RateUser,
         payload,
     );
-    wrap_message(sender_keys, mostro_pubkey, msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap an AddInvoice MostroMessage (buyer submits Lightning invoice
@@ -200,7 +195,7 @@ pub async fn add_invoice(
         Action::AddInvoice,
         payload,
     );
-    wrap_message(sender_keys, mostro_pubkey, msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -237,7 +232,7 @@ async fn take_order_impl(
         action,
         payload,
     );
-    wrap_message(sender_keys, mostro_pubkey, msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
 /// Helper for actions that only need an order ID and no additional payload.
@@ -250,16 +245,17 @@ async fn simple_action(
 ) -> Result<String> {
     let id = Uuid::parse_str(order_id)?;
     let msg = Message::new_order(Some(id), None, Some(trade_index as i64), action, None);
-    wrap_message(sender_keys, mostro_pubkey, msg).await
+    wrap_message(sender_keys, mostro_pubkey, &msg).await
 }
 
-/// Serialise `msg` as `[message, null]` (Mostro wire format), then wrap via
-/// NIP-59 Gift Wrap.
+/// Wrap `msg` as a NIP-59 Gift Wrap via `mostro_core::nip59::wrap_message`,
+/// applying the daemon-advertised PoW difficulty, and return the event JSON.
 async fn wrap_message(
     sender_keys: &Keys,
     mostro_pubkey: &PublicKey,
-    msg: Message,
+    msg: &Message,
 ) -> Result<String> {
-    let json = serde_json::to_string(&(msg, Option::<mostro_core::message::Peer>::None))?;
-    gift_wrap::wrap(sender_keys, mostro_pubkey, &json, Kind::from(KIND_ORDER)).await
+    let pow = crate::mostro::pow::get_pow();
+    let event = gift_wrap::wrap_mostro_message(sender_keys, mostro_pubkey, msg, pow).await?;
+    Ok(event.as_json())
 }
