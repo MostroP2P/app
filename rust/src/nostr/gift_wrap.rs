@@ -45,8 +45,18 @@ pub async fn wrap_mostro_message(
 /// Returns `Ok(None)` only when the outer NIP-44 layer cannot be decrypted
 /// with the given key — the canonical "not addressed to me" signal, used by
 /// the global subscription to trial-decrypt across all derived trade keys.
-/// Every other failure (corrupted seal, malformed rumor, bad signature,
-/// sender mismatch) surfaces as `Err`.
+///
+/// Transport-level checks performed here: outer decryption, seal structure,
+/// seal/rumor author consistency (NIP-59 `SenderMismatch`), and — when the
+/// sender set `signed = true` — the inner-tuple Schnorr signature against
+/// the seal author's pubkey. Anything beyond those (corrupt seal, malformed
+/// rumor, bad/missing inner signature) surfaces as `Err`.
+///
+/// Daemon authentication — verifying that `UnwrappedMessage.sender` equals
+/// the active Mostro pubkey — is NOT performed here. The seal author is
+/// proven via the inner signature but could in principle be any key; the
+/// upstream dispatcher in `api/orders.rs` enforces the Mostro-pubkey check
+/// before routing the message.
 pub async fn unwrap_mostro_message(
     trade_keys: &Keys,
     event: &Event,
@@ -184,27 +194,48 @@ mod tests {
 
     #[tokio::test]
     async fn pow_is_applied_to_outer_event() {
+        use std::time::Duration;
+
         let trade_keys = Keys::generate();
         let receiver_keys = Keys::generate();
-        let difficulty = 4; // low to keep the test fast
+        let difficulty: u8 = 4; // low to keep the test fast (avg ~16 tries)
 
-        let event =
-            wrap_mostro_message(&trade_keys, &receiver_keys.public_key(), &sample_message(None), difficulty)
-                .await
-                .expect("wrap with pow");
+        // Mining is probabilistic — cap wall time so a regression that
+        // stalls or loops does not hang CI indefinitely.
+        let event = tokio::time::timeout(
+            Duration::from_secs(30),
+            wrap_mostro_message(
+                &trade_keys,
+                &receiver_keys.public_key(),
+                &sample_message(None),
+                difficulty,
+            ),
+        )
+        .await
+        .expect("wrap with pow timed out")
+        .expect("wrap with pow failed");
 
-        let id_bytes = event.id.to_bytes();
-        let mut leading_zero_bits: u8 = 0;
-        for byte in id_bytes.iter() {
-            if *byte == 0 {
-                leading_zero_bits += 8;
-                continue;
-            }
-            leading_zero_bits += byte.leading_zeros() as u8;
-            break;
-        }
+        let leading_zero_bits: u32 = event
+            .id
+            .to_bytes()
+            .iter()
+            .map(|b| {
+                let lz = b.leading_zeros();
+                (lz, *b == 0)
+            })
+            .scan(true, |still_leading, (lz, is_zero)| {
+                if !*still_leading {
+                    return Some(0u32);
+                }
+                if !is_zero {
+                    *still_leading = false;
+                }
+                Some(lz)
+            })
+            .sum();
+
         assert!(
-            leading_zero_bits >= difficulty,
+            leading_zero_bits >= u32::from(difficulty),
             "event id {} has {} leading zero bits, expected >= {}",
             event.id.to_hex(),
             leading_zero_bits,

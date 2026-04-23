@@ -973,10 +973,11 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                             last_activity = tokio::time::Instant::now();
                         }
                         Ok(None) => {
-                            // Wrap was not addressed to this trade key — the per-trade
-                            // filter already matched, so this is either a relay echo
-                            // or a legitimate "wrong key" after a p-tag collision.
-                            crate::api::logging::blog_warn("gift-wrap", format!(
+                            // The per-trade filter already narrowed by p-tag, so this
+                            // only fires if a relay delivers a wrap whose outer NIP-44
+                            // layer doesn't decrypt under our key — not actionable, and
+                            // cheap for a hostile relay to spam. Keep it at debug.
+                            crate::api::logging::blog_debug("gift-wrap", format!(
                                 "decrypt returned None for trade={}", &trade_pubkey_hex[..8]
                             ));
                         }
