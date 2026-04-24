@@ -133,11 +133,19 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
     let event_json: String = async {
         let sender_keys =
             crate::api::identity::get_active_trade_keys(trade_index).await?;
+        let identity_keys =
+            crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
         let mostro_pubkey =
             nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
                 .map_err(|e| anyhow!("invalid mostro pubkey: {e}"))?;
-        crate::mostro::actions::dispute(&sender_keys, &mostro_pubkey, &trade_id, trade_index)
-            .await
+        crate::mostro::actions::dispute(
+            &identity_keys,
+            &sender_keys,
+            &mostro_pubkey,
+            &trade_id,
+            trade_index,
+        )
+        .await
     }
     .await
     .map_err(|e| anyhow!("ProtocolError: could not build Dispute message: {e}"))?;

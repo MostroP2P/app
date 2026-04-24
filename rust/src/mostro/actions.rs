@@ -3,6 +3,14 @@
 /// Each function constructs a `Message` using the `mostro-core` types,
 /// wraps it via NIP-59 Gift Wrap using `mostro_core::nip59::wrap_message`,
 /// and returns the event JSON ready for publication.
+///
+/// **Key split.** Mostro-core 0.10 requires two `Keys` values per wrap:
+/// `identity_keys` sign the Seal (Kind 13) so the node can tie the rumor to
+/// a long-lived pubkey for reputation purposes, while `trade_keys` author
+/// the rumor (Kind 1) and produce the inner tuple signature. Callers who
+/// want "full-privacy mode" (no reputation) pass `trade_keys` for both
+/// arguments — see `api::identity::get_transport_identity_keys`, which
+/// applies the runtime privacy toggle.
 use anyhow::Result;
 use mostro_core::message::{Action, Message, Payload};
 use nostr_sdk::prelude::*;
@@ -17,7 +25,8 @@ use crate::nostr::gift_wrap;
 ///
 /// Returns the NIP-59 Gift Wrap event JSON ready for publication.
 pub async fn new_order(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     params: &NewOrderParams,
     trade_index: u32,
@@ -54,19 +63,21 @@ pub async fn new_order(
 
     let payload = Some(Payload::Order(small_order));
     let msg = Message::new_order(None, None, Some(trade_index as i64), Action::NewOrder, payload);
-    wrap_message(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap a TakeBuy MostroMessage.
 pub async fn take_buy(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
     amount: Option<f64>,
 ) -> Result<String> {
     take_order_impl(
-        sender_keys,
+        identity_keys,
+        trade_keys,
         mostro_pubkey,
         order_id,
         trade_index,
@@ -82,7 +93,8 @@ pub async fn take_buy(
 /// If `ln_address` is `Some`, it is included in the payload so Mostro can
 /// pay the buyer directly (take-sell-ln-address variant).
 pub async fn take_sell(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
@@ -90,7 +102,8 @@ pub async fn take_sell(
     ln_address: Option<&str>,
 ) -> Result<String> {
     take_order_impl(
-        sender_keys,
+        identity_keys,
+        trade_keys,
         mostro_pubkey,
         order_id,
         trade_index,
@@ -103,42 +116,78 @@ pub async fn take_sell(
 
 /// Build and wrap a FiatSent MostroMessage.
 pub async fn fiat_sent(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
 ) -> Result<String> {
-    simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::FiatSent).await
+    simple_action(
+        identity_keys,
+        trade_keys,
+        mostro_pubkey,
+        order_id,
+        trade_index,
+        Action::FiatSent,
+    )
+    .await
 }
 
 /// Build and wrap a Release MostroMessage.
 pub async fn release(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
 ) -> Result<String> {
-    simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::Release).await
+    simple_action(
+        identity_keys,
+        trade_keys,
+        mostro_pubkey,
+        order_id,
+        trade_index,
+        Action::Release,
+    )
+    .await
 }
 
 /// Build and wrap a Cancel MostroMessage.
 pub async fn cancel(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
 ) -> Result<String> {
-    simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::Cancel).await
+    simple_action(
+        identity_keys,
+        trade_keys,
+        mostro_pubkey,
+        order_id,
+        trade_index,
+        Action::Cancel,
+    )
+    .await
 }
 
 /// Build and wrap a Dispute MostroMessage.
 pub async fn dispute(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
 ) -> Result<String> {
-    simple_action(sender_keys, mostro_pubkey, order_id, trade_index, Action::Dispute).await
+    simple_action(
+        identity_keys,
+        trade_keys,
+        mostro_pubkey,
+        order_id,
+        trade_index,
+        Action::Dispute,
+    )
+    .await
 }
 
 /// Build and wrap a RateUser MostroMessage.
@@ -146,7 +195,8 @@ pub async fn dispute(
 /// Sends a 1–5 star rating for the counterparty to the Mostro daemon via
 /// NIP-59 Gift Wrap after a trade completes.
 pub async fn rate_user(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
@@ -161,7 +211,7 @@ pub async fn rate_user(
         Action::RateUser,
         payload,
     );
-    wrap_message(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap an AddInvoice MostroMessage (buyer submits Lightning invoice
@@ -172,7 +222,8 @@ pub async fn rate_user(
 /// sats amount in the payload so it can resolve the address and generate the
 /// invoice on behalf of the buyer — pass it via `amount_sats`.
 pub async fn add_invoice(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
@@ -195,14 +246,16 @@ pub async fn add_invoice(
         Action::AddInvoice,
         payload,
     );
-    wrap_message(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Internal helper for take-buy / take-sell actions.
+#[allow(clippy::too_many_arguments)]
 async fn take_order_impl(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
@@ -232,12 +285,13 @@ async fn take_order_impl(
         action,
         payload,
     );
-    wrap_message(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Helper for actions that only need an order ID and no additional payload.
 async fn simple_action(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
@@ -245,17 +299,19 @@ async fn simple_action(
 ) -> Result<String> {
     let id = Uuid::parse_str(order_id)?;
     let msg = Message::new_order(Some(id), None, Some(trade_index as i64), action, None);
-    wrap_message(sender_keys, mostro_pubkey, &msg).await
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Wrap `msg` as a NIP-59 Gift Wrap via `mostro_core::nip59::wrap_message`,
 /// applying the daemon-advertised PoW difficulty, and return the event JSON.
 async fn wrap_message(
-    sender_keys: &Keys,
+    identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     msg: &Message,
 ) -> Result<String> {
     let pow = crate::mostro::pow::get_pow();
-    let event = gift_wrap::wrap_mostro_message(sender_keys, mostro_pubkey, msg, pow).await?;
+    let event =
+        gift_wrap::wrap_mostro_message(identity_keys, trade_keys, mostro_pubkey, msg, pow).await?;
     Ok(event.as_json())
 }

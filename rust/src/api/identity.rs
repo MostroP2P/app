@@ -321,3 +321,23 @@ pub(crate) async fn get_active_trade_keys(index: u32) -> Result<Keys> {
     }
     key_ops::derive_trade_key(&state.mnemonic_words, index)
 }
+
+/// Choose the identity keys that will sign the NIP-59 seal for messages
+/// addressed to the Mostro node.
+///
+/// * **Reputation mode** (default) — returns the long-lived identity keys
+///   (index 0). The node links trades to a stable pubkey and the user
+///   accumulates reputation.
+/// * **Full-privacy mode** — returns a clone of `trade_keys`, so the seal is
+///   signed by the same key that authors the rumor. The node cannot link the
+///   trade to any long-lived identity, and no reputation can accrue
+///   (see <https://mostro.network/protocol/key_management.html>).
+///
+/// The toggle source is the in-memory runtime switch in `api::reputation`,
+/// which is what the UI updates via `set_privacy_mode`.
+pub(crate) async fn get_transport_identity_keys(trade_keys: &Keys) -> Result<Keys> {
+    if crate::api::reputation::get_privacy_mode() {
+        return Ok(trade_keys.clone());
+    }
+    get_active_keys().await
+}

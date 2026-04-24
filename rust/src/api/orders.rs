@@ -488,7 +488,10 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // This avoids a phantom "pending" order when the daemon rejects (CantDo).
 
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let event_json = actions::new_order(
+        &identity_keys,
         &sender_keys,
         &mostro_pubkey,
         &params_for_dispatch,
@@ -691,9 +694,23 @@ pub async fn take_order(
                         .and_then(|s| s.default_lightning_address);
                     let ln_address_ref = ln_address.as_deref();
 
+                    let identity_keys = match crate::api::identity::get_transport_identity_keys(
+                        &sender_keys,
+                    )
+                    .await
+                    {
+                        Ok(k) => k,
+                        Err(e) => {
+                            log::error!(
+                                "[orders] take_order: could not resolve identity keys: {e}"
+                            );
+                            return Ok(trade);
+                        }
+                    };
                     let action_result = match dispatch_role {
                         TradeRole::Buyer => {
                             actions::take_sell(
+                                &identity_keys,
                                 &sender_keys,
                                 &mostro_pubkey,
                                 &order_id,
@@ -705,6 +722,7 @@ pub async fn take_order(
                         }
                         TradeRole::Seller => {
                             actions::take_buy(
+                                &identity_keys,
                                 &sender_keys,
                                 &mostro_pubkey,
                                 &order_id,
@@ -792,8 +810,11 @@ pub async fn send_invoice(
         .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let event_json = actions::add_invoice(
+        &identity_keys,
         &sender_keys,
         &mostro_pubkey,
         &order_id,
@@ -821,9 +842,17 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
         .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
-    let event_json =
-        actions::fiat_sent(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
+    let event_json = actions::fiat_sent(
+        &identity_keys,
+        &sender_keys,
+        &mostro_pubkey,
+        &order_id,
+        trade_index,
+    )
+    .await?;
     publish_event_json(&event_json).await?;
     log::info!("[orders] fiat_sent published for order={order_id} trade_index={trade_index}");
     Ok(())
@@ -838,8 +867,17 @@ pub async fn release_order(order_id: String) -> Result<()> {
         .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
-    let event_json = actions::release(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
+    let event_json = actions::release(
+        &identity_keys,
+        &sender_keys,
+        &mostro_pubkey,
+        &order_id,
+        trade_index,
+    )
+    .await?;
     publish_event_json(&event_json).await?;
     log::info!("[orders] release published for order={order_id} trade_index={trade_index}");
     Ok(())
@@ -855,8 +893,17 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
         .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
-    let event_json = actions::cancel(&sender_keys, &mostro_pubkey, &order_id, trade_index).await?;
+    let event_json = actions::cancel(
+        &identity_keys,
+        &sender_keys,
+        &mostro_pubkey,
+        &order_id,
+        trade_index,
+    )
+    .await?;
     publish_event_json(&event_json).await?;
 
     // Optimistic update: mark the trade as Canceled in the local DB immediately
@@ -1011,9 +1058,16 @@ async fn dispatch_mostro_message(
 ) {
     use mostro_core::message::Action;
 
+    // mostro-core 0.10 adds `identity` (seal signer, long-lived) alongside
+    // `sender` (rumor author, per-trade). A Mostro node that opts out of the
+    // identity/trade split — the current daemon — reuses the same key for
+    // both, so `identity == sender`. We keep the existing sender-based
+    // authentication check below; the extra `identity` field is deliberately
+    // ignored here.
     let mostro_core::nip59::UnwrappedMessage {
         message: msg,
         sender,
+        identity: _,
         signature: _,
         created_at: _,
     } = unwrapped;
