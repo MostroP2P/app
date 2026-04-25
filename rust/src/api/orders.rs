@@ -1062,18 +1062,20 @@ async fn dispatch_mostro_message(
     //
     //   * `identity` — seal signer, proven by `seal.verify_signature()` in
     //     `unwrap_message`. This is the only field a forger cannot spoof.
-    //   * `sender`   — rumor author. Self-asserted unless `signature` is
-    //     present and verifies against the rumor pubkey.
+    //   * `sender`   — rumor author. Self-asserted unless an inner
+    //     `signature` is present and verifies against the rumor pubkey.
     //
-    // Mostro protocol responses commonly omit the inner signature, so an
-    // attacker who seals a wrap with their own key can set the rumor pubkey
-    // to the configured Mostro key and route a forged message past any
-    // sender-based check. Authenticate against `identity` instead.
+    // In Mostro's reputation-mode key split `sender` (per-trade key) and
+    // `identity` (long-lived seal key) are expected to differ, and protocol
+    // responses commonly omit the inner signature, so we cannot use a
+    // sender/identity equality check to gate dispatch. Authenticate against
+    // `identity` only — a forger who seals with their own key cannot make
+    // it match the configured Mostro pubkey.
     let mostro_core::nip59::UnwrappedMessage {
         message: msg,
-        sender,
+        sender: _,
         identity,
-        signature,
+        signature: _,
         created_at: _,
     } = unwrapped;
 
@@ -1097,20 +1099,6 @@ async fn dispatch_mostro_message(
             ));
             return;
         }
-    }
-
-    // The rumor pubkey is only trustworthy when the inner signature verifies
-    // it (checked inside `unwrap_message`). Without a signature, a `sender`
-    // that diverges from the verified `identity` is an unauthenticated claim
-    // — drop it rather than route a message whose origin we cannot prove.
-    if signature.is_none() && sender != identity {
-        crate::api::logging::blog_warn("gift-wrap", format!(
-            "rejecting gift-wrap: unsigned rumor with sender={} != identity={} (trade={})",
-            &sender.to_hex()[..8],
-            &identity.to_hex()[..8],
-            &trade_pubkey_hex[..8],
-        ));
-        return;
     }
 
     // Centralized response validation: catches malformed `request_id` fields
