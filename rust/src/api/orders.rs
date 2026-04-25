@@ -1058,29 +1058,34 @@ async fn dispatch_mostro_message(
 ) {
     use mostro_core::message::Action;
 
-    // mostro-core 0.10 adds `identity` (seal signer, long-lived) alongside
-    // `sender` (rumor author, per-trade). A Mostro node that opts out of the
-    // identity/trade split — the current daemon — reuses the same key for
-    // both, so `identity == sender`. We keep the existing sender-based
-    // authentication check below; the extra `identity` field is deliberately
-    // ignored here.
+    // mostro-core 0.10 splits the wrap into two pubkeys:
+    //
+    //   * `identity` — seal signer, proven by `seal.verify_signature()` in
+    //     `unwrap_message`. This is the only field a forger cannot spoof.
+    //   * `sender`   — rumor author. Self-asserted unless `signature` is
+    //     present and verifies against the rumor pubkey.
+    //
+    // Mostro protocol responses commonly omit the inner signature, so an
+    // attacker who seals a wrap with their own key can set the rumor pubkey
+    // to the configured Mostro key and route a forged message past any
+    // sender-based check. Authenticate against `identity` instead.
     let mostro_core::nip59::UnwrappedMessage {
         message: msg,
         sender,
-        identity: _,
-        signature: _,
+        identity,
+        signature,
         created_at: _,
     } = unwrapped;
 
-    // Daemon authentication: the active Mostro pubkey is the only legitimate
-    // sender for protocol responses. Reject anything else loudly — previously
-    // we trusted whatever decrypted under our trade key.
+    // Daemon authentication: the seal signer must be the active Mostro
+    // pubkey. The seal signature is verified inside `unwrap_message`, so
+    // `identity` is the cryptographically authoritative origin.
     match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
-        Ok(expected) if expected == sender => {}
+        Ok(expected) if expected == identity => {}
         Ok(expected) => {
             crate::api::logging::blog_warn("gift-wrap", format!(
-                "rejecting gift-wrap: sender={} != active mostro={} (trade={})",
-                &sender.to_hex()[..8],
+                "rejecting gift-wrap: identity={} != active mostro={} (trade={})",
+                &identity.to_hex()[..8],
                 &expected.to_hex()[..8],
                 &trade_pubkey_hex[..8],
             ));
@@ -1092,6 +1097,20 @@ async fn dispatch_mostro_message(
             ));
             return;
         }
+    }
+
+    // The rumor pubkey is only trustworthy when the inner signature verifies
+    // it (checked inside `unwrap_message`). Without a signature, a `sender`
+    // that diverges from the verified `identity` is an unauthenticated claim
+    // — drop it rather than route a message whose origin we cannot prove.
+    if signature.is_none() && sender != identity {
+        crate::api::logging::blog_warn("gift-wrap", format!(
+            "rejecting gift-wrap: unsigned rumor with sender={} != identity={} (trade={})",
+            &sender.to_hex()[..8],
+            &identity.to_hex()[..8],
+            &trade_pubkey_hex[..8],
+        ));
+        return;
     }
 
     // Centralized response validation: catches malformed `request_id` fields
