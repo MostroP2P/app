@@ -160,10 +160,17 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
         let dispatch_result: anyhow::Result<()> = async {
             let sender_keys =
                 crate::api::identity::get_active_trade_keys(trade_index).await?;
+            // Rating is the one action that must land under the long-lived
+            // identity key: the privacy-mode check above already refuses to
+            // submit when the user opted out of reputation, so here we
+            // resolve identity keys unconditionally via the same helper.
+            let identity_keys =
+                crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
             let mostro_pubkey =
                 nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
                     .map_err(|e| anyhow::anyhow!("invalid mostro pubkey: {e}"))?;
             let event_json = crate::mostro::actions::rate_user(
+                &identity_keys,
                 &sender_keys,
                 &mostro_pubkey,
                 &trade_id,

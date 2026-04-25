@@ -22,9 +22,16 @@ use nostr_sdk::prelude::*;
 
 /// Wrap a `Message` destined for `receiver` (typically the Mostro node).
 ///
-/// `trade_keys` author the rumor, sign the Seal, and produce the inner-tuple
-/// signature. `pow` is applied to the outer Kind 1059 only.
+/// `identity_keys` sign the Seal (Kind 13) and encrypt it to `receiver` via
+/// NIP-44; they are the long-lived identity the node uses to accumulate
+/// reputation. `trade_keys` author the rumor (Kind 1) and produce the inner
+/// tuple signature. For full-privacy mode (no reputation), callers pass the
+/// same value for both parameters — see
+/// <https://mostro.network/protocol/key_management.html>.
+///
+/// `pow` is applied to the outer Kind 1059 only.
 pub async fn wrap_mostro_message(
+    identity_keys: &Keys,
     trade_keys: &Keys,
     receiver: &PublicKey,
     message: &Message,
@@ -35,7 +42,7 @@ pub async fn wrap_mostro_message(
         expiration: None,
         signed: true,
     };
-    core_wrap(message, trade_keys, *receiver, opts)
+    core_wrap(message, identity_keys, trade_keys, *receiver, opts)
         .await
         .map_err(|e| anyhow!("wrap_message failed: {e}"))
 }
@@ -46,11 +53,14 @@ pub async fn wrap_mostro_message(
 /// with the given key — the canonical "not addressed to me" signal, used by
 /// the global subscription to trial-decrypt across all derived trade keys.
 ///
-/// Transport-level checks performed here: outer decryption, seal structure,
-/// seal/rumor author consistency (NIP-59 `SenderMismatch`), and — when the
-/// sender set `signed = true` — the inner-tuple Schnorr signature against
-/// the seal author's pubkey. Anything beyond those (corrupt seal, malformed
-/// rumor, bad/missing inner signature) surfaces as `Err`.
+/// Transport-level checks performed here: outer decryption, seal structure
+/// and signature, and — when the sender set `signed = true` — the
+/// inner-tuple Schnorr signature against the rumor author's pubkey. Note
+/// that mostro-core 0.10 deliberately does **not** enforce
+/// `seal.pubkey == rumor.pubkey` — Mostro signs the seal with the identity
+/// key and authors the rumor with the per-trade key, so the two legitimately
+/// differ. The returned `UnwrappedMessage` exposes both (`identity` vs.
+/// `sender`) so callers can route and authorize accordingly.
 ///
 /// Daemon authentication — verifying that `UnwrappedMessage.sender` equals
 /// the active Mostro pubkey — is NOT performed here. The seal author is
@@ -151,13 +161,20 @@ mod tests {
 
     #[tokio::test]
     async fn roundtrip_preserves_message_and_sender() {
+        let identity_keys = Keys::generate();
         let trade_keys = Keys::generate();
         let receiver_keys = Keys::generate();
         let msg = sample_message(Some(42));
 
-        let event = wrap_mostro_message(&trade_keys, &receiver_keys.public_key(), &msg, 0)
-            .await
-            .expect("wrap");
+        let event = wrap_mostro_message(
+            &identity_keys,
+            &trade_keys,
+            &receiver_keys.public_key(),
+            &msg,
+            0,
+        )
+        .await
+        .expect("wrap");
 
         assert_eq!(event.kind, Kind::GiftWrap);
 
@@ -167,6 +184,7 @@ mod tests {
             .expect("addressed to us");
 
         assert_eq!(unwrapped.sender, trade_keys.public_key());
+        assert_eq!(unwrapped.identity, identity_keys.public_key());
         assert_eq!(
             unwrapped.message.as_json().unwrap(),
             msg.as_json().unwrap(),
@@ -175,15 +193,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn full_privacy_mode_reuses_trade_key_as_identity() {
+        let trade_keys = Keys::generate();
+        let receiver_keys = Keys::generate();
+
+        let event = wrap_mostro_message(
+            &trade_keys,
+            &trade_keys,
+            &receiver_keys.public_key(),
+            &sample_message(Some(1)),
+            0,
+        )
+        .await
+        .expect("wrap");
+
+        let unwrapped = unwrap_mostro_message(&receiver_keys, &event)
+            .await
+            .expect("unwrap")
+            .expect("addressed to us");
+
+        assert_eq!(unwrapped.sender, trade_keys.public_key());
+        assert_eq!(unwrapped.identity, trade_keys.public_key());
+    }
+
+    #[tokio::test]
     async fn unwrap_with_wrong_recipient_returns_none() {
+        let identity_keys = Keys::generate();
         let trade_keys = Keys::generate();
         let receiver_keys = Keys::generate();
         let stranger_keys = Keys::generate();
 
-        let event =
-            wrap_mostro_message(&trade_keys, &receiver_keys.public_key(), &sample_message(None), 0)
-                .await
-                .expect("wrap");
+        let event = wrap_mostro_message(
+            &identity_keys,
+            &trade_keys,
+            &receiver_keys.public_key(),
+            &sample_message(None),
+            0,
+        )
+        .await
+        .expect("wrap");
 
         let result = unwrap_mostro_message(&stranger_keys, &event)
             .await
@@ -196,6 +244,7 @@ mod tests {
     async fn pow_is_applied_to_outer_event() {
         use std::time::Duration;
 
+        let identity_keys = Keys::generate();
         let trade_keys = Keys::generate();
         let receiver_keys = Keys::generate();
         let difficulty: u8 = 4; // low to keep the test fast (avg ~16 tries)
@@ -205,6 +254,7 @@ mod tests {
         let event = tokio::time::timeout(
             Duration::from_secs(30),
             wrap_mostro_message(
+                &identity_keys,
                 &trade_keys,
                 &receiver_keys.public_key(),
                 &sample_message(None),
