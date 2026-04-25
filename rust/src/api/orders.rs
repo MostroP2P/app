@@ -1048,7 +1048,11 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 
 /// Dispatch a Mostro `Message` recovered from a gift-wrap.
 ///
-/// Authenticates the sender against the active Mostro pubkey, runs the
+/// The caller recovers the `UnwrappedMessage` via
+/// `crate::nostr::gift_wrap::unwrap_mostro_message`, which verifies the seal
+/// signature so the `identity` field is cryptographically attributable.
+/// This function authenticates that seal signer's `identity` against the
+/// active Mostro pubkey (never the self-asserted rumor `sender`), runs the
 /// centralized `validate_response` check (catches `CantDo` responses and
 /// malformed `request_id` fields), then routes by action.
 async fn dispatch_mostro_message(
