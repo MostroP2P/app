@@ -62,11 +62,13 @@ pub async fn wrap_mostro_message(
 /// differ. The returned `UnwrappedMessage` exposes both (`identity` vs.
 /// `sender`) so callers can route and authorize accordingly.
 ///
-/// Daemon authentication — verifying that `UnwrappedMessage.sender` equals
-/// the active Mostro pubkey — is NOT performed here. The seal author is
-/// proven via the inner signature but could in principle be any key; the
-/// upstream dispatcher in `api/orders.rs` enforces the Mostro-pubkey check
-/// before routing the message.
+/// Daemon authentication is NOT performed here. The seal signature is
+/// verified (so `identity` is cryptographically attributable) but the seal
+/// signer could in principle be any key, and the rumor pubkey (`sender`)
+/// is only meaningful when an inner signature accompanies it. The upstream
+/// dispatcher in `api/orders.rs` enforces the Mostro-pubkey check against
+/// `identity` — never against the unauthenticated `sender` — before
+/// routing the message.
 pub async fn unwrap_mostro_message(
     trade_keys: &Keys,
     event: &Event,
