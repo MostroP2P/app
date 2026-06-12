@@ -8,6 +8,7 @@ import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/chat/widgets/info_panels.dart';
 import 'package:mostro/features/chat/widgets/message_bubble.dart';
 import 'package:mostro/features/chat/widgets/message_input.dart';
+import 'package:mostro/features/chat/widgets/trade_state_header.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
 import 'package:mostro/src/rust/api/messages.dart' as messages_api;
@@ -269,6 +270,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     // Chat column
     final chatColumn = Column(
       children: [
+        // Sticky trade-state header — pinned below the app bar, does not
+        // scroll with messages. Hides itself when the order can't be resolved.
+        TradeStateHeader(orderId: widget.orderId),
+
         // Info panels (mobile only)
         if (!showSidePanel)
           AnimatedSwitcher(

@@ -184,7 +184,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
     final flag = flags[order.fiatCode] ?? '';
     final title = widget.isBuying ? 'SELL ORDER DETAILS' : 'BUY ORDER DETAILS';
-    final actionLabel = widget.isBuying ? 'Buy' : 'Sell';
+    final actionLabel = widget.isBuying ? 'BUY THESE SATS' : 'SELL SATS';
     final premiumPositive = order.premium >= 0;
 
     return Scaffold(
@@ -199,15 +199,35 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${order.displayAmount} ${order.fiatCode} $flag',
+                  widget.isBuying
+                      ? 'Someone is selling sats'
+                      : 'Someone is buying sats',
                   style: theme.textTheme.headlineMedium,
                 ),
                 const SizedBox(height: AppSpacing.xs),
+                Text.rich(
+                  TextSpan(
+                    text: 'for ',
+                    style: TextStyle(color: textSec, fontSize: 14),
+                    children: [
+                      TextSpan(
+                        text: '${order.displayAmount} ${order.fiatCode} $flag',
+                        style: TextStyle(
+                          color: colors?.textPrimary ?? Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const TextSpan(text: ' at market price'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Market Price (${premiumPositive ? '+' : ''}${order.premium.toStringAsFixed(1)}%)',
+                  'Premium: ${premiumPositive ? '+' : ''}${order.premium.toStringAsFixed(1)}%',
                   style: TextStyle(
                     color: premiumPositive ? green : colors?.sellColor,
                     fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -289,63 +309,123 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
           if (!privacyMode) ...[
             _InfoCard(
               color: cardBg,
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.star, size: 16, color: Colors.amber),
-                  const SizedBox(width: AppSpacing.xs),
                   Text(
-                    order.rating.toStringAsFixed(1),
-                    style: theme.textTheme.bodyMedium,
+                    'Creator reputation',
+                    style: TextStyle(color: textSec, fontSize: 12),
                   ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Icon(Icons.person_outline, size: 16, color: textSec),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    '${order.tradeCount}',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Icon(Icons.calendar_month_outlined, size: 16, color: textSec),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    '${order.daysActive}d',
-                    style: theme.textTheme.bodyMedium,
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ReputationStat(
+                          value: order.rating.toStringAsFixed(1),
+                          label: 'rating',
+                          icon: Icons.star,
+                          iconColor: Colors.amber,
+                        ),
+                      ),
+                      Expanded(
+                        child: _ReputationStat(
+                          value: '${order.tradeCount}',
+                          label: 'trades',
+                        ),
+                      ),
+                      Expanded(
+                        child: _ReputationStat(
+                          value: '${order.daysActive}',
+                          label: 'days active',
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          const SizedBox(height: AppSpacing.xl),
 
-          // Countdown timer
+          // Contextual countdown: what expires and what happens then.
           if (_remaining > Duration.zero) ...[
-            Center(
-              child: Column(
+            _InfoCard(
+              color: cardBg,
+              child: Row(
                 children: [
                   SizedBox(
-                    width: 80,
-                    height: 80,
-                    child: CircularProgressIndicator(
-                      value: () {
-                        if (order.expiresAt == null) return 0.0;
-                        final lifetime = order.expiresAt!
-                            .difference(order.createdAt)
-                            .inSeconds;
-                        if (lifetime <= 0) return 0.0;
-                        return (_remaining.inSeconds / lifetime)
-                            .clamp(0.0, 1.0);
-                      }(),
-                      strokeWidth: 4,
-                      color: green,
-                      backgroundColor:
-                          colors?.backgroundInput ?? const Color(0xFF252A3A),
+                    width: 72,
+                    height: 72,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 72,
+                          height: 72,
+                          child: CircularProgressIndicator(
+                            value: () {
+                              if (order.expiresAt == null) return 0.0;
+                              final lifetime = order.expiresAt!
+                                  .difference(order.createdAt)
+                                  .inSeconds;
+                              if (lifetime <= 0) return 0.0;
+                              return (_remaining.inSeconds / lifetime)
+                                  .clamp(0.0, 1.0);
+                            }(),
+                            strokeWidth: 5,
+                            color: green,
+                            backgroundColor: colors?.backgroundInput ??
+                                const Color(0xFF252A3A),
+                          ),
+                        ),
+                        Text(
+                          _formatDuration(_remaining),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Time remaining: ${_formatDuration(_remaining)}',
-                    style: TextStyle(color: textSec, fontSize: 13),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TIME TO TAKE THIS ORDER',
+                          style: TextStyle(
+                            color: green,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text.rich(
+                          TextSpan(
+                            text: 'If it expires, the order is removed '
+                                'from the book. ',
+                            style: TextStyle(
+                              color: textSec,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: "It won't affect your reputation.",
+                                style: TextStyle(
+                                  color: green,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -375,11 +455,12 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                  child: const Text('Close'),
+                  child: const Text('CLOSE'),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
+                flex: 2,
                 child: FilledButton(
                   onPressed: _submitting ? null : _onTakeOrder,
                   style: FilledButton.styleFrom(
@@ -411,6 +492,46 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
         '${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// One column of the 3-column creator-reputation block.
+class _ReputationStat extends StatelessWidget {
+  const _ReputationStat({
+    required this.value,
+    required this.label,
+    this.icon,
+    this.iconColor,
+  });
+
+  final String value;
+  final String label;
+  final IconData? icon;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>();
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: iconColor),
+              const SizedBox(width: AppSpacing.xs),
+            ],
+            Text(
+              value,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(color: textSec, fontSize: 11)),
+      ],
+    );
   }
 }
 

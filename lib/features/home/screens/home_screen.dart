@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
@@ -64,6 +65,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final filteredOrders = ref.watch(filteredOrdersProvider);
+    // "Reason to pick" badges computed once per visible list (not per card).
+    final orderReasons = ref.watch(orderReasonsProvider);
     final flags = ref.watch(currencyFlagsProvider);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isDesktop = screenWidth >= AppBreakpoints.desktop;
@@ -92,6 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             return OrderListItem(
               order: order,
               currencyFlags: flags,
+              reason: orderReasons[order.id],
               onTap: () => onTap(order.id, ref.read(homeOrderTypeProvider)),
             );
           },
@@ -116,6 +120,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           return OrderListItem(
             order: order,
             currencyFlags: flags,
+            reason: orderReasons[order.id],
             onTap: () => onTap(order.id, ref.read(homeOrderTypeProvider)),
           );
         },

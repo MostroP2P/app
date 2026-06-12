@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/features/order/widgets/order_preset_selector.dart';
 import 'package:mostro/features/order/widgets/payment_method_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
 import 'package:mostro/core/services/identity_service.dart';
@@ -50,6 +51,8 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       ref.read(isMarketPriceProvider.notifier).state = true;
       ref.read(premiumValueProvider.notifier).state = 0.0;
       ref.read(fixedSatsProvider.notifier).state = '';
+      ref.read(selectedOrderPresetProvider.notifier).state =
+          OrderPreset.custom;
     });
   }
 
@@ -83,6 +86,65 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       final amount = double.tryParse(_amountController.text);
       return amount != null && amount > 0;
     }
+  }
+
+  /// Prefills the form from the chosen preset. Presets are suggestions —
+  /// the user can still review/edit everything before submitting.
+  void _applyPreset(OrderPreset preset, OrderInfo? source) {
+    ref.read(selectedOrderPresetProvider.notifier).state = preset;
+    switch (preset) {
+      case OrderPreset.express:
+        if (source == null) return;
+        final isRange =
+            source.fiatAmountMin != null && source.fiatAmountMax != null;
+        setState(() {
+          _isRange = isRange;
+          if (isRange) {
+            _minController.text = _formatNum(source.fiatAmountMin!);
+            _maxController.text = _formatNum(source.fiatAmountMax!);
+            _amountController.clear();
+          } else {
+            _amountController.text = source.fiatAmount != null
+                ? _formatNum(source.fiatAmount!)
+                : '';
+            _minController.clear();
+            _maxController.clear();
+          }
+        });
+        ref.read(selectedFiatCodeProvider.notifier).state = source.fiatCode;
+        final methods = source.paymentMethod
+            .split(',')
+            .map((m) => m.trim())
+            .where((m) => m.isNotEmpty)
+            .toList();
+        if (methods.isNotEmpty) {
+          ref.read(selectedPaymentMethodsProvider.notifier).state = methods;
+        }
+        ref.read(isMarketPriceProvider.notifier).state = true;
+        ref.read(premiumValueProvider.notifier).state =
+            source.premium.clamp(-10.0, 10.0);
+        ref.read(fixedSatsProvider.notifier).state = '';
+      case OrderPreset.conservative:
+        ref.read(isMarketPriceProvider.notifier).state = true;
+        ref.read(premiumValueProvider.notifier).state = 0.0;
+        ref.read(fixedSatsProvider.notifier).state = '';
+      case OrderPreset.custom:
+        // Full form as-is — nothing to prefill.
+        break;
+    }
+  }
+
+  static String _formatNum(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  /// "1234567" → "1,234,567" for sats display.
+  static String _groupDigits(String s) {
+    final b = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write(',');
+      b.write(s[i]);
+    }
+    return b.toString();
   }
 
   Future<void> _submit() async {
@@ -169,6 +231,8 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final customMethod = ref.watch(customPaymentMethodProvider);
     final isMarket = ref.watch(isMarketPriceProvider);
     final fixedSatsStr = ref.watch(fixedSatsProvider);
+    final fiatCode = ref.watch(selectedFiatCodeProvider);
+    final premium = ref.watch(premiumValueProvider);
     final isValid = _checkValid(selectedMethods, customMethod, isMarket, fixedSatsStr);
 
     return Scaffold(
@@ -176,6 +240,10 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
+          // Preset cards: Express / Conservative / Custom
+          OrderPresetSelector(onSelect: _applyPreset),
+          const SizedBox(height: AppSpacing.lg),
+
           // Card 1: Order type + amount + currency
           _Card(
             color: cardBg,
@@ -289,15 +357,27 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
         ],
       ),
 
-      // Bottom bar: Cancel + Submit
+      // Bottom bar: live preview + Cancel + Submit
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
             vertical: AppSpacing.md,
           ),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              _previewFooter(
+                colors: colors,
+                cardBg: cardBg,
+                isMarket: isMarket,
+                fixedSatsStr: fixedSatsStr,
+                fiatCode: fiatCode,
+                premium: premium,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => context.pop(),
@@ -337,9 +417,116 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
                       : const Text('Submit'),
                 ),
               ),
+                ],
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Live preview footer — "You receive ≈ X sats for Y ARS · live for 24 h".
+  ///
+  /// A sats figure is only shown in Fixed price mode (where the user entered
+  /// it); there is no exchange-rate source in the app for market-price
+  /// estimates, so market mode shows the fiat side + premium only.
+  Widget _previewFooter({
+    required AppColors? colors,
+    required Color cardBg,
+    required bool isMarket,
+    required String fixedSatsStr,
+    required String fiatCode,
+    required double premium,
+  }) {
+    final textPrimary = colors?.textPrimary ?? Colors.white;
+    final secondary = colors?.textSecondary ?? Colors.grey;
+    final subtle = colors?.textSubtle ?? Colors.grey;
+
+    // Fiat side, mirroring _checkValid's rules.
+    String? amountStr;
+    if (_isRange) {
+      final min = double.tryParse(_minController.text);
+      final max = double.tryParse(_maxController.text);
+      if (min != null && max != null && min > 0 && min < max) {
+        amountStr = '${_formatNum(min)}–${_formatNum(max)} $fiatCode';
+      }
+    } else {
+      final amount = double.tryParse(_amountController.text);
+      if (amount != null && amount > 0) {
+        amountStr = '${_formatNum(amount)} $fiatCode';
+      }
+    }
+
+    // Exact sats are only known in Fixed price mode (user-entered).
+    BigInt? sats;
+    if (!isMarket) {
+      final parsed = BigInt.tryParse(fixedSatsStr);
+      if (parsed != null && parsed > BigInt.zero) sats = parsed;
+    }
+
+    Widget body;
+    if (amountStr == null) {
+      body = Text(
+        'Enter an amount to see a live preview.',
+        style: TextStyle(fontSize: 13, color: subtle),
+      );
+    } else {
+      final bold = TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: textPrimary,
+      );
+      final spans = <TextSpan>[];
+      if (sats != null) {
+        spans
+          ..add(TextSpan(text: _isBuy ? 'You receive ' : 'You sell '))
+          ..add(TextSpan(
+            text: '${_groupDigits(sats.toString())} sats',
+            style: bold,
+          ))
+          ..add(const TextSpan(text: ' for '))
+          ..add(TextSpan(text: amountStr, style: bold));
+      } else {
+        final priceLabel = premium == 0
+            ? 'market price'
+            : 'market ${premium > 0 ? '+' : ''}${_formatNum(premium)}%';
+        spans
+          ..add(TextSpan(text: _isBuy ? 'You buy BTC for ' : 'You sell BTC for '))
+          ..add(TextSpan(text: amountStr, style: bold))
+          ..add(const TextSpan(text: ' at '))
+          ..add(TextSpan(text: priceLabel, style: bold));
+      }
+      spans
+        ..add(const TextSpan(text: ' · live for '))
+        ..add(TextSpan(text: '24 h', style: bold));
+
+      body = Text.rich(
+        TextSpan(
+          style: TextStyle(fontSize: 13, height: 1.5, color: secondary),
+          children: spans,
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: subtle.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PREVIEW',
+            style: TextStyle(fontSize: 11, letterSpacing: 1, color: subtle),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          body,
+        ],
       ),
     );
   }
