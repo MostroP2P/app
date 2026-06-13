@@ -7,21 +7,33 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
-import 'package:mostro/features/notifications/widgets/notification_card.dart';
+import 'package:mostro/features/notifications/widgets/notification_group_card.dart';
+import 'package:mostro/features/notifications/widgets/system_notification_banner.dart';
 
 /// Notifications screen — Route `/notifications`.
 ///
-/// Shows a scrollable list of notifications with a pinned backup reminder
-/// card at the top when active. Supports Mark all as read and Clear all.
-class NotificationsScreen extends ConsumerWidget {
+/// Trade-related notifications are grouped by order id into collapsible
+/// group cards (latest event shown, earlier events expandable). System
+/// notifications (backup reminder, announcements) render in a separate
+/// banner section at the top. Filter chips narrow the list to dispute
+/// groups or system items.
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+enum _NotificationFilter { all, disputes, system }
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  _NotificationFilter _filter = _NotificationFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
     final backupActive = ref.watch(backupReminderProvider);
     final notifications = ref.watch(notificationsProvider);
-    final colors = Theme.of(context).extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
 
     return Scaffold(
       appBar: AppBar(
@@ -36,16 +48,17 @@ class NotificationsScreen extends ConsumerWidget {
                   ref.read(notificationsProvider.notifier).deleteAll();
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: _MenuAction.markAllRead,
-                child: Text('Mark all as read'),
-              ),
-              PopupMenuItem(
-                value: _MenuAction.clearAll,
-                child: Text('Clear all'),
-              ),
-            ],
+            itemBuilder:
+                (_) => const [
+                  PopupMenuItem(
+                    value: _MenuAction.markAllRead,
+                    child: Text('Mark all as read'),
+                  ),
+                  PopupMenuItem(
+                    value: _MenuAction.clearAll,
+                    child: Text('Clear all'),
+                  ),
+                ],
           ),
         ],
       ),
@@ -55,10 +68,8 @@ class NotificationsScreen extends ConsumerWidget {
         },
         child: _buildBody(
           context: context,
-          ref: ref,
           backupActive: backupActive,
           notifications: notifications,
-          green: green,
         ),
       ),
     );
@@ -66,10 +77,8 @@ class NotificationsScreen extends ConsumerWidget {
 
   Widget _buildBody({
     required BuildContext context,
-    required WidgetRef ref,
     required bool backupActive,
     required List<NotificationModel> notifications,
-    required Color green,
   }) {
     final hasContent = backupActive || notifications.isNotEmpty;
 
@@ -77,29 +86,105 @@ class NotificationsScreen extends ConsumerWidget {
       return const _EmptyState();
     }
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
+    // ── Partition: system items vs trade/dispute groups ──
+    final systemItems = <NotificationModel>[];
+    final groups = <String, List<NotificationModel>>{};
+    for (final n in notifications) {
+      final key = n.orderId ?? n.disputeId;
+      if (key == null) {
+        systemItems.add(n);
+      } else {
+        groups.putIfAbsent(key, () => []).add(n);
+      }
+    }
+    systemItems.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    for (final events in groups.values) {
+      events.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    }
+    final sortedGroups =
+        groups.values.toList()
+          ..sort((a, b) => b.first.timestamp.compareTo(a.first.timestamp));
+
+    final disputeGroups =
+        sortedGroups
+            .where((g) => g.any((n) => n.type == NotificationType.dispute))
+            .toList();
+    final systemCount = systemItems.length + (backupActive ? 1 : 0);
+
+    final showSystem =
+        _filter == _NotificationFilter.all ||
+        _filter == _NotificationFilter.system;
+    final visibleGroups = switch (_filter) {
+      _NotificationFilter.all => sortedGroups,
+      _NotificationFilter.disputes => disputeGroups,
+      _NotificationFilter.system => <List<NotificationModel>>[],
+    };
+
+    final notifier = ref.read(notificationsProvider.notifier);
+
+    return Column(
       children: [
-        if (backupActive) ...[
-          _BackupReminderCard(green: green),
-          const SizedBox(height: AppSpacing.sm),
-        ],
-        for (final n in notifications) ...[
-          NotificationCard(
-            notification: n,
-            onMarkRead: () =>
-                ref.read(notificationsProvider.notifier).markAsRead(n.id),
-            onDelete: () =>
-                ref.read(notificationsProvider.notifier).delete(n.id),
-            onTap: () => _handleTap(context, n),
+        _FilterChipsRow(
+          selected: _filter,
+          disputeCount: disputeGroups.length,
+          systemCount: systemCount,
+          onSelected: (f) => setState(() => _filter = f),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            children: [
+              // ── System section (banners) ──
+              if (showSystem) ...[
+                if (backupActive) ...[
+                  const _BackupReminderBanner(),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+                for (final n in systemItems) ...[
+                  SystemNotificationBanner(
+                    notification: n,
+                    onMarkRead: () => notifier.markAsRead(n.id),
+                    onDelete: () => notifier.delete(n.id),
+                    onTap: () => _handleTap(context, n),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+              ],
+              // ── Trade groups ──
+              for (final group in visibleGroups) ...[
+                NotificationGroupCard(
+                  notifications: group,
+                  isDisputeGroup: group.first.orderId == null,
+                  onMarkRead: (n) => notifier.markAsRead(n.id),
+                  onDelete: (n) => notifier.delete(n.id),
+                  onTapNotification: (n) => _handleTap(context, n),
+                  onGoToTrade: () => _goToTrade(context, group.first),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              if ((!showSystem && visibleGroups.isEmpty) ||
+                  (_filter == _NotificationFilter.system && systemCount == 0))
+                const Padding(
+                  padding: EdgeInsets.only(top: AppSpacing.xxl),
+                  child: _EmptyState(),
+                ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
+        ),
       ],
     );
+  }
+
+  /// Footer action of a group card — open the trade (or dispute) detail.
+  void _goToTrade(BuildContext context, NotificationModel n) {
+    if (n.orderId != null) {
+      context.push(AppRoute.tradeDetailPath(n.orderId!));
+    } else if (n.disputeId != null) {
+      context.push(AppRoute.disputeDetailsPath(n.disputeId!));
+    }
   }
 
   void _handleTap(BuildContext context, NotificationModel n) {
@@ -143,30 +228,141 @@ class NotificationsScreen extends ConsumerWidget {
 
 enum _MenuAction { markAllRead, clearAll }
 
-// ── Backup reminder card ──────────────────────────────────────────────────────
+// ── Filter chips row ──────────────────────────────────────────────────────────
 
-class _BackupReminderCard extends StatelessWidget {
-  const _BackupReminderCard({required this.green});
+class _FilterChipsRow extends StatelessWidget {
+  const _FilterChipsRow({
+    required this.selected,
+    required this.disputeCount,
+    required this.systemCount,
+    required this.onSelected,
+  });
 
-  final Color green;
+  final _NotificationFilter selected;
+  final int disputeCount;
+  final int systemCount;
+  final ValueChanged<_NotificationFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <(_NotificationFilter, String)>[
+      (_NotificationFilter.all, 'All'),
+      (
+        _NotificationFilter.disputes,
+        disputeCount > 0 ? 'Disputes · $disputeCount' : 'Disputes',
+      ),
+      (
+        _NotificationFilter.system,
+        systemCount > 0 ? 'System · $systemCount' : 'System',
+      ),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        0,
+      ),
+      child: Row(
+        children: [
+          for (final (filter, label) in chips) ...[
+            _FilterChip(
+              label: label,
+              isSelected: selected == filter,
+              onTap: () => onSelected(filter),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>();
+    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? green.withValues(alpha: 0.15) : cardBg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color:
+                isSelected ? green.withValues(alpha: 0.4) : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall!.copyWith(
+            color: isSelected ? green : textSec,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Backup reminder banner ────────────────────────────────────────────────────
+
+class _BackupReminderBanner extends StatelessWidget {
+  const _BackupReminderBanner();
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
 
     return GestureDetector(
       onTap: () => context.push(AppRoute.keyManagement),
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm + 2,
+        ),
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(AppRadius.card),
-          border: Border.all(color: const Color(0xFFD84D4D), width: 1),
+          border: Border.all(color: amber.withValues(alpha: 0.3), width: 1),
         ),
         child: Row(
           children: [
-            const Icon(Icons.gavel, color: Color(0xFFD84D4D), size: 24),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: amber.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(AppRadius.chip),
+              ),
+              child: Icon(Icons.warning_amber_rounded, color: amber, size: 18),
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -175,14 +371,17 @@ class _BackupReminderCard extends StatelessWidget {
                   Text(
                     'You must back up your account',
                     style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFD84D4D),
-                        ),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Tap to view and save your secret words.',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall!.copyWith(fontSize: 11),
                   ),
                 ],
               ),
@@ -206,7 +405,10 @@ class _TypeIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color) = switch (type) {
-      NotificationType.orderUpdate => (Icons.shopping_bag_outlined, Colors.blue),
+      NotificationType.orderUpdate => (
+        Icons.shopping_bag_outlined,
+        Colors.blue,
+      ),
       NotificationType.tradeUpdate => (Icons.star_outline, Colors.amber),
       NotificationType.payment => (Icons.bolt_outlined, Colors.yellow),
       NotificationType.dispute => (Icons.gavel, Colors.red),
@@ -239,10 +441,9 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             'No notifications',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium!
-                .copyWith(color: Colors.white38),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium!.copyWith(color: Colors.white38),
           ),
         ],
       ),

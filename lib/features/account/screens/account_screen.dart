@@ -8,6 +8,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/account/widgets/backup_trigger_sheet.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/providers/session_provider.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -77,6 +78,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   Future<void> _confirmBackup() async {
     try {
       await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
+      await ref.read(backupCompletedProvider.notifier).markCompleted();
       if (mounted) setState(() => _showBackupCheckbox = false);
     } catch (e) {
       debugPrint('[account] _confirmBackup error: $e');
@@ -106,12 +108,23 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
     final privacyMode = ref.watch(privacyModeProvider);
+    final backupPending = ref.watch(backupReminderProvider);
+    final backupDone = ref.watch(backupCompletedProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Account')),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
+          // ── Backup ritual banner — entry point for the 3-step backup
+          // flow while the backup reminder is active.
+          if (backupPending) ...[
+            _BackupRitualBanner(
+              onTap: () => showBackupTriggerSheet(context),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+
           // ── Secret Words Card ──────────────────────────────────────────
           _SectionCard(
             color: cardBg,
@@ -122,6 +135,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   icon: Icons.key,
                   iconColor: green,
                   title: 'Secret Words',
+                  badge: backupDone ? _BackedUpBadge(green: green) : null,
                   onInfo:
                       () => _showInfoDialog(
                         context,
@@ -370,6 +384,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     await ref
                         .read(backupReminderProvider.notifier)
                         .showBackupReminder();
+                    await ref.read(backupCompletedProvider.notifier).reset();
                     // Only clear UI state and navigate once the new identity exists.
                     if (!context.mounted) return;
                     setState(() {
@@ -414,6 +429,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       await IdentityService.importAndStore(words);
       ref.read(sessionProvider.notifier).clearSession();
       await ref.read(backupReminderProvider.notifier).showBackupReminder();
+      await ref.read(backupCompletedProvider.notifier).reset();
       if (!context.mounted) return;
       setState(() {
         _wordsVisible = false;
@@ -509,12 +525,16 @@ class _CardHeader extends StatelessWidget {
     required this.iconColor,
     required this.title,
     required this.onInfo,
+    this.badge,
   });
 
   final IconData icon;
   final Color iconColor;
   final String title;
   final VoidCallback onInfo;
+
+  /// Optional badge shown right after the title (e.g. "Backed up").
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -528,6 +548,10 @@ class _CardHeader extends StatelessWidget {
             context,
           ).textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
         ),
+        if (badge != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          badge!,
+        ],
         const Spacer(),
         IconButton(
           onPressed: onInfo,
@@ -537,6 +561,102 @@ class _CardHeader extends StatelessWidget {
           constraints: const BoxConstraints(),
         ),
       ],
+    );
+  }
+}
+
+// ── Backup ritual banner + badge ──────────────────────────────────────────────
+
+/// Banner shown while the backup reminder is active. Tapping it opens the
+/// backup ritual trigger sheet.
+class _BackupRitualBanner extends StatelessWidget {
+  const _BackupRitualBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>();
+    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+
+    return Material(
+      color: cardBg,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            border: Border.all(color: amber.withValues(alpha: 0.5)),
+            borderRadius: BorderRadius.circular(AppRadius.card),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.shield_outlined, color: amber, size: 24),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Secure your reputation',
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: amber,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Back up your 12 words — it takes 60 seconds.',
+                      style:
+                          theme.textTheme.bodySmall!.copyWith(color: textSec),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small green "Backed up" chip shown in the Secret Words card header once
+/// the backup ritual (or legacy checkbox) has been completed.
+class _BackedUpBadge extends StatelessWidget {
+  const _BackedUpBadge({required this.green});
+
+  final Color green;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: green.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppRadius.chip),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check, size: 12, color: green),
+          const SizedBox(width: 3),
+          Text(
+            'Backed up',
+            style: TextStyle(
+              color: green,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

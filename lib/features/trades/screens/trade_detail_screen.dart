@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,18 +11,21 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/src/rust/api/disputes.dart' as disputes_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
-import 'package:mostro/features/trades/widgets/trade_info_cards.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
+import 'package:mostro/shared/widgets/nym_avatar.dart';
 
 /// Trade detail screen — Route `/trade_detail/:orderId`.
 ///
-/// Shows trade summary, payment method, dates, order ID, instructions,
-/// countdown timer, and role-based action buttons.
+/// One explicit next action per state-machine state: a single primary CTA,
+/// secondary/destructive actions collapsed behind the app-bar overflow menu,
+/// a persistent chat chip, a contextual timer (what expires + consequence),
+/// and a step timeline of the trade.
 class TradeDetailScreen extends ConsumerStatefulWidget {
   const TradeDetailScreen({super.key, required this.orderId});
 
@@ -60,6 +64,9 @@ enum TradeStatus {
   const TradeStatus(this.label);
   final String label;
 }
+
+/// Overflow-menu actions (cancel / dispute / release collapsed behind ⋮).
+enum _MenuAction { cancel, dispute, release }
 
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
@@ -176,6 +183,57 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     }
   }
 
+  /// Open a dispute for this trade, upsert into the local dispute notifier,
+  /// and navigate to the dispute chat.
+  Future<void> _openDispute() async {
+    try {
+      final dispute = await disputes_api.openDispute(tradeId: widget.orderId);
+      if (!mounted) return;
+      final raw = dispute.openedAt;
+      // PlatformInt64 = int on native, BigInt on web.
+      final openedAt = raw is BigInt ? raw.toInt() : raw;
+      ref.read(disputeNotifierProvider.notifier).upsert(
+            DisputeItem(
+              id: dispute.id,
+              tradeId: dispute.tradeId,
+              status: DisputeStatus.open,
+              initiatedByMe: true,
+              openedAt: openedAt,
+            ),
+          );
+      if (!mounted) return;
+      context.push(AppRoute.disputeDetailsPath(dispute.id));
+    } catch (e, st) {
+      debugPrint('[TradeDetailScreen] openDispute error: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).openDisputeFailed)),
+      );
+    }
+  }
+
+  /// Confirm and release the sats (seller). Shared between the primary CTA
+  /// in the fiat-sent state and the overflow menu in the disputed state.
+  Future<void> _releaseOrder() async {
+    final confirmed = await showReleaseConfirmationDialog(context);
+    if (confirmed != true || !mounted) return;
+    try {
+      await orders_api.releaseOrder(orderId: widget.orderId);
+      if (!mounted) return;
+      if (ref.read(privacyModeProvider)) {
+        context.go(AppRoute.home);
+      } else {
+        context.push(AppRoute.rateUserPath(widget.orderId));
+      }
+    } catch (e, st) {
+      debugPrint('[TradeDetailScreen] releaseOrder error: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
+      );
+    }
+  }
+
   String _getInstructionText(bool isBuyer, TradeStatus status) {
     final l10n = AppLocalizations.of(context);
     if (status == TradeStatus.waitingInvoice) {
@@ -190,7 +248,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     }
     if (isBuyer) {
       if (status == TradeStatus.active) {
-        return 'Send the fiat payment to the seller, then tap "Fiat Sent".';
+        return 'Once you have sent the money, mark it below. '
+            'Only open a dispute if the seller stops responding.';
       } else if (status == TradeStatus.fiatSent) {
         return 'Fiat payment marked as sent. Waiting for the seller '
             'to confirm receipt and release your sats.';
@@ -198,7 +257,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     } else {
       // Seller
       if (status == TradeStatus.active) {
-        return 'Contact the buyer with payment instructions.';
+        return 'Contact the buyer with payment instructions via the chat above.';
       } else if (status == TradeStatus.fiatSent) {
         return 'The buyer has confirmed they sent the fiat payment. '
             'Once you verify receipt, release the sats.';
@@ -219,91 +278,130 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       return 'Your order is published and waiting for a counterpart to take it. '
           'You can cancel it at any time.';
     }
+    if (status == TradeStatus.cancelled) {
+      return 'This trade was cancelled. No funds were exchanged.';
+    }
     return 'Trade in progress.';
   }
 
   String _formatDuration(Duration d) {
-    if (d.isNegative) return '00:00:00';
-    final h = d.inHours.toString().padLeft(2, '0');
+    if (d.isNegative) return '00:00';
     final m = (d.inMinutes % 60).toString().padLeft(2, '0');
     final s = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$h:$m:$s';
+    if (d.inHours > 0) return '${d.inHours}:$m:$s';
+    return '$m:$s';
   }
 
-  /// Open a dispute for this trade, upsert into the local dispute notifier,
-  /// and navigate to the dispute chat.
-  Future<void> _openDispute() async {
-    try {
-      final dispute = await disputes_api.openDispute(tradeId: widget.orderId);
-      if (!context.mounted) return;
-      final raw = dispute.openedAt;
-      // PlatformInt64 = int on native, BigInt on web.
-      final openedAt = raw is BigInt ? raw.toInt() : raw;
-      ref.read(disputeNotifierProvider.notifier).upsert(
-            DisputeItem(
-              id: dispute.id,
-              tradeId: dispute.tradeId,
-              status: DisputeStatus.open,
-              initiatedByMe: true,
-              openedAt: openedAt,
-            ),
-          );
-      if (!context.mounted) return;
-      context.push(AppRoute.disputeDetailsPath(dispute.id));
-    } catch (e, st) {
-      debugPrint('[TradeDetailScreen] openDispute error: $e\n$st');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).openDisputeFailed)),
-      );
-    }
+  // ── State → copy mapping ─────────────────────────────────────────────────
+
+  /// Headline of the state strip — the one thing happening right now.
+  String _headline(bool isBuyer, TradeStatus status, OrderItem? order) {
+    final amount = order != null
+        ? '${order.displayAmount} ${order.fiatCode}'
+        : 'the agreed amount';
+    return switch (status) {
+      TradeStatus.pending => 'Waiting for someone to take your order',
+      TradeStatus.waitingInvoice => isBuyer
+          ? 'Share a Lightning invoice to receive your sats'
+          : 'Waiting for the buyer to share an invoice',
+      TradeStatus.waitingPayment => isBuyer
+          ? 'Waiting for the seller to lock the sats'
+          : 'Pay the hold invoice to lock the sats',
+      TradeStatus.active => isBuyer
+          ? 'Send $amount to the seller'
+          : 'Waiting for the buyer to send $amount',
+      TradeStatus.fiatSent => isBuyer
+          ? 'Waiting for the seller to release your sats'
+          : 'Confirm you received $amount',
+      TradeStatus.disputed => 'Dispute in progress',
+      TradeStatus.pendingRating ||
+      TradeStatus.completed => 'Trade complete!',
+      TradeStatus.rated => 'Trade complete',
+      TradeStatus.cancelled => 'Order cancelled',
+      TradeStatus.loading => 'Loading trade…',
+    };
   }
 
-  /// Shared style for destructive (cancel / dispute) outlined buttons.
-  ButtonStyle _destructiveOutlineStyle(Color destructiveRed) =>
-      OutlinedButton.styleFrom(
-        foregroundColor: destructiveRed,
-        side: BorderSide(color: destructiveRed),
-        minimumSize: const Size(0, 40),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.button),
+  /// Contextual timer copy: what expires and what happens then.
+  (String, String)? _timerContext(bool isBuyer, TradeStatus status) {
+    return switch (status) {
+      TradeStatus.pending => (
+          'Time for this order to stay in the book',
+          'If it expires, the order is removed from the book. '
+              "It won't affect your reputation.",
         ),
-      );
-
-  /// RELEASE button — shared between the Disputed and Fiat-Sent seller flows.
-  Widget _buildReleaseButton(Color green) {
-    return MostroReactiveButton(
-      label: 'RELEASE',
-      backgroundColor: green,
-      icon: Icons.lock_open,
-      onPressed: () async {
-        final confirmed = await showReleaseConfirmationDialog(context);
-        if (confirmed != true || !context.mounted) return;
-        try {
-          await orders_api.releaseOrder(orderId: widget.orderId);
-          if (!context.mounted) return;
-          if (ref.read(privacyModeProvider)) {
-            context.go(AppRoute.home);
-          } else {
-            context.push(AppRoute.rateUserPath(widget.orderId));
-          }
-        } catch (e, st) {
-          debugPrint('[TradeDetailScreen] releaseOrder error: $e\n$st');
-          if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
-          );
-        }
-      },
-      onError: (e) {
-        debugPrint('[TradeDetailScreen] releaseOrder onError: $e');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
-        );
-      },
-    );
+      TradeStatus.waitingInvoice => (
+          isBuyer
+              ? 'Time to share your invoice'
+              : 'Time for the buyer to share an invoice',
+          'If it expires, the trade is cancelled and the order '
+              'returns to the book.',
+        ),
+      TradeStatus.waitingPayment => (
+          isBuyer
+              ? 'Time for the seller to lock the sats'
+              : 'Time to pay the hold invoice',
+          'If it expires, the trade is cancelled and the order '
+              'returns to the book.',
+        ),
+      TradeStatus.active => (
+          isBuyer
+              ? 'Time to send the fiat payment'
+              : 'Time for the buyer to send the fiat',
+          'If it expires, the trade can be cancelled. '
+              'Coordinate in the chat if more time is needed.',
+        ),
+      TradeStatus.fiatSent => (
+          isBuyer
+              ? 'Time for the seller to confirm receipt'
+              : 'Time to confirm receipt and release',
+          'If something looks wrong, open a dispute from the ⋮ menu.',
+        ),
+      _ => null,
+    };
   }
+
+  /// Status pill colors — (background, text).
+  (Color, Color) _statusPillColors(TradeStatus status) => switch (status) {
+        TradeStatus.pending => AppColors.statusPending,
+        TradeStatus.waitingInvoice ||
+        TradeStatus.waitingPayment => AppColors.statusWaiting,
+        TradeStatus.active => AppColors.statusActive,
+        TradeStatus.fiatSent => AppColors.statusSettled,
+        TradeStatus.pendingRating ||
+        TradeStatus.completed ||
+        TradeStatus.rated => AppColors.statusSuccess,
+        TradeStatus.disputed => AppColors.statusDispute,
+        _ => AppColors.statusInactive,
+      };
+
+  /// 0-based index of the current step in [_steps]; equals the list length
+  /// once the trade is fully done.
+  int _currentStep(TradeStatus status) => switch (status) {
+        TradeStatus.pending => 0,
+        TradeStatus.waitingInvoice || TradeStatus.waitingPayment => 1,
+        TradeStatus.active => 2,
+        TradeStatus.fiatSent => 3,
+        TradeStatus.pendingRating || TradeStatus.completed => 4,
+        TradeStatus.rated => 5,
+        _ => -1, // disputed / cancelled / loading — timeline hidden
+      };
+
+  /// Step labels. Lightning setup is one step because the invoice/hold-invoice
+  /// order depends on which side made the order.
+  List<String> _steps(bool isBuyer) => [
+        'Order taken',
+        isBuyer
+            ? 'You share an invoice · seller locks the sats'
+            : 'Buyer shares an invoice · you lock the sats',
+        isBuyer ? 'You send the fiat payment' : 'Buyer sends the fiat payment',
+        isBuyer
+            ? 'Seller confirms and releases your sats'
+            : 'You confirm receipt and release the sats',
+        'Rate your counterpart',
+      ];
+
+  // ── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -329,506 +427,728 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // Use TradeStatus.loading while the provider hasn't resolved so the UI
     // doesn't flash the pending CTA before the real status is known.
     final tradeStatusAsync = ref.watch(tradeStatusProvider(widget.orderId));
-    final TradeStatus status;
-    if (tradeStatusAsync.hasValue) {
-      status = _mapOrderStatus(tradeStatusAsync.value!);
-    } else if (tradeStatusAsync.hasError) {
-      status = TradeStatus.loading;
-    } else {
-      status = TradeStatus.loading;
-    }
+    final status = tradeStatusAsync.hasValue
+        ? _mapOrderStatus(tradeStatusAsync.value!)
+        : TradeStatus.loading;
 
     // Look up order details from the live order book.
     final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
     final order = allOrders.where((o) => o.id == widget.orderId).firstOrNull;
 
+    final inFlight = const {
+      TradeStatus.waitingInvoice,
+      TradeStatus.waitingPayment,
+      TradeStatus.active,
+      TradeStatus.fiatSent,
+      TradeStatus.disputed,
+    }.contains(status);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ORDER DETAILS'),
+        title: Text(inFlight ? 'ACTIVE TRADE' : 'ORDER DETAILS'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
               context.canPop() ? context.pop() : context.go(AppRoute.home),
         ),
+        actions: [_buildOverflowMenu(status, isBuyer, colors)],
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          // Card 1: Trade summary
-          TradeInfoCard(
-            child: Column(
+          // Persistent chat chip — always-on access to the counterpart.
+          if (inFlight) ...[
+            _ChatChip(orderId: widget.orderId),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          // State strip: step pill + status pill + headline + instruction
+          // + contextual timer.
+          _buildStateStrip(theme, colors, isBuyer, status, order),
+          const SizedBox(height: AppSpacing.lg),
+
+          // Single primary CTA for the current state.
+          ..._buildPrimaryAction(status, isBuyer, green, colors),
+
+          // Step timeline.
+          if (_currentStep(status) >= 0) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _buildTimeline(theme, colors, isBuyer, status),
+          ],
+
+          // Compact meta footer: order ID + created date.
+          const SizedBox(height: AppSpacing.lg),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    'ID ${_shortId(widget.orderId)}',
+                    style: TextStyle(
+                      color: textSec,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                InkWell(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: widget.orderId));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Order ID copied'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  child: Icon(Icons.copy, size: 14, color: textSec),
+                ),
+                const Spacer(),
+                if (order != null)
+                  Text(
+                    'created ${_formatDate(order.createdAt)}',
+                    style: TextStyle(color: textSec, fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _shortId(String id) =>
+      id.length <= 14 ? id : '${id.substring(0, 8)}…${id.substring(id.length - 5)}';
+
+  // ── Overflow menu (collapsed secondary/destructive actions) ──────────────
+
+  Widget _buildOverflowMenu(
+      TradeStatus status, bool isBuyer, AppColors? colors) {
+    final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+
+    final canCancel = const {
+      TradeStatus.pending,
+      TradeStatus.waitingInvoice,
+      TradeStatus.waitingPayment,
+      TradeStatus.active,
+      TradeStatus.fiatSent,
+    }.contains(status) ||
+        (status == TradeStatus.disputed && !isBuyer);
+    final canDispute =
+        status == TradeStatus.active || status == TradeStatus.fiatSent;
+    final canRelease = status == TradeStatus.disputed && !isBuyer;
+
+    if (!canCancel && !canDispute && !canRelease) {
+      return const SizedBox.shrink();
+    }
+
+    return PopupMenuButton<_MenuAction>(
+      icon: const Icon(Icons.more_vert),
+      onSelected: (action) => switch (action) {
+        _MenuAction.cancel => _cancelOrder(),
+        _MenuAction.dispute => _openDispute(),
+        _MenuAction.release => _releaseOrder(),
+      },
+      itemBuilder: (ctx) => [
+        if (canRelease)
+          const PopupMenuItem(
+            value: _MenuAction.release,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.lock_open, size: 18),
+              title: Text('Release sats'),
+              dense: true,
+            ),
+          ),
+        if (canCancel)
+          PopupMenuItem(
+            value: _MenuAction.cancel,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.cancel_outlined, size: 18, color: red),
+              title: Text('Cancel order', style: TextStyle(color: red)),
+              dense: true,
+            ),
+          ),
+        if (canDispute)
+          PopupMenuItem(
+            value: _MenuAction.dispute,
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.gavel, size: 18, color: red),
+              title: Text('Open dispute', style: TextStyle(color: red)),
+              dense: true,
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── State strip ──────────────────────────────────────────────────────────
+
+  Widget _buildStateStrip(
+    ThemeData theme,
+    AppColors? colors,
+    bool isBuyer,
+    TradeStatus status,
+    OrderItem? order,
+  ) {
+    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final (pillBg, pillFg) = _statusPillColors(status);
+    final currentStep = _currentStep(status);
+    final totalSteps = _steps(isBuyer).length;
+    final timerCtx = _timerContext(isBuyer, status);
+    final showTimer = timerCtx != null && _remaining > Duration.zero;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (currentStep >= 0)
+                _Pill(
+                  label: currentStep >= totalSteps
+                      ? 'DONE'
+                      : 'STEP ${currentStep + 1} OF $totalSteps',
+                  background: colors?.backgroundElevated ??
+                      const Color(0xFF2A2D35),
+                  foreground: textSec,
+                ),
+              if (currentStep >= 0) const SizedBox(width: AppSpacing.sm),
+              _Pill(
+                label: status.label,
+                background: pillBg,
+                foreground: pillFg,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            _headline(isBuyer, status, order),
+            style: theme.textTheme.headlineMedium,
+          ),
+          if (order != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '${order.displayAmount} ${order.fiatCode} · ${order.paymentMethod}',
+              style: TextStyle(
+                color: textSec,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            _getInstructionText(isBuyer, status),
+            style: theme.textTheme.bodyMedium,
+          ),
+          if (showTimer) ...[
+            const SizedBox(height: AppSpacing.lg),
+            _buildContextualTimer(colors, timerCtx),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Mini timer row: clock + remaining + label, progress bar, consequence.
+  Widget _buildContextualTimer(AppColors? colors, (String, String) ctx) {
+    final (label, consequence) = ctx;
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
+    final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+    final track = colors?.backgroundInput ?? const Color(0xFF252A3A);
+
+    final fraction = _totalCountdownSeconds > 0
+        ? (_remaining.inSeconds / _totalCountdownSeconds).clamp(0.0, 1.0)
+        : 0.0;
+    // Lime → amber at <10% remaining → red at <2%.
+    final timerColor = fraction < 0.02
+        ? red
+        : fraction < 0.10
+            ? amber
+            : green;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.schedule, size: 16, color: timerColor),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              _formatDuration(_remaining),
+              style: TextStyle(
+                color: timerColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(color: textSec, fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 4,
+            color: timerColor,
+            backgroundColor: track,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          consequence,
+          style: TextStyle(color: textSec, fontSize: 12, height: 1.4),
+        ),
+      ],
+    );
+  }
+
+  // ── Primary CTA ──────────────────────────────────────────────────────────
+
+  /// One explicit next action per state. Waiting-on-counterpart states get a
+  /// disabled button with a spinner instead of a tappable CTA.
+  List<Widget> _buildPrimaryAction(
+    TradeStatus status,
+    bool isBuyer,
+    Color green,
+    AppColors? colors,
+  ) {
+    final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+
+    FilledButton bigButton({
+      required String label,
+      required IconData icon,
+      required VoidCallback onPressed,
+      Color? background,
+      Color? foreground,
+    }) =>
+        FilledButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+          style: FilledButton.styleFrom(
+            backgroundColor: background ?? green,
+            foregroundColor: foreground ?? Colors.black,
+            minimumSize: const Size.fromHeight(56),
+            textStyle:
+                const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+          ),
+        );
+
+    switch ((status, isBuyer)) {
+      case (TradeStatus.waitingInvoice, true):
+        return [
+          bigButton(
+            label: 'Add Lightning invoice',
+            icon: Icons.receipt_long_outlined,
+            onPressed: () =>
+                context.push(AppRoute.addInvoicePath(widget.orderId)),
+          ),
+        ];
+      case (TradeStatus.waitingPayment, false):
+        return [
+          bigButton(
+            label: 'Pay hold invoice',
+            icon: Icons.bolt,
+            onPressed: () =>
+                context.push(AppRoute.payInvoicePath(widget.orderId)),
+          ),
+        ];
+      case (TradeStatus.active, true):
+        return [
+          MostroReactiveButton(
+            label: 'Mark fiat sent',
+            backgroundColor: green,
+            icon: Icons.check,
+            onPressed: () async {
+              await orders_api.sendFiatSent(orderId: widget.orderId);
+            },
+            onError: (e) {
+              debugPrint('[TradeDetailScreen] sendFiatSent onError: $e');
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content:
+                        Text(AppLocalizations.of(context).fiatSentFailed)),
+              );
+            },
+          ),
+        ];
+      case (TradeStatus.fiatSent, false):
+        return [
+          MostroReactiveButton(
+            label: 'Confirm & release sats',
+            backgroundColor: green,
+            icon: Icons.lock_open,
+            onPressed: _releaseOrder,
+            onError: (e) {
+              debugPrint('[TradeDetailScreen] releaseOrder onError: $e');
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text(AppLocalizations.of(context).releaseFailed)),
+              );
+            },
+          ),
+        ];
+      case (TradeStatus.disputed, _):
+        return [
+          bigButton(
+            label: 'View dispute',
+            icon: Icons.gavel,
+            background: red,
+            foreground: Colors.white,
+            onPressed: () {
+              final dispute = ref.read(
+                disputeByTradeIdProvider(widget.orderId),
+              );
+              if (dispute == null) {
+                final l10n = AppLocalizations.of(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(l10n.disputeNotFoundForOrder),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+                return;
+              }
+              context.push(AppRoute.disputeDetailsPath(dispute.id));
+            },
+          ),
+        ];
+      case (TradeStatus.pendingRating, _):
+        return [
+          bigButton(
+            label: 'Rate your counterpart',
+            icon: Icons.star_outline,
+            onPressed: () {
+              if (ref.read(privacyModeProvider)) {
+                context.go(AppRoute.home);
+              } else {
+                context.push(AppRoute.rateUserPath(widget.orderId));
+              }
+            },
+          ),
+        ];
+      case (TradeStatus.rated, _) || (TradeStatus.cancelled, _):
+        return [
+          OutlinedButton(
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go(AppRoute.home),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: green,
+              side: BorderSide(color: green),
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.card),
+              ),
+            ),
+            child: const Text('CLOSE'),
+          ),
+        ];
+      // Waiting on the counterpart (or order still pending / loading):
+      // disabled button with spinner so the "next action" is explicit.
+      case (TradeStatus.waitingInvoice, false):
+        return [_waitingButton('Waiting for the buyer…', colors)];
+      case (TradeStatus.waitingPayment, true):
+        return [_waitingButton('Waiting for the seller…', colors)];
+      case (TradeStatus.active, false):
+        return [_waitingButton('Waiting for the fiat payment…', colors)];
+      case (TradeStatus.fiatSent, true):
+        return [_waitingButton('Waiting for the seller…', colors)];
+      case (TradeStatus.pending, _):
+        return [_waitingButton('Waiting for a counterpart…', colors)];
+      default:
+        return const [];
+    }
+  }
+
+  Widget _waitingButton(String label, AppColors? colors) {
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: colors?.backgroundCard ?? const Color(0xFF1E2230),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: textSec),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Text(
+            label,
+            style: TextStyle(
+              color: textSec,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Step timeline ────────────────────────────────────────────────────────
+
+  Widget _buildTimeline(
+    ThemeData theme,
+    AppColors? colors,
+    bool isBuyer,
+    TradeStatus status,
+  ) {
+    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final elevated = colors?.backgroundElevated ?? const Color(0xFF2A2D35);
+    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final textSubtle = colors?.textSubtle ?? const Color(0xFF9A9A9C);
+
+    final steps = _steps(isBuyer);
+    final current = _currentStep(status);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'YOUR TRADE',
+            style: TextStyle(
+              color: textSubtle,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          for (var i = 0; i < steps.length; i++) ...[
+            if (i > 0) const SizedBox(height: AppSpacing.md),
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isBuyer
-                      ? 'You are buying sats'
-                      : 'You are selling sats',
-                  style: theme.textTheme.headlineSmall,
-                ),
-                if (order != null) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    '${order.displayAmount} ${order.fiatCode}',
-                    style: TextStyle(color: green, fontSize: 14, fontWeight: FontWeight.w600),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: i < current
+                        ? green
+                        : i == current
+                            ? amber
+                            : elevated,
                   ),
-                ],
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Order ${widget.orderId}',
-                  style: TextStyle(color: textSec, fontSize: 12),
+                  alignment: Alignment.center,
+                  child: i < current
+                      ? const Icon(Icons.check, size: 14, color: Colors.black)
+                      : i == current
+                          ? Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black,
+                              ),
+                            )
+                          : null,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Card 2: Payment method
-          TradeInfoCard(
-            child: Row(
-              children: [
-                Icon(Icons.payment_outlined, size: 18, color: textSec),
-                const SizedBox(width: AppSpacing.sm),
-                Text(order?.paymentMethod ?? '—', style: theme.textTheme.bodyMedium),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Card 3: Creation date
-          TradeInfoCard(
-            child: Row(
-              children: [
-                Icon(Icons.calendar_today_outlined, size: 18, color: textSec),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  order != null ? _formatDate(order.createdAt) : '—',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Card 4: Order ID
-          OrderIdCard(orderId: widget.orderId),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Card 5: Instructions + status
-          InstructionsCard(
-            text: _getInstructionText(isBuyer, status),
-            statusLabel: status.label,
-          ),
-          const SizedBox(height: AppSpacing.xl),
-
-          // Countdown
-          if (_remaining > Duration.zero) ...[
-            Center(
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: 80,
-                    height: 80,
-                    child: CircularProgressIndicator(
-                      value: _totalCountdownSeconds > 0
-                          ? (_remaining.inSeconds / _totalCountdownSeconds)
-                              .clamp(0.0, 1.0)
-                          : 1.0,
-                      strokeWidth: 4,
-                      color: _remaining.inMinutes < 5
-                          ? colors?.destructiveRed ?? const Color(0xFFD84D4D)
-                          : green,
-                      backgroundColor:
-                          colors?.backgroundInput ?? const Color(0xFF252A3A),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'Time remaining: ${_formatDuration(_remaining)}',
-                    style: TextStyle(color: textSec, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-          ],
-
-          // ── Pending — CANCEL button (maker can cancel before taken) ──
-          if (status == TradeStatus.pending) ...[
-            OutlinedButton.icon(
-              onPressed: _cancelOrder,
-              icon: const Icon(Icons.cancel_outlined, size: 16),
-              label: const Text('CANCEL'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                side: BorderSide(color: colors?.destructiveRed ?? const Color(0xFFD84D4D)),
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-          ],
-
-          // ── Buyer: Waiting Invoice — ADD INVOICE button ────────
-          if (isBuyer && status == TradeStatus.waitingInvoice) ...[
-            FilledButton.icon(
-              onPressed: () =>
-                  context.push(AppRoute.addInvoicePath(widget.orderId)),
-              icon: const Icon(Icons.receipt_long_outlined, size: 16),
-              label: const Text('ADD INVOICE'),
-              style: FilledButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-          ],
-
-          // ── Seller: Waiting Payment — PAY INVOICE button ───────
-          if (!isBuyer && status == TradeStatus.waitingPayment) ...[
-            FilledButton.icon(
-              onPressed: () =>
-                  context.push(AppRoute.payInvoicePath(widget.orderId)),
-              icon: const Icon(Icons.bolt, size: 16),
-              label: const Text('PAY INVOICE'),
-              style: FilledButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-          ],
-
-          // Action buttons (buyer flow — T060)
-          if (isBuyer && status == TradeStatus.active) ...[
-            MostroReactiveButton(
-              label: 'FIAT SENT',
-              backgroundColor: green,
-              icon: Icons.send,
-              onPressed: () async {
-                await orders_api.sendFiatSent(orderId: widget.orderId);
-              },
-              onError: (e) {
-                debugPrint('[TradeDetailScreen] sendFiatSent onError: $e');
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context).fiatSentFailed)),
-                );
-              },
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _cancelOrder,
-                    icon: const Icon(Icons.cancel_outlined, size: 16),
-                    label: const Text('CANCEL'),
-                    style: _destructiveOutlineStyle(
-                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _openDispute,
-                    icon: const Icon(Icons.gavel, size: 16),
-                    label: const Text('DISPUTE'),
-                    style: _destructiveOutlineStyle(
-                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            FilledButton.icon(
-              onPressed: () =>
-                  context.push(AppRoute.chatRoomPath(widget.orderId)),
-              icon: const Icon(Icons.chat_bubble_outline, size: 16),
-              label: const Text('CONTACT'),
-              style: FilledButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-          ],
-
-          // ── Seller: Active — CLOSE + CANCEL + DISPUTE + CONTACT ──
-          if (!isBuyer && status == TradeStatus.active) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => context.pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: green,
-                      side: BorderSide(color: green),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
-                    ),
-                    child: const Text('CLOSE'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _cancelOrder,
-                    icon: const Icon(Icons.cancel_outlined, size: 16),
-                    label: const Text('CANCEL'),
-                    style: _destructiveOutlineStyle(
-                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _openDispute,
-                    icon: const Icon(Icons.gavel, size: 16),
-                    label: const Text('DISPUTE'),
-                    style: _destructiveOutlineStyle(
-                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            FilledButton.icon(
-              onPressed: () =>
-                  context.push(AppRoute.chatRoomPath(widget.orderId)),
-              icon: const Icon(Icons.chat_bubble_outline, size: 16),
-              label: const Text('CONTACT'),
-              style: FilledButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-          ],
-
-          // ── Disputed — CLOSE + CONTACT + CANCEL + RELEASE + VIEW DISPUTE ──
-          if (status == TradeStatus.disputed) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => context.pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: green,
-                      side: BorderSide(color: green),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
-                    ),
-                    child: const Text('CLOSE'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () =>
-                        context.push(AppRoute.chatRoomPath(widget.orderId)),
-                    icon: const Icon(Icons.chat_bubble_outline, size: 16),
-                    label: const Text('CONTACT'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: green,
-                      side: BorderSide(color: green),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      steps[i],
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.3,
+                        color: i <= current
+                            ? colors?.textPrimary ?? Colors.white
+                            : textSec,
+                        fontWeight:
+                            i == current ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
                   ),
                 ),
               ],
-            ),
-            // CANCEL + RELEASE only available to the seller during a dispute.
-            if (!isBuyer) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _cancelOrder,
-                    icon: const Icon(Icons.cancel_outlined, size: 16),
-                    label: const Text('CANCEL'),
-                    style: _destructiveOutlineStyle(
-                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(child: _buildReleaseButton(green)),
-              ],
-            ),
-            ], // end if (!isBuyer)
-            const SizedBox(height: AppSpacing.sm),
-            FilledButton.icon(
-              onPressed: () {
-                final dispute = ref.read(
-                  disputeByTradeIdProvider(widget.orderId),
-                );
-                if (dispute == null) {
-                  final l10n = AppLocalizations.of(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.disputeNotFoundForOrder),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                  return;
-                }
-                context.push(AppRoute.disputeDetailsPath(dispute.id));
-              },
-              icon: const Icon(Icons.gavel, size: 16),
-              label: const Text('VIEW DISPUTE'),
-              style: FilledButton.styleFrom(
-                backgroundColor: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-          ],
-
-          // ── Seller: Fiat Sent — CLOSE + RELEASE + CANCEL + DISPUTE + CONTACT ──
-          if (!isBuyer && status == TradeStatus.fiatSent) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => context.pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: green,
-                      side: BorderSide(color: green),
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
-                      ),
-                    ),
-                    child: const Text('CLOSE'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(child: _buildReleaseButton(green)),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _cancelOrder,
-                    icon: const Icon(Icons.cancel_outlined, size: 16),
-                    label: const Text('CANCEL'),
-                    style: _destructiveOutlineStyle(
-                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _openDispute,
-                    icon: const Icon(Icons.gavel, size: 16),
-                    label: const Text('DISPUTE'),
-                    style: _destructiveOutlineStyle(
-                      colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            FilledButton.icon(
-              onPressed: () =>
-                  context.push(AppRoute.chatRoomPath(widget.orderId)),
-              icon: const Icon(Icons.chat_bubble_outline, size: 16),
-              label: const Text('CONTACT'),
-              style: FilledButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-          ],
-
-          // ── Pending rating — RATE + CLOSE ─────────────────────────────
-          if (status == TradeStatus.pendingRating) ...[
-            FilledButton.icon(
-              onPressed: () {
-                if (ref.read(privacyModeProvider)) {
-                  context.go(AppRoute.home);
-                } else {
-                  context.push(AppRoute.rateUserPath(widget.orderId));
-                }
-              },
-              icon: const Icon(Icons.star_outline, size: 16),
-              label: const Text('RATE'),
-              style: FilledButton.styleFrom(
-                backgroundColor: green,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton(
-              onPressed: () => context.pop(),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: green,
-                side: BorderSide(color: green),
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-              child: const Text('CLOSE'),
-            ),
-          ],
-
-          // ── Rated — CLOSE only (no further actions) ───────────────────
-          if (status == TradeStatus.rated) ...[
-            OutlinedButton(
-              onPressed: () => context.pop(),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: green,
-                side: BorderSide(color: green),
-                minimumSize: const Size.fromHeight(40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-              ),
-              child: const Text('CLOSE'),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ── Small shared widgets ──────────────────────────────────────────────────────
+
+class _Pill extends StatelessWidget {
+  const _Pill({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: 3,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppRadius.chip),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+/// Persistent chat chip: counterpart handle + unread badge, navigates to the
+/// trade chat. Replaces the old ghost CONTACT button at the bottom.
+class _ChatChip extends ConsumerWidget {
+  const _ChatChip({required this.orderId});
+
+  final String orderId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColors>();
+    final purple = colors?.purpleButton ?? const Color(0xFF8359C2);
+    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+
+    final rooms = ref.watch(chatRoomsNotifierProvider);
+    final room = rooms.where((r) => r.orderId == orderId).firstOrNull;
+
+    final handle = room?.peerHandle ?? 'your counterpart';
+    final unread = room?.unreadCount ?? 0;
+
+    return InkWell(
+      onTap: () => context.push(AppRoute.chatRoomPath(orderId)),
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm + 2,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              purple.withValues(alpha: 0.20),
+              purple.withValues(alpha: 0.07),
+            ],
+          ),
+          border: Border.all(color: purple.withValues(alpha: 0.27)),
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        child: Row(
+          children: [
+            if (room != null)
+              NymAvatar(
+                iconIndex: room.peerIconIndex,
+                colorHue: room.peerColorHue,
+                size: 36,
+              )
+            else
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: purple.withValues(alpha: 0.3),
+                child:
+                    Icon(Icons.chat_bubble_outline, size: 18, color: purple),
+              ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    handle,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    unread > 0
+                        ? 'Secure chat · $unread new'
+                        : 'Secure chat · end-to-end encrypted',
+                    style: TextStyle(fontSize: 11, color: textSec),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            if (unread > 0) ...[
+              Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration:
+                    BoxDecoration(shape: BoxShape.circle, color: purple),
+                child: Text(
+                  '$unread',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+            ],
+            Icon(Icons.chevron_right, color: purple),
+          ],
+        ),
       ),
     );
   }
