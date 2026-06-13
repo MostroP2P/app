@@ -121,7 +121,7 @@ Mostro Mobile uses a **split-architecture** model: all cryptography, protocol lo
 │                  Rust Core                  │
 │                                             │
 │  nostr-sdk 0.44   →  relay pool, NIP-59     │
-│  mostro-core 0.8  →  protocol FSM, types    │
+│  mostro-core 0.10 →  protocol FSM, types    │
 │  bip32 / bip39    →  HD key derivation      │
 │  k256             →  secp256k1 ECDH         │
 │  chacha20poly1305 →  file encryption        │
@@ -149,7 +149,7 @@ Mostro Mobile uses a **split-architecture** model: all cryptography, protocol lo
 | State Management | Riverpod | 2.6.1 |
 | Routing | GoRouter | 14.8.1 |
 | Nostr Protocol | nostr-sdk | 0.44 |
-| Mostro Types / FSM | mostro-core | 0.8.0 |
+| Mostro Types / FSM | mostro-core | 0.10 |
 | UI-layer Persistence | Sembast | 3.8.2 |
 | Protocol Persistence (native) | SQLite via sqlx | 0.8 |
 | Protocol Persistence (web) | IndexedDB | 0.4 |
@@ -216,18 +216,23 @@ Make sure the following tools are installed on your system:
 | Rust toolchain | 1.94+ stable | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | WASM target | — | `rustup target add wasm32-unknown-unknown` |
 | wasm-pack | latest | `cargo install wasm-pack` |
-| flutter_rust_bridge CLI | 2.x | `dart pub global activate flutter_rust_bridge` |
+| flutter_rust_bridge CLI | 2.11.1 | `cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked` |
 | Xcode (macOS / iOS only) | 15+ | Mac App Store |
 | Android Studio / NDK (Android only) | latest | [developer.android.com](https://developer.android.com/studio) |
 
 ### Clone & Setup
 
 ```bash
-git clone https://github.com/MostroP2P/mobilev2.git
-cd mobilev2
+git clone https://github.com/MostroP2P/app.git
+cd app
 
 # Install Dart/Flutter dependencies
 flutter pub get
+
+# Install the flutter_rust_bridge codegen CLI if you don't have it yet.
+# The version MUST match `flutter_rust_bridge` in rust/Cargo.toml (=2.11.1).
+flutter_rust_bridge_codegen --version || \
+  cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked
 
 # Verify the Rust core compiles
 cd rust && cargo build && cd ..
