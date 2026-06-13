@@ -16,7 +16,7 @@
 
 | File | Purpose |
 |------|---------|
-| `lib/features/settings/settings.dart` | Immutable `Settings` model (relays, privacy mode, locale, fiat, lightning address, push toggles, logging flags). |
+| `lib/features/settings/settings.dart` | Immutable `Settings` model (relays, privacy mode, locale, fiat, lightning address, push toggles, logging flags, session expiration). |
 | `lib/features/settings/settings_notifier.dart` | `StateNotifier<Settings>` that loads/saves the model to `SharedPreferences` (`SharedPreferencesAsync`). |
 | `lib/features/settings/settings_provider.dart` | Global Riverpod provider consumed across the app. |
 
@@ -33,6 +33,7 @@
 - `mostroPublicKey` → `MostroNodesNotifier`, `NostrService` handshake headers.
 - `pushNotificationsEnabled`, `notificationSoundEnabled`, `notificationVibrationEnabled` → `PushNotificationService`, `FCMService`, notification UI.
 - `isLoggingEnabled` → `MemoryLogOutput` toggles in-app logging buffer.
+- `sessionExpirationHours` → `SessionNotifier` retention/cleanup window (`TradeHistorySelector`; `Config.sessionExpirationHours` = 720 fallback).
 - `fullPrivacyMode` → `RestoreManager`, `NostrService` (decides whether to keep master key in memory).
 
 ### Side Effects
@@ -90,6 +91,11 @@
 │  └───────────────────────────────────────────────┘  │
 │                                                     │
 │  ┌───────────────────────────────────────────────┐  │
+│  │  🕑  Trade History                            │  │
+│  │      1 month                                  │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
 │  │  🛠️  Log Report                            >  │  │
 │  └───────────────────────────────────────────────┘  │
 │                                                     │
@@ -110,8 +116,9 @@
 | 4 | 👛 Wallet | NWC Wallet | "Connected. Balance: 11 sats" | Tap → `/wallet_settings` |
 | 5 | 📡 Relay | Relays | List with green/red status + ON/OFF toggle | Inline management + "Add Relay" button |
 | 6 | 🔔 Bell | Push Notifications | (chevron >) | Tap → `/notification_settings` |
-| 7 | 🛠️ Gear | Log Report | (chevron >) | Tap → `/logs` |
-| 8 | ⚡ Lightning | Mostro Node | Truncated pubkey + "Trusted" badge | Tap → MostroNodeSelector modal |
+| 7 | 🕑 Clock | Trade History | "1 month" (retention preset) | Tap → preset dropdown + confirmation dialog |
+| 8 | 🛠️ Gear | Log Report | (chevron >) | Tap → `/logs` |
+| 9 | ⚡ Lightning | Mostro Node | Truncated pubkey + "Trusted" badge | Tap → MostroNodeSelector modal |
 
 ### Relay Management (inline):
 - Each relay shows: URL + connection status dot (🟢 green = connected, 🔴 red = disconnected) + ON/OFF toggle
@@ -154,12 +161,24 @@ Each card is a `Container` with consistent styling (rounded corners, subtle bord
 - Explains push notification scope, links to `/notification_settings`.
 - Actual toggles live in `NotificationSettingsScreen` (documented below).
 
-#### 7. Dev Tools
+#### 7. Trade History (`TradeHistorySelector`)
+- Controls how long completed/inactive trade sessions are retained before automatic cleanup.
+- Dropdown with 6 presets: 1 week (168h), 1 month (720h, default), 3 months (2160h),
+  6 months (4320h), 1 year (8760h), Never (0 = no automatic cleanup).
+- Selection persists in `settings.sessionExpirationHours`; `SessionNotifier` reads it with
+  `Config.sessionExpirationHours` (720) as fallback.
+- Shows a confirmation dialog before applying a change.
+- On expiry, the session and all associated data are cascade-deleted (see
+  [SESSION_AND_KEY_MANAGEMENT.md](./SESSION_AND_KEY_MANAGEMENT.md) and
+  [TIMEOUT_DETECTION_AND_SESSION_CLEANUP.md](./TIMEOUT_DETECTION_AND_SESSION_CLEANUP.md));
+  active trades are protected from cleanup.
+
+#### 8. Dev Tools
 - Warns about debugging features.
 - Toggle for in-memory logging (`settings.isLoggingEnabled` → `MemoryLogOutput.isLoggingEnabled`).
 - Button → `/logs` to view/export logs.
 
-#### 8. Mostro Node Selector
+#### 9. Mostro Node Selector
 - Uses `MostroNodeSelector.show()` to pick from trusted/untrusted nodes.
 - Renders avatar, display name, truncated pubkey, and "Trusted" badge.
 - Changing node calls `SettingsNotifier.updateMostroInstance`, which resets relay blacklists and user-relay metadata.

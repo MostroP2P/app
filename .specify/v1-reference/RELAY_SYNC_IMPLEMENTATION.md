@@ -32,7 +32,7 @@ The system maintains **real-time awareness** of relay list changes through persi
 
 From a user perspective, the system provides **seamless automatic connectivity** with complete override capabilities. Users never need to manually configure Mostro relays - they're discovered and configured automatically. However, users retain full control through an intuitive interface that allows blacklisting problematic relays, adding custom relays with full connectivity validation, and easily restoring previously blacklisted relays.
 
-The system also handles **instance transitions** gracefully. When a user switches to a different Mostro instance, the application performs a **complete relay reset** — clearing ALL relays (including user-added ones) and resetting to only the default relay (`wss://relay.mostro.network`). This ensures a clean state when changing trading instances. User relays are NOT preserved on instance change.
+The system also handles **instance transitions** gracefully. When a user switches to a different Mostro instance, the application performs a **complete relay reset** — clearing the Mostro relays, the user-added relays, and the blacklist — and immediately begins synchronization with the new instance.
 
 ### Technical Resilience
 
@@ -42,6 +42,37 @@ This relay synchronization system demonstrates advanced patterns in **distribute
 
 ---
 The system handles NIP-65 relay list events (kind 10002), implements dual storage strategies, provides two-tier connectivity validation, and manages complex state synchronization between user preferences and protocol requirements.
+
+---
+
+## Bootstrap Relay Discovery Layer
+
+The app does not seed hardcoded "default" relays into the user-visible relay list. Instead, a small set of **defensive bootstrap relays** (`Config.bootstrapRelays`) is used only to discover a Mostro instance's kind 10002 relay list. Once discovered, the app operates exclusively over the discovered relays; the bootstrap relays are never persisted nor shown.
+
+### Design
+
+- **Bootstrap relays live only at the NostrService connection level**, never in `RelaysNotifier` state or `settings.relays`. The visible list and `settings.relays` always contain only discovered (Mostro) relays plus user relays. This keeps the user-facing relay list equal to what the Mostro instance actually endorses, instead of pinning hardcoded relays the instance may not use.
+- **Engaged only when needed**, via additive init (never disconnect):
+  - **Cold start**: when `settings.relays` is empty, `NostrService.init()` falls back to `Config.bootstrapRelays` so the kind 10002 can be fetched.
+  - **All-down**: `RelayHealthMonitor` (a periodic watchdog, `Config.relayDiscoveryTimeout` interval) detects `liveRelayCount == 0` and calls `ensureBootstrapConnectivity()` + `subscribeAll()` + re-subscribes the kind 10002.
+  - **Instance switch**: `_cleanAllRelaysAndResync()` clears the list and calls `ensureBootstrapConnectivity()` so the new instance's kind 10002 can be fetched (the previous instance's relays may not carry it).
+- **Logical retirement**: once discovered relays are connected and `settings.relays` points only to them, bootstrap relays are no longer targeted. dart_nostr has **no per-relay disconnect** (`disconnectFromRelays()` closes all), so bootstrap sockets stay idle until the app closes rather than being individually closed.
+
+### Safety invariants (no event loss)
+
+1. **Never `disconnectFromRelays()`** — only additive init. This makes it impossible to drop existing connections/subscriptions (the cause of the historical subscription-loss bug; see `SUBSCRIPTION_LOSS_BUG.md`).
+2. **Watchdog floor** — when no relay is alive, bootstrap is engaged and subscriptions re-issued via the proven `subscribeAll()` path.
+3. **Fail-safe toward connecting** — a false positive only costs an idle socket, never silence.
+
+### Liveness signal
+
+`NostrService` tracks alive relays in `_connectedRelays` from the relay connection callbacks: a relay is added on `onRelayListening` (data received proves it alive) and removed on `onRelayConnectionError`/`onRelayConnectionDone` (error or socket close). Exposed via `liveRelayCount` and `connectedRelays`. The dart_nostr registry is not used for this because it is not pruned on disconnect.
+
+### Restart behavior
+
+Discovered relays persist in `settings.relays` and reload immediately, so normal launches connect only to discovered relays and never touch bootstrap. The kind 10002 still re-syncs over the discovered relays each launch (staying current with operator changes). Bootstrap is engaged again only on cold start or when every discovered relay is unreachable.
+
+**Key files**: `Config.bootstrapRelays` / `Config.relayDiscoveryTimeout` (`lib/core/config.dart`), `NostrService.ensureBootstrapConnectivity()` + init fail-safe + liveness tracking (`lib/services/nostr_service.dart`), `RelayHealthMonitor` (`lib/features/relays/relay_health_monitor.dart`).
 
 ---
 
@@ -765,7 +796,7 @@ void _initSettingsListener() {
       _logger.i('Detected REAL Mostro pubkey change: $currentPubkey -> $newPubkey'); // Line 677
       currentPubkey = newPubkey;                            // Line 678
       
-      // 🔥 FULL RESET: Clear all relays and do fresh sync
+      // COMPLETE RESET: clear all relays and do a fresh sync
       _cleanAllRelaysAndResync();                           // Line 681
     } else if (newPubkey != currentPubkey) {
       // Just update the tracking variable without reset (initial load)
@@ -884,20 +915,18 @@ static RelayListEvent? fromEvent(NostrEvent event) {
 ```dart
 List<String> get validRelays {
   return relays
-      .where((url) => url.startsWith('wss://')) // Only secure WebSocket allowed in production
+      .where((url) => url.startsWith('wss://') || url.startsWith('ws://')) // Line 50
       .map((url) => url.trim())                             // Line 51
       .map((url) => url.endsWith('/') ? url.substring(0, url.length - 1) : url) // Line 52
       .toList();                                            // Line 53
 }
 ```
 
-> ⚠️ **Security Note:** Only `wss://` (secure WebSocket) URLs are accepted. The `ws://` protocol is unencrypted and rejected in production to prevent MITM attacks.
-
 **Technical Features**:
 - **NIP-65 Compliance**: Properly parses kind 10002 events
 - **Robust Tag Parsing**: Handles malformed or missing tags gracefully
 - **Timestamp Flexibility**: Supports both DateTime and int timestamp formats
-- **URL Normalization**: Removes trailing slashes, validates secure protocol only
+- **URL Normalization**: Removes trailing slashes and validates protocols
 
 ---
 
@@ -1044,8 +1073,8 @@ Future<void> updateMostroInstance(String newValue) async {
     // COMPLETE RESET: Clear blacklist and user relays when changing Mostro
     state = state.copyWith(
       mostroPublicKey: newValue,                            // Line 57
-      blacklistedRelays: const [], // Empty blacklist       // Line 58
-      userRelays: const [],         // Empty user relays   // Line 59
+      blacklistedRelays: const [], // Clear blacklist       // Line 58
+      userRelays: const [],         // Clear user relays    // Line 59
     );
     
     _logger.i('Reset blacklist and user relays for new Mostro instance'); // Line 62
@@ -1203,7 +1232,7 @@ Storage Persistence → UI Feedback
 #### Instance Change Handling
 - **Complete State Reset**: Clean slate approach for new Mostro instances
 - **Dependency Cleanup**: Proper cleanup of subscriptions and timers
-- **User Data Preservation**: User relays survive instance changes (when configured)
+- **Clean Slate on Switch**: User relays and the blacklist are cleared on instance change so the new instance starts fresh
 
 ### Performance Optimizations
 

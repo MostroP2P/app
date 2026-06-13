@@ -57,6 +57,10 @@ MostroApp
 | `/settings` | `SettingsScreen` | `settings_screen.dart` | General settings |
 | `/about` | `AboutScreen` | `about_screen.dart` | About the app |
 | `/walkthrough` | `WalkthroughScreen` | `walkthrough_screen.dart` | Initial tutorial |
+
+> **Pending in v2 — not yet implemented.** v1 adds a `/community_selector` route and a
+> second redirect stage (firstRun → communitySelected → home). Neither is present in v2 yet.
+> Target behavior: [MULTI_MOSTRO_SUPPORT.md](./MULTI_MOSTRO_SUPPORT.md#entry-point-1-first-launch-community-selector).
 | `/add_order` | `AddOrderScreen` | `add_order_screen.dart` | Create order (see `.specify/v1-reference/ORDER_CREATION.md`) |
 | `/rate_user/:orderId` | `RateCounterpartScreen` | `rate_counterpart_screen.dart` | Rate counterpart |
 | `/take_sell/:orderId` | `TakeOrderScreen` | `take_order_screen.dart` | Take sell order (see `.specify/v1-reference/TAKE_ORDER.md`) |

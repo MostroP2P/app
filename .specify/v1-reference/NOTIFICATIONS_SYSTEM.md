@@ -34,6 +34,18 @@ static NotificationType getNotificationTypeFromAction(Action action) {
 }
 ```
 
+**Context-aware cancellation messages:** `Action.canceled` maps to a different message
+depending on the order's `previousStatus` and whether the local user initiated the cancel:
+
+- `waiting-payment` → "seller inactivity" message (`notification_order_canceled_by_seller_inactivity_message`)
+- `waiting-buyer-invoice` → "buyer inactivity" message (`notification_order_canceled_by_buyer_inactivity_message`)
+- user-initiated cancel (`wasUserInitiatedCancel = true`) → generic message that does **not**
+  blame the counterparty.
+
+The `previousStatus` / `wasUserInitiatedCancel` flags are threaded from `OrderNotifier` through
+`extractFromMostroMessage()` so the same `canceled` action produces the correct reason. All
+cancellations are persisted to history (previously some were dropped on an early return).
+
 ### 2. Services Layer
 
 #### PushNotificationService (`lib/services/push_notification_service.dart`)

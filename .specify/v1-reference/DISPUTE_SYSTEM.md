@@ -171,6 +171,15 @@ Four independent status systems coexist during a dispute. Confusing them causes 
 - Historic events are stored in Sembast with `type: 'dispute_chat'` and `dispute_id: <id>`. Each record keeps the full gift wrap payload (`kind`, `content`, `tags`, etc.).
 - `_loadHistoricalMessages()` filters by `type` + `dispute_id`, unwraps each gift wrap with `session.adminSharedKey`, converts to `DisputeChatMessage`, deduplicates by inner event ID, and sorts ascending.
 
+> **Pending in v2 — not yet implemented.** v1 re-establishes dispute chats after an
+> account restore from mnemonic: the recovery flow repopulates the session's `adminPubkey`
+> + `disputeId` and re-subscribes so dispute chats are accessible immediately. v2's account
+> restore is still a stub (`import_from_mnemonic(recover)` ignores the flag), so dispute-chat
+> restoration is not built yet. This belongs with the broader restore/recovery feature; the
+> v1 reference for the restore protocol flow is `DISPUTE_CHAT_RESTORE.md` in the v1 repo
+> (not mirrored here — it is largely a v1 bug tracker, including a dart_nostr-specific
+> isolated-subscription workaround that v2 should avoid).
+
 ### Live subscription
 - `_subscribe()` builds a `NostrRequest` for kind `1059` events where the `p` tag matches `session.adminSharedKey.public`.
 - `NostrService.subscribeToEvents()` feeds `_onChatEvent`:

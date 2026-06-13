@@ -80,6 +80,18 @@ Initialization (`initState`):
    - `CurrencySection` + `selectedFiatCodeProvider`.
 3. **Fiat amount**
    - `AmountSection` with simple or range mode (`min`/`max`).
+   - Displays the node's order limits expressed in the selected fiat currency. The node
+     enforces a hard min/max in **sats** (`kind 38385`); `FiatAmountLimits`
+     (`lib/shared/utils/order_amount_limits.dart`) converts those sats bounds to whole-fiat
+     using the current exchange rate — min rounds **up**, max rounds **down**, min floored at
+     `1` — so every value in the shown range stays within the real sats limits. If the rate is
+     unavailable or the valid range collapses below 1 fiat unit (`isDisplayable == false`), it
+     falls back to showing the raw sats limits.
+
+   > **Depends on a v2 gap.** The fiat-limit display requires a live BTC/fiat exchange rate.
+   > In v2 the rate source is Nostr-based (NIP-33), which is **not implemented yet** (design
+   > only, in `.specify/NOSTR_EXCHANGE_RATES.md`). Until exchange rates land in v2, this
+   > display falls back to raw sats limits.
 4. **Payment methods**
    - Multi-select list + custom free text method.
 5. **Price type**

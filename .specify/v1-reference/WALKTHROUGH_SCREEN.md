@@ -32,6 +32,12 @@ When user taps "Done" or "Skip":
 2. `backupReminderProvider.showBackupReminder()` → activates the persistent backup notification (red dot on bell)
 3. Navigate to `/` (home screen)
 
+> **Pending in v2 — not yet implemented.** In v1, completing the walkthrough navigates
+> to `/community_selector` (first-launch node/community choice), and the redirect chain
+> only reaches `/` once a community is selected. v2 currently goes straight to `/` (step 3
+> above) — the community selector step is not built yet.
+> Target behavior: [MULTI_MOSTRO_SUPPORT.md](./MULTI_MOSTRO_SUPPORT.md#entry-point-1-first-launch-community-selector).
+
 ---
 
 ## Slides (6 pages)
