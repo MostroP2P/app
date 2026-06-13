@@ -32,7 +32,7 @@ The system maintains **real-time awareness** of relay list changes through persi
 
 From a user perspective, the system provides **seamless automatic connectivity** with complete override capabilities. Users never need to manually configure Mostro relays - they're discovered and configured automatically. However, users retain full control through an intuitive interface that allows blacklisting problematic relays, adding custom relays with full connectivity validation, and easily restoring previously blacklisted relays.
 
-The system also handles **instance transitions** gracefully. When a user switches to a different Mostro instance, the application performs a complete relay reset, clearing old Mostro relays while preserving user-added relays (when configured to do so), and immediately begins synchronization with the new instance.
+The system also handles **instance transitions** gracefully. When a user switches to a different Mostro instance, the application performs a **complete relay reset** — clearing the Mostro relays, the user-added relays, and the blacklist — and immediately begins synchronization with the new instance.
 
 ### Technical Resilience
 
@@ -88,7 +88,7 @@ Discovered relays persist in `settings.relays` and reload immediately, so normal
 
 ### Data Flow Architecture
 
-```
+```text
 ┌─────────────────┐    NIP-65 Events     ┌─────────────────┐
 │ Mostro Instance │ ──────────────────→  │ SubscriptionMgr │
 │   (kind 10002)  │                      │                 │
@@ -796,7 +796,7 @@ void _initSettingsListener() {
       _logger.i('Detected REAL Mostro pubkey change: $currentPubkey -> $newPubkey'); // Line 677
       currentPubkey = newPubkey;                            // Line 678
       
-      // 🔥 RESET COMPLETO: Limpiar todos los relays y hacer sync fresco
+      // COMPLETE RESET: clear all relays and do a fresh sync
       _cleanAllRelaysAndResync();                           // Line 681
     } else if (newPubkey != currentPubkey) {
       // Just update the tracking variable without reset (initial load)
@@ -1073,8 +1073,8 @@ Future<void> updateMostroInstance(String newValue) async {
     // COMPLETE RESET: Clear blacklist and user relays when changing Mostro
     state = state.copyWith(
       mostroPublicKey: newValue,                            // Line 57
-      blacklistedRelays: const [], // Blacklist vacío       // Line 58
-      userRelays: const [],         // User relays vacíos   // Line 59
+      blacklistedRelays: const [], // Clear blacklist       // Line 58
+      userRelays: const [],         // Clear user relays    // Line 59
     );
     
     _logger.i('Reset blacklist and user relays for new Mostro instance'); // Line 62
@@ -1176,20 +1176,20 @@ void _subscribeToRelayList(NostrFilter filter) {
 ### Data Flow Sequence Diagrams
 
 #### 1. Application Startup Sequence
-```
+```text
 App Launch → Settings Load → RelaysNotifier Init → Load Saved Relays → 
 Subscribe to Mostro Events → Wait for NostrService → Begin Sync
 ```
 
 #### 2. Mostro Relay List Update Sequence
-```
+```text
 NIP-65 Event Received → Author Validation → Timestamp Check → 
 Hash Deduplication → URL Normalization → Blacklist Filtering → 
 State Merging → Storage Persistence → NostrService Update
 ```
 
 #### 3. Manual Relay Addition Sequence
-```
+```text
 User Input → URL Normalization → Duplicate Check → 
 Connectivity Testing → Blacklist Removal → State Update → 
 Storage Persistence → UI Feedback
@@ -1232,7 +1232,7 @@ Storage Persistence → UI Feedback
 #### Instance Change Handling
 - **Complete State Reset**: Clean slate approach for new Mostro instances
 - **Dependency Cleanup**: Proper cleanup of subscriptions and timers
-- **User Data Preservation**: User relays survive instance changes (when configured)
+- **Clean Slate on Switch**: User relays and the blacklist are cleared on instance change so the new instance starts fresh
 
 ### Performance Optimizations
 
