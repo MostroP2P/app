@@ -61,6 +61,7 @@ final currencyFilterProvider = StateProvider<List<String>>((ref) => []);
 final paymentMethodFilterProvider = StateProvider<List<String>>((ref) => []);
 final ratingFilterProvider = StateProvider<({double min, double max})>((ref) => (min: 0.0, max: 5.0));
 final premiumRangeFilterProvider = StateProvider<({double min, double max})>((ref) => (min: -10.0, max: 10.0));
+final minDaysFilterProvider = StateProvider<int>((ref) => 0);
 ```
 
 ### Filters Applied
@@ -76,6 +77,8 @@ The `filteredOrdersProvider` applies these filters to orders with `status == pen
 4. **Rating range** (`ratingFilterProvider`): `{min: 0.0, max: 5.0}`. Filters orders whose `rating.totalRating` falls within range. Applied only when range differs from default.
 
 5. **Premium range** (`premiumRangeFilterProvider`): `{min: -10.0, max: 10.0}`. Filters orders whose `premium` (parsed as double) falls within range. Applied only when range differs from default.
+
+6. **Days of use** (`minDaysFilterProvider`): `int`, default `0`. Maker account-age filter — excludes offers whose `rating.days` (the `days` field from the kind 38383 rating tag) is below `minDays`. Applied only when `minDays > 0`. In the filter dialog it is a 0–20 slider with an adjacent text input that accepts higher values (clamped 0–9999); the label switches from `Days: 20` to the typed value when a higher number is entered.
 
 ### Filter Persistence
 
