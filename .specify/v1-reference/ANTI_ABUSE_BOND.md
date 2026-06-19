@@ -359,8 +359,14 @@ BondSlashCause bondSlashCause(List<MostroMessage> messages) {
 ```
 
 The cause is computed **once, at notification creation**, and persisted into the notification's
-`slash_cause` so the notification stays self-contained. When storage is unavailable (background)
-the inference defaults to `timeout`.
+`slash_cause` so the notification stays self-contained.
+
+**Degraded fallback (v1 limitation — not canonical).** When storage is unavailable (background
+execution) the order history can't be read, so the inference defaults to `timeout` — which
+**misclassifies a dispute slash as a timeout**. This is a v1 best-effort compromise, not the
+reference rule and **not** behaviour v2 should reproduce as-is. The canonical rule is the
+history-based inference above; see §10 for the open item (a daemon-side `reason` field removes
+the ambiguity).
 
 ### Rendering
 
@@ -488,5 +494,6 @@ state. Only `pay-bond-invoice` actually sets a status (`waiting-taker-bond`).
 - **Offline correctness** of the 60 s deferral depends on relay retention of the trailing
   `bond-slashed` gift wrap.
 - **Slash-cause inference is a heuristic.** The daemon ships no `reason` on `bond-slashed`, so
-  the client infers timeout vs dispute from order history and defaults to `timeout` when the
-  history is unavailable. A daemon-side `reason` field would make this unambiguous.
+  the client infers timeout vs dispute from order history (§7) and falls back to `timeout` when the
+  history is unavailable — a degraded path that can misclassify a dispute slash as a timeout (§7,
+  "Degraded fallback"). A daemon-side `reason` field would make this unambiguous.
