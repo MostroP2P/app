@@ -59,7 +59,7 @@ pre-validate cheaply before decrypting.
 | inner payload | 2-tuple `[message, tradeSig?]` | 3-tuple `[message, tradeSig?, identityProof?]` |
 | identity proof | carried inside the seal | carried **inside** the NIP-44 ciphertext |
 | `message.version` | `1` | `2` |
-| expiration | none | NIP-40 `expiration` tag (default 30 days) |
+| expiration | none | NIP-40 `expiration` tag (default 30 days, filled by the daemon; this app sends `expiration: None` — see §8) |
 
 The v2 **identity proof** (3rd tuple element) is `["<identity pubkey>",
 "<identity sig>"]`, or `null` for full-privacy mode. The signature is over a
@@ -174,7 +174,8 @@ Rust-side and small once `mostro-core` is current:
    breaking changes), independent of the transport switch.
 2. **Switch the two Mostro-protocol functions** in `rust/src/nostr/gift_wrap.rs`
    (`wrap_mostro_message` / `unwrap_mostro_message`) to the `mostro-core` v2
-   path (`wrap_message_with` / `unwrap_incoming`), with a NIP-40 expiration.
+   path (`wrap_message_with` / `unwrap_incoming`), with `expiration: None` (the
+   daemon fills its own; see spec FR-005).
 3. **Make the subscription kind-14 + author-pinned** in
    `rust/src/nostr/relay_pool.rs` (today hard-codes `KIND_GIFT_WRAP = 1059`).
 4. **Leave the peer-chat `wrap`/`unwrap` helpers untouched** (§7).
