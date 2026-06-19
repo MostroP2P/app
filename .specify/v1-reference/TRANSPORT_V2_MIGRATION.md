@@ -47,7 +47,7 @@ pre-validate cheaply before decrypting.
 
 - **Official source:** https://mostro.network/protocol/transport_migration.html
 - **Daemon spec:** mostro issue #626; `mostro-core#152` (the `transport` module,
-  released in **mostro-core 0.13.0**).
+  released in **mostro-core 0.13.0**; this app pins **0.13.1**, the latest patch).
 
 ## 2. Wire format: v1 vs v2
 
@@ -170,7 +170,7 @@ The detailed, ordered implementation plan lives in the specs
 (`specs/005-transport-v2-migration/`). At a glance, the work is almost entirely
 Rust-side and small once `mostro-core` is current:
 
-1. **Bump `mostro-core` 0.10 → 0.13.0** — the real bulk (the `0.10`→`0.13`
+1. **Bump `mostro-core` 0.10 → 0.13.1** — the real bulk (the `0.10`→`0.13`
    breaking changes), independent of the transport switch.
 2. **Switch the two Mostro-protocol functions** in `rust/src/nostr/gift_wrap.rs`
    (`wrap_mostro_message` / `unwrap_mostro_message`) to the `mostro-core` v2
