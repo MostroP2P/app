@@ -1068,11 +1068,11 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 ///
 /// The caller recovers the `UnwrappedMessage` via
 /// `crate::nostr::gift_wrap::unwrap_mostro_message`, which verifies the kind-14
-/// event signature so the `identity` field is cryptographically attributable.
-/// This function authenticates that `identity` against the active Mostro pubkey
-/// (defense-in-depth behind the receive handler's author pin), runs the
-/// centralized `validate_response` check (catches `CantDo` responses and
-/// malformed `request_id` fields), then routes by action.
+/// event signature so the `sender` field (the event author) is cryptographically
+/// attributable. This function authenticates that `sender` against the active
+/// Mostro pubkey (defense-in-depth behind the receive handler's author pin),
+/// runs the centralized `validate_response` check (catches `CantDo` responses
+/// and malformed `request_id` fields), then routes by action.
 async fn dispatch_mostro_message(
     unwrapped: mostro_core::nip59::UnwrappedMessage,
     trade_pubkey_hex: &str,
@@ -1082,31 +1082,33 @@ async fn dispatch_mostro_message(
 
     // The protocol-v2 unwrap exposes two pubkeys:
     //
-    //   * `identity` — the proven identity-proof pubkey, or the event author
-    //     itself when no proof is attached. Mostro's replies carry no proof,
-    //     so `identity` is the node's kind-14 author pubkey, whose event
-    //     signature is verified inside `unwrap_incoming`.
-    //   * `sender`   — the event author (the kind-14 signer).
+    //   * `sender`   — the kind-14 event author, whose signature is verified
+    //     inside `unwrap_incoming`. This is the load-bearing, always-stable
+    //     origin in v2 and the field we authenticate against.
+    //   * `identity` — the proven identity-proof pubkey when a proof is
+    //     attached, or the event author when not. Its meaning is conditional,
+    //     so it is not the right anchor for the daemon-auth gate.
     //
-    // Authenticate `identity` against the configured Mostro pubkey — a forger
-    // cannot sign a kind-14 event as the node.
+    // A forger cannot sign a kind-14 event as the node, so `sender == mostro`
+    // is the authoritative check.
     let mostro_core::nip59::UnwrappedMessage {
         message: msg,
-        sender: _,
-        identity,
+        sender,
+        identity: _,
         signature: _,
         created_at: _,
     } = unwrapped;
 
-    // Daemon authentication: the kind-14 event author must be the active
-    // Mostro pubkey. The event signature is verified inside `unwrap_incoming`,
-    // so `identity` is the cryptographically authoritative origin.
+    // Daemon authentication: the kind-14 event author (`sender`) must be the
+    // active Mostro pubkey. The event signature is verified inside
+    // `unwrap_incoming`, so `sender` is the cryptographically authoritative
+    // origin.
     match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
-        Ok(expected) if expected == identity => {}
+        Ok(expected) if expected == sender => {}
         Ok(expected) => {
             crate::api::logging::blog_warn("gift-wrap", format!(
-                "rejecting gift-wrap: identity={} != active mostro={} (trade={})",
-                &identity.to_hex()[..8],
+                "rejecting gift-wrap: sender={} != active mostro={} (trade={})",
+                &sender.to_hex()[..8],
                 &expected.to_hex()[..8],
                 &trade_pubkey_hex[..8],
             ));
