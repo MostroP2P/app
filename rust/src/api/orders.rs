@@ -1541,6 +1541,10 @@ fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStatus> {
         S::SettledByAdmin => OrderStatus::SettledByAdmin,
         S::CompletedByAdmin => OrderStatus::CompletedByAdmin,
         S::Dispute => OrderStatus::Dispute,
+        // Anti-abuse bond is out of scope; these statuses have no local
+        // OrderStatus mapping. No wildcard, so future Status variants keep
+        // forcing this match to be revisited.
+        S::WaitingTakerBond | S::WaitingMakerBond => return None,
     })
 }
 
