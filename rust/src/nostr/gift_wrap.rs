@@ -1,35 +1,39 @@
-/// NIP-59 Gift Wrap transport.
+/// Mostro message transport.
 ///
 /// Two entry points:
 ///
 /// * `wrap_mostro_message` / `unwrap_mostro_message` — typed Mostro protocol
-///   traffic, delegated to `mostro_core::nip59` so every Mostro client shares
-///   one NIP-59 implementation (seal construction, ephemeral keys, timestamp
-///   tweak, PoW, inner-tuple signing/verification).
+///   traffic, delegated to `mostro_core::transport` so every Mostro client
+///   shares one implementation. This app speaks **protocol v2** (NIP-44
+///   direct, signed Kind 14, authored by the trade key); the 3-tuple, identity
+///   proof, NIP-44 encryption and event signing/verification all live in
+///   mostro-core. See `specs/005-transport-v2-migration/`.
 ///
-/// * `wrap` / `unwrap` — raw JSON content wrapped in a Kind 14 rumor, used
-///   for NIP-17-style text DMs (P2P chat, dispute admin messages). These
+/// * `wrap` / `unwrap` — raw JSON content gift-wrapped (NIP-59, Kind 1059),
+///   used for NIP-17-style text DMs (P2P chat, dispute admin messages). These
+///   are **not** part of the v2 migration: they keep using gift wrap. Their
 ///   payloads are not `mostro_core::Message` values, so they stay on the
 ///   local helper — see issue #101, "Scope".
 use anyhow::{anyhow, Result};
 use mostro_core::message::Message;
-use mostro_core::nip59::{
-    unwrap_message as core_unwrap, wrap_message as core_wrap, UnwrappedMessage, WrapOptions,
-};
+use mostro_core::nip59::{UnwrappedMessage, WrapOptions};
+use mostro_core::transport::{unwrap_incoming, wrap_message_with, Transport};
 use nostr_sdk::prelude::*;
 
 // ── Mostro protocol traffic (typed `Message`) ────────────────────────────────
 
-/// Wrap a `Message` destined for `receiver` (typically the Mostro node).
+/// Wrap a `Message` destined for `receiver` (typically the Mostro node) as a
+/// protocol-v2 NIP-44 direct event (signed Kind 14, authored by the trade key).
 ///
-/// `identity_keys` sign the Seal (Kind 13) and encrypt it to `receiver` via
-/// NIP-44; they are the long-lived identity the node uses to accumulate
-/// reputation. `trade_keys` author the rumor (Kind 1) and produce the inner
-/// tuple signature. For full-privacy mode (no reputation), callers pass the
-/// same value for both parameters — see
+/// `trade_keys` author and sign the Kind 14 event and produce the inner trade
+/// signature; `identity_keys` produce the in-ciphertext identity proof binding
+/// the long-lived identity the node uses to accumulate reputation. For
+/// full-privacy mode (no reputation), callers pass the same value for both
+/// parameters and no identity proof is attached — see
 /// <https://mostro.network/protocol/key_management.html>.
 ///
-/// `pow` is applied to the outer Kind 1059 only.
+/// `pow` (NIP-13) is applied to the Kind 14 event id; the daemon fills its own
+/// NIP-40 expiration, so this app always sends `expiration: None`.
 pub async fn wrap_mostro_message(
     identity_keys: &Keys,
     trade_keys: &Keys,
@@ -42,38 +46,42 @@ pub async fn wrap_mostro_message(
         expiration: None,
         signed: true,
     };
-    core_wrap(message, identity_keys, trade_keys, *receiver, opts)
-        .await
-        .map_err(|e| anyhow!("wrap_message failed: {e}"))
+    wrap_message_with(
+        Transport::Nip44Direct,
+        message,
+        identity_keys,
+        trade_keys,
+        *receiver,
+        opts,
+    )
+    .await
+    .map_err(|e| anyhow!("wrap_message failed: {e}"))
 }
 
-/// Try to open an incoming Kind 1059 event using `trade_keys`.
+/// Try to open an incoming Mostro event using `trade_keys`.
 ///
-/// Returns `Ok(None)` only when the outer NIP-44 layer cannot be decrypted
-/// with the given key — the canonical "not addressed to me" signal, used by
-/// the global subscription to trial-decrypt across all derived trade keys.
+/// Delegates to `mostro_core::transport::unwrap_incoming`, which dispatches by
+/// event kind: a Kind 14 event is opened on the protocol-v2 NIP-44 path, a
+/// Kind 1059 event on the legacy gift-wrap path. (This app subscribes only to
+/// Kind 14, but the dispatcher accepts both.)
 ///
-/// Transport-level checks performed here: outer decryption, seal structure
-/// and signature, and — when the sender set `signed = true` — the
-/// inner-tuple Schnorr signature against the rumor author's pubkey. Note
-/// that mostro-core 0.10 deliberately does **not** enforce
-/// `seal.pubkey == rumor.pubkey` — Mostro signs the seal with the identity
-/// key and authors the rumor with the per-trade key, so the two legitimately
-/// differ. The returned `UnwrappedMessage` exposes both (`identity` vs.
-/// `sender`) so callers can route and authorize accordingly.
+/// Returns `Ok(None)` only when the NIP-44 content cannot be decrypted with
+/// the given key — the canonical "not addressed to me" signal, used by the
+/// global subscription to trial-decrypt across all derived trade keys. Every
+/// other failure (invalid event signature, malformed tuple, non-verifying
+/// inner signatures) yields `Err`.
 ///
-/// Daemon authentication is NOT performed here. The seal signature is
-/// verified (so `identity` is cryptographically attributable) but the seal
-/// signer could in principle be any key, and the rumor pubkey (`sender`)
-/// is only meaningful when an inner signature accompanies it. The upstream
-/// dispatcher in `api/orders.rs` enforces the Mostro-pubkey check against
-/// `identity` — never against the unauthenticated `sender` — before
-/// routing the message.
+/// In v2 the Kind 14 event signature is load-bearing and is verified here, so
+/// `UnwrappedMessage::sender` (the event author) is cryptographically
+/// attributable. `identity` is the proven identity-proof pubkey, or the trade
+/// key itself in full-privacy mode. Daemon authentication (matching the author
+/// against the active Mostro pubkey) is enforced by the receive handlers and
+/// the dispatcher in `api/orders.rs` before routing.
 pub async fn unwrap_mostro_message(
     trade_keys: &Keys,
     event: &Event,
 ) -> Result<Option<UnwrappedMessage>> {
-    core_unwrap(event, trade_keys)
+    unwrap_incoming(event, trade_keys)
         .await
         .map_err(|e| anyhow!("unwrap_message failed: {e}"))
 }
@@ -178,7 +186,9 @@ mod tests {
         .await
         .expect("wrap");
 
-        assert_eq!(event.kind, Kind::GiftWrap);
+        // Protocol v2: a signed Kind 14 event authored by the trade key.
+        assert_eq!(event.kind, Kind::PrivateDirectMessage);
+        assert_eq!(event.pubkey, trade_keys.public_key());
 
         let unwrapped = unwrap_mostro_message(&receiver_keys, &event)
             .await
@@ -243,7 +253,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pow_is_applied_to_outer_event() {
+    async fn pow_is_applied_to_event() {
         use std::time::Duration;
 
         let identity_keys = Keys::generate();
