@@ -928,10 +928,11 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     Ok(())
 }
 
-// ── Gift-wrap (Kind 1059) subscription ───────────────────────────────────────
+// ── Mostro reply (Kind 14, protocol v2) subscription ─────────────────────────
 
-/// Subscribe to NIP-59 Gift Wrap (Kind 1059) events addressed to a maker's
-/// trade key, spawning a background task that decrypts daemon responses.
+/// Subscribe to kind-14 NIP-44 Mostro replies (authored by the node) addressed
+/// to a maker's trade key, spawning a background task that decrypts daemon
+/// responses.
 ///
 /// Called immediately after creating a new maker order. Handles:
 /// - `Action::NewOrder` — daemon confirmed the order; bridges daemon UUID into
@@ -957,12 +958,24 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
     };
     let client = pool.client();
 
+    let mostro_pubkey =
+        match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
+            Ok(pk) => pk,
+            Err(e) => {
+                log::error!("[orders] subscribe_gift_wraps: invalid mostro pubkey: {e}");
+                return;
+            }
+        };
+
     // Obtain the notifications receiver BEFORE subscribing to avoid a
     // window where daemon responses arrive but aren't captured.
     let mut rx = client.notifications();
 
+    // Protocol v2: kind-14 NIP-44 replies authored by Mostro, p-tagged to
+    // this trade key.
     let filter = nostr_sdk::Filter::new()
-        .kind(nostr_sdk::Kind::from(1059u16))
+        .kind(nostr_sdk::Kind::PrivateDirectMessage)
+        .author(mostro_pubkey)
         .pubkey(trade_pubkey);
     if let Err(e) = client.subscribe(filter, None).await {
         log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
@@ -992,7 +1005,12 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 
             match timeout(remaining, rx.recv()).await {
                 Ok(Ok(RelayPoolNotification::Event { event, .. })) => {
-                    if event.kind != nostr_sdk::Kind::from(1059u16) {
+                    if event.kind != nostr_sdk::Kind::PrivateDirectMessage {
+                        continue;
+                    }
+                    // Disambiguate Mostro replies from NIP-17 peer chat (also
+                    // kind 14): only the node may author a Mostro reply.
+                    if event.pubkey != mostro_pubkey {
                         continue;
                     }
                     let is_for_us = event.tags.iter().any(|t| {
@@ -1009,7 +1027,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                         continue;
                     }
                     crate::api::logging::blog_info("gift-wrap", format!(
-                        "Kind 1059 received (per-trade) for trade={} from={} event_id={}",
+                        "Kind 14 received (per-trade) for trade={} from={} event_id={}",
                         &trade_pubkey_hex[..8],
                         &event.pubkey.to_hex()[..8],
                         &eid[..16],
@@ -1046,15 +1064,15 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
     });
 }
 
-/// Dispatch a Mostro `Message` recovered from a gift-wrap.
+/// Dispatch a Mostro `Message` recovered from a kind-14 NIP-44 reply.
 ///
 /// The caller recovers the `UnwrappedMessage` via
-/// `crate::nostr::gift_wrap::unwrap_mostro_message`, which verifies the seal
-/// signature so the `identity` field is cryptographically attributable.
-/// This function authenticates that seal signer's `identity` against the
-/// active Mostro pubkey (never the self-asserted rumor `sender`), runs the
-/// centralized `validate_response` check (catches `CantDo` responses and
-/// malformed `request_id` fields), then routes by action.
+/// `crate::nostr::gift_wrap::unwrap_mostro_message`, which verifies the kind-14
+/// event signature so the `sender` field (the event author) is cryptographically
+/// attributable. This function authenticates that `sender` against the active
+/// Mostro pubkey (defense-in-depth behind the receive handler's author pin),
+/// runs the centralized `validate_response` check (catches `CantDo` responses
+/// and malformed `request_id` fields), then routes by action.
 async fn dispatch_mostro_message(
     unwrapped: mostro_core::nip59::UnwrappedMessage,
     trade_pubkey_hex: &str,
@@ -1062,36 +1080,35 @@ async fn dispatch_mostro_message(
 ) {
     use mostro_core::message::Action;
 
-    // mostro-core 0.10 splits the wrap into two pubkeys:
+    // The protocol-v2 unwrap exposes two pubkeys:
     //
-    //   * `identity` — seal signer, proven by `seal.verify_signature()` in
-    //     `unwrap_message`. This is the only field a forger cannot spoof.
-    //   * `sender`   — rumor author. Self-asserted unless an inner
-    //     `signature` is present and verifies against the rumor pubkey.
+    //   * `sender`   — the kind-14 event author, whose signature is verified
+    //     inside `unwrap_incoming`. This is the load-bearing, always-stable
+    //     origin in v2 and the field we authenticate against.
+    //   * `identity` — the proven identity-proof pubkey when a proof is
+    //     attached, or the event author when not. Its meaning is conditional,
+    //     so it is not the right anchor for the daemon-auth gate.
     //
-    // In Mostro's reputation-mode key split `sender` (per-trade key) and
-    // `identity` (long-lived seal key) are expected to differ, and protocol
-    // responses commonly omit the inner signature, so we cannot use a
-    // sender/identity equality check to gate dispatch. Authenticate against
-    // `identity` only — a forger who seals with their own key cannot make
-    // it match the configured Mostro pubkey.
+    // A forger cannot sign a kind-14 event as the node, so `sender == mostro`
+    // is the authoritative check.
     let mostro_core::nip59::UnwrappedMessage {
         message: msg,
-        sender: _,
-        identity,
+        sender,
+        identity: _,
         signature: _,
         created_at: _,
     } = unwrapped;
 
-    // Daemon authentication: the seal signer must be the active Mostro
-    // pubkey. The seal signature is verified inside `unwrap_message`, so
-    // `identity` is the cryptographically authoritative origin.
+    // Daemon authentication: the kind-14 event author (`sender`) must be the
+    // active Mostro pubkey. The event signature is verified inside
+    // `unwrap_incoming`, so `sender` is the cryptographically authoritative
+    // origin.
     match nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
-        Ok(expected) if expected == identity => {}
+        Ok(expected) if expected == sender => {}
         Ok(expected) => {
             crate::api::logging::blog_warn("gift-wrap", format!(
-                "rejecting gift-wrap: identity={} != active mostro={} (trade={})",
-                &identity.to_hex()[..8],
+                "rejecting gift-wrap: sender={} != active mostro={} (trade={})",
+                &sender.to_hex()[..8],
                 &expected.to_hex()[..8],
                 &trade_pubkey_hex[..8],
             ));
@@ -1814,10 +1831,11 @@ async fn build_trade_key_map() -> HashMap<String, (nostr_sdk::Keys, u32)> {
     map
 }
 
-/// Handle a Kind 1059 event received on the global subscription.
+/// Handle a kind-14 Mostro reply received on the global subscription.
 ///
+/// The caller has already pinned the author to the active Mostro pubkey.
 /// Finds which trade key the event is addressed to (via `p` tag), decrypts
-/// via `mostro_core::nip59::unwrap_message`, and dispatches the recovered
+/// via `mostro_core::transport::unwrap_incoming`, and dispatches the recovered
 /// `Message` through `dispatch_mostro_message`.
 async fn handle_global_gift_wrap(
     event: &nostr_sdk::Event,
@@ -1851,7 +1869,7 @@ async fn handle_global_gift_wrap(
         return;
     }
     crate::api::logging::blog_info("gift-wrap", format!(
-        "Kind 1059 received (global) for trade={} from={} event_id={}",
+        "Kind 14 received (global) for trade={} from={} event_id={}",
         &recipient_hex[..8],
         &event.pubkey.to_hex()[..8],
         &eid[..16],
@@ -1892,8 +1910,8 @@ async fn _run_order_subscription() {
     };
     crate::api::logging::blog_info("orders", format!("subscribing to Kind 38383 from mostro={}", mostro_pubkey.to_hex()));
 
-    // Build a map of all known trade keys so we can decrypt ANY Kind 1059
-    // gift-wrap from Mostro, not just those from the current session.
+    // Build a map of all known trade keys so we can decrypt ANY kind-14
+    // Mostro reply, not just those from the current session.
     let trade_key_map = build_trade_key_map().await;
     let trade_pubkeys: Vec<nostr_sdk::PublicKey> = trade_key_map
         .keys()
@@ -1914,16 +1932,19 @@ async fn _run_order_subscription() {
         return;
     }
 
-    // Subscribe to Kind 1059 (gift-wrap) for ALL known trade pubkeys so we
-    // capture daemon responses even for trades started in previous sessions.
+    // Subscribe to kind-14 NIP-44 replies (protocol v2) authored by Mostro for
+    // ALL known trade pubkeys so we capture daemon responses even for trades
+    // started in previous sessions. The author pin disambiguates from NIP-17
+    // peer chat (also kind 14).
     if !trade_pubkeys.is_empty() {
         let gw_filter = nostr_sdk::Filter::new()
-            .kind(nostr_sdk::Kind::from(1059u16))
+            .kind(nostr_sdk::Kind::PrivateDirectMessage)
+            .author(mostro_pubkey)
             .pubkeys(trade_pubkeys);
         if let Err(e) = client.subscribe(gw_filter, None).await {
-            crate::api::logging::blog_warn("orders", format!("gift-wrap bulk subscribe failed: {e}"));
+            crate::api::logging::blog_warn("orders", format!("kind-14 bulk subscribe failed: {e}"));
         } else {
-            crate::api::logging::blog_info("orders", format!("Kind 1059 bulk subscription active for {} trade keys", trade_key_map.len()));
+            crate::api::logging::blog_info("orders", format!("Kind 14 bulk subscription active for {} trade keys", trade_key_map.len()));
         }
     }
 
@@ -1934,8 +1955,13 @@ async fn _run_order_subscription() {
     loop {
         match rx.recv().await {
             Ok(RelayPoolNotification::Event { event, .. }) => {
-                // ── Kind 1059 gift-wrap: decrypt and dispatch ──
-                if event.kind == nostr_sdk::Kind::from(1059u16) {
+                // ── Kind 14 NIP-44 Mostro reply: decrypt and dispatch ──
+                if event.kind == nostr_sdk::Kind::PrivateDirectMessage {
+                    // Disambiguate from NIP-17 peer chat (also kind 14): only
+                    // the node may author a Mostro reply.
+                    if event.pubkey != mostro_pubkey {
+                        continue;
+                    }
                     handle_global_gift_wrap(&event, &trade_key_map).await;
                     continue;
                 }

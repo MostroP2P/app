@@ -2,7 +2,8 @@
 ///
 /// Subscribes to:
 ///   - Kind 38383 (public order book, `s=Pending` tag)
-///   - Kind 1059 (NIP-59 Gift Wrap, p-tagged to our trade keys)
+///   - Kind 14 (protocol-v2 NIP-44 direct Mostro replies, authored by the
+///     node and p-tagged to our trade keys)
 ///
 /// Connection state is derived: Online if ≥1 relay connected,
 /// Reconnecting if attempting, Offline otherwise.
@@ -18,7 +19,6 @@ use tokio::sync::{broadcast, RwLock};
 use crate::api::types::{ConnectionState, RelayInfo, RelaySource, RelayStatus};
 use crate::nostr::order_events::pending_orders_filter;
 
-const KIND_GIFT_WRAP: u16 = 1059;
 /// How often the background task polls each relay's SDK status (seconds).
 const STATUS_POLL_INTERVAL_SECS: u64 = 2;
 
@@ -138,14 +138,15 @@ impl RelayPool {
         self.relay_tx.subscribe()
     }
 
-    /// Re-subscribe to Kind 38383 (public orders) and Kind 1059 (gift wraps)
-    /// after a reconnect or cold start, respawning per-trade gift-wrap workers.
+    /// Re-subscribe to Kind 38383 (public orders) and Kind 14 (protocol-v2
+    /// Mostro replies) after a reconnect or cold start, respawning per-trade
+    /// workers.
     ///
     /// `trade_keys` is a list of `(trade_pubkey, trade_index)` pairs gathered
     /// from persisted state (e.g. the trade-key DB table).  For each pair this
     /// method:
-    /// 1. Adds the pubkey to the bulk Kind 1059 relay filter so events are
-    ///    delivered to this client.
+    /// 1. Adds the pubkey to the bulk Kind 14 relay filter (author-pinned to
+    ///    Mostro) so events are delivered to this client.
     /// 2. Spawns a `subscribe_gift_wraps` worker (same as `create_order` does)
     ///    so decryption keys are available and daemon responses are routed.
     ///
@@ -164,8 +165,12 @@ impl RelayPool {
 
         let pubkeys: Vec<PublicKey> = trade_keys.iter().map(|(pk, _)| *pk).collect();
         if !pubkeys.is_empty() {
+            // Protocol v2: Mostro replies are kind-14 NIP-44 direct events
+            // authored by the node and p-tagged to our trade keys. Pin the
+            // author to disambiguate from NIP-17 peer chat (also kind 14).
             let dm_filter = Filter::new()
-                .kind(Kind::from(KIND_GIFT_WRAP))
+                .kind(Kind::PrivateDirectMessage)
+                .author(mostro_pubkey)
                 .pubkeys(pubkeys);
             self.client
                 .subscribe(dm_filter, None)
