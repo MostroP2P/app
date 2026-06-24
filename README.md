@@ -33,7 +33,7 @@ Mostro Mobile is the official cross-platform client for the [Mostro](https://mos
 **Key features:**
 
 - **Non-custodial** — Your keys stay on your device. No exchange holds your funds.
-- **Privacy-first** — Encrypted messaging (NIP-59 Gift Wrap over Nostr) between trading parties. Optional privacy mode hides reputation data.
+- **Privacy-first** — End-to-end encrypted over Nostr: NIP-44 direct messages with the Mostro daemon, NIP-59 Gift Wrap for peer-to-peer chat. Optional privacy mode hides reputation data.
 - **Lightning-native** — All BTC settlements happen via Lightning invoices (BOLT 11). Supports [Nostr Wallet Connect (NWC)](https://nwc.dev) for automated invoice generation.
 - **Censorship-resistant** — Built on the Nostr network; no central server or domain to block.
 - **Multi-platform** — Single codebase targets Android, iOS, Web (PWA), macOS, Windows, and Linux.
