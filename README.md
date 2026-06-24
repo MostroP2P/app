@@ -33,7 +33,7 @@ Mostro Mobile is the official cross-platform client for the [Mostro](https://mos
 **Key features:**
 
 - **Non-custodial** — Your keys stay on your device. No exchange holds your funds.
-- **Privacy-first** — Encrypted messaging (NIP-59 Gift Wrap over Nostr) between trading parties. Optional privacy mode hides reputation data.
+- **Privacy-first** — End-to-end encrypted over Nostr: NIP-44 direct messages with the Mostro daemon, NIP-59 Gift Wrap for peer-to-peer chat. Optional privacy mode hides reputation data.
 - **Lightning-native** — All BTC settlements happen via Lightning invoices (BOLT 11). Supports [Nostr Wallet Connect (NWC)](https://nwc.dev) for automated invoice generation.
 - **Censorship-resistant** — Built on the Nostr network; no central server or domain to block.
 - **Multi-platform** — Single codebase targets Android, iOS, Web (PWA), macOS, Windows, and Linux.
@@ -66,8 +66,8 @@ The Mostro protocol is a message-passing specification built on top of [Nostr](h
 | Concept | Description |
 |---------|-------------|
 | **Order Book** | Mostro daemons publish pending orders as Nostr events of [Kind 38383](https://mostro.network/protocol/list_orders.html) — parameterized replaceable events. |
-| **Trade Messages** | All trade actions (take order, add invoice, confirm fiat sent, release funds) are sent as [NIP-59 Gift Wrap](https://github.com/nostr-protocol/nips/blob/master/59.md) encrypted messages directed to the Mostro node pubkey. |
-| **P2P Chat** | Direct messages between buyer and seller use NIP-59 Kind 14 encrypted DMs directed to the peer's pubkey. |
+| **Trade Messages** | All trade actions (take order, add invoice, confirm fiat sent, release funds) are sent as NIP-44-encrypted direct messages — signed Kind 14 events authored by the per-trade key and directed to the Mostro node pubkey (Mostro protocol v2). |
+| **P2P Chat** | Direct messages between buyer and seller (and dispute–admin chat) use [NIP-59 Gift Wrap](https://github.com/nostr-protocol/nips/blob/master/59.md) (Kind 1059) directed to the peer's pubkey. |
 | **Hold Invoices** | The seller pays a Lightning hold invoice when taking a buy order. Funds are locked until the buyer confirms fiat receipt, then the daemon releases the HTLC. |
 | **Reputation** | Each trade can result in a mutual star rating, published as a Nostr event by the daemon. |
 | **Disputes** | Either party can open a dispute, escalating to a human Mostro operator for resolution. |
@@ -76,15 +76,15 @@ The Mostro protocol is a message-passing specification built on top of [Nostr](h
 
 ```
 Maker creates order  →  Mostro daemon publishes Kind 38383 to relays
-Taker sees order     →  sends NIP-59 "take-order" to daemon
-Daemon responds      →  notifies both parties via NIP-59 DM
+Taker sees order     →  sends "take-order" to daemon (NIP-44 direct, Kind 14)
+Daemon responds      →  notifies both parties via NIP-44 direct DM (Kind 14)
 
 Seller pays Lightning hold invoice (funds locked in HTLC)
 Buyer submits Lightning invoice to receive sats
 
 Fiat transfer happens off-chain (bank transfer, cash, etc.)
 
-Buyer confirms "fiat-sent" via NIP-59 message
+Buyer confirms "fiat-sent" (NIP-44 direct, Kind 14)
 Seller confirms receipt  →  daemon settles hold invoice
 Sats released to buyer   →  trade complete
 Both parties rate each other (optional)
@@ -95,12 +95,13 @@ Both parties rate each other (optional)
 | Kind | Description |
 |------|-------------|
 | `38383` | Public order book (published by Mostro daemon) |
-| `1059` | NIP-59 Gift Wrap — encrypted trade messages to/from daemon |
-| `14` | NIP-59 encrypted DM — P2P chat between peers |
+| `14` | NIP-44 direct DM — encrypted trade messages to/from the daemon, signed by the trade key (Mostro protocol v2) |
+| `1059` | NIP-59 Gift Wrap — P2P chat between peers and dispute–admin chat |
 
 ### Protocol Reference
 
 - Full spec: [mostro.network/protocol](https://mostro.network/protocol)
+- NIP-44 Encrypted Payloads: [github.com/nostr-protocol/nips/blob/master/44.md](https://github.com/nostr-protocol/nips/blob/master/44.md)
 - NIP-59 Gift Wrap: [github.com/nostr-protocol/nips/blob/master/59.md](https://github.com/nostr-protocol/nips/blob/master/59.md)
 - Order Kind 38383: [mostro.network/protocol/list_orders.html](https://mostro.network/protocol/list_orders.html)
 
@@ -120,8 +121,9 @@ Mostro Mobile uses a **split-architecture** model: all cryptography, protocol lo
 ┌──────────────────▼──────────────────────────┐
 │                  Rust Core                  │
 │                                             │
-│  nostr-sdk 0.44   →  relay pool, NIP-59     │
-│  mostro-core 0.10 →  protocol FSM, types    │
+│  nostr-sdk 0.44   →  relay pool, NIP-44/59  │
+│  mostro-core 0.13.1 →  protocol FSM, types,   │
+│                      transport              │
 │  bip32 / bip39    →  HD key derivation      │
 │  k256             →  secp256k1 ECDH         │
 │  chacha20poly1305 →  file encryption        │
@@ -149,7 +151,7 @@ Mostro Mobile uses a **split-architecture** model: all cryptography, protocol lo
 | State Management | Riverpod | 2.6.1 |
 | Routing | GoRouter | 14.8.1 |
 | Nostr Protocol | nostr-sdk | 0.44 |
-| Mostro Types / FSM | mostro-core | 0.10 |
+| Mostro Types / FSM / Transport | mostro-core | 0.13.1 |
 | UI-layer Persistence | Sembast | 3.8.2 |
 | Protocol Persistence (native) | SQLite via sqlx | 0.8 |
 | Protocol Persistence (web) | IndexedDB | 0.4 |
@@ -166,10 +168,10 @@ Mostro Mobile uses a **split-architecture** model: all cryptography, protocol lo
 
 | Platform | Status |
 |----------|--------|
-| Android 6.0+ | Supported |
-| iOS 15+ | Supported |
+| Android 5.0+ | Supported |
+| iOS 13+ | Supported |
 | Web (PWA) | Supported (WASM) |
-| macOS 12+ | Supported |
+| macOS 10.15+ | Supported |
 | Windows 10+ | Supported |
 | Linux (GTK) | Supported |
 
@@ -314,7 +316,7 @@ flutter_rust_bridge_codegen generate
 ## Project Structure
 
 ```
-mostro-mobile/
+app/
 ├── lib/                        # Flutter/Dart UI shell
 │   ├── core/                   #   App root, routing (GoRouter), theme, design tokens
 │   ├── features/               #   Feature modules (one per user flow)
@@ -326,7 +328,9 @@ mostro-mobile/
 │   │   ├── disputes/           #     Dispute management
 │   │   ├── rate/               #     Post-trade rating
 │   │   ├── notifications/      #     Notification center
+│   │   ├── drawer/             #     Navigation drawer / side menu
 │   │   ├── account/            #     Identity, key backup
+│   │   ├── about/              #     Mostro node info
 │   │   └── settings/           #     Relays, wallet, preferences
 │   ├── shared/                 #   Cross-feature providers, widgets, utils
 │   ├── l10n/                   #   Localization strings (EN, ES, IT, FR, DE)
@@ -434,9 +438,8 @@ To add a new language:
 
 1. Copy `lib/l10n/app_en.arb` to `lib/l10n/app_<code>.arb`
 2. Translate all string values (keep the `"@@locale"` key correct)
-3. Add the locale to `l10n.yaml` supported locales list
-4. Run `flutter gen-l10n` to regenerate the Dart localizations
-5. Open a PR — translation contributions are always welcome
+3. Run `flutter gen-l10n` to regenerate the Dart localizations — it auto-detects the new `.arb` file (no `l10n.yaml` change needed)
+4. Open a PR — translation contributions are always welcome
 
 ---
 
@@ -454,7 +457,7 @@ We aim to acknowledge reports within 72 hours and provide a fix within 30 days f
 ### Security Model
 
 - **Keys never leave the device** — the BIP-39 seed is stored in platform secure storage (`flutter_secure_storage`, backed by Android Keystore / iOS Keychain / Linux SecretService).
-- **End-to-end encrypted trade messages** — all communication between the app and the Mostro daemon uses NIP-59 Gift Wrap (secp256k1 ECDH + ChaCha20-Poly1305).
+- **End-to-end encrypted trade messages** — all communication between the app and the Mostro daemon uses NIP-44 encrypted direct messages (secp256k1 ECDH + ChaCha20 + HMAC-SHA256). Peer-to-peer and dispute chat use NIP-59 Gift Wrap.
 - **Per-trade ephemeral keys** — a new BIP-32 child key is derived for each trade, preventing cross-trade correlation even if a single trade key is compromised.
 - **The Mostro daemon never sees plaintext** — all messages are encrypted to the daemon's public key; only the holder of the corresponding private key can decrypt them.
 - **No telemetry** — the app does not collect analytics, crash reports, or any usage data.
