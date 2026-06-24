@@ -122,7 +122,7 @@ Mostro Mobile uses a **split-architecture** model: all cryptography, protocol lo
 │                  Rust Core                  │
 │                                             │
 │  nostr-sdk 0.44   →  relay pool, NIP-44/59  │
-│  mostro-core 0.13 →  protocol FSM, types,   │
+│  mostro-core 0.13.1 →  protocol FSM, types,   │
 │                      transport              │
 │  bip32 / bip39    →  HD key derivation      │
 │  k256             →  secp256k1 ECDH         │
