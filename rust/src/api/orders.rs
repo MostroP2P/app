@@ -1544,6 +1544,72 @@ async fn dispatch_mostro_message(
     }
 }
 
+/// Delete the persisted trade for `order_id` when it is a phantom — a maker
+/// order still `Pending` with no Kind 38383 backing (absent from the public
+/// book). Returns `true` when removed. The status check is essential: a taken
+/// order is also absent from the pending-only book but must never be deleted.
+async fn delete_trade_if_phantom(order_id: &str, source: &str) -> bool {
+    let Some(db) = crate::db::app_db::db() else { return false };
+    // A real order is backed by a Kind 38383 event and present in the book.
+    if order_book().get_order(order_id).await.is_some() {
+        return false;
+    }
+    match db.get_trade_by_order_id(order_id).await {
+        Ok(Some(t)) if t.order.status == crate::api::types::OrderStatus::Pending => {}
+        _ => return false,
+    }
+    if let Err(e) = db.delete_trade(order_id).await {
+        log::warn!("[orders] failed to delete phantom trade {order_id}: {e}");
+        return false;
+    }
+    crate::api::logging::blog_warn("orders", format!(
+        "removed phantom trade {order_id} [{source}]"
+    ));
+    true
+}
+
+/// One-shot guard so the startup phantom sweep runs at most once per process.
+static PHANTOM_SWEEP_DONE: AtomicBool = AtomicBool::new(false);
+
+/// Defensive sweep of persisted maker trades stuck `Pending` with no Kind 38383
+/// backing. The current create flow no longer persists unconfirmed orders, so
+/// this mainly self-heals leftovers from older app versions (and the rare
+/// confirmed-but-never-published edge). Runs once, after the relay subscription
+/// has had time to deliver the public book.
+async fn sweep_phantom_trades() {
+    if PHANTOM_SWEEP_DONE.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    // Let the Kind 38383 subscription populate the book so real pending orders
+    // are present and not mistaken for phantoms.
+    const STARTUP_SYNC_DELAY_SECS: u64 = 20;
+    // Don't sweep freshly created orders still waiting for their first 38383.
+    const MIN_TRADE_AGE_SECS: i64 = 60;
+    tokio::time::sleep(std::time::Duration::from_secs(STARTUP_SYNC_DELAY_SECS)).await;
+
+    let Some(db) = crate::db::app_db::db() else { return };
+    let trades = match db.list_trades().await {
+        Ok(t) => t,
+        Err(e) => {
+            log::warn!("[orders] phantom sweep: list_trades failed: {e}");
+            return;
+        }
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    for t in trades {
+        if t.order.status != crate::api::types::OrderStatus::Pending {
+            continue;
+        }
+        if now - t.started_at < MIN_TRADE_AGE_SECS {
+            continue;
+        }
+        delete_trade_if_phantom(&t.order.id, "startup-sweep").await;
+    }
+}
+
 /// Maps a `mostro_core::order::Status` to the local [`OrderStatus`] enum.
 fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStatus> {
     use mostro_core::order::Status as S;
@@ -1803,6 +1869,9 @@ pub async fn subscribe_orders() {
         let _guard = ResetGuard;
         _run_order_subscription().await;
     });
+
+    // Defensive: clean up any phantom trades persisted by older app versions.
+    tokio::spawn(sweep_phantom_trades());
 }
 
 /// Force-restart the orders subscription.
