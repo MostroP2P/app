@@ -560,9 +560,11 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         }
     };
 
-    // Order confirmed (or timeout) — now create the local state.
+    // Don't add the order to `order_book()`: that store feeds the public book,
+    // which must come only from the daemon's Kind 38383 events — an optimistic
+    // insert would leave a phantom on late rejection/timeout. The maker sees the
+    // order via My Trades (TradeInfo below) until its Kind 38383 arrives.
     order.id = final_order_id.clone();
-    order_book().upsert_order(order.clone()).await;
 
     let maker_role = match order.kind {
         OrderKind::Sell => crate::api::types::TradeRole::Seller,
@@ -1997,14 +1999,12 @@ async fn _run_order_subscription() {
                                 // Bridge content fingerprint → daemon UUID so subsequent
                                 // actions (cancel) can look up the trade key by real order ID.
                                 store_trade_key_index(&info.id, trade_idx).await;
-                                // Remove the temporary local-UUID entry that was
-                                // added optimistically at create_order time so the
-                                // order book only contains the daemon's real UUID.
+                                // The maker order is no longer inserted into the
+                                // book optimistically (see `create_order`), so there
+                                // is nothing to remove here — just bridge the local
+                                // UUID → daemon UUID in the DB so tradeStatusProvider
+                                // polls with the real order ID.
                                 if let Some(local_id) = take_pending_local_id(&ck) {
-                                    order_book().remove_order(&local_id).await;
-                                    // Update the DB trade record so it references the
-                                    // daemon UUID — otherwise tradeStatusProvider polls
-                                    // with the stale local UUID and never finds the order.
                                     if let Some(db) = crate::db::app_db::db() {
                                         if let Err(e) = db
                                             .update_trade_order_id(&local_id, &info.id)
@@ -2018,7 +2018,7 @@ async fn _run_order_subscription() {
                                         }
                                     }
                                     log::info!(
-                                        "[orders] replaced local order={local_id} with daemon order={}",
+                                        "[orders] reconciled local order={local_id} → daemon order={}",
                                         info.id
                                     );
                                 } else {
