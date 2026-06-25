@@ -317,5 +317,6 @@
   "waitingForPaymentConfirmation": "En attente de la confirmation du paiement...",
   "payWithLightningWallet": "Payer avec un portefeuille Lightning",
   "noLightningWalletFound": "Aucun portefeuille Lightning trouvé sur cet appareil",
-  "orderNoLongerActive": "Cet ordre n'est plus actif"
+  "orderNoLongerActive": "Cet ordre n'est plus actif",
+  "sessionTimeoutMessage": "Aucune réponse reçue, vérifiez votre connexion et réessayez plus tard"
 }

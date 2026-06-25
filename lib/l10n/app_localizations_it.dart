@@ -975,4 +975,8 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get orderNoLongerActive => 'Questo ordine non è più attivo';
+
+  @override
+  String get sessionTimeoutMessage =>
+      'Nessuna risposta ricevuta, verifica la tua connessione e riprova più tardi';
 }

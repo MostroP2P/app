@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
@@ -212,8 +213,13 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       final raw = e.toString();
       final anyhowMatch = RegExp(r'^.*?AnyhowException\((.+)\)$').firstMatch(raw);
       final msg = anyhowMatch != null ? anyhowMatch.group(1)! : raw;
+      // The daemon never answered: show the localized "no response" message
+      // instead of the raw marker. The order was not created.
+      final display = msg.contains('NoDaemonResponse')
+          ? AppLocalizations.of(context).sessionTimeoutMessage
+          : msg;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
+        SnackBar(content: Text(display)),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

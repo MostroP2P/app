@@ -526,9 +526,10 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     ));
 
     // Wait for daemon confirmation. The daemon typically responds within 1s.
-    // The 5s timeout is a safety net for network issues.
+    // The 10s timeout is a safety net for network issues; on timeout the order
+    // is treated as not created (see below) rather than shown optimistically.
     let confirmation = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(10),
         conf_rx,
     ).await;
 
@@ -537,8 +538,9 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         map.remove(&trade_pk_hex);
     }
 
-    // Determine the final order ID (daemon UUID or local fallback).
-    let final_order_id = match confirmation {
+    // Resolve the daemon's verdict. The order only exists once the daemon
+    // confirms it; a timeout means "no response", not an optimistic success.
+    let daemon_id = match confirmation {
         Ok(Ok(DaemonConfirmation::Confirmed { daemon_id })) => {
             crate::api::logging::blog_info("orders", format!(
                 "create_order confirmed by daemon: {daemon_id}"
@@ -552,19 +554,20 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
             return Err(anyhow::anyhow!("{message}"));
         }
         _ => {
-            // Timeout — optimistic: use local UUID and add to book/DB.
-            crate::api::logging::blog_info("orders", format!(
-                "create_order: no daemon response within 5s, using local id={}", order.id
+            // No daemon response within the timeout. Do not persist or show the
+            // order — it was never published. Surface a stable marker the UI
+            // maps to a localized "no response from Mostro" message.
+            crate::api::logging::blog_warn("orders", format!(
+                "create_order: no daemon response within 10s for id={}", order.id
             ));
-            order.id.clone()
+            return Err(anyhow::anyhow!("NoDaemonResponse"));
         }
     };
 
-    // Don't add the order to `order_book()`: that store feeds the public book,
-    // which must come only from the daemon's Kind 38383 events — an optimistic
-    // insert would leave a phantom on late rejection/timeout. The maker sees the
-    // order via My Trades (TradeInfo below) until its Kind 38383 arrives.
-    order.id = final_order_id.clone();
+    // Confirmed: adopt the daemon UUID. The order is not inserted into
+    // `order_book()` — that public store is fed only by the daemon's Kind 38383
+    // events. The maker sees it via My Trades (TradeInfo below) until it arrives.
+    order.id = daemon_id;
 
     let maker_role = match order.kind {
         OrderKind::Sell => crate::api::types::TradeRole::Seller,
