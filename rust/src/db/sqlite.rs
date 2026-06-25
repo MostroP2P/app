@@ -180,6 +180,14 @@ impl Storage for SqliteStorage {
         Ok(trades)
     }
 
+    async fn delete_trade(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM trades WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn save_message(&self, msg: &ChatMessage) -> Result<()> {
         let data = serde_json::to_string(msg)?;
         let is_read = msg.is_read as i64;

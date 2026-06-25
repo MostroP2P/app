@@ -40,6 +40,9 @@ impl Storage for IndexedDbStorage {
     async fn list_trades(&self) -> Result<Vec<TradeInfo>> {
         Err(anyhow!("IndexedDB not yet implemented"))
     }
+    async fn delete_trade(&self, _id: &str) -> Result<()> {
+        Err(anyhow!("IndexedDB not yet implemented"))
+    }
     async fn save_message(&self, _msg: &ChatMessage) -> Result<()> {
         Err(anyhow!("IndexedDB not yet implemented"))
     }
