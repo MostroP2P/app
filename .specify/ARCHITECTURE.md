@@ -22,7 +22,7 @@
 | **Cryptography** | NIP-44, NIP-59, signatures — security-critical, must be in one place |
 | **Key management** | BIP-32/39 derivation, seed storage — zero room for error |
 | **Relay connections** | WebSocket management, subscription handling, reconnection logic |
-| **Message serialization** | Mostro protocol messages, Gift Wrap encryption/decryption |
+| **Message serialization** | Mostro protocol messages, NIP-44 (daemon) / NIP-59 gift wrap (peer chat) encryption — daemon was gift wrap before transport v2 |
 | **Order state machine** | Business logic that must be consistent across platforms |
 | **Local storage encryption** | SQLite with encrypted fields, ChaCha20-Poly1305 |
 
@@ -81,7 +81,7 @@
 │  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐          │
 │  │  nostr-sdk  │      │ mostro-core │      │   Storage   │          │
 │  │             │      │             │      │             │          │
-│  │ • NIP-59    │      │ • Messages  │      │ • SQLite    │          │
+│  │ • NIP-44/59 │      │ • Messages  │      │ • SQLite    │          │
 │  │ • Relays    │      │ • Order     │      │ • Encrypted │          │
 │  │ • Events    │      │   state     │      │   fields    │          │
 │  └─────────────┘      └─────────────┘      └─────────────┘          │

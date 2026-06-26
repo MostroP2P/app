@@ -53,9 +53,9 @@ NewOrderParams {
 - `fiat_code` MUST be valid ISO 4217
 - `payment_method` MUST not be empty
 
-**Side effects**: Publishes NIP-59 Gift Wrapped message to Mostro daemon.
+**Side effects**: Sends the new-order message to the Mostro daemon and waits for its confirmation. The order is created only once the daemon confirms it; the public order book is populated exclusively from the daemon's Kind 38383 event (the order is **not** inserted optimistically). On no confirmation within the timeout the order is treated as not created — nothing is persisted to My Trades and nothing is added to the book.
 
-**Errors**: `NoIdentity`, `Offline` (queued), `ProtocolError`.
+**Errors**: `NoIdentity`, `Offline` (queued), `NoDaemonResponse` (daemon did not confirm within the timeout), `ProtocolError`.
 
 ---
 
@@ -65,7 +65,7 @@ Take an existing order, starting a trade.
 **Preconditions**: No active trade in progress.
 
 **Side effects**: Sends TakeBuy/TakeSell action to Mostro daemon via
-NIP-59. Creates local Trade record.
+NIP-44 (Kind 14, transport v2). Creates local Trade record.
 
 **Errors**: `NoIdentity`, `ActiveTradeExists`, `OrderAlreadyTaken`,
 `OrderNotFound`, `Offline` (queued).
@@ -194,7 +194,7 @@ TradeTimeoutInfo {
 ## Seller hold-invoice flow (Nostr → DB → UI)
 
 The seller never receives the bolt11 hold invoice via a synchronous API
-call — it arrives as a NIP-59 gift-wrap (Kind 1059) from mostrod. This
+call — it arrives as a Kind 14 (NIP-44) message from mostrod. This
 section documents the full chain so Flutter providers and screens know
 what to listen to. Reference: <https://mostro.network/protocol/seller_pay_hold_invoice.html>.
 

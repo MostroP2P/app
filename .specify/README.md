@@ -118,7 +118,7 @@ When migrating features from v1 → v2:
 - [ ] Nostr-based exchange rates
 - [ ] Rust core with flutter_rust_bridge 2.x
 - [ ] HD key management in Rust
-- [ ] Gift wrap (NIP-59) in Rust
+- [ ] Message transport (NIP-44 daemon + NIP-59 gift wrap peer chat) in Rust
 - [ ] Order state machine in Rust
 
 ### Phase 2: Enhanced Features (v2.1)

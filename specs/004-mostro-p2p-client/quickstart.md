@@ -74,7 +74,7 @@ flutter run -d linux
 | `rust/src/api/` | Public Rust API surface (what Flutter calls) |
 | `rust/src/mostro/` | Mostro protocol FSM and message actions |
 | `rust/src/crypto/` | BIP-39/BIP-32 key derivation, ECDH, file encryption |
-| `rust/src/nostr/` | Gift Wrap (NIP-59), relay pool, Kind 38383 events |
+| `rust/src/nostr/` | Transport (NIP-44 Kind 14 + NIP-59 gift wrap Kind 1059), relay pool, Kind 38383 events |
 | `assets/data/fiat.json` | Fiat currency and country flag data |
 | `assets/l10n/` | ARB localization files (EN, ES, IT, FR, DE) |
 
@@ -89,7 +89,7 @@ Flutter UI (Dart)
     ▼  flutter_rust_bridge (FFI on native, WASM on web)
     │
 Rust Core
-    ├── nostr-sdk       — relay connections, NIP-59 gift wrap, event parsing
+    ├── nostr-sdk       — relay connections, NIP-44/NIP-59 transport, event parsing
     ├── mostro-core     — Mostro protocol types, FSM, message construction
     ├── sqlx (SQLite)   — native storage (iOS, Android, macOS, Windows, Linux)
     ├── indexed_db_futures — web storage (WASM only, feature-gated)

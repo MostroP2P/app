@@ -1,11 +1,11 @@
 # Implementation Plan: Mostro Mobile v2 — P2P Bitcoin Lightning Exchange
 
 **Branch**: `004-mostro-p2p-client` | **Date**: 2026-03-29 | **Spec**: [spec.md](spec.md)
-**Input**: Flutter/Dart with Riverpod, GoRouter, and Sembast for the Flutter shell. Rust core via flutter_rust_bridge using nostr-sdk for all Nostr protocol handling, NIP-59 gift wrap encryption, and cryptographic operations. No crypto in Dart. NWC support for auto-paying Lightning invoices. Platform targets: iOS, Android, web (PWA), and desktop.
+**Input**: Flutter/Dart with Riverpod, GoRouter, and Sembast for the Flutter shell. Rust core via flutter_rust_bridge using nostr-sdk for all Nostr protocol handling, NIP-44 (Kind 14, transport v2) for daemon messages and NIP-59 gift wrap for peer chat, and cryptographic operations. No crypto in Dart. NWC support for auto-paying Lightning invoices. Platform targets: iOS, Android, web (PWA), and desktop.
 
 ## Summary
 
-Build Mostro Mobile v2, a P2P Bitcoin Lightning exchange application that replicates the complete v1 user experience across 23 interaction flows (walkthrough → order book → create/take order → trade execution → chat → disputes → rating). The app uses a **Rust core / Flutter shell** architecture: all Nostr protocol handling, NIP-59 Gift Wrap encryption, BIP-32 key derivation, NWC wallet integration, and relay communication live exclusively in Rust via `nostr-sdk`. Flutter handles UI, routing (GoRouter), state management (Riverpod), and local persistence (Sembast on all platforms). All 23 V1 flow sections from `V1_FLOW_GUIDE.md` are the binding UX specification; `DESIGN_SYSTEM.md` governs visual appearance.
+Build Mostro Mobile v2, a P2P Bitcoin Lightning exchange application that replicates the complete v1 user experience across 23 interaction flows (walkthrough → order book → create/take order → trade execution → chat → disputes → rating). The app uses a **Rust core / Flutter shell** architecture: all Nostr protocol handling, NIP-44 (Kind 14, transport v2) for daemon messages and NIP-59 gift wrap for peer chat, BIP-32 key derivation, NWC wallet integration, and relay communication live exclusively in Rust via `nostr-sdk`. Flutter handles UI, routing (GoRouter), state management (Riverpod), and local persistence (Sembast on all platforms). All 23 V1 flow sections from `V1_FLOW_GUIDE.md` are the binding UX specification; `DESIGN_SYSTEM.md` governs visual appearance.
 
 ## Technical Context
 
@@ -34,8 +34,8 @@ Build Mostro Mobile v2, a P2P Bitcoin Lightning exchange application that replic
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| **I. Rust Core, Flutter Shell** | ✅ PASS | All Nostr logic, NIP-59, BIP-32, NWC, relay I/O in Rust/nostr-sdk. Zero crypto in Dart. `flutter_rust_bridge` is the sole bridge. |
-| **II. Privacy by Design** | ✅ PASS | NIP-59 Gift Wrap on all Mostro messages. No analytics. Keys never stored unencrypted. Ephemeral trade keys per order. No non-relay HTTP calls from core. |
+| **I. Rust Core, Flutter Shell** | ✅ PASS | All Nostr logic, NIP-44/NIP-59, BIP-32, NWC, relay I/O in Rust/nostr-sdk. Zero crypto in Dart. `flutter_rust_bridge` is the sole bridge. |
+| **II. Privacy by Design** | ✅ PASS | NIP-44 (Kind 14) on Mostro daemon messages; NIP-59 gift wrap on peer chat. No analytics. Keys never stored unencrypted. Ephemeral trade keys per order. No non-relay HTTP calls from core. |
 | **III. Protocol Compliance** | ✅ PASS | Uses `mostro-core` crate directly for type-safe message construction. Compatible with any conforming Mostro daemon. Protocol version mismatches surfaced as user-visible errors. |
 | **IV. Offline-First Architecture** | ✅ PASS | Sembast (Dart) + SQLite/IndexedDB (Rust) are local source of truth. `MessageQueue` entity handles offline outbox. Relay sync on reconnect. |
 | **V. Multi-Platform from Day One** | ✅ PASS | iOS, Android, web (PWA), macOS, Windows, Linux all targeted. WASM build via wasm-pack. Responsive layouts. Platform features degrade gracefully (QR, notifications, camera). |
@@ -114,7 +114,7 @@ rust/                         # Rust core
 │   │   ├── sqlite.rs         # Native SQLite backend (sqlx)
 │   │   └── indexeddb.rs      # Web IndexedDB backend (wasm only)
 │   ├── nostr/                # Nostr event construction + parsing
-│   │   ├── gift_wrap.rs      # NIP-59 Gift Wrap encode/decode
+│   │   ├── gift_wrap.rs      # Transport: NIP-44 direct (Kind 14, v2) + NIP-59 gift wrap (Kind 1059, peer chat)
 │   │   ├── order_events.rs   # Kind 38383 event parsing
 │   │   └── relay_pool.rs     # Multi-relay connection manager
 │   ├── crypto/               # Key derivation + encryption
@@ -180,7 +180,7 @@ assets/
 
 **Key Protocol Corrections**:
 
-- **Kind 38383 authorship**: The Mostro **daemon node** (not makers) creates and signs Kind 38383 events. Makers send a `new-order` NIP-59 Gift Wrap to the node; the node publishes the order. Clients must filter with `author = mostro_pubkey` to scope to the trusted instance.
+- **Kind 38383 authorship**: The Mostro **daemon node** (not makers) creates and signs Kind 38383 events. Makers send a `new-order` Kind 14 (NIP-44) message to the node; the node publishes the order. Clients must filter with `author = mostro_pubkey` to scope to the trusted instance.
 - **Status serde convention**: `mostro-core` uses `#[serde(rename_all = "kebab-case")]` on all enums. All 15 status values on the wire are kebab-case: `"pending"`, `"in-progress"`, `"waiting-buyer-invoice"`, `"waiting-payment"`, `"fiat-sent"`, `"settled-hold-invoice"`, `"canceled-by-admin"`, `"settled-by-admin"`, `"completed-by-admin"`, `"cooperatively-canceled"`, `"active"`, `"canceled"`, `"expired"`, `"success"`, `"dispute"`. The filter `s` tag value is `"pending"` (not `"Pending"`).
 
 **Key Files Changed**:

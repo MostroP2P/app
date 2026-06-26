@@ -32,7 +32,7 @@
 
 ### II. Privacy by Design
 
-- All Mostro communication MUST use NIP-59 Gift Wrap encryption.
+- All Mostro communication MUST be end-to-end encrypted: NIP-44 (signed Kind 14, transport v2) for messages to the Mostro daemon, and NIP-59 gift wrap (Kind 1059) for peer/dispute chat. (Daemon transport was previously NIP-59 gift wrap for everything; it migrated to NIP-44 in transport v2 — peer/dispute chat stayed on gift wrap.)
 - No analytics, telemetry, or tracking of any kind.
 - Cryptographic keys MUST never leave the device unencrypted.
 - Ephemeral trade data MUST be cleared after trade completion.
@@ -101,7 +101,7 @@
 - **Flutter** — UI framework, multi-platform rendering
 - **Rust via flutter_rust_bridge** — all core logic
 - **nostr-sdk 0.44+** — Nostr protocol implementation
-- **NIP-59** — encryption for all Mostro messages
+- **NIP-44 / NIP-59** — daemon messages use NIP-44 (Kind 14); peer/dispute chat uses NIP-59 gift wrap (Kind 1059). Was all-NIP-59 before transport v2.
 - **SQLite or equivalent** — local persistence
 - **Platform-aware components** — camera/QR with web fallback
 - **Responsive layout system** — mobile, tablet, desktop

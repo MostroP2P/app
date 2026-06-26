@@ -71,6 +71,11 @@ Dart shims that use JS interop (`dart:js_interop`) on web instead of
 `mostro-core` crate, using Kind 38383 for public orders and Kind 1059
 (NIP-59 Gift Wrap) for all private communication.
 
+> **Superseded by transport v2**: daemon messages later moved to NIP-44
+> direct (signed Kind 14); peer chat (NIP-17) remains NIP-59 gift wrap
+> (Kind 1059). The NIP-59 flow described below still applies to peer chat;
+> for daemon messages read "Kind 14 / NIP-44" instead of "Kind 1059 / Gift Wrap".
+
 **Rationale**: The Mostro protocol is well-documented with a reference
 daemon, core types library, and CLI client. Using `mostro-core` as a
 dependency ensures type-level compatibility with any conforming daemon.
