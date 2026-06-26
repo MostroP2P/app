@@ -109,6 +109,18 @@ impl Storage for IndexedDbStorage {
         Ok(None)
     }
 
+    async fn save_active_mostro_pubkey(&self, _pubkey: &str) -> Result<()> {
+        // IndexedDB not yet implemented — node selection will not survive reload.
+        log::warn!("save_active_mostro_pubkey: IndexedDB backend not implemented — node selection will not survive reload");
+        Ok(())
+    }
+
+    async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
+        // IndexedDB not yet implemented — callers fall back to the default.
+        log::warn!("get_active_mostro_pubkey: IndexedDB backend not implemented — falling back to default");
+        Ok(None)
+    }
+
     async fn get_trade_by_order_id(
         &self,
         _order_id: &str,
