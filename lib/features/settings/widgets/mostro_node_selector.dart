@@ -63,13 +63,13 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
     final previous = ref.read(mostroPubkeyProvider);
     ref.read(mostroPubkeyProvider.notifier).state = _defaultMostroPubkey;
     try {
-      await settings_api.setMostroPubkey(pubkey: null);
+      await settings_api.setActiveMostroNode(pubkey: _defaultMostroPubkey);
       if (!mounted) return;
       _controller.clear();
       setState(() => _errorText = null);
       Navigator.of(context).pop();
     } catch (e) {
-      debugPrint('[MostroNodeSelector] setMostroPubkey(null) failed: $e');
+      debugPrint('[MostroNodeSelector] setActiveMostroNode(default) failed: $e');
       ref.read(mostroPubkeyProvider.notifier).state = previous;
       if (!mounted) return;
       setState(() => _errorText = 'Failed to reset node');
@@ -90,11 +90,11 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
     final previous = ref.read(mostroPubkeyProvider);
     ref.read(mostroPubkeyProvider.notifier).state = pubkey;
     try {
-      await settings_api.setMostroPubkey(pubkey: pubkey);
+      await settings_api.setActiveMostroNode(pubkey: pubkey);
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
-      debugPrint('[MostroNodeSelector] setMostroPubkey failed: $e');
+      debugPrint('[MostroNodeSelector] setActiveMostroNode failed: $e');
       ref.read(mostroPubkeyProvider.notifier).state = previous;
       if (!mounted) return;
       setState(() => _errorText = 'Invalid pubkey or bridge error');
