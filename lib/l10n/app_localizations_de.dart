@@ -978,4 +978,8 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get orderNoLongerActive => 'Diese Bestellung ist nicht mehr aktiv';
+
+  @override
+  String get sessionTimeoutMessage =>
+      'Keine Antwort erhalten; prüfe deine Verbindung und versuche es später erneut';
 }

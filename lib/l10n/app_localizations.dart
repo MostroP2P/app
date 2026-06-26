@@ -1873,6 +1873,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This order is no longer active'**
   String get orderNoLongerActive;
+
+  /// Snackbar shown when the Mostro node does not respond to a new order within the timeout — the order was not created
+  ///
+  /// In en, this message translates to:
+  /// **'No response received, check your connection and try again later'**
+  String get sessionTimeoutMessage;
 }
 
 class _AppLocalizationsDelegate

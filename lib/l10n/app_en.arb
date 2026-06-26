@@ -644,5 +644,7 @@
   "noLightningWalletFound": "No Lightning wallet found on this device",
   "@noLightningWalletFound": {"description": "Snackbar shown when no app can handle the lightning: URI"},
   "orderNoLongerActive": "This order is no longer active",
-  "@orderNoLongerActive": {"description": "Neutral notice shown when the order reaches a terminal state (canceled, cooperatively canceled, canceled by admin, or expired) while the user is on the pay invoice screen"}
+  "@orderNoLongerActive": {"description": "Neutral notice shown when the order reaches a terminal state (canceled, cooperatively canceled, canceled by admin, or expired) while the user is on the pay invoice screen"},
+  "sessionTimeoutMessage": "No response received, check your connection and try again later",
+  "@sessionTimeoutMessage": {"description": "Snackbar shown when the Mostro node does not respond to a new order within the timeout — the order was not created"}
 }
