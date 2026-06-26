@@ -12,17 +12,18 @@
 ## Table of Contents
 
 1. [What is Mostro Mobile?](#what-is-mostro-mobile)
-2. [What is Mostro?](#what-is-mostro)
-3. [The Mostro Protocol](#the-mostro-protocol)
-4. [Architecture & Fundamentals](#architecture--fundamentals)
-5. [Supported Platforms](#supported-platforms)
-6. [Getting Started (Users)](#getting-started-users)
-7. [Getting Started (Developers)](#getting-started-developers)
-8. [Project Structure](#project-structure)
-9. [Contributing](#contributing)
-10. [Internationalization](#internationalization)
-11. [Security](#security)
-12. [License](#license)
+2. [Progress Overview](#progress-overview)
+3. [What is Mostro?](#what-is-mostro)
+4. [The Mostro Protocol](#the-mostro-protocol)
+5. [Architecture & Fundamentals](#architecture--fundamentals)
+6. [Supported Platforms](#supported-platforms)
+7. [Getting Started (Users)](#getting-started-users)
+8. [Getting Started (Developers)](#getting-started-developers)
+9. [Project Structure](#project-structure)
+10. [Contributing](#contributing)
+11. [Internationalization](#internationalization)
+12. [Security](#security)
+13. [License](#license)
 
 ---
 
@@ -38,6 +39,46 @@ Mostro Mobile is the official cross-platform client for the [Mostro](https://mos
 - **Censorship-resistant** — Built on the Nostr network; no central server or domain to block.
 - **Multi-platform** — Single codebase targets Android, iOS, Web (PWA), macOS, Windows, and Linux.
 - **Open source** — MIT licensed. Fully auditable, no proprietary components.
+
+---
+
+## Progress Overview
+
+Status of the client's features, verified end-to-end across the Rust core and the Flutter UI.
+
+**Legend:** `[x]` done · `[~]` partial · `[ ]` planned
+
+- [x] Order flow (create / take / fiat-sent / release)
+- [x] Range orders
+- [x] Real-time order book (live Nostr subscription)
+- [x] Order book filtering
+- [x] My trades / own orders
+- [x] Cooperative cancellation
+- [x] Lightning invoice handling (add / pay hold invoice, re-add on failure)
+- [x] Rate counterpart
+- [x] User ↔ user chat
+- [x] Mnemonic identity & key management (BIP-39 / BIP-32, NIP-06)
+- [x] Secure storage (OS keystore)
+- [x] Reputation / Full-privacy mode
+- [x] NWC (Nostr Wallet Connect)
+- [x] Mostro node selection & switching
+- [x] Relay management (add / toggle)
+- [x] Proof-of-Work (NIP-13)
+- [x] About / Mostro info
+- [x] Log report
+- [x] Multi-language (EN · ES · IT · FR · DE)
+- [~] Disputes — opening works; inbound list / chat / resolution UI pending
+- [~] In-app notifications — screen works; trade/message events not yet wired to feed it
+- [~] Lightning address — saved in the UI but not synced to the Rust store, so invoice auto-fill does not trigger
+- [~] Push notifications — client wired (FCM); push server not yet deployed
+- [ ] User ↔ user file attachments — Rust backend done; UI not wired
+- [ ] User ↔ admin chat — Rust backend done; UI not wired
+- [ ] User ↔ admin file attachments — Rust backend done; UI not wired
+- [ ] Configurable session deletion
+- [ ] Session restore (multi-device recovery)
+- [ ] Relay auto-discovery (kind 10002)
+- [ ] Anti-abuse bond
+- [ ] Tor / anonymous relays
 
 ---
 
