@@ -1814,15 +1814,55 @@ pub async fn subscribe_orders() {
     });
 }
 
-/// Force-restart the orders subscription.
+/// Refresh the order book on demand (UI "Refresh" action).
 ///
-/// Tears down the existing subscription (if any) by resetting the guard,
-/// then spawns a fresh subscription loop. Used by the UI "Refresh" action
-/// so users get a real re-subscribe instead of a silent no-op.
+/// Ensures the long-lived subscription loop is running — idempotent: it does
+/// NOT clear `SUBSCRIPTION_ACTIVE`, which the previous version did and which
+/// spawned a *second* loop while the old one kept consuming notifications.
+/// Then it re-pulls the active node's current orders: a plain re-subscribe
+/// wouldn't repopulate already-seen orders (nostr-sdk dedups them from the live
+/// stream), so the explicit refetch is what actually refreshes the book.
 pub async fn restart_orders_subscription() {
-    // Clear the guard so subscribe_orders can acquire it again.
-    SUBSCRIPTION_ACTIVE.store(false, Ordering::Release);
     subscribe_orders().await;
+    refetch_active_node_orders().await;
+}
+
+/// Fetch the active node's current Kind 38383 orders and ingest them.
+///
+/// The live subscription's notification stream does not redeliver events the
+/// session has already seen (nostr-sdk dedups them), so an explicit fetch is
+/// needed to (re)populate the book — both on a node switch and on a manual
+/// refresh. `fetch_events` collects from the raw relay-message channel, which
+/// is not subject to that dedup.
+async fn refetch_active_node_orders() {
+    let Ok(pool) = crate::api::nostr::get_pool() else {
+        log::warn!("[orders] refetch: relay pool not initialized");
+        return;
+    };
+    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey()) {
+        Ok(pk) => pk,
+        Err(e) => {
+            log::error!("[orders] refetch: invalid mostro pubkey: {e}");
+            return;
+        }
+    };
+    let order_filter = crate::nostr::order_events::all_orders_filter(&mostro_pubkey);
+    match pool
+        .client()
+        .fetch_events(order_filter, std::time::Duration::from_secs(10))
+        .await
+    {
+        Ok(events) => {
+            crate::api::logging::blog_info(
+                "orders",
+                format!("refetched {} current orders for active node", events.len()),
+            );
+            for event in events.into_iter() {
+                ingest_order_event(&event).await;
+            }
+        }
+        Err(e) => log::warn!("[orders] refetch: fetch current orders failed: {e}"),
+    }
 }
 
 /// Stable subscription ID for the Kind 38383 order-book feed.
@@ -1908,29 +1948,9 @@ pub(crate) async fn refresh_subscriptions_for_active_node() {
         return;
     }
 
-    // Repopulate the cleared book with the new node's current orders.
-    //
-    // The live subscription alone won't do this: nostr-sdk's per-session event
-    // database suppresses already-seen events from the notification stream, so
-    // returning to a node visited earlier would deliver nothing until a fresh
-    // order arrives. `fetch_events` collects from the raw relay-message channel,
-    // which is not subject to that dedup, so it returns the stored orders too.
-    let order_filter = crate::nostr::order_events::all_orders_filter(&mostro_pubkey);
-    match client
-        .fetch_events(order_filter, std::time::Duration::from_secs(10))
-        .await
-    {
-        Ok(events) => {
-            crate::api::logging::blog_info(
-                "orders",
-                format!("node switch: fetched {} current orders", events.len()),
-            );
-            for event in events.into_iter() {
-                ingest_order_event(&event).await;
-            }
-        }
-        Err(e) => log::warn!("[orders] node switch: fetch current orders failed: {e}"),
-    }
+    // Repopulate the cleared book with the new node's current orders (the live
+    // stream won't redeliver already-seen events — see refetch_active_node_orders).
+    refetch_active_node_orders().await;
 
     // Outgoing messages must use the new node's PoW difficulty.
     crate::api::nostr::fetch_and_set_pow().await;
