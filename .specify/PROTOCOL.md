@@ -10,7 +10,7 @@
 This repository contains the complete specification for:
 - Message formats and actions
 - Order lifecycle and state machine
-- NIP-59 Gift Wrap encryption
+- Message transport encryption (NIP-44 direct + NIP-59 gift wrap)
 - Event kinds and tags
 - Error handling
 
@@ -100,9 +100,24 @@ must comply with this specification. When implementing features:
 └─────────┘           (or canceled/expired/dispute)
 ```
 
-## NIP-59 Gift Wrap
+## Message transport
 
-All Mostro messages use NIP-59 for privacy:
+> **Changed in transport v2**: messages to the Mostro daemon previously used
+> NIP-59 gift wrap (kind 1059); they now use NIP-44 direct (signed kind 14).
+> Peer/dispute chat still uses NIP-59 gift wrap (kind 1059).
+
+Daemon messages (transport v2 — NIP-44 direct):
+
+```text
+┌──────────────────────────────────────────────────┐
+│ Kind 14 event (authored & signed by trade key)   │
+│ - NIP-44 encrypted content                        │
+│ - JSON payload with action + order                │
+│ - Optional identity proof; signature is verified  │
+└──────────────────────────────────────────────────┘
+```
+
+Peer/dispute chat (NIP-59 gift wrap):
 
 ```text
 ┌──────────────────────────────────────────────────┐
@@ -110,9 +125,7 @@ All Mostro messages use NIP-59 for privacy:
 │ ┌──────────────────────────────────────────────┐ │
 │ │ Seal (kind 13)                               │ │
 │ │ ┌──────────────────────────────────────────┐ │ │
-│ │ │ Rumor (kind 38383)                       │ │ │
-│ │ │ - Contains actual Mostro message         │ │ │
-│ │ │ - JSON payload with action + order       │ │ │
+│ │ │ Rumor — chat message payload             │ │ │
 │ │ └──────────────────────────────────────────┘ │ │
 │ └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
@@ -123,7 +136,7 @@ All Mostro messages use NIP-59 for privacy:
 ### Rust Core
 All protocol handling should be in the Rust core:
 - Message serialization/deserialization
-- NIP-59 wrapping/unwrapping (via nostr-sdk)
+- NIP-44 (daemon) / NIP-59 gift wrap (peer chat) wrapping/unwrapping (via nostr-sdk)
 - Action validation
 - State machine enforcement
 
