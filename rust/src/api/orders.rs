@@ -1908,6 +1908,30 @@ pub(crate) async fn refresh_subscriptions_for_active_node() {
         return;
     }
 
+    // Repopulate the cleared book with the new node's current orders.
+    //
+    // The live subscription alone won't do this: nostr-sdk's per-session event
+    // database suppresses already-seen events from the notification stream, so
+    // returning to a node visited earlier would deliver nothing until a fresh
+    // order arrives. `fetch_events` collects from the raw relay-message channel,
+    // which is not subject to that dedup, so it returns the stored orders too.
+    let order_filter = crate::nostr::order_events::all_orders_filter(&mostro_pubkey);
+    match client
+        .fetch_events(order_filter, std::time::Duration::from_secs(10))
+        .await
+    {
+        Ok(events) => {
+            crate::api::logging::blog_info(
+                "orders",
+                format!("node switch: fetched {} current orders", events.len()),
+            );
+            for event in events.into_iter() {
+                ingest_order_event(&event).await;
+            }
+        }
+        Err(e) => log::warn!("[orders] node switch: fetch current orders failed: {e}"),
+    }
+
     // Outgoing messages must use the new node's PoW difficulty.
     crate::api::nostr::fetch_and_set_pow().await;
 
@@ -1997,6 +2021,109 @@ async fn handle_global_gift_wrap(
     }
 }
 
+/// Parse a Kind 38383 event and upsert it into the order book, applying
+/// maker-order reconciliation (is_mine detection, local→daemon id bridging,
+/// trade-status sync).
+///
+/// Shared by the live subscription loop and the node-switch refetch so both
+/// paths populate the book identically.
+async fn ingest_order_event(event: &nostr_sdk::Event) {
+    log::debug!(
+        "[orders] event kind={} author={}",
+        event.kind,
+        &event.pubkey.to_hex()[..8]
+    );
+    match parse_order_event(event, None) {
+        Some(mut info) => {
+            log::info!(
+                "[orders] parsed order id={} kind={:?} status={:?}",
+                info.id,
+                info.kind,
+                info.status
+            );
+            // Restore is_mine=true for maker orders on cold start by
+            // comparing against the content fingerprint stored at creation time.
+            if !info.is_mine {
+                let ck = order_content_key(
+                    &info.kind,
+                    &info.fiat_code,
+                    info.fiat_amount,
+                    info.fiat_amount_min,
+                    info.fiat_amount_max,
+                    &info.payment_method,
+                );
+                log::debug!("[orders] fingerprint check order={} ck={ck}", info.id);
+                if let Some(trade_idx) = get_trade_key_index(&ck).await {
+                    info.is_mine = true;
+                    // Bridge content fingerprint → daemon UUID so subsequent
+                    // actions (cancel) can look up the trade key by real order ID.
+                    store_trade_key_index(&info.id, trade_idx).await;
+                    // The maker order is no longer inserted into the
+                    // book optimistically (see `create_order`), so there
+                    // is nothing to remove here — just bridge the local
+                    // UUID → daemon UUID in the DB so tradeStatusProvider
+                    // polls with the real order ID.
+                    if let Some(local_id) = take_pending_local_id(&ck) {
+                        if let Some(db) = crate::db::app_db::db() {
+                            if let Err(e) =
+                                db.update_trade_order_id(&local_id, &info.id).await
+                            {
+                                log::warn!(
+                                    "[orders] failed to update trade order_id \
+                                     {local_id} → {}: {e}",
+                                    info.id
+                                );
+                            }
+                        }
+                        log::info!(
+                            "[orders] reconciled local order={local_id} → daemon order={}",
+                            info.id
+                        );
+                    } else {
+                        log::info!(
+                            "[orders] own order={} detected via content match trade_index={trade_idx}",
+                            info.id
+                        );
+                    }
+                }
+            }
+            // Sync trade status in DB for own orders so My Trades
+            // reflects status changes even without gift-wrap delivery.
+            if info.is_mine && info.status != crate::api::types::OrderStatus::Pending {
+                if let Some(db) = crate::db::app_db::db() {
+                    if let Err(e) = db
+                        .update_trade_fields(
+                            &info.id,
+                            Some(info.status.clone()),
+                            None,
+                            info.amount_sats,
+                        )
+                        .await
+                    {
+                        log::warn!(
+                            "[orders] failed to sync trade status for order={}: {e}",
+                            info.id
+                        );
+                    }
+                }
+            }
+            order_book().upsert_order(info).await;
+        }
+        None => {
+            log::warn!(
+                "[orders] event kind={} rejected by parser (tags: {:?})",
+                event.kind,
+                event
+                    .tags
+                    .iter()
+                    .take(6)
+                    .map(|t| t.as_slice().first().map(|s| s.as_str()).unwrap_or("?"))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
 async fn _run_order_subscription() {
     let Ok(pool) = crate::api::nostr::get_pool() else {
         log::error!("[orders] subscription failed: relay pool not initialized");
@@ -2071,101 +2198,7 @@ async fn _run_order_subscription() {
                 if event.pubkey != active_mostro {
                     continue;
                 }
-                log::debug!(
-                    "[orders] event kind={} author={}",
-                    event.kind,
-                    &event.pubkey.to_hex()[..8]
-                );
-                match parse_order_event(&event, None) {
-                    Some(mut info) => {
-                        log::info!(
-                            "[orders] parsed order id={} kind={:?} status={:?}",
-                            info.id,
-                            info.kind,
-                            info.status
-                        );
-                        // Restore is_mine=true for maker orders on cold start by
-                        // comparing against the content fingerprint stored at creation time.
-                        if !info.is_mine {
-                            let ck = order_content_key(
-                                &info.kind,
-                                &info.fiat_code,
-                                info.fiat_amount,
-                                info.fiat_amount_min,
-                                info.fiat_amount_max,
-                                &info.payment_method,
-                            );
-                            log::debug!("[orders] fingerprint check order={} ck={ck}", info.id);
-                            if let Some(trade_idx) = get_trade_key_index(&ck).await {
-                                info.is_mine = true;
-                                // Bridge content fingerprint → daemon UUID so subsequent
-                                // actions (cancel) can look up the trade key by real order ID.
-                                store_trade_key_index(&info.id, trade_idx).await;
-                                // The maker order is no longer inserted into the
-                                // book optimistically (see `create_order`), so there
-                                // is nothing to remove here — just bridge the local
-                                // UUID → daemon UUID in the DB so tradeStatusProvider
-                                // polls with the real order ID.
-                                if let Some(local_id) = take_pending_local_id(&ck) {
-                                    if let Some(db) = crate::db::app_db::db() {
-                                        if let Err(e) = db
-                                            .update_trade_order_id(&local_id, &info.id)
-                                            .await
-                                        {
-                                            log::warn!(
-                                                "[orders] failed to update trade order_id \
-                                                 {local_id} → {}: {e}",
-                                                info.id
-                                            );
-                                        }
-                                    }
-                                    log::info!(
-                                        "[orders] reconciled local order={local_id} → daemon order={}",
-                                        info.id
-                                    );
-                                } else {
-                                    log::info!(
-                                        "[orders] own order={} detected via content match trade_index={trade_idx}",
-                                        info.id
-                                    );
-                                }
-                            }
-                        }
-                        // Sync trade status in DB for own orders so My Trades
-                        // reflects status changes even without gift-wrap delivery.
-                        if info.is_mine && info.status != crate::api::types::OrderStatus::Pending {
-                            if let Some(db) = crate::db::app_db::db() {
-                                if let Err(e) = db
-                                    .update_trade_fields(
-                                        &info.id,
-                                        Some(info.status.clone()),
-                                        None,
-                                        info.amount_sats,
-                                    )
-                                    .await
-                                {
-                                    log::warn!(
-                                        "[orders] failed to sync trade status for order={}: {e}",
-                                        info.id
-                                    );
-                                }
-                            }
-                        }
-                        order_book().upsert_order(info).await;
-                    }
-                    None => {
-                        log::warn!(
-                            "[orders] event kind={} rejected by parser (tags: {:?})",
-                            event.kind,
-                            event
-                                .tags
-                                .iter()
-                                .take(6)
-                                .map(|t| t.as_slice().first().map(|s| s.as_str()).unwrap_or("?"))
-                                .collect::<Vec<_>>()
-                        );
-                    }
-                }
+                ingest_order_event(&event).await;
             }
             Ok(RelayPoolNotification::Shutdown) => {
                 log::info!("[orders] relay pool shutdown — subscription loop exiting");
