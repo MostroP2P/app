@@ -28,8 +28,6 @@ pub trait Storage: Send + Sync {
     async fn save_trade(&self, trade: &crate::api::types::TradeInfo) -> Result<()>;
     async fn get_trade(&self, id: &str) -> Result<Option<crate::api::types::TradeInfo>>;
     async fn list_trades(&self) -> Result<Vec<crate::api::types::TradeInfo>>;
-    /// Delete the persisted trade whose `id` (order ID) matches. No-op if absent.
-    async fn delete_trade(&self, id: &str) -> Result<()>;
 
     async fn save_message(&self, msg: &crate::api::types::ChatMessage) -> Result<()>;
     async fn list_messages(&self, trade_id: &str) -> Result<Vec<crate::api::types::ChatMessage>>;
