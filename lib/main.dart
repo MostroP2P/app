@@ -18,6 +18,7 @@ import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 import 'package:mostro/src/rust/api/logging.dart' as logging_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +46,15 @@ Future<void> main() async {
       // messages.  All Rust callers already handle db() == None gracefully.
       debugPrint('[main] DB init failed — running in memory-only mode: $e\n$st');
     }
+  }
+
+  // Load the persisted active Mostro node into the Rust override before the
+  // relay pool starts, so the first subscription targets the user's selected
+  // node. No-op when none was saved (the compiled-in default then applies).
+  try {
+    await settings_api.rehydrateActiveMostroNode();
+  } catch (e) {
+    debugPrint('[main] rehydrate active Mostro node failed: $e');
   }
 
   // Initialize identity: creates on first launch, reloads on subsequent launches.

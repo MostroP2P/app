@@ -223,6 +223,21 @@ pub async fn set_active_mostro_node(pubkey: String) -> Result<()> {
     Ok(())
 }
 
+/// Load the persisted active Mostro node pubkey into the in-memory override.
+///
+/// Call once at startup, after `init_db` and **before** the relay pool starts
+/// subscribing, so the first order-book / Mostro-reply subscription already
+/// targets the user's selected node. No-op when nothing has been persisted
+/// (the compiled-in default then applies) or when the DB is unavailable.
+pub async fn rehydrate_active_mostro_node() -> Result<()> {
+    if let Some(db) = crate::db::app_db::db() {
+        if let Some(pubkey) = db.get_active_mostro_pubkey().await? {
+            crate::config::set_active_mostro_pubkey(Some(pubkey));
+        }
+    }
+    Ok(())
+}
+
 /// Return the active Mostro node info, falling back to the compiled
 /// default if none has been persisted yet.
 pub async fn get_mostro_node() -> Result<crate::api::types::MostroNodeInfo> {
