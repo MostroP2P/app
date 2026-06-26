@@ -35,7 +35,7 @@ disputes.
 
 **Recovery flow** (when `recover = true`):
 1. Derive master key from mnemonic (BIP-32 path N=0).
-2. Send `Action.restore` to Mostro daemon via NIP-59.
+2. Send `Action.restore` to Mostro daemon via NIP-44 (Kind 14).
 3. Receive list of order IDs + dispute IDs.
 4. Request details for each order/dispute.
 5. Sync trade key index.

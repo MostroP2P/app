@@ -65,7 +65,7 @@ Take an existing order, starting a trade.
 **Preconditions**: No active trade in progress.
 
 **Side effects**: Sends TakeBuy/TakeSell action to Mostro daemon via
-NIP-59. Creates local Trade record.
+NIP-44 (Kind 14, transport v2). Creates local Trade record.
 
 **Errors**: `NoIdentity`, `ActiveTradeExists`, `OrderAlreadyTaken`,
 `OrderNotFound`, `Offline` (queued).
@@ -194,7 +194,7 @@ TradeTimeoutInfo {
 ## Seller hold-invoice flow (Nostr → DB → UI)
 
 The seller never receives the bolt11 hold invoice via a synchronous API
-call — it arrives as a NIP-59 gift-wrap (Kind 1059) from mostrod. This
+call — it arrives as a Kind 14 (NIP-44) message from mostrod. This
 section documents the full chain so Flutter providers and screens know
 what to listen to. Reference: <https://mostro.network/protocol/seller_pay_hold_invoice.html>.
 

@@ -12,7 +12,7 @@ Submit a rating for the counterparty after a successful trade.
 **Preconditions**: Trade MUST be completed with `Success` outcome.
 Identity MUST NOT be in privacy mode.
 
-**Side effects**: Sends `rate` action to Mostro daemon via NIP-59.
+**Side effects**: Sends `rate` action to Mostro daemon via NIP-44 (Kind 14).
 
 **Errors**: `TradeNotComplete`, `PrivacyModeEnabled`, `AlreadyRated`,
 `ProtocolError`.

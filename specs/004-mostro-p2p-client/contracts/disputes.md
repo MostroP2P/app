@@ -13,7 +13,7 @@ Initiate a dispute on an active trade.
 completion (i.e., funds are in escrow). No existing open dispute on
 this trade.
 
-**Side effects**: Sends Dispute action to Mostro daemon via NIP-59.
+**Side effects**: Sends Dispute action to Mostro daemon via NIP-44 (Kind 14).
 Creates local Dispute record. Updates trade step to `Disputed`.
 
 **Errors**: `TradeNotDisputable`, `DisputeAlreadyOpen`, `ProtocolError`.

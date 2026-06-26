@@ -97,7 +97,7 @@ trade at a time (v2.0 scope constraint).
 | role | Enum | `Buyer` or `Seller` |
 | counterparty_pubkey | String | Other party's public key |
 | current_step | Enum | Current progress step (see below) |
-| hold_invoice | String? | Lightning hold invoice (bolt11) delivered by mostrod via a Kind 1059 gift wrap with `Action::PayInvoice` + `Payload::PaymentRequest`; persisted via `db.update_trade_fields` into `trades.data` (`$.hold_invoice`) so the pay-invoice UI can render the QR |
+| hold_invoice | String? | Lightning hold invoice (bolt11) delivered by mostrod via a Kind 14 (NIP-44) message with `Action::PayInvoice` + `Payload::PaymentRequest`; persisted via `db.update_trade_fields` into `trades.data` (`$.hold_invoice`) so the pay-invoice UI can render the QR |
 | buyer_invoice | String? | Buyer-provided invoice for sell orders |
 | trade_key_index | u32 | BIP-32 key index for this trade |
 | shared_key | String? | ECDH-derived key for P2P chat (hex) |
@@ -138,7 +138,7 @@ disputes. Persisted locally after decryption.
 | is_read | bool | Whether user has seen this message |
 | created_at | Timestamp | When message was sent |
 | received_at | Timestamp | When message was received locally |
-| nostr_event_id | String? | Gift Wrap event ID (for dedup) |
+| nostr_event_id | String? | Incoming event ID for dedup (Kind 14 from daemon / Kind 1059 from peer chat) |
 
 **Validation rules**:
 - `content` MUST not be empty.
@@ -216,7 +216,7 @@ Outgoing messages queued when offline.
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
-| event_json | String | Serialized Nostr event (Gift Wrapped) |
+| event_json | String | Serialized outbound Nostr event (Kind 14 NIP-44 for daemon actions; Kind 1059 gift wrap for peer chat) |
 | target_relays | String | JSON array of relay URLs to publish to |
 | created_at | Timestamp | When queued |
 | retry_count | u32 | Number of send attempts |
