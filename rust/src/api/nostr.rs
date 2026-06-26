@@ -211,9 +211,9 @@ pub async fn fetch_mostro_instance_tags(
 }
 
 /// Fetch the Mostro daemon's PoW requirement from its Kind 38385 event
-/// and store it globally.  Called each time the relay pool goes Online so
-/// the value stays current if the daemon updates its configuration.
-async fn fetch_and_set_pow() {
+/// and store it globally.  Called each time the relay pool goes Online, and
+/// after a node switch, so the value stays current for the active node.
+pub(crate) async fn fetch_and_set_pow() {
     let mostro_pubkey_hex = crate::config::active_mostro_pubkey();
     match fetch_mostro_instance_tags(mostro_pubkey_hex).await {
         Ok(Some(tags)) => {

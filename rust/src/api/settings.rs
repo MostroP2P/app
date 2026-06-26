@@ -201,6 +201,28 @@ pub fn get_mostro_pubkey() -> String {
     crate::config::active_mostro_pubkey()
 }
 
+/// Activate a Mostro node by pubkey — the single entry point for node selection.
+///
+/// Validates the hex pubkey, persists it as the active node's identity,
+/// updates the in-memory override so outgoing events target the new node
+/// immediately, and re-targets the live order-book / Mostro-reply
+/// subscriptions (clearing stale orders and refreshing PoW) to it.
+///
+/// Pass `DEFAULT_MOSTRO_PUBKEY` to return to the default node.
+///
+/// **Errors**: `InvalidPubkey` if `pubkey` is not a valid 64-char hex key.
+pub async fn set_active_mostro_node(pubkey: String) -> Result<()> {
+    nostr_sdk::PublicKey::from_hex(&pubkey)
+        .map_err(|e| anyhow::anyhow!("InvalidPubkey: {e}"))?;
+
+    if let Some(db) = crate::db::app_db::db() {
+        db.save_active_mostro_pubkey(&pubkey).await?;
+    }
+    crate::config::set_active_mostro_pubkey(Some(pubkey));
+    crate::api::orders::refresh_subscriptions_for_active_node().await;
+    Ok(())
+}
+
 /// Return the active Mostro node info, falling back to the compiled
 /// default if none has been persisted yet.
 pub async fn get_mostro_node() -> Result<crate::api::types::MostroNodeInfo> {

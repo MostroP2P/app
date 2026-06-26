@@ -236,6 +236,15 @@ impl OrderBook {
         let _ = self.tx.send(orders);
     }
 
+    /// Empty the cached order list and notify listeners with an empty book.
+    ///
+    /// Used on a node switch so orders belonging to the previously-active node
+    /// disappear from the UI immediately, before the new node's orders arrive.
+    pub async fn clear(&self) {
+        self.orders.write().await.clear();
+        let _ = self.tx.send(Vec::new());
+    }
+
     /// Insert or update a single order and notify listeners.
     pub async fn upsert_order(&self, order: OrderInfo) {
         let mut orders = self.orders.write().await;
@@ -1816,6 +1825,98 @@ pub async fn restart_orders_subscription() {
     subscribe_orders().await;
 }
 
+/// Stable subscription ID for the Kind 38383 order-book feed.
+fn orders_subscription_id() -> nostr_sdk::SubscriptionId {
+    nostr_sdk::SubscriptionId::new("mostro-orders")
+}
+
+/// Stable subscription ID for the Kind 14 Mostro-reply feed.
+fn mostro_dm_subscription_id() -> nostr_sdk::SubscriptionId {
+    nostr_sdk::SubscriptionId::new("mostro-dm")
+}
+
+/// (Re)subscribe the order-book (Kind 38383) and Mostro-reply (Kind 14)
+/// filters, author-pinned to `mostro_pubkey`.
+///
+/// Uses **stable** subscription IDs so that calling this again for a different
+/// node REPLACES the existing author-pinned filters in place (the relay pool
+/// overwrites the subscription for a known ID) instead of leaking a second
+/// subscription that keeps the old node's events flowing.
+async fn subscribe_node_filters(
+    client: &nostr_sdk::Client,
+    mostro_pubkey: nostr_sdk::PublicKey,
+    trade_pubkeys: Vec<nostr_sdk::PublicKey>,
+) -> Result<()> {
+    let order_filter = crate::nostr::order_events::all_orders_filter(&mostro_pubkey);
+    client
+        .subscribe_with_id(orders_subscription_id(), order_filter, None)
+        .await
+        .map_err(|e| anyhow::anyhow!("order subscribe failed: {e}"))?;
+
+    // Kind-14 NIP-44 replies authored by Mostro for all known trade pubkeys.
+    // The author pin disambiguates from NIP-17 peer chat (also kind 14).
+    if !trade_pubkeys.is_empty() {
+        let dm_filter = nostr_sdk::Filter::new()
+            .kind(nostr_sdk::Kind::PrivateDirectMessage)
+            .author(mostro_pubkey)
+            .pubkeys(trade_pubkeys);
+        client
+            .subscribe_with_id(mostro_dm_subscription_id(), dm_filter, None)
+            .await
+            .map_err(|e| anyhow::anyhow!("dm subscribe failed: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Re-target the live order-book and Mostro-reply subscriptions to the
+/// currently-active Mostro node, after the active pubkey has changed.
+///
+/// Clears the order book (cached orders belong to the previous node),
+/// re-subscribes the author-pinned filters with stable IDs (replacing the old
+/// ones in place), and refreshes the node's PoW requirement. The long-lived
+/// subscription loop keeps running and picks up the new node via its
+/// per-event active-pubkey check — no loop restart, so no duplicate loops.
+pub(crate) async fn refresh_subscriptions_for_active_node() {
+    // Drop stale orders immediately so the UI doesn't show the old node's book.
+    order_book().clear().await;
+
+    let Ok(pool) = crate::api::nostr::get_pool() else {
+        log::warn!(
+            "[orders] node switch: relay pool not initialized; \
+             subscriptions will start with the new node once online"
+        );
+        return;
+    };
+    let client = pool.client();
+
+    let mostro_pubkey = match nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey()) {
+        Ok(pk) => pk,
+        Err(e) => {
+            log::error!("[orders] node switch: invalid mostro pubkey: {e}");
+            return;
+        }
+    };
+
+    let trade_key_map = build_trade_key_map().await;
+    let trade_pubkeys: Vec<nostr_sdk::PublicKey> = trade_key_map
+        .keys()
+        .filter_map(|hex| nostr_sdk::PublicKey::from_hex(hex).ok())
+        .collect();
+
+    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey, trade_pubkeys).await {
+        log::error!("[orders] node switch: re-subscribe failed: {e}");
+        return;
+    }
+
+    // Outgoing messages must use the new node's PoW difficulty.
+    crate::api::nostr::fetch_and_set_pow().await;
+
+    crate::api::logging::blog_info(
+        "orders",
+        format!("switched subscriptions to mostro={}", mostro_pubkey.to_hex()),
+    );
+}
+
 /// Build a map of `trade_pubkey_hex → (Keys, trade_index)` for all derived
 /// trade keys so the global subscription can decrypt any gift-wrap.
 async fn build_trade_key_map() -> HashMap<String, (nostr_sdk::Keys, u32)> {
@@ -1928,29 +2029,13 @@ async fn _run_order_subscription() {
     // events that arrive between the subscribe call and receiver creation.
     let mut rx = client.notifications();
 
-    // Subscribe to ALL orders (no status restriction) so we receive status-change
-    // events (e.g. pending → canceled) and can remove them from the order book.
-    // Display-level filtering (show only pending) is handled in the Dart layer.
-    let order_filter = crate::nostr::order_events::all_orders_filter(&mostro_pubkey);
-    if let Err(e) = client.subscribe(order_filter, None).await {
+    // Subscribe to ALL orders (Kind 38383, no status restriction so we receive
+    // status changes) and the bulk Kind-14 Mostro-reply feed, both author-pinned
+    // to the active node via stable subscription IDs (so a later node switch can
+    // replace them in place). Display-level filtering is handled in Dart.
+    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey, trade_pubkeys).await {
         log::error!("[orders] subscribe failed: {e}");
         return;
-    }
-
-    // Subscribe to kind-14 NIP-44 replies (protocol v2) authored by Mostro for
-    // ALL known trade pubkeys so we capture daemon responses even for trades
-    // started in previous sessions. The author pin disambiguates from NIP-17
-    // peer chat (also kind 14).
-    if !trade_pubkeys.is_empty() {
-        let gw_filter = nostr_sdk::Filter::new()
-            .kind(nostr_sdk::Kind::PrivateDirectMessage)
-            .author(mostro_pubkey)
-            .pubkeys(trade_pubkeys);
-        if let Err(e) = client.subscribe(gw_filter, None).await {
-            crate::api::logging::blog_warn("orders", format!("kind-14 bulk subscribe failed: {e}"));
-        } else {
-            crate::api::logging::blog_info("orders", format!("Kind 14 bulk subscription active for {} trade keys", trade_key_map.len()));
-        }
     }
 
     crate::api::logging::blog_info("orders", format!("subscriptions active — waiting for events"));
@@ -1960,11 +2045,19 @@ async fn _run_order_subscription() {
     loop {
         match rx.recv().await {
             Ok(RelayPoolNotification::Event { event, .. }) => {
+                // Resolve the *current* active node for each event so a node
+                // switch is respected without restarting this loop.
+                let Ok(active_mostro) =
+                    nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())
+                else {
+                    continue;
+                };
+
                 // ── Kind 14 NIP-44 Mostro reply: decrypt and dispatch ──
                 if event.kind == nostr_sdk::Kind::PrivateDirectMessage {
                     // Disambiguate from NIP-17 peer chat (also kind 14): only
-                    // the node may author a Mostro reply.
-                    if event.pubkey != mostro_pubkey {
+                    // the active node may author a Mostro reply.
+                    if event.pubkey != active_mostro {
                         continue;
                     }
                     handle_global_gift_wrap(&event, &trade_key_map).await;
@@ -1972,6 +2065,12 @@ async fn _run_order_subscription() {
                 }
 
                 // ── Kind 38383 order book event ──
+                // Ignore stale orders from a previously-active node (e.g. events
+                // buffered across a node switch); the book only ever holds the
+                // active node's orders.
+                if event.pubkey != active_mostro {
+                    continue;
+                }
                 log::debug!(
                     "[orders] event kind={} author={}",
                     event.kind,
