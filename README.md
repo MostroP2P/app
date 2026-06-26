@@ -1,4 +1,4 @@
-# Mostro Mobile
+# Mostro App
 
 > Non-custodial, peer-to-peer Bitcoin ↔ fiat exchange on Lightning Network — powered by the Mostro protocol over Nostr.
 
@@ -11,7 +11,7 @@
 
 ## Table of Contents
 
-1. [What is Mostro Mobile?](#what-is-mostro-mobile)
+1. [What is Mostro App?](#what-is-mostro-app)
 2. [Progress Overview](#progress-overview)
 3. [What is Mostro?](#what-is-mostro)
 4. [The Mostro Protocol](#the-mostro-protocol)
@@ -27,9 +27,9 @@
 
 ---
 
-## What is Mostro Mobile?
+## What is Mostro App?
 
-Mostro Mobile is the official cross-platform client for the [Mostro](https://mostro.network) peer-to-peer exchange network. It lets anyone buy or sell Bitcoin for local fiat currency using the Lightning Network — without accounts, without KYC, and without trusting a third party.
+Mostro App is the official cross-platform client for the [Mostro](https://mostro.network) peer-to-peer exchange network. It lets anyone buy or sell Bitcoin for local fiat currency using the Lightning Network — without accounts, without KYC, and without trusting a third party.
 
 **Key features:**
 
@@ -150,7 +150,7 @@ Both parties rate each other (optional)
 
 ## Architecture & Fundamentals
 
-Mostro Mobile uses a **split-architecture** model: all cryptography, protocol logic, and network I/O live in a Rust core; the UI shell is written in Flutter/Dart.
+Mostro App uses a **split-architecture** model: all cryptography, protocol logic, and network I/O live in a Rust core; the UI shell is written in Flutter/Dart.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -513,4 +513,4 @@ See [LICENSE](LICENSE) for the full text.
 
 ---
 
-*Mostro Mobile is an independent open-source project. It is not affiliated with any centralized exchange or financial institution.*
+*Mostro App is an independent open-source project. It is not affiliated with any centralized exchange or financial institution.*
