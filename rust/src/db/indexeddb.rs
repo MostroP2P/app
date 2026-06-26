@@ -97,15 +97,15 @@ impl Storage for IndexedDbStorage {
         Ok(()) // IndexedDB not yet implemented
     }
 
-    async fn save_mostro_node(&self, _node: &crate::api::types::MostroNodeInfo) -> Result<()> {
-        log::warn!("save_mostro_node: IndexedDB backend not implemented — node selection will not survive reload");
-        // TODO(#93): implement IndexedDB persistence for Mostro node selection
+    async fn save_active_mostro_pubkey(&self, _pubkey: &str) -> Result<()> {
+        // IndexedDB not yet implemented — node selection will not survive reload.
+        log::warn!("save_active_mostro_pubkey: IndexedDB backend not implemented — node selection will not survive reload");
         Ok(())
     }
 
-    async fn get_active_mostro_node(&self) -> Result<Option<crate::api::types::MostroNodeInfo>> {
-        log::warn!("get_active_mostro_node: IndexedDB backend not implemented — falling back to default");
-        // TODO(#93): implement IndexedDB persistence for Mostro node selection
+    async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
+        // IndexedDB not yet implemented — callers fall back to the default.
+        log::warn!("get_active_mostro_pubkey: IndexedDB backend not implemented — falling back to default");
         Ok(None)
     }
 

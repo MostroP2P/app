@@ -17,7 +17,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{ConnectionState, RelayInfo, RelaySource, RelayStatus};
-use crate::nostr::order_events::pending_orders_filter;
 
 /// How often the background task polls each relay's SDK status (seconds).
 const STATUS_POLL_INTERVAL_SECS: u64 = 2;
@@ -136,56 +135,6 @@ impl RelayPool {
 
     pub fn subscribe_relay_status(&self) -> broadcast::Receiver<RelayInfo> {
         self.relay_tx.subscribe()
-    }
-
-    /// Re-subscribe to Kind 38383 (public orders) and Kind 14 (protocol-v2
-    /// Mostro replies) after a reconnect or cold start, respawning per-trade
-    /// workers.
-    ///
-    /// `trade_keys` is a list of `(trade_pubkey, trade_index)` pairs gathered
-    /// from persisted state (e.g. the trade-key DB table).  For each pair this
-    /// method:
-    /// 1. Adds the pubkey to the bulk Kind 14 relay filter (author-pinned to
-    ///    Mostro) so events are delivered to this client.
-    /// 2. Spawns a `subscribe_gift_wraps` worker (same as `create_order` does)
-    ///    so decryption keys are available and daemon responses are routed.
-    ///
-    /// Kind 38383 processing is handled by `orders::subscribe_orders()`.
-    pub async fn subscribe_order_and_dm_feeds(
-        &self,
-        trade_keys: Vec<(PublicKey, u32)>,
-    ) -> Result<()> {
-        let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
-            .map_err(|e| anyhow!("invalid mostro pubkey: {e}"))?;
-        let order_filter = pending_orders_filter(&mostro_pubkey);
-        self.client
-            .subscribe(order_filter, None)
-            .await
-            .map_err(|e| anyhow!("order subscribe failed: {e}"))?;
-
-        let pubkeys: Vec<PublicKey> = trade_keys.iter().map(|(pk, _)| *pk).collect();
-        if !pubkeys.is_empty() {
-            // Protocol v2: Mostro replies are kind-14 NIP-44 direct events
-            // authored by the node and p-tagged to our trade keys. Pin the
-            // author to disambiguate from NIP-17 peer chat (also kind 14).
-            let dm_filter = Filter::new()
-                .kind(Kind::PrivateDirectMessage)
-                .author(mostro_pubkey)
-                .pubkeys(pubkeys);
-            self.client
-                .subscribe(dm_filter, None)
-                .await
-                .map_err(|e| anyhow!("dm subscribe failed: {e}"))?;
-
-            // Respawn per-trade gift-wrap workers so each trade key's decrypt
-            // path is live.  Without this, the relay delivers events but no
-            // worker is running to unwrap and route them.
-            for (pubkey, trade_index) in trade_keys {
-                crate::api::orders::subscribe_gift_wraps(pubkey, trade_index).await;
-            }
-        }
-
-        Ok(())
     }
 
     pub fn client(&self) -> Arc<Client> {

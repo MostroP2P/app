@@ -78,6 +78,47 @@ resets to false on next app launch.
 
 ---
 
+## Mostro Node Selection
+
+### get_mostro_pubkey() → String
+Return the active Mostro node's pubkey (hex) — the user-selected override, or
+the compiled-in `DEFAULT_MOSTRO_PUBKEY` when none has been selected.
+
+---
+
+### set_active_mostro_node(pubkey: String) → ()
+The single entry point for selecting / switching the active Mostro node.
+
+Validates `pubkey`, persists it as the active node's **identity**, updates the
+in-memory override (so outgoing events target the new node immediately), and
+re-targets the live feeds to it: the order book is cleared, the Kind 38383
+(orders) and Kind 14 (Mostro replies) filters are re-subscribed — author-pinned
+to the new node via stable subscription IDs so the old filters are replaced in
+place — the node's current orders are refetched, and its PoW requirement is
+refreshed.
+
+The switch is **purely local**: no Nostr message is sent to either node. Pass
+`DEFAULT_MOSTRO_PUBKEY` to return to the default node.
+
+**Persistence**: only the pubkey is stored, under key `active_mostro_pubkey` in
+the generic `settings` key-value table. Node **metadata** (name, fees, accepted
+currencies, limits — the `MostroNodeInfo` model) is a separate concern deferred
+to the M5 node registry; it is NOT persisted as the active selection.
+
+**Errors**: `InvalidPubkey` if `pubkey` is not a valid 64-char hex key;
+`StorageError` on a persistence failure.
+
+---
+
+### rehydrate_active_mostro_node() → ()
+Load the persisted active pubkey into the in-memory override. Call once at
+startup, after `init_db` and **before** the relay pool starts subscribing, so
+the first subscription already targets the user's selected node. No-op when
+nothing has been persisted (the compiled-in default then applies) or when the
+DB is unavailable.
+
+---
+
 ## Streams
 
 ### on_settings_changed() → Stream<AppSettings>
@@ -107,10 +148,10 @@ can be disabled.
 |-------|-------|
 | `pubkey` | `82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390` |
 | `name` | `Mostro` |
-| `is_default` | `true` |
 
-This node is pre-selected on first launch. The user can add more nodes or switch
-to a different one from Settings → Mostro Node.
+When no `active_mostro_pubkey` has been persisted (first launch, or after the
+user picks "Use Default"), this compiled-in pubkey is the active node. The user
+switches to another one from Settings → Mostro Node via `set_active_mostro_node`.
 
 ### Rust Constants (suggested location: `rust/src/config.rs`)
 

@@ -351,7 +351,13 @@ pub struct AppState {
     pub logging_enabled: bool,
 }
 
-/// Mostro daemon node information.
+/// Mostro daemon node information (name, version, fees, limits, currencies).
+///
+/// Intentionally retained though currently unused: the active node's *identity*
+/// is just its pubkey (see `set_active_mostro_node`), while this richer record
+/// is the metadata model for the M5 multi-Mostro node registry — populated from
+/// the node's kind 0 / 38385 events. Kept here so M5 builds on a stable type
+/// instead of re-deriving it.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MostroNodeInfo {
     pub pubkey: String,

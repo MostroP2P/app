@@ -6,8 +6,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mostro/core/app.dart';
+import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/firebase_options.dart';
@@ -18,6 +20,7 @@ import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 import 'package:mostro/src/rust/api/logging.dart' as logging_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +48,19 @@ Future<void> main() async {
       // messages.  All Rust callers already handle db() == None gracefully.
       debugPrint('[main] DB init failed — running in memory-only mode: $e\n$st');
     }
+  }
+
+  // Load the persisted active Mostro node into the Rust override before the
+  // relay pool starts, so the first subscription targets the user's selected
+  // node. No-op when none was saved (the compiled-in default then applies).
+  // The resolved pubkey seeds mostroPubkeyProvider so Settings shows the real
+  // active node on launch.
+  String activeMostroPubkey = defaultMostroPubkey;
+  try {
+    await settings_api.rehydrateActiveMostroNode();
+    activeMostroPubkey = await settings_api.getMostroPubkey();
+  } catch (e) {
+    debugPrint('[main] rehydrate active Mostro node failed: $e');
   }
 
   // Initialize identity: creates on first launch, reloads on subsequent launches.
@@ -94,6 +110,7 @@ Future<void> main() async {
       nwcProvider.overrideWith(
         (ref) => NwcNotifier(prefs: prefs),
       ),
+      mostroPubkeyProvider.overrideWith((ref) => activeMostroPubkey),
     ],
   );
 

@@ -374,29 +374,23 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
-    async fn save_mostro_node(&self, node: &crate::api::types::MostroNodeInfo) -> Result<()> {
-        let json = serde_json::to_string(node)?;
+    async fn save_active_mostro_pubkey(&self, pubkey: &str) -> Result<()> {
         sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('active_mostro_node', ?)",
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('active_mostro_pubkey', ?)",
         )
-        .bind(&json)
+        .bind(pubkey)
         .execute(&self.pool)
         .await?;
         Ok(())
     }
 
-    async fn get_active_mostro_node(
-        &self,
-    ) -> Result<Option<crate::api::types::MostroNodeInfo>> {
+    async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
         let row: Option<(String,)> = sqlx::query_as(
-            "SELECT value FROM settings WHERE key = 'active_mostro_node'",
+            "SELECT value FROM settings WHERE key = 'active_mostro_pubkey'",
         )
         .fetch_optional(&self.pool)
         .await?;
-        match row {
-            None => Ok(None),
-            Some((json,)) => Ok(Some(serde_json::from_str(&json)?)),
-        }
+        Ok(row.map(|(v,)| v))
     }
 
     async fn get_trade_by_order_id(&self, order_id: &str) -> Result<Option<TradeInfo>> {
@@ -487,5 +481,47 @@ impl Storage for SqliteStorage {
         query = query.bind(order_id);
         query.execute(&self.pool).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    /// Build a unique temp DB path so parallel tests never collide.
+    fn temp_db_path() -> std::path::PathBuf {
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!("mostro_test_{}_{n}.db", std::process::id()))
+    }
+
+    #[tokio::test]
+    async fn active_mostro_pubkey_round_trip() {
+        let path = temp_db_path();
+        let path_str = path.to_str().unwrap().to_string();
+        let storage = SqliteStorage::open(&path_str).await.unwrap();
+
+        // Absent until the user selects a node.
+        assert_eq!(storage.get_active_mostro_pubkey().await.unwrap(), None);
+
+        // Save then read back.
+        let pk = "82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390";
+        storage.save_active_mostro_pubkey(pk).await.unwrap();
+        assert_eq!(
+            storage.get_active_mostro_pubkey().await.unwrap().as_deref(),
+            Some(pk)
+        );
+
+        // INSERT OR REPLACE overwrites in place — no duplicate "active" row.
+        let pk2 = "0000000000000000000000000000000000000000000000000000000000000001";
+        storage.save_active_mostro_pubkey(pk2).await.unwrap();
+        assert_eq!(
+            storage.get_active_mostro_pubkey().await.unwrap().as_deref(),
+            Some(pk2)
+        );
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
     }
 }
