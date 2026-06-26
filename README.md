@@ -44,40 +44,41 @@ Mostro App is the official cross-platform client for the [Mostro](https://mostro
 
 ## Progress Overview
 
-Status of the client's features, verified end-to-end across the Rust core and the Flutter UI.
+Status of the client's features across the Rust core and the Flutter UI.
 
 **Legend:** `[x]` done · `[~]` partial · `[ ]` planned
 
 - [x] Order flow (create / take / fiat-sent / release)
-- [x] Range orders
-- [x] Real-time order book (live Nostr subscription)
+- [x] Real-time order book
 - [x] Order book filtering
 - [x] My trades / own orders
-- [x] Cooperative cancellation
-- [x] Lightning invoice handling (add / pay hold invoice, re-add on failure)
+- [x] Lightning invoice handling (add / pay hold invoice)
 - [x] Rate counterpart
 - [x] User ↔ user chat
 - [x] Mnemonic identity & key management (BIP-39 / BIP-32, NIP-06)
 - [x] Secure storage (OS keystore)
-- [x] Reputation / Full-privacy mode
 - [x] NWC (Nostr Wallet Connect)
-- [x] Mostro node selection & switching
-- [x] Relay management (add / toggle)
+- [x] Relay management (manual add / toggle)
 - [x] Proof-of-Work (NIP-13)
 - [x] About / Mostro info
-- [x] Log report
-- [x] Multi-language (EN · ES · IT · FR · DE)
-- [~] Disputes — opening works; inbound list / chat / resolution UI pending
+- [~] Mostro node switching — single-node switch works; multi-node management pending
+- [~] Range orders — created / taken, but shown as a single amount in the order book
+- [~] Cooperative cancellation — works; context-aware UX pending
+- [~] Disputes — opening works; inbound list / admin chat not wired
 - [~] In-app notifications — screen works; trade/message events not yet wired to feed it
-- [~] Lightning address — saved in the UI but not synced to the Rust store, so invoice auto-fill does not trigger
+- [~] Lightning address — not synced to the Rust store, so invoice auto-fill does not trigger
 - [~] Push notifications — client wired (FCM); push server not yet deployed
-- [ ] User ↔ user file attachments — Rust backend done; UI not wired
-- [ ] User ↔ admin chat — Rust backend done; UI not wired
-- [ ] User ↔ admin file attachments — Rust backend done; UI not wired
-- [ ] Configurable session deletion
-- [ ] Session restore (multi-device recovery)
+- [~] Multi-language — missing translations / inconsistent switching
+- [~] Log report — UI present but capture not working
+- [~] Reputation / privacy mode — toggle wired, effect not confirmed
+- [ ] User ↔ user file attachments
+- [ ] User ↔ admin chat
+- [ ] User ↔ admin file attachments
+- [ ] Configurable session retention
+- [ ] Session restore from mnemonic
 - [ ] Relay auto-discovery (kind 10002)
 - [ ] Anti-abuse bond
+- [ ] Deep link `mostro:` URI
 - [ ] Tor / anonymous relays
 
 ---
