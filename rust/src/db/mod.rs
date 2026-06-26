@@ -70,12 +70,6 @@ pub trait Storage: Send + Sync {
 
     // ── Settings / Mostro node ────────────────────────────────────────────────
 
-    /// Persist a Mostro node info record, replacing any existing one.
-    async fn save_mostro_node(&self, node: &crate::api::types::MostroNodeInfo) -> Result<()>;
-
-    /// Return the currently active Mostro node, or `None` if none has been saved.
-    async fn get_active_mostro_node(&self) -> Result<Option<crate::api::types::MostroNodeInfo>>;
-
     /// Persist the active Mostro node's pubkey (hex). This is the *identity* of
     /// the selected node — node metadata (kind 0 / 38385) is a separate concern.
     async fn save_active_mostro_pubkey(&self, pubkey: &str) -> Result<()>;

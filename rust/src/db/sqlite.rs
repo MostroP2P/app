@@ -374,31 +374,6 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
-    async fn save_mostro_node(&self, node: &crate::api::types::MostroNodeInfo) -> Result<()> {
-        let json = serde_json::to_string(node)?;
-        sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('active_mostro_node', ?)",
-        )
-        .bind(&json)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
-    async fn get_active_mostro_node(
-        &self,
-    ) -> Result<Option<crate::api::types::MostroNodeInfo>> {
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT value FROM settings WHERE key = 'active_mostro_node'",
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-        match row {
-            None => Ok(None),
-            Some((json,)) => Ok(Some(serde_json::from_str(&json)?)),
-        }
-    }
-
     async fn save_active_mostro_pubkey(&self, pubkey: &str) -> Result<()> {
         sqlx::query(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('active_mostro_pubkey', ?)",

@@ -181,21 +181,6 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
     Ok(())
 }
 
-/// Set or clear the active Mostro node pubkey.
-///
-/// Pass `Some("hex...")` to route orders to a custom Mostro node, or `None`
-/// to revert to the compiled-in default.
-///
-/// **Errors**: `InvalidPubkey` if `pubkey` is Some but not a valid 64-char hex key.
-pub fn set_mostro_pubkey(pubkey: Option<String>) -> Result<()> {
-    if let Some(ref pk) = pubkey {
-        nostr_sdk::PublicKey::from_hex(pk)
-            .map_err(|e| anyhow::anyhow!("InvalidPubkey: {e}"))?;
-    }
-    crate::config::set_active_mostro_pubkey(pubkey);
-    Ok(())
-}
-
 /// Return the currently active Mostro node pubkey (override or default).
 pub fn get_mostro_pubkey() -> String {
     crate::config::active_mostro_pubkey()
@@ -235,33 +220,6 @@ pub async fn rehydrate_active_mostro_node() -> Result<()> {
             crate::config::set_active_mostro_pubkey(Some(pubkey));
         }
     }
-    Ok(())
-}
-
-/// Return the active Mostro node info, falling back to the compiled
-/// default if none has been persisted yet.
-pub async fn get_mostro_node() -> Result<crate::api::types::MostroNodeInfo> {
-    if let Some(db) = crate::db::app_db::db() {
-        if let Ok(Some(node)) = db.get_active_mostro_node().await {
-            return Ok(node);
-        }
-    }
-    Ok(crate::db::seeds::get_default_mostro_node())
-}
-
-/// Persist a new active Mostro node selection.
-///
-/// Also updates the in-memory pubkey override so the relay pool and
-/// outgoing events use the new node immediately.
-///
-/// TODO(#93): After updating the pubkey, refresh relay subscriptions so
-/// `subscribe_order_and_dm_feeds` re-subscribes with the new node's key.
-pub async fn set_mostro_node(node: crate::api::types::MostroNodeInfo) -> Result<()> {
-    let pubkey = node.pubkey.clone();
-    if let Some(db) = crate::db::app_db::db() {
-        db.save_mostro_node(&node).await?;
-    }
-    crate::config::set_active_mostro_pubkey(Some(pubkey));
     Ok(())
 }
 

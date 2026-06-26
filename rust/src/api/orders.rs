@@ -1782,7 +1782,7 @@ static SUBSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
 /// loop exits (pool shutdown or channel closed).
 ///
 /// Internally spawns a background Tokio task that:
-/// 1. Subscribes to `pending_orders_filter()` via the relay pool client.
+/// 1. Subscribes to `all_orders_filter()` via the relay pool client.
 /// 2. Loops over `RelayPoolNotification::Event` messages.
 /// 3. Parses each Kind 38383 event via `parse_order_event` and upserts it
 ///    into the order book, which broadcasts the update to all `OrdersStream`

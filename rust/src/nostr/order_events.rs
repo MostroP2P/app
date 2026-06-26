@@ -128,22 +128,6 @@ fn parse_fiat_range(raw: &Option<String>) -> (Option<f64>, Option<f64>) {
     }
 }
 
-/// Build a Nostr filter for Kind 38383 pending orders from a specific Mostro node.
-///
-/// The Mostro daemon is the **author** of all Kind 38383 events — it publishes
-/// orders on behalf of makers after they send a `new-order` NIP-59 message.
-/// Filtering by `author = mostro_pubkey` ensures we only receive orders that
-/// belong to the trusted Mostro instance configured in the app.
-///
-/// The `s` tag value is `"pending"` (kebab-case) — mostro-core serialises
-/// the `Status` enum with `#[serde(rename_all = "kebab-case")]`.
-pub fn pending_orders_filter(mostro_pubkey: &PublicKey) -> Filter {
-    Filter::new()
-        .kind(Kind::from(KIND_ORDER))
-        .author(*mostro_pubkey)
-        .custom_tag(SingleLetterTag::lowercase(Alphabet::S), "pending")
-}
-
 /// Build a Nostr filter for **all** Kind 38383 orders from a specific Mostro node,
 /// regardless of status.
 ///
@@ -159,8 +143,8 @@ pub fn all_orders_filter(mostro_pubkey: &PublicKey) -> Filter {
 
 /// Build a Nostr filter for a **single** Kind 38383 order by `d`-tag (order ID).
 ///
-/// Unlike `pending_orders_filter`, this filter has **no status restriction** —
-/// it captures every K38383 update for the given order ID regardless of status.
+/// Unlike `all_orders_filter`, this filter is scoped to a single order ID and
+/// captures every K38383 update for it regardless of status.
 /// Use this after taking an order to track status changes: `pending` →
 /// `in-progress` → `waiting-buyer-invoice` / `waiting-payment` → `active` etc.
 pub fn trade_order_filter(mostro_pubkey: &PublicKey, order_id: &str) -> Filter {
