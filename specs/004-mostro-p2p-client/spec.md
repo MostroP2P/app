@@ -83,6 +83,7 @@ A user who cannot find a suitable offer creates their own buy or sell order. The
 3. **Given** the user selects "Market Price", **When** they adjust the premium slider, **Then** the value updates between -10% and +10%.
 4. **Given** the user submits a valid order, **When** submission succeeds, **Then** the order appears in My Trades as "Pending" and is visible in the public order book.
 5. **Given** the user tries to submit without any payment method selected, **When** they tap Submit, **Then** a validation error is shown and no order is sent.
+6. **Given** the user submits a valid order, **When** the Mostro node does not respond within the timeout, **Then** a "no response" message is shown and no order is created (it does not appear in My Trades or the order book).
 
 ---
 
@@ -289,6 +290,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
 - What happens when the user's order expires before anyone takes it? → The order is removed from the public order book and a cancellation notification is shown.
 - How does the system handle Lightning payment failures? → Status transitions to "payment-failed"; the buyer is prompted to re-enter a new invoice manually (auto-submit via NWC is disabled for retries).
 - What happens if the seller does not respond after a take attempt? → A session timeout fires, returns the user to the order book with a timeout notification.
+- What happens if the Mostro node does not respond when creating an order? → A timeout fires; the order is treated as not created (nothing is shown in My Trades or the order book) and a "no response, try again later" message is shown.
 - What happens if a dispute is opened but no admin is available? → The dispute shows "Initiated" status; the user waits in the Disputes tab until an admin picks up the case.
 - What happens when a user tries to submit a 0-star rating? → The Submit button remains disabled; at least 1 star must be selected.
 - What happens when a cooperative cancel is pending agreement from the other party? → The Cancel button is grayed out (disabled) and a Contact button appears to allow both parties to coordinate.
