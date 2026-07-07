@@ -526,7 +526,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         if let Ok(mut m) = pending_maker_keys().write() { m.remove(&trade_pk_hex); }
         if let Ok(mut m) = pending_local_ids().write() { m.remove(&ck); }
         if let Ok(mut m) = pending_confirmations().lock() { m.remove(&trade_pk_hex); }
-        return Err(e.into());
+        return Err(e);
     }
 
     crate::api::logging::blog_info("orders", format!(
@@ -1787,6 +1787,7 @@ static SUBSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
 /// 3. Parses each Kind 38383 event via `parse_order_event` and upserts it
 ///    into the order book, which broadcasts the update to all `OrdersStream`
 ///    subscribers.
+///
 /// RAII guard that resets `SUBSCRIPTION_ACTIVE` to `false` when dropped,
 /// ensuring the flag is cleared even if the subscription task panics.
 struct ResetGuard;
@@ -2185,7 +2186,7 @@ async fn _run_order_subscription() {
         return;
     }
 
-    crate::api::logging::blog_info("orders", format!("subscriptions active — waiting for events"));
+    crate::api::logging::blog_info("orders", "subscriptions active — waiting for events".to_string());
 
     use nostr_sdk::RelayPoolNotification;
 
@@ -2262,6 +2263,9 @@ impl OrdersStream {
 
 /// Called internally to process a raw Nostr event into the order cache.
 /// Typically invoked from the relay pool's event processing loop.
+// Currently unused: the subscription loop inlines `parse_order_event` +
+// `upsert_order`. Kept as a reusable helper for future event-processing paths.
+#[allow(dead_code)]
 pub(crate) async fn process_order_event(
     event: &nostr_sdk::Event,
     my_pubkey: Option<&nostr_sdk::PublicKey>,

@@ -6,6 +6,11 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "staticlib"]
 
+# `frb_expand` is set by flutter_rust_bridge's macros during codegen expansion.
+# Declare it so `cargo clippy -- -D warnings` does not flag it as an unknown cfg.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
 [dependencies]
 flutter_rust_bridge = "=2.11.1"
 
