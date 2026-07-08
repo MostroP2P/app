@@ -194,6 +194,21 @@ pub async fn delete_identity() -> Result<()> {
         bail!("NoIdentity");
     }
     *guard = None;
+    drop(guard);
+
+    // Clear the persisted trade key counter and per-order key mappings: both
+    // belong to the deleted identity's derivation tree, and a new mnemonic
+    // must start counting from zero instead of inheriting them. (If this
+    // cleanup fails, the pubkey guard in `reconcile_trade_key_index` still
+    // prevents the stale row from leaking into a different identity.)
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db.delete_identity().await {
+            log::warn!("[identity] failed to clear persisted identity: {e}");
+        }
+        if let Err(e) = db.clear_trade_keys().await {
+            log::warn!("[identity] failed to clear trade key mappings: {e}");
+        }
+    }
     Ok(())
 }
 
@@ -422,9 +437,10 @@ mod tests {
 
     /// Single test for the global identity state (kept as ONE test so
     /// parallel test threads never race on the `identity_lock` singleton):
-    /// loading restores the counter and each derivation advances it.
+    /// loading restores the counter, each derivation advances it, and
+    /// deletion clears the in-memory state.
     #[tokio::test]
-    async fn load_then_derive_advances_trade_key_index() {
+    async fn load_derive_then_delete_identity_lifecycle() {
         let words = key_ops::generate_mnemonic().unwrap();
 
         let info = load_identity_from_mnemonic(words.clone(), 20, false, None)
@@ -440,5 +456,11 @@ mod tests {
 
         let current = get_identity().await.unwrap().unwrap();
         assert_eq!(current.trade_key_index, 22);
+
+        delete_identity().await.unwrap();
+        assert!(get_identity().await.unwrap().is_none());
+
+        // Deleting again fails: there is no identity left.
+        assert!(delete_identity().await.is_err());
     }
 }

@@ -40,6 +40,10 @@ pub trait Storage: Send + Sync {
     async fn save_identity(&self, identity: &crate::api::types::IdentityInfo) -> Result<()>;
     async fn get_identity(&self) -> Result<Option<crate::api::types::IdentityInfo>>;
 
+    /// Delete the persisted identity row, so a subsequently created or
+    /// imported identity starts with a fresh trade key counter.
+    async fn delete_identity(&self) -> Result<()>;
+
     async fn save_queued_message(
         &self,
         msg: &crate::queue::outbox::QueuedMessage,
@@ -67,6 +71,10 @@ pub trait Storage: Send + Sync {
 
     /// Delete the trade key entry for `order_id`.
     async fn delete_trade_key(&self, order_id: &str) -> Result<()>;
+
+    /// Delete ALL trade key entries. Used on identity deletion — the
+    /// order→index mappings belong to the removed identity's derivation tree.
+    async fn clear_trade_keys(&self) -> Result<()>;
 
     // ── Settings / Mostro node ────────────────────────────────────────────────
 

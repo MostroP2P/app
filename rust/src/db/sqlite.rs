@@ -263,6 +263,13 @@ impl Storage for SqliteStorage {
         Ok(row.map(|(data,)| serde_json::from_str(&data)).transpose()?)
     }
 
+    async fn delete_identity(&self) -> Result<()> {
+        sqlx::query("DELETE FROM identity")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn save_queued_message(&self, msg: &QueuedMessage) -> Result<()> {
         let data = serde_json::to_string(msg)?;
         let status = format!("{:?}", msg.status);
@@ -369,6 +376,13 @@ impl Storage for SqliteStorage {
     async fn delete_trade_key(&self, order_id: &str) -> Result<()> {
         sqlx::query("DELETE FROM trade_keys WHERE order_id = ?")
             .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn clear_trade_keys(&self) -> Result<()> {
+        sqlx::query("DELETE FROM trade_keys")
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -551,6 +565,38 @@ mod tests {
         storage.save_identity(&identity).await.unwrap();
         let loaded = storage.get_identity().await.unwrap().unwrap();
         assert_eq!(loaded.trade_key_index, 22);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn delete_identity_clears_row_and_trade_keys() {
+        let path = temp_db_path();
+        let path_str = path.to_str().unwrap().to_string();
+        let storage = SqliteStorage::open(&path_str).await.unwrap();
+
+        let identity = IdentityInfo {
+            public_key: "abc123".to_string(),
+            display_name: None,
+            privacy_mode: false,
+            trade_key_index: 7,
+            created_at: 1_700_000_000,
+        };
+        storage.save_identity(&identity).await.unwrap();
+        storage.save_trade_key("order-1", 5).await.unwrap();
+        storage.save_trade_key("order-2", 6).await.unwrap();
+
+        storage.delete_identity().await.unwrap();
+        storage.clear_trade_keys().await.unwrap();
+
+        assert!(storage.get_identity().await.unwrap().is_none());
+        assert_eq!(storage.get_trade_key("order-1").await.unwrap(), None);
+        assert_eq!(storage.get_trade_key("order-2").await.unwrap(), None);
+
+        // Deleting again on empty tables is a no-op, not an error.
+        storage.delete_identity().await.unwrap();
+        storage.clear_trade_keys().await.unwrap();
 
         drop(storage);
         let _ = std::fs::remove_file(&path);
