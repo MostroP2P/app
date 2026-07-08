@@ -10,10 +10,8 @@ import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/order/widgets/order_preset_selector.dart';
 import 'package:mostro/features/order/widgets/payment_method_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
-import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades;
-import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/src/rust/api/orders.dart' as rust_orders;
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -190,17 +188,6 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       );
 
       final order = await rust_orders.createOrder(params: params);
-
-      // Persist the updated trade key index so it survives app restarts.
-      // Failures here are non-fatal — the order was already created.
-      try {
-        final identity = await identity_api.getIdentity();
-        if (identity != null) {
-          await IdentityService.saveTradeKeyIndex(identity.tradeKeyIndex);
-        }
-      } catch (e) {
-        debugPrint('[orders] save tradeKeyIndex failed: $e');
-      }
 
       refreshTrades(ref);
 
