@@ -524,4 +524,35 @@ mod tests {
         drop(storage);
         let _ = std::fs::remove_file(&path);
     }
+
+    #[tokio::test]
+    async fn identity_round_trip_preserves_trade_key_index() {
+        let path = temp_db_path();
+        let path_str = path.to_str().unwrap().to_string();
+        let storage = SqliteStorage::open(&path_str).await.unwrap();
+
+        // Absent until the first save.
+        assert!(storage.get_identity().await.unwrap().is_none());
+
+        let mut identity = IdentityInfo {
+            public_key: "abc123".to_string(),
+            display_name: None,
+            privacy_mode: false,
+            trade_key_index: 21,
+            created_at: 1_700_000_000,
+        };
+        storage.save_identity(&identity).await.unwrap();
+        let loaded = storage.get_identity().await.unwrap().unwrap();
+        assert_eq!(loaded.public_key, "abc123");
+        assert_eq!(loaded.trade_key_index, 21);
+
+        // INSERT OR REPLACE keeps a single row with the latest counter.
+        identity.trade_key_index = 22;
+        storage.save_identity(&identity).await.unwrap();
+        let loaded = storage.get_identity().await.unwrap().unwrap();
+        assert_eq!(loaded.trade_key_index, 22);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
 }
