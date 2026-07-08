@@ -53,15 +53,16 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
         .and_then(|v| v.parse().ok())
         .unwrap_or(0.0);
 
-    let fa_raw = get("fa");
-    let fiat_amount: Option<f64> = fa_raw.as_deref().and_then(|v| {
-        if v.contains(':') {
-            None
-        } else {
-            v.parse().ok()
-        }
-    });
-    let (fiat_amount_min, fiat_amount_max) = parse_fiat_range(&fa_raw);
+    // The `fa` tag carries one value for a fixed-amount order (`["fa", "20"]`)
+    // and two for a range order (`["fa", "20", "60"]`), so it cannot go
+    // through `get`, which only reads the first value.
+    let fa_values: &[String] = event
+        .tags
+        .iter()
+        .find(|t| t.as_slice().first().map(|s| s.as_str()) == Some("fa"))
+        .map(|t| &t.as_slice()[1..])
+        .unwrap_or(&[]);
+    let (fiat_amount, fiat_amount_min, fiat_amount_max) = parse_fiat_amounts(fa_values);
     let amount_sats: Option<u64> = get("amt").and_then(|v| v.parse().ok());
     // creator_pubkey is the Mostro node's pubkey (the event author).
     let creator_pubkey = event.pubkey.to_hex();
@@ -118,13 +119,30 @@ fn parse_status(s: &str) -> Option<OrderStatus> {
     }
 }
 
-/// Parse a range from the `fa` tag. Format: `"min:max"` or plain `"amount"`.
-fn parse_fiat_range(raw: &Option<String>) -> (Option<f64>, Option<f64>) {
-    let Some(v) = raw else { return (None, None) };
-    if let Some((min, max)) = v.split_once(':') {
-        (min.parse().ok(), max.parse().ok())
-    } else {
-        (None, None)
+/// Parse the `fa` tag values into `(fiat_amount, fiat_amount_min, fiat_amount_max)`.
+///
+/// The daemon publishes a fixed-amount order as `["fa", "20"]` and a range
+/// order as `["fa", "20", "60"]` (see mostrod's `create_fiat_amt_array`).
+/// A single `"min:max"` value is also accepted as a legacy range encoding.
+///
+/// Exactly one shape comes back populated — fixed (`fiat_amount`) or range
+/// (`min` + `max`) — because the Dart `OrderItem` model rejects mixed or
+/// partial shapes. A range with an unparseable bound yields neither.
+fn parse_fiat_amounts(values: &[String]) -> (Option<f64>, Option<f64>, Option<f64>) {
+    match values {
+        [single] => match single.split_once(':') {
+            Some((min, max)) => parse_range(min, max),
+            None => (single.parse().ok(), None, None),
+        },
+        [min, max, ..] => parse_range(min, max),
+        [] => (None, None, None),
+    }
+}
+
+fn parse_range(min: &str, max: &str) -> (Option<f64>, Option<f64>, Option<f64>) {
+    match (min.parse().ok(), max.parse().ok()) {
+        (Some(min), Some(max)) => (None, Some(min), Some(max)),
+        _ => (None, None, None),
     }
 }
 
@@ -152,4 +170,81 @@ pub fn trade_order_filter(mostro_pubkey: &PublicKey, order_id: &str) -> Filter {
         .kind(Kind::from(KIND_ORDER))
         .author(*mostro_pubkey)
         .custom_tag(SingleLetterTag::lowercase(Alphabet::D), order_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a signed Kind 38383 event with the standard order tags and the
+    /// given `fa` tag values.
+    fn order_event(fa_values: &[&str]) -> Event {
+        let keys = Keys::generate();
+        let mut fa_tag = vec!["fa"];
+        fa_tag.extend_from_slice(fa_values);
+        EventBuilder::new(Kind::from(KIND_ORDER), "")
+            .tags([
+                Tag::parse(["d", "308e1272-d5f4-47e6-bd97-3504baea9c23"]).unwrap(),
+                Tag::parse(["k", "sell"]).unwrap(),
+                Tag::parse(["s", "pending"]).unwrap(),
+                Tag::parse(["f", "USD"]).unwrap(),
+                Tag::parse(["pm", "cashapp"]).unwrap(),
+                Tag::parse(["premium", "1"]).unwrap(),
+                Tag::parse(["amt", "0"]).unwrap(),
+                Tag::parse(fa_tag).unwrap(),
+                Tag::parse(["z", "order"]).unwrap(),
+            ])
+            .sign_with_keys(&keys)
+            .unwrap()
+    }
+
+    #[test]
+    fn parses_fixed_amount_order() {
+        let order = parse_order_event(&order_event(&["20"]), None).unwrap();
+        assert_eq!(order.fiat_amount, Some(20.0));
+        assert_eq!(order.fiat_amount_min, None);
+        assert_eq!(order.fiat_amount_max, None);
+    }
+
+    #[test]
+    fn parses_range_order_from_multi_value_fa_tag() {
+        let order = parse_order_event(&order_event(&["20", "60"]), None).unwrap();
+        assert_eq!(order.fiat_amount, None);
+        assert_eq!(order.fiat_amount_min, Some(20.0));
+        assert_eq!(order.fiat_amount_max, Some(60.0));
+    }
+
+    #[test]
+    fn parses_range_order_from_legacy_colon_encoding() {
+        let order = parse_order_event(&order_event(&["20:60"]), None).unwrap();
+        assert_eq!(order.fiat_amount, None);
+        assert_eq!(order.fiat_amount_min, Some(20.0));
+        assert_eq!(order.fiat_amount_max, Some(60.0));
+    }
+
+    #[test]
+    fn range_with_unparseable_bound_yields_no_amounts() {
+        let order = parse_order_event(&order_event(&["20", "abc"]), None).unwrap();
+        assert_eq!(order.fiat_amount, None);
+        assert_eq!(order.fiat_amount_min, None);
+        assert_eq!(order.fiat_amount_max, None);
+    }
+
+    #[test]
+    fn missing_fa_tag_yields_no_amounts() {
+        let keys = Keys::generate();
+        let event = EventBuilder::new(Kind::from(KIND_ORDER), "")
+            .tags([
+                Tag::parse(["d", "308e1272-d5f4-47e6-bd97-3504baea9c23"]).unwrap(),
+                Tag::parse(["k", "buy"]).unwrap(),
+                Tag::parse(["s", "pending"]).unwrap(),
+                Tag::parse(["f", "USD"]).unwrap(),
+            ])
+            .sign_with_keys(&keys)
+            .unwrap();
+        let order = parse_order_event(&event, None).unwrap();
+        assert_eq!(order.fiat_amount, None);
+        assert_eq!(order.fiat_amount_min, None);
+        assert_eq!(order.fiat_amount_max, None);
+    }
 }
