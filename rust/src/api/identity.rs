@@ -116,8 +116,22 @@ pub async fn load_identity_from_mnemonic(
     // Reconcile with the index Rust persisted at derivation time. The two
     // stores can disagree (e.g. the Dart-side value is only written on
     // create success), and the counter must never move backwards.
+    //
+    // A read failure falls back to the passed index rather than failing the
+    // load: identity loading must survive a corrupt store, and the fallback
+    // is safe — any subsequent derivation either persists (repairing the
+    // store) or fails before handing out a key.
     let stored = match crate::db::app_db::db() {
-        Some(db) => db.get_identity().await.unwrap_or(None),
+        Some(db) => match db.get_identity().await {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!(
+                    "[identity] could not read persisted identity — \
+                     falling back to secure-storage index: {e}"
+                );
+                None
+            }
+        },
         None => None,
     };
     let trade_key_index =
@@ -229,12 +243,17 @@ pub async fn derive_trade_key() -> Result<TradeKeyInfo> {
     // of the operation's outcome, or the next session re-derives the same
     // key and gets CantDo(InvalidTradeIndex). The write happens under the
     // identity lock so concurrent derivations persist in increment order.
+    //
+    // A persistence failure fails the derivation: handing out a key whose
+    // consumption is not durably recorded reopens the counter-regression
+    // window this exists to close. The in-memory increment is kept, so a
+    // retry moves on to the next index — never back.
     if let Some(db) = crate::db::app_db::db() {
-        if let Err(e) = db.save_identity(&state.identity_info).await {
-            log::warn!(
-                "[identity] failed to persist trade_key_index {candidate_index}: {e}"
-            );
-        }
+        db.save_identity(&state.identity_info).await.map_err(|e| {
+            anyhow!(
+                "StorageError: failed to persist trade_key_index {candidate_index}: {e}"
+            )
+        })?;
     }
 
     Ok(TradeKeyInfo {
