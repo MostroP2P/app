@@ -83,6 +83,14 @@ fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
     got == Some(expected)
 }
 
+/// Cutoff for the per-trade kind-14 reply subscription: 60 seconds before
+/// now. Wide enough to absorb daemon/client clock skew and relay latency
+/// (the same staleness window the v1 client uses), narrow enough that a
+/// previous session's stored replies are never replayed into a live waiter.
+fn reply_subscription_since() -> nostr_sdk::Timestamp {
+    nostr_sdk::Timestamp::from(nostr_sdk::Timestamp::now().as_secs().saturating_sub(60))
+}
+
 /// Remove and return the pending `create_order` waiter for `trade_pubkey_hex`
 /// **only** when `got` echoes its `request_id`. A mismatched or absent id
 /// leaves the waiter in place: relays replay historical events on subscribe,
@@ -1048,10 +1056,25 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 
     // Protocol v2: kind-14 NIP-44 replies authored by Mostro, p-tagged to
     // this trade key.
+    //
+    // `since` keeps relays from replaying this key's stored history on
+    // subscribe. In normal operation the key is freshly derived and has no
+    // history — the cutoff protects the cases where key reuse happens
+    // anyway: a mnemonic re-imported on another device resets the trade key
+    // counter to 0 (no last-trade-index resync yet), re-deriving keys whose
+    // full reply history sits on the relays; any future counter regression
+    // does the same. Replayed replies from an earlier life of the key are
+    // what used to falsely resolve waiting create_order calls.
+    // Kind-14 transport events carry real timestamps (unlike NIP-59 kind
+    // 1059, whose timestamps are randomized), so a time cutoff is sound.
+    // Live and late-arriving events are unaffected — `since` is a lower
+    // bound on created_at, not a delivery deadline; offline catch-up is the
+    // global feed's job (see subscribe_node_filters), which has no cutoff.
     let filter = nostr_sdk::Filter::new()
         .kind(nostr_sdk::Kind::PrivateDirectMessage)
         .author(mostro_pubkey)
-        .pubkey(trade_pubkey);
+        .pubkey(trade_pubkey)
+        .since(reply_subscription_since());
     if let Err(e) = client.subscribe(filter, None).await {
         log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
         return;
@@ -1957,6 +1980,11 @@ async fn subscribe_node_filters(
 
     // Kind-14 NIP-44 replies authored by Mostro for all known trade pubkeys.
     // The author pin disambiguates from NIP-17 peer chat (also kind 14).
+    //
+    // Deliberately NO `since` here: this is the offline catch-up channel —
+    // after any downtime it must replay the full stored history so status
+    // changes and late reconciliations are never lost. Only the ephemeral
+    // per-trade subscription (subscribe_gift_wraps) carries a cutoff.
     if !trade_pubkeys.is_empty() {
         let dm_filter = nostr_sdk::Filter::new()
             .kind(nostr_sdk::Kind::PrivateDirectMessage)
@@ -2378,6 +2406,15 @@ mod tests {
     use crate::mostro::session::session_manager;
 
     // ── request_id correlation ────────────────────────────────────────────────
+
+    #[test]
+    fn reply_subscription_since_is_a_sixty_second_window() {
+        let before = nostr_sdk::Timestamp::now().as_secs();
+        let since = reply_subscription_since().as_secs();
+        let after = nostr_sdk::Timestamp::now().as_secs();
+        assert!(since >= before - 60);
+        assert!(since <= after - 60);
+    }
 
     #[test]
     fn request_id_only_matches_the_exact_nonce() {
