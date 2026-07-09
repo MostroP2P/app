@@ -83,12 +83,20 @@ fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
     got == Some(expected)
 }
 
-/// Cutoff for the per-trade kind-14 reply subscription: 60 seconds before
-/// now. Wide enough to absorb daemon/client clock skew and relay latency
-/// (the same staleness window the v1 client uses), narrow enough that a
-/// previous session's stored replies are never replayed into a live waiter.
+/// Cutoff for the per-trade kind-14 reply subscription: 10 minutes before
+/// now (client clock).
+///
+/// `since` is a delivery-level filter — relays match it against live events
+/// too, and the reply's `created_at` is stamped by the *daemon's* clock. If
+/// the client clock runs ahead of the daemon by more than this window, the
+/// genuine reply would be silently dropped and every create would time out,
+/// so the window must comfortably exceed realistic device clock skew.
+/// Widening it is nearly free: the request_id correlation is what protects
+/// the waiter, and the cutoff only trims stored-history replay on reused
+/// keys (a grossly wrong clock — hours off — breaks Nostr well beyond this
+/// filter and is out of scope).
 fn reply_subscription_since() -> nostr_sdk::Timestamp {
-    nostr_sdk::Timestamp::from(nostr_sdk::Timestamp::now().as_secs().saturating_sub(60))
+    nostr_sdk::Timestamp::from(nostr_sdk::Timestamp::now().as_secs().saturating_sub(600))
 }
 
 /// Remove and return the pending `create_order` waiter for `trade_pubkey_hex`
@@ -2408,12 +2416,12 @@ mod tests {
     // ── request_id correlation ────────────────────────────────────────────────
 
     #[test]
-    fn reply_subscription_since_is_a_sixty_second_window() {
+    fn reply_subscription_since_is_a_ten_minute_window() {
         let before = nostr_sdk::Timestamp::now().as_secs();
         let since = reply_subscription_since().as_secs();
         let after = nostr_sdk::Timestamp::now().as_secs();
-        assert!(since >= before - 60);
-        assert!(since <= after - 60);
+        assert!(since >= before - 600);
+        assert!(since <= after - 600);
     }
 
     #[test]
