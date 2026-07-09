@@ -57,16 +57,6 @@ class IdentityService {
     }
   }
 
-  /// Persist an updated trade-key index after each new trade key is derived.
-  static Future<void> saveTradeKeyIndex(int index) async {
-    try {
-      await _storage.write(key: _kTradeKeyIndex, value: index.toString());
-    } catch (e) {
-      debugPrint('[identity] saveTradeKeyIndex($_kTradeKeyIndex) error: $e');
-      rethrow;
-    }
-  }
-
   /// Persist privacy mode setting.
   static Future<void> savePrivacyMode(bool enabled) async {
     try {

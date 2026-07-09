@@ -18,6 +18,7 @@ use tokio::sync::RwLock;
 
 use crate::api::types::{IdentityInfo, NymIdentity};
 use crate::crypto::{keys as key_ops, nym};
+use crate::db::Storage;
 
 // ── Global in-memory identity state ──────────────────────────────────────────
 
@@ -112,6 +113,30 @@ pub async fn load_identity_from_mnemonic(
     let keys = key_ops::derive_master_key(&words)?;
     let public_key = keys.public_key().to_hex();
 
+    // Reconcile with the index Rust persisted at derivation time. The two
+    // stores can disagree (e.g. the Dart-side value is only written on
+    // create success), and the counter must never move backwards.
+    //
+    // A read failure falls back to the passed index rather than failing the
+    // load: identity loading must survive a corrupt store, and the fallback
+    // is safe — any subsequent derivation either persists (repairing the
+    // store) or fails before handing out a key.
+    let stored = match crate::db::app_db::db() {
+        Some(db) => match db.get_identity().await {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!(
+                    "[identity] could not read persisted identity — \
+                     falling back to secure-storage index: {e}"
+                );
+                None
+            }
+        },
+        None => None,
+    };
+    let trade_key_index =
+        reconcile_trade_key_index(trade_key_index, stored.as_ref(), &public_key);
+
     let created_at = match created_at {
         Some(ts) if ts > 0 => ts,
         _ => unix_now(),
@@ -183,6 +208,21 @@ pub async fn delete_identity() -> Result<()> {
         bail!("NoIdentity");
     }
     *guard = None;
+    drop(guard);
+
+    // Clear the persisted trade key counter and per-order key mappings: both
+    // belong to the deleted identity's derivation tree, and a new mnemonic
+    // must start counting from zero instead of inheriting them. (If this
+    // cleanup fails, the pubkey guard in `reconcile_trade_key_index` still
+    // prevents the stale row from leaking into a different identity.)
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db.delete_identity().await {
+            log::warn!("[identity] failed to clear persisted identity: {e}");
+        }
+        if let Err(e) = db.clear_trade_keys().await {
+            log::warn!("[identity] failed to clear trade key mappings: {e}");
+        }
+    }
     Ok(())
 }
 
@@ -194,9 +234,27 @@ pub async fn derive_trade_key() -> Result<TradeKeyInfo> {
 
     let candidate_index = state.identity_info.trade_key_index + 1;
 
-    // Derive first — only persist the incremented index on success.
     let trade_keys = key_ops::derive_trade_key(&state.mnemonic_words, candidate_index)?;
     state.identity_info.trade_key_index = candidate_index;
+
+    // Persist immediately: an index is consumed the moment it is derived.
+    // The daemon registers every index it sees — even on a rejected or
+    // timed-out operation — so the counter must survive restarts regardless
+    // of the operation's outcome, or the next session re-derives the same
+    // key and gets CantDo(InvalidTradeIndex). The write happens under the
+    // identity lock so concurrent derivations persist in increment order.
+    //
+    // A persistence failure fails the derivation: handing out a key whose
+    // consumption is not durably recorded reopens the counter-regression
+    // window this exists to close. The in-memory increment is kept, so a
+    // retry moves on to the next index — never back.
+    if let Some(db) = crate::db::app_db::db() {
+        db.save_identity(&state.identity_info).await.map_err(|e| {
+            anyhow!(
+                "StorageError: failed to persist trade_key_index {candidate_index}: {e}"
+            )
+        })?;
+    }
 
     Ok(TradeKeyInfo {
         index: candidate_index,
@@ -290,6 +348,23 @@ pub async fn export_encrypted_backup(passphrase: String) -> Result<String> {
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
+/// Pick the trade key index to restore on identity load: the highest of the
+/// value passed from Flutter's secure storage and the one Rust persisted at
+/// derivation time. The counter must never move backwards — a lower value
+/// means re-deriving already-consumed keys, which the daemon rejects with
+/// `InvalidTradeIndex`. A stored identity with a different public key is
+/// ignored: its counter belongs to another mnemonic.
+fn reconcile_trade_key_index(
+    passed: u32,
+    stored: Option<&IdentityInfo>,
+    public_key: &str,
+) -> u32 {
+    match stored {
+        Some(info) if info.public_key == public_key => passed.max(info.trade_key_index),
+        _ => passed,
+    }
+}
+
 fn unix_now() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
@@ -340,4 +415,71 @@ pub(crate) async fn get_transport_identity_keys(trade_keys: &Keys) -> Result<Key
         return Ok(trade_keys.clone());
     }
     get_active_keys().await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stored_identity(public_key: &str, trade_key_index: u32) -> IdentityInfo {
+        IdentityInfo {
+            public_key: public_key.to_string(),
+            display_name: None,
+            privacy_mode: false,
+            trade_key_index,
+            created_at: 1,
+        }
+    }
+
+    #[test]
+    fn reconcile_prefers_higher_stored_index() {
+        let stored = stored_identity("abc", 22);
+        assert_eq!(reconcile_trade_key_index(20, Some(&stored), "abc"), 22);
+    }
+
+    #[test]
+    fn reconcile_prefers_higher_passed_index() {
+        let stored = stored_identity("abc", 5);
+        assert_eq!(reconcile_trade_key_index(20, Some(&stored), "abc"), 20);
+    }
+
+    #[test]
+    fn reconcile_ignores_stored_index_of_other_identity() {
+        let stored = stored_identity("other-pubkey", 99);
+        assert_eq!(reconcile_trade_key_index(3, Some(&stored), "abc"), 3);
+    }
+
+    #[test]
+    fn reconcile_without_stored_identity_keeps_passed_index() {
+        assert_eq!(reconcile_trade_key_index(7, None, "abc"), 7);
+    }
+
+    /// Single test for the global identity state (kept as ONE test so
+    /// parallel test threads never race on the `identity_lock` singleton):
+    /// loading restores the counter, each derivation advances it, and
+    /// deletion clears the in-memory state.
+    #[tokio::test]
+    async fn load_derive_then_delete_identity_lifecycle() {
+        let words = key_ops::generate_mnemonic().unwrap();
+
+        let info = load_identity_from_mnemonic(words.clone(), 20, false, None)
+            .await
+            .unwrap();
+        assert_eq!(info.trade_key_index, 20);
+
+        let first = derive_trade_key().await.unwrap();
+        let second = derive_trade_key().await.unwrap();
+        assert_eq!(first.index, 21);
+        assert_eq!(second.index, 22);
+        assert_ne!(first.public_key, second.public_key);
+
+        let current = get_identity().await.unwrap().unwrap();
+        assert_eq!(current.trade_key_index, 22);
+
+        delete_identity().await.unwrap();
+        assert!(get_identity().await.unwrap().is_none());
+
+        // Deleting again fails: there is no identity left.
+        assert!(delete_identity().await.is_err());
+    }
 }

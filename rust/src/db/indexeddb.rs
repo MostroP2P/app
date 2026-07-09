@@ -64,6 +64,9 @@ impl Storage for IndexedDbStorage {
     async fn get_identity(&self) -> Result<Option<IdentityInfo>> {
         Err(anyhow!("IndexedDB not yet implemented"))
     }
+    async fn delete_identity(&self) -> Result<()> {
+        Err(anyhow!("IndexedDB not yet implemented"))
+    }
     async fn save_queued_message(&self, _msg: &QueuedMessage) -> Result<()> {
         Err(anyhow!("IndexedDB not yet implemented"))
     }
@@ -94,6 +97,10 @@ impl Storage for IndexedDbStorage {
     }
 
     async fn delete_trade_key(&self, _order_id: &str) -> Result<()> {
+        Ok(()) // IndexedDB not yet implemented
+    }
+
+    async fn clear_trade_keys(&self) -> Result<()> {
         Ok(()) // IndexedDB not yet implemented
     }
 
