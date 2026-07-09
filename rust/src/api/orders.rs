@@ -57,11 +57,56 @@ enum DaemonConfirmation {
     Rejected { reason: String, message: String },
 }
 
-/// Maps `trade_pubkey_hex` → oneshot sender for the pending `create_order` call.
-static PENDING_CONFIRMATIONS: OnceLock<std::sync::Mutex<HashMap<String, tokio::sync::oneshot::Sender<DaemonConfirmation>>>> = OnceLock::new();
+/// A `create_order` call waiting for the daemon's reply.
+///
+/// `request_id` is the correlation nonce sent in the outgoing `new-order`
+/// message; the daemon echoes it in both the `NewOrder` confirmation and any
+/// `CantDo` rejection. Only a reply carrying the matching id may resolve the
+/// waiter — stale events replayed by relays carry a different (or no)
+/// `request_id` and must leave the waiter in place for the genuine reply.
+struct PendingConfirmation {
+    request_id: u64,
+    tx: tokio::sync::oneshot::Sender<DaemonConfirmation>,
+}
 
-fn pending_confirmations() -> &'static std::sync::Mutex<HashMap<String, tokio::sync::oneshot::Sender<DaemonConfirmation>>> {
+/// Maps `trade_pubkey_hex` → the pending `create_order` waiter.
+static PENDING_CONFIRMATIONS: OnceLock<std::sync::Mutex<HashMap<String, PendingConfirmation>>> = OnceLock::new();
+
+fn pending_confirmations() -> &'static std::sync::Mutex<HashMap<String, PendingConfirmation>> {
     PENDING_CONFIRMATIONS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// True when a daemon reply carrying `got` may resolve a waiter that expects
+/// `expected`. Replies must echo the exact nonce — `None` (stale replays,
+/// unsolicited events) never matches.
+fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
+    got == Some(expected)
+}
+
+/// Remove and return the pending `create_order` waiter for `trade_pubkey_hex`
+/// **only** when `got` echoes its `request_id`. A mismatched or absent id
+/// leaves the waiter in place: relays replay historical events on subscribe,
+/// and a stale `NewOrder`/`CantDo` must not confirm or reject a live create —
+/// the genuine reply (carrying the nonce) arrives later and finds the waiter.
+fn take_matching_confirmation(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<tokio::sync::oneshot::Sender<DaemonConfirmation>> {
+    let mut map = pending_confirmations().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(p) if request_id_matches(p.request_id, got) => {
+            map.remove(trade_pubkey_hex).map(|p| p.tx)
+        }
+        Some(_) => {
+            crate::api::logging::blog_debug("gift-wrap", format!(
+                "request_id {got:?} does not match pending create for trade={} — \
+                 leaving waiter for the genuine reply",
+                &trade_pubkey_hex[..8]
+            ));
+            None
+        }
+        None => None,
+    }
 }
 
 /// Maps `content_key` → `local_uuid` for newly created maker orders.
@@ -499,12 +544,22 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
     let identity_keys =
         crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
+
+    // Correlation nonce for this create attempt. The daemon echoes it in its
+    // reply (NewOrder or CantDo); only a reply carrying it may resolve the
+    // confirmation below.
+    let request_id: u64 = {
+        use rand::RngCore;
+        rand::rngs::OsRng.next_u64().max(1) // 0 is indistinguishable from "unset"
+    };
+
     let event_json = actions::new_order(
         &identity_keys,
         &sender_keys,
         &mostro_pubkey,
         &params_for_dispatch,
         trade_index,
+        request_id,
     )
     .await?;
 
@@ -512,7 +567,13 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // publishing, so the entry is in the map before any response can arrive.
     let (conf_tx, conf_rx) = tokio::sync::oneshot::channel::<DaemonConfirmation>();
     if let Ok(mut map) = pending_confirmations().lock() {
-        map.insert(trade_pk_hex.clone(), conf_tx);
+        map.insert(
+            trade_pk_hex.clone(),
+            PendingConfirmation {
+                request_id,
+                tx: conf_tx,
+            },
+        );
     }
 
     // Subscribe to gift-wrap responses AFTER registering the confirmation
@@ -1137,8 +1198,11 @@ async fn dispatch_mostro_message(
     }
 
     // Centralized response validation: catches malformed `request_id` fields
-    // and flags `CantDo` responses. We pass `None` because the app does not
-    // yet track outstanding request_ids per action (see issue #101 §5).
+    // and flags `CantDo` responses. We still pass `None` here on purpose:
+    // request_id correlation happens at the waiter arms below (via
+    // `take_matching_confirmation`) because `validate_response` short-circuits
+    // on `CantDo` BEFORE comparing request_ids, so it cannot distinguish a
+    // stale replayed rejection from the genuine one.
     //
     // `MostroCantDo` is NOT a reason to drop the message — the `Action::CantDo`
     // arm below is what unblocks `create_order` callers waiting on a
@@ -1222,13 +1286,11 @@ async fn dispatch_mostro_message(
                 let daemon_id = order_id.to_string();
                 resolve_maker_order(&daemon_id, trade_pubkey_hex).await;
 
-                // If create_order is waiting for confirmation, notify it.
-                // The caller handles UUID replacement. Otherwise (cold-start /
-                // reconnect), do the replacement here.
-                let conf_tx = pending_confirmations()
-                    .lock()
-                    .ok()
-                    .and_then(|mut m| m.remove(trade_pubkey_hex));
+                // If create_order is waiting for confirmation AND this reply
+                // echoes its request_id, notify it. The caller handles UUID
+                // replacement. Otherwise (cold-start / reconnect / stale
+                // replay), do the replacement here.
+                let conf_tx = take_matching_confirmation(trade_pubkey_hex, kind.request_id);
                 if let Some(tx) = conf_tx {
                     let _ = tx.send(DaemonConfirmation::Confirmed {
                         daemon_id: daemon_id.clone(),
@@ -1530,12 +1592,11 @@ async fn dispatch_mostro_message(
                 other => format!("Order rejected by Mostro: {other}"),
             };
 
-            // If create_order is waiting, notify it — the caller handles
-            // cleanup and returns an error to Dart. Otherwise ignore stale events.
-            let conf_tx = pending_confirmations()
-                .lock()
-                .ok()
-                .and_then(|mut m| m.remove(trade_pubkey_hex));
+            // If create_order is waiting AND this rejection echoes its
+            // request_id, notify it — the caller handles cleanup and returns
+            // an error to Dart. Stale replayed CantDo events (no or foreign
+            // request_id) are ignored and leave the waiter for the genuine reply.
+            let conf_tx = take_matching_confirmation(trade_pubkey_hex, kind.request_id);
             if let Some(tx) = conf_tx {
                 crate::api::logging::blog_warn("gift-wrap", format!(
                     "CantDo: reason={reason} — notifying waiting create_order"
@@ -2315,6 +2376,43 @@ mod tests {
     use super::*;
     use crate::api::types::TradeRole;
     use crate::mostro::session::session_manager;
+
+    // ── request_id correlation ────────────────────────────────────────────────
+
+    #[test]
+    fn request_id_only_matches_the_exact_nonce() {
+        assert!(request_id_matches(42, Some(42)));
+        assert!(!request_id_matches(42, Some(41)));
+        // Stale replayed events carry no request_id — they must never match.
+        assert!(!request_id_matches(42, None));
+    }
+
+    /// A reply with a foreign or missing request_id must leave the waiter in
+    /// place so the genuine reply can still resolve it; only the echoed nonce
+    /// consumes it.
+    #[tokio::test]
+    async fn take_matching_confirmation_ignores_stale_events() {
+        let key = "test-take-matching-confirmation-pubkey";
+        let (tx, mut rx) = tokio::sync::oneshot::channel::<DaemonConfirmation>();
+        pending_confirmations().lock().unwrap().insert(
+            key.to_string(),
+            PendingConfirmation { request_id: 7, tx },
+        );
+
+        // Stale replay (no request_id) and foreign reply: waiter untouched.
+        assert!(take_matching_confirmation(key, None).is_none());
+        assert!(take_matching_confirmation(key, Some(99)).is_none());
+        assert!(pending_confirmations().lock().unwrap().contains_key(key));
+        assert!(rx.try_recv().is_err()); // nothing sent
+
+        // Genuine reply: waiter consumed exactly once.
+        let tx = take_matching_confirmation(key, Some(7)).expect("must match");
+        let _ = tx.send(DaemonConfirmation::Confirmed {
+            daemon_id: "d".to_string(),
+        });
+        assert!(!pending_confirmations().lock().unwrap().contains_key(key));
+        assert!(take_matching_confirmation(key, Some(7)).is_none());
+    }
 
     // ── Helper ────────────────────────────────────────────────────────────────
 
