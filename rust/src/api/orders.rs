@@ -141,6 +141,31 @@ fn remove_pending_create(trade_pubkey_hex: &str) {
     }
 }
 
+/// Local UUID of the pending create for `trade_pubkey_hex`, if any — a
+/// read-only peek used to decide whether a stored order id is ours to rebind.
+fn pending_local_uuid_for(trade_pubkey_hex: &str) -> Option<String> {
+    pending_creates()
+        .lock()
+        .ok()?
+        .get(trade_pubkey_hex)
+        .map(|p| p.local_uuid.clone())
+}
+
+/// True when the order id stored for a trade may be rebound to `incoming_id`.
+///
+/// Only the locally-generated UUID of this trade key's own pending create is
+/// ever ours to rebind (local → daemon). A stored id that is not that UUID is
+/// either already the daemon's (nothing to do) or belongs to an earlier life
+/// of a reused trade key — rebinding it to whatever id an incoming event
+/// carries would let a stale replay corrupt a confirmed order.
+fn may_reconcile_stored_id(
+    stored_id: &str,
+    incoming_id: &str,
+    pending_local_uuid: Option<&str>,
+) -> bool {
+    stored_id != incoming_id && pending_local_uuid == Some(stored_id)
+}
+
 /// Build a stable content key for a maker order.
 ///
 /// The key is stored in `TRADE_KEY_MAP` at creation time (prefixed with
@@ -1264,16 +1289,26 @@ async fn dispatch_mostro_message(
     ));
 
     // Reconcile local UUID → daemon UUID if needed.  Gift wrap actions
-    // arrive with the daemon's order ID, but if create_order timed out the
-    // order book and DB still use the local UUID.  Reconcile before any
-    // status update so that update_order_status / update_trade_fields find
-    // the order by the daemon ID.
+    // arrive with the daemon's order ID, but if the create's acknowledgement
+    // was missed the trade-key bookkeeping still uses the local UUID.
+    // Reconcile before any status update so that update_order_status /
+    // update_trade_fields find the order by the daemon ID.
+    //
+    // Gated by ownership: only the local UUID recorded in this trade key's
+    // own pending create may ever be rebound. Without the gate, any event
+    // carrying an old order id for a reused trade index (stale replays after
+    // a mnemonic re-import) would rebind a confirmed order's id — daemon →
+    // daemon — corrupting the order book, the trade row, and the trade-key
+    // mapping in one stroke. Cold start loses nothing: the pending map is
+    // empty after a restart, and the Kind 38383 fingerprint path owns maker
+    // recovery there.
     if let Some(daemon_id) = &kind.id {
         let did = daemon_id.to_string();
         if order_book().get_order(&did).await.is_none() {
             if let Some(db) = crate::db::app_db::db() {
                 if let Ok(Some(local_id)) = db.get_order_id_by_trade_index(trade_index).await {
-                    if local_id != did {
+                    let owned = pending_local_uuid_for(trade_pubkey_hex);
+                    if may_reconcile_stored_id(&local_id, &did, owned.as_deref()) {
                         log::info!(
                             "[orders] reconciling order ID: local={local_id} → daemon={did}"
                         );
@@ -2497,6 +2532,23 @@ mod tests {
         // B is untouched and still consumable by its own nonce.
         let pending = take_matching_create(key_b, Some(22)).expect("must match B");
         assert_eq!(pending.local_uuid, format!("local-{key_b}"));
+    }
+
+    /// Only the pending create's own local UUID may be rebound to an incoming
+    /// event's order id; a stored id that is already a daemon's (or belongs to
+    /// an earlier life of a reused trade key) must never be rebound.
+    #[test]
+    fn stored_id_reconciles_only_when_owned_by_the_pending_create() {
+        // The legitimate case: the stored id is this create's local UUID.
+        assert!(may_reconcile_stored_id("local-1", "daemon-1", Some("local-1")));
+        // Already the incoming id: nothing to rebind.
+        assert!(!may_reconcile_stored_id("daemon-1", "daemon-1", Some("local-1")));
+        // Stored id is a confirmed daemon id — a stale replay carrying an old
+        // order id for the same (reused) trade index must not rebind it.
+        assert!(!may_reconcile_stored_id("daemon-1", "old-daemon-9", Some("local-1")));
+        // No pending create for this trade key (cold start / uncorrelated
+        // event): never rebind here.
+        assert!(!may_reconcile_stored_id("local-1", "daemon-1", None));
     }
 
     /// The Kind 38383 path matches by content fingerprint, but must leave
