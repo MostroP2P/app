@@ -83,22 +83,6 @@ fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
     got == Some(expected)
 }
 
-/// Cutoff for the per-trade kind-14 reply subscription: 10 minutes before
-/// now (client clock).
-///
-/// `since` is a delivery-level filter — relays match it against live events
-/// too, and the reply's `created_at` is stamped by the *daemon's* clock. If
-/// the client clock runs ahead of the daemon by more than this window, the
-/// genuine reply would be silently dropped and every create would time out,
-/// so the window must comfortably exceed realistic device clock skew.
-/// Widening it is nearly free: the request_id correlation is what protects
-/// the waiter, and the cutoff only trims stored-history replay on reused
-/// keys (a grossly wrong clock — hours off — breaks Nostr well beyond this
-/// filter and is out of scope).
-fn reply_subscription_since() -> nostr_sdk::Timestamp {
-    nostr_sdk::Timestamp::from(nostr_sdk::Timestamp::now().as_secs().saturating_sub(600))
-}
-
 /// Remove and return the pending `create_order` waiter for `trade_pubkey_hex`
 /// **only** when `got` echoes its `request_id`. A mismatched or absent id
 /// leaves the waiter in place: relays replay historical events on subscribe,
@@ -1065,24 +1049,25 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
     // Protocol v2: kind-14 NIP-44 replies authored by Mostro, p-tagged to
     // this trade key.
     //
-    // `since` keeps relays from replaying this key's stored history on
-    // subscribe. In normal operation the key is freshly derived and has no
-    // history — the cutoff protects the cases where key reuse happens
-    // anyway: a mnemonic re-imported on another device resets the trade key
-    // counter to 0 (no last-trade-index resync yet), re-deriving keys whose
-    // full reply history sits on the relays; any future counter regression
-    // does the same. Replayed replies from an earlier life of the key are
-    // what used to falsely resolve waiting create_order calls.
-    // Kind-14 transport events carry real timestamps (unlike NIP-59 kind
-    // 1059, whose timestamps are randomized), so a time cutoff is sound.
-    // Live and late-arriving events are unaffected — `since` is a lower
-    // bound on created_at, not a delivery deadline; offline catch-up is the
-    // global feed's job (see subscribe_node_filters), which has no cutoff.
+    // `limit(0)` makes this a live-only subscription: relays return no
+    // stored events, only events published after subscribe. In normal
+    // operation the key is freshly derived and has no history — the guard
+    // protects the cases where key reuse happens anyway: a mnemonic
+    // re-imported on another device resets the trade key counter to 0 (no
+    // last-trade-index resync yet), re-deriving keys whose full reply
+    // history sits on the relays; any future counter regression does the
+    // same. Replayed replies from an earlier life of the key are what used
+    // to falsely resolve waiting create_order calls.
+    // mostro-cli (`wait_for_dm`) and MostriX (waiter subscriptions) use the
+    // same pattern for the same purpose. Unlike a `since` cutoff, `limit(0)`
+    // never touches live events, so it cannot drop the genuine reply when
+    // the client clock runs ahead of the daemon's. Offline catch-up is the
+    // global feed's job (see subscribe_node_filters), which replays history.
     let filter = nostr_sdk::Filter::new()
         .kind(nostr_sdk::Kind::PrivateDirectMessage)
         .author(mostro_pubkey)
         .pubkey(trade_pubkey)
-        .since(reply_subscription_since());
+        .limit(0);
     if let Err(e) = client.subscribe(filter, None).await {
         log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
         return;
@@ -2414,15 +2399,6 @@ mod tests {
     use crate::mostro::session::session_manager;
 
     // ── request_id correlation ────────────────────────────────────────────────
-
-    #[test]
-    fn reply_subscription_since_is_a_ten_minute_window() {
-        let before = nostr_sdk::Timestamp::now().as_secs();
-        let since = reply_subscription_since().as_secs();
-        let after = nostr_sdk::Timestamp::now().as_secs();
-        assert!(since >= before - 600);
-        assert!(since <= after - 600);
-    }
 
     #[test]
     fn request_id_only_matches_the_exact_nonce() {
