@@ -24,8 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned (not @stable) so a newer stable clippy can't introduce lints
+      # that break `-D warnings` on unrelated PRs. Bump this deliberately.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.0
         with:
           components: clippy
           targets: wasm32-unknown-unknown
@@ -55,8 +57,9 @@ jobs:
 
       # Rust toolchain is required by flutter_rust_bridge_codegen to generate
       # the Dart bindings (lib/src/rust/ is gitignored and produced on the fly).
+      # Pinned to match the rust job (see note above).
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.0
 
       - name: Cache cargo registry and target
         uses: Swatinem/rust-cache@v2
