@@ -193,6 +193,18 @@ class _AddLightningInvoiceScreenState
                       ),
                     ],
                   ),
+                  // Sats amount calculated by the daemon (arrives in the
+                  // take/add-invoice reply and lands in the trade record).
+                  if (sats != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      AppLocalizations.of(context).addInvoiceAmount(sats.toString()),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
 
                   // Invoice text input

@@ -482,6 +482,18 @@ abstract class AppLocalizations {
   /// **'This node requires an anti-abuse bond, which is not supported yet'**
   String get bondRequired;
 
+  /// Sats amount (calculated by the Mostro daemon) the buyer's invoice must be for, shown on the add-invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Amount to receive: {sats} sats'**
+  String addInvoiceAmount(String sats);
+
+  /// Sats amount of the hold invoice the seller must pay, shown on the pay-invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Amount to pay: {sats} sats'**
+  String payInvoiceAmount(String sats);
+
   /// Snackbar shown after copying an order ID to clipboard
   ///
   /// In en, this message translates to:

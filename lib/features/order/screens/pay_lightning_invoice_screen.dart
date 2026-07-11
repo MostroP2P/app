@@ -176,7 +176,17 @@ class _PayLightningInvoiceScreenState
                             ),
                           ],
                         ),
-                        const SizedBox(height: AppSpacing.xl),
+                        // Sats amount of the hold invoice (from the daemon's
+                        // pay-invoice reply, stored in the trade record).
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          l10n.payInvoiceAmount(amountSats.toString()),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
 
                         // QR Code
                         Expanded(

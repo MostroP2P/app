@@ -1053,11 +1053,21 @@ pub async fn take_order(
     };
 
     store_trade_key_index(&order_id, trade_index).await;
-    if let Some(status) = status {
+    if status.is_some() || amount_sats.is_some() {
         // Keep the public order book in sync with the reply so the order
-        // doesn't linger as Pending (mirrors what the per-action arms do for
-        // later messages; this first reply was consumed by the waiter).
-        order_book().update_order_status(&order_id, status).await;
+        // doesn't linger as Pending and the calculated sats are visible
+        // immediately (tradeAmountProvider polls the book). Mirrors what the
+        // per-action arms do for later messages; this first reply was
+        // consumed by the waiter.
+        if let Some(mut info) = order_book().get_order(&order_id).await {
+            if let Some(s) = status {
+                info.status = s;
+            }
+            if amount_sats.is_some() {
+                info.amount_sats = amount_sats;
+            }
+            order_book().upsert_order(info).await;
+        }
     }
     if let Some(db) = crate::db::app_db::db() {
         if let Err(e) = db.save_trade(&trade).await {

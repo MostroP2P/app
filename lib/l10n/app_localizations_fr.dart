@@ -235,6 +235,16 @@ class AppLocalizationsFr extends AppLocalizations {
       'Ce nœud exige une caution anti-abus, qui n\'est pas encore prise en charge';
 
   @override
+  String addInvoiceAmount(String sats) {
+    return 'Montant à recevoir : $sats sats';
+  }
+
+  @override
+  String payInvoiceAmount(String sats) {
+    return 'Montant à payer : $sats sats';
+  }
+
+  @override
   String get orderIdCopied => 'ID d\'ordre copié';
 
   @override
