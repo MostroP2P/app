@@ -23,6 +23,11 @@ use crate::nostr::gift_wrap;
 
 /// Build and wrap a NewOrder MostroMessage.
 ///
+/// `request_id` is a caller-generated correlation nonce: the daemon echoes it
+/// in the `NewOrder` confirmation and in any `CantDo` rejection, which is how
+/// `create_order` tells the genuine reply apart from stale relay-replayed
+/// events addressed to the same trade key.
+///
 /// Returns the NIP-59 Gift Wrap event JSON ready for publication.
 pub async fn new_order(
     identity_keys: &Keys,
@@ -30,6 +35,7 @@ pub async fn new_order(
     mostro_pubkey: &PublicKey,
     params: &NewOrderParams,
     trade_index: u32,
+    request_id: u64,
 ) -> Result<String> {
     use mostro_core::order::{Kind, SmallOrder, Status};
 
@@ -62,7 +68,13 @@ pub async fn new_order(
     );
 
     let payload = Some(Payload::Order(small_order));
-    let msg = Message::new_order(None, None, Some(trade_index as i64), Action::NewOrder, payload);
+    let msg = Message::new_order(
+        None,
+        Some(request_id),
+        Some(trade_index as i64),
+        Action::NewOrder,
+        payload,
+    );
     wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
@@ -314,4 +326,53 @@ async fn wrap_message(
     let event =
         gift_wrap::wrap_mostro_message(identity_keys, trade_keys, mostro_pubkey, msg, pow).await?;
     Ok(event.as_json())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The outgoing new-order message must carry the caller's request_id —
+    /// it is the correlation nonce the daemon echoes in its reply, and
+    /// `create_order` relies on it to tell the genuine reply apart from
+    /// stale relay-replayed events.
+    #[tokio::test]
+    async fn new_order_carries_request_id_and_trade_index() {
+        let identity_keys = Keys::generate();
+        let trade_keys = Keys::generate();
+        let mostro_keys = Keys::generate();
+
+        let params = NewOrderParams {
+            kind: OrderKind::Sell,
+            fiat_amount: Some(100.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "USD".to_string(),
+            payment_method: "cashapp".to_string(),
+            premium: 0.0,
+            amount_sats: None,
+        };
+
+        let json = new_order(
+            &identity_keys,
+            &trade_keys,
+            &mostro_keys.public_key(),
+            &params,
+            3,
+            42,
+        )
+        .await
+        .unwrap();
+
+        let event = Event::from_json(&json).unwrap();
+        let unwrapped = gift_wrap::unwrap_mostro_message(&mostro_keys, &event)
+            .await
+            .unwrap()
+            .expect("message must decrypt for the recipient");
+
+        let kind = unwrapped.message.get_inner_message_kind();
+        assert_eq!(kind.request_id, Some(42));
+        assert_eq!(kind.trade_index, Some(3));
+        assert!(matches!(kind.action, Action::NewOrder));
+    }
 }
