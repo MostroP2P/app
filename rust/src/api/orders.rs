@@ -27,55 +27,70 @@ fn trade_key_map() -> &'static std::sync::RwLock<HashMap<String, u32>> {
     TRADE_KEY_MAP.get_or_init(|| std::sync::RwLock::new(HashMap::new()))
 }
 
-// ── Pending create_order bookkeeping ─────────────────────────────────────────
+// ── Pending daemon-request bookkeeping ───────────────────────────────────────
 
-/// Result sent by the gift-wrap handler to the waiting `create_order` call.
-enum DaemonConfirmation {
-    /// Daemon accepted the order and assigned a UUID.
+/// Result sent by the gift-wrap handler to the waiting request caller.
+enum DaemonReply {
+    /// Daemon accepted the order and assigned a UUID (create flow).
     Confirmed { daemon_id: String },
-    /// Daemon rejected the order with a CantDo reason.
+    /// Daemon rejected the request with a CantDo reason.
     Rejected { reason: String, message: String },
 }
 
-/// Everything one `create_order` attempt needs tracked until the daemon's
-/// reply is consumed.
+/// What kind of outgoing request a pending record tracks.
 ///
-/// `request_id` is the correlation nonce sent in the outgoing `new-order`
-/// message; the daemon echoes it in both the `NewOrder` confirmation and any
-/// `CantDo` rejection. Only a reply carrying the matching nonce may resolve
-/// or consume this record — stale events replayed by relays carry a different
-/// (or no) `request_id` and must leave every part of it in place for the
-/// genuine reply. Keeping the waiter channel, the trade index, and the
-/// local-UUID bridge in one record keyed by the attempt's fresh trade key
-/// means an uncorrelated event cannot consume state belonging to a live (or
-/// concurrent) create.
-struct PendingCreate {
-    request_id: u64,
-    trade_index: u32,
-    /// Locally-generated UUID the order was created under before the daemon
-    /// assigned the real one. Bridged to the daemon UUID on confirmation.
-    local_uuid: String,
-    /// Content fingerprint (see `order_content_key`) — lets the Kind 38383
-    /// subscription find this record when the daemon's public event arrives
-    /// (that event carries neither our trade pubkey nor a request_id).
-    content_key: String,
-    /// `Some` while the `create_order` call is blocked waiting. The 10s
-    /// timeout detaches only this sender and leaves the rest of the record,
-    /// so a genuine late reply still reconciles trade-key and id bindings
-    /// instead of being indistinguishable from a stale replay.
-    tx: Option<tokio::sync::oneshot::Sender<DaemonConfirmation>>,
+/// Only order creation today; take/add-invoice are meant to reuse the same
+/// correlation machinery (they too send a fresh nonce the daemon echoes).
+enum PendingRequestKind {
+    Create {
+        /// Locally-generated UUID the order was created under before the
+        /// daemon assigned the real one. Bridged to the daemon UUID on
+        /// confirmation.
+        local_uuid: String,
+        /// Content fingerprint (see `order_content_key`) — lets the Kind
+        /// 38383 subscription find this record when the daemon's public
+        /// event arrives (that event carries neither our trade pubkey nor a
+        /// request_id).
+        content_key: String,
+    },
 }
 
-/// Maps `trade_pubkey_hex` → the pending `create_order` attempt.
+/// Everything one outgoing daemon request needs tracked until its reply is
+/// consumed.
 ///
-/// The daemon assigns its own UUID to a new order and publishes it as a Kind
-/// 38383 event signed by the daemon (not the maker), so the real order ID is
-/// only learnable from the gift-wrapped acknowledgement; this record carries
-/// the correlation state needed to consume that acknowledgement safely.
-static PENDING_CREATES: OnceLock<std::sync::Mutex<HashMap<String, PendingCreate>>> = OnceLock::new();
+/// `request_id` is the correlation nonce sent in the outgoing message; the
+/// daemon echoes it in both the success reply and any `CantDo` rejection.
+/// Only a reply carrying the matching nonce may resolve or consume this
+/// record — stale events replayed by relays carry a different (or no)
+/// `request_id` and must leave every part of it in place for the genuine
+/// reply. Keeping the waiter channel, the trade index, and the kind-specific
+/// bridging state in one record keyed by the attempt's fresh trade key means
+/// an uncorrelated event cannot consume state belonging to a live (or
+/// concurrent) request.
+struct PendingRequest {
+    request_id: u64,
+    trade_index: u32,
+    kind: PendingRequestKind,
+    /// `Some` while the caller is blocked waiting. The 10s timeout detaches
+    /// only this sender and leaves the rest of the record, so a genuine late
+    /// reply still reconciles trade-key and id bindings instead of being
+    /// indistinguishable from a stale replay.
+    tx: Option<tokio::sync::oneshot::Sender<DaemonReply>>,
+}
 
-fn pending_creates() -> &'static std::sync::Mutex<HashMap<String, PendingCreate>> {
-    PENDING_CREATES.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+/// Maps `trade_pubkey_hex` → the pending daemon request for that trade key.
+///
+/// Each request derives a fresh trade key, so one entry per key suffices;
+/// sequential requests on the same key (e.g. a take followed by add-invoice)
+/// work because the previous record is consumed by its reply. For creates:
+/// the daemon assigns its own UUID to a new order and publishes it as a Kind
+/// 38383 event signed by the daemon (not the maker), so the real order ID is
+/// only learnable from the gift-wrapped acknowledgement; the record carries
+/// the correlation state needed to consume that acknowledgement safely.
+static PENDING_REQUESTS: OnceLock<std::sync::Mutex<HashMap<String, PendingRequest>>> = OnceLock::new();
+
+fn pending_requests() -> &'static std::sync::Mutex<HashMap<String, PendingRequest>> {
+    PENDING_REQUESTS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
 
 /// True when a daemon reply carrying `got` may resolve a waiter that expects
@@ -85,18 +100,18 @@ fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
     got == Some(expected)
 }
 
-/// Remove and return the pending create for `trade_pubkey_hex` **only** when
+/// Remove and return the pending request for `trade_pubkey_hex` **only** when
 /// `got` echoes its `request_id`. A mismatched or absent id leaves the record
-/// in place: relays can replay historical events, and a stale
-/// `NewOrder`/`CantDo` must not confirm, reject, or reconcile a create — the
-/// genuine reply (carrying the nonce) arrives later and finds the record.
-fn take_matching_create(trade_pubkey_hex: &str, got: Option<u64>) -> Option<PendingCreate> {
-    let mut map = pending_creates().lock().ok()?;
+/// in place: relays can replay historical events, and a stale reply must not
+/// confirm, reject, or reconcile a live request — the genuine reply (carrying
+/// the nonce) arrives later and finds the record.
+fn take_matching_request(trade_pubkey_hex: &str, got: Option<u64>) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
     match map.get(trade_pubkey_hex) {
         Some(p) if request_id_matches(p.request_id, got) => map.remove(trade_pubkey_hex),
         Some(_) => {
             crate::api::logging::blog_debug("gift-wrap", format!(
-                "request_id {got:?} does not match pending create for trade={} — \
+                "request_id {got:?} does not match pending request for trade={} — \
                  leaving record for the genuine reply",
                 &trade_pubkey_hex[..8]
             ));
@@ -112,31 +127,37 @@ fn take_matching_create(trade_pubkey_hex: &str, got: Option<u64>) -> Option<Pend
 /// (`tx` is `Some`) are left alone: the in-flight `create_order` call owns
 /// the reconciliation and must still find its record when the kind-14
 /// acknowledgement lands.
-fn take_pending_create_by_content_key(content_key: &str) -> Option<PendingCreate> {
-    let mut map = pending_creates().lock().ok()?;
+fn take_pending_create_by_content_key(content_key: &str) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
     let key = map
         .iter()
-        .find(|(_, p)| p.content_key == content_key && p.tx.is_none())
+        .find(|(_, p)| {
+            p.tx.is_none()
+                && matches!(
+                    &p.kind,
+                    PendingRequestKind::Create { content_key: ck, .. } if ck == content_key
+                )
+        })
         .map(|(k, _)| k.clone())?;
     map.remove(&key)
 }
 
-/// Detach the waiter channel from the pending create for `trade_pubkey_hex`,
+/// Detach the waiter channel from the pending request for `trade_pubkey_hex`,
 /// leaving the record itself in place. Called on the 10s timeout: the caller
 /// stops waiting, but the record must survive so a genuine late reply still
 /// reconciles (and a stale replay still cannot).
-fn detach_create_waiter(trade_pubkey_hex: &str) {
-    if let Ok(mut m) = pending_creates().lock() {
+fn detach_request_waiter(trade_pubkey_hex: &str) {
+    if let Ok(mut m) = pending_requests().lock() {
         if let Some(p) = m.get_mut(trade_pubkey_hex) {
             p.tx = None;
         }
     }
 }
 
-/// Drop the pending create for `trade_pubkey_hex` unconditionally — publish
+/// Drop the pending request for `trade_pubkey_hex` unconditionally — publish
 /// failure rollback, or end of the per-trade subscription's lifetime.
-fn remove_pending_create(trade_pubkey_hex: &str) {
-    if let Ok(mut m) = pending_creates().lock() {
+fn remove_pending_request(trade_pubkey_hex: &str) {
+    if let Ok(mut m) = pending_requests().lock() {
         m.remove(trade_pubkey_hex);
     }
 }
@@ -144,11 +165,14 @@ fn remove_pending_create(trade_pubkey_hex: &str) {
 /// Local UUID of the pending create for `trade_pubkey_hex`, if any — a
 /// read-only peek used to decide whether a stored order id is ours to rebind.
 fn pending_local_uuid_for(trade_pubkey_hex: &str) -> Option<String> {
-    pending_creates()
+    pending_requests()
         .lock()
         .ok()?
         .get(trade_pubkey_hex)
-        .map(|p| p.local_uuid.clone())
+        .map(|p| {
+            let PendingRequestKind::Create { local_uuid, .. } = &p.kind;
+            local_uuid.clone()
+        })
 }
 
 /// True when the order id stored for a trade may be rebound to `incoming_id`.
@@ -578,15 +602,17 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // record carries everything the dispatcher needs to consume the daemon's
     // reply: the waiter channel, and the correlation/bridging state that must
     // only ever be touched by a reply echoing this attempt's request_id.
-    let (conf_tx, conf_rx) = tokio::sync::oneshot::channel::<DaemonConfirmation>();
-    if let Ok(mut map) = pending_creates().lock() {
+    let (conf_tx, conf_rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    if let Ok(mut map) = pending_requests().lock() {
         map.insert(
             trade_pk_hex.clone(),
-            PendingCreate {
+            PendingRequest {
                 request_id,
                 trade_index,
-                local_uuid: order.id.clone(),
-                content_key: ck.clone(),
+                kind: PendingRequestKind::Create {
+                    local_uuid: order.id.clone(),
+                    content_key: ck.clone(),
+                },
                 tx: Some(conf_tx),
             },
         );
@@ -600,7 +626,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     if let Err(e) = publish_event_json(&event_json).await {
         // Rollback all in-memory bookkeeping on publish failure.
         if let Ok(mut m) = trade_key_map().write() { m.remove(&order.id); m.remove(&ck); }
-        remove_pending_create(&trade_pk_hex);
+        remove_pending_request(&trade_pk_hex);
         return Err(e);
     }
 
@@ -618,26 +644,26 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     ).await;
 
     // On success or rejection the dispatcher already consumed the record
-    // (take_matching_create). On timeout, detach only the waiter channel and
+    // (take_matching_request). On timeout, detach only the waiter channel and
     // leave the record in place: a genuine late reply must still be able to
     // reconcile the trade-key and id bindings, and only the echoed nonce can
     // consume what remains — a stale replay still cannot. The record's
     // lifetime is bounded by the per-trade subscription (see
     // subscribe_gift_wraps), which removes it when the subscription ends.
     if !matches!(confirmation, Ok(Ok(_))) {
-        detach_create_waiter(&trade_pk_hex);
+        detach_request_waiter(&trade_pk_hex);
     }
 
     // Resolve the daemon's verdict. The order only exists once the daemon
     // confirms it; a timeout means "no response", not an optimistic success.
     let daemon_id = match confirmation {
-        Ok(Ok(DaemonConfirmation::Confirmed { daemon_id })) => {
+        Ok(Ok(DaemonReply::Confirmed { daemon_id })) => {
             crate::api::logging::blog_info("orders", format!(
                 "create_order confirmed by daemon: {daemon_id}"
             ));
             daemon_id
         }
-        Ok(Ok(DaemonConfirmation::Rejected { reason, message })) => {
+        Ok(Ok(DaemonReply::Rejected { reason, message })) => {
             crate::api::logging::blog_warn("orders", format!(
                 "create_order rejected: {reason} — {message}"
             ));
@@ -1177,7 +1203,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
         // no reply can be delivered here anymore, a still-unconsumed record
         // (create timed out and no genuine late reply ever arrived) is dead
         // state — drop it.
-        remove_pending_create(&trade_pubkey_hex);
+        remove_pending_request(&trade_pubkey_hex);
     });
 }
 
@@ -1242,7 +1268,7 @@ async fn dispatch_mostro_message(
     // Centralized response validation: catches malformed `request_id` fields
     // and flags `CantDo` responses. We still pass `None` here on purpose:
     // request_id correlation happens at the waiter arms below (via
-    // `take_matching_create`) because `validate_response` short-circuits
+    // `take_matching_request`) because `validate_response` short-circuits
     // on `CantDo` BEFORE comparing request_ids, so it cannot distinguish a
     // stale replayed rejection from the genuine one.
     //
@@ -1343,15 +1369,16 @@ async fn dispatch_mostro_message(
                 // bridge — lives in that one record, so a stale replay or a
                 // foreign reply (mismatched/absent nonce) touches nothing and
                 // the genuine reply still finds the record intact.
-                if let Some(pending) = take_matching_create(trade_pubkey_hex, kind.request_id) {
+                if let Some(pending) = take_matching_request(trade_pubkey_hex, kind.request_id) {
                     // Bind the daemon UUID to this attempt's trade index so
                     // subsequent maker actions (e.g. cancel) can find the key.
                     store_trade_key_index(&daemon_id, pending.trade_index).await;
 
+                    let PendingRequestKind::Create { local_uuid, .. } = pending.kind;
                     if let Some(tx) = pending.tx {
                         // create_order is still waiting — the caller handles
                         // UUID adoption and persistence.
-                        let _ = tx.send(DaemonConfirmation::Confirmed {
+                        let _ = tx.send(DaemonReply::Confirmed {
                             daemon_id: daemon_id.clone(),
                         });
                         crate::api::logging::blog_info("gift-wrap", format!(
@@ -1365,8 +1392,7 @@ async fn dispatch_mostro_message(
                         // fingerprint path restore maker ownership.
                         crate::api::logging::blog_info("gift-wrap", format!(
                             "NewOrder: late confirmation for timed-out create \
-                             local={} daemon={daemon_id}",
-                            pending.local_uuid
+                             local={local_uuid} daemon={daemon_id}"
                         ));
                     }
                 } else {
@@ -1640,28 +1666,28 @@ async fn dispatch_mostro_message(
                 other => format!("Order rejected by Mostro: {other}"),
             };
 
-            // Consume the pending create ONLY when this rejection echoes its
+            // Consume the pending request ONLY when this rejection echoes its
             // request_id — a genuine rejection ends the attempt, so the whole
-            // record goes with it. Stale replayed CantDo events (no or foreign
-            // request_id) touch nothing and leave the record for the genuine
-            // reply.
-            if let Some(pending) = take_matching_create(trade_pubkey_hex, kind.request_id) {
+            // record goes with it (whatever its kind). Stale replayed CantDo
+            // events (no or foreign request_id) touch nothing and leave the
+            // record for the genuine reply.
+            if let Some(pending) = take_matching_request(trade_pubkey_hex, kind.request_id) {
                 if let Some(tx) = pending.tx {
                     crate::api::logging::blog_warn("gift-wrap", format!(
-                        "CantDo: reason={reason} — notifying waiting create_order"
+                        "CantDo: reason={reason} — notifying waiting caller"
                     ));
-                    let _ = tx.send(DaemonConfirmation::Rejected { reason, message });
+                    let _ = tx.send(DaemonReply::Rejected { reason, message });
                 } else {
                     // Genuine rejection after the 10s timeout: the caller
                     // already returned NoDaemonResponse and persisted nothing,
                     // so dropping the record is the only cleanup needed.
                     crate::api::logging::blog_warn("gift-wrap", format!(
-                        "CantDo: reason={reason} — late rejection for timed-out create"
+                        "CantDo: reason={reason} — late rejection for timed-out request"
                     ));
                 }
             } else {
                 crate::api::logging::blog_debug("gift-wrap", format!(
-                    "CantDo: reason={reason} — no matching pending create, ignoring stale event"
+                    "CantDo: reason={reason} — no matching pending request, ignoring event"
                 ));
             }
         }
@@ -2210,7 +2236,7 @@ async fn ingest_order_event(event: &nostr_sdk::Event) {
                     // live waiter are taken: an in-flight create_order owns
                     // its own reconciliation via the kind-14 acknowledgement.
                     if let Some(pending) = take_pending_create_by_content_key(&ck) {
-                        let local_id = pending.local_uuid;
+                        let PendingRequestKind::Create { local_uuid: local_id, .. } = pending.kind;
                         if let Some(db) = crate::db::app_db::db() {
                             if let Err(e) =
                                 db.update_trade_order_id(&local_id, &info.id).await
@@ -2452,43 +2478,50 @@ mod tests {
         assert!(!request_id_matches(42, None));
     }
 
-    fn insert_pending_create(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonConfirmation> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<DaemonConfirmation>();
-        pending_creates().lock().unwrap().insert(
+    fn insert_pending_create(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonReply> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+        pending_requests().lock().unwrap().insert(
             key.to_string(),
-            PendingCreate {
+            PendingRequest {
                 request_id,
                 trade_index: 3,
-                local_uuid: format!("local-{key}"),
-                content_key: format!("content:{key}"),
+                kind: PendingRequestKind::Create {
+                    local_uuid: format!("local-{key}"),
+                    content_key: format!("content:{key}"),
+                },
                 tx: Some(tx),
             },
         );
         rx
     }
 
+    fn local_uuid_of(pending: &PendingRequest) -> &str {
+        let PendingRequestKind::Create { local_uuid, .. } = &pending.kind;
+        local_uuid
+    }
+
     /// A reply with a foreign or missing request_id must leave the record in
     /// place so the genuine reply can still resolve it; only the echoed nonce
     /// consumes it.
     #[tokio::test]
-    async fn take_matching_create_ignores_stale_events() {
-        let key = "test-take-matching-create-pubkey";
+    async fn take_matching_request_ignores_stale_events() {
+        let key = "test-take-matching-request-pubkey";
         let mut rx = insert_pending_create(key, 7);
 
         // Stale replay (no request_id) and foreign reply: record untouched.
-        assert!(take_matching_create(key, None).is_none());
-        assert!(take_matching_create(key, Some(99)).is_none());
-        assert!(pending_creates().lock().unwrap().contains_key(key));
+        assert!(take_matching_request(key, None).is_none());
+        assert!(take_matching_request(key, Some(99)).is_none());
+        assert!(pending_requests().lock().unwrap().contains_key(key));
         assert!(rx.try_recv().is_err()); // nothing sent
 
         // Genuine reply: record consumed exactly once, waiter still attached.
-        let pending = take_matching_create(key, Some(7)).expect("must match");
+        let pending = take_matching_request(key, Some(7)).expect("must match");
         let tx = pending.tx.expect("waiter must still be attached");
-        let _ = tx.send(DaemonConfirmation::Confirmed {
+        let _ = tx.send(DaemonReply::Confirmed {
             daemon_id: "d".to_string(),
         });
-        assert!(!pending_creates().lock().unwrap().contains_key(key));
-        assert!(take_matching_create(key, Some(7)).is_none());
+        assert!(!pending_requests().lock().unwrap().contains_key(key));
+        assert!(take_matching_request(key, Some(7)).is_none());
     }
 
     /// After the 10s timeout only the waiter channel is detached; the record
@@ -2499,39 +2532,39 @@ mod tests {
         let key = "test-late-reply-pubkey";
         let _rx = insert_pending_create(key, 11);
 
-        detach_create_waiter(key);
-        assert!(pending_creates().lock().unwrap().contains_key(key));
+        detach_request_waiter(key);
+        assert!(pending_requests().lock().unwrap().contains_key(key));
 
         // Stale events still bounce off the detached record.
-        assert!(take_matching_create(key, None).is_none());
-        assert!(take_matching_create(key, Some(99)).is_none());
+        assert!(take_matching_request(key, None).is_none());
+        assert!(take_matching_request(key, Some(99)).is_none());
 
         // The genuine late reply consumes it: no waiter, but the bridging
         // state (trade index, local uuid) is intact for reconciliation.
-        let pending = take_matching_create(key, Some(11)).expect("must match");
+        let pending = take_matching_request(key, Some(11)).expect("must match");
         assert!(pending.tx.is_none());
         assert_eq!(pending.trade_index, 3);
-        assert_eq!(pending.local_uuid, format!("local-{key}"));
-        assert!(!pending_creates().lock().unwrap().contains_key(key));
+        assert_eq!(local_uuid_of(&pending), format!("local-{key}"));
+        assert!(!pending_requests().lock().unwrap().contains_key(key));
     }
 
-    /// Concurrent creates each own their record: a reply correlated to one
+    /// Concurrent requests each own their record: a reply correlated to one
     /// attempt must never consume state belonging to another.
     #[tokio::test]
-    async fn concurrent_creates_do_not_cross_consume() {
+    async fn concurrent_requests_do_not_cross_consume() {
         let key_a = "test-concurrent-a-pubkey";
         let key_b = "test-concurrent-b-pubkey";
         let _rx_a = insert_pending_create(key_a, 21);
         let _rx_b = insert_pending_create(key_b, 22);
 
         // A's nonce only ever matches A's record, under either key.
-        assert!(take_matching_create(key_b, Some(21)).is_none());
-        let pending = take_matching_create(key_a, Some(21)).expect("must match A");
-        assert_eq!(pending.local_uuid, format!("local-{key_a}"));
+        assert!(take_matching_request(key_b, Some(21)).is_none());
+        let pending = take_matching_request(key_a, Some(21)).expect("must match A");
+        assert_eq!(local_uuid_of(&pending), format!("local-{key_a}"));
 
         // B is untouched and still consumable by its own nonce.
-        let pending = take_matching_create(key_b, Some(22)).expect("must match B");
-        assert_eq!(pending.local_uuid, format!("local-{key_b}"));
+        let pending = take_matching_request(key_b, Some(22)).expect("must match B");
+        assert_eq!(local_uuid_of(&pending), format!("local-{key_b}"));
     }
 
     /// Only the pending create's own local UUID may be rebound to an incoming
@@ -2564,10 +2597,10 @@ mod tests {
         assert!(take_pending_create_by_content_key(&ck).is_none());
 
         // After the timeout detaches the waiter, the fingerprint match takes it.
-        detach_create_waiter(key);
+        detach_request_waiter(key);
         let pending = take_pending_create_by_content_key(&ck).expect("must match");
-        assert_eq!(pending.local_uuid, format!("local-{key}"));
-        assert!(!pending_creates().lock().unwrap().contains_key(key));
+        assert_eq!(local_uuid_of(&pending), format!("local-{key}"));
+        assert!(!pending_requests().lock().unwrap().contains_key(key));
 
         // Unknown fingerprints never match anything.
         assert!(take_pending_create_by_content_key("content:unknown").is_none());
