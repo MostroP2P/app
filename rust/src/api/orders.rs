@@ -162,20 +162,39 @@ fn take_pending_create_by_content_key(content_key: &str) -> Option<PendingReques
 }
 
 /// Detach the waiter channel from the pending request for `trade_pubkey_hex`,
-/// leaving the record itself in place. Called on the 10s timeout: the caller
-/// stops waiting, but the record must survive so a genuine late reply still
-/// reconciles (and a stale replay still cannot).
-fn detach_request_waiter(trade_pubkey_hex: &str) {
+/// leaving the record itself in place — but only when `request_id` still
+/// identifies this caller's own attempt. Called on the 10s timeout: the
+/// caller stops waiting, but the record must survive so a genuine late reply
+/// still reconciles (and a stale replay still cannot).
+///
+/// The nonce gate matters for same-key overlaps: `send_invoice` reuses the
+/// take's trade key, so a newer attempt may have overwritten this record —
+/// a timed-out older attempt must not detach the newer attempt's live waiter.
+fn detach_request_waiter(trade_pubkey_hex: &str, request_id: u64) {
     if let Ok(mut m) = pending_requests().lock() {
         if let Some(p) = m.get_mut(trade_pubkey_hex) {
-            p.tx = None;
+            if p.request_id == request_id {
+                p.tx = None;
+            }
         }
     }
 }
 
-/// Drop the pending request for `trade_pubkey_hex` unconditionally — publish
-/// failure rollback, or end of the per-trade subscription's lifetime.
-fn remove_pending_request(trade_pubkey_hex: &str) {
+/// Drop the pending request for `trade_pubkey_hex` — but only when
+/// `request_id` still identifies this caller's own attempt (publish failure
+/// rollback). Same same-key overlap rationale as [`detach_request_waiter`].
+fn remove_pending_request(trade_pubkey_hex: &str, request_id: u64) {
+    if let Ok(mut m) = pending_requests().lock() {
+        if m.get(trade_pubkey_hex).is_some_and(|p| p.request_id == request_id) {
+            m.remove(trade_pubkey_hex);
+        }
+    }
+}
+
+/// Drop whatever pending request remains for `trade_pubkey_hex`,
+/// unconditionally. Only for the end of the per-trade subscription's
+/// lifetime, when no reply can be delivered to any attempt on this key.
+fn purge_pending_request(trade_pubkey_hex: &str) {
     if let Ok(mut m) = pending_requests().lock() {
         m.remove(trade_pubkey_hex);
     }
@@ -265,14 +284,18 @@ fn classify_take_reply(
                 action: action.clone(),
                 status: small_order
                     .as_ref()
-                    .and_then(|so| so.status.and_then(map_core_status)),
+                    .and_then(|so| so.status.and_then(map_core_status))
+                    .or_else(|| status_for_action(action)),
                 amount_sats,
                 hold_invoice: Some(invoice.clone()),
             }
         }
         Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
             action: action.clone(),
-            status: small_order.status.and_then(map_core_status),
+            status: small_order
+                .status
+                .and_then(map_core_status)
+                .or_else(|| status_for_action(action)),
             amount_sats: if small_order.amount > 0 {
                 Some(small_order.amount as u64)
             } else {
@@ -281,10 +304,14 @@ fn classify_take_reply(
             hold_invoice: None,
         },
         // Action-only progression reply (payload absent or of another shape):
-        // still a genuine acceptance — the caller falls back to book data.
+        // still a genuine acceptance. The take interception consumes the
+        // message before the status-sync arms run, so derive the implied
+        // status from the action itself — otherwise the trade would persist
+        // as Pending even though the daemon already advanced it (e.g.
+        // waiting-seller-to-pay after a take-sell with an LN address).
         _ => DaemonReply::TakeAccepted {
             action: action.clone(),
-            status: None,
+            status: status_for_action(action),
             amount_sats: None,
             hold_invoice: None,
         },
@@ -742,7 +769,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     if let Err(e) = publish_event_json(&event_json).await {
         // Rollback all in-memory bookkeeping on publish failure.
         if let Ok(mut m) = trade_key_map().write() { m.remove(&order.id); m.remove(&ck); }
-        remove_pending_request(&trade_pk_hex);
+        remove_pending_request(&trade_pk_hex, request_id);
         return Err(e);
     }
 
@@ -767,7 +794,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // lifetime is bounded by the per-trade subscription (see
     // subscribe_gift_wraps), which removes it when the subscription ends.
     if !matches!(confirmation, Ok(Ok(_))) {
-        detach_request_waiter(&trade_pk_hex);
+        detach_request_waiter(&trade_pk_hex, request_id);
     }
 
     // Resolve the daemon's verdict. The order only exists once the daemon
@@ -962,7 +989,7 @@ pub async fn take_order(
     subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
 
     if let Err(e) = publish_event_json(&event_json).await {
-        remove_pending_request(&trade_pk_hex);
+        remove_pending_request(&trade_pk_hex, request_id);
         return Err(e);
     }
 
@@ -980,7 +1007,7 @@ pub async fn take_order(
         conf_rx,
     ).await;
     if !matches!(reply, Ok(Ok(_))) {
-        detach_request_waiter(&trade_pk_hex);
+        detach_request_waiter(&trade_pk_hex, request_id);
     }
 
     let (status, amount_sats, hold_invoice) = match reply {
@@ -1111,9 +1138,10 @@ pub async fn send_invoice(
         None
     };
 
-    let trade_index = get_trade_key_index(&order_id)
-        .await
-        .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
+    let trade_index = get_trade_key_index(&order_id).await.ok_or_else(|| {
+        log::warn!("[orders] send_invoice: no persisted trade key for order {order_id}");
+        anyhow::anyhow!("TradeNotFound")
+    })?;
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let identity_keys =
         crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
@@ -1158,7 +1186,7 @@ pub async fn send_invoice(
     }
 
     if let Err(e) = publish_event_json(&event_json).await {
-        remove_pending_request(&trade_pk_hex);
+        remove_pending_request(&trade_pk_hex, request_id);
         return Err(e);
     }
     log::info!(
@@ -1177,7 +1205,7 @@ pub async fn send_invoice(
         conf_rx,
     ).await;
     if !matches!(reply, Ok(Ok(_))) {
-        detach_request_waiter(&trade_pk_hex);
+        detach_request_waiter(&trade_pk_hex, request_id);
     }
 
     match reply {
@@ -1447,11 +1475,11 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
             }
         }
 
-        // The subscription bounds the pending-create record's lifetime: once
-        // no reply can be delivered here anymore, a still-unconsumed record
-        // (create timed out and no genuine late reply ever arrived) is dead
-        // state — drop it.
-        remove_pending_request(&trade_pubkey_hex);
+        // The subscription bounds the pending record's lifetime: once no
+        // reply can be delivered here anymore, a still-unconsumed record
+        // (request timed out and no genuine late reply ever arrived) is dead
+        // state — drop it, whatever attempt it belongs to.
+        purge_pending_request(&trade_pubkey_hex);
     });
 }
 
@@ -1906,38 +1934,9 @@ async fn dispatch_mostro_message(
                     return;
                 }
             };
-            // Map action → OrderStatus for DB sync.
-            let new_status = match kind.action {
-                Action::WaitingSellerToPay => Some(crate::api::types::OrderStatus::WaitingPayment),
-                Action::WaitingBuyerInvoice => {
-                    Some(crate::api::types::OrderStatus::WaitingBuyerInvoice)
-                }
-                Action::BuyerInvoiceAccepted => {
-                    Some(crate::api::types::OrderStatus::Active)
-                }
-                Action::FiatSentOk => {
-                    Some(crate::api::types::OrderStatus::FiatSent)
-                }
-                Action::HoldInvoicePaymentSettled | Action::Released | Action::PurchaseCompleted => {
-                    Some(crate::api::types::OrderStatus::SettledHoldInvoice)
-                }
-                Action::HoldInvoicePaymentCanceled => {
-                    Some(crate::api::types::OrderStatus::Canceled)
-                }
-                Action::CooperativeCancelAccepted => {
-                    Some(crate::api::types::OrderStatus::CooperativelyCanceled)
-                }
-                Action::CooperativeCancelInitiatedByPeer
-                | Action::CooperativeCancelInitiatedByYou => None, // status doesn't change yet
-                Action::Rate | Action::RateUser | Action::RateReceived => None,
-                Action::PaymentFailed => None, // order stays at SettledHoldInvoice
-                Action::DisputeInitiatedByYou | Action::DisputeInitiatedByPeer => {
-                    Some(crate::api::types::OrderStatus::Dispute)
-                }
-                Action::AdminSettled => Some(crate::api::types::OrderStatus::SettledByAdmin),
-                Action::AdminCanceled => Some(crate::api::types::OrderStatus::CanceledByAdmin),
-                _ => None,
-            };
+            // Map action → OrderStatus for DB sync (shared with the take
+            // reply classification).
+            let new_status = status_for_action(&kind.action);
             if let Some(status) = new_status {
                 log::info!(
                     "[orders] gift-wrap {:?}: syncing order={order_id} status={:?}",
@@ -2011,6 +2010,42 @@ async fn dispatch_mostro_message(
 }
 
 /// Maps a `mostro_core::order::Status` to the local [`OrderStatus`] enum.
+/// Map a daemon action to the order status it implies, for messages that
+/// carry no explicit status payload (action-only progression replies).
+///
+/// Shared by the status-sync arm in `dispatch_mostro_message` and by
+/// `classify_take_reply`, so a take whose first reply is action-only (e.g.
+/// `waiting-seller-to-pay` after a take-sell with a pre-attached LN address)
+/// still persists the status the daemon already advanced to.
+fn status_for_action(action: &mostro_core::message::Action) -> Option<OrderStatus> {
+    use mostro_core::message::Action;
+    match action {
+        Action::WaitingSellerToPay => Some(OrderStatus::WaitingPayment),
+        Action::WaitingBuyerInvoice => Some(OrderStatus::WaitingBuyerInvoice),
+        Action::BuyerInvoiceAccepted => Some(OrderStatus::Active),
+        Action::FiatSentOk => Some(OrderStatus::FiatSent),
+        Action::HoldInvoicePaymentSettled | Action::Released | Action::PurchaseCompleted => {
+            Some(OrderStatus::SettledHoldInvoice)
+        }
+        Action::HoldInvoicePaymentCanceled => Some(OrderStatus::Canceled),
+        Action::CooperativeCancelAccepted => Some(OrderStatus::CooperativelyCanceled),
+        // Status doesn't change yet for cancel initiations; Rate/PaymentFailed
+        // don't move the order either.
+        Action::CooperativeCancelInitiatedByPeer
+        | Action::CooperativeCancelInitiatedByYou
+        | Action::Rate
+        | Action::RateUser
+        | Action::RateReceived
+        | Action::PaymentFailed => None,
+        Action::DisputeInitiatedByYou | Action::DisputeInitiatedByPeer => {
+            Some(OrderStatus::Dispute)
+        }
+        Action::AdminSettled => Some(OrderStatus::SettledByAdmin),
+        Action::AdminCanceled => Some(OrderStatus::CanceledByAdmin),
+        _ => None,
+    }
+}
+
 fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStatus> {
     use mostro_core::order::Status as S;
     Some(match s {
@@ -2864,7 +2899,7 @@ mod tests {
         let key = "test-late-reply-pubkey";
         let _rx = insert_pending_create(key, 11);
 
-        detach_request_waiter(key);
+        detach_request_waiter(key, 11);
         assert!(pending_requests().lock().unwrap().contains_key(key));
 
         // Stale events still bounce off the detached record.
@@ -2957,6 +2992,71 @@ mod tests {
         pending_requests().lock().unwrap().remove(take_key);
     }
 
+    /// Same-key overlap (send_invoice reuses the take's trade key): a newer
+    /// attempt overwrites the record, and the older attempt's timeout /
+    /// rollback cleanup must not touch the newer attempt's live waiter.
+    #[tokio::test]
+    async fn overlapping_same_key_attempts_do_not_cross_detach() {
+        let key = "test-same-key-overlap-pubkey";
+
+        // Attempt A registers, then attempt B overwrites the record.
+        let _rx_a = insert_pending_take(key, 61);
+        let _rx_b = insert_pending_take(key, 62);
+
+        // A's timeout fires: it must not detach B's live waiter…
+        detach_request_waiter(key, 61);
+        assert!(pending_requests()
+            .lock()
+            .unwrap()
+            .get(key)
+            .unwrap()
+            .tx
+            .is_some());
+
+        // …and A's publish-failure rollback must not delete B's record.
+        remove_pending_request(key, 61);
+        assert!(pending_requests().lock().unwrap().contains_key(key));
+
+        // B's own cleanup still works.
+        detach_request_waiter(key, 62);
+        assert!(pending_requests()
+            .lock()
+            .unwrap()
+            .get(key)
+            .unwrap()
+            .tx
+            .is_none());
+        remove_pending_request(key, 62);
+        assert!(!pending_requests().lock().unwrap().contains_key(key));
+    }
+
+    /// Action-only progression replies must still carry the status the
+    /// action implies — the take interception consumes the message before
+    /// the status-sync arms run, so an empty status would persist the trade
+    /// as Pending even though the daemon already advanced it.
+    #[test]
+    fn classify_take_reply_derives_status_from_action_only_replies() {
+        use mostro_core::message::Action;
+
+        // take-sell with a pre-attached LN address: daemon skips add-invoice
+        // and replies waiting-seller-to-pay with no payload.
+        match classify_take_reply(&Action::WaitingSellerToPay, &None) {
+            DaemonReply::TakeAccepted { status, .. } => {
+                assert_eq!(status, Some(crate::api::types::OrderStatus::WaitingPayment));
+            }
+            _ => panic!("expected TakeAccepted"),
+        }
+        match classify_take_reply(&Action::WaitingBuyerInvoice, &None) {
+            DaemonReply::TakeAccepted { status, .. } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingBuyerInvoice)
+                );
+            }
+            _ => panic!("expected TakeAccepted"),
+        }
+    }
+
     fn small_order_with(
         status: mostro_core::order::Status,
         amount: i64,
@@ -3038,10 +3138,12 @@ mod tests {
             _ => panic!("expected Rejected"),
         }
 
-        // Action-only progression reply: still a genuine acceptance.
+        // Action-only progression reply: still a genuine acceptance, with
+        // the status derived from the action (see
+        // classify_take_reply_derives_status_from_action_only_replies).
         match classify_take_reply(&Action::WaitingSellerToPay, &None) {
             DaemonReply::TakeAccepted { status, amount_sats, hold_invoice, .. } => {
-                assert!(status.is_none());
+                assert_eq!(status, Some(crate::api::types::OrderStatus::WaitingPayment));
                 assert!(amount_sats.is_none());
                 assert!(hold_invoice.is_none());
             }
@@ -3079,7 +3181,7 @@ mod tests {
         assert!(take_pending_create_by_content_key(&ck).is_none());
 
         // After the timeout detaches the waiter, the fingerprint match takes it.
-        detach_request_waiter(key);
+        detach_request_waiter(key, 31);
         let pending = take_pending_create_by_content_key(&ck).expect("must match");
         assert_eq!(local_uuid_of(&pending), format!("local-{key}"));
         assert!(!pending_requests().lock().unwrap().contains_key(key));
