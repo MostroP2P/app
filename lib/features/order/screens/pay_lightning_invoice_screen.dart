@@ -66,6 +66,10 @@ class _PayLightningInvoiceScreenState
         final status = next.valueOrNull;
         if (status == null || _navigated || !mounted) return;
         switch (status) {
+          // waitingBuyerInvoice: on this screen it can only mean the hold
+          // invoice payment was registered and mostrod is now waiting for
+          // the buyer's invoice — move the seller to the trade screen.
+          case OrderStatus.waitingBuyerInvoice:
           case OrderStatus.active:
           case OrderStatus.fiatSent:
           case OrderStatus.settledHoldInvoice:
