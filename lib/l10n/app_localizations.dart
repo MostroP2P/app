@@ -476,6 +476,12 @@ abstract class AppLocalizations {
   /// **'Order has already been taken'**
   String get orderAlreadyTaken;
 
+  /// Error shown when the Mostro node asks for an anti-abuse bond before accepting the order — the app does not support bonds yet
+  ///
+  /// In en, this message translates to:
+  /// **'This node requires an anti-abuse bond, which is not supported yet'**
+  String get bondRequired;
+
   /// Snackbar shown after copying an order ID to clipboard
   ///
   /// In en, this message translates to:

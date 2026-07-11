@@ -79,6 +79,10 @@ pub async fn new_order(
 }
 
 /// Build and wrap a TakeBuy MostroMessage.
+///
+/// `request_id` is the correlation nonce echoed by the daemon in its reply —
+/// see [`take_order_impl`].
+#[allow(clippy::too_many_arguments)]
 pub async fn take_buy(
     identity_keys: &Keys,
     trade_keys: &Keys,
@@ -86,6 +90,7 @@ pub async fn take_buy(
     order_id: &str,
     trade_index: u32,
     amount: Option<f64>,
+    request_id: u64,
 ) -> Result<String> {
     take_order_impl(
         identity_keys,
@@ -96,6 +101,7 @@ pub async fn take_buy(
         amount,
         None,
         Action::TakeBuy,
+        request_id,
     )
     .await
 }
@@ -103,7 +109,10 @@ pub async fn take_buy(
 /// Build and wrap a TakeSell MostroMessage.
 ///
 /// If `ln_address` is `Some`, it is included in the payload so Mostro can
-/// pay the buyer directly (take-sell-ln-address variant).
+/// pay the buyer directly (take-sell-ln-address variant). `request_id` is the
+/// correlation nonce echoed by the daemon in its reply — see
+/// [`take_order_impl`].
+#[allow(clippy::too_many_arguments)]
 pub async fn take_sell(
     identity_keys: &Keys,
     trade_keys: &Keys,
@@ -112,6 +121,7 @@ pub async fn take_sell(
     trade_index: u32,
     amount: Option<f64>,
     ln_address: Option<&str>,
+    request_id: u64,
 ) -> Result<String> {
     take_order_impl(
         identity_keys,
@@ -122,6 +132,7 @@ pub async fn take_sell(
         amount,
         ln_address,
         Action::TakeSell,
+        request_id,
     )
     .await
 }
@@ -264,6 +275,11 @@ pub async fn add_invoice(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Internal helper for take-buy / take-sell actions.
+///
+/// `request_id` is the caller-generated correlation nonce: the daemon echoes
+/// it in its reply (add-invoice, pay-invoice, pay-bond-invoice, or CantDo),
+/// which is how `take_order` tells the genuine reply apart from stale
+/// relay-replayed events addressed to the same trade key.
 #[allow(clippy::too_many_arguments)]
 async fn take_order_impl(
     identity_keys: &Keys,
@@ -274,6 +290,7 @@ async fn take_order_impl(
     amount: Option<f64>,
     ln_address: Option<&str>,
     action: Action,
+    request_id: u64,
 ) -> Result<String> {
     let id = Uuid::parse_str(order_id)?;
 
@@ -292,7 +309,7 @@ async fn take_order_impl(
 
     let msg = Message::new_order(
         Some(id),
-        None,
+        Some(request_id),
         Some(trade_index as i64),
         action,
         payload,
@@ -374,5 +391,65 @@ mod tests {
         assert_eq!(kind.request_id, Some(42));
         assert_eq!(kind.trade_index, Some(3));
         assert!(matches!(kind.action, Action::NewOrder));
+    }
+
+    /// The outgoing take messages must carry the caller's request_id — the
+    /// correlation nonce the daemon echoes in its reply (add-invoice,
+    /// pay-invoice, pay-bond-invoice, or CantDo) that `take_order` relies on
+    /// to tell the genuine reply apart from stale relay-replayed events.
+    #[tokio::test]
+    async fn take_messages_carry_request_id_and_order_id() {
+        let identity_keys = Keys::generate();
+        let trade_keys = Keys::generate();
+        let mostro_keys = Keys::generate();
+        let order_id = "94486ae3-4083-4dfe-b543-53fe761025e9";
+
+        let json = take_sell(
+            &identity_keys,
+            &trade_keys,
+            &mostro_keys.public_key(),
+            order_id,
+            5,
+            None,
+            None,
+            77,
+        )
+        .await
+        .unwrap();
+
+        let event = Event::from_json(&json).unwrap();
+        let unwrapped = gift_wrap::unwrap_mostro_message(&mostro_keys, &event)
+            .await
+            .unwrap()
+            .expect("message must decrypt for the recipient");
+
+        let kind = unwrapped.message.get_inner_message_kind();
+        assert_eq!(kind.request_id, Some(77));
+        assert_eq!(kind.trade_index, Some(5));
+        assert_eq!(kind.id.map(|u| u.to_string()).as_deref(), Some(order_id));
+        assert!(matches!(kind.action, Action::TakeSell));
+
+        let json = take_buy(
+            &identity_keys,
+            &trade_keys,
+            &mostro_keys.public_key(),
+            order_id,
+            6,
+            Some(100.0),
+            78,
+        )
+        .await
+        .unwrap();
+
+        let event = Event::from_json(&json).unwrap();
+        let unwrapped = gift_wrap::unwrap_mostro_message(&mostro_keys, &event)
+            .await
+            .unwrap()
+            .expect("message must decrypt for the recipient");
+
+        let kind = unwrapped.message.get_inner_message_kind();
+        assert_eq!(kind.request_id, Some(78));
+        assert!(matches!(kind.action, Action::TakeBuy));
+        assert!(matches!(kind.payload, Some(Payload::Amount(100))));
     }
 }

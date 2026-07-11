@@ -33,14 +33,25 @@ fn trade_key_map() -> &'static std::sync::RwLock<HashMap<String, u32>> {
 enum DaemonReply {
     /// Daemon accepted the order and assigned a UUID (create flow).
     Confirmed { daemon_id: String },
+    /// Daemon accepted the take (take flow). Unlike a create, the take's
+    /// first reply varies by role and daemon config (add-invoice,
+    /// pay-invoice, a direct progression message, …), so the reply carries
+    /// whatever the caller needs to build the trade from real daemon data
+    /// instead of optimistic assumptions.
+    TakeAccepted {
+        action: mostro_core::message::Action,
+        /// Order status from the reply payload, when present.
+        status: Option<crate::api::types::OrderStatus>,
+        /// Sat amount the daemon calculated for the trade, when present.
+        amount_sats: Option<u64>,
+        /// Hold invoice bolt11 (seller taking a buy order), when present.
+        hold_invoice: Option<String>,
+    },
     /// Daemon rejected the request with a CantDo reason.
     Rejected { reason: String, message: String },
 }
 
 /// What kind of outgoing request a pending record tracks.
-///
-/// Only order creation today; take/add-invoice are meant to reuse the same
-/// correlation machinery (they too send a fresh nonce the daemon echoes).
 enum PendingRequestKind {
     Create {
         /// Locally-generated UUID the order was created under before the
@@ -53,6 +64,8 @@ enum PendingRequestKind {
         /// request_id).
         content_key: String,
     },
+    /// A take-buy / take-sell awaiting the daemon's first reply.
+    Take,
 }
 
 /// Everything one outgoing daemon request needs tracked until its reply is
@@ -169,10 +182,90 @@ fn pending_local_uuid_for(trade_pubkey_hex: &str) -> Option<String> {
         .lock()
         .ok()?
         .get(trade_pubkey_hex)
-        .map(|p| {
-            let PendingRequestKind::Create { local_uuid, .. } = &p.kind;
-            local_uuid.clone()
+        .and_then(|p| match &p.kind {
+            PendingRequestKind::Create { local_uuid, .. } => Some(local_uuid.clone()),
+            _ => None,
         })
+}
+
+/// Remove and return the pending request for `trade_pubkey_hex` only when it
+/// is a `Take` and `got` echoes its nonce. Creates are left in place for the
+/// `NewOrder` arm — a create's only success reply is `NewOrder`, while a
+/// take's first reply varies, so takes are resolved before the per-action
+/// arms (see `dispatch_mostro_message`).
+fn take_matching_take(trade_pubkey_hex: &str, got: Option<u64>) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(p)
+            if request_id_matches(p.request_id, got)
+                && matches!(p.kind, PendingRequestKind::Take) =>
+        {
+            map.remove(trade_pubkey_hex)
+        }
+        _ => None,
+    }
+}
+
+/// Classify the daemon's first reply to a take into a [`DaemonReply`].
+///
+/// A take's success reply varies by role, order shape and daemon config —
+/// `add-invoice` (buyer, with the calculated sats in an `Order` payload),
+/// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload), or a
+/// direct progression message when an invoice was pre-attached — so
+/// classification goes by payload shape rather than by enumerating actions
+/// (the pattern MostriX uses). `pay-bond-invoice` maps to a stable
+/// `BondRequired` rejection: anti-abuse bonds are not supported yet, and an
+/// honest error beats a fake trade or a silent timeout.
+fn classify_take_reply(
+    action: &mostro_core::message::Action,
+    payload: &Option<mostro_core::message::Payload>,
+) -> DaemonReply {
+    use mostro_core::message::{Action, Payload};
+
+    if matches!(action, Action::PayBondInvoice) {
+        return DaemonReply::Rejected {
+            reason: "BondRequired".to_string(),
+            message: "BondRequired".to_string(),
+        };
+    }
+
+    match payload {
+        Some(Payload::PaymentRequest(small_order, invoice, amount)) => {
+            let amount_sats = amount
+                .and_then(|a| u64::try_from(a).ok())
+                .or_else(|| {
+                    small_order.as_ref().and_then(|so| {
+                        if so.amount > 0 { Some(so.amount as u64) } else { None }
+                    })
+                });
+            DaemonReply::TakeAccepted {
+                action: action.clone(),
+                status: small_order
+                    .as_ref()
+                    .and_then(|so| so.status.and_then(map_core_status)),
+                amount_sats,
+                hold_invoice: Some(invoice.clone()),
+            }
+        }
+        Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
+            action: action.clone(),
+            status: small_order.status.and_then(map_core_status),
+            amount_sats: if small_order.amount > 0 {
+                Some(small_order.amount as u64)
+            } else {
+                None
+            },
+            hold_invoice: None,
+        },
+        // Action-only progression reply (payload absent or of another shape):
+        // still a genuine acceptance — the caller falls back to book data.
+        _ => DaemonReply::TakeAccepted {
+            action: action.clone(),
+            status: None,
+            amount_sats: None,
+            hold_invoice: None,
+        },
+    }
 }
 
 /// True when the order id stored for a trade may be rebound to `incoming_id`.
@@ -770,30 +863,163 @@ pub async fn take_order(
         return Err(anyhow::anyhow!("InvalidRole"));
     }
 
+    // Derive a fresh trade key so each take uses a unique Nostr identity.
+    let trade_key_info = crate::api::identity::derive_trade_key().await?;
+    let trade_index = trade_key_info.index;
+
+    // Key/node/event failures now surface as errors: nothing has been
+    // published yet, so pretending the take went through (the old behavior)
+    // would show the user a trade that never existed.
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
+
+    // Read default LN address from settings (take-sell-ln-address flow).
+    let ln_address: Option<String> = crate::api::settings::get_settings()
+        .await
+        .ok()
+        .and_then(|s| s.default_lightning_address);
+
+    // Correlation nonce for this take attempt. The daemon echoes it in its
+    // reply (add-invoice / pay-invoice / pay-bond-invoice / CantDo); only a
+    // reply carrying it may resolve the confirmation below.
+    let request_id: u64 = {
+        use rand::RngCore;
+        rand::rngs::OsRng.next_u64().max(1) // 0 is indistinguishable from "unset"
+    };
+
+    let event_json = match role {
+        TradeRole::Buyer => {
+            actions::take_sell(
+                &identity_keys,
+                &sender_keys,
+                &mostro_pubkey,
+                &order_id,
+                trade_index,
+                fiat_amount,
+                ln_address.as_deref(),
+                request_id,
+            )
+            .await?
+        }
+        TradeRole::Seller => {
+            actions::take_buy(
+                &identity_keys,
+                &sender_keys,
+                &mostro_pubkey,
+                &order_id,
+                trade_index,
+                fiat_amount,
+                request_id,
+            )
+            .await?
+        }
+    };
+
+    // Register the pending record BEFORE subscribing/publishing (same
+    // ordering as create_order) so the reply cannot race the bookkeeping.
+    let trade_pk_hex = sender_keys.public_key().to_hex();
+    let (conf_tx, conf_rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    if let Ok(mut map) = pending_requests().lock() {
+        map.insert(
+            trade_pk_hex.clone(),
+            PendingRequest {
+                request_id,
+                trade_index,
+                kind: PendingRequestKind::Take,
+                tx: Some(conf_tx),
+            },
+        );
+    }
+
+    // Subscribe to gift-wrap responses addressed to this trade key so the
+    // daemon's reply (and later BuyerTookOrder / HoldInvoicePaymentAccepted)
+    // reaches the dispatcher.
+    subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
+
+    if let Err(e) = publish_event_json(&event_json).await {
+        remove_pending_request(&trade_pk_hex);
+        return Err(e);
+    }
+
+    crate::api::logging::blog_info("orders", format!(
+        "take_order published order={order_id} trade_index={trade_index} — \
+         waiting for daemon"
+    ));
+
+    // Wait for the daemon's verdict — the trade only exists once the daemon
+    // acknowledges the take. On timeout, detach only the waiter and leave the
+    // record: a genuine late reply is logged, a stale replay still can't
+    // consume it, and the record dies with the per-trade subscription.
+    let reply = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        conf_rx,
+    ).await;
+    if !matches!(reply, Ok(Ok(_))) {
+        detach_request_waiter(&trade_pk_hex);
+    }
+
+    let (status, amount_sats, hold_invoice) = match reply {
+        Ok(Ok(DaemonReply::TakeAccepted {
+            action,
+            status,
+            amount_sats,
+            hold_invoice,
+        })) => {
+            crate::api::logging::blog_info("orders", format!(
+                "take_order confirmed by daemon: order={order_id} reply={action:?}"
+            ));
+            (status, amount_sats, hold_invoice)
+        }
+        Ok(Ok(DaemonReply::Rejected { reason, message })) => {
+            crate::api::logging::blog_warn("orders", format!(
+                "take_order rejected: {reason} — {message}"
+            ));
+            return Err(anyhow::anyhow!("{message}"));
+        }
+        Ok(Ok(DaemonReply::Confirmed { .. })) => {
+            // Only the create flow sends Confirmed; a take record can never
+            // receive it. Treat defensively as an acceptance without data.
+            log::warn!("[orders] take_order received a create-style confirmation");
+            (None, None, None)
+        }
+        _ => {
+            // No daemon response within the timeout. Do not persist or show
+            // the trade — as far as the user is concerned the take failed.
+            crate::api::logging::blog_warn("orders", format!(
+                "take_order: no daemon response within 10s for order={order_id}"
+            ));
+            return Err(anyhow::anyhow!("NoDaemonResponse"));
+        }
+    };
+
+    // Accepted: build the trade from the daemon's actual reply instead of
+    // optimistic assumptions, then persist and wire up the trade session.
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-
-    let dispatch_role = role.clone();
     let initial_step = match role {
         TradeRole::Buyer => TradeStep::Buyer(BuyerStep::OrderTaken),
         TradeRole::Seller => TradeStep::Seller(SellerStep::TakerFound),
     };
 
-    // Derive a fresh trade key so each take uses a unique Nostr identity.
-    let trade_key_info = crate::api::identity::derive_trade_key().await?;
-    let trade_index = trade_key_info.index;
-    // Do NOT persist the mapping here — store only after the take event is
-    // successfully published so a publish failure doesn't leave a stale entry.
+    let mut order_info = order.clone();
+    if let Some(s) = status.clone() {
+        order_info.status = s;
+    }
+    if amount_sats.is_some() {
+        order_info.amount_sats = amount_sats;
+    }
 
     let trade = TradeInfo {
         id: uuid::Uuid::new_v4().to_string(),
-        order: order.clone(),
+        order: order_info,
         role,
         counterparty_pubkey: order.creator_pubkey.clone(),
         current_step: initial_step,
-        hold_invoice: None,
+        hold_invoice,
         buyer_invoice: None,
         trade_key_index: trade_index,
         cooperative_cancel_state: None,
@@ -803,105 +1029,30 @@ pub async fn take_order(
         outcome: None,
     };
 
-    // Dispatch the take action to Mostro using the trade key for signing.
-    match crate::api::identity::get_active_trade_keys(trade_index).await {
-        Ok(sender_keys) => {
-            match nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey()) {
-                Ok(mostro_pubkey) => {
-                    // Read default LN address from settings (take-sell-ln-address flow).
-                    let ln_address: Option<String> = crate::api::settings::get_settings()
-                        .await
-                        .ok()
-                        .and_then(|s| s.default_lightning_address);
-                    let ln_address_ref = ln_address.as_deref();
-
-                    let identity_keys = match crate::api::identity::get_transport_identity_keys(
-                        &sender_keys,
-                    )
-                    .await
-                    {
-                        Ok(k) => k,
-                        Err(e) => {
-                            log::error!(
-                                "[orders] take_order: could not resolve identity keys: {e}"
-                            );
-                            return Ok(trade);
-                        }
-                    };
-                    let action_result = match dispatch_role {
-                        TradeRole::Buyer => {
-                            actions::take_sell(
-                                &identity_keys,
-                                &sender_keys,
-                                &mostro_pubkey,
-                                &order_id,
-                                trade_index,
-                                fiat_amount,
-                                ln_address_ref,
-                            )
-                            .await
-                        }
-                        TradeRole::Seller => {
-                            actions::take_buy(
-                                &identity_keys,
-                                &sender_keys,
-                                &mostro_pubkey,
-                                &order_id,
-                                trade_index,
-                                fiat_amount,
-                            )
-                            .await
-                        }
-                    };
-
-                    match action_result {
-                        Ok(event_json) => {
-                            if let Err(e) = publish_event_json(&event_json).await {
-                                log::warn!("[orders] take_order publish failed: {e}");
-                            } else {
-                                // Persist trade-key mapping and trade record only after a
-                                // successful publish so failures leave no stale state.
-                                store_trade_key_index(&order_id, trade_index).await;
-                                if let Some(db) = crate::db::app_db::db() {
-                                    if let Err(e) = db.save_trade(&trade).await {
-                                        log::warn!("[orders] failed to persist trade: {e}");
-                                    }
-                                }
-                                log::info!(
-                                    "[orders] take_order dispatched order={order_id} \
-                                     trade_index={trade_index} ln_address={}",
-                                    if ln_address_ref.is_some() {
-                                        "present"
-                                    } else {
-                                        "none"
-                                    }
-                                );
-                                // Subscribe to d-tag K38383 updates for this specific order so we
-                                // receive status changes (pending → in-progress → waiting-payment …).
-                                subscribe_single_order(&order_id).await;
-                                // Subscribe to NIP-59 gift-wrap daemon responses addressed to
-                                // this trade key so we can receive BuyerTookOrder /
-                                // HoldInvoicePaymentAccepted and unlock the P2P chat.
-                                subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
-                                // Create a session so the chat API can look up keys immediately.
-                                let _ = crate::mostro::session::session_manager()
-                                    .create_session(
-                                        order_id.clone(),
-                                        trade.role.clone(),
-                                        trade_index,
-                                        trade.order.clone(),
-                                    )
-                                    .await;
-                            }
-                        }
-                        Err(e) => log::warn!("[orders] take_order action build failed: {e}"),
-                    }
-                }
-                Err(e) => log::error!("[orders] take_order: invalid mostro pubkey: {e}"),
-            }
-        }
-        Err(e) => log::warn!("[orders] take_order: could not get trade keys: {e}"),
+    store_trade_key_index(&order_id, trade_index).await;
+    if let Some(status) = status {
+        // Keep the public order book in sync with the reply so the order
+        // doesn't linger as Pending (mirrors what the per-action arms do for
+        // later messages; this first reply was consumed by the waiter).
+        order_book().update_order_status(&order_id, status).await;
     }
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db.save_trade(&trade).await {
+            log::warn!("[orders] failed to persist trade: {e}");
+        }
+    }
+    // Subscribe to d-tag K38383 updates for this specific order so we
+    // receive status changes (pending → in-progress → waiting-payment …).
+    subscribe_single_order(&order_id).await;
+    // Create a session so the chat API can look up keys immediately.
+    let _ = crate::mostro::session::session_manager()
+        .create_session(
+            order_id.clone(),
+            trade.role.clone(),
+            trade_index,
+            trade.order.clone(),
+        )
+        .await;
 
     Ok(trade)
 }
@@ -1358,6 +1509,39 @@ async fn dispatch_mostro_message(
         }
     }
 
+    // Resolve a waiting take_order call before the per-action arms. Unlike a
+    // create (whose only success reply is NewOrder), a take's first reply
+    // varies by role and daemon config (add-invoice, pay-invoice,
+    // pay-bond-invoice, a direct progression message, …), so ANY non-CantDo
+    // reply echoing the take's nonce belongs to that caller. CantDo stays
+    // with its arm below, which rejects any pending request kind through the
+    // shared reason mapping. The caller applies the reply's effects itself
+    // (status, hold invoice, persistence), so consuming the message here
+    // keeps the arms from double-processing it.
+    if kind.action != Action::CantDo {
+        if let Some(pending) = take_matching_take(trade_pubkey_hex, kind.request_id) {
+            let reply = classify_take_reply(&kind.action, &kind.payload);
+            if let Some(tx) = pending.tx {
+                crate::api::logging::blog_info("gift-wrap", format!(
+                    "{:?}: notified waiting take_order for trade={}",
+                    kind.action,
+                    &trade_pubkey_hex[..8]
+                ));
+                let _ = tx.send(reply);
+            } else {
+                // Genuine reply after the 10s timeout: the caller already
+                // returned NoDaemonResponse and persisted nothing, so there
+                // is nothing to reconcile for a take — just log it.
+                crate::api::logging::blog_info("gift-wrap", format!(
+                    "{:?}: late reply for timed-out take on trade={} — ignoring",
+                    kind.action,
+                    &trade_pubkey_hex[..8]
+                ));
+            }
+            return;
+        }
+    }
+
     match &kind.action {
         Action::NewOrder => {
             if let Some(order_id) = &kind.id {
@@ -1374,7 +1558,16 @@ async fn dispatch_mostro_message(
                     // subsequent maker actions (e.g. cancel) can find the key.
                     store_trade_key_index(&daemon_id, pending.trade_index).await;
 
-                    let PendingRequestKind::Create { local_uuid, .. } = pending.kind;
+                    let PendingRequestKind::Create { local_uuid, .. } = pending.kind else {
+                        // Unreachable in practice: take records are consumed
+                        // by the pre-arm interception for every non-CantDo
+                        // action, so only creates can arrive here.
+                        log::warn!(
+                            "[orders] NewOrder consumed a non-create pending \
+                             record for trade={trade_pubkey_hex} — ignoring"
+                        );
+                        return;
+                    };
                     if let Some(tx) = pending.tx {
                         // create_order is still waiting — the caller handles
                         // UUID adoption and persistence.
@@ -2235,8 +2428,11 @@ async fn ingest_order_event(event: &nostr_sdk::Event) {
                     // polls with the real order ID. Only records without a
                     // live waiter are taken: an in-flight create_order owns
                     // its own reconciliation via the kind-14 acknowledgement.
-                    if let Some(pending) = take_pending_create_by_content_key(&ck) {
-                        let PendingRequestKind::Create { local_uuid: local_id, .. } = pending.kind;
+                    if let Some(PendingRequest {
+                        kind: PendingRequestKind::Create { local_uuid: local_id, .. },
+                        ..
+                    }) = take_pending_create_by_content_key(&ck)
+                    {
                         if let Some(db) = crate::db::app_db::db() {
                             if let Err(e) =
                                 db.update_trade_order_id(&local_id, &info.id).await
@@ -2496,8 +2692,24 @@ mod tests {
     }
 
     fn local_uuid_of(pending: &PendingRequest) -> &str {
-        let PendingRequestKind::Create { local_uuid, .. } = &pending.kind;
-        local_uuid
+        match &pending.kind {
+            PendingRequestKind::Create { local_uuid, .. } => local_uuid,
+            _ => panic!("expected a Create record"),
+        }
+    }
+
+    fn insert_pending_take(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonReply> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+        pending_requests().lock().unwrap().insert(
+            key.to_string(),
+            PendingRequest {
+                request_id,
+                trade_index: 4,
+                kind: PendingRequestKind::Take,
+                tx: Some(tx),
+            },
+        );
+        rx
     }
 
     /// A reply with a foreign or missing request_id must leave the record in
@@ -2565,6 +2777,123 @@ mod tests {
         // B is untouched and still consumable by its own nonce.
         let pending = take_matching_request(key_b, Some(22)).expect("must match B");
         assert_eq!(local_uuid_of(&pending), format!("local-{key_b}"));
+    }
+
+    /// `take_matching_take` must only consume Take records — a matching nonce
+    /// on a Create record belongs to the NewOrder arm, and a foreign or
+    /// missing nonce consumes nothing at all.
+    #[tokio::test]
+    async fn take_matching_take_only_consumes_take_records() {
+        let create_key = "test-take-kind-create-pubkey";
+        let take_key = "test-take-kind-take-pubkey";
+        let _rx_c = insert_pending_create(create_key, 41);
+        let _rx_t = insert_pending_take(take_key, 42);
+
+        // A Create record is never consumed here, even with its exact nonce.
+        assert!(take_matching_take(create_key, Some(41)).is_none());
+        assert!(pending_requests().lock().unwrap().contains_key(create_key));
+
+        // A Take record follows the same nonce rules as any request.
+        assert!(take_matching_take(take_key, None).is_none());
+        assert!(take_matching_take(take_key, Some(99)).is_none());
+        assert!(pending_requests().lock().unwrap().contains_key(take_key));
+        let pending = take_matching_take(take_key, Some(42)).expect("must match");
+        assert!(matches!(pending.kind, PendingRequestKind::Take));
+        assert!(!pending_requests().lock().unwrap().contains_key(take_key));
+
+        pending_requests().lock().unwrap().remove(create_key);
+    }
+
+    fn small_order_with(
+        status: mostro_core::order::Status,
+        amount: i64,
+    ) -> mostro_core::order::SmallOrder {
+        mostro_core::order::SmallOrder::new(
+            None,
+            Some(mostro_core::order::Kind::Sell),
+            Some(status),
+            amount,
+            "USD".to_string(),
+            None,
+            None,
+            100,
+            "bank".to_string(),
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    /// `classify_take_reply` goes by payload shape: `PaymentRequest` carries
+    /// the hold invoice (seller flow), `Order` carries the calculated sats
+    /// (buyer flow), `pay-bond-invoice` maps to a stable BondRequired
+    /// rejection, and action-only replies are still acceptances.
+    #[test]
+    fn classify_take_reply_maps_payload_shapes() {
+        use mostro_core::message::{Action, Payload};
+        use mostro_core::order::Status;
+
+        // Seller taking a buy order: pay-invoice with the hold invoice.
+        let so = small_order_with(Status::WaitingPayment, 7851);
+        match classify_take_reply(
+            &Action::PayInvoice,
+            &Some(Payload::PaymentRequest(Some(so), "lnbc1invoice".into(), Some(7851))),
+        ) {
+            DaemonReply::TakeAccepted { status, amount_sats, hold_invoice, .. } => {
+                assert_eq!(status, Some(crate::api::types::OrderStatus::WaitingPayment));
+                assert_eq!(amount_sats, Some(7851));
+                assert_eq!(hold_invoice.as_deref(), Some("lnbc1invoice"));
+            }
+            _ => panic!("expected TakeAccepted"),
+        }
+
+        // Amount falls back to the embedded order when the third field is None.
+        let so = small_order_with(Status::WaitingPayment, 500);
+        match classify_take_reply(
+            &Action::PayInvoice,
+            &Some(Payload::PaymentRequest(Some(so), "lnbc1invoice".into(), None)),
+        ) {
+            DaemonReply::TakeAccepted { amount_sats, .. } => {
+                assert_eq!(amount_sats, Some(500));
+            }
+            _ => panic!("expected TakeAccepted"),
+        }
+
+        // Buyer taking a sell order: add-invoice with the calculated sats.
+        let so = small_order_with(Status::WaitingBuyerInvoice, 9526);
+        match classify_take_reply(&Action::AddInvoice, &Some(Payload::Order(so))) {
+            DaemonReply::TakeAccepted { status, amount_sats, hold_invoice, .. } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingBuyerInvoice)
+                );
+                assert_eq!(amount_sats, Some(9526));
+                assert!(hold_invoice.is_none());
+            }
+            _ => panic!("expected TakeAccepted"),
+        }
+
+        // Anti-abuse bond: not supported — stable rejection marker.
+        match classify_take_reply(&Action::PayBondInvoice, &None) {
+            DaemonReply::Rejected { reason, message } => {
+                assert_eq!(reason, "BondRequired");
+                assert_eq!(message, "BondRequired");
+            }
+            _ => panic!("expected Rejected"),
+        }
+
+        // Action-only progression reply: still a genuine acceptance.
+        match classify_take_reply(&Action::WaitingSellerToPay, &None) {
+            DaemonReply::TakeAccepted { status, amount_sats, hold_invoice, .. } => {
+                assert!(status.is_none());
+                assert!(amount_sats.is_none());
+                assert!(hold_invoice.is_none());
+            }
+            _ => panic!("expected TakeAccepted"),
+        }
     }
 
     /// Only the pending create's own local UUID may be rebound to an incoming

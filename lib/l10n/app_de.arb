@@ -69,6 +69,7 @@
   "addInvoiceTitle": "Rechnung hinzufügen",
   "submitButtonLabel": "Absenden",
   "orderAlreadyTaken": "Die Bestellung wurde bereits angenommen",
+  "bondRequired": "Dieser Node verlangt eine Anti-Missbrauch-Kaution, die noch nicht unterstützt wird",
   "orderIdCopied": "Bestell-ID kopiert",
 
   "orderDetailsTitle": "BESTELLDETAILS",

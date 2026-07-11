@@ -152,6 +152,8 @@
   "@submitButtonLabel": {"description": "Generic submit button label"},
   "orderAlreadyTaken": "Order has already been taken",
   "@orderAlreadyTaken": {"description": "Error message when attempting to take an already-taken order"},
+  "bondRequired": "This node requires an anti-abuse bond, which is not supported yet",
+  "@bondRequired": {"description": "Error shown when the Mostro node asks for an anti-abuse bond before accepting the order — the app does not support bonds yet"},
   "orderIdCopied": "Order ID copied",
   "@orderIdCopied": {"description": "Snackbar shown after copying an order ID to clipboard"},
 

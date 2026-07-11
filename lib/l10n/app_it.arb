@@ -69,6 +69,7 @@
   "addInvoiceTitle": "Aggiungi Fattura",
   "submitButtonLabel": "Invia",
   "orderAlreadyTaken": "L'ordine è già stato preso",
+  "bondRequired": "Questo nodo richiede una cauzione anti-abuso, non ancora supportata",
   "orderIdCopied": "ID ordine copiato",
 
   "orderDetailsTitle": "DETTAGLI ORDINE",

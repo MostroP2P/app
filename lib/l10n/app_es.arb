@@ -69,6 +69,7 @@
   "addInvoiceTitle": "Agregar Factura",
   "submitButtonLabel": "Enviar",
   "orderAlreadyTaken": "La orden ya fue tomada",
+  "bondRequired": "Este nodo requiere un bono anti-abuso, que aún no está soportado",
   "orderIdCopied": "ID de orden copiado",
 
   "orderDetailsTitle": "DETALLES DE LA ORDEN",

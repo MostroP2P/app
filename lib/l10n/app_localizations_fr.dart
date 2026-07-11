@@ -231,6 +231,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get orderAlreadyTaken => 'Cet ordre a déjà été pris';
 
   @override
+  String get bondRequired =>
+      'Ce nœud exige une caution anti-abus, qui n\'est pas encore prise en charge';
+
+  @override
   String get orderIdCopied => 'ID d\'ordre copié';
 
   @override
