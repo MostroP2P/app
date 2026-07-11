@@ -69,6 +69,9 @@
   "addInvoiceTitle": "Ajouter une facture",
   "submitButtonLabel": "Soumettre",
   "orderAlreadyTaken": "Cet ordre a déjà été pris",
+  "bondRequired": "Ce nœud exige une caution anti-abus, qui n'est pas encore prise en charge",
+  "addInvoiceAmount": "Montant à recevoir : {sats} sats",
+  "payInvoiceAmount": "Montant à payer : {sats} sats",
   "orderIdCopied": "ID d'ordre copié",
 
   "orderDetailsTitle": "DÉTAILS DE L'ORDRE",

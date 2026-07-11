@@ -229,6 +229,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get orderAlreadyTaken => 'Die Bestellung wurde bereits angenommen';
 
   @override
+  String get bondRequired =>
+      'Dieser Node verlangt eine Anti-Missbrauch-Kaution, die noch nicht unterstützt wird';
+
+  @override
+  String addInvoiceAmount(String sats) {
+    return 'Zu erhaltender Betrag: $sats sats';
+  }
+
+  @override
+  String payInvoiceAmount(String sats) {
+    return 'Zu zahlender Betrag: $sats sats';
+  }
+
+  @override
   String get orderIdCopied => 'Bestell-ID kopiert';
 
   @override

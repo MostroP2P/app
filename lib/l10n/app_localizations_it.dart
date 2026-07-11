@@ -229,6 +229,20 @@ class AppLocalizationsIt extends AppLocalizations {
   String get orderAlreadyTaken => 'L\'ordine è già stato preso';
 
   @override
+  String get bondRequired =>
+      'Questo nodo richiede una cauzione anti-abuso, non ancora supportata';
+
+  @override
+  String addInvoiceAmount(String sats) {
+    return 'Importo da ricevere: $sats sats';
+  }
+
+  @override
+  String payInvoiceAmount(String sats) {
+    return 'Importo da pagare: $sats sats';
+  }
+
+  @override
   String get orderIdCopied => 'ID ordine copiato';
 
   @override

@@ -152,6 +152,18 @@
   "@submitButtonLabel": {"description": "Generic submit button label"},
   "orderAlreadyTaken": "Order has already been taken",
   "@orderAlreadyTaken": {"description": "Error message when attempting to take an already-taken order"},
+  "bondRequired": "This node requires an anti-abuse bond, which is not supported yet",
+  "@bondRequired": {"description": "Error shown when the Mostro node asks for an anti-abuse bond before accepting the order — the app does not support bonds yet"},
+  "addInvoiceAmount": "Amount to receive: {sats} sats",
+  "@addInvoiceAmount": {
+    "description": "Sats amount (calculated by the Mostro daemon) the buyer's invoice must be for, shown on the add-invoice screen",
+    "placeholders": {"sats": {"type": "String"}}
+  },
+  "payInvoiceAmount": "Amount to pay: {sats} sats",
+  "@payInvoiceAmount": {
+    "description": "Sats amount of the hold invoice the seller must pay, shown on the pay-invoice screen",
+    "placeholders": {"sats": {"type": "String"}}
+  },
   "orderIdCopied": "Order ID copied",
   "@orderIdCopied": {"description": "Snackbar shown after copying an order ID to clipboard"},
 

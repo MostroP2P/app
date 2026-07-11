@@ -66,6 +66,10 @@ class _PayLightningInvoiceScreenState
         final status = next.valueOrNull;
         if (status == null || _navigated || !mounted) return;
         switch (status) {
+          // waitingBuyerInvoice: on this screen it can only mean the hold
+          // invoice payment was registered and mostrod is now waiting for
+          // the buyer's invoice — move the seller to the trade screen.
+          case OrderStatus.waitingBuyerInvoice:
           case OrderStatus.active:
           case OrderStatus.fiatSent:
           case OrderStatus.settledHoldInvoice:
@@ -176,7 +180,17 @@ class _PayLightningInvoiceScreenState
                             ),
                           ],
                         ),
-                        const SizedBox(height: AppSpacing.xl),
+                        // Sats amount of the hold invoice (from the daemon's
+                        // pay-invoice reply, stored in the trade record).
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          l10n.payInvoiceAmount(amountSats.toString()),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
 
                         // QR Code
                         Expanded(

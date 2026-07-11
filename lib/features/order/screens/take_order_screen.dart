@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
@@ -147,15 +148,26 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      final message = e.toString();
-      if (message.contains('OrderAlreadyTaken')) {
+      final l10n = AppLocalizations.of(context);
+      // takeOrder now waits for the daemon's reply: errors here mean the
+      // trade was NOT created (CantDo rejection, unsupported bond, timeout).
+      // Strip the Rust error prefix for a cleaner message.
+      final raw = e.toString();
+      final anyhowMatch = RegExp(r'^.*?AnyhowException\((.+)\)$').firstMatch(raw);
+      final msg = anyhowMatch != null ? anyhowMatch.group(1)! : raw;
+      if (msg.contains('OrderAlreadyTaken')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order has already been taken')),
+          SnackBar(content: Text(l10n.orderAlreadyTaken)),
         );
         context.go(AppRoute.home);
       } else {
+        final display = msg.contains('NoDaemonResponse')
+            ? l10n.sessionTimeoutMessage
+            : msg.contains('BondRequired')
+                ? l10n.bondRequired
+                : msg;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $message')),
+          SnackBar(content: Text(display)),
         );
       }
     } finally {
