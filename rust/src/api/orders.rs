@@ -47,6 +47,10 @@ enum DaemonReply {
         /// Hold invoice bolt11 (seller taking a buy order), when present.
         hold_invoice: Option<String>,
     },
+    /// Daemon acknowledged an add-invoice. The reply doubles as a status
+    /// update processed by the per-action arms; the caller only needs the
+    /// unblock, so no data travels with it.
+    Acknowledged,
     /// Daemon rejected the request with a CantDo reason.
     Rejected { reason: String, message: String },
 }
@@ -66,6 +70,8 @@ enum PendingRequestKind {
     },
     /// A take-buy / take-sell awaiting the daemon's first reply.
     Take,
+    /// A buyer's add-invoice awaiting the daemon's acknowledgement.
+    AddInvoice,
 }
 
 /// Everything one outgoing daemon request needs tracked until its reply is
@@ -199,6 +205,23 @@ fn take_matching_take(trade_pubkey_hex: &str, got: Option<u64>) -> Option<Pendin
         Some(p)
             if request_id_matches(p.request_id, got)
                 && matches!(p.kind, PendingRequestKind::Take) =>
+        {
+            map.remove(trade_pubkey_hex)
+        }
+        _ => None,
+    }
+}
+
+/// Remove and return the pending request for `trade_pubkey_hex` only when it
+/// is an `AddInvoice` and `got` echoes its nonce. Unlike takes, the consumed
+/// message still flows through the per-action arms — an add-invoice reply is
+/// also a status update (see `dispatch_mostro_message`).
+fn take_matching_add_invoice(trade_pubkey_hex: &str, got: Option<u64>) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(p)
+            if request_id_matches(p.request_id, got)
+                && matches!(p.kind, PendingRequestKind::AddInvoice) =>
         {
             map.remove(trade_pubkey_hex)
         }
@@ -1085,6 +1108,15 @@ pub async fn send_invoice(
     let identity_keys =
         crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
+
+    // Correlation nonce for this submission. The daemon echoes it in its
+    // reply (progression message or CantDo, e.g. InvalidInvoice); only a
+    // reply carrying it may resolve the acknowledgement below.
+    let request_id: u64 = {
+        use rand::RngCore;
+        rand::rngs::OsRng.next_u64().max(1) // 0 is indistinguishable from "unset"
+    };
+
     let event_json = actions::add_invoice(
         &identity_keys,
         &sender_keys,
@@ -1093,16 +1125,71 @@ pub async fn send_invoice(
         trade_index,
         &invoice_or_address,
         amount_opt,
+        request_id,
     )
     .await?;
-    publish_event_json(&event_json).await?;
+
+    // Register the pending record BEFORE publishing so the reply cannot race
+    // the bookkeeping. The trade key already has an active subscription from
+    // the take (and the global feed covers cold starts), so no new
+    // subscription is needed here.
+    let trade_pk_hex = sender_keys.public_key().to_hex();
+    let (conf_tx, conf_rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    if let Ok(mut map) = pending_requests().lock() {
+        map.insert(
+            trade_pk_hex.clone(),
+            PendingRequest {
+                request_id,
+                trade_index,
+                kind: PendingRequestKind::AddInvoice,
+                tx: Some(conf_tx),
+            },
+        );
+    }
+
+    if let Err(e) = publish_event_json(&event_json).await {
+        remove_pending_request(&trade_pk_hex);
+        return Err(e);
+    }
     log::info!(
         "[orders] add_invoice published for order={order_id} trade_index={trade_index} \
-         ln_address={} amount={:?}",
+         ln_address={} amount={:?} — waiting for daemon",
         invoice_or_address.contains('@'),
         amount_opt
     );
-    Ok(())
+
+    // Wait for the daemon's verdict: a rejected invoice (e.g. InvalidInvoice)
+    // must surface instead of letting the UI advance on a publish that the
+    // daemon errored on. Timeout keeps the record for a late reply, which the
+    // dispatcher processes as a normal status update.
+    let reply = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        conf_rx,
+    ).await;
+    if !matches!(reply, Ok(Ok(_))) {
+        detach_request_waiter(&trade_pk_hex);
+    }
+
+    match reply {
+        Ok(Ok(DaemonReply::Rejected { reason, message })) => {
+            crate::api::logging::blog_warn("orders", format!(
+                "add_invoice rejected: {reason} — {message}"
+            ));
+            Err(anyhow::anyhow!("{message}"))
+        }
+        Ok(Ok(_)) => {
+            crate::api::logging::blog_info("orders", format!(
+                "add_invoice acknowledged by daemon for order={order_id}"
+            ));
+            Ok(())
+        }
+        _ => {
+            crate::api::logging::blog_warn("orders", format!(
+                "add_invoice: no daemon response within 10s for order={order_id}"
+            ));
+            Err(anyhow::anyhow!("NoDaemonResponse"))
+        }
+    }
 }
 
 /// Mark fiat payment as sent by the buyer.
@@ -1539,6 +1626,29 @@ async fn dispatch_mostro_message(
                 ));
             }
             return;
+        }
+
+        // An add-invoice reply doubles as a status update
+        // (waiting-seller-to-pay, buyer-invoice-accepted, …), so only
+        // unblock the waiting send_invoice caller and FALL THROUGH — the
+        // per-action arms below still persist the message's effects. This
+        // asymmetry with takes is deliberate: a take's caller applies the
+        // reply itself, an add-invoice's caller only needs success/failure.
+        if let Some(pending) = take_matching_add_invoice(trade_pubkey_hex, kind.request_id) {
+            if let Some(tx) = pending.tx {
+                crate::api::logging::blog_info("gift-wrap", format!(
+                    "{:?}: acknowledged waiting send_invoice for trade={}",
+                    kind.action,
+                    &trade_pubkey_hex[..8]
+                ));
+                let _ = tx.send(DaemonReply::Acknowledged);
+            } else {
+                crate::api::logging::blog_info("gift-wrap", format!(
+                    "{:?}: late acknowledgement for timed-out add-invoice on trade={}",
+                    kind.action,
+                    &trade_pubkey_hex[..8]
+                ));
+            }
         }
     }
 
@@ -2802,6 +2912,39 @@ mod tests {
         assert!(!pending_requests().lock().unwrap().contains_key(take_key));
 
         pending_requests().lock().unwrap().remove(create_key);
+    }
+
+    /// `take_matching_add_invoice` mirrors the take rules for its own kind:
+    /// only AddInvoice records, only with the exact nonce.
+    #[tokio::test]
+    async fn take_matching_add_invoice_only_consumes_add_invoice_records() {
+        let take_key = "test-ai-take-pubkey";
+        let ai_key = "test-ai-addinvoice-pubkey";
+        let _rx_t = insert_pending_take(take_key, 51);
+
+        let (tx, _rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+        pending_requests().lock().unwrap().insert(
+            ai_key.to_string(),
+            PendingRequest {
+                request_id: 52,
+                trade_index: 4,
+                kind: PendingRequestKind::AddInvoice,
+                tx: Some(tx),
+            },
+        );
+
+        // A Take record is never consumed here, even with its exact nonce.
+        assert!(take_matching_add_invoice(take_key, Some(51)).is_none());
+        assert!(pending_requests().lock().unwrap().contains_key(take_key));
+
+        // The AddInvoice record follows the same nonce rules as any request.
+        assert!(take_matching_add_invoice(ai_key, None).is_none());
+        assert!(take_matching_add_invoice(ai_key, Some(99)).is_none());
+        let pending = take_matching_add_invoice(ai_key, Some(52)).expect("must match");
+        assert!(matches!(pending.kind, PendingRequestKind::AddInvoice));
+        assert!(!pending_requests().lock().unwrap().contains_key(ai_key));
+
+        pending_requests().lock().unwrap().remove(take_key);
     }
 
     fn small_order_with(

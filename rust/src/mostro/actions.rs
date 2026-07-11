@@ -244,6 +244,11 @@ pub async fn rate_user(
 /// the third payload field is `None`.  For Lightning Addresses Mostro needs the
 /// sats amount in the payload so it can resolve the address and generate the
 /// invoice on behalf of the buyer — pass it via `amount_sats`.
+///
+/// `request_id` is the correlation nonce the daemon echoes in its reply
+/// (progression message or CantDo); `send_invoice` relies on it to tell the
+/// genuine reply apart from stale relay-replayed events.
+#[allow(clippy::too_many_arguments)]
 pub async fn add_invoice(
     identity_keys: &Keys,
     trade_keys: &Keys,
@@ -252,6 +257,7 @@ pub async fn add_invoice(
     trade_index: u32,
     invoice: &str,
     amount_sats: Option<u64>,
+    request_id: u64,
 ) -> Result<String> {
     let id = Uuid::parse_str(order_id)?;
     // A Lightning Address contains '@'; a bolt11 invoice does not.
@@ -264,7 +270,7 @@ pub async fn add_invoice(
     let payload = Some(Payload::PaymentRequest(None, invoice.to_string(), amount_field));
     let msg = Message::new_order(
         Some(id),
-        None,
+        Some(request_id),
         Some(trade_index as i64),
         Action::AddInvoice,
         payload,

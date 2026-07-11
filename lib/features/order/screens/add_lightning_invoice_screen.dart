@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
@@ -86,8 +87,17 @@ class _AddLightningInvoiceScreenState
       context.go(AppRoute.tradeDetailPath(widget.orderId));
     } catch (e) {
       if (!mounted) return;
+      // sendInvoice now waits for the daemon's reply: an error means the
+      // invoice was NOT accepted (CantDo, e.g. invalid invoice, or timeout),
+      // so stay on this screen. Strip the Rust error prefix for readability.
+      final raw = e.toString();
+      final anyhowMatch = RegExp(r'^.*?AnyhowException\((.+)\)$').firstMatch(raw);
+      final msg = anyhowMatch != null ? anyhowMatch.group(1)! : raw;
+      final display = msg.contains('NoDaemonResponse')
+          ? AppLocalizations.of(context).sessionTimeoutMessage
+          : msg;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(display)),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
