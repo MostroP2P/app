@@ -5,6 +5,17 @@
 Order browsing, creation, and lifecycle management. Orders are fetched from
 Mostro daemon via Kind 38383 Nostr events and cached locally.
 
+### Daemon confirmation & request correlation
+
+Every request that expects a daemon reply (`create_order`, `take_order`,
+`send_invoice`) carries a random u64 `request_id` nonce. The daemon echoes
+it in its reply (success or `CantDo`), and **only a reply echoing the exact
+nonce may resolve or consume the pending request** — stale events replayed
+by relays carry a different (or no) `request_id` and touch nothing. Each
+call waits up to 10 s; on timeout it returns `NoDaemonResponse` and nothing
+is persisted. A genuine late reply is still reconciled where meaningful
+(create), or logged and dropped (take / add-invoice).
+
 ## Functions
 
 ### get_orders(filters: OrderFilters?) → Vec<OrderInfo>
@@ -59,16 +70,30 @@ NewOrderParams {
 
 ---
 
-### take_order(order_id: String) → TradeInfo
-Take an existing order, starting a trade.
+### take_order(order_id: String, role: TradeRole, fiat_amount: f64?) → TradeInfo
+Take an existing order, starting a trade. `fiat_amount` is required for
+range orders and must fall within `[fiat_amount_min, fiat_amount_max]`.
 
-**Preconditions**: No active trade in progress.
+**Validation**:
+- Order MUST exist in the book, not be own (`CannotTakeOwnOrder`) and be
+  `Pending` (`OrderAlreadyTaken`)
+- `role` MUST match the order kind (buyers take sell orders, sellers take
+  buy orders)
 
-**Side effects**: Sends TakeBuy/TakeSell action to Mostro daemon via
-NIP-44 (Kind 14, transport v2). Creates local Trade record.
+**Side effects**: Sends TakeBuy/TakeSell (NIP-44 kind 14, with the
+correlation nonce) and waits for the daemon's first reply, which varies by
+role and daemon config — `add-invoice` (buyer: calculated sats in an Order
+payload), `pay-invoice` (seller: hold invoice in a PaymentRequest payload),
+or a direct progression message. Only on a correlated reply is the trade
+created: the TradeInfo is built from the reply's real data (status,
+calculated `amount_sats`, `hold_invoice`), persisted to My Trades, the
+order book entry is synced, and the trade session/subscriptions start.
+On rejection or timeout **nothing is persisted** — no phantom trade.
 
-**Errors**: `NoIdentity`, `ActiveTradeExists`, `OrderAlreadyTaken`,
-`OrderNotFound`, `Offline` (queued).
+**Errors**: `OrderNotFound`, `CannotTakeOwnOrder`, `OrderAlreadyTaken`,
+`InvalidRole`, `FiatAmountRequired`/`OutOfRange` (range orders),
+`BondRequired` (daemon requires an anti-abuse bond — not supported yet),
+`NoDaemonResponse`, plus daemon `CantDo` reasons passed through as errors.
 
 ---
 
@@ -82,16 +107,19 @@ MUST be `Pending`.
 
 ---
 
-### submit_buyer_invoice(trade_id: String, bolt11: String) → ()
-For sell orders: buyer submits their Lightning invoice for receiving
-payment upon trade completion.
+### send_invoice(order_id: String, invoice_or_address: String, amount_sats: u64) → ()
+For sell orders: buyer submits a bolt11 invoice or a Lightning Address for
+receiving payment. For LN addresses (`user@domain`) `amount_sats` is
+required so the daemon can resolve the address; bolt11 invoices encode
+their own amount.
 
-**Validation**: `bolt11` MUST be a valid Lightning invoice.
+**Side effects**: Sends `AddInvoice` (with the correlation nonce) and waits
+for the daemon's acknowledgement — its reply (`waiting-seller-to-pay`,
+`buyer-invoice-accepted`, …) is also a status update and is processed
+normally. The UI advances only on acknowledgement.
 
-**Side effects**: Sends `AddInvoice` action to Mostro daemon.
-
-**Errors**: `TradeNotFound`, `InvalidInvoice`, `NotBuyer`,
-`WrongTradeState`.
+**Errors**: `InvalidInvoice` (daemon CantDo), `NoDaemonResponse` (stay on
+the invoice step), `TradeNotFound`.
 
 ---
 
