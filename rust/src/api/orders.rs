@@ -2787,7 +2787,7 @@ pub async fn list_trades() -> Result<Vec<crate::api::types::TradeInfo>> {
         return Ok(vec![]);
     };
     let mut trades = db.list_trades().await?;
-    trades.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+    trades.sort_by_key(|t| std::cmp::Reverse(t.started_at));
     Ok(trades)
 }
 

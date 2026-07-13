@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least-privilege token: jobs only read source and report their own status.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.38.2"
+  FRB_VERSION: "2.11.1"
+  CARGO_EXPAND_VERSION: "1.0.123"
+
+jobs:
+  rust:
+    name: Rust (build / test / clippy)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Pinned (not @stable) so a newer stable clippy can't introduce lints
+      # that break `-D warnings` on unrelated PRs. Bump this deliberately.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          components: clippy
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build
+        run: cargo build --locked
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --locked -- -D warnings
+
+  flutter:
+    name: Flutter (analyze / test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Rust toolchain is required by flutter_rust_bridge_codegen to generate
+      # the Dart bindings (lib/src/rust/ is gitignored and produced on the fly).
+      # Pinned to match the rust job (see note above).
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # Codegen shells out to `cargo expand` (RUSTFLAGS="--cfg frb_expand"),
+      # so cargo-expand must be present alongside the codegen binary.
+      - name: Cache codegen tools
+        id: tools-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/flutter_rust_bridge_codegen
+            ~/.cargo/bin/cargo-expand
+          key: frb-tools-${{ runner.os }}-frb${{ env.FRB_VERSION }}-expand${{ env.CARGO_EXPAND_VERSION }}
+
+      - name: Install codegen tools
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FRB_VERSION }} --locked
+          cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Generate Rust bridge bindings
+        run: flutter_rust_bridge_codegen generate
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
