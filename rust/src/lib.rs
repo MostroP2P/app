@@ -12,6 +12,7 @@ pub mod mostro;
 pub mod nostr;
 pub mod nwc;
 pub mod queue;
+mod rt;
 
 /// Called once by Flutter during `RustLib.init()` — sets up logging so Rust
 /// messages appear in `adb logcat` / stderr and are forwarded to the Flutter

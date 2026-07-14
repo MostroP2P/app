@@ -458,17 +458,10 @@ pub async fn download_attachment(message_id: String) -> Result<FileDownloadResul
     let plaintext = crate::crypto::file_enc::decrypt_file(&encrypted_bytes, &shared_key)
         .map_err(|e| anyhow!("DecryptionFailed: {e}"))?;
 
-    // 5. Write to temp dir with unique filename to avoid collisions.
-    let safe_name = safe_filename(&attachment.file_name);
-    let unique_name = format!("{message_id}_{safe_name}");
-    let local_path = std::env::temp_dir()
-        .join(&unique_name)
-        .to_string_lossy()
-        .into_owned();
-
-    tokio::fs::write(&local_path, &plaintext)
-        .await
-        .map_err(|e| anyhow!("WriteFailed: {e}"))?;
+    // 5. Persist the decrypted blob to a local path. Native writes to a temp
+    //    file; web has no filesystem, so that path is not supported there yet.
+    let local_path =
+        persist_decrypted_attachment(&message_id, &attachment.file_name, &plaintext).await?;
 
     let _ = message_store()
         .attachment_tx
@@ -598,6 +591,8 @@ fn unix_now() -> i64 {
 /// Strip directory components from a caller-supplied file name to prevent
 /// path traversal (e.g. `../../../etc/passwd` → `passwd`).
 /// Returns `"attachment"` for empty or path-only inputs.
+// Native-only: the wasm attachment writer errors out before it needs a name.
+#[cfg(not(target_arch = "wasm32"))]
 fn safe_filename(name: &str) -> String {
     std::path::Path::new(name)
         .file_name()
@@ -605,6 +600,36 @@ fn safe_filename(name: &str) -> String {
         .filter(|s| !s.is_empty())
         .unwrap_or("attachment")
         .to_string()
+}
+
+/// Persist a decrypted attachment to a local path the UI can open.
+///
+/// Native writes to the OS temp dir. `wasm32` has no filesystem, so this is not
+/// supported on web yet and returns an error.
+#[cfg(not(target_arch = "wasm32"))]
+async fn persist_decrypted_attachment(
+    message_id: &str,
+    file_name: &str,
+    data: &[u8],
+) -> Result<String> {
+    let unique_name = format!("{message_id}_{}", safe_filename(file_name));
+    let local_path = std::env::temp_dir()
+        .join(&unique_name)
+        .to_string_lossy()
+        .into_owned();
+    tokio::fs::write(&local_path, data)
+        .await
+        .map_err(|e| anyhow!("WriteFailed: {e}"))?;
+    Ok(local_path)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn persist_decrypted_attachment(
+    _message_id: &str,
+    _file_name: &str,
+    _data: &[u8],
+) -> Result<String> {
+    Err(anyhow!("attachment download to disk is not supported on web"))
 }
 
 fn is_supported_mime_type(mime: &str) -> bool {
@@ -640,7 +665,7 @@ pub(crate) async fn subscribe_incoming_chat(
 ) {
     use nostr_sdk::RelayPoolNotification;
     use tokio::sync::broadcast;
-    use tokio::time::{timeout, Duration};
+    use crate::rt::time::{timeout, Duration};
 
     const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
 
@@ -669,7 +694,7 @@ pub(crate) async fn subscribe_incoming_chat(
         "[messages] incoming-chat subscription active order={order_id} shared_pubkey={shared_pubkey_hex}"
     );
 
-    let mut last_activity = tokio::time::Instant::now();
+    let mut last_activity = crate::rt::time::Instant::now();
 
     loop {
         let remaining =
@@ -693,7 +718,7 @@ pub(crate) async fn subscribe_incoming_chat(
                 if !is_for_us {
                     continue;
                 }
-                last_activity = tokio::time::Instant::now();
+                last_activity = crate::rt::time::Instant::now();
 
                 // Decrypt gift wrap.
                 let event_json = match serde_json::to_string(&*event) {

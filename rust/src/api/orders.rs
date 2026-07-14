@@ -781,7 +781,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // Wait for daemon confirmation. The daemon typically responds within 1s.
     // The 10s timeout is a safety net for network issues; on timeout the order
     // is treated as not created (see below) rather than shown optimistically.
-    let confirmation = tokio::time::timeout(
+    let confirmation = crate::rt::time::timeout(
         std::time::Duration::from_secs(10),
         conf_rx,
     ).await;
@@ -1002,7 +1002,7 @@ pub async fn take_order(
     // acknowledges the take. On timeout, detach only the waiter and leave the
     // record: a genuine late reply is logged, a stale replay still can't
     // consume it, and the record dies with the per-trade subscription.
-    let reply = tokio::time::timeout(
+    let reply = crate::rt::time::timeout(
         std::time::Duration::from_secs(10),
         conf_rx,
     ).await;
@@ -1200,7 +1200,7 @@ pub async fn send_invoice(
     // must surface instead of letting the UI advance on a publish that the
     // daemon errored on. Timeout keeps the record for a late reply, which the
     // dispatcher processes as a normal status update.
-    let reply = tokio::time::timeout(
+    let reply = crate::rt::time::timeout(
         std::time::Duration::from_secs(10),
         conf_rx,
     ).await;
@@ -1402,12 +1402,12 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
     ));
 
     // ── Event loop: spawned as a background task ──
-    tokio::spawn(async move {
+    crate::rt::spawn(async move {
         use nostr_sdk::RelayPoolNotification;
-        use tokio::time::{timeout, Duration};
+        use crate::rt::time::{timeout, Duration};
 
         const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
-        let mut last_activity = tokio::time::Instant::now();
+        let mut last_activity = crate::rt::time::Instant::now();
 
         loop {
             let remaining =
@@ -1448,7 +1448,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                     match crate::nostr::gift_wrap::unwrap_mostro_message(&recipient_keys, &event).await {
                         Ok(Some(unwrapped)) => {
                             dispatch_mostro_message(unwrapped, &trade_pubkey_hex, trade_index).await;
-                            last_activity = tokio::time::Instant::now();
+                            last_activity = crate::rt::time::Instant::now();
                         }
                         Ok(None) => {
                             // The per-trade filter already narrowed by p-tag, so this
@@ -2143,7 +2143,7 @@ async fn on_peer_pubkey_received(order_id: &str, trade_pubkey_hex: &str, peer_pu
     // Spawn incoming-chat subscription on shared-key pubkey.
     let order_id_owned = order_id.to_string();
     let trade_pubkey_hex_owned = trade_pubkey_hex.to_string();
-    tokio::spawn(async move {
+    crate::rt::spawn(async move {
         crate::api::messages::subscribe_incoming_chat(
             order_id_owned,
             trade_pubkey_hex_owned,
@@ -2164,7 +2164,7 @@ async fn on_peer_pubkey_received(order_id: &str, trade_pubkey_hex: &str, peer_pu
 /// down or after a generous idle timeout (no updates for 30 minutes).
 async fn subscribe_single_order(order_id: &str) {
     let order_id = order_id.to_string();
-    tokio::spawn(async move {
+    crate::rt::spawn(async move {
         let Ok(pool) = crate::api::nostr::get_pool() else {
             log::warn!("[orders] subscribe_single_order: relay pool not initialized");
             return;
@@ -2188,12 +2188,12 @@ async fn subscribe_single_order(order_id: &str) {
         log::info!("[orders] subscribed to d-tag updates for order={order_id}");
 
         use nostr_sdk::RelayPoolNotification;
-        use tokio::time::{timeout, Duration};
+        use crate::rt::time::{timeout, Duration};
 
         // Exit after 30 minutes of inactivity (no order updates received).
         // The timer resets on each relevant event so active trades stay subscribed.
         const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
-        let mut last_activity = tokio::time::Instant::now();
+        let mut last_activity = crate::rt::time::Instant::now();
 
         loop {
             let remaining =
@@ -2213,7 +2213,7 @@ async fn subscribe_single_order(order_id: &str) {
                                 order_id,
                                 order.status
                             );
-                            last_activity = tokio::time::Instant::now();
+                            last_activity = crate::rt::time::Instant::now();
                             // Sync trade status in DB so My Trades reflects it.
                             if let Some(db) = crate::db::app_db::db() {
                                 if let Err(e) = db
@@ -2301,7 +2301,7 @@ pub async fn subscribe_orders() {
     }
     log::info!("[orders] subscribe_orders: spawning subscription loop");
 
-    tokio::spawn(async {
+    crate::rt::spawn(async {
         let _guard = ResetGuard;
         _run_order_subscription().await;
     });

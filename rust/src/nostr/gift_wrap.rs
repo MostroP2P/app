@@ -263,7 +263,7 @@ mod tests {
 
         // Mining is probabilistic — cap wall time so a regression that
         // stalls or loops does not hang CI indefinitely.
-        let event = tokio::time::timeout(
+        let event = crate::rt::time::timeout(
             Duration::from_secs(30),
             wrap_mostro_message(
                 &identity_keys,
