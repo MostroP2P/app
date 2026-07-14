@@ -229,6 +229,7 @@ pub async fn rehydrate_active_mostro_node() -> Result<()> {
 /// and the broadcast notification is sent.  When there is no runtime (e.g.
 /// during synchronous tests) we fall back to a blocking write; the broadcast
 /// notification is skipped in that path but the flag is always set.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn set_logging_enabled(enabled: bool) {
     // Note: the async path is fire-and-forget (spawn); callers that call
     // get_settings() immediately after may not yet see the updated flag
@@ -246,6 +247,16 @@ pub fn set_logging_enabled(enabled: bool) {
             store().settings.blocking_write().logging_enabled = enabled;
         }
     }
+}
+
+// wasm has no Tokio runtime handle; the single-threaded executor is always
+// present, so dispatch onto it directly.
+#[cfg(target_arch = "wasm32")]
+pub fn set_logging_enabled(enabled: bool) {
+    crate::rt::spawn(async move {
+        let snapshot = store().write_with(|s| s.logging_enabled = enabled).await;
+        store().notify(snapshot);
+    });
 }
 
 // ── Stream ────────────────────────────────────────────────────────────────────

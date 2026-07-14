@@ -163,14 +163,14 @@ mod native {
                     .map_err(|e| anyhow!("Failed to send NIP-47 request: {e}"))?;
 
                 // 3. Wait for the matching response on the notification channel.
-                let deadline = tokio::time::Instant::now() + NWC_TIMEOUT;
+                let deadline = crate::rt::time::Instant::now() + NWC_TIMEOUT;
                 loop {
-                    let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+                    let remaining = deadline.saturating_duration_since(crate::rt::time::Instant::now());
                     if remaining.is_zero() {
                         bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
                     }
 
-                    match tokio::time::timeout(remaining, notifications.recv()).await {
+                    match crate::rt::time::timeout(remaining, notifications.recv()).await {
                         Ok(Ok(RelayPoolNotification::Event {
                             event: resp_event, ..
                         })) => {

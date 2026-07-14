@@ -54,7 +54,7 @@ impl RelayPool {
         // Give the SDK a moment to initiate WebSocket handshakes before the
         // first status poll.  Without this the initial broadcast is always
         // Reconnecting (every relay is still in Pending/Connecting state).
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        crate::rt::time::sleep(Duration::from_millis(500)).await;
 
         // Broadcast initial connection state after all relays are wired up.
         pool.broadcast_connection_state().await;
@@ -161,9 +161,9 @@ impl RelayPool {
         let conn_tx = self.conn_tx.clone();
         let relay_tx = self.relay_tx.clone();
 
-        tokio::spawn(async move {
+        crate::rt::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_secs(STATUS_POLL_INTERVAL_SECS)).await;
+                crate::rt::time::sleep(Duration::from_secs(STATUS_POLL_INTERVAL_SECS)).await;
 
                 let relay_urls: Vec<String> =
                     relays.read().await.iter().map(|r| r.url.clone()).collect();

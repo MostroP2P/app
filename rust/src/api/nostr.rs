@@ -43,7 +43,7 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
     // Spawn a background task that flushes the outbox whenever the relay pool
     // transitions to Online.  The task exits when the broadcast channel closes.
     let pool_ref = POOL.get().unwrap().clone();
-    tokio::spawn(async move {
+    crate::rt::spawn(async move {
         let mut rx = pool_ref.subscribe_connection_state();
         log::info!("[nostr] connection state watcher started");
         loop {

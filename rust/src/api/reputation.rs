@@ -217,7 +217,7 @@ pub fn get_privacy_mode() -> bool {
 pub fn set_privacy_mode(enabled: bool) {
     // Best-effort identity check: log a warning if no identity is configured but
     // proceed anyway so the UI setting is never silently stuck.
-    tokio::spawn(async move {
+    crate::rt::spawn(async move {
         if crate::api::identity::get_active_keys().await.is_err() {
             log::warn!("[reputation] set_privacy_mode({enabled}): no identity configured");
         }

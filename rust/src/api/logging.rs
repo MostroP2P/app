@@ -186,7 +186,7 @@ mod tests {
 
         forward_log(log::Level::Warn, "nwc::client", "test warning");
 
-        let entry = tokio::time::timeout(
+        let entry = crate::rt::time::timeout(
             std::time::Duration::from_secs(2),
             stream.next(),
         )

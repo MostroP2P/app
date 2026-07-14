@@ -65,3 +65,7 @@ android_logger = "0.14"
 wasm-bindgen-futures = "0.4"
 indexed_db_futures = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
+# tokio's sync primitives are runtime-agnostic and compile to wasm (no rt/net/fs/time).
+tokio = { version = "1", default-features = false, features = ["sync"] }
+# tokio::time replacement for wasm (sleep/timeout/Instant backed by the browser).
+wasmtimer = "0.4"
