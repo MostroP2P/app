@@ -591,8 +591,8 @@ fn unix_now() -> i64 {
 /// Strip directory components from a caller-supplied file name to prevent
 /// path traversal (e.g. `../../../etc/passwd` → `passwd`).
 /// Returns `"attachment"` for empty or path-only inputs.
-// Only used by the native attachment writer; web returns early before naming.
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+// Native-only: the wasm attachment writer errors out before it needs a name.
+#[cfg(not(target_arch = "wasm32"))]
 fn safe_filename(name: &str) -> String {
     std::path::Path::new(name)
         .file_name()
