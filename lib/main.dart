@@ -11,7 +11,6 @@ import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
-import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/firebase_options.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
 import 'package:mostro/src/rust/api.dart' as rust_api;
