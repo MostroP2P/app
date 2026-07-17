@@ -62,7 +62,7 @@ Run the full verify before committing and before requesting review:
 
 - **Rust:** `cd rust && cargo fmt && cargo clippy && cargo test` — keep the tree `clippy`-clean.
 - **Dart:** `dart format .`, then `flutter analyze && flutter test` — keep it analyzer-warning-free.
-- **Bindings:** run `flutter_rust_bridge_codegen generate` after any change to `rust/src/api/`, and commit the regenerated `lib/src/rust/`.
+- **Bindings:** run `flutter_rust_bridge_codegen generate` after any change to `rust/src/api/`. The generated `lib/src/rust/` is gitignored and produced on the fly (locally and in CI) — do not commit it.
 - **Localization:** run `flutter gen-l10n` after editing `lib/l10n/*.arb`.
 
 ### Configure Git user name and email metadata

@@ -36,7 +36,7 @@ Rust is a **library** — there is no `cargo run`; the app is launched through F
 - `flutter pub get` — sync Dart dependencies after pulling or switching branches.
 - `flutter analyze && flutter test` — enforce lints and run the Dart suites; keep the tree warning-free.
 - `flutter gen-l10n` — regenerate `AppLocalizations` after editing `lib/l10n/*.arb`.
-- `flutter run -d linux|chrome|android` — launch the app locally on the given device.
+- `flutter run -d <device>` — launch the app locally on the given device (e.g. `linux`, `chrome`, or `android`).
 
 ## Coding Style & Naming Conventions
 
