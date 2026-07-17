@@ -1,23 +1,13 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 
 import '../../support/fake_orders.dart';
-import '../../support/provider_harness.dart';
-
-/// Awaits the book so [filteredOrdersProvider] can be read synchronously after.
-Future<ProviderContainerHelper> _bookWith(List<OrderItem> orders) async {
-  final container = createContainer(overrides: [
-    orderBookProvider.overrideWith((ref) => Stream.value(orders)),
-  ]);
-  await container.read(orderBookProvider.future);
-  return ProviderContainerHelper(container);
-}
+import '../../support/order_book_harness.dart';
 
 void main() {
   group('filteredOrdersProvider', () {
     test('BUY tab shows only pending sell orders', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'sell', kind: 'sell'),
         fakeOrder(id: 'buy', kind: 'buy'),
       ]);
@@ -27,7 +17,7 @@ void main() {
     });
 
     test('SELL tab shows only pending buy orders', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'sell', kind: 'sell'),
         fakeOrder(id: 'buy', kind: 'buy'),
       ]);
@@ -37,7 +27,7 @@ void main() {
     });
 
     test('own orders show regardless of the active tab', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'mine-buy', kind: 'buy', isMine: true),
         fakeOrder(id: 'other-buy', kind: 'buy'),
       ]);
@@ -47,7 +37,7 @@ void main() {
     });
 
     test('non-pending orders are excluded', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'pending', kind: 'sell'),
         fakeOrder(id: 'active', kind: 'sell', status: OrderStatus.active),
       ]);
@@ -57,7 +47,7 @@ void main() {
     });
 
     test('currency filter keeps only selected fiat codes', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'usd', kind: 'sell', fiatCode: 'USD'),
         fakeOrder(id: 'eur', kind: 'sell', fiatCode: 'EUR'),
       ]);
@@ -68,7 +58,7 @@ void main() {
     });
 
     test('payment method filter matches any comma-separated token', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'multi', kind: 'sell', paymentMethod: 'Wire, Revolut'),
         fakeOrder(id: 'cash', kind: 'sell', paymentMethod: 'Cash'),
       ]);
@@ -80,7 +70,7 @@ void main() {
     });
 
     test('rating range excludes orders outside the bounds', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'low', kind: 'sell', rating: 2.0),
         fakeOrder(id: 'high', kind: 'sell', rating: 4.5),
       ]);
@@ -92,7 +82,7 @@ void main() {
     });
 
     test('premium range excludes orders outside the bounds', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'cheap', kind: 'sell', premium: -5.0),
         fakeOrder(id: 'pricey', kind: 'sell', premium: 8.0),
       ]);
@@ -104,7 +94,7 @@ void main() {
     });
 
     test('results are sorted newest-first by createdAt', () async {
-      final helper = await _bookWith([
+      final helper = await bookWith([
         fakeOrder(id: 'older', kind: 'sell', minutesAgo: 30),
         fakeOrder(id: 'newer', kind: 'sell', minutesAgo: 5),
       ]);
@@ -112,17 +102,29 @@ void main() {
 
       expect(helper.ids(), ['newer', 'older']);
     });
+
+    test('default rating range does not filter out unrated orders', () async {
+      final helper = await bookWith([
+        fakeOrder(id: 'unrated', kind: 'sell', rating: 0.0),
+      ]);
+      helper.setTab(OrderType.buy);
+
+      expect(helper.ids(), ['unrated']);
+    });
+
+    test('range orders pass through the filters', () async {
+      final helper = await bookWith([
+        fakeOrder(
+          id: 'range',
+          kind: 'sell',
+          fiatAmount: null,
+          fiatAmountMin: 50,
+          fiatAmountMax: 150,
+        ),
+      ]);
+      helper.setTab(OrderType.buy);
+
+      expect(helper.ids(), ['range']);
+    });
   });
-}
-
-class ProviderContainerHelper {
-  ProviderContainerHelper(this.container);
-
-  final ProviderContainer container;
-
-  void setTab(OrderType type) =>
-      container.read(homeOrderTypeProvider.notifier).state = type;
-
-  List<String> ids() =>
-      container.read(filteredOrdersProvider).map((o) => o.id).toList();
 }
