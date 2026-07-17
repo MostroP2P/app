@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
@@ -122,7 +123,7 @@ class NotificationCard extends StatelessWidget {
   }
 
   String _relativeTime(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
+    final diff = clock.now().difference(dt);
     if (diff.isNegative || diff.inMinutes < 1) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
