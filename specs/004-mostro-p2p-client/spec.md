@@ -116,7 +116,7 @@ A buyer (taker of a sell order) completes a trade. Without NWC, they manually en
 
 1. **Given** a buyer has taken a sell order and NWC is NOT configured, **When** the app prompts for a Lightning invoice, **Then** the buyer sees an input screen with the sats and fiat amounts, and can enter an invoice or Lightning address.
 2. **Given** a buyer has taken a sell order and NWC IS configured, **When** the order is accepted, **Then** the invoice step is skipped entirely and the buyer proceeds to the active trade view.
-3. **Given** the trade is in "active" status, **When** the buyer views Trade Detail, **Then** they see: trade summary, payment method, order ID, instructions to contact the seller, and buttons for Fiat Sent, Cancel, Dispute, and Contact.
+3. **Given** the trade is in "active" status, **When** the buyer views Trade Detail, **Then** they see: trade summary, payment method, order ID, instructions to contact the seller, a "Fiat Sent" primary CTA, a secondary row with outlined Cancel and Dispute buttons, and a persistent chat chip for Contact.
 4. **Given** the buyer has sent fiat payment, **When** they tap "Fiat Sent", **Then** the order status changes to "Fiat sent" and the seller sees instructions to verify and release.
 5. **Given** the seller releases sats, **When** the buyer receives the Lightning payment, **Then** both parties are prompted to rate each other.
 
@@ -137,7 +137,7 @@ A seller (taker of a buy order) completes a trade. They must pay a hold Lightnin
 2. **Given** a seller takes a buy order and NWC IS configured, **When** the hold invoice is ready, **Then** a simplified screen appears with a "Pay with Wallet" button that auto-pays via the connected wallet. If NWC payment fails, the screen falls back to the QR view of scenario 1.
 2a. **Given** the seller has paid the hold invoice (QR or NWC path), **When** mostrod confirms the HTLC and broadcasts the order update as Active, **Then** the app MUST auto-navigate from the pay-invoice screen to Trade Detail without any further user action; the navigation is driven by the live order status stream, not by the local wallet success callback.
 2b. **Given** the seller is still on the pay-invoice screen, **When** mostrod broadcasts a terminal cancellation (canceled / cooperativelyCanceled / canceledByAdmin / expired), **Then** the app MUST leave the pay-invoice screen and surface a cancellation notice so the user is not stranded on a dead invoice.
-3. **Given** the trade is active, **When** the seller views Trade Detail, **Then** they see instructions to contact the buyer with payment details and buttons: Close, Cancel, Dispute, Contact.
+3. **Given** the trade is active, **When** the seller views Trade Detail, **Then** they see instructions to contact the buyer with payment details, a disabled "waiting for the buyer" primary state, a secondary row with outlined Cancel and Dispute buttons, and a persistent chat chip for Contact.
 4. **Given** the buyer confirms "Fiat Sent", **When** the seller views Trade Detail, **Then** the status changes to "Fiat Sent" and a "Release" button becomes available.
 5. **Given** the seller taps "Release", **When** the confirmation modal appears, **Then** tapping "Yes" releases the sats and transitions to the success/rating screen.
 
@@ -349,10 +349,10 @@ Users manage their cryptographic identity from the Account screen: view their 12
 - **FR-030**: When NWC is configured for a seller, the system MUST present a "Pay with Wallet" button that auto-pays the hold invoice. On NWC failure, the system MUST fall back to the manual QR flow defined in FR-029.
 - **FR-030a**: The pay-invoice screen MUST subscribe to the live order-status stream (`tradeStatusProvider`) and auto-navigate to Trade Detail on `Active` (or any later non-cancel status) regardless of the local wallet's success callback. This guarantees that the navigation is driven by mostrod's confirmation of the HTLC, not by the seller's wallet reporting a local send, so both QR and NWC paths converge on the same source of truth.
 - **FR-030b**: While the seller remains on the pay-invoice screen, terminal cancellation statuses (`canceled`, `cooperativelyCanceled`, `canceledByAdmin`, `expired`) MUST trigger navigation away from the dead invoice with a user-visible cancellation notice.
-- **FR-031**: The Trade Detail screen MUST display role-appropriate action buttons based on the current order status and the user's role (buyer or seller).
-- **FR-032**: The buyer MUST have a "Fiat Sent" button available when the trade is in "active" status.
-- **FR-033**: The seller MUST have a "Release" button available when the trade is in "fiat-sent" status; tapping it MUST show a confirmation modal before executing.
-- **FR-034**: Both parties MUST have "Cancel" (cooperative) and "Dispute" buttons available during active trades.
+- **FR-031**: The Trade Detail screen MUST display a role-appropriate primary CTA button, plus a secondary row of outlined destructive-style buttons (Cancel, Dispute, and — while disputed — Release) below it, based on the current order status and the user's role (buyer or seller). Contact is provided separately via a persistent chat chip, not a dedicated button.
+- **FR-032**: The buyer MUST have a "Fiat Sent" primary CTA button available when the trade is in "active" status.
+- **FR-033**: The seller MUST have a "Release" primary CTA button available when the trade is in "fiat-sent" status, and again as a secondary-row button while the trade is disputed; tapping it MUST show a confirmation modal before executing.
+- **FR-034**: Both parties MUST have "Cancel" (cooperative) and "Dispute" actions available during active trades, presented as outlined destructive-style buttons in the secondary row below the primary CTA.
 
 **P2P Chat**
 

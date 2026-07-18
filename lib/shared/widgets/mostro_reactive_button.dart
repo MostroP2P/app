@@ -2,25 +2,27 @@ import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
 
-/// Button that shows a spinner while waiting for a Mostro response,
-/// a success check on completion, and an error state on failure.
+enum MostroButtonVariant { primary, destructive }
+
+/// Button that shows a spinner while waiting, then a success check.
 class MostroReactiveButton extends StatefulWidget {
   const MostroReactiveButton({
     super.key,
     required this.label,
     required this.onPressed,
-    this.backgroundColor,
-    this.foregroundColor,
+    this.variant = MostroButtonVariant.primary,
     this.icon,
     this.onError,
+    this.outlined = false,
   });
 
   final String label;
   final Future<void> Function() onPressed;
-  final Color? backgroundColor;
-  final Color? foregroundColor;
+
+  final MostroButtonVariant variant;
   final IconData? icon;
   final void Function(Object error)? onError;
+  final bool outlined;
 
   @override
   State<MostroReactiveButton> createState() => _MostroReactiveButtonState();
@@ -47,7 +49,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
       if (!mounted) return;
       setState(() => _state = _ButtonState.error);
 
-      await Future.delayed(const Duration(milliseconds: 2000));
+      await Future.delayed(const Duration(seconds: 4));
       if (mounted) setState(() => _state = _ButtonState.idle);
     }
   }
@@ -56,16 +58,32 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final bg = widget.backgroundColor ?? green;
-    final fg = widget.foregroundColor ?? Colors.black;
+    final destructiveRed = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+    final accent = switch (widget.variant) {
+      MostroButtonVariant.primary => green,
+      MostroButtonVariant.destructive => destructiveRed,
+    };
+
+    if (widget.outlined) {
+      return OutlinedButton(
+        onPressed: _state == _ButtonState.idle ? _handlePress : null,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: accent),
+          foregroundColor: accent,
+          minimumSize: const Size(0, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.button),
+          ),
+        ),
+        child: _buildChild(),
+      );
+    }
 
     return FilledButton(
       onPressed: _state == _ButtonState.idle ? _handlePress : null,
       style: FilledButton.styleFrom(
-        backgroundColor: _state == _ButtonState.error
-            ? colors?.destructiveRed ?? const Color(0xFFD84D4D)
-            : bg,
-        foregroundColor: fg,
+        backgroundColor: accent,
+        foregroundColor: Colors.black,
         minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.button),
@@ -93,13 +111,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
           liveRegion: true,
           child: const Icon(Icons.check, size: 20),
         );
-      case _ButtonState.error:
-        return Semantics(
-          label: 'Error',
-          liveRegion: true,
-          child: const Icon(Icons.error_outline, size: 20),
-        );
-      case _ButtonState.idle:
+      case _ButtonState.idle || _ButtonState.error:
         if (widget.icon != null) {
           return Row(
             mainAxisSize: MainAxisSize.min,
