@@ -68,6 +68,9 @@ dependencies:
   # Internationalization
   intl: ^0.20.2
 
+  # Injectable clock so relative-time rendering is deterministic under test
+  clock: ^1.1.1
+
   # UUID generation (collision-resistant notification IDs)
   uuid: ^4.5.1
 

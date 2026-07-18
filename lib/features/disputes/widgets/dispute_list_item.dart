@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/status_chip.dart';
 
 /// A single row in the disputes list.
 ///
@@ -69,7 +70,7 @@ class DisputeListItem extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      _StatusChip(
+                      StatusChip(
                         label: statusLabel,
                         background: statusBg,
                         foreground: statusFg,
@@ -135,36 +136,5 @@ class DisputeListItem extends ConsumerWidget {
         'Closed',
       ),
     };
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w500,
-              fontSize: 11,
-            ),
-      ),
-    );
   }
 }

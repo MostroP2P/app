@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/shared/widgets/status_chip.dart';
 
 /// A single card row in the My Trades list.
 ///
@@ -111,16 +112,12 @@ class TradesListItem extends ConsumerWidget {
                     Wrap(
                       spacing: AppSpacing.xs,
                       children: [
-                        _Chip(
+                        StatusChip(
                           label: statusLabel,
                           background: statusBg,
                           foreground: statusFg,
                         ),
-                        _Chip(
-                          label: roleLabel,
-                          background: AppColors.statusActive.$1,
-                          foreground: AppColors.statusActive.$2,
-                        ),
+                        RoleBadge(label: roleLabel),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -199,41 +196,5 @@ class TradesListItem extends ConsumerWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';
     return '${diff.inDays}d';
-  }
-}
-
-// ── Small chip widget ─────────────────────────────────────────────────────────
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: foreground,
-              fontWeight: FontWeight.w500,
-              fontSize: 11,
-            ),
-      ),
-    );
   }
 }

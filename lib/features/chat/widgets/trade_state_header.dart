@@ -9,6 +9,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/shared/widgets/status_chip.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
@@ -127,23 +128,10 @@ class TradeStateHeader extends ConsumerWidget {
                   runSpacing: AppSpacing.xs,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: pillBg,
-                        borderRadius: BorderRadius.circular(AppRadius.chip),
-                      ),
-                      child: Text(
-                        statusFilter.label,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: pillFg,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 11,
-                        ),
-                      ),
+                    StatusChip(
+                      label: statusFilter.label,
+                      background: pillBg,
+                      foreground: pillFg,
                     ),
                     dot,
                     Text(
