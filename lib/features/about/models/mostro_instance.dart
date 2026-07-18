@@ -61,8 +61,10 @@ class MostroInstance {
   final String? commitHash;
   final int? maxOrderAmount;
   final int? minOrderAmount;
+
   /// Pending order lifetime in hours.
   final int? expirationHours;
+
   /// Fee as a fraction, e.g. 0.006 = 0.6 %.
   final double? fee;
   final String? fiatCurrenciesAccepted;
@@ -92,18 +94,21 @@ class MostroInstance {
   /// Bond policy state; defaults to [BondPolicy.unsupported]. See [BondPolicy].
   final BondPolicy bondPolicy;
 
-  // The following six fields carry the bond parameters and are only meaningful
-  // when [bondPolicy] is [BondPolicy.enabled]. Each is `null` when the tag is
-  // absent or when its value fails validation.
+  // The six bond parameters are non-null only when [bondPolicy] is
+  // [BondPolicy.enabled]; otherwise, or on an absent/invalid tag, they are null.
 
   final BondApplyTo? bondApplyTo;
   final bool? bondSlashOnWaitingTimeout;
+
   /// Bond fraction of the order amount, constrained to `[0.0, 1.0]`.
   final double? bondAmountPct;
+
   /// Minimum bond floor in sats, `>= 0`.
   final int? bondBaseAmountSats;
+
   /// Node's share of a slashed bond, constrained to `[0.0, 1.0]`.
   final double? bondSlashNodeSharePct;
+
   /// Days to claim a payout before forfeit, `> 0`.
   final int? bondPayoutClaimWindowDays;
 
@@ -123,9 +128,8 @@ class MostroInstance {
       return null;
     }
 
-    // Like [get] but trims the value and treats empty/whitespace-only as
-    // missing, so an empty tag (e.g. `bond_enabled=""`) is not misparsed as a
-    // legitimate value — preserving the three-state [BondPolicy] semantics.
+    // Treats empty/whitespace-only as missing, so an empty `bond_enabled=""`
+    // stays `unsupported` rather than being read as `disabled`.
     String? getOptional(String name) {
       final raw = get(name);
       if (raw == null) return null;
@@ -157,8 +161,6 @@ class MostroInstance {
       }
     }
 
-    // Parses a boolean tag, yielding `null` for anything other than
-    // `"true"`/`"false"` so malformed data is not collapsed into a valid state.
     bool? parseBool(String name) {
       switch (getOptional(name)?.toLowerCase()) {
         case 'true':
@@ -170,8 +172,6 @@ class MostroInstance {
       }
     }
 
-    // Parses a fraction constrained to `[0.0, 1.0]`; out-of-range or
-    // unparseable values yield `null`.
     double? parseFraction(String name) {
       final value = double.tryParse(getOptional(name) ?? '');
       if (value == null) return null;
@@ -190,6 +190,11 @@ class MostroInstance {
       return value > 0 ? value : null;
     }
 
+    // Parameters are gated on an enabled policy so a disabled or malformed
+    // event never exposes live bond values (consumers key off nullability).
+    final bondPolicy = parseBondPolicy();
+    final isEnabled = bondPolicy == BondPolicy.enabled;
+
     return MostroInstance(
       pubKey: get('d') ?? '',
       mostroVersion: get('mostro_version'),
@@ -201,12 +206,13 @@ class MostroInstance {
       fiatCurrenciesAccepted: get('fiat_currencies_accepted'),
       fee: double.tryParse(get('fee') ?? ''),
       pow: int.tryParse(get('pow') ?? ''),
-      holdInvoiceExpirationWindow:
-          int.tryParse(get('hold_invoice_expiration_window') ?? ''),
-      holdInvoiceCltvDelta:
-          int.tryParse(get('hold_invoice_cltv_delta') ?? ''),
-      invoiceExpirationWindow:
-          int.tryParse(get('invoice_expiration_window') ?? ''),
+      holdInvoiceExpirationWindow: int.tryParse(
+        get('hold_invoice_expiration_window') ?? '',
+      ),
+      holdInvoiceCltvDelta: int.tryParse(get('hold_invoice_cltv_delta') ?? ''),
+      invoiceExpirationWindow: int.tryParse(
+        get('invoice_expiration_window') ?? '',
+      ),
       lndVersion: get('lnd_version'),
       lndNodePublicKey: get('lnd_node_pubkey'),
       lndCommitHash: get('lnd_commit_hash'),
@@ -214,16 +220,18 @@ class MostroInstance {
       lndChains: get('lnd_chains'),
       lndNetworks: get('lnd_networks'),
       lndUris: get('lnd_uris'),
-      maxOrdersPerResponse:
-          int.tryParse(get('max_orders_per_response') ?? ''),
-      bondPolicy: parseBondPolicy(),
-      bondApplyTo: parseBondApplyTo(),
-      bondSlashOnWaitingTimeout: parseBool('bond_slash_on_waiting_timeout'),
-      bondAmountPct: parseFraction('bond_amount_pct'),
-      bondBaseAmountSats: parseNonNegativeInt('bond_base_amount_sats'),
-      bondSlashNodeSharePct: parseFraction('bond_slash_node_share_pct'),
+      maxOrdersPerResponse: int.tryParse(get('max_orders_per_response') ?? ''),
+      bondPolicy: bondPolicy,
+      bondApplyTo: isEnabled ? parseBondApplyTo() : null,
+      bondSlashOnWaitingTimeout:
+          isEnabled ? parseBool('bond_slash_on_waiting_timeout') : null,
+      bondAmountPct: isEnabled ? parseFraction('bond_amount_pct') : null,
+      bondBaseAmountSats:
+          isEnabled ? parseNonNegativeInt('bond_base_amount_sats') : null,
+      bondSlashNodeSharePct:
+          isEnabled ? parseFraction('bond_slash_node_share_pct') : null,
       bondPayoutClaimWindowDays:
-          parsePositiveInt('bond_payout_claim_window_days'),
+          isEnabled ? parsePositiveInt('bond_payout_claim_window_days') : null,
     );
   }
 

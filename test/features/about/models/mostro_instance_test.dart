@@ -10,6 +10,13 @@ List<List<String>> tagsWith(Map<String, String> extra) {
   ];
 }
 
+/// Like [tagsWith] but always advertises an enabled bond policy, so bond
+/// parameter parsing/validation can be exercised — the six parameters are gated
+/// on `bondPolicy == enabled`.
+List<List<String>> enabledTagsWith(Map<String, String> extra) {
+  return tagsWith({'bond_enabled': 'true', ...extra});
+}
+
 /// The full set of valid bond tags for an enabled node.
 const _enabledBondTags = {
   'bond_enabled': 'true',
@@ -29,14 +36,16 @@ void main() {
     });
 
     test('disabled when bond_enabled="false"', () {
-      final instance =
-          MostroInstance.fromTags(tagsWith({'bond_enabled': 'false'}));
+      final instance = MostroInstance.fromTags(
+        tagsWith({'bond_enabled': 'false'}),
+      );
       expect(instance.bondPolicy, BondPolicy.disabled);
     });
 
     test('enabled when bond_enabled="true"', () {
-      final instance =
-          MostroInstance.fromTags(tagsWith({'bond_enabled': 'true'}));
+      final instance = MostroInstance.fromTags(
+        tagsWith({'bond_enabled': 'true'}),
+      );
       expect(instance.bondPolicy, BondPolicy.enabled);
     });
 
@@ -52,26 +61,28 @@ void main() {
     });
 
     test('empty bond_enabled="" is treated as missing (unsupported)', () {
-      final instance =
-          MostroInstance.fromTags(tagsWith({'bond_enabled': ''}));
+      final instance = MostroInstance.fromTags(tagsWith({'bond_enabled': ''}));
       expect(instance.bondPolicy, BondPolicy.unsupported);
     });
 
-    test('whitespace-only bond_enabled is treated as missing (unsupported)',
-        () {
-      final instance =
-          MostroInstance.fromTags(tagsWith({'bond_enabled': '   '}));
-      expect(instance.bondPolicy, BondPolicy.unsupported);
-    });
+    test(
+      'whitespace-only bond_enabled is treated as missing (unsupported)',
+      () {
+        final instance = MostroInstance.fromTags(
+          tagsWith({'bond_enabled': '   '}),
+        );
+        expect(instance.bondPolicy, BondPolicy.unsupported);
+      },
+    );
 
     test('malformed bond_enabled falls back to unsupported', () {
-      final instance =
-          MostroInstance.fromTags(tagsWith({'bond_enabled': 'yes'}));
+      final instance = MostroInstance.fromTags(
+        tagsWith({'bond_enabled': 'yes'}),
+      );
       expect(instance.bondPolicy, BondPolicy.unsupported);
     });
 
     test('a value-less bond_enabled tag is treated as missing', () {
-      // Tag array with only the name and no value.
       final instance = MostroInstance.fromTags(const [
         ['d', 'npub_test'],
         ['bond_enabled'],
@@ -94,40 +105,43 @@ void main() {
     });
 
     test('bond_apply_to parses take / make / both', () {
-      for (final entry in {
-        'take': BondApplyTo.take,
-        'make': BondApplyTo.make,
-        'both': BondApplyTo.both,
-      }.entries) {
-        final instance =
-            MostroInstance.fromTags(tagsWith({'bond_apply_to': entry.key}));
+      for (final entry
+          in {
+            'take': BondApplyTo.take,
+            'make': BondApplyTo.make,
+            'both': BondApplyTo.both,
+          }.entries) {
+        final instance = MostroInstance.fromTags(
+          enabledTagsWith({'bond_apply_to': entry.key}),
+        );
         expect(instance.bondApplyTo, entry.value);
       }
     });
 
     test('invalid bond_apply_to yields null', () {
-      final instance =
-          MostroInstance.fromTags(tagsWith({'bond_apply_to': 'sometimes'}));
+      final instance = MostroInstance.fromTags(
+        enabledTagsWith({'bond_apply_to': 'sometimes'}),
+      );
       expect(instance.bondApplyTo, isNull);
     });
 
     test('bond_slash_on_waiting_timeout parses true/false, else null', () {
       expect(
         MostroInstance.fromTags(
-                tagsWith({'bond_slash_on_waiting_timeout': 'true'}))
-            .bondSlashOnWaitingTimeout,
+          enabledTagsWith({'bond_slash_on_waiting_timeout': 'true'}),
+        ).bondSlashOnWaitingTimeout,
         isTrue,
       );
       expect(
         MostroInstance.fromTags(
-                tagsWith({'bond_slash_on_waiting_timeout': 'false'}))
-            .bondSlashOnWaitingTimeout,
+          enabledTagsWith({'bond_slash_on_waiting_timeout': 'false'}),
+        ).bondSlashOnWaitingTimeout,
         isFalse,
       );
       expect(
         MostroInstance.fromTags(
-                tagsWith({'bond_slash_on_waiting_timeout': 'maybe'}))
-            .bondSlashOnWaitingTimeout,
+          enabledTagsWith({'bond_slash_on_waiting_timeout': 'maybe'}),
+        ).bondSlashOnWaitingTimeout,
         isNull,
       );
     });
@@ -136,52 +150,60 @@ void main() {
   group('MostroInstance.fromTags — bond parameter validation', () {
     test('bond_amount_pct out of [0.0, 1.0] yields null', () {
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_amount_pct': '1.5'}))
-            .bondAmountPct,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_amount_pct': '1.5'}),
+        ).bondAmountPct,
         isNull,
       );
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_amount_pct': '-0.1'}))
-            .bondAmountPct,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_amount_pct': '-0.1'}),
+        ).bondAmountPct,
         isNull,
       );
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_amount_pct': 'abc'}))
-            .bondAmountPct,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_amount_pct': 'abc'}),
+        ).bondAmountPct,
         isNull,
       );
     });
 
     test('bond_amount_pct accepts the [0.0, 1.0] boundaries', () {
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_amount_pct': '0.0'}))
-            .bondAmountPct,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_amount_pct': '0.0'}),
+        ).bondAmountPct,
         0.0,
       );
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_amount_pct': '1.0'}))
-            .bondAmountPct,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_amount_pct': '1.0'}),
+        ).bondAmountPct,
         1.0,
       );
     });
 
     test('negative bond_base_amount_sats yields null', () {
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_base_amount_sats': '-1'}))
-            .bondBaseAmountSats,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_base_amount_sats': '-1'}),
+        ).bondBaseAmountSats,
         isNull,
       );
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_base_amount_sats': '0'}))
-            .bondBaseAmountSats,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_base_amount_sats': '0'}),
+        ).bondBaseAmountSats,
         0,
       );
     });
 
     test('bond_slash_node_share_pct out of [0.0, 1.0] yields null', () {
       expect(
-        MostroInstance.fromTags(tagsWith({'bond_slash_node_share_pct': '2.0'}))
-            .bondSlashNodeSharePct,
+        MostroInstance.fromTags(
+          enabledTagsWith({'bond_slash_node_share_pct': '2.0'}),
+        ).bondSlashNodeSharePct,
         isNull,
       );
     });
@@ -189,17 +211,57 @@ void main() {
     test('non-positive bond_payout_claim_window_days yields null', () {
       expect(
         MostroInstance.fromTags(
-                tagsWith({'bond_payout_claim_window_days': '0'}))
-            .bondPayoutClaimWindowDays,
+          enabledTagsWith({'bond_payout_claim_window_days': '0'}),
+        ).bondPayoutClaimWindowDays,
         isNull,
       );
       expect(
         MostroInstance.fromTags(
-                tagsWith({'bond_payout_claim_window_days': '-5'}))
-            .bondPayoutClaimWindowDays,
+          enabledTagsWith({'bond_payout_claim_window_days': '-5'}),
+        ).bondPayoutClaimWindowDays,
         isNull,
       );
     });
+  });
+
+  group('MostroInstance.fromTags — parameters gated on enabled policy', () {
+    void expectNoBondParameters(MostroInstance instance) {
+      expect(instance.bondApplyTo, isNull);
+      expect(instance.bondSlashOnWaitingTimeout, isNull);
+      expect(instance.bondAmountPct, isNull);
+      expect(instance.bondBaseAmountSats, isNull);
+      expect(instance.bondSlashNodeSharePct, isNull);
+      expect(instance.bondPayoutClaimWindowDays, isNull);
+    }
+
+    test(
+      'disabled node exposes no bond parameters even when tags are present',
+      () {
+        final instance = MostroInstance.fromTags(
+          tagsWith({..._enabledBondTags, 'bond_enabled': 'false'}),
+        );
+
+        expect(instance.bondPolicy, BondPolicy.disabled);
+        expectNoBondParameters(instance);
+      },
+    );
+
+    test(
+      'unsupported node exposes no bond parameters even when tags are present',
+      () {
+        // No `bond_enabled` tag, but stray bond parameter tags are present.
+        final instance = MostroInstance.fromTags(
+          tagsWith({
+            'bond_apply_to': 'both',
+            'bond_amount_pct': '0.05',
+            'bond_payout_claim_window_days': '15',
+          }),
+        );
+
+        expect(instance.bondPolicy, BondPolicy.unsupported);
+        expectNoBondParameters(instance);
+      },
+    );
   });
 
   group('MostroInstance.fromTags — non-bond parsing is unaffected', () {
