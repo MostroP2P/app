@@ -1,0 +1,82 @@
+name: Update goldens
+
+# Manually regenerate golden reference images in the same environment that the
+# CI `flutter test` job verifies them, guaranteeing a byte-identical match.
+# Trigger from the Actions tab (or `gh workflow run`) on the target branch after
+# any intentional visual change; it regenerates and commits the PNGs.
+on:
+  workflow_dispatch:
+
+# The job commits the regenerated goldens back to the triggering branch.
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.38.2"
+  FRB_VERSION: "2.11.1"
+  CARGO_EXPAND_VERSION: "1.0.123"
+
+jobs:
+  goldens:
+    name: Regenerate golden files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust toolchain + FRB codegen are required because the golden widgets
+      # transitively import the generated bridge bindings (lib/src/rust/).
+      # Pinned to match the CI flutter job.
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Cache codegen tools
+        id: tools-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/flutter_rust_bridge_codegen
+            ~/.cargo/bin/cargo-expand
+          key: frb-tools-${{ runner.os }}-frb${{ env.FRB_VERSION }}-expand${{ env.CARGO_EXPAND_VERSION }}
+
+      - name: Install codegen tools
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FRB_VERSION }} --locked
+          cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Generate Rust bridge bindings
+        run: flutter_rust_bridge_codegen generate
+
+      - name: Regenerate goldens
+        run: flutter test --update-goldens
+
+      - name: Commit regenerated goldens
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add '**/goldens/**' 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No golden changes to commit."
+          else
+            git commit -m "test: regenerate golden files"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
