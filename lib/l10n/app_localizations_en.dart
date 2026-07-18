@@ -642,6 +642,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get releaseFailed => 'Failed to release. Please try again.';
 
   @override
+  String get cancelTradeButton => 'Cancel order';
+
+  @override
+  String get openDisputeButton => 'Open dispute';
+
+  @override
+  String get releaseSatsButton => 'Release sats';
+
+  @override
+  String get markFiatSentButton => 'Mark fiat sent';
+
+  @override
+  String get confirmReleaseSatsButton => 'Confirm & release sats';
+
+  @override
+  String get shareOrderButton => 'Share order';
+
+  @override
   String get orderPillYouAreSelling => 'YOU ARE SELLING';
 
   @override

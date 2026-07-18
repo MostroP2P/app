@@ -653,6 +653,24 @@ class AppLocalizationsEs extends AppLocalizations {
       'Error al liberar. Por favor, inténtelo de nuevo.';
 
   @override
+  String get cancelTradeButton => 'Cancelar orden';
+
+  @override
+  String get openDisputeButton => 'Abrir disputa';
+
+  @override
+  String get releaseSatsButton => 'Liberar sats';
+
+  @override
+  String get markFiatSentButton => 'Marcar fiat enviado';
+
+  @override
+  String get confirmReleaseSatsButton => 'Confirmar y liberar sats';
+
+  @override
+  String get shareOrderButton => 'Compartir orden';
+
+  @override
   String get orderPillYouAreSelling => 'USTED ESTÁ VENDIENDO';
 
   @override

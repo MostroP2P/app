@@ -211,6 +211,12 @@
   "cancelRequestFailed": "No se pudo cancelar. Por favor, inténtelo de nuevo.",
   "fiatSentFailed": "Error al marcar el fiat como enviado. Por favor, inténtelo de nuevo.",
   "releaseFailed": "Error al liberar. Por favor, inténtelo de nuevo.",
+  "cancelTradeButton": "Cancelar orden",
+  "openDisputeButton": "Abrir disputa",
+  "releaseSatsButton": "Liberar sats",
+  "markFiatSentButton": "Marcar fiat enviado",
+  "confirmReleaseSatsButton": "Confirmar y liberar sats",
+  "shareOrderButton": "Compartir orden",
 
   "orderPillYouAreSelling": "USTED ESTÁ VENDIENDO",
   "orderPillYouAreBuying": "USTED ESTÁ COMPRANDO",

@@ -211,6 +211,12 @@
   "cancelRequestFailed": "Annullamento fallito. Riprovare.",
   "fiatSentFailed": "Impossibile contrassegnare il fiat come inviato. Riprovare.",
   "releaseFailed": "Rilascio fallito. Riprovare.",
+  "cancelTradeButton": "Annulla ordine",
+  "openDisputeButton": "Apri disputa",
+  "releaseSatsButton": "Rilascia sats",
+  "markFiatSentButton": "Segna come inviato",
+  "confirmReleaseSatsButton": "Conferma e rilascia sats",
+  "shareOrderButton": "Condividi ordine",
 
   "orderPillYouAreSelling": "STAI VENDENDO",
   "orderPillYouAreBuying": "STAI COMPRANDO",

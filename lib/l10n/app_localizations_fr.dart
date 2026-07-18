@@ -656,6 +656,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get releaseFailed => 'Échec de la libération. Veuillez réessayer.';
 
   @override
+  String get cancelTradeButton => 'Annuler la commande';
+
+  @override
+  String get openDisputeButton => 'Ouvrir un litige';
+
+  @override
+  String get releaseSatsButton => 'Libérer les sats';
+
+  @override
+  String get markFiatSentButton => 'Marquer comme envoyé';
+
+  @override
+  String get confirmReleaseSatsButton => 'Confirmer et libérer les sats';
+
+  @override
+  String get shareOrderButton => 'Partager la commande';
+
+  @override
   String get orderPillYouAreSelling => 'VOUS VENDEZ';
 
   @override

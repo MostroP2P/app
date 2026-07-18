@@ -1274,6 +1274,42 @@ abstract class AppLocalizations {
   /// **'Failed to release. Please try again.'**
   String get releaseFailed;
 
+  /// Button label to cancel an in-progress trade (secondary action row)
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel order'**
+  String get cancelTradeButton;
+
+  /// Button label to open a dispute on an in-progress trade
+  ///
+  /// In en, this message translates to:
+  /// **'Open dispute'**
+  String get openDisputeButton;
+
+  /// Button label for the seller to release sats during an active dispute (secondary action row)
+  ///
+  /// In en, this message translates to:
+  /// **'Release sats'**
+  String get releaseSatsButton;
+
+  /// Primary CTA button label for the buyer to mark fiat as sent
+  ///
+  /// In en, this message translates to:
+  /// **'Mark fiat sent'**
+  String get markFiatSentButton;
+
+  /// Primary CTA button label for the seller to confirm and release sats
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm & release sats'**
+  String get confirmReleaseSatsButton;
+
+  /// Menu item label to share the current order (not yet implemented — shows a coming-soon message)
+  ///
+  /// In en, this message translates to:
+  /// **'Share order'**
+  String get shareOrderButton;
+
   /// Order card pill label when the current user is the maker of a sell order
   ///
   /// In en, this message translates to:

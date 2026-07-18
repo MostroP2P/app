@@ -211,6 +211,12 @@
   "cancelRequestFailed": "Échec de l'annulation. Veuillez réessayer.",
   "fiatSentFailed": "Échec de la confirmation du paiement fiat. Veuillez réessayer.",
   "releaseFailed": "Échec de la libération. Veuillez réessayer.",
+  "cancelTradeButton": "Annuler la commande",
+  "openDisputeButton": "Ouvrir un litige",
+  "releaseSatsButton": "Libérer les sats",
+  "markFiatSentButton": "Marquer comme envoyé",
+  "confirmReleaseSatsButton": "Confirmer et libérer les sats",
+  "shareOrderButton": "Partager la commande",
 
   "orderPillYouAreSelling": "VOUS VENDEZ",
   "orderPillYouAreBuying": "VOUS ACHETEZ",

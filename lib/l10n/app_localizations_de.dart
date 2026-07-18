@@ -653,6 +653,24 @@ class AppLocalizationsDe extends AppLocalizations {
       'Freigabe fehlgeschlagen. Bitte erneut versuchen.';
 
   @override
+  String get cancelTradeButton => 'Bestellung stornieren';
+
+  @override
+  String get openDisputeButton => 'Streitfall eröffnen';
+
+  @override
+  String get releaseSatsButton => 'Sats freigeben';
+
+  @override
+  String get markFiatSentButton => 'Als gesendet markieren';
+
+  @override
+  String get confirmReleaseSatsButton => 'Bestätigen und Sats freigeben';
+
+  @override
+  String get shareOrderButton => 'Bestellung teilen';
+
+  @override
   String get orderPillYouAreSelling => 'SIE VERKAUFEN';
 
   @override
