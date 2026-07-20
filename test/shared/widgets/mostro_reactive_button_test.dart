@@ -113,5 +113,27 @@ void main() {
           tester.widget<FilledButton>(find.byType(FilledButton));
       expect(afterCooldown.onPressed, isNotNull);
     });
+
+    testWidgets(
+        'destructive variant renders outlined with the destructive accent, '
+        'not the primary green', (tester) async {
+      await _pump(
+        tester,
+        onPressed: () async {},
+        variant: MostroButtonVariant.destructive,
+        outlined: true,
+      );
+
+      expect(find.byType(OutlinedButton), findsOneWidget);
+      expect(find.byType(FilledButton), findsNothing);
+
+      final button =
+          tester.widget<OutlinedButton>(find.byType(OutlinedButton));
+      final accent = button.style?.side?.resolve(<WidgetState>{})?.color;
+      final green = buildDarkTheme().extension<AppColors>()!.mostroGreen;
+
+      expect(accent, isNotNull);
+      expect(accent, isNot(equals(green)));
+    });
   });
 }

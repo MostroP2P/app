@@ -163,7 +163,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (!mounted) return;
+    if (confirmed != true) {
+      throw StateError('Cancel declined by user');
+    }
     try {
       await orders_api.cancelOrder(orderId: widget.orderId);
       ref.invalidate(rawTradesProvider);
@@ -214,7 +217,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   /// Shared by the fiat-sent primary CTA and the disputed secondary row.
   Future<void> _releaseOrder() async {
     final confirmed = await showReleaseConfirmationDialog(context);
-    if (confirmed != true || !mounted) return;
+    if (!mounted) return;
+    if (confirmed != true) {
+      throw StateError('Release declined by user');
+    }
     try {
       await orders_api.releaseOrder(orderId: widget.orderId);
       if (!mounted) return;
