@@ -1,0 +1,44 @@
+repository: https://github.com/MostroP2P/app
+description: |
+  The official non-custodial, cross-platform client for the Mostro peer-to-peer exchange network.
+
+  Mostro App lets anyone buy or sell Bitcoin for local fiat currency over the Lightning Network — without accounts, without KYC, and without trusting a third party. Built with Flutter and a Rust core, it runs on Android, iOS, Web, macOS, Windows, and Linux from a single codebase.
+
+  Key Features:
+
+    - Non-custodial: Your keys stay on your device — no exchange ever holds your funds
+    - Privacy-first: End-to-end encrypted over Nostr — NIP-44 direct messages with the Mostro daemon and NIP-59 Gift Wrap for peer-to-peer chat
+    - Lightning-native: All Bitcoin settlements happen via Lightning invoices, with Nostr Wallet Connect (NWC) support for automated invoicing
+    - Hierarchical Key Management: BIP-32 / BIP-39 key derivation with a unique key per trade
+    - Censorship-resistant: Built on Nostr — no central server or domain to block
+    - Multi-Language: English, Spanish, Italian, French, and German
+    - Open source: MIT licensed and fully auditable
+summary: Non-custodial, peer-to-peer Bitcoin exchange on Lightning, powered by Nostr.
+tags:
+    - peer-to-peer
+    - p2p
+    - security
+    - privacy
+    - android
+    - bitcoin
+    - lightning
+    - nostr
+    - cryptography
+    - freedom-tech
+license: MIT
+website: https://mostro.network
+# TODO: assets/images/wt-*.png are 817-byte placeholder PNGs, not real
+# screenshots. Populate with real store screenshots before publishing.
+# images:
+#     - assets/images/screenshot-1.png
+supported_nips:
+    - "01"
+    - "06"
+    - "13"
+    - "17"
+    - "44"
+    - "47"
+    - "59"
+    - "69"
+metadata_sources:
+    - github
