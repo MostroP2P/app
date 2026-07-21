@@ -490,7 +490,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get currentNodeLabel => 'Nodo attuale';
 
   @override
-  String get trustedBadgeLabel => 'Affidabile';
+  String get trustedBadgeLabel => 'Attendibile';
 
   @override
   String get useDefaultButtonLabel => 'Usa predefinito';
@@ -1224,4 +1224,46 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get noCurrenciesFoundMessage => 'Nessuna valuta trovata';
+
+  @override
+  String get failedToResetNodeMessage => 'Impossibile reimpostare il nodo';
+
+  @override
+  String get invalidPubkeyOrBridgeErrorMessage =>
+      'Chiave pubblica non valida o errore del bridge';
+
+  @override
+  String get currentNodePublicKeyLabel => 'Chiave pubblica del nodo attuale';
+
+  @override
+  String get useCustomNodePubkeyLabel =>
+      'Usa una chiave pubblica del nodo personalizzata';
+
+  @override
+  String get enterHexPubkeyHint =>
+      'Inserisci una chiave pubblica hex di 64 caratteri';
+
+  @override
+  String get shareLogsTooltip => 'Condividi i log';
+
+  @override
+  String get noLogsToShareTooltip => 'Nessun log da condividere';
+
+  @override
+  String get disableLoggingTooltip => 'Disattiva la registrazione';
+
+  @override
+  String get enableLoggingTooltip => 'Attiva la registrazione';
+
+  @override
+  String get loggingEnabledStatus => 'Registrazione attivata';
+
+  @override
+  String get loggingDisabledStatus => 'Registrazione disattivata';
+
+  @override
+  String get noLogEntriesMessage => 'Nessuna voce di registro';
+
+  @override
+  String get failedToShareLogsMessage => 'Impossibile condividere i log';
 }

@@ -1226,4 +1226,46 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get noCurrenciesFoundMessage => 'No se encontraron monedas';
+
+  @override
+  String get failedToResetNodeMessage => 'No se pudo restablecer el nodo';
+
+  @override
+  String get invalidPubkeyOrBridgeErrorMessage =>
+      'Clave pública inválida o error del puente';
+
+  @override
+  String get currentNodePublicKeyLabel => 'Clave pública del nodo actual';
+
+  @override
+  String get useCustomNodePubkeyLabel =>
+      'Usar una clave pública de nodo personalizada';
+
+  @override
+  String get enterHexPubkeyHint => 'Ingresa clave pública hex de 64 caracteres';
+
+  @override
+  String get shareLogsTooltip => 'Compartir registros';
+
+  @override
+  String get noLogsToShareTooltip => 'No hay registros para compartir';
+
+  @override
+  String get disableLoggingTooltip => 'Desactivar registro';
+
+  @override
+  String get enableLoggingTooltip => 'Activar registro';
+
+  @override
+  String get loggingEnabledStatus => 'Registro activado';
+
+  @override
+  String get loggingDisabledStatus => 'Registro desactivado';
+
+  @override
+  String get noLogEntriesMessage => 'No hay entradas de registro';
+
+  @override
+  String get failedToShareLogsMessage =>
+      'No se pudieron compartir los registros';
 }

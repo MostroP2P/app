@@ -962,7 +962,7 @@ abstract class AppLocalizations {
   /// **'Paste or scan a QR code'**
   String get pasteOrScanQrCode;
 
-  /// Section title on the Mostro node settings screen
+  /// Title of the Mostro node selector bottom sheet
   ///
   /// In en, this message translates to:
   /// **'Mostro Node'**
@@ -974,7 +974,7 @@ abstract class AppLocalizations {
   /// **'Current Node'**
   String get currentNodeLabel;
 
-  /// Badge shown on a verified/trusted Mostro node
+  /// Badge shown when the active node is the default trusted node
   ///
   /// In en, this message translates to:
   /// **'Trusted'**
@@ -2299,6 +2299,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No currencies found'**
   String get noCurrenciesFoundMessage;
+
+  /// Error shown when resetting to the default Mostro node fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to reset node'**
+  String get failedToResetNodeMessage;
+
+  /// Error shown when setting a custom node pubkey fails
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid pubkey or bridge error'**
+  String get invalidPubkeyOrBridgeErrorMessage;
+
+  /// Accessibility label for the current node public key
+  ///
+  /// In en, this message translates to:
+  /// **'Current node public key'**
+  String get currentNodePublicKeyLabel;
+
+  /// Label above the custom node pubkey input
+  ///
+  /// In en, this message translates to:
+  /// **'Use a custom node pubkey'**
+  String get useCustomNodePubkeyLabel;
+
+  /// Hint text for the custom node pubkey input
+  ///
+  /// In en, this message translates to:
+  /// **'Enter 64-char hex pubkey'**
+  String get enterHexPubkeyHint;
+
+  /// Tooltip for the share logs action
+  ///
+  /// In en, this message translates to:
+  /// **'Share logs'**
+  String get shareLogsTooltip;
+
+  /// Tooltip for the share action when there are no logs
+  ///
+  /// In en, this message translates to:
+  /// **'No logs to share'**
+  String get noLogsToShareTooltip;
+
+  /// Tooltip to disable logging
+  ///
+  /// In en, this message translates to:
+  /// **'Disable logging'**
+  String get disableLoggingTooltip;
+
+  /// Tooltip to enable logging
+  ///
+  /// In en, this message translates to:
+  /// **'Enable logging'**
+  String get enableLoggingTooltip;
+
+  /// Status banner text when logging is enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Logging enabled'**
+  String get loggingEnabledStatus;
+
+  /// Status banner text when logging is disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Logging disabled'**
+  String get loggingDisabledStatus;
+
+  /// Message shown when there are no log entries
+  ///
+  /// In en, this message translates to:
+  /// **'No log entries'**
+  String get noLogEntriesMessage;
+
+  /// Snackbar shown when sharing logs fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to share logs'**
+  String get failedToShareLogsMessage;
 }
 
 class _AppLocalizationsDelegate

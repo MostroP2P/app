@@ -388,5 +388,20 @@
   "notifDisputeUpdatesTitle": "Mises à jour des litiges",
   "notifDisputeUpdatesSubtitle": "Actions des administrateurs et résolutions de litiges",
   "searchCurrenciesHint": "Rechercher des devises…",
-  "noCurrenciesFoundMessage": "Aucune devise trouvée"
+  "noCurrenciesFoundMessage": "Aucune devise trouvée",
+  "failedToResetNodeMessage": "Échec de la réinitialisation du nœud",
+  "invalidPubkeyOrBridgeErrorMessage": "Clé publique invalide ou erreur du pont",
+  "mostroNodeTitle": "Nœud Mostro",
+  "currentNodePublicKeyLabel": "Clé publique du nœud actuel",
+  "trustedBadgeLabel": "De confiance",
+  "useCustomNodePubkeyLabel": "Utiliser une clé publique de nœud personnalisée",
+  "enterHexPubkeyHint": "Entrez une clé publique hex de 64 caractères",
+  "shareLogsTooltip": "Partager les journaux",
+  "noLogsToShareTooltip": "Aucun journal à partager",
+  "disableLoggingTooltip": "Désactiver la journalisation",
+  "enableLoggingTooltip": "Activer la journalisation",
+  "loggingEnabledStatus": "Journalisation activée",
+  "loggingDisabledStatus": "Journalisation désactivée",
+  "noLogEntriesMessage": "Aucune entrée de journal",
+  "failedToShareLogsMessage": "Échec du partage des journaux"
 }

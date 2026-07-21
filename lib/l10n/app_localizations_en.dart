@@ -1212,4 +1212,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noCurrenciesFoundMessage => 'No currencies found';
+
+  @override
+  String get failedToResetNodeMessage => 'Failed to reset node';
+
+  @override
+  String get invalidPubkeyOrBridgeErrorMessage =>
+      'Invalid pubkey or bridge error';
+
+  @override
+  String get currentNodePublicKeyLabel => 'Current node public key';
+
+  @override
+  String get useCustomNodePubkeyLabel => 'Use a custom node pubkey';
+
+  @override
+  String get enterHexPubkeyHint => 'Enter 64-char hex pubkey';
+
+  @override
+  String get shareLogsTooltip => 'Share logs';
+
+  @override
+  String get noLogsToShareTooltip => 'No logs to share';
+
+  @override
+  String get disableLoggingTooltip => 'Disable logging';
+
+  @override
+  String get enableLoggingTooltip => 'Enable logging';
+
+  @override
+  String get loggingEnabledStatus => 'Logging enabled';
+
+  @override
+  String get loggingDisabledStatus => 'Logging disabled';
+
+  @override
+  String get noLogEntriesMessage => 'No log entries';
+
+  @override
+  String get failedToShareLogsMessage => 'Failed to share logs';
 }

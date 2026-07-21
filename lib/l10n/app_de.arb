@@ -388,5 +388,20 @@
   "notifDisputeUpdatesTitle": "Streitfall-Updates",
   "notifDisputeUpdatesSubtitle": "Admin-Aktionen und Streitbeilegungen",
   "searchCurrenciesHint": "Währungen suchen…",
-  "noCurrenciesFoundMessage": "Keine Währungen gefunden"
+  "noCurrenciesFoundMessage": "Keine Währungen gefunden",
+  "failedToResetNodeMessage": "Knoten konnte nicht zurückgesetzt werden",
+  "invalidPubkeyOrBridgeErrorMessage": "Ungültiger Public Key oder Bridge-Fehler",
+  "mostroNodeTitle": "Mostro-Knoten",
+  "currentNodePublicKeyLabel": "Öffentlicher Schlüssel des aktuellen Knotens",
+  "trustedBadgeLabel": "Vertrauenswürdig",
+  "useCustomNodePubkeyLabel": "Eigenen Knoten-Public-Key verwenden",
+  "enterHexPubkeyHint": "Gib einen 64-stelligen Hex-Public-Key ein",
+  "shareLogsTooltip": "Protokolle teilen",
+  "noLogsToShareTooltip": "Keine Protokolle zum Teilen",
+  "disableLoggingTooltip": "Protokollierung deaktivieren",
+  "enableLoggingTooltip": "Protokollierung aktivieren",
+  "loggingEnabledStatus": "Protokollierung aktiviert",
+  "loggingDisabledStatus": "Protokollierung deaktiviert",
+  "noLogEntriesMessage": "Keine Protokolleinträge",
+  "failedToShareLogsMessage": "Protokolle konnten nicht geteilt werden"
 }

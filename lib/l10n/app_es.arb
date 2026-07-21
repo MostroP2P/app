@@ -388,5 +388,20 @@
   "notifDisputeUpdatesTitle": "Actualizaciones de disputas",
   "notifDisputeUpdatesSubtitle": "Acciones de administradores y resoluciones de disputas",
   "searchCurrenciesHint": "Buscar monedas…",
-  "noCurrenciesFoundMessage": "No se encontraron monedas"
+  "noCurrenciesFoundMessage": "No se encontraron monedas",
+  "failedToResetNodeMessage": "No se pudo restablecer el nodo",
+  "invalidPubkeyOrBridgeErrorMessage": "Clave pública inválida o error del puente",
+  "mostroNodeTitle": "Nodo Mostro",
+  "currentNodePublicKeyLabel": "Clave pública del nodo actual",
+  "trustedBadgeLabel": "De confianza",
+  "useCustomNodePubkeyLabel": "Usar una clave pública de nodo personalizada",
+  "enterHexPubkeyHint": "Ingresa clave pública hex de 64 caracteres",
+  "shareLogsTooltip": "Compartir registros",
+  "noLogsToShareTooltip": "No hay registros para compartir",
+  "disableLoggingTooltip": "Desactivar registro",
+  "enableLoggingTooltip": "Activar registro",
+  "loggingEnabledStatus": "Registro activado",
+  "loggingDisabledStatus": "Registro desactivado",
+  "noLogEntriesMessage": "No hay entradas de registro",
+  "failedToShareLogsMessage": "No se pudieron compartir los registros"
 }

@@ -1232,4 +1232,46 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get noCurrenciesFoundMessage => 'Aucune devise trouvée';
+
+  @override
+  String get failedToResetNodeMessage => 'Échec de la réinitialisation du nœud';
+
+  @override
+  String get invalidPubkeyOrBridgeErrorMessage =>
+      'Clé publique invalide ou erreur du pont';
+
+  @override
+  String get currentNodePublicKeyLabel => 'Clé publique du nœud actuel';
+
+  @override
+  String get useCustomNodePubkeyLabel =>
+      'Utiliser une clé publique de nœud personnalisée';
+
+  @override
+  String get enterHexPubkeyHint =>
+      'Entrez une clé publique hex de 64 caractères';
+
+  @override
+  String get shareLogsTooltip => 'Partager les journaux';
+
+  @override
+  String get noLogsToShareTooltip => 'Aucun journal à partager';
+
+  @override
+  String get disableLoggingTooltip => 'Désactiver la journalisation';
+
+  @override
+  String get enableLoggingTooltip => 'Activer la journalisation';
+
+  @override
+  String get loggingEnabledStatus => 'Journalisation activée';
+
+  @override
+  String get loggingDisabledStatus => 'Journalisation désactivée';
+
+  @override
+  String get noLogEntriesMessage => 'Aucune entrée de journal';
+
+  @override
+  String get failedToShareLogsMessage => 'Échec du partage des journaux';
 }

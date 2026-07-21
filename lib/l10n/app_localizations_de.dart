@@ -1231,4 +1231,47 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noCurrenciesFoundMessage => 'Keine Währungen gefunden';
+
+  @override
+  String get failedToResetNodeMessage =>
+      'Knoten konnte nicht zurückgesetzt werden';
+
+  @override
+  String get invalidPubkeyOrBridgeErrorMessage =>
+      'Ungültiger Public Key oder Bridge-Fehler';
+
+  @override
+  String get currentNodePublicKeyLabel =>
+      'Öffentlicher Schlüssel des aktuellen Knotens';
+
+  @override
+  String get useCustomNodePubkeyLabel => 'Eigenen Knoten-Public-Key verwenden';
+
+  @override
+  String get enterHexPubkeyHint => 'Gib einen 64-stelligen Hex-Public-Key ein';
+
+  @override
+  String get shareLogsTooltip => 'Protokolle teilen';
+
+  @override
+  String get noLogsToShareTooltip => 'Keine Protokolle zum Teilen';
+
+  @override
+  String get disableLoggingTooltip => 'Protokollierung deaktivieren';
+
+  @override
+  String get enableLoggingTooltip => 'Protokollierung aktivieren';
+
+  @override
+  String get loggingEnabledStatus => 'Protokollierung aktiviert';
+
+  @override
+  String get loggingDisabledStatus => 'Protokollierung deaktiviert';
+
+  @override
+  String get noLogEntriesMessage => 'Keine Protokolleinträge';
+
+  @override
+  String get failedToShareLogsMessage =>
+      'Protokolle konnten nicht geteilt werden';
 }
