@@ -1699,4 +1699,66 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get sharedKeySafetyNote =>
       'Conservez votre clé partagée en sécurité — elle est nécessaire pour la résolution des litiges';
+
+  @override
+  String get attachmentLabel => '[Pièce jointe]';
+
+  @override
+  String sellingSatsTo(String handle) {
+    return 'Vous vendez des sats à $handle';
+  }
+
+  @override
+  String buyingSatsFrom(String handle) {
+    return 'Vous achetez des sats à $handle';
+  }
+
+  @override
+  String youMessagePrefix(String message) {
+    return 'Vous : $message';
+  }
+
+  @override
+  String get downloadTooltip => 'Télécharger';
+
+  @override
+  String get fileDownloadPlaceholder =>
+      'Téléchargement de fichiers disponible en Phase 10+';
+
+  @override
+  String get fileTypeVideo => 'Vidéo';
+
+  @override
+  String get fileTypeImage => 'Image';
+
+  @override
+  String get fileTypeArchive => 'Archive';
+
+  @override
+  String get fileTypeFile => 'Fichier';
+
+  @override
+  String get tapToDownload => 'Appuyez pour télécharger';
+
+  @override
+  String get imageDownloadPlaceholder =>
+      'Téléchargement d\'images disponible en Phase 10+';
+
+  @override
+  String buyingSatsAmount(String sats) {
+    return 'Achat de $sats sats';
+  }
+
+  @override
+  String sellingSatsAmount(String sats) {
+    return 'Vente de $sats sats';
+  }
+
+  @override
+  String get viewOrderLink => 'Voir l\'ordre';
+
+  @override
+  String timeLeftLabel(String time) {
+    return '$time restant';
+  }
 }

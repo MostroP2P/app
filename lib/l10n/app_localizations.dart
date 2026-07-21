@@ -3103,6 +3103,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keep your shared key safe — it is needed for dispute resolution'**
   String get sharedKeySafetyNote;
+
+  /// Label shown on a chat bubble that has a file attachment
+  ///
+  /// In en, this message translates to:
+  /// **'[Attachment]'**
+  String get attachmentLabel;
+
+  /// Chat list context line when the user is selling
+  ///
+  /// In en, this message translates to:
+  /// **'You are selling sats to {handle}'**
+  String sellingSatsTo(String handle);
+
+  /// Chat list context line when the user is buying
+  ///
+  /// In en, this message translates to:
+  /// **'You are buying sats from {handle}'**
+  String buyingSatsFrom(String handle);
+
+  /// Chat list last-message preview prefix for own messages
+  ///
+  /// In en, this message translates to:
+  /// **'You: {message}'**
+  String youMessagePrefix(String message);
+
+  /// Tooltip for the file download button
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get downloadTooltip;
+
+  /// Placeholder snackbar for file download (not yet wired)
+  ///
+  /// In en, this message translates to:
+  /// **'File download wired in Phase 10+'**
+  String get fileDownloadPlaceholder;
+
+  /// File type chip: video
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get fileTypeVideo;
+
+  /// File type chip: image
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get fileTypeImage;
+
+  /// File type chip: archive
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get fileTypeArchive;
+
+  /// File type chip: generic file
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get fileTypeFile;
+
+  /// Hint on an encrypted image placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to download'**
+  String get tapToDownload;
+
+  /// Placeholder snackbar for image download (not yet wired)
+  ///
+  /// In en, this message translates to:
+  /// **'Image download wired in Phase 10+'**
+  String get imageDownloadPlaceholder;
+
+  /// Trade state header amount when buying
+  ///
+  /// In en, this message translates to:
+  /// **'Buying {sats} sats'**
+  String buyingSatsAmount(String sats);
+
+  /// Trade state header amount when selling
+  ///
+  /// In en, this message translates to:
+  /// **'Selling {sats} sats'**
+  String sellingSatsAmount(String sats);
+
+  /// Link in the trade state header to view the order
+  ///
+  /// In en, this message translates to:
+  /// **'View order'**
+  String get viewOrderLink;
+
+  /// Countdown label showing remaining time
+  ///
+  /// In en, this message translates to:
+  /// **'{time} left'**
+  String timeLeftLabel(String time);
 }
 
 class _AppLocalizationsDelegate

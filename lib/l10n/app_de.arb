@@ -524,5 +524,21 @@
   "peerPublicKeyLabel": "Öffentlicher Schlüssel des Partners",
   "yourSharedKeyLabel": "Dein gemeinsamer Schlüssel",
   "sharedKeyPlaceholder": "Verfügbar nach der Bridge-Integration (Phase 10+)",
-  "sharedKeySafetyNote": "Bewahre deinen gemeinsamen Schlüssel sicher auf — er wird für die Streitbeilegung benötigt"
+  "sharedKeySafetyNote": "Bewahre deinen gemeinsamen Schlüssel sicher auf — er wird für die Streitbeilegung benötigt",
+  "attachmentLabel": "[Anhang]",
+  "sellingSatsTo": "Du verkaufst Sats an {handle}",
+  "buyingSatsFrom": "Du kaufst Sats von {handle}",
+  "youMessagePrefix": "Du: {message}",
+  "downloadTooltip": "Herunterladen",
+  "fileDownloadPlaceholder": "Datei-Download in Phase 10+ verfügbar",
+  "fileTypeVideo": "Video",
+  "fileTypeImage": "Bild",
+  "fileTypeArchive": "Archiv",
+  "fileTypeFile": "Datei",
+  "tapToDownload": "Zum Herunterladen tippen",
+  "imageDownloadPlaceholder": "Bild-Download in Phase 10+ verfügbar",
+  "buyingSatsAmount": "Kaufe {sats} Sats",
+  "sellingSatsAmount": "Verkaufe {sats} Sats",
+  "viewOrderLink": "Bestellung ansehen",
+  "timeLeftLabel": "{time} übrig"
 }

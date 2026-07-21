@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Placeholder widget for encrypted image attachments.
 ///
@@ -49,7 +50,7 @@ class EncryptedImageMessage extends StatelessWidget {
                 children: [
                   const SizedBox(height: 52), // below icon
                   Text(
-                    'Tap to download',
+                    AppLocalizations.of(context).tapToDownload,
                     style: textTheme.bodySmall?.copyWith(
                       color: colors.textSubtle,
                     ),
@@ -82,9 +83,9 @@ class EncryptedImageMessage extends StatelessWidget {
 
   void _onTap(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Image download wired in Phase 10+'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(AppLocalizations.of(context).imageDownloadPlaceholder),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

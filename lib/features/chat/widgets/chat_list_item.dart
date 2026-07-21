@@ -25,18 +25,18 @@ class ChatListItem extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
     final contextLine = room.isSelling
-        ? 'You are selling sats to ${room.peerHandle}'
-        : 'You are buying sats from ${room.peerHandle}';
+        ? l10n.sellingSatsTo(room.peerHandle)
+        : l10n.buyingSatsFrom(room.peerHandle);
 
     final previewText = room.lastMessage == null
         ? null
         : room.lastMessageIsOwn
-            ? 'You: ${room.lastMessage}'
+            ? l10n.youMessagePrefix(room.lastMessage!)
             : room.lastMessage;
 
-    final l10n = AppLocalizations.of(context);
     final timestampLabel = room.lastMessageAt > 0
         ? _formatTimestamp(room.lastMessageAt, l10n)
         : '';

@@ -1109,5 +1109,55 @@
   "sharedKeyPlaceholder": "Available after bridge integration (Phase 10+)",
   "@sharedKeyPlaceholder": {"description": "Placeholder note for the shared key"},
   "sharedKeySafetyNote": "Keep your shared key safe — it is needed for dispute resolution",
-  "@sharedKeySafetyNote": {"description": "Safety note about the shared key"}
+  "@sharedKeySafetyNote": {"description": "Safety note about the shared key"},
+  "attachmentLabel": "[Attachment]",
+  "@attachmentLabel": {"description": "Label shown on a chat bubble that has a file attachment"},
+  "sellingSatsTo": "You are selling sats to {handle}",
+  "@sellingSatsTo": {
+    "description": "Chat list context line when the user is selling",
+    "placeholders": {"handle": {"type": "String"}}
+  },
+  "buyingSatsFrom": "You are buying sats from {handle}",
+  "@buyingSatsFrom": {
+    "description": "Chat list context line when the user is buying",
+    "placeholders": {"handle": {"type": "String"}}
+  },
+  "youMessagePrefix": "You: {message}",
+  "@youMessagePrefix": {
+    "description": "Chat list last-message preview prefix for own messages",
+    "placeholders": {"message": {"type": "String"}}
+  },
+  "downloadTooltip": "Download",
+  "@downloadTooltip": {"description": "Tooltip for the file download button"},
+  "fileDownloadPlaceholder": "File download wired in Phase 10+",
+  "@fileDownloadPlaceholder": {"description": "Placeholder snackbar for file download (not yet wired)"},
+  "fileTypeVideo": "Video",
+  "@fileTypeVideo": {"description": "File type chip: video"},
+  "fileTypeImage": "Image",
+  "@fileTypeImage": {"description": "File type chip: image"},
+  "fileTypeArchive": "Archive",
+  "@fileTypeArchive": {"description": "File type chip: archive"},
+  "fileTypeFile": "File",
+  "@fileTypeFile": {"description": "File type chip: generic file"},
+  "tapToDownload": "Tap to download",
+  "@tapToDownload": {"description": "Hint on an encrypted image placeholder"},
+  "imageDownloadPlaceholder": "Image download wired in Phase 10+",
+  "@imageDownloadPlaceholder": {"description": "Placeholder snackbar for image download (not yet wired)"},
+  "buyingSatsAmount": "Buying {sats} sats",
+  "@buyingSatsAmount": {
+    "description": "Trade state header amount when buying",
+    "placeholders": {"sats": {"type": "String"}}
+  },
+  "sellingSatsAmount": "Selling {sats} sats",
+  "@sellingSatsAmount": {
+    "description": "Trade state header amount when selling",
+    "placeholders": {"sats": {"type": "String"}}
+  },
+  "viewOrderLink": "View order",
+  "@viewOrderLink": {"description": "Link in the trade state header to view the order"},
+  "timeLeftLabel": "{time} left",
+  "@timeLeftLabel": {
+    "description": "Countdown label showing remaining time",
+    "placeholders": {"time": {"type": "String"}}
+  }
 }

@@ -1692,4 +1692,66 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get sharedKeySafetyNote =>
       'Guarda tu clave compartida de forma segura — es necesaria para resolver disputas';
+
+  @override
+  String get attachmentLabel => '[Adjunto]';
+
+  @override
+  String sellingSatsTo(String handle) {
+    return 'Le estás vendiendo sats a $handle';
+  }
+
+  @override
+  String buyingSatsFrom(String handle) {
+    return 'Le estás comprando sats a $handle';
+  }
+
+  @override
+  String youMessagePrefix(String message) {
+    return 'Tú: $message';
+  }
+
+  @override
+  String get downloadTooltip => 'Descargar';
+
+  @override
+  String get fileDownloadPlaceholder =>
+      'Descarga de archivos disponible en la Fase 10+';
+
+  @override
+  String get fileTypeVideo => 'Vídeo';
+
+  @override
+  String get fileTypeImage => 'Imagen';
+
+  @override
+  String get fileTypeArchive => 'Archivo comprimido';
+
+  @override
+  String get fileTypeFile => 'Archivo';
+
+  @override
+  String get tapToDownload => 'Toca para descargar';
+
+  @override
+  String get imageDownloadPlaceholder =>
+      'Descarga de imágenes disponible en la Fase 10+';
+
+  @override
+  String buyingSatsAmount(String sats) {
+    return 'Comprando $sats sats';
+  }
+
+  @override
+  String sellingSatsAmount(String sats) {
+    return 'Vendiendo $sats sats';
+  }
+
+  @override
+  String get viewOrderLink => 'Ver orden';
+
+  @override
+  String timeLeftLabel(String time) {
+    return 'Quedan $time';
+  }
 }

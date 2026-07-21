@@ -524,5 +524,21 @@
   "peerPublicKeyLabel": "Clé publique du pair",
   "yourSharedKeyLabel": "Votre clé partagée",
   "sharedKeyPlaceholder": "Disponible après l'intégration du pont (Phase 10+)",
-  "sharedKeySafetyNote": "Conservez votre clé partagée en sécurité — elle est nécessaire pour la résolution des litiges"
+  "sharedKeySafetyNote": "Conservez votre clé partagée en sécurité — elle est nécessaire pour la résolution des litiges",
+  "attachmentLabel": "[Pièce jointe]",
+  "sellingSatsTo": "Vous vendez des sats à {handle}",
+  "buyingSatsFrom": "Vous achetez des sats à {handle}",
+  "youMessagePrefix": "Vous : {message}",
+  "downloadTooltip": "Télécharger",
+  "fileDownloadPlaceholder": "Téléchargement de fichiers disponible en Phase 10+",
+  "fileTypeVideo": "Vidéo",
+  "fileTypeImage": "Image",
+  "fileTypeArchive": "Archive",
+  "fileTypeFile": "Fichier",
+  "tapToDownload": "Appuyez pour télécharger",
+  "imageDownloadPlaceholder": "Téléchargement d'images disponible en Phase 10+",
+  "buyingSatsAmount": "Achat de {sats} sats",
+  "sellingSatsAmount": "Vente de {sats} sats",
+  "viewOrderLink": "Voir l'ordre",
+  "timeLeftLabel": "{time} restant"
 }

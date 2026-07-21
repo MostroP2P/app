@@ -1671,4 +1671,64 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sharedKeySafetyNote =>
       'Keep your shared key safe — it is needed for dispute resolution';
+
+  @override
+  String get attachmentLabel => '[Attachment]';
+
+  @override
+  String sellingSatsTo(String handle) {
+    return 'You are selling sats to $handle';
+  }
+
+  @override
+  String buyingSatsFrom(String handle) {
+    return 'You are buying sats from $handle';
+  }
+
+  @override
+  String youMessagePrefix(String message) {
+    return 'You: $message';
+  }
+
+  @override
+  String get downloadTooltip => 'Download';
+
+  @override
+  String get fileDownloadPlaceholder => 'File download wired in Phase 10+';
+
+  @override
+  String get fileTypeVideo => 'Video';
+
+  @override
+  String get fileTypeImage => 'Image';
+
+  @override
+  String get fileTypeArchive => 'Archive';
+
+  @override
+  String get fileTypeFile => 'File';
+
+  @override
+  String get tapToDownload => 'Tap to download';
+
+  @override
+  String get imageDownloadPlaceholder => 'Image download wired in Phase 10+';
+
+  @override
+  String buyingSatsAmount(String sats) {
+    return 'Buying $sats sats';
+  }
+
+  @override
+  String sellingSatsAmount(String sats) {
+    return 'Selling $sats sats';
+  }
+
+  @override
+  String get viewOrderLink => 'View order';
+
+  @override
+  String timeLeftLabel(String time) {
+    return '$time left';
+  }
 }

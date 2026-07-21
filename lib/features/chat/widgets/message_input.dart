@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Bottom message composition bar.
 ///
@@ -47,6 +48,7 @@ class _MessageInputState extends State<MessageInput> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -77,7 +79,7 @@ class _MessageInputState extends State<MessageInput> {
                 : IconButton(
                     icon: Icon(Icons.attach_file, color: colors.textSubtle),
                     onPressed: widget.onAttachFile,
-                    tooltip: 'Attach file',
+                    tooltip: l10n.disputeAttachFile,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -94,7 +96,7 @@ class _MessageInputState extends State<MessageInput> {
                     color: colors.textPrimary,
                   ),
               decoration: InputDecoration(
-                hintText: 'Write a message...',
+                hintText: l10n.disputeWriteMessageHint,
                 hintStyle: TextStyle(color: colors.textSubtle),
                 filled: true,
                 fillColor: colors.backgroundInput,
@@ -127,7 +129,7 @@ class _MessageInputState extends State<MessageInput> {
             child: IconButton(
               icon: Icon(Icons.send, color: colors.mostroGreen),
               onPressed: _handleSend,
-              tooltip: 'Send',
+              tooltip: l10n.disputeSend,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
