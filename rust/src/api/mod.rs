@@ -1,3 +1,4 @@
+pub mod bond;
 pub mod disputes;
 pub mod identity;
 pub mod logging;

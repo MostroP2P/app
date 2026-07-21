@@ -2003,6 +2003,49 @@ async fn dispatch_mostro_message(
                 ));
             }
         }
+        Action::BondSlashed => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] gift-wrap BondSlashed has no order id");
+                    return;
+                }
+            };
+            let small_order = match &kind.payload {
+                Some(mostro_core::message::Payload::Order(so)) => so,
+                _ => {
+                    log::warn!("[orders] gift-wrap BondSlashed payload is not an Order");
+                    return;
+                }
+            };
+            // The payload's amount is the SLASHED BOND amount and its status is
+            // null. Never write it back to the tracked order: this notice is
+            // informational, and overwriting would corrupt the order's real
+            // trade status/amount. We only read the current status to infer the
+            // slash cause.
+            let amount_sats = u64::try_from(small_order.amount).unwrap_or(0);
+            let status = match crate::db::app_db::db() {
+                Some(db) => db
+                    .get_trade_by_order_id(&order_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|t| t.order.status),
+                None => None,
+            };
+            let cause = crate::api::bond::infer_slash_cause(status.as_ref());
+            log::info!(
+                "[orders] gift-wrap BondSlashed: order={order_id} amount={amount_sats} cause={cause:?}"
+            );
+            crate::api::bond::emit_bond_slashed(crate::api::types::BondSlashedEvent {
+                order_id,
+                amount_sats,
+                fiat_code: small_order.fiat_code.clone(),
+                fiat_amount: small_order.fiat_amount,
+                payment_method: small_order.payment_method.clone(),
+                cause,
+            });
+        }
         action => {
             log::debug!("[orders] gift-wrap unhandled action={action:?}");
         }

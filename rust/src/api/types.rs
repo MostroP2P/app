@@ -410,6 +410,37 @@ pub struct RatingReceivedEvent {
     pub from_pubkey: String,
 }
 
+/// Cause of an anti-abuse bond slash, inferred from the tracked order state.
+///
+/// The wire message carries no `reason`, so the cause is inferred client-side
+/// (see `crate::api::bond::infer_slash_cause`).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SlashCause {
+    /// The bonded party let a waiting-state timeout elapse.
+    Timeout,
+    /// A solver directed the slash while resolving a dispute.
+    Dispute,
+}
+
+/// Event emitted when the local user's anti-abuse bond is slashed.
+///
+/// Best-effort and informational only: the hold invoice is already settled and
+/// the user keeps no claim over the forfeited sats. `amount_sats` is the
+/// **slashed bond amount**, not the trade amount — the tracked order's real
+/// status and amount are deliberately left untouched.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BondSlashedEvent {
+    /// The order whose bond was slashed.
+    pub order_id: String,
+    /// Slashed bond amount, in satoshis.
+    pub amount_sats: u64,
+    pub fiat_code: String,
+    pub fiat_amount: i64,
+    pub payment_method: String,
+    /// Inferred cause (timeout vs dispute).
+    pub cause: SlashCause,
+}
+
 /// Connected wallet information returned by `connect_wallet` and `get_wallet`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NwcWalletInfo {
