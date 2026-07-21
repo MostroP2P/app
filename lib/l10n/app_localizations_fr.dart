@@ -1000,4 +1000,64 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get sessionTimeoutMessage =>
       'Aucune réponse reçue, vérifiez votre connexion et réessayez plus tard';
+
+  @override
+  String get noIdentityFoundMessage =>
+      'Aucune identité trouvée — essayez de redémarrer l\'application.';
+
+  @override
+  String get failedToLoadSecretWordsMessage =>
+      'Échec du chargement des mots secrets. Veuillez réessayer.';
+
+  @override
+  String get failedToConfirmBackupMessage =>
+      'Échec de la confirmation de la sauvegarde. Veuillez réessayer.';
+
+  @override
+  String get secretWordsInfoContent =>
+      'Vos 12 mots secrets sont le seul moyen de récupérer votre compte. Sauvegardez-les dans un endroit sûr — ne les partagez jamais avec personne.';
+
+  @override
+  String get privacyModesInfoTitle => 'Modes de confidentialité';
+
+  @override
+  String get privacyModesInfoContent =>
+      'Le mode réputation permet aux autres de voir vos transactions réussies.\n\nLe mode confidentialité totale garde votre activité complètement anonyme — aucune réputation n\'est construite.';
+
+  @override
+  String get failedToGenerateIdentityMessage =>
+      'Échec de la génération de l\'identité. Veuillez réessayer.';
+
+  @override
+  String get invalidMnemonicMessage =>
+      'Phrase mnémonique invalide. Veuillez vérifier vos mots et réessayer.';
+
+  @override
+  String get enterValidMnemonicError =>
+      'Entrez une phrase valide de 12 ou 24 mots.';
+
+  @override
+  String get orderBookRefreshedMessage => 'Carnet d\'ordres actualisé';
+
+  @override
+  String get refreshFailedMessage => 'Échec de l\'actualisation';
+
+  @override
+  String get refreshButtonLabel => 'Actualiser';
+
+  @override
+  String get okButtonLabel => 'OK';
+
+  @override
+  String get moreInformationTooltip => 'Plus d\'informations';
+
+  @override
+  String get backedUpBadgeLabel => 'Sauvegardé';
+
+  @override
+  String get backupBannerTitle => 'Sécurisez votre réputation';
+
+  @override
+  String get backupBannerSubtitle =>
+      'Sauvegardez vos 12 mots — cela prend 60 secondes.';
 }

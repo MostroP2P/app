@@ -996,4 +996,64 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get sessionTimeoutMessage =>
       'No hubo respuesta, verifica tu conexión e inténtalo más tarde';
+
+  @override
+  String get noIdentityFoundMessage =>
+      'No se encontró ninguna identidad — intenta reiniciar la app.';
+
+  @override
+  String get failedToLoadSecretWordsMessage =>
+      'No se pudieron cargar las palabras secretas. Inténtalo de nuevo.';
+
+  @override
+  String get failedToConfirmBackupMessage =>
+      'No se pudo confirmar el respaldo. Inténtalo de nuevo.';
+
+  @override
+  String get secretWordsInfoContent =>
+      'Tus 12 palabras secretas son la única forma de recuperar tu cuenta. Respáldalas en un lugar seguro — nunca las compartas con nadie.';
+
+  @override
+  String get privacyModesInfoTitle => 'Modos de privacidad';
+
+  @override
+  String get privacyModesInfoContent =>
+      'El modo reputación permite que otros vean tus operaciones exitosas.\n\nEl modo privacidad total mantiene tu actividad completamente anónima — no se construye reputación.';
+
+  @override
+  String get failedToGenerateIdentityMessage =>
+      'No se pudo generar la identidad. Inténtalo de nuevo.';
+
+  @override
+  String get invalidMnemonicMessage =>
+      'Mnemónico inválido. Revisa tus palabras e inténtalo de nuevo.';
+
+  @override
+  String get enterValidMnemonicError =>
+      'Ingresa una frase válida de 12 o 24 palabras.';
+
+  @override
+  String get orderBookRefreshedMessage => 'Libro de órdenes actualizado';
+
+  @override
+  String get refreshFailedMessage => 'Error al actualizar';
+
+  @override
+  String get refreshButtonLabel => 'Actualizar';
+
+  @override
+  String get okButtonLabel => 'Aceptar';
+
+  @override
+  String get moreInformationTooltip => 'Más información';
+
+  @override
+  String get backedUpBadgeLabel => 'Respaldado';
+
+  @override
+  String get backupBannerTitle => 'Asegura tu reputación';
+
+  @override
+  String get backupBannerSubtitle =>
+      'Respalda tus 12 palabras — toma 60 segundos.';
 }

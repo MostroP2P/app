@@ -982,4 +982,63 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sessionTimeoutMessage =>
       'No response received, check your connection and try again later';
+
+  @override
+  String get noIdentityFoundMessage =>
+      'No identity found — try restarting the app.';
+
+  @override
+  String get failedToLoadSecretWordsMessage =>
+      'Failed to load secret words. Please try again.';
+
+  @override
+  String get failedToConfirmBackupMessage =>
+      'Failed to confirm backup. Please try again.';
+
+  @override
+  String get secretWordsInfoContent =>
+      'Your 12 secret words are the only way to recover your account. Back them up in a safe place — never share them with anyone.';
+
+  @override
+  String get privacyModesInfoTitle => 'Privacy Modes';
+
+  @override
+  String get privacyModesInfoContent =>
+      'Reputation mode lets others see your successful trades.\n\nFull privacy mode keeps your activity completely anonymous — no reputation is built.';
+
+  @override
+  String get failedToGenerateIdentityMessage =>
+      'Failed to generate identity. Please try again.';
+
+  @override
+  String get invalidMnemonicMessage =>
+      'Invalid mnemonic. Please check your words and try again.';
+
+  @override
+  String get enterValidMnemonicError => 'Enter a valid 12 or 24 word phrase.';
+
+  @override
+  String get orderBookRefreshedMessage => 'Order book refreshed';
+
+  @override
+  String get refreshFailedMessage => 'Refresh failed';
+
+  @override
+  String get refreshButtonLabel => 'Refresh';
+
+  @override
+  String get okButtonLabel => 'OK';
+
+  @override
+  String get moreInformationTooltip => 'More information';
+
+  @override
+  String get backedUpBadgeLabel => 'Backed up';
+
+  @override
+  String get backupBannerTitle => 'Secure your reputation';
+
+  @override
+  String get backupBannerSubtitle =>
+      'Back up your 12 words — it takes 60 seconds.';
 }

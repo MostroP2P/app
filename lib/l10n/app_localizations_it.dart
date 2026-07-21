@@ -993,4 +993,64 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get sessionTimeoutMessage =>
       'Nessuna risposta ricevuta, verifica la tua connessione e riprova più tardi';
+
+  @override
+  String get noIdentityFoundMessage =>
+      'Nessuna identità trovata — prova a riavviare l\'app.';
+
+  @override
+  String get failedToLoadSecretWordsMessage =>
+      'Impossibile caricare le parole segrete. Riprova.';
+
+  @override
+  String get failedToConfirmBackupMessage =>
+      'Impossibile confermare il backup. Riprova.';
+
+  @override
+  String get secretWordsInfoContent =>
+      'Le tue 12 parole segrete sono l\'unico modo per recuperare il tuo account. Salvale in un luogo sicuro — non condividerle mai con nessuno.';
+
+  @override
+  String get privacyModesInfoTitle => 'Modalità di privacy';
+
+  @override
+  String get privacyModesInfoContent =>
+      'La modalità reputazione consente ad altri di vedere le tue operazioni riuscite.\n\nLa modalità privacy totale mantiene la tua attività completamente anonima — non viene costruita alcuna reputazione.';
+
+  @override
+  String get failedToGenerateIdentityMessage =>
+      'Impossibile generare l\'identità. Riprova.';
+
+  @override
+  String get invalidMnemonicMessage =>
+      'Mnemonico non valido. Controlla le tue parole e riprova.';
+
+  @override
+  String get enterValidMnemonicError =>
+      'Inserisci una frase valida da 12 o 24 parole.';
+
+  @override
+  String get orderBookRefreshedMessage => 'Book ordini aggiornato';
+
+  @override
+  String get refreshFailedMessage => 'Aggiornamento non riuscito';
+
+  @override
+  String get refreshButtonLabel => 'Aggiorna';
+
+  @override
+  String get okButtonLabel => 'OK';
+
+  @override
+  String get moreInformationTooltip => 'Maggiori informazioni';
+
+  @override
+  String get backedUpBadgeLabel => 'Salvato';
+
+  @override
+  String get backupBannerTitle => 'Proteggi la tua reputazione';
+
+  @override
+  String get backupBannerSubtitle =>
+      'Salva le tue 12 parole — bastano 60 secondi.';
 }

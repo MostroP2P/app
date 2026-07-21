@@ -1897,6 +1897,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No response received, check your connection and try again later'**
   String get sessionTimeoutMessage;
+
+  /// Snackbar shown on the Account screen when no stored identity can be loaded
+  ///
+  /// In en, this message translates to:
+  /// **'No identity found — try restarting the app.'**
+  String get noIdentityFoundMessage;
+
+  /// Snackbar shown when loading the secret words fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load secret words. Please try again.'**
+  String get failedToLoadSecretWordsMessage;
+
+  /// Snackbar shown when confirming the backup fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to confirm backup. Please try again.'**
+  String get failedToConfirmBackupMessage;
+
+  /// Body of the Secret Words info dialog on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Your 12 secret words are the only way to recover your account. Back them up in a safe place — never share them with anyone.'**
+  String get secretWordsInfoContent;
+
+  /// Title of the privacy modes info dialog on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Modes'**
+  String get privacyModesInfoTitle;
+
+  /// Body of the privacy modes info dialog on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Reputation mode lets others see your successful trades.\n\nFull privacy mode keeps your activity completely anonymous — no reputation is built.'**
+  String get privacyModesInfoContent;
+
+  /// Snackbar shown when generating a new identity fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to generate identity. Please try again.'**
+  String get failedToGenerateIdentityMessage;
+
+  /// Snackbar shown when an imported mnemonic is invalid on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid mnemonic. Please check your words and try again.'**
+  String get invalidMnemonicMessage;
+
+  /// Validation error shown in the import mnemonic dialog when the phrase is not 12 or 24 words
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid 12 or 24 word phrase.'**
+  String get enterValidMnemonicError;
+
+  /// Snackbar confirming the order book was refreshed from the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Order book refreshed'**
+  String get orderBookRefreshedMessage;
+
+  /// Snackbar shown when refreshing the order book fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh failed'**
+  String get refreshFailedMessage;
+
+  /// Label for the refresh action in the Refresh User dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refreshButtonLabel;
+
+  /// Generic OK button label for info dialogs
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get okButtonLabel;
+
+  /// Tooltip for the info icon buttons on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'More information'**
+  String get moreInformationTooltip;
+
+  /// Badge shown in the Secret Words card header once the backup is complete
+  ///
+  /// In en, this message translates to:
+  /// **'Backed up'**
+  String get backedUpBadgeLabel;
+
+  /// Title of the backup reminder banner on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Secure your reputation'**
+  String get backupBannerTitle;
+
+  /// Subtitle of the backup reminder banner on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Back up your 12 words — it takes 60 seconds.'**
+  String get backupBannerSubtitle;
 }
 
 class _AppLocalizationsDelegate

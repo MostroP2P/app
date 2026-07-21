@@ -321,5 +321,22 @@
   "payWithLightningWallet": "Paga con wallet Lightning",
   "noLightningWalletFound": "Nessun wallet Lightning trovato su questo dispositivo",
   "orderNoLongerActive": "Questo ordine non è più attivo",
-  "sessionTimeoutMessage": "Nessuna risposta ricevuta, verifica la tua connessione e riprova più tardi"
+  "sessionTimeoutMessage": "Nessuna risposta ricevuta, verifica la tua connessione e riprova più tardi",
+  "noIdentityFoundMessage": "Nessuna identità trovata — prova a riavviare l'app.",
+  "failedToLoadSecretWordsMessage": "Impossibile caricare le parole segrete. Riprova.",
+  "failedToConfirmBackupMessage": "Impossibile confermare il backup. Riprova.",
+  "secretWordsInfoContent": "Le tue 12 parole segrete sono l'unico modo per recuperare il tuo account. Salvale in un luogo sicuro — non condividerle mai con nessuno.",
+  "privacyModesInfoTitle": "Modalità di privacy",
+  "privacyModesInfoContent": "La modalità reputazione consente ad altri di vedere le tue operazioni riuscite.\n\nLa modalità privacy totale mantiene la tua attività completamente anonima — non viene costruita alcuna reputazione.",
+  "failedToGenerateIdentityMessage": "Impossibile generare l'identità. Riprova.",
+  "invalidMnemonicMessage": "Mnemonico non valido. Controlla le tue parole e riprova.",
+  "enterValidMnemonicError": "Inserisci una frase valida da 12 o 24 parole.",
+  "orderBookRefreshedMessage": "Book ordini aggiornato",
+  "refreshFailedMessage": "Aggiornamento non riuscito",
+  "refreshButtonLabel": "Aggiorna",
+  "okButtonLabel": "OK",
+  "moreInformationTooltip": "Maggiori informazioni",
+  "backedUpBadgeLabel": "Salvato",
+  "backupBannerTitle": "Proteggi la tua reputazione",
+  "backupBannerSubtitle": "Salva le tue 12 parole — bastano 60 secondi."
 }

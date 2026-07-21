@@ -996,4 +996,64 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get sessionTimeoutMessage =>
       'Keine Antwort erhalten; prüfe deine Verbindung und versuche es später erneut';
+
+  @override
+  String get noIdentityFoundMessage =>
+      'Keine Identität gefunden — versuche, die App neu zu starten.';
+
+  @override
+  String get failedToLoadSecretWordsMessage =>
+      'Geheime Wörter konnten nicht geladen werden. Bitte versuche es erneut.';
+
+  @override
+  String get failedToConfirmBackupMessage =>
+      'Sicherung konnte nicht bestätigt werden. Bitte versuche es erneut.';
+
+  @override
+  String get secretWordsInfoContent =>
+      'Deine 12 geheimen Wörter sind die einzige Möglichkeit, dein Konto wiederherzustellen. Sichere sie an einem sicheren Ort — teile sie niemals mit jemandem.';
+
+  @override
+  String get privacyModesInfoTitle => 'Datenschutzmodi';
+
+  @override
+  String get privacyModesInfoContent =>
+      'Im Reputationsmodus können andere deine erfolgreichen Trades sehen.\n\nDer vollständige Datenschutzmodus hält deine Aktivität völlig anonym — es wird keine Reputation aufgebaut.';
+
+  @override
+  String get failedToGenerateIdentityMessage =>
+      'Identität konnte nicht generiert werden. Bitte versuche es erneut.';
+
+  @override
+  String get invalidMnemonicMessage =>
+      'Ungültige mnemonische Phrase. Bitte überprüfe deine Wörter und versuche es erneut.';
+
+  @override
+  String get enterValidMnemonicError =>
+      'Gib eine gültige 12- oder 24-Wort-Phrase ein.';
+
+  @override
+  String get orderBookRefreshedMessage => 'Orderbuch aktualisiert';
+
+  @override
+  String get refreshFailedMessage => 'Aktualisierung fehlgeschlagen';
+
+  @override
+  String get refreshButtonLabel => 'Aktualisieren';
+
+  @override
+  String get okButtonLabel => 'OK';
+
+  @override
+  String get moreInformationTooltip => 'Weitere Informationen';
+
+  @override
+  String get backedUpBadgeLabel => 'Gesichert';
+
+  @override
+  String get backupBannerTitle => 'Sichere deine Reputation';
+
+  @override
+  String get backupBannerSubtitle =>
+      'Sichere deine 12 Wörter — es dauert 60 Sekunden.';
 }

@@ -321,5 +321,22 @@
   "payWithLightningWallet": "Payer avec un portefeuille Lightning",
   "noLightningWalletFound": "Aucun portefeuille Lightning trouvé sur cet appareil",
   "orderNoLongerActive": "Cet ordre n'est plus actif",
-  "sessionTimeoutMessage": "Aucune réponse reçue, vérifiez votre connexion et réessayez plus tard"
+  "sessionTimeoutMessage": "Aucune réponse reçue, vérifiez votre connexion et réessayez plus tard",
+  "noIdentityFoundMessage": "Aucune identité trouvée — essayez de redémarrer l'application.",
+  "failedToLoadSecretWordsMessage": "Échec du chargement des mots secrets. Veuillez réessayer.",
+  "failedToConfirmBackupMessage": "Échec de la confirmation de la sauvegarde. Veuillez réessayer.",
+  "secretWordsInfoContent": "Vos 12 mots secrets sont le seul moyen de récupérer votre compte. Sauvegardez-les dans un endroit sûr — ne les partagez jamais avec personne.",
+  "privacyModesInfoTitle": "Modes de confidentialité",
+  "privacyModesInfoContent": "Le mode réputation permet aux autres de voir vos transactions réussies.\n\nLe mode confidentialité totale garde votre activité complètement anonyme — aucune réputation n'est construite.",
+  "failedToGenerateIdentityMessage": "Échec de la génération de l'identité. Veuillez réessayer.",
+  "invalidMnemonicMessage": "Phrase mnémonique invalide. Veuillez vérifier vos mots et réessayer.",
+  "enterValidMnemonicError": "Entrez une phrase valide de 12 ou 24 mots.",
+  "orderBookRefreshedMessage": "Carnet d'ordres actualisé",
+  "refreshFailedMessage": "Échec de l'actualisation",
+  "refreshButtonLabel": "Actualiser",
+  "okButtonLabel": "OK",
+  "moreInformationTooltip": "Plus d'informations",
+  "backedUpBadgeLabel": "Sauvegardé",
+  "backupBannerTitle": "Sécurisez votre réputation",
+  "backupBannerSubtitle": "Sauvegardez vos 12 mots — cela prend 60 secondes."
 }
