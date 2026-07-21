@@ -1349,4 +1349,258 @@ class AppLocalizationsIt extends AppLocalizations {
   String timeAgoDays(int count) {
     return '${count}g';
   }
+
+  @override
+  String get tradeStatusLoading => 'Caricamento';
+
+  @override
+  String get tradeStatusRate => 'Valuta';
+
+  @override
+  String get tradeStatusRated => 'Valutato';
+
+  @override
+  String get tradeInstructionActiveBuyer =>
+      'Una volta inviato il denaro, contrassegnalo qui sotto. Apri una disputa solo se il venditore smette di rispondere.';
+
+  @override
+  String get tradeInstructionFiatSentBuyer =>
+      'Pagamento fiat contrassegnato come inviato. In attesa che il venditore confermi la ricezione e rilasci i tuoi sats.';
+
+  @override
+  String get tradeInstructionActiveSeller =>
+      'Contatta l\'acquirente con le istruzioni di pagamento tramite la chat sopra.';
+
+  @override
+  String get tradeInstructionFiatSentSeller =>
+      'L\'acquirente ha confermato di aver inviato il pagamento fiat. Una volta verificata la ricezione, rilascia i sats.';
+
+  @override
+  String get tradeInstructionDisputed =>
+      'È stato assegnato un risolutore di dispute. Ti contatterà tramite l\'app.';
+
+  @override
+  String get tradeInstructionPendingRating =>
+      'L\'operazione si è conclusa con successo. Valuta la tua controparte per contribuire a costruire fiducia nella comunità.';
+
+  @override
+  String get tradeInstructionRated => 'Grazie per la tua valutazione!';
+
+  @override
+  String get tradeInstructionPending =>
+      'Il tuo ordine è pubblicato e in attesa che una controparte lo prenda. Puoi annullarlo in qualsiasi momento.';
+
+  @override
+  String get tradeInstructionCancelled =>
+      'Questa operazione è stata annullata. Non sono stati scambiati fondi.';
+
+  @override
+  String get tradeInstructionInProgress => 'Operazione in corso.';
+
+  @override
+  String get theAgreedAmount => 'l\'importo concordato';
+
+  @override
+  String get tradeHeadlinePending =>
+      'In attesa che qualcuno prenda il tuo ordine';
+
+  @override
+  String get tradeHeadlineWaitingInvoiceBuyer =>
+      'Condividi una fattura Lightning per ricevere i tuoi sats';
+
+  @override
+  String get tradeHeadlineWaitingInvoiceSeller =>
+      'In attesa che l\'acquirente condivida una fattura';
+
+  @override
+  String get tradeHeadlineWaitingPaymentBuyer =>
+      'In attesa che il venditore blocchi i sats';
+
+  @override
+  String get tradeHeadlineWaitingPaymentSeller =>
+      'Paga la hold invoice per bloccare i sats';
+
+  @override
+  String tradeHeadlineActiveBuyer(String amount) {
+    return 'Invia $amount al venditore';
+  }
+
+  @override
+  String tradeHeadlineActiveSeller(String amount) {
+    return 'In attesa che l\'acquirente invii $amount';
+  }
+
+  @override
+  String get tradeHeadlineFiatSentBuyer =>
+      'In attesa che il venditore rilasci i tuoi sats';
+
+  @override
+  String tradeHeadlineFiatSentSeller(String amount) {
+    return 'Conferma di aver ricevuto $amount';
+  }
+
+  @override
+  String get tradeHeadlineDisputed => 'Disputa in corso';
+
+  @override
+  String get tradeHeadlineComplete => 'Operazione completata!';
+
+  @override
+  String get tradeHeadlineCompleteRated => 'Operazione completata';
+
+  @override
+  String get tradeHeadlineCancelled => 'Ordine annullato';
+
+  @override
+  String get tradeHeadlineLoading => 'Caricamento operazione…';
+
+  @override
+  String get tradeTimerPendingLabel =>
+      'Tempo in cui questo ordine resta nel book';
+
+  @override
+  String get tradeTimerPendingConsequence =>
+      'Se scade, l\'ordine viene rimosso dal book. Non influirà sulla tua reputazione.';
+
+  @override
+  String get tradeTimerWaitingInvoiceLabelBuyer =>
+      'Tempo per condividere la tua fattura';
+
+  @override
+  String get tradeTimerWaitingInvoiceLabelSeller =>
+      'Tempo perché l\'acquirente condivida una fattura';
+
+  @override
+  String get tradeTimerWaitingInvoiceConsequence =>
+      'Se scade, l\'operazione viene annullata e l\'ordine torna nel book.';
+
+  @override
+  String get tradeTimerWaitingPaymentLabelBuyer =>
+      'Tempo perché il venditore blocchi i sats';
+
+  @override
+  String get tradeTimerWaitingPaymentLabelSeller =>
+      'Tempo per pagare la hold invoice';
+
+  @override
+  String get tradeTimerActiveLabelBuyer =>
+      'Tempo per inviare il pagamento fiat';
+
+  @override
+  String get tradeTimerActiveLabelSeller =>
+      'Tempo perché l\'acquirente invii il fiat';
+
+  @override
+  String get tradeTimerActiveConsequence =>
+      'Se scade, l\'operazione può essere annullata. Coordinatevi nella chat se serve più tempo.';
+
+  @override
+  String get tradeTimerFiatSentLabelBuyer =>
+      'Tempo perché il venditore confermi la ricezione';
+
+  @override
+  String get tradeTimerFiatSentLabelSeller =>
+      'Tempo per confermare la ricezione e rilasciare';
+
+  @override
+  String get tradeTimerFiatSentConsequence =>
+      'Se qualcosa non va, apri una disputa dal menu ⋮.';
+
+  @override
+  String get tradeStepOrderTaken => 'Ordine preso';
+
+  @override
+  String get tradeStepInvoiceBuyer =>
+      'Condividi una fattura · il venditore blocca i sats';
+
+  @override
+  String get tradeStepInvoiceSeller =>
+      'L\'acquirente condivide una fattura · tu blocchi i sats';
+
+  @override
+  String get tradeStepFiatBuyer => 'Invii il pagamento fiat';
+
+  @override
+  String get tradeStepFiatSeller => 'L\'acquirente invia il pagamento fiat';
+
+  @override
+  String get tradeStepReleaseBuyer =>
+      'Il venditore conferma e rilascia i tuoi sats';
+
+  @override
+  String get tradeStepReleaseSeller => 'Confermi la ricezione e rilasci i sats';
+
+  @override
+  String get tradeStepRate => 'Valuta la tua controparte';
+
+  @override
+  String get activeTradeTitle => 'OPERAZIONE ATTIVA';
+
+  @override
+  String tradeIdShortLabel(String id) {
+    return 'ID $id';
+  }
+
+  @override
+  String tradeCreatedAtLabel(String date) {
+    return 'creata $date';
+  }
+
+  @override
+  String get releaseSatsMenuItem => 'Rilascia sats';
+
+  @override
+  String get cancelOrderMenuItem => 'Annulla ordine';
+
+  @override
+  String get openDisputeMenuItem => 'Apri disputa';
+
+  @override
+  String get stepDoneLabel => 'FATTO';
+
+  @override
+  String stepIndicator(int current, int total) {
+    return 'PASSO $current DI $total';
+  }
+
+  @override
+  String get addLightningInvoiceButton => 'Aggiungi fattura Lightning';
+
+  @override
+  String get payHoldInvoiceButton => 'Paga hold invoice';
+
+  @override
+  String get markFiatSentButton => 'Segna fiat inviato';
+
+  @override
+  String get confirmReleaseSatsButton => 'Conferma e rilascia sats';
+
+  @override
+  String get viewDisputeButton => 'Vedi disputa';
+
+  @override
+  String get waitingForBuyer => 'In attesa dell\'acquirente…';
+
+  @override
+  String get waitingForSeller => 'In attesa del venditore…';
+
+  @override
+  String get waitingForFiatPayment => 'In attesa del pagamento fiat…';
+
+  @override
+  String get waitingForCounterpart => 'In attesa di una controparte…';
+
+  @override
+  String get yourTradeTimelineTitle => 'LA TUA OPERAZIONE';
+
+  @override
+  String get yourCounterpartFallback => 'la tua controparte';
+
+  @override
+  String secureChatUnread(int count) {
+    return 'Chat sicura · $count nuovi';
+  }
+
+  @override
+  String get secureChatEncrypted => 'Chat sicura · crittografata end-to-end';
 }

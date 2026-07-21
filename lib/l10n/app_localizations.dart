@@ -2527,6 +2527,426 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count}d'**
   String timeAgoDays(int count);
+
+  /// Trade status pill: loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get tradeStatusLoading;
+
+  /// Trade status pill: pending rating
+  ///
+  /// In en, this message translates to:
+  /// **'Rate'**
+  String get tradeStatusRate;
+
+  /// Trade status pill: rated
+  ///
+  /// In en, this message translates to:
+  /// **'Rated'**
+  String get tradeStatusRated;
+
+  /// Instruction for buyer while trade is active
+  ///
+  /// In en, this message translates to:
+  /// **'Once you have sent the money, mark it below. Only open a dispute if the seller stops responding.'**
+  String get tradeInstructionActiveBuyer;
+
+  /// Instruction for buyer after marking fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat payment marked as sent. Waiting for the seller to confirm receipt and release your sats.'**
+  String get tradeInstructionFiatSentBuyer;
+
+  /// Instruction for seller while trade is active
+  ///
+  /// In en, this message translates to:
+  /// **'Contact the buyer with payment instructions via the chat above.'**
+  String get tradeInstructionActiveSeller;
+
+  /// Instruction for seller after buyer marks fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'The buyer has confirmed they sent the fiat payment. Once you verify receipt, release the sats.'**
+  String get tradeInstructionFiatSentSeller;
+
+  /// Instruction while a dispute is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'A dispute resolver has been assigned. They will contact you through the app.'**
+  String get tradeInstructionDisputed;
+
+  /// Instruction when the trade completed and awaits rating
+  ///
+  /// In en, this message translates to:
+  /// **'The trade completed successfully. Rate your counterpart to help build trust in the community.'**
+  String get tradeInstructionPendingRating;
+
+  /// Instruction after the counterpart has been rated
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you for your rating!'**
+  String get tradeInstructionRated;
+
+  /// Instruction while the order is pending a taker
+  ///
+  /// In en, this message translates to:
+  /// **'Your order is published and waiting for a counterpart to take it. You can cancel it at any time.'**
+  String get tradeInstructionPending;
+
+  /// Instruction when the trade was cancelled
+  ///
+  /// In en, this message translates to:
+  /// **'This trade was cancelled. No funds were exchanged.'**
+  String get tradeInstructionCancelled;
+
+  /// Generic in-progress instruction fallback
+  ///
+  /// In en, this message translates to:
+  /// **'Trade in progress.'**
+  String get tradeInstructionInProgress;
+
+  /// Fallback for the trade amount when the order is unknown
+  ///
+  /// In en, this message translates to:
+  /// **'the agreed amount'**
+  String get theAgreedAmount;
+
+  /// Headline while the order is pending
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for someone to take your order'**
+  String get tradeHeadlinePending;
+
+  /// Headline for buyer while waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Share a Lightning invoice to receive your sats'**
+  String get tradeHeadlineWaitingInvoiceBuyer;
+
+  /// Headline for seller while waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the buyer to share an invoice'**
+  String get tradeHeadlineWaitingInvoiceSeller;
+
+  /// Headline for buyer while waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the seller to lock the sats'**
+  String get tradeHeadlineWaitingPaymentBuyer;
+
+  /// Headline for seller while waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Pay the hold invoice to lock the sats'**
+  String get tradeHeadlineWaitingPaymentSeller;
+
+  /// Headline for buyer to send fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Send {amount} to the seller'**
+  String tradeHeadlineActiveBuyer(String amount);
+
+  /// Headline for seller waiting for fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the buyer to send {amount}'**
+  String tradeHeadlineActiveSeller(String amount);
+
+  /// Headline for buyer waiting for release
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the seller to release your sats'**
+  String get tradeHeadlineFiatSentBuyer;
+
+  /// Headline for seller to confirm receipt
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm you received {amount}'**
+  String tradeHeadlineFiatSentSeller(String amount);
+
+  /// Headline while a dispute is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute in progress'**
+  String get tradeHeadlineDisputed;
+
+  /// Headline when the trade completed
+  ///
+  /// In en, this message translates to:
+  /// **'Trade complete!'**
+  String get tradeHeadlineComplete;
+
+  /// Headline when the trade completed and was rated
+  ///
+  /// In en, this message translates to:
+  /// **'Trade complete'**
+  String get tradeHeadlineCompleteRated;
+
+  /// Headline when the order was cancelled
+  ///
+  /// In en, this message translates to:
+  /// **'Order cancelled'**
+  String get tradeHeadlineCancelled;
+
+  /// Headline while the trade is loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading trade…'**
+  String get tradeHeadlineLoading;
+
+  /// Timer label while the order is pending
+  ///
+  /// In en, this message translates to:
+  /// **'Time for this order to stay in the book'**
+  String get tradeTimerPendingLabel;
+
+  /// Timer consequence while the order is pending
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the order is removed from the book. It won\'t affect your reputation.'**
+  String get tradeTimerPendingConsequence;
+
+  /// Timer label for buyer waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Time to share your invoice'**
+  String get tradeTimerWaitingInvoiceLabelBuyer;
+
+  /// Timer label for seller waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the buyer to share an invoice'**
+  String get tradeTimerWaitingInvoiceLabelSeller;
+
+  /// Timer consequence for the waiting-invoice/payment state
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the trade is cancelled and the order returns to the book.'**
+  String get tradeTimerWaitingInvoiceConsequence;
+
+  /// Timer label for buyer waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the seller to lock the sats'**
+  String get tradeTimerWaitingPaymentLabelBuyer;
+
+  /// Timer label for seller waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Time to pay the hold invoice'**
+  String get tradeTimerWaitingPaymentLabelSeller;
+
+  /// Timer label for buyer to send fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Time to send the fiat payment'**
+  String get tradeTimerActiveLabelBuyer;
+
+  /// Timer label for seller waiting for fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the buyer to send the fiat'**
+  String get tradeTimerActiveLabelSeller;
+
+  /// Timer consequence while the trade is active
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the trade can be cancelled. Coordinate in the chat if more time is needed.'**
+  String get tradeTimerActiveConsequence;
+
+  /// Timer label for buyer waiting for confirmation
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the seller to confirm receipt'**
+  String get tradeTimerFiatSentLabelBuyer;
+
+  /// Timer label for seller to confirm and release
+  ///
+  /// In en, this message translates to:
+  /// **'Time to confirm receipt and release'**
+  String get tradeTimerFiatSentLabelSeller;
+
+  /// Timer consequence after fiat is marked sent
+  ///
+  /// In en, this message translates to:
+  /// **'If something looks wrong, open a dispute from the ⋮ menu.'**
+  String get tradeTimerFiatSentConsequence;
+
+  /// Timeline step: order taken
+  ///
+  /// In en, this message translates to:
+  /// **'Order taken'**
+  String get tradeStepOrderTaken;
+
+  /// Timeline step for buyer: share invoice
+  ///
+  /// In en, this message translates to:
+  /// **'You share an invoice · seller locks the sats'**
+  String get tradeStepInvoiceBuyer;
+
+  /// Timeline step for seller: lock sats
+  ///
+  /// In en, this message translates to:
+  /// **'Buyer shares an invoice · you lock the sats'**
+  String get tradeStepInvoiceSeller;
+
+  /// Timeline step for buyer: send fiat
+  ///
+  /// In en, this message translates to:
+  /// **'You send the fiat payment'**
+  String get tradeStepFiatBuyer;
+
+  /// Timeline step for seller: buyer sends fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Buyer sends the fiat payment'**
+  String get tradeStepFiatSeller;
+
+  /// Timeline step for buyer: seller releases sats
+  ///
+  /// In en, this message translates to:
+  /// **'Seller confirms and releases your sats'**
+  String get tradeStepReleaseBuyer;
+
+  /// Timeline step for seller: confirm and release
+  ///
+  /// In en, this message translates to:
+  /// **'You confirm receipt and release the sats'**
+  String get tradeStepReleaseSeller;
+
+  /// Timeline step and CTA: rate your counterpart
+  ///
+  /// In en, this message translates to:
+  /// **'Rate your counterpart'**
+  String get tradeStepRate;
+
+  /// App bar title while a trade is in flight
+  ///
+  /// In en, this message translates to:
+  /// **'ACTIVE TRADE'**
+  String get activeTradeTitle;
+
+  /// Short order ID label in the meta footer
+  ///
+  /// In en, this message translates to:
+  /// **'ID {id}'**
+  String tradeIdShortLabel(String id);
+
+  /// Created-at label in the meta footer
+  ///
+  /// In en, this message translates to:
+  /// **'created {date}'**
+  String tradeCreatedAtLabel(String date);
+
+  /// Overflow menu item: release sats
+  ///
+  /// In en, this message translates to:
+  /// **'Release sats'**
+  String get releaseSatsMenuItem;
+
+  /// Overflow menu item: cancel order
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel order'**
+  String get cancelOrderMenuItem;
+
+  /// Overflow menu item: open dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Open dispute'**
+  String get openDisputeMenuItem;
+
+  /// Step pill when all steps are complete
+  ///
+  /// In en, this message translates to:
+  /// **'DONE'**
+  String get stepDoneLabel;
+
+  /// Step pill showing progress
+  ///
+  /// In en, this message translates to:
+  /// **'STEP {current} OF {total}'**
+  String stepIndicator(int current, int total);
+
+  /// Primary CTA: add Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Add Lightning invoice'**
+  String get addLightningInvoiceButton;
+
+  /// Primary CTA: pay hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Pay hold invoice'**
+  String get payHoldInvoiceButton;
+
+  /// Primary CTA: mark fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'Mark fiat sent'**
+  String get markFiatSentButton;
+
+  /// Primary CTA: confirm and release sats
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm & release sats'**
+  String get confirmReleaseSatsButton;
+
+  /// Primary CTA: view dispute
+  ///
+  /// In en, this message translates to:
+  /// **'View dispute'**
+  String get viewDisputeButton;
+
+  /// Disabled CTA: waiting for the buyer
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the buyer…'**
+  String get waitingForBuyer;
+
+  /// Disabled CTA: waiting for the seller
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the seller…'**
+  String get waitingForSeller;
+
+  /// Disabled CTA: waiting for the fiat payment
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the fiat payment…'**
+  String get waitingForFiatPayment;
+
+  /// Disabled CTA: waiting for a counterpart
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for a counterpart…'**
+  String get waitingForCounterpart;
+
+  /// Header of the trade step timeline
+  ///
+  /// In en, this message translates to:
+  /// **'YOUR TRADE'**
+  String get yourTradeTimelineTitle;
+
+  /// Fallback name for the counterpart in the chat chip
+  ///
+  /// In en, this message translates to:
+  /// **'your counterpart'**
+  String get yourCounterpartFallback;
+
+  /// Chat chip subtitle with unread count
+  ///
+  /// In en, this message translates to:
+  /// **'Secure chat · {count} new'**
+  String secureChatUnread(int count);
+
+  /// Chat chip subtitle when there are no unread messages
+  ///
+  /// In en, this message translates to:
+  /// **'Secure chat · end-to-end encrypted'**
+  String get secureChatEncrypted;
 }
 
 class _AppLocalizationsDelegate
