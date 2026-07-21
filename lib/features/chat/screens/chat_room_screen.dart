@@ -103,6 +103,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   Future<void> _onSend(String text) async {
     if (text.trim().isEmpty || _isSending) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _isSending = true);
     try {
       final sent = await messages_api.sendMessage(
@@ -113,13 +114,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       setState(() => _messages.add(sent));
       _scrollToBottom();
       ref.read(chatRoomsNotifierProvider.notifier).upsertRoom(
-            _buildRoomPreview(lastMsg: sent),
+            _buildRoomPreview(
+              lastMsg: sent,
+              rooms: ref.read(chatRoomsNotifierProvider),
+              l10n: l10n,
+            ),
           );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).messageSendFailed),
+          content: Text(l10n.messageSendFailed),
           backgroundColor: Colors.red,
         ),
       );
@@ -143,7 +148,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     _scrollToBottom();
     _markRead();
     ref.read(chatRoomsNotifierProvider.notifier).upsertRoom(
-          _buildRoomPreview(lastMsg: msg),
+          _buildRoomPreview(
+            lastMsg: msg,
+            rooms: ref.read(chatRoomsNotifierProvider),
+            l10n: AppLocalizations.of(context),
+          ),
         );
   }
 
@@ -171,14 +180,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         if (_showUserInfo) _showTradeInfo = false;
       });
 
-  ChatRoomState _resolveRoom() {
-    final rooms = ref.watch(chatRoomsNotifierProvider);
+  ChatRoomState _resolveRoom(List<ChatRoomState> rooms, AppLocalizations l10n) {
     return rooms.firstWhere(
       (r) => r.orderId == widget.orderId,
       orElse: () => ChatRoomState(
         orderId: widget.orderId,
         peerPubkey: '',
-        peerHandle: AppLocalizations.of(context).unknownPeerHandle,
+        peerHandle: l10n.unknownPeerHandle,
         peerIconIndex: 0,
         peerColorHue: 180,
         isSelling: false,
@@ -186,8 +194,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     );
   }
 
-  ChatRoomState _buildRoomPreview({required rust_types.ChatMessage lastMsg}) {
-    final room = _resolveRoom();
+  ChatRoomState _buildRoomPreview({
+    required rust_types.ChatMessage lastMsg,
+    required List<ChatRoomState> rooms,
+    required AppLocalizations l10n,
+  }) {
+    final room = _resolveRoom(rooms, l10n);
     // Use the bridge-provided isRead / isMine flags rather than recomputing
     // from local _messages, which may not yet reflect the latest markAsRead
     // call (the bridge call is async and may still be in flight).
@@ -224,12 +236,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       (_, next) => next.whenData(_onIncomingMessage),
     );
 
-    final room = _resolveRoom();
+    final l10n = AppLocalizations.of(context);
+    final room = _resolveRoom(ref.watch(chatRoomsNotifierProvider), l10n);
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) {
       throw StateError('AppColors theme extension must be registered');
     }
-    final l10n = AppLocalizations.of(context);
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     final showSidePanel = screenWidth >= AppBreakpoints.tablet;
