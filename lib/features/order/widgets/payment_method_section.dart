@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Common payment methods available for selection.
 const _commonMethods = [
@@ -58,11 +59,12 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final selected = ref.watch(selectedPaymentMethodsProvider);
     final custom = ref.watch(customPaymentMethodProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Payment Methods', style: theme.textTheme.labelLarge),
+        Text(l10n.paymentMethodsLabel, style: theme.textTheme.labelLarge),
         const SizedBox(height: AppSpacing.sm),
 
         // Selected chips
@@ -100,7 +102,7 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
                 Icon(Icons.add, size: 16, color: green),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  'Add payment method',
+                  l10n.addPaymentMethod,
                   style: TextStyle(color: colors?.textSecondary),
                 ),
               ],
@@ -113,7 +115,7 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
         TextField(
           controller: _customController,
           decoration: InputDecoration(
-            hintText: 'Custom payment method...',
+            hintText: l10n.customPaymentMethodHint,
             filled: true,
             fillColor: inputBg,
             border: OutlineInputBorder(
@@ -130,7 +132,7 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.xs),
             child: Text(
-              'Custom method will be appended to selection',
+              l10n.customMethodAppendedNote,
               style: TextStyle(
                 color: colors?.textSubtle,
                 fontSize: 11,
@@ -193,7 +195,7 @@ class _MethodPickerDialogState extends State<_MethodPickerDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Select Payment Methods',
+              AppLocalizations.of(context).selectPaymentMethodsTitle,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.md),
@@ -228,7 +230,7 @@ class _MethodPickerDialogState extends State<_MethodPickerDialog> {
                   backgroundColor: green,
                   foregroundColor: Colors.black,
                 ),
-                child: const Text('Done'),
+                child: Text(AppLocalizations.of(context).done),
               ),
             ),
           ],

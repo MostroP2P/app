@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Whether Market or Fixed price mode is selected.
 final isMarketPriceProvider = StateProvider<bool>((_) => true);
@@ -55,6 +56,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final isMarket = ref.watch(isMarketPriceProvider);
     final premium = ref.watch(premiumValueProvider);
+    final l10n = AppLocalizations.of(context);
 
     // Sync controller from provider via listener (not in build body).
     ref.listen<double>(premiumValueProvider, _syncControllerFromProvider);
@@ -65,10 +67,10 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
         // Header with toggle
         Row(
           children: [
-            Text('Price Type', style: theme.textTheme.labelLarge),
+            Text(l10n.priceTypeLabel, style: theme.textTheme.labelLarge),
             const Spacer(),
             Text(
-              isMarket ? 'Market' : 'Fixed',
+              isMarket ? l10n.priceTypeMarket : l10n.priceTypeFixed,
               style: TextStyle(
                 color: colors?.textSecondary,
                 fontSize: 12,
@@ -86,7 +88,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
               icon: const Icon(Icons.info_outline, size: 18),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
-              tooltip: 'Price type info',
+              tooltip: l10n.priceTypeInfoTooltip,
             ),
           ],
         ),
@@ -106,7 +108,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Premium',
+                      l10n.premiumSectionLabel,
                       style: TextStyle(
                         color: purple,
                         fontWeight: FontWeight.w600,
@@ -212,7 +214,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
           // Fixed sats input
           TextField(
             decoration: InputDecoration(
-              hintText: 'Amount in sats',
+              hintText: l10n.amountInSatsHint,
               filled: true,
               fillColor: inputBg,
               suffixText: 'sats',
@@ -235,16 +237,12 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Price Types'),
-        content: const Text(
-          'Market Price: Your order price follows the market rate with '
-          'a premium/discount percentage applied.\n\n'
-          'Fixed Price: You set an exact price in satoshis.',
-        ),
+        title: Text(AppLocalizations.of(context).priceTypesDialogTitle),
+        content: Text(AppLocalizations.of(context).priceTypesDialogContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('OK'),
+            child: Text(AppLocalizations.of(context).okButtonLabel),
           ),
         ],
       ),

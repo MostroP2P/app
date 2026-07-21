@@ -1874,4 +1874,91 @@ class AppLocalizationsDe extends AppLocalizations {
   String marketPricePremium(String premium) {
     return 'Markt $premium%';
   }
+
+  @override
+  String get priceTypeLabel => 'Preistyp';
+
+  @override
+  String get priceTypeMarket => 'Markt';
+
+  @override
+  String get priceTypeFixed => 'Fest';
+
+  @override
+  String get priceTypeInfoTooltip => 'Info zum Preistyp';
+
+  @override
+  String get premiumSectionLabel => 'Aufschlag';
+
+  @override
+  String get amountInSatsHint => 'Betrag in Sats';
+
+  @override
+  String get priceTypesDialogTitle => 'Preistypen';
+
+  @override
+  String get priceTypesDialogContent =>
+      'Marktpreis: Der Preis deiner Order folgt dem Marktkurs mit einem angewendeten Aufschlag/Abschlag-Prozentsatz.\n\nFestpreis: Du legst einen genauen Preis in Satoshis fest.';
+
+  @override
+  String get startFromPreset => 'MIT EINER VORLAGE STARTEN';
+
+  @override
+  String get presetExpressTitle => 'Express';
+
+  @override
+  String get recommendedTag => 'EMPFOHLEN';
+
+  @override
+  String get presetConservativeTitle => 'Konservativ';
+
+  @override
+  String get presetConservativeSubtitle =>
+      'Marktpreis · 0% Aufschlag · du wählst Betrag & Methoden';
+
+  @override
+  String get presetCustomTitle => 'Benutzerdefiniert';
+
+  @override
+  String get presetCustomSubtitle =>
+      'Alle Felder — Betrag, Bereich, Methoden, Aufschlag, Fest- oder Marktpreis';
+
+  @override
+  String expressPresetSubtitle(String details) {
+    return 'Wie deine letzte erfolgreiche Order — $details';
+  }
+
+  @override
+  String expressPremiumSuffix(String premium) {
+    return '$premium% Aufschlag';
+  }
+
+  @override
+  String get paymentMethodsLabel => 'Zahlungsmethoden';
+
+  @override
+  String get addPaymentMethod => 'Zahlungsmethode hinzufügen';
+
+  @override
+  String get customPaymentMethodHint => 'Eigene Zahlungsmethode...';
+
+  @override
+  String get customMethodAppendedNote =>
+      'Die eigene Methode wird zur Auswahl hinzugefügt';
+
+  @override
+  String get selectPaymentMethodsTitle => 'Zahlungsmethoden auswählen';
+
+  @override
+  String amountRangeError(String min, String max) {
+    return 'Der Betrag muss zwischen $min und $max liegen';
+  }
+
+  @override
+  String get enterAmountTitle => 'Betrag eingeben';
+
+  @override
+  String minMaxRangeLabel(String min, String max, String currency) {
+    return 'Min: $min – Max: $max $currency';
+  }
 }

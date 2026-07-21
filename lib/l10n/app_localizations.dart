@@ -3397,6 +3397,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'market {premium}%'**
   String marketPricePremium(String premium);
+
+  /// Label for the price type toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Price Type'**
+  String get priceTypeLabel;
+
+  /// Price type value: market
+  ///
+  /// In en, this message translates to:
+  /// **'Market'**
+  String get priceTypeMarket;
+
+  /// Price type value: fixed
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed'**
+  String get priceTypeFixed;
+
+  /// Tooltip for the price type info button
+  ///
+  /// In en, this message translates to:
+  /// **'Price type info'**
+  String get priceTypeInfoTooltip;
+
+  /// Label of the premium slider section
+  ///
+  /// In en, this message translates to:
+  /// **'Premium'**
+  String get premiumSectionLabel;
+
+  /// Hint for the fixed sats amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Amount in sats'**
+  String get amountInSatsHint;
+
+  /// Title of the price types info dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Price Types'**
+  String get priceTypesDialogTitle;
+
+  /// Body of the price types info dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.'**
+  String get priceTypesDialogContent;
+
+  /// Header of the order preset selector
+  ///
+  /// In en, this message translates to:
+  /// **'START FROM A PRESET'**
+  String get startFromPreset;
+
+  /// Express preset card title
+  ///
+  /// In en, this message translates to:
+  /// **'Express'**
+  String get presetExpressTitle;
+
+  /// Recommended tag on the express preset
+  ///
+  /// In en, this message translates to:
+  /// **'RECOMMENDED'**
+  String get recommendedTag;
+
+  /// Conservative preset card title
+  ///
+  /// In en, this message translates to:
+  /// **'Conservative'**
+  String get presetConservativeTitle;
+
+  /// Conservative preset card subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Market price · 0% premium · you choose amount & methods'**
+  String get presetConservativeSubtitle;
+
+  /// Custom preset card title
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get presetCustomTitle;
+
+  /// Custom preset card subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'All fields — amount, range, methods, premium, fixed or market price'**
+  String get presetCustomSubtitle;
+
+  /// Express preset subtitle built from the last order
+  ///
+  /// In en, this message translates to:
+  /// **'Same as your last successful order — {details}'**
+  String expressPresetSubtitle(String details);
+
+  /// Premium fragment of the express preset subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'{premium}% premium'**
+  String expressPremiumSuffix(String premium);
+
+  /// Label of the payment methods section
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Methods'**
+  String get paymentMethodsLabel;
+
+  /// Button to open the payment method picker
+  ///
+  /// In en, this message translates to:
+  /// **'Add payment method'**
+  String get addPaymentMethod;
+
+  /// Hint for the custom payment method input
+  ///
+  /// In en, this message translates to:
+  /// **'Custom payment method...'**
+  String get customPaymentMethodHint;
+
+  /// Note explaining the custom method is appended
+  ///
+  /// In en, this message translates to:
+  /// **'Custom method will be appended to selection'**
+  String get customMethodAppendedNote;
+
+  /// Title of the payment method picker dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Select Payment Methods'**
+  String get selectPaymentMethodsTitle;
+
+  /// Validation error when the amount is out of range
+  ///
+  /// In en, this message translates to:
+  /// **'Amount must be between {min} and {max}'**
+  String amountRangeError(String min, String max);
+
+  /// Title of the range amount dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Enter Amount'**
+  String get enterAmountTitle;
+
+  /// Range bounds label in the amount dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Min: {min} – Max: {max} {currency}'**
+  String minMaxRangeLabel(String min, String max, String currency);
 }
 
 class _AppLocalizationsDelegate

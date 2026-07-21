@@ -1243,5 +1243,67 @@
   "@marketPricePremium": {
     "description": "Price label for market price with a premium",
     "placeholders": {"premium": {"type": "String"}}
+  },
+  "priceTypeLabel": "Price Type",
+  "@priceTypeLabel": {"description": "Label for the price type toggle"},
+  "priceTypeMarket": "Market",
+  "@priceTypeMarket": {"description": "Price type value: market"},
+  "priceTypeFixed": "Fixed",
+  "@priceTypeFixed": {"description": "Price type value: fixed"},
+  "priceTypeInfoTooltip": "Price type info",
+  "@priceTypeInfoTooltip": {"description": "Tooltip for the price type info button"},
+  "premiumSectionLabel": "Premium",
+  "@premiumSectionLabel": {"description": "Label of the premium slider section"},
+  "amountInSatsHint": "Amount in sats",
+  "@amountInSatsHint": {"description": "Hint for the fixed sats amount input"},
+  "priceTypesDialogTitle": "Price Types",
+  "@priceTypesDialogTitle": {"description": "Title of the price types info dialog"},
+  "priceTypesDialogContent": "Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.",
+  "@priceTypesDialogContent": {"description": "Body of the price types info dialog"},
+  "startFromPreset": "START FROM A PRESET",
+  "@startFromPreset": {"description": "Header of the order preset selector"},
+  "presetExpressTitle": "Express",
+  "@presetExpressTitle": {"description": "Express preset card title"},
+  "recommendedTag": "RECOMMENDED",
+  "@recommendedTag": {"description": "Recommended tag on the express preset"},
+  "presetConservativeTitle": "Conservative",
+  "@presetConservativeTitle": {"description": "Conservative preset card title"},
+  "presetConservativeSubtitle": "Market price · 0% premium · you choose amount & methods",
+  "@presetConservativeSubtitle": {"description": "Conservative preset card subtitle"},
+  "presetCustomTitle": "Custom",
+  "@presetCustomTitle": {"description": "Custom preset card title"},
+  "presetCustomSubtitle": "All fields — amount, range, methods, premium, fixed or market price",
+  "@presetCustomSubtitle": {"description": "Custom preset card subtitle"},
+  "expressPresetSubtitle": "Same as your last successful order — {details}",
+  "@expressPresetSubtitle": {
+    "description": "Express preset subtitle built from the last order",
+    "placeholders": {"details": {"type": "String"}}
+  },
+  "expressPremiumSuffix": "{premium}% premium",
+  "@expressPremiumSuffix": {
+    "description": "Premium fragment of the express preset subtitle",
+    "placeholders": {"premium": {"type": "String"}}
+  },
+  "paymentMethodsLabel": "Payment Methods",
+  "@paymentMethodsLabel": {"description": "Label of the payment methods section"},
+  "addPaymentMethod": "Add payment method",
+  "@addPaymentMethod": {"description": "Button to open the payment method picker"},
+  "customPaymentMethodHint": "Custom payment method...",
+  "@customPaymentMethodHint": {"description": "Hint for the custom payment method input"},
+  "customMethodAppendedNote": "Custom method will be appended to selection",
+  "@customMethodAppendedNote": {"description": "Note explaining the custom method is appended"},
+  "selectPaymentMethodsTitle": "Select Payment Methods",
+  "@selectPaymentMethodsTitle": {"description": "Title of the payment method picker dialog"},
+  "amountRangeError": "Amount must be between {min} and {max}",
+  "@amountRangeError": {
+    "description": "Validation error when the amount is out of range",
+    "placeholders": {"min": {"type": "String"}, "max": {"type": "String"}}
+  },
+  "enterAmountTitle": "Enter Amount",
+  "@enterAmountTitle": {"description": "Title of the range amount dialog"},
+  "minMaxRangeLabel": "Min: {min} – Max: {max} {currency}",
+  "@minMaxRangeLabel": {
+    "description": "Range bounds label in the amount dialog",
+    "placeholders": {"min": {"type": "String"}, "max": {"type": "String"}, "currency": {"type": "String"}}
   }
 }
