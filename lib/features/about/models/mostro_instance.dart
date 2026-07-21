@@ -100,7 +100,8 @@ class MostroInstance {
   final BondApplyTo? bondApplyTo;
   final bool? bondSlashOnWaitingTimeout;
 
-  /// Bond fraction of the order amount, constrained to `[0.0, 1.0]`.
+  /// Bond fraction of the order amount (0.01 = 1%). Non-negative and finite;
+  /// not capped at 1.0 (the daemon does not constrain its upper bound).
   final double? bondAmountPct;
 
   /// Minimum bond floor in sats, `>= 0`.
@@ -172,10 +173,14 @@ class MostroInstance {
       }
     }
 
-    double? parseFraction(String name) {
+    // Rejects NaN/Infinity and negatives. [max] caps the upper bound only when
+    // the protocol constrains it: the daemon validates `slash_node_share_pct`
+    // to `<= 1.0`, but `amount_pct` is an unbounded fraction (0.01 = 1%).
+    double? parseFraction(String name, {double? max}) {
       final value = double.tryParse(getOptional(name) ?? '');
-      if (value == null) return null;
-      return (value >= 0.0 && value <= 1.0) ? value : null;
+      if (value == null || !value.isFinite || value < 0.0) return null;
+      if (max != null && value > max) return null;
+      return value;
     }
 
     int? parseNonNegativeInt(String name) {
@@ -229,7 +234,9 @@ class MostroInstance {
       bondBaseAmountSats:
           isEnabled ? parseNonNegativeInt('bond_base_amount_sats') : null,
       bondSlashNodeSharePct:
-          isEnabled ? parseFraction('bond_slash_node_share_pct') : null,
+          isEnabled
+              ? parseFraction('bond_slash_node_share_pct', max: 1.0)
+              : null,
       bondPayoutClaimWindowDays:
           isEnabled ? parsePositiveInt('bond_payout_claim_window_days') : null,
     );

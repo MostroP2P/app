@@ -148,41 +148,32 @@ void main() {
   });
 
   group('MostroInstance.fromTags — bond parameter validation', () {
-    test('bond_amount_pct out of [0.0, 1.0] yields null', () {
-      expect(
-        MostroInstance.fromTags(
-          enabledTagsWith({'bond_amount_pct': '1.5'}),
-        ).bondAmountPct,
-        isNull,
-      );
-      expect(
-        MostroInstance.fromTags(
-          enabledTagsWith({'bond_amount_pct': '-0.1'}),
-        ).bondAmountPct,
-        isNull,
-      );
-      expect(
-        MostroInstance.fromTags(
-          enabledTagsWith({'bond_amount_pct': 'abc'}),
-        ).bondAmountPct,
-        isNull,
-      );
+    test('bond_amount_pct rejects negative, NaN, Infinity, and garbage', () {
+      for (final bogus in ['-0.1', 'NaN', 'Infinity', '-Infinity', 'abc']) {
+        expect(
+          MostroInstance.fromTags(
+            enabledTagsWith({'bond_amount_pct': bogus}),
+          ).bondAmountPct,
+          isNull,
+          reason: 'rejects "$bogus"',
+        );
+      }
     });
 
-    test('bond_amount_pct accepts the [0.0, 1.0] boundaries', () {
-      expect(
-        MostroInstance.fromTags(
-          enabledTagsWith({'bond_amount_pct': '0.0'}),
-        ).bondAmountPct,
-        0.0,
-      );
-      expect(
-        MostroInstance.fromTags(
-          enabledTagsWith({'bond_amount_pct': '1.0'}),
-        ).bondAmountPct,
-        1.0,
-      );
-    });
+    test(
+      'bond_amount_pct accepts any non-negative fraction, including > 1.0',
+      () {
+        // The daemon does not cap amount_pct at 1.0, so neither do we.
+        for (final entry in {'0.0': 0.0, '1.0': 1.0, '1.5': 1.5}.entries) {
+          expect(
+            MostroInstance.fromTags(
+              enabledTagsWith({'bond_amount_pct': entry.key}),
+            ).bondAmountPct,
+            entry.value,
+          );
+        }
+      },
+    );
 
     test('negative bond_base_amount_sats yields null', () {
       expect(
@@ -199,13 +190,16 @@ void main() {
       );
     });
 
-    test('bond_slash_node_share_pct out of [0.0, 1.0] yields null', () {
-      expect(
-        MostroInstance.fromTags(
-          enabledTagsWith({'bond_slash_node_share_pct': '2.0'}),
-        ).bondSlashNodeSharePct,
-        isNull,
-      );
+    test('bond_slash_node_share_pct rejects values outside [0.0, 1.0]', () {
+      for (final bogus in ['2.0', '-0.5', 'NaN', 'Infinity']) {
+        expect(
+          MostroInstance.fromTags(
+            enabledTagsWith({'bond_slash_node_share_pct': bogus}),
+          ).bondSlashNodeSharePct,
+          isNull,
+          reason: 'rejects "$bogus"',
+        );
+      }
     });
 
     test('non-positive bond_payout_claim_window_days yields null', () {
