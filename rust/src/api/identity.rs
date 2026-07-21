@@ -164,8 +164,17 @@ pub async fn load_identity_from_mnemonic(
 /// When `recover = true`, the daemon recovery flow is triggered (Phase 7).
 /// Currently this validates and loads the mnemonic; recovery contacts are
 /// initiated separately via the daemon API.
-pub async fn import_from_mnemonic(words: Vec<String>, _recover: bool) -> Result<IdentityInfo> {
-    load_identity_from_mnemonic(words, 0, false, None).await
+pub async fn import_from_mnemonic(words: Vec<String>, recover: bool) -> Result<IdentityInfo> {
+    let info = load_identity_from_mnemonic(words, 0, false, None).await?;
+    if recover {
+        // Recovery is only possible in Reputation mode; Full-Privacy trades
+        // are anonymous by design and cannot be replayed by the daemon.
+        if info.privacy_mode {
+            bail!("PrivacyModeRecoveryUnavailable");
+        }
+        crate::api::orders::restore_session().await?;
+    }
+    Ok(info)
 }
 
 /// Import identity from an nsec (bech32-encoded Nostr secret key).

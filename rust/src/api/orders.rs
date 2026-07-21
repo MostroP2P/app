@@ -53,6 +53,10 @@ enum DaemonReply {
     Acknowledged,
     /// Daemon rejected the request with a CantDo reason.
     Rejected { reason: String, message: String },
+    /// Daemon replied to a RestoreSession with the user's active trades and
+    /// disputes. Correlated by identity pubkey (RestoreSession carries no
+    /// request_id) — see take_matching_restore.
+    Restored(mostro_core::message::RestoreSessionInfo),
 }
 
 /// What kind of outgoing request a pending record tracks.
@@ -72,6 +76,10 @@ enum PendingRequestKind {
     Take,
     /// A buyer's add-invoice awaiting the daemon's acknowledgement.
     AddInvoice,
+    /// A session-restore awaiting the daemon's RestoreData reply. Correlated
+    /// by identity pubkey, not request_id (the RestoreSession message carries
+    /// no request_id — see mostro-core Message::new_restore).
+    Restore,
 }
 
 /// Everything one outgoing daemon request needs tracked until its reply is
@@ -124,6 +132,18 @@ fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
 /// in place: relays can replay historical events, and a stale reply must not
 /// confirm, reject, or reconcile a live request — the genuine reply (carrying
 /// the nonce) arrives later and finds the record.
+/// Remove and return the pending RESTORE request for `pubkey_hex`. Unlike
+/// `take_matching_request`, there is no request_id gate: the RestoreSession
+/// message carries no request_id, so the daemon's RestoreData reply is
+/// correlated purely by the identity pubkey it is addressed to.
+fn take_matching_restore(pubkey_hex: &str) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(pubkey_hex) {
+        Some(p) if matches!(p.kind, PendingRequestKind::Restore) => map.remove(pubkey_hex),
+        _ => None,
+    }
+}
+
 fn take_matching_request(trade_pubkey_hex: &str, got: Option<u64>) -> Option<PendingRequest> {
     let mut map = pending_requests().lock().ok()?;
     match map.get(trade_pubkey_hex) {
@@ -3268,4 +3288,47 @@ mod tests {
         .await;
         // If we reach here without panicking the test passes.
     }
+}
+
+/// Send a `RestoreSession` request to the active Mostro daemon and rebuild the
+/// user's active trades/disputes from the reply.
+///
+/// Correlation differs from order actions: the daemon replies with
+/// `Payload::RestoreData(RestoreSessionInfo)` addressed to the IDENTITY pubkey
+/// (restore_session.rs:93, keyed by trade_pubkey — NOT a request_id). The
+/// RestoreSession message itself carries no request_id.
+///
+/// STATUS: send half implemented; await + reconstruction pending a design
+/// decision (reuse pending-request machinery adapted for pubkey correlation,
+/// vs. a separate restore-await path) — see issue #142.
+pub async fn restore_session() -> Result<()> {
+    // Identity keys — restore is looked up by master/identity key, not a
+    // per-trade key (matches the daemon's restore_session handler).
+    let identity_keys = crate::api::identity::get_active_keys().await?;
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
+    let transport_keys =
+        crate::api::identity::get_transport_identity_keys(&identity_keys).await?;
+
+    // Build the RestoreSession event (payload None, from identity key).
+    let event_json =
+        actions::restore_session(&transport_keys, &mostro_pubkey).await?;
+
+    // Subscribe on the identity pubkey so the daemon's RestoreData reply is
+    // received (mirrors create_order's subscribe-before-publish ordering).
+    subscribe_gift_wraps(identity_keys.public_key(), 0).await;
+
+    if let Err(e) = publish_event_json(&event_json).await {
+        return Err(e);
+    }
+    crate::api::logging::blog_info(
+        "restore",
+        "RestoreSession published — awaiting daemon RestoreData".to_string(),
+    );
+
+    // --- UNVERIFIED / UNDESIGNED: await the RestoreData reply -----------------
+    // The reply arrives asynchronously through dispatch_mostro_message, keyed
+    // by identity pubkey. This needs either (a) a pubkey-correlated pending
+    // entry + a new Payload::RestoreData dispatcher arm, or (b) a separate
+    // restore-await channel. Deferred pending grunch's architecture call (#142).
+    todo!("await Payload::RestoreData reply + reconstruct trades — see #142");
 }

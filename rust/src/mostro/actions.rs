@@ -459,3 +459,17 @@ mod tests {
         assert!(matches!(kind.payload, Some(Payload::Amount(100))));
     }
 }
+
+/// Build a `RestoreSession` request (mostro-core `Message::new_restore`).
+///
+/// Payload MUST be `None` — the daemon rejects any other payload
+/// (`MessageKind::verify`). Sent from the IDENTITY key, not a derived trade
+/// key: the daemon's restore_session handler replies to the requesting
+/// (identity) pubkey. Returns the NIP-59 Gift Wrap event JSON.
+pub async fn restore_session(
+    identity_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+) -> Result<String> {
+    let msg = Message::new_restore(None);
+    wrap_message(identity_keys, identity_keys, mostro_pubkey, &msg).await
+}
