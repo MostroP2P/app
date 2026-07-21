@@ -678,7 +678,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get cancelOrderDialogContent =>
-      'Sind Sie sicher, dass Sie dieses Angebot stornieren möchten? Diese Aktion kann nicht rückgängig gemacht werden.';
+      'Bist du sicher, dass du dieses Angebot stornieren möchtest? Diese Aktion kann nicht rückgängig gemacht werden.';
 
   @override
   String get cancelOrderFailed =>
@@ -1606,7 +1606,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String secureChatUnread(int count) {
-    return 'Sicherer Chat · $count neue';
+    return 'Sicherer Chat · $count neue Nachrichten';
   }
 
   @override
