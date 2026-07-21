@@ -362,5 +362,20 @@
   "backupStepVerifyRandom": "Wir fragen 3 zufällig zur Bestätigung ab",
   "backupStepSecured": "Fertig — dein Konto ist gesichert",
   "backupNowButton": "Jetzt sichern",
-  "remindMeTomorrowButton": "Erinnere mich morgen"
+  "remindMeTomorrowButton": "Erinnere mich morgen",
+  "nwcConnectionFailedMessage": "Verbindung fehlgeschlagen. Bitte überprüfe deine NWC-URI und versuche es erneut.",
+  "connectWalletDescription": "Verbinde deine Lightning-Wallet über eine\nNostr Wallet Connect (NWC)-URI.",
+  "nwcUriLabel": "NWC URI",
+  "clipboardInvalidNwcUriMessage": "Die Zwischenablage enthält keine gültige NWC-URI.",
+  "scanQrButtonLabel": "QR scannen",
+  "connectButtonLabel": "Verbinden",
+  "walletConfigurationTitle": "Wallet-Konfiguration",
+  "walletDisconnectedMessage": "Wallet getrennt",
+  "connectedBadgeLabel": "Verbunden",
+  "balanceLabel": "Guthaben",
+  "relayLabel": "Relay",
+  "noWalletConnectedTitle": "Keine Wallet verbunden",
+  "connectWalletPrompt": "Verbinde eine Wallet, um automatische Lightning-Zahlungen zu aktivieren.",
+  "disconnectButtonLabel": "Trennen",
+  "relaysMoreSuffix": "(+{count} weitere)"
 }

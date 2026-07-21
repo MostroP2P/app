@@ -1144,4 +1144,55 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get remindMeTomorrowButton => 'Rappelez-moi demain';
+
+  @override
+  String get nwcConnectionFailedMessage =>
+      'La connexion a échoué. Veuillez vérifier votre URI NWC et réessayer.';
+
+  @override
+  String get connectWalletDescription =>
+      'Connectez votre portefeuille Lightning à l\'aide d\'une\nURI Nostr Wallet Connect (NWC).';
+
+  @override
+  String get nwcUriLabel => 'NWC URI';
+
+  @override
+  String get clipboardInvalidNwcUriMessage =>
+      'Le presse-papiers ne contient pas d\'URI NWC valide.';
+
+  @override
+  String get scanQrButtonLabel => 'Scanner QR';
+
+  @override
+  String get connectButtonLabel => 'Connecter';
+
+  @override
+  String get walletConfigurationTitle => 'Configuration du portefeuille';
+
+  @override
+  String get walletDisconnectedMessage => 'Portefeuille déconnecté';
+
+  @override
+  String get connectedBadgeLabel => 'Connecté';
+
+  @override
+  String get balanceLabel => 'Solde';
+
+  @override
+  String get relayLabel => 'Relais';
+
+  @override
+  String get noWalletConnectedTitle => 'Aucun portefeuille connecté';
+
+  @override
+  String get connectWalletPrompt =>
+      'Connectez un portefeuille pour activer les paiements Lightning automatiques.';
+
+  @override
+  String get disconnectButtonLabel => 'Déconnecter';
+
+  @override
+  String relaysMoreSuffix(int count) {
+    return '(+$count de plus)';
+  }
 }

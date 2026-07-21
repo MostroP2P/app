@@ -2143,6 +2143,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remind me tomorrow'**
   String get remindMeTomorrowButton;
+
+  /// Snackbar shown when connecting a wallet via NWC fails
+  ///
+  /// In en, this message translates to:
+  /// **'Connection failed. Please check your NWC URI and try again.'**
+  String get nwcConnectionFailedMessage;
+
+  /// Description text on the Connect Wallet screen
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your Lightning wallet using a\nNostr Wallet Connect (NWC) URI.'**
+  String get connectWalletDescription;
+
+  /// Field label for the NWC URI input
+  ///
+  /// In en, this message translates to:
+  /// **'NWC URI'**
+  String get nwcUriLabel;
+
+  /// Snackbar shown when the clipboard has no valid NWC URI to paste
+  ///
+  /// In en, this message translates to:
+  /// **'Clipboard does not contain a valid NWC URI.'**
+  String get clipboardInvalidNwcUriMessage;
+
+  /// Button that opens the QR scanner on the Connect Wallet screen
+  ///
+  /// In en, this message translates to:
+  /// **'Scan QR'**
+  String get scanQrButtonLabel;
+
+  /// Primary button on the Connect Wallet screen
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get connectButtonLabel;
+
+  /// App bar title of the Wallet Settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet Configuration'**
+  String get walletConfigurationTitle;
+
+  /// Snackbar shown after disconnecting the wallet
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet disconnected'**
+  String get walletDisconnectedMessage;
+
+  /// Badge indicating the wallet is connected
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get connectedBadgeLabel;
+
+  /// Label for the wallet balance row
+  ///
+  /// In en, this message translates to:
+  /// **'Balance'**
+  String get balanceLabel;
+
+  /// Label for a single relay row on the Wallet Settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Relay'**
+  String get relayLabel;
+
+  /// Title shown when no wallet is connected
+  ///
+  /// In en, this message translates to:
+  /// **'No wallet connected'**
+  String get noWalletConnectedTitle;
+
+  /// Prompt shown when no wallet is connected
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a wallet to enable automatic Lightning payments.'**
+  String get connectWalletPrompt;
+
+  /// Button that disconnects the wallet
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get disconnectButtonLabel;
+
+  /// Suffix showing how many additional relays exist beyond the first
+  ///
+  /// In en, this message translates to:
+  /// **'(+{count} more)'**
+  String relaysMoreSuffix(int count);
 }
 
 class _AppLocalizationsDelegate

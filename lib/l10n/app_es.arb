@@ -362,5 +362,20 @@
   "backupStepVerifyRandom": "Te pedimos 3 al azar para confirmar",
   "backupStepSecured": "Listo — tu cuenta está protegida",
   "backupNowButton": "Respaldar ahora",
-  "remindMeTomorrowButton": "Recuérdamelo mañana"
+  "remindMeTomorrowButton": "Recuérdamelo mañana",
+  "nwcConnectionFailedMessage": "La conexión falló. Revisa tu URI de NWC e inténtalo de nuevo.",
+  "connectWalletDescription": "Conecta tu wallet Lightning usando una\nURI de Nostr Wallet Connect (NWC).",
+  "nwcUriLabel": "NWC URI",
+  "clipboardInvalidNwcUriMessage": "El portapapeles no contiene una URI de NWC válida.",
+  "scanQrButtonLabel": "Escanear QR",
+  "connectButtonLabel": "Conectar",
+  "walletConfigurationTitle": "Configuración de wallet",
+  "walletDisconnectedMessage": "Wallet desconectada",
+  "connectedBadgeLabel": "Conectada",
+  "balanceLabel": "Saldo",
+  "relayLabel": "Relay",
+  "noWalletConnectedTitle": "No hay wallet conectada",
+  "connectWalletPrompt": "Conecta una wallet para habilitar pagos Lightning automáticos.",
+  "disconnectButtonLabel": "Desconectar",
+  "relaysMoreSuffix": "(+{count} más)"
 }

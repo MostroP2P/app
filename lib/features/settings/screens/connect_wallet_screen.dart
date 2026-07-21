@@ -67,8 +67,10 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
       if (!mounted) return;
       debugPrint('NWC connection error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Connection failed. Please check your NWC URI and try again.'),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).nwcConnectionFailedMessage,
+          ),
         ),
       );
     } finally {
@@ -93,11 +95,12 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
+    final l10n = AppLocalizations.of(context);
 
     if (_showScanner) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Scan QR Code'),
+          title: Text(l10n.scanQrCodeTitle),
           leading: BackButton(onPressed: () => setState(() => _showScanner = false)),
         ),
         body: PlatformAwareQrScanner(
@@ -108,7 +111,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Connect Wallet')),
+      appBar: AppBar(title: Text(l10n.connectWalletTitle)),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
@@ -126,7 +129,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Connect your Lightning wallet using a\nNostr Wallet Connect (NWC) URI.',
+              l10n.connectWalletDescription,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: colors?.textSecondary,
@@ -153,7 +156,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                     enableIMEPersonalizedLearning: false,
                     decoration: InputDecoration(
                       hintText: 'nostr+walletconnect://...',
-                      labelText: 'NWC URI',
+                      labelText: l10n.nwcUriLabel,
                       floatingLabelBehavior: FloatingLabelBehavior.auto,
                       filled: true,
                       fillColor: inputBg,
@@ -185,17 +188,17 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                           } else {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text(
-                                  'Clipboard does not contain a valid NWC URI.',
+                                  l10n.clipboardInvalidNwcUriMessage,
                                 ),
-                                duration: Duration(seconds: 2),
+                                duration: const Duration(seconds: 2),
                               ),
                             );
                           }
                         },
                         icon: const Icon(Icons.paste, size: 16),
-                        label: const Text('Paste'),
+                        label: Text(l10n.pasteButtonLabel),
                         style: TextButton.styleFrom(
                           foregroundColor: colors?.textSecondary,
                         ),
@@ -203,7 +206,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                       TextButton.icon(
                         onPressed: () => setState(() => _showScanner = true),
                         icon: const Icon(Icons.qr_code_scanner, size: 16),
-                        label: const Text('Scan QR'),
+                        label: Text(l10n.scanQrButtonLabel),
                         style: TextButton.styleFrom(
                           foregroundColor: green,
                         ),
@@ -237,9 +240,9 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                         color: Colors.black54,
                       ),
                     )
-                  : const Text(
-                      'Connect',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                  : Text(
+                      l10n.connectButtonLabel,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
             ),
 
