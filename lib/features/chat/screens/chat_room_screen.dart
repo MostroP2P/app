@@ -9,6 +9,7 @@ import 'package:mostro/features/chat/widgets/info_panels.dart';
 import 'package:mostro/features/chat/widgets/message_bubble.dart';
 import 'package:mostro/features/chat/widgets/message_input.dart';
 import 'package:mostro/features/chat/widgets/trade_state_header.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
 import 'package:mostro/src/rust/api/messages.dart' as messages_api;
@@ -118,7 +119,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to send: $e'),
+          content: Text(AppLocalizations.of(context).messageSendFailed),
           backgroundColor: Colors.red,
         ),
       );
@@ -177,7 +178,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       orElse: () => ChatRoomState(
         orderId: widget.orderId,
         peerPubkey: '',
-        peerHandle: 'Unknown',
+        peerHandle: AppLocalizations.of(context).unknownPeerHandle,
         peerIconIndex: 0,
         peerColorHue: 180,
         isSelling: false,
@@ -211,8 +212,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   Widget build(BuildContext context) {
     if (widget.orderId.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chat')),
-        body: const Center(child: Text('Invalid trade ID')),
+        appBar: AppBar(title: Text(AppLocalizations.of(context).navChat)),
+        body: Center(child: Text(AppLocalizations.of(context).invalidTradeId)),
         bottomNavigationBar: const BottomNavBar(),
       );
     }
@@ -228,6 +229,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     if (colors == null) {
       throw StateError('AppColors theme extension must be registered');
     }
+    final l10n = AppLocalizations.of(context);
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     final showSidePanel = screenWidth >= AppBreakpoints.tablet;
@@ -257,7 +259,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       color: colors.backgroundCard,
                       child: Center(
                         child: Text(
-                          'Select \u2139 or \u{1F464}\nfor details',
+                          l10n.selectForDetailsHint,
                           textAlign: TextAlign.center,
                           style: TextStyle(color: colors.textSubtle),
                         ),
@@ -303,7 +305,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.lg),
                         child: Text(
-                          'No messages yet.\nSay hello to ${room.peerHandle}!',
+                          l10n.noMessagesYet(room.peerHandle),
                           textAlign: TextAlign.center,
                           style: TextStyle(color: colors.textSubtle),
                         ),
@@ -362,7 +364,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         title: _AppBarTitle(room: room),
         actions: [
           IconButton(
-            tooltip: 'Exchange Info',
+            tooltip: l10n.exchangeInfoTooltip,
             icon: Icon(
               Icons.info_outline,
               color: _showTradeInfo ? colors.mostroGreen : null,
@@ -370,7 +372,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             onPressed: _toggleTradeInfo,
           ),
           IconButton(
-            tooltip: 'User Info',
+            tooltip: l10n.userInfoTooltip,
             icon: Icon(
               Icons.person_outline,
               color: _showUserInfo ? colors.mostroGreen : null,
@@ -437,7 +439,7 @@ class _AppBarTitle extends StatelessWidget {
           ],
         ),
         Text(
-          'You are chatting with ${room.peerHandle}',
+          AppLocalizations.of(context).chattingWith(room.peerHandle),
           style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
         ),
       ],

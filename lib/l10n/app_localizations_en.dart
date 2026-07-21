@@ -1586,4 +1586,89 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get secureChatEncrypted => 'Secure chat · end-to-end encrypted';
+
+  @override
+  String get messageSendFailed => 'Failed to send message. Please try again.';
+
+  @override
+  String get invalidTradeId => 'Invalid trade ID';
+
+  @override
+  String get selectForDetailsHint => 'Select ℹ or 👤\nfor details';
+
+  @override
+  String noMessagesYet(String handle) {
+    return 'No messages yet.\nSay hello to $handle!';
+  }
+
+  @override
+  String get exchangeInfoTooltip => 'Exchange Info';
+
+  @override
+  String get userInfoTooltip => 'User Info';
+
+  @override
+  String chattingWith(String handle) {
+    return 'You are chatting with $handle';
+  }
+
+  @override
+  String get unknownPeerHandle => 'Unknown';
+
+  @override
+  String get messagesTab => 'Messages';
+
+  @override
+  String get disputesTab => 'Disputes';
+
+  @override
+  String get activeTradeConversations => 'Your active trade conversations';
+
+  @override
+  String get noMessagesAvailable => 'No messages available';
+
+  @override
+  String get disputesAndAdminChat => 'Disputes and admin chat';
+
+  @override
+  String get tradeInformationTitle => 'Trade Information';
+
+  @override
+  String get orderIdLabel => 'Order ID';
+
+  @override
+  String get fiatAmountLabel => 'Fiat Amount';
+
+  @override
+  String get satsAmountLabel => 'Sats Amount';
+
+  @override
+  String get statusLabel => 'Status';
+
+  @override
+  String get paymentMethodLabel => 'Payment Method';
+
+  @override
+  String get createdLabel => 'Created';
+
+  @override
+  String get tradeDetailsPlaceholder =>
+      'Details wired when trade provider available (Phase 10+)';
+
+  @override
+  String get userInformationTitle => 'User Information';
+
+  @override
+  String get peerPublicKeyLabel => 'Peer\'s Public Key';
+
+  @override
+  String get yourSharedKeyLabel => 'Your Shared Key';
+
+  @override
+  String get sharedKeyPlaceholder =>
+      'Available after bridge integration (Phase 10+)';
+
+  @override
+  String get sharedKeySafetyNote =>
+      'Keep your shared key safe — it is needed for dispute resolution';
 }

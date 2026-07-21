@@ -1612,4 +1612,91 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get secureChatEncrypted => 'Chat sécurisé · chiffré de bout en bout';
+
+  @override
+  String get messageSendFailed =>
+      'Échec de l\'envoi du message. Veuillez réessayer.';
+
+  @override
+  String get invalidTradeId => 'ID de transaction invalide';
+
+  @override
+  String get selectForDetailsHint => 'Sélectionnez ℹ ou 👤\npour les détails';
+
+  @override
+  String noMessagesYet(String handle) {
+    return 'Pas encore de messages.\nDites bonjour à $handle !';
+  }
+
+  @override
+  String get exchangeInfoTooltip => 'Infos sur l\'échange';
+
+  @override
+  String get userInfoTooltip => 'Infos utilisateur';
+
+  @override
+  String chattingWith(String handle) {
+    return 'Vous discutez avec $handle';
+  }
+
+  @override
+  String get unknownPeerHandle => 'Inconnu';
+
+  @override
+  String get messagesTab => 'Messages';
+
+  @override
+  String get disputesTab => 'Litiges';
+
+  @override
+  String get activeTradeConversations =>
+      'Vos conversations de transactions actives';
+
+  @override
+  String get noMessagesAvailable => 'Aucun message disponible';
+
+  @override
+  String get disputesAndAdminChat => 'Litiges et chat administrateur';
+
+  @override
+  String get tradeInformationTitle => 'Informations sur la transaction';
+
+  @override
+  String get orderIdLabel => 'ID de l\'ordre';
+
+  @override
+  String get fiatAmountLabel => 'Montant fiat';
+
+  @override
+  String get satsAmountLabel => 'Montant en sats';
+
+  @override
+  String get statusLabel => 'Statut';
+
+  @override
+  String get paymentMethodLabel => 'Moyen de paiement';
+
+  @override
+  String get createdLabel => 'Créé';
+
+  @override
+  String get tradeDetailsPlaceholder =>
+      'Détails disponibles lorsque le fournisseur de transactions sera prêt (Phase 10+)';
+
+  @override
+  String get userInformationTitle => 'Informations utilisateur';
+
+  @override
+  String get peerPublicKeyLabel => 'Clé publique du pair';
+
+  @override
+  String get yourSharedKeyLabel => 'Votre clé partagée';
+
+  @override
+  String get sharedKeyPlaceholder =>
+      'Disponible après l\'intégration du pont (Phase 10+)';
+
+  @override
+  String get sharedKeySafetyNote =>
+      'Conservez votre clé partagée en sécurité — elle est nécessaire pour la résolution des litiges';
 }

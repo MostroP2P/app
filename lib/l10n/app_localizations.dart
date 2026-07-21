@@ -2947,6 +2947,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Secure chat · end-to-end encrypted'**
   String get secureChatEncrypted;
+
+  /// Snackbar shown when sending a chat message fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send message. Please try again.'**
+  String get messageSendFailed;
+
+  /// Shown when the chat room has no valid trade ID
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid trade ID'**
+  String get invalidTradeId;
+
+  /// Side panel hint on tablet/desktop chat when no panel is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Select ℹ or 👤\nfor details'**
+  String get selectForDetailsHint;
+
+  /// Empty state inside a chat room
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet.\nSay hello to {handle}!'**
+  String noMessagesYet(String handle);
+
+  /// Tooltip for the trade info toggle in the chat room
+  ///
+  /// In en, this message translates to:
+  /// **'Exchange Info'**
+  String get exchangeInfoTooltip;
+
+  /// Tooltip for the user info toggle in the chat room
+  ///
+  /// In en, this message translates to:
+  /// **'User Info'**
+  String get userInfoTooltip;
+
+  /// App bar subtitle in a chat room
+  ///
+  /// In en, this message translates to:
+  /// **'You are chatting with {handle}'**
+  String chattingWith(String handle);
+
+  /// Fallback handle when the peer is unknown
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get unknownPeerHandle;
+
+  /// Chat screen tab: messages
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get messagesTab;
+
+  /// Chat screen tab: disputes
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes'**
+  String get disputesTab;
+
+  /// Description under the Messages tab
+  ///
+  /// In en, this message translates to:
+  /// **'Your active trade conversations'**
+  String get activeTradeConversations;
+
+  /// Empty state for the Messages tab
+  ///
+  /// In en, this message translates to:
+  /// **'No messages available'**
+  String get noMessagesAvailable;
+
+  /// Description under the Disputes tab
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes and admin chat'**
+  String get disputesAndAdminChat;
+
+  /// Title of the trade information panel
+  ///
+  /// In en, this message translates to:
+  /// **'Trade Information'**
+  String get tradeInformationTitle;
+
+  /// Label for the order ID field
+  ///
+  /// In en, this message translates to:
+  /// **'Order ID'**
+  String get orderIdLabel;
+
+  /// Label for the fiat amount field
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat Amount'**
+  String get fiatAmountLabel;
+
+  /// Label for the sats amount field
+  ///
+  /// In en, this message translates to:
+  /// **'Sats Amount'**
+  String get satsAmountLabel;
+
+  /// Label for the status field
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get statusLabel;
+
+  /// Label for the payment method field
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Method'**
+  String get paymentMethodLabel;
+
+  /// Label for the created date field
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get createdLabel;
+
+  /// Placeholder note in the trade information panel
+  ///
+  /// In en, this message translates to:
+  /// **'Details wired when trade provider available (Phase 10+)'**
+  String get tradeDetailsPlaceholder;
+
+  /// Title of the user information panel
+  ///
+  /// In en, this message translates to:
+  /// **'User Information'**
+  String get userInformationTitle;
+
+  /// Label for the peer public key
+  ///
+  /// In en, this message translates to:
+  /// **'Peer\'s Public Key'**
+  String get peerPublicKeyLabel;
+
+  /// Label for the shared key
+  ///
+  /// In en, this message translates to:
+  /// **'Your Shared Key'**
+  String get yourSharedKeyLabel;
+
+  /// Placeholder note for the shared key
+  ///
+  /// In en, this message translates to:
+  /// **'Available after bridge integration (Phase 10+)'**
+  String get sharedKeyPlaceholder;
+
+  /// Safety note about the shared key
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your shared key safe — it is needed for dispute resolution'**
+  String get sharedKeySafetyNote;
 }
 
 class _AppLocalizationsDelegate

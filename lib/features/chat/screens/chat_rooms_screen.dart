@@ -8,6 +8,7 @@ import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/chat/widgets/chat_list_item.dart';
 import 'package:mostro/features/disputes/widgets/disputes_list.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
 
@@ -77,9 +78,9 @@ class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
           indicatorColor: colors.mostroGreen,
           labelColor: colors.mostroGreen,
           unselectedLabelColor: colors.textSubtle,
-          tabs: const [
-            Tab(text: 'Messages'),
-            Tab(text: 'Disputes'),
+          tabs: [
+            Tab(text: AppLocalizations.of(context).messagesTab),
+            Tab(text: AppLocalizations.of(context).disputesTab),
           ],
         ),
         Expanded(
@@ -141,7 +142,7 @@ class _ChatAppBar extends StatelessWidget {
           IconButton(
             onPressed: onMenuTap,
             icon: const Icon(Icons.menu, size: 24),
-            tooltip: 'Menu',
+            tooltip: AppLocalizations.of(context).menuTooltip,
           ),
           const Spacer(),
           Icon(Icons.psychology, size: 28, color: green),
@@ -179,7 +180,7 @@ class _MessagesTab extends ConsumerWidget {
             vertical: AppSpacing.sm,
           ),
           child: Text(
-            'Your active trade conversations',
+            AppLocalizations.of(context).activeTradeConversations,
             style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
           ),
         ),
@@ -231,7 +232,7 @@ class _EmptyMessages extends StatelessWidget {
           Icon(Icons.chat_bubble_outline, size: 64, color: colors.textSubtle),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'No messages available',
+            AppLocalizations.of(context).noMessagesAvailable,
             style: textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
           ),
         ],
@@ -263,7 +264,7 @@ class _DisputesTab extends StatelessWidget {
             vertical: AppSpacing.sm,
           ),
           child: Text(
-            'Disputes and admin chat',
+            AppLocalizations.of(context).disputesAndAdminChat,
             style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
           ),
         ),
