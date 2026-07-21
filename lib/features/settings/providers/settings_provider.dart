@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:mostro/l10n/app_localizations.dart';
+
 // ── Preference keys ────────────────────────────────────────────────────────────
 
 const _kLanguage = 'settings.language';
@@ -53,7 +55,7 @@ class AppSettingsState {
   factory AppSettingsState.fromPrefs(SharedPreferences prefs) {
     final themeModeStr = prefs.getString(_kThemeMode) ?? 'dark';
     return AppSettingsState(
-      language: prefs.getString(_kLanguage) ?? 'en',
+      language: prefs.getString(_kLanguage) ?? _deviceDefaultLanguage(),
       defaultFiatCode: prefs.getString(_kFiatCode),
       defaultLightningAddress: prefs.getString(_kLightningAddress),
       loggingEnabled: prefs.getBool(_kLoggingEnabled) ?? false,
@@ -122,11 +124,33 @@ final settingsProvider =
   (ref) => SettingsNotifier(), // no-persistence fallback; replaced in main()
 );
 
+/// Language codes the app ships translations for, derived from the generated
+/// [AppLocalizations]. Used to validate stored and device languages.
+final Set<String> _supportedLanguageCodes =
+    AppLocalizations.supportedLocales.map((l) => l.languageCode).toSet();
+
+/// The device's language when the app supports it, otherwise English.
+///
+/// Used as the first-run default so a new user starts in their own language
+/// instead of always defaulting to English.
+String _deviceDefaultLanguage() {
+  final deviceCode =
+      WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+  return _supportedLanguageCodes.contains(deviceCode) ? deviceCode : 'en';
+}
+
 /// Current display locale, derived automatically from [settingsProvider].
 ///
 /// Rebuilds whenever [AppSettingsState.language] changes so that
 /// [MaterialApp.router] locale stays in sync without manual updates.
+///
+/// The stored language is validated against [AppLocalizations.supportedLocales]
+/// and falls back to English when it is unknown, so a corrupted or unsupported
+/// preference never leaves the UI unlocalized.
 final localeProvider = Provider<Locale>((ref) {
   final language = ref.watch(settingsProvider.select((s) => s.language));
-  return Locale(language);
+  final code = language.split(RegExp(r'[-_]')).first;
+  return _supportedLanguageCodes.contains(code)
+      ? Locale(code)
+      : const Locale('en');
 });
