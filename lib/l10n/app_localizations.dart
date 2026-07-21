@@ -962,7 +962,7 @@ abstract class AppLocalizations {
   /// **'Paste or scan a QR code'**
   String get pasteOrScanQrCode;
 
-  /// Title of the Mostro node selector bottom sheet
+  /// Section title on the Mostro node settings screen
   ///
   /// In en, this message translates to:
   /// **'Mostro Node'**
@@ -974,7 +974,7 @@ abstract class AppLocalizations {
   /// **'Current Node'**
   String get currentNodeLabel;
 
-  /// Badge shown when the active node is the default trusted node
+  /// Badge shown on a verified/trusted Mostro node
   ///
   /// In en, this message translates to:
   /// **'Trusted'**

@@ -490,7 +490,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get currentNodeLabel => 'Nodo attuale';
 
   @override
-  String get trustedBadgeLabel => 'Attendibile';
+  String get trustedBadgeLabel => 'Affidabile';
 
   @override
   String get useDefaultButtonLabel => 'Usa predefinito';
