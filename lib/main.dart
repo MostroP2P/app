@@ -20,6 +20,10 @@ import 'package:mostro/src/rust/api/logging.dart' as logging_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
+import 'package:mostro/src/rust/api/bond.dart' as bond_api;
+import 'package:mostro/src/rust/api/types.dart' show SlashCause;
+import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -119,6 +123,8 @@ Future<void> main() async {
     _restoreNwcConnection(savedNwcUri, container);
   }
 
+  _listenBondSlashed(container);
+
   runApp(UncontrolledProviderScope(
     container: container,
     child: const MostroApp(),
@@ -166,6 +172,32 @@ void _forwardRustLogs() {
       }
     } catch (e, st) {
       debugPrint('[rust-log] bridge error: $e\n$st');
+    }
+  });
+}
+
+/// Listens for bond-slashed notices from Rust and records an in-app
+/// notification. The tracked order is never touched here — the notice is
+/// informational, and the no-overwrite guard lives in the Rust dispatcher.
+void _listenBondSlashed(ProviderContainer container) {
+  Future.microtask(() async {
+    try {
+      final stream = await bond_api.onBondSlashed();
+      while (true) {
+        final event = await stream.next();
+        await container.read(notificationsProviderWithDb.notifier).add(
+              NotificationModel.bondSlashed(
+                orderId: event.orderId,
+                amountSats: event.amountSats.toInt(),
+                disputeCause: event.cause == SlashCause.dispute,
+                fiatCode: event.fiatCode,
+                fiatAmount: event.fiatAmount.toInt(),
+                paymentMethod: event.paymentMethod,
+              ),
+            );
+      }
+    } catch (e, st) {
+      debugPrint('[bond-slashed] listener error: $e\n$st');
     }
   });
 }

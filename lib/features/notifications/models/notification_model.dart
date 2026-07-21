@@ -13,6 +13,7 @@ enum NotificationType {
   paymentReceived,
   invoiceRequest,
   orderTaken,
+  bondSlashed,
 }
 
 class NotificationModel {
@@ -144,6 +145,38 @@ class NotificationModel {
       timestamp: DateTime.now(),
       orderId: orderId,
       detail: {'Order': orderId},
+    );
+  }
+
+  factory NotificationModel.bondSlashed({
+    required String orderId,
+    required int amountSats,
+    required bool disputeCause,
+    String? fiatCode,
+    int? fiatAmount,
+    String? paymentMethod,
+  }) {
+    final causeText = disputeCause
+        ? 'after a dispute resolution'
+        : 'after a waiting-state timeout';
+    return NotificationModel(
+      id: const Uuid().v4(),
+      type: NotificationType.bondSlashed,
+      title: 'Bond slashed',
+      message:
+          'Your $amountSats-sat anti-abuse bond for order $orderId was '
+          'forfeited $causeText. Your order status is unchanged.',
+      timestamp: DateTime.now(),
+      orderId: orderId,
+      detail: {
+        'Order': orderId,
+        'Bond amount': '$amountSats sats',
+        'Cause': disputeCause ? 'Dispute resolution' : 'Waiting-state timeout',
+        if (fiatCode != null && fiatAmount != null)
+          'Fiat': '$fiatAmount $fiatCode',
+        if (paymentMethod != null && paymentMethod.isNotEmpty)
+          'Payment method': paymentMethod,
+      },
     );
   }
 

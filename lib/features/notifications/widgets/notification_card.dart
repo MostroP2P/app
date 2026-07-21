@@ -261,6 +261,7 @@ class _TypeIconCircle extends StatelessWidget {
       NotificationType.cancellation => (Icons.cancel, Colors.orange),
       NotificationType.message => (Icons.chat_bubble, Colors.teal),
       NotificationType.system => (Icons.info, Colors.grey),
+      NotificationType.bondSlashed => (Icons.money_off, Colors.red),
     };
 
     return Container(

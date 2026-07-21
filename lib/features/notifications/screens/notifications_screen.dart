@@ -426,6 +426,7 @@ class _TypeIcon extends StatelessWidget {
       NotificationType.paymentReceived => (Icons.attach_money, Colors.blue),
       NotificationType.invoiceRequest => (Icons.description, Colors.green),
       NotificationType.orderTaken => (Icons.add_circle_outline, Colors.green),
+      NotificationType.bondSlashed => (Icons.money_off, Colors.red),
     };
     return Icon(icon, color: color, size: 22);
   }
