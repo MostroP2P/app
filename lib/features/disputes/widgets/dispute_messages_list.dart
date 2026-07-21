@@ -140,7 +140,7 @@ class DisputeInfoCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Dispute Details',
+              AppLocalizations.of(context).disputeDetailsTitle,
               style: textTheme.bodyLarge?.copyWith(
                 color: colors.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -148,13 +148,13 @@ class DisputeInfoCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             _IdRow(
-              label: 'Order ID',
+              label: AppLocalizations.of(context).orderIdLabel,
               value: dispute.tradeId,
               colors: colors,
               textTheme: textTheme,
             ),
             _IdRow(
-              label: 'Dispute ID',
+              label: AppLocalizations.of(context).disputeIdLabel,
               value: dispute.id,
               colors: colors,
               textTheme: textTheme,
@@ -162,7 +162,7 @@ class DisputeInfoCard extends StatelessWidget {
             if (dispute.reason != null) ...[
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Reason: ${dispute.reason}',
+                AppLocalizations.of(context).disputeReasonLabel(dispute.reason!),
                 style: textTheme.bodySmall?.copyWith(color: colors.textSecondary),
               ),
             ],
@@ -193,7 +193,7 @@ class _IdRow extends StatelessWidget {
         Clipboard.setData(ClipboardData(text: value));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$label copied'),
+            content: Text(AppLocalizations.of(context).aboutCopiedToClipboard),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -318,7 +318,7 @@ class DisputeMessageBubble extends StatelessWidget {
               children: [
                 if (message.isAdmin && !message.isMine)
                   Text(
-                    'Admin',
+                    AppLocalizations.of(context).adminLabel,
                     style: textTheme.bodySmall?.copyWith(
                       color: colors.tealAccent,
                       fontWeight: FontWeight.bold,

@@ -1956,4 +1956,38 @@ class AppLocalizationsEs extends AppLocalizations {
   String minMaxRangeLabel(String min, String max, String currency) {
     return 'Mín: $min – Máx: $max $currency';
   }
+
+  @override
+  String get ratingFailed => 'La calificación falló. Inténtalo de nuevo.';
+
+  @override
+  String get submitUppercaseButton => 'ENVIAR';
+
+  @override
+  String selectStarTooltip(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Seleccionar $count estrellas',
+      one: 'Seleccionar 1 estrella',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get disputeDetailsTitle => 'Detalles de la disputa';
+
+  @override
+  String get disputeIdLabel => 'ID de disputa';
+
+  @override
+  String disputeReasonLabel(String reason) {
+    return 'Motivo: $reason';
+  }
+
+  @override
+  String get adminLabel => 'Administrador';
+
+  @override
+  String get disputeScreenTitle => 'Disputa';
 }

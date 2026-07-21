@@ -1305,5 +1305,27 @@
   "@minMaxRangeLabel": {
     "description": "Range bounds label in the amount dialog",
     "placeholders": {"min": {"type": "String"}, "max": {"type": "String"}, "currency": {"type": "String"}}
-  }
+  },
+  "ratingFailed": "Rating failed. Please try again.",
+  "@ratingFailed": {"description": "Snackbar shown when submitting a rating fails"},
+  "submitUppercaseButton": "SUBMIT",
+  "@submitUppercaseButton": {"description": "Uppercase submit button on the rate screen"},
+  "selectStarTooltip": "{count, plural, =1{Select 1 star} other{Select {count} stars}}",
+  "@selectStarTooltip": {
+    "description": "Tooltip for a star in the rating selector",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "disputeDetailsTitle": "Dispute Details",
+  "@disputeDetailsTitle": {"description": "Title of the dispute info card"},
+  "disputeIdLabel": "Dispute ID",
+  "@disputeIdLabel": {"description": "Label for the dispute ID field"},
+  "disputeReasonLabel": "Reason: {reason}",
+  "@disputeReasonLabel": {
+    "description": "Label showing the dispute reason",
+    "placeholders": {"reason": {"type": "String"}}
+  },
+  "adminLabel": "Admin",
+  "@adminLabel": {"description": "Sender label for administrator messages in a dispute"},
+  "disputeScreenTitle": "Dispute",
+  "@disputeScreenTitle": {"description": "App bar title of the dispute chat screen"}
 }

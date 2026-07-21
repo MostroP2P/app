@@ -77,7 +77,7 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
     if (dispute == null) {
       final l10n = AppLocalizations.of(context);
       return Scaffold(
-        appBar: AppBar(title: const Text('Dispute')),
+        appBar: AppBar(title: Text(l10n.disputeScreenTitle)),
         body: Center(child: Text(l10n.disputeNotFound)),
       );
     }

@@ -598,5 +598,13 @@
   "selectPaymentMethodsTitle": "Zahlungsmethoden auswählen",
   "amountRangeError": "Der Betrag muss zwischen {min} und {max} liegen",
   "enterAmountTitle": "Betrag eingeben",
-  "minMaxRangeLabel": "Min: {min} – Max: {max} {currency}"
+  "minMaxRangeLabel": "Min: {min} – Max: {max} {currency}",
+  "ratingFailed": "Bewertung fehlgeschlagen. Bitte versuche es erneut.",
+  "submitUppercaseButton": "ABSENDEN",
+  "selectStarTooltip": "{count, plural, =1{1 Stern auswählen} other{{count} Sterne auswählen}}",
+  "disputeDetailsTitle": "Streitfall-Details",
+  "disputeIdLabel": "Streitfall-ID",
+  "disputeReasonLabel": "Grund: {reason}",
+  "adminLabel": "Administrator",
+  "disputeScreenTitle": "Streitfall"
 }

@@ -305,7 +305,7 @@ class _MostroAppBar extends StatelessWidget {
             IconButton(
               onPressed: onMenuTap,
               icon: const Icon(Icons.menu, size: 24),
-              tooltip: 'Menu',
+              tooltip: AppLocalizations.of(context).menuTooltip,
             ),
           const Spacer(),
           GestureDetector(

@@ -3547,6 +3547,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Min: {min} – Max: {max} {currency}'**
   String minMaxRangeLabel(String min, String max, String currency);
+
+  /// Snackbar shown when submitting a rating fails
+  ///
+  /// In en, this message translates to:
+  /// **'Rating failed. Please try again.'**
+  String get ratingFailed;
+
+  /// Uppercase submit button on the rate screen
+  ///
+  /// In en, this message translates to:
+  /// **'SUBMIT'**
+  String get submitUppercaseButton;
+
+  /// Tooltip for a star in the rating selector
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Select 1 star} other{Select {count} stars}}'**
+  String selectStarTooltip(int count);
+
+  /// Title of the dispute info card
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute Details'**
+  String get disputeDetailsTitle;
+
+  /// Label for the dispute ID field
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute ID'**
+  String get disputeIdLabel;
+
+  /// Label showing the dispute reason
+  ///
+  /// In en, this message translates to:
+  /// **'Reason: {reason}'**
+  String disputeReasonLabel(String reason);
+
+  /// Sender label for administrator messages in a dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get adminLabel;
+
+  /// App bar title of the dispute chat screen
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute'**
+  String get disputeScreenTitle;
 }
 
 class _AppLocalizationsDelegate

@@ -1932,4 +1932,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String minMaxRangeLabel(String min, String max, String currency) {
     return 'Min: $min – Max: $max $currency';
   }
+
+  @override
+  String get ratingFailed => 'Rating failed. Please try again.';
+
+  @override
+  String get submitUppercaseButton => 'SUBMIT';
+
+  @override
+  String selectStarTooltip(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Select $count stars',
+      one: 'Select 1 star',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get disputeDetailsTitle => 'Dispute Details';
+
+  @override
+  String get disputeIdLabel => 'Dispute ID';
+
+  @override
+  String disputeReasonLabel(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String get adminLabel => 'Admin';
+
+  @override
+  String get disputeScreenTitle => 'Dispute';
 }
