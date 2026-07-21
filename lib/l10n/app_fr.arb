@@ -377,5 +377,16 @@
   "noWalletConnectedTitle": "Aucun portefeuille connecté",
   "connectWalletPrompt": "Connectez un portefeuille pour activer les paiements Lightning automatiques.",
   "disconnectButtonLabel": "Déconnecter",
-  "relaysMoreSuffix": "(+{count} de plus)"
+  "relaysMoreSuffix": "(+{count} de plus)",
+  "chooseNotificationEventsSubtitle": "Choisissez quels événements déclenchent les notifications push.",
+  "notifTradeUpdatesTitle": "Mises à jour des transactions",
+  "notifTradeUpdatesSubtitle": "Changements de statut de vos transactions actives",
+  "notifNewMessagesTitle": "Nouveaux messages",
+  "notifNewMessagesSubtitle": "Messages de votre contrepartie",
+  "notifPaymentAlertsTitle": "Alertes de paiement",
+  "notifPaymentAlertsSubtitle": "Confirmations et échecs de paiements Lightning",
+  "notifDisputeUpdatesTitle": "Mises à jour des litiges",
+  "notifDisputeUpdatesSubtitle": "Actions des administrateurs et résolutions de litiges",
+  "searchCurrenciesHint": "Rechercher des devises…",
+  "noCurrenciesFoundMessage": "Aucune devise trouvée"
 }

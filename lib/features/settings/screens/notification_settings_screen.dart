@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Notification preferences screen.
 ///
@@ -63,10 +64,11 @@ class _NotificationSettingsScreenState
     final colorsRaw = Theme.of(context).extension<AppColors>();
     if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
     final colors = colorsRaw;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Push Notifications'),
+        title: Text(l10n.pushNotificationsSettingTitle),
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -74,7 +76,7 @@ class _NotificationSettingsScreenState
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Text(
-              'Choose which events trigger push notifications.',
+              l10n.chooseNotificationEventsSubtitle,
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
@@ -85,8 +87,8 @@ class _NotificationSettingsScreenState
             context,
             colors,
             icon: Icons.swap_horiz,
-            title: 'Trade updates',
-            subtitle: 'Status changes in your active trades',
+            title: l10n.notifTradeUpdatesTitle,
+            subtitle: l10n.notifTradeUpdatesSubtitle,
             value: _tradeUpdates,
             onChanged: (v) {
               setState(() => _tradeUpdates = v);
@@ -97,8 +99,8 @@ class _NotificationSettingsScreenState
             context,
             colors,
             icon: Icons.chat_bubble_outline,
-            title: 'New messages',
-            subtitle: 'Messages from your trade counterparty',
+            title: l10n.notifNewMessagesTitle,
+            subtitle: l10n.notifNewMessagesSubtitle,
             value: _newMessages,
             onChanged: (v) {
               setState(() => _newMessages = v);
@@ -109,8 +111,8 @@ class _NotificationSettingsScreenState
             context,
             colors,
             icon: Icons.bolt,
-            title: 'Payment alerts',
-            subtitle: 'Lightning payment confirmations and failures',
+            title: l10n.notifPaymentAlertsTitle,
+            subtitle: l10n.notifPaymentAlertsSubtitle,
             value: _paymentAlerts,
             onChanged: (v) {
               setState(() => _paymentAlerts = v);
@@ -121,8 +123,8 @@ class _NotificationSettingsScreenState
             context,
             colors,
             icon: Icons.gavel_outlined,
-            title: 'Dispute updates',
-            subtitle: 'Admin actions and dispute resolutions',
+            title: l10n.notifDisputeUpdatesTitle,
+            subtitle: l10n.notifDisputeUpdatesSubtitle,
             value: _disputeUpdates,
             onChanged: (v) {
               setState(() => _disputeUpdates = v);

@@ -1195,4 +1195,41 @@ class AppLocalizationsFr extends AppLocalizations {
   String relaysMoreSuffix(int count) {
     return '(+$count de plus)';
   }
+
+  @override
+  String get chooseNotificationEventsSubtitle =>
+      'Choisissez quels événements déclenchent les notifications push.';
+
+  @override
+  String get notifTradeUpdatesTitle => 'Mises à jour des transactions';
+
+  @override
+  String get notifTradeUpdatesSubtitle =>
+      'Changements de statut de vos transactions actives';
+
+  @override
+  String get notifNewMessagesTitle => 'Nouveaux messages';
+
+  @override
+  String get notifNewMessagesSubtitle => 'Messages de votre contrepartie';
+
+  @override
+  String get notifPaymentAlertsTitle => 'Alertes de paiement';
+
+  @override
+  String get notifPaymentAlertsSubtitle =>
+      'Confirmations et échecs de paiements Lightning';
+
+  @override
+  String get notifDisputeUpdatesTitle => 'Mises à jour des litiges';
+
+  @override
+  String get notifDisputeUpdatesSubtitle =>
+      'Actions des administrateurs et résolutions de litiges';
+
+  @override
+  String get searchCurrenciesHint => 'Rechercher des devises…';
+
+  @override
+  String get noCurrenciesFoundMessage => 'Aucune devise trouvée';
 }

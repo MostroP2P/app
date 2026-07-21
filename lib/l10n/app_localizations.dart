@@ -2233,6 +2233,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'(+{count} more)'**
   String relaysMoreSuffix(int count);
+
+  /// Subtitle on the notification settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which events trigger push notifications.'**
+  String get chooseNotificationEventsSubtitle;
+
+  /// Title of the trade updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Trade updates'**
+  String get notifTradeUpdatesTitle;
+
+  /// Subtitle of the trade updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Status changes in your active trades'**
+  String get notifTradeUpdatesSubtitle;
+
+  /// Title of the new messages notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'New messages'**
+  String get notifNewMessagesTitle;
+
+  /// Subtitle of the new messages notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Messages from your trade counterparty'**
+  String get notifNewMessagesSubtitle;
+
+  /// Title of the payment alerts notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Payment alerts'**
+  String get notifPaymentAlertsTitle;
+
+  /// Subtitle of the payment alerts notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning payment confirmations and failures'**
+  String get notifPaymentAlertsSubtitle;
+
+  /// Title of the dispute updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute updates'**
+  String get notifDisputeUpdatesTitle;
+
+  /// Subtitle of the dispute updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Admin actions and dispute resolutions'**
+  String get notifDisputeUpdatesSubtitle;
+
+  /// Hint text of the currency search field
+  ///
+  /// In en, this message translates to:
+  /// **'Search currencies…'**
+  String get searchCurrenciesHint;
+
+  /// Message shown when no currencies match the search
+  ///
+  /// In en, this message translates to:
+  /// **'No currencies found'**
+  String get noCurrenciesFoundMessage;
 }
 
 class _AppLocalizationsDelegate

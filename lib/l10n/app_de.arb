@@ -377,5 +377,16 @@
   "noWalletConnectedTitle": "Keine Wallet verbunden",
   "connectWalletPrompt": "Verbinde eine Wallet, um automatische Lightning-Zahlungen zu aktivieren.",
   "disconnectButtonLabel": "Trennen",
-  "relaysMoreSuffix": "(+{count} weitere)"
+  "relaysMoreSuffix": "(+{count} weitere)",
+  "chooseNotificationEventsSubtitle": "Wähle, welche Ereignisse Push-Benachrichtigungen auslösen.",
+  "notifTradeUpdatesTitle": "Trade-Updates",
+  "notifTradeUpdatesSubtitle": "Statusänderungen bei deinen aktiven Trades",
+  "notifNewMessagesTitle": "Neue Nachrichten",
+  "notifNewMessagesSubtitle": "Nachrichten von deiner Handelsgegenpartei",
+  "notifPaymentAlertsTitle": "Zahlungshinweise",
+  "notifPaymentAlertsSubtitle": "Bestätigungen und Fehler von Lightning-Zahlungen",
+  "notifDisputeUpdatesTitle": "Streitfall-Updates",
+  "notifDisputeUpdatesSubtitle": "Admin-Aktionen und Streitbeilegungen",
+  "searchCurrenciesHint": "Währungen suchen…",
+  "noCurrenciesFoundMessage": "Keine Währungen gefunden"
 }

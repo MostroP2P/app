@@ -779,5 +779,27 @@
   "@relaysMoreSuffix": {
     "description": "Suffix showing how many additional relays exist beyond the first",
     "placeholders": {"count": {"type": "int"}}
-  }
+  },
+  "chooseNotificationEventsSubtitle": "Choose which events trigger push notifications.",
+  "@chooseNotificationEventsSubtitle": {"description": "Subtitle on the notification settings screen"},
+  "notifTradeUpdatesTitle": "Trade updates",
+  "@notifTradeUpdatesTitle": {"description": "Title of the trade updates notification toggle"},
+  "notifTradeUpdatesSubtitle": "Status changes in your active trades",
+  "@notifTradeUpdatesSubtitle": {"description": "Subtitle of the trade updates notification toggle"},
+  "notifNewMessagesTitle": "New messages",
+  "@notifNewMessagesTitle": {"description": "Title of the new messages notification toggle"},
+  "notifNewMessagesSubtitle": "Messages from your trade counterparty",
+  "@notifNewMessagesSubtitle": {"description": "Subtitle of the new messages notification toggle"},
+  "notifPaymentAlertsTitle": "Payment alerts",
+  "@notifPaymentAlertsTitle": {"description": "Title of the payment alerts notification toggle"},
+  "notifPaymentAlertsSubtitle": "Lightning payment confirmations and failures",
+  "@notifPaymentAlertsSubtitle": {"description": "Subtitle of the payment alerts notification toggle"},
+  "notifDisputeUpdatesTitle": "Dispute updates",
+  "@notifDisputeUpdatesTitle": {"description": "Title of the dispute updates notification toggle"},
+  "notifDisputeUpdatesSubtitle": "Admin actions and dispute resolutions",
+  "@notifDisputeUpdatesSubtitle": {"description": "Subtitle of the dispute updates notification toggle"},
+  "searchCurrenciesHint": "Search currencies…",
+  "@searchCurrenciesHint": {"description": "Hint text of the currency search field"},
+  "noCurrenciesFoundMessage": "No currencies found",
+  "@noCurrenciesFoundMessage": {"description": "Message shown when no currencies match the search"}
 }
