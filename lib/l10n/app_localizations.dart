@@ -1999,6 +1999,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back up your 12 words — it takes 60 seconds.'**
   String get backupBannerSubtitle;
+
+  /// Snackbar shown when persisting the backup-complete status fails in the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save backup status. Please try again.'**
+  String get failedToSaveBackupStatusMessage;
+
+  /// App bar title for step 1 of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Step 1 of 3 · Write down your words'**
+  String get backupRitualStep1Title;
+
+  /// App bar title for step 2 of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Step 2 of 3 · Verify'**
+  String get backupRitualStep2Title;
+
+  /// App bar title for step 3 of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Step 3 of 3 · Done'**
+  String get backupRitualStep3Title;
+
+  /// Bold lead-in of the warning card on the show-words step
+  ///
+  /// In en, this message translates to:
+  /// **'Write them on paper. '**
+  String get backupRitualWarningTitle;
+
+  /// Body of the warning card on the show-words step
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t store them in photos, screenshots or the cloud — anyone with these 12 words can steal your reputation.'**
+  String get backupRitualWarningBody;
+
+  /// Note reminding the user the words are hidden when leaving the ritual
+  ///
+  /// In en, this message translates to:
+  /// **'These words will be hidden when you leave this screen'**
+  String get wordsHiddenOnLeaveNote;
+
+  /// Primary button on the show-words step that starts verification
+  ///
+  /// In en, this message translates to:
+  /// **'I wrote them down — verify'**
+  String get wroteThemDownVerifyButton;
+
+  /// Title of the verification step
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the correct words'**
+  String get tapCorrectWordsTitle;
+
+  /// Instructions shown on the verification step
+  ///
+  /// In en, this message translates to:
+  /// **'We ask for 3 at random. If you get them right, we know they\'re safely written down.'**
+  String get verifyInstructionsBody;
+
+  /// Label above the option grid for the challenged word
+  ///
+  /// In en, this message translates to:
+  /// **'OPTIONS FOR WORD #{number}'**
+  String optionsForWordLabel(int number);
+
+  /// Error shown when the user taps a wrong verification option
+  ///
+  /// In en, this message translates to:
+  /// **'Not quite — check your paper and try again.'**
+  String get wrongPickMessage;
+
+  /// Success message shown when all challenged words are verified
+  ///
+  /// In en, this message translates to:
+  /// **'All 3 words correct!'**
+  String get allWordsCorrectMessage;
+
+  /// Button that returns from verification to the show-words step
+  ///
+  /// In en, this message translates to:
+  /// **'Show words again'**
+  String get showWordsAgainButton;
+
+  /// Title of the final done step of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is backed up'**
+  String get accountBackedUpTitle;
+
+  /// Body of the final done step of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation is safe. If you ever lose your phone, restore your account with your 12 words.'**
+  String get accountBackedUpBody;
+
+  /// Label for a challenged word slot, showing its position in the mnemonic
+  ///
+  /// In en, this message translates to:
+  /// **'Word #{number}'**
+  String wordNumberLabel(int number);
+
+  /// Lead-in body text of the backup trigger bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation lives in a key only you hold. If you lose your phone, you lose that reputation — '**
+  String get backupTriggerBody;
+
+  /// Highlighted trailing phrase of the backup trigger body
+  ///
+  /// In en, this message translates to:
+  /// **'back it up in 60 seconds.'**
+  String get backupTriggerBodyHighlight;
+
+  /// Step 1 label in the backup trigger sheet preview
+  ///
+  /// In en, this message translates to:
+  /// **'Write your 12 words down on paper'**
+  String get backupStepWriteDown;
+
+  /// Step 2 label in the backup trigger sheet preview
+  ///
+  /// In en, this message translates to:
+  /// **'We ask for 3 at random to confirm'**
+  String get backupStepVerifyRandom;
+
+  /// Step 3 label in the backup trigger sheet preview
+  ///
+  /// In en, this message translates to:
+  /// **'Done — your account is secured'**
+  String get backupStepSecured;
+
+  /// Primary button in the backup trigger sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Back up now'**
+  String get backupNowButton;
+
+  /// Ghost button in the backup trigger sheet that snoozes the reminder
+  ///
+  /// In en, this message translates to:
+  /// **'Remind me tomorrow'**
+  String get remindMeTomorrowButton;
 }
 
 class _AppLocalizationsDelegate

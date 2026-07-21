@@ -1056,4 +1056,90 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get backupBannerSubtitle =>
       'Sichere deine 12 Wörter — es dauert 60 Sekunden.';
+
+  @override
+  String get failedToSaveBackupStatusMessage =>
+      'Sicherungsstatus konnte nicht gespeichert werden. Bitte versuche es erneut.';
+
+  @override
+  String get backupRitualStep1Title =>
+      'Schritt 1 von 3 · Schreibe deine Wörter auf';
+
+  @override
+  String get backupRitualStep2Title => 'Schritt 2 von 3 · Überprüfen';
+
+  @override
+  String get backupRitualStep3Title => 'Schritt 3 von 3 · Fertig';
+
+  @override
+  String get backupRitualWarningTitle => 'Schreibe sie auf Papier. ';
+
+  @override
+  String get backupRitualWarningBody =>
+      'Speichere sie nicht in Fotos, Screenshots oder der Cloud — wer diese 12 Wörter hat, kann deine Reputation stehlen.';
+
+  @override
+  String get wordsHiddenOnLeaveNote =>
+      'Diese Wörter werden ausgeblendet, wenn du diesen Bildschirm verlässt';
+
+  @override
+  String get wroteThemDownVerifyButton =>
+      'Ich habe sie aufgeschrieben — überprüfen';
+
+  @override
+  String get tapCorrectWordsTitle => 'Tippe auf die richtigen Wörter';
+
+  @override
+  String get verifyInstructionsBody =>
+      'Wir fragen 3 zufällig ab. Wenn du sie richtig hast, wissen wir, dass sie sicher aufgeschrieben sind.';
+
+  @override
+  String optionsForWordLabel(int number) {
+    return 'OPTIONEN FÜR WORT #$number';
+  }
+
+  @override
+  String get wrongPickMessage =>
+      'Nicht ganz — überprüfe dein Papier und versuche es erneut.';
+
+  @override
+  String get allWordsCorrectMessage => 'Alle 3 Wörter richtig!';
+
+  @override
+  String get showWordsAgainButton => 'Wörter erneut anzeigen';
+
+  @override
+  String get accountBackedUpTitle => 'Dein Konto ist gesichert';
+
+  @override
+  String get accountBackedUpBody =>
+      'Deine Reputation ist sicher. Falls du dein Telefon verlierst, stelle dein Konto mit deinen 12 Wörtern wieder her.';
+
+  @override
+  String wordNumberLabel(int number) {
+    return 'Wort #$number';
+  }
+
+  @override
+  String get backupTriggerBody =>
+      'Deine Reputation liegt in einem Schlüssel, den nur du besitzt. Wenn du dein Telefon verlierst, verlierst du diese Reputation — ';
+
+  @override
+  String get backupTriggerBodyHighlight => 'sichere ihn in 60 Sekunden.';
+
+  @override
+  String get backupStepWriteDown => 'Schreibe deine 12 Wörter auf Papier';
+
+  @override
+  String get backupStepVerifyRandom =>
+      'Wir fragen 3 zufällig zur Bestätigung ab';
+
+  @override
+  String get backupStepSecured => 'Fertig — dein Konto ist gesichert';
+
+  @override
+  String get backupNowButton => 'Jetzt sichern';
+
+  @override
+  String get remindMeTomorrowButton => 'Erinnere mich morgen';
 }

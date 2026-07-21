@@ -1041,4 +1041,86 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get backupBannerSubtitle =>
       'Back up your 12 words — it takes 60 seconds.';
+
+  @override
+  String get failedToSaveBackupStatusMessage =>
+      'Failed to save backup status. Please try again.';
+
+  @override
+  String get backupRitualStep1Title => 'Step 1 of 3 · Write down your words';
+
+  @override
+  String get backupRitualStep2Title => 'Step 2 of 3 · Verify';
+
+  @override
+  String get backupRitualStep3Title => 'Step 3 of 3 · Done';
+
+  @override
+  String get backupRitualWarningTitle => 'Write them on paper. ';
+
+  @override
+  String get backupRitualWarningBody =>
+      'Don\'t store them in photos, screenshots or the cloud — anyone with these 12 words can steal your reputation.';
+
+  @override
+  String get wordsHiddenOnLeaveNote =>
+      'These words will be hidden when you leave this screen';
+
+  @override
+  String get wroteThemDownVerifyButton => 'I wrote them down — verify';
+
+  @override
+  String get tapCorrectWordsTitle => 'Tap the correct words';
+
+  @override
+  String get verifyInstructionsBody =>
+      'We ask for 3 at random. If you get them right, we know they\'re safely written down.';
+
+  @override
+  String optionsForWordLabel(int number) {
+    return 'OPTIONS FOR WORD #$number';
+  }
+
+  @override
+  String get wrongPickMessage => 'Not quite — check your paper and try again.';
+
+  @override
+  String get allWordsCorrectMessage => 'All 3 words correct!';
+
+  @override
+  String get showWordsAgainButton => 'Show words again';
+
+  @override
+  String get accountBackedUpTitle => 'Your account is backed up';
+
+  @override
+  String get accountBackedUpBody =>
+      'Your reputation is safe. If you ever lose your phone, restore your account with your 12 words.';
+
+  @override
+  String wordNumberLabel(int number) {
+    return 'Word #$number';
+  }
+
+  @override
+  String get backupTriggerBody =>
+      'Your reputation lives in a key only you hold. If you lose your phone, you lose that reputation — ';
+
+  @override
+  String get backupTriggerBodyHighlight => 'back it up in 60 seconds.';
+
+  @override
+  String get backupStepWriteDown => 'Write your 12 words down on paper';
+
+  @override
+  String get backupStepVerifyRandom => 'We ask for 3 at random to confirm';
+
+  @override
+  String get backupStepSecured => 'Done — your account is secured';
+
+  @override
+  String get backupNowButton => 'Back up now';
+
+  @override
+  String get remindMeTomorrowButton => 'Remind me tomorrow';
 }

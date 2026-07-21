@@ -1056,4 +1056,86 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get backupBannerSubtitle =>
       'Respalda tus 12 palabras — toma 60 segundos.';
+
+  @override
+  String get failedToSaveBackupStatusMessage =>
+      'No se pudo guardar el estado del respaldo. Inténtalo de nuevo.';
+
+  @override
+  String get backupRitualStep1Title => 'Paso 1 de 3 · Anota tus palabras';
+
+  @override
+  String get backupRitualStep2Title => 'Paso 2 de 3 · Verificar';
+
+  @override
+  String get backupRitualStep3Title => 'Paso 3 de 3 · Listo';
+
+  @override
+  String get backupRitualWarningTitle => 'Anótalas en papel. ';
+
+  @override
+  String get backupRitualWarningBody =>
+      'No las guardes en fotos, capturas de pantalla ni en la nube — cualquiera con estas 12 palabras puede robar tu reputación.';
+
+  @override
+  String get wordsHiddenOnLeaveNote =>
+      'Estas palabras se ocultarán cuando salgas de esta pantalla';
+
+  @override
+  String get wroteThemDownVerifyButton => 'Las anoté — verificar';
+
+  @override
+  String get tapCorrectWordsTitle => 'Toca las palabras correctas';
+
+  @override
+  String get verifyInstructionsBody =>
+      'Te pedimos 3 al azar. Si las aciertas, sabemos que están bien anotadas.';
+
+  @override
+  String optionsForWordLabel(int number) {
+    return 'OPCIONES PARA LA PALABRA #$number';
+  }
+
+  @override
+  String get wrongPickMessage => 'Casi — revisa tu papel e inténtalo de nuevo.';
+
+  @override
+  String get allWordsCorrectMessage => '¡Las 3 palabras correctas!';
+
+  @override
+  String get showWordsAgainButton => 'Mostrar palabras de nuevo';
+
+  @override
+  String get accountBackedUpTitle => 'Tu cuenta está respaldada';
+
+  @override
+  String get accountBackedUpBody =>
+      'Tu reputación está a salvo. Si alguna vez pierdes tu teléfono, restaura tu cuenta con tus 12 palabras.';
+
+  @override
+  String wordNumberLabel(int number) {
+    return 'Palabra #$number';
+  }
+
+  @override
+  String get backupTriggerBody =>
+      'Tu reputación vive en una clave que solo tú posees. Si pierdes tu teléfono, pierdes esa reputación — ';
+
+  @override
+  String get backupTriggerBodyHighlight => 'respáldala en 60 segundos.';
+
+  @override
+  String get backupStepWriteDown => 'Anota tus 12 palabras en papel';
+
+  @override
+  String get backupStepVerifyRandom => 'Te pedimos 3 al azar para confirmar';
+
+  @override
+  String get backupStepSecured => 'Listo — tu cuenta está protegida';
+
+  @override
+  String get backupNowButton => 'Respaldar ahora';
+
+  @override
+  String get remindMeTomorrowButton => 'Recuérdamelo mañana';
 }

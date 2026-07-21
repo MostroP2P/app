@@ -1060,4 +1060,88 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get backupBannerSubtitle =>
       'Sauvegardez vos 12 mots — cela prend 60 secondes.';
+
+  @override
+  String get failedToSaveBackupStatusMessage =>
+      'Échec de l\'enregistrement de l\'état de la sauvegarde. Veuillez réessayer.';
+
+  @override
+  String get backupRitualStep1Title => 'Étape 1 sur 3 · Notez vos mots';
+
+  @override
+  String get backupRitualStep2Title => 'Étape 2 sur 3 · Vérifier';
+
+  @override
+  String get backupRitualStep3Title => 'Étape 3 sur 3 · Terminé';
+
+  @override
+  String get backupRitualWarningTitle => 'Notez-les sur papier. ';
+
+  @override
+  String get backupRitualWarningBody =>
+      'Ne les stockez pas dans des photos, des captures d\'écran ou le cloud — quiconque possède ces 12 mots peut voler votre réputation.';
+
+  @override
+  String get wordsHiddenOnLeaveNote =>
+      'Ces mots seront masqués lorsque vous quitterez cet écran';
+
+  @override
+  String get wroteThemDownVerifyButton => 'Je les ai notés — vérifier';
+
+  @override
+  String get tapCorrectWordsTitle => 'Appuyez sur les mots corrects';
+
+  @override
+  String get verifyInstructionsBody =>
+      'Nous en demandons 3 au hasard. Si vous les trouvez, nous savons qu\'ils sont bien notés.';
+
+  @override
+  String optionsForWordLabel(int number) {
+    return 'OPTIONS POUR LE MOT #$number';
+  }
+
+  @override
+  String get wrongPickMessage =>
+      'Pas tout à fait — vérifiez votre papier et réessayez.';
+
+  @override
+  String get allWordsCorrectMessage => 'Les 3 mots sont corrects !';
+
+  @override
+  String get showWordsAgainButton => 'Afficher à nouveau les mots';
+
+  @override
+  String get accountBackedUpTitle => 'Votre compte est sauvegardé';
+
+  @override
+  String get accountBackedUpBody =>
+      'Votre réputation est en sécurité. Si vous perdez un jour votre téléphone, restaurez votre compte avec vos 12 mots.';
+
+  @override
+  String wordNumberLabel(int number) {
+    return 'Mot #$number';
+  }
+
+  @override
+  String get backupTriggerBody =>
+      'Votre réputation réside dans une clé que vous seul détenez. Si vous perdez votre téléphone, vous perdez cette réputation — ';
+
+  @override
+  String get backupTriggerBodyHighlight => 'sauvegardez-la en 60 secondes.';
+
+  @override
+  String get backupStepWriteDown => 'Notez vos 12 mots sur papier';
+
+  @override
+  String get backupStepVerifyRandom =>
+      'Nous en demandons 3 au hasard pour confirmer';
+
+  @override
+  String get backupStepSecured => 'Terminé — votre compte est sécurisé';
+
+  @override
+  String get backupNowButton => 'Sauvegarder maintenant';
+
+  @override
+  String get remindMeTomorrowButton => 'Rappelez-moi demain';
 }
