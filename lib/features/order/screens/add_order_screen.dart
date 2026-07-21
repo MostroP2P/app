@@ -227,9 +227,10 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final fiatCode = ref.watch(selectedFiatCodeProvider);
     final premium = ref.watch(premiumValueProvider);
     final isValid = _checkValid(selectedMethods, customMethod, isMarket, fixedSatsStr);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('CREATING NEW ORDER')),
+      appBar: AppBar(title: Text(l10n.creatingNewOrderTitle)),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
@@ -244,7 +245,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'You want to ${_isBuy ? 'buy' : 'sell'} Bitcoin',
+                  _isBuy ? l10n.youWantToBuyBitcoin : l10n.youWantToSellBitcoin,
                   style: theme.textTheme.headlineSmall,
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -253,7 +254,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
                 Row(
                   children: [
                     Text(
-                      'Range order',
+                      l10n.rangeOrderLabel,
                       style: TextStyle(
                         color: colors?.textSecondary,
                         fontSize: 13,
@@ -278,7 +279,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
                           controller: _minController,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            hintText: 'Min',
+                            hintText: l10n.minHint,
                             filled: true,
                             fillColor: inputBg,
                             border: OutlineInputBorder(
@@ -296,7 +297,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
                           controller: _maxController,
                           keyboardType: TextInputType.number,
                           decoration: InputDecoration(
-                            hintText: 'Max',
+                            hintText: l10n.maxHint,
                             filled: true,
                             fillColor: inputBg,
                             border: OutlineInputBorder(
@@ -315,7 +316,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
                     controller: _amountController,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      hintText: 'Fiat amount',
+                      hintText: l10n.fiatAmountHint,
                       filled: true,
                       fillColor: inputBg,
                       border: OutlineInputBorder(
@@ -384,7 +385,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                  child: const Text('Cancel'),
+                  child: Text(l10n.cancel),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -407,7 +408,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
                           child:
                               CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Submit'),
+                      : Text(l10n.submitButton),
                 ),
               ),
                 ],
@@ -432,9 +433,9 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     required String fiatCode,
     required double premium,
   }) {
-    final textPrimary = colors?.textPrimary ?? Colors.white;
     final secondary = colors?.textSecondary ?? Colors.grey;
     final subtle = colors?.textSubtle ?? Colors.grey;
+    final l10n = AppLocalizations.of(context);
 
     // Fiat side, mirroring _checkValid's rules.
     String? amountStr;
@@ -461,44 +462,28 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     Widget body;
     if (amountStr == null) {
       body = Text(
-        'Enter an amount to see a live preview.',
+        l10n.enterAmountForPreview,
         style: TextStyle(fontSize: 13, color: subtle),
       );
     } else {
-      final bold = TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: textPrimary,
-      );
-      final spans = <TextSpan>[];
+      final String sentence;
       if (sats != null) {
-        spans
-          ..add(TextSpan(text: _isBuy ? 'You receive ' : 'You sell '))
-          ..add(TextSpan(
-            text: '${_groupDigits(sats.toString())} sats',
-            style: bold,
-          ))
-          ..add(const TextSpan(text: ' for '))
-          ..add(TextSpan(text: amountStr, style: bold));
+        final satsStr = _groupDigits(sats.toString());
+        sentence = _isBuy
+            ? l10n.previewReceiveFixed(satsStr, amountStr)
+            : l10n.previewSellFixed(satsStr, amountStr);
       } else {
         final priceLabel = premium == 0
-            ? 'market price'
-            : 'market ${premium > 0 ? '+' : ''}${_formatNum(premium)}%';
-        spans
-          ..add(TextSpan(text: _isBuy ? 'You buy BTC for ' : 'You sell BTC for '))
-          ..add(TextSpan(text: amountStr, style: bold))
-          ..add(const TextSpan(text: ' at '))
-          ..add(TextSpan(text: priceLabel, style: bold));
+            ? l10n.marketPriceLabel
+            : l10n.marketPricePremium(
+                '${premium > 0 ? '+' : ''}${_formatNum(premium)}');
+        sentence = _isBuy
+            ? l10n.previewBuyMarket(amountStr, priceLabel)
+            : l10n.previewSellMarket(amountStr, priceLabel);
       }
-      spans
-        ..add(const TextSpan(text: ' · live for '))
-        ..add(TextSpan(text: '24 h', style: bold));
-
-      body = Text.rich(
-        TextSpan(
-          style: TextStyle(fontSize: 13, height: 1.5, color: secondary),
-          children: spans,
-        ),
+      body = Text(
+        sentence,
+        style: TextStyle(fontSize: 13, height: 1.5, color: secondary),
       );
     }
 
@@ -514,7 +499,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'PREVIEW',
+            l10n.previewLabel,
             style: TextStyle(fontSize: 11, letterSpacing: 1, color: subtle),
           ),
           const SizedBox(height: AppSpacing.xs),

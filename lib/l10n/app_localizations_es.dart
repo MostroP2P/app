@@ -1754,4 +1754,119 @@ class AppLocalizationsEs extends AppLocalizations {
   String timeLeftLabel(String time) {
     return 'Quedan $time';
   }
+
+  @override
+  String get waitingForTradeAmount =>
+      'Esperando el monto de la operación — inténtalo de nuevo en un momento.';
+
+  @override
+  String get fetchingTradeAmount => 'Obteniendo el monto de la operación…';
+
+  @override
+  String get enterInvoiceManually => 'Ingresar factura manualmente';
+
+  @override
+  String get enterLightningInvoiceInstruction =>
+      'Ingresa una factura Lightning para recibir tus sats';
+
+  @override
+  String get lightningInvoiceLabel => 'Factura Lightning';
+
+  @override
+  String get submitButton => 'Enviar';
+
+  @override
+  String get sellOrderDetailsTitle => 'DETALLES DE ORDEN DE VENTA';
+
+  @override
+  String get buyOrderDetailsTitle => 'DETALLES DE ORDEN DE COMPRA';
+
+  @override
+  String get buyTheseSatsButton => 'COMPRAR ESTOS SATS';
+
+  @override
+  String get sellSatsButton => 'VENDER SATS';
+
+  @override
+  String get someoneSellingSats => 'Alguien está vendiendo sats';
+
+  @override
+  String get someoneBuyingSats => 'Alguien está comprando sats';
+
+  @override
+  String get takeOrderForPrefix => 'por ';
+
+  @override
+  String get takeOrderAtMarketPrice => ' a precio de mercado';
+
+  @override
+  String premiumLabel(String premium) {
+    return 'Prima: $premium%';
+  }
+
+  @override
+  String get creatorReputation => 'Reputación del creador';
+
+  @override
+  String get ratingStatLabel => 'calificación';
+
+  @override
+  String get tradesStatLabel => 'operaciones';
+
+  @override
+  String get daysActiveStatLabel => 'días activo';
+
+  @override
+  String get timeToTakeOrder => 'TIEMPO PARA TOMAR ESTA ORDEN';
+
+  @override
+  String get orderExpiryRemovedNote =>
+      'Si expira, la orden se elimina del libro. ';
+
+  @override
+  String get orderExpiryNoReputationNote => 'No afectará tu reputación.';
+
+  @override
+  String get minHint => 'Mín';
+
+  @override
+  String get maxHint => 'Máx';
+
+  @override
+  String get fiatAmountHint => 'Monto fiat';
+
+  @override
+  String get enterAmountForPreview =>
+      'Ingresa un monto para ver una vista previa en vivo.';
+
+  @override
+  String get previewLabel => 'VISTA PREVIA';
+
+  @override
+  String previewBuyMarket(String amount, String price) {
+    return 'Compras BTC por $amount a $price · activa por 24 h';
+  }
+
+  @override
+  String previewSellMarket(String amount, String price) {
+    return 'Vendes BTC por $amount a $price · activa por 24 h';
+  }
+
+  @override
+  String previewReceiveFixed(String sats, String amount) {
+    return 'Recibes $sats sats por $amount · activa por 24 h';
+  }
+
+  @override
+  String previewSellFixed(String sats, String amount) {
+    return 'Vendes $sats sats por $amount · activa por 24 h';
+  }
+
+  @override
+  String get marketPriceLabel => 'precio de mercado';
+
+  @override
+  String marketPricePremium(String premium) {
+    return 'mercado $premium%';
+  }
 }

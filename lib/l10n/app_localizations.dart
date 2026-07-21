@@ -3199,6 +3199,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{time} left'**
   String timeLeftLabel(String time);
+
+  /// Snackbar when submitting an LN address before the sats amount is known
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for trade amount — please try again shortly.'**
+  String get waitingForTradeAmount;
+
+  /// Loading text while resolving the trade amount
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching trade amount…'**
+  String get fetchingTradeAmount;
+
+  /// Button to switch to manual invoice entry
+  ///
+  /// In en, this message translates to:
+  /// **'Enter invoice manually'**
+  String get enterInvoiceManually;
+
+  /// Instruction on the add invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a Lightning Invoice to receive your sats'**
+  String get enterLightningInvoiceInstruction;
+
+  /// Field label for the Lightning invoice input
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning Invoice'**
+  String get lightningInvoiceLabel;
+
+  /// Generic submit button label
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get submitButton;
+
+  /// App bar title when taking a sell order
+  ///
+  /// In en, this message translates to:
+  /// **'SELL ORDER DETAILS'**
+  String get sellOrderDetailsTitle;
+
+  /// App bar title when taking a buy order
+  ///
+  /// In en, this message translates to:
+  /// **'BUY ORDER DETAILS'**
+  String get buyOrderDetailsTitle;
+
+  /// Primary button to buy sats
+  ///
+  /// In en, this message translates to:
+  /// **'BUY THESE SATS'**
+  String get buyTheseSatsButton;
+
+  /// Primary button to sell sats
+  ///
+  /// In en, this message translates to:
+  /// **'SELL SATS'**
+  String get sellSatsButton;
+
+  /// Headline when a counterpart is selling sats
+  ///
+  /// In en, this message translates to:
+  /// **'Someone is selling sats'**
+  String get someoneSellingSats;
+
+  /// Headline when a counterpart is buying sats
+  ///
+  /// In en, this message translates to:
+  /// **'Someone is buying sats'**
+  String get someoneBuyingSats;
+
+  /// Prefix before the order amount on the take order screen
+  ///
+  /// In en, this message translates to:
+  /// **'for '**
+  String get takeOrderForPrefix;
+
+  /// Suffix after the order amount indicating market price
+  ///
+  /// In en, this message translates to:
+  /// **' at market price'**
+  String get takeOrderAtMarketPrice;
+
+  /// Premium percentage label
+  ///
+  /// In en, this message translates to:
+  /// **'Premium: {premium}%'**
+  String premiumLabel(String premium);
+
+  /// Label for the creator reputation card
+  ///
+  /// In en, this message translates to:
+  /// **'Creator reputation'**
+  String get creatorReputation;
+
+  /// Reputation stat label: rating
+  ///
+  /// In en, this message translates to:
+  /// **'rating'**
+  String get ratingStatLabel;
+
+  /// Reputation stat label: trades
+  ///
+  /// In en, this message translates to:
+  /// **'trades'**
+  String get tradesStatLabel;
+
+  /// Reputation stat label: days active
+  ///
+  /// In en, this message translates to:
+  /// **'days active'**
+  String get daysActiveStatLabel;
+
+  /// Countdown label on the take order screen
+  ///
+  /// In en, this message translates to:
+  /// **'TIME TO TAKE THIS ORDER'**
+  String get timeToTakeOrder;
+
+  /// Consequence note prefix if the order expires
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the order is removed from the book. '**
+  String get orderExpiryRemovedNote;
+
+  /// Highlighted consequence note about reputation
+  ///
+  /// In en, this message translates to:
+  /// **'It won\'t affect your reputation.'**
+  String get orderExpiryNoReputationNote;
+
+  /// Hint for the minimum amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Min'**
+  String get minHint;
+
+  /// Hint for the maximum amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Max'**
+  String get maxHint;
+
+  /// Hint for the fiat amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat amount'**
+  String get fiatAmountHint;
+
+  /// Preview footer text before an amount is entered
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an amount to see a live preview.'**
+  String get enterAmountForPreview;
+
+  /// Label of the order preview footer
+  ///
+  /// In en, this message translates to:
+  /// **'PREVIEW'**
+  String get previewLabel;
+
+  /// Preview sentence for a market buy order
+  ///
+  /// In en, this message translates to:
+  /// **'You buy BTC for {amount} at {price} · live for 24 h'**
+  String previewBuyMarket(String amount, String price);
+
+  /// Preview sentence for a market sell order
+  ///
+  /// In en, this message translates to:
+  /// **'You sell BTC for {amount} at {price} · live for 24 h'**
+  String previewSellMarket(String amount, String price);
+
+  /// Preview sentence for a fixed-price buy order
+  ///
+  /// In en, this message translates to:
+  /// **'You receive {sats} sats for {amount} · live for 24 h'**
+  String previewReceiveFixed(String sats, String amount);
+
+  /// Preview sentence for a fixed-price sell order
+  ///
+  /// In en, this message translates to:
+  /// **'You sell {sats} sats for {amount} · live for 24 h'**
+  String previewSellFixed(String sats, String amount);
+
+  /// Price label for market price with no premium
+  ///
+  /// In en, this message translates to:
+  /// **'market price'**
+  String get marketPriceLabel;
+
+  /// Price label for market price with a premium
+  ///
+  /// In en, this message translates to:
+  /// **'market {premium}%'**
+  String marketPricePremium(String premium);
 }
 
 class _AppLocalizationsDelegate
