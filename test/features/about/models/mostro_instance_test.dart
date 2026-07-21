@@ -89,6 +89,15 @@ void main() {
       ]);
       expect(instance.bondPolicy, BondPolicy.unsupported);
     });
+
+    test('duplicate bond_enabled tags resolve first-wins', () {
+      final instance = MostroInstance.fromTags(const [
+        ['d', 'npub_test'],
+        ['bond_enabled', 'false'],
+        ['bond_enabled', 'true'],
+      ]);
+      expect(instance.bondPolicy, BondPolicy.disabled);
+    });
   });
 
   group('MostroInstance.fromTags — bond parameters (enabled node)', () {
@@ -124,6 +133,20 @@ void main() {
       );
       expect(instance.bondApplyTo, isNull);
     });
+
+    test(
+      'bond_apply_to and bond_slash_on_waiting_timeout are case-insensitive',
+      () {
+        final instance = MostroInstance.fromTags(
+          enabledTagsWith({
+            'bond_apply_to': 'BOTH',
+            'bond_slash_on_waiting_timeout': 'TRUE',
+          }),
+        );
+        expect(instance.bondApplyTo, BondApplyTo.both);
+        expect(instance.bondSlashOnWaitingTimeout, isTrue);
+      },
+    );
 
     test('bond_slash_on_waiting_timeout parses true/false, else null', () {
       expect(
@@ -256,6 +279,17 @@ void main() {
         expectNoBondParameters(instance);
       },
     );
+
+    test('enabled node with no parameter tags exposes null parameters', () {
+      // An enabled policy may legitimately omit every parameter; consumers
+      // fall back to their own defaults.
+      final instance = MostroInstance.fromTags(
+        tagsWith({'bond_enabled': 'true'}),
+      );
+
+      expect(instance.bondPolicy, BondPolicy.enabled);
+      expectNoBondParameters(instance);
+    });
   });
 
   group('MostroInstance.fromTags — non-bond parsing is unaffected', () {
