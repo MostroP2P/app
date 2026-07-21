@@ -2377,6 +2377,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to share logs'**
   String get failedToShareLogsMessage;
+
+  /// My Trades status filter: all
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get tradeFilterAll;
+
+  /// My Trades status filter: pending
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get tradeFilterPending;
+
+  /// My Trades status filter: waiting invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting Invoice'**
+  String get tradeFilterWaitingInvoice;
+
+  /// My Trades status filter: waiting payment
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting Payment'**
+  String get tradeFilterWaitingPayment;
+
+  /// My Trades status filter: active
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get tradeFilterActive;
+
+  /// My Trades status filter: fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat Sent'**
+  String get tradeFilterFiatSent;
+
+  /// My Trades status filter: success
+  ///
+  /// In en, this message translates to:
+  /// **'Success'**
+  String get tradeFilterSuccess;
+
+  /// My Trades status filter: canceled
+  ///
+  /// In en, this message translates to:
+  /// **'Canceled'**
+  String get tradeFilterCanceled;
+
+  /// My Trades status filter: dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute'**
+  String get tradeFilterDispute;
+
+  /// Tooltip for the drawer menu button
+  ///
+  /// In en, this message translates to:
+  /// **'Menu'**
+  String get menuTooltip;
+
+  /// Prefix shown before the selected status filter
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get tradeStatusFilterPrefix;
+
+  /// Title of the empty My Trades state
+  ///
+  /// In en, this message translates to:
+  /// **'No trades'**
+  String get noTradesTitle;
+
+  /// Subtitle of the empty My Trades state
+  ///
+  /// In en, this message translates to:
+  /// **'Your active and completed trades will appear here.'**
+  String get noTradesSubtitle;
+
+  /// Error shown when the trades list fails to load
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load trades'**
+  String get couldNotLoadTradesMessage;
+
+  /// Title of the release confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Release Bitcoin'**
+  String get releaseBitcoinTitle;
+
+  /// Body of the release confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to release the Satoshis to the buyer?'**
+  String get releaseBitcoinConfirmation;
+
+  /// Generic Yes button label
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get yesButtonLabel;
+
+  /// Trade card title when the user is selling Bitcoin
+  ///
+  /// In en, this message translates to:
+  /// **'Selling Bitcoin'**
+  String get sellingBitcoin;
+
+  /// Trade card title when the user is buying Bitcoin
+  ///
+  /// In en, this message translates to:
+  /// **'Buying Bitcoin'**
+  String get buyingBitcoin;
+
+  /// Role badge when the user created the order
+  ///
+  /// In en, this message translates to:
+  /// **'Created by you'**
+  String get createdByYou;
+
+  /// Role badge when the user took the order
+  ///
+  /// In en, this message translates to:
+  /// **'Taken by you'**
+  String get takenByYou;
+
+  /// Compact relative time for just now
+  ///
+  /// In en, this message translates to:
+  /// **'now'**
+  String get timeAgoNow;
+
+  /// Compact relative time in minutes
+  ///
+  /// In en, this message translates to:
+  /// **'{count}m'**
+  String timeAgoMinutes(int count);
+
+  /// Compact relative time in hours
+  ///
+  /// In en, this message translates to:
+  /// **'{count}h'**
+  String timeAgoHours(int count);
+
+  /// Compact relative time in days
+  ///
+  /// In en, this message translates to:
+  /// **'{count}d'**
+  String timeAgoDays(int count);
 }
 
 class _AppLocalizationsDelegate

@@ -1266,4 +1266,87 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get failedToShareLogsMessage => 'Impossibile condividere i log';
+
+  @override
+  String get tradeFilterAll => 'Tutti';
+
+  @override
+  String get tradeFilterPending => 'In attesa';
+
+  @override
+  String get tradeFilterWaitingInvoice => 'In attesa di fattura';
+
+  @override
+  String get tradeFilterWaitingPayment => 'In attesa di pagamento';
+
+  @override
+  String get tradeFilterActive => 'Attivo';
+
+  @override
+  String get tradeFilterFiatSent => 'Fiat inviato';
+
+  @override
+  String get tradeFilterSuccess => 'Riuscito';
+
+  @override
+  String get tradeFilterCanceled => 'Annullato';
+
+  @override
+  String get tradeFilterDispute => 'Disputa';
+
+  @override
+  String get menuTooltip => 'Menu';
+
+  @override
+  String get tradeStatusFilterPrefix => 'Stato';
+
+  @override
+  String get noTradesTitle => 'Nessuna operazione';
+
+  @override
+  String get noTradesSubtitle =>
+      'Le tue operazioni attive e completate appariranno qui.';
+
+  @override
+  String get couldNotLoadTradesMessage => 'Impossibile caricare le operazioni';
+
+  @override
+  String get releaseBitcoinTitle => 'Rilascia Bitcoin';
+
+  @override
+  String get releaseBitcoinConfirmation =>
+      'Sei sicuro di voler rilasciare i Satoshi all\'acquirente?';
+
+  @override
+  String get yesButtonLabel => 'Sì';
+
+  @override
+  String get sellingBitcoin => 'Vendita di Bitcoin';
+
+  @override
+  String get buyingBitcoin => 'Acquisto di Bitcoin';
+
+  @override
+  String get createdByYou => 'Creata da te';
+
+  @override
+  String get takenByYou => 'Presa da te';
+
+  @override
+  String get timeAgoNow => 'ora';
+
+  @override
+  String timeAgoMinutes(int count) {
+    return '${count}min';
+  }
+
+  @override
+  String timeAgoHours(int count) {
+    return '${count}h';
+  }
+
+  @override
+  String timeAgoDays(int count) {
+    return '${count}g';
+  }
 }

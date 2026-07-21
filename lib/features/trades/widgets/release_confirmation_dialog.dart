@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Shows the release confirmation dialog.
 ///
@@ -21,6 +22,7 @@ class _ReleaseConfirmationDialog extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final l10n = AppLocalizations.of(context);
 
     return Dialog(
       backgroundColor: cardBg,
@@ -39,12 +41,12 @@ class _ReleaseConfirmationDialog extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Release Bitcoin',
+              l10n.releaseBitcoinTitle,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Are you sure you want to release the Satoshis to the buyer?',
+              l10n.releaseBitcoinConfirmation,
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -64,7 +66,7 @@ class _ReleaseConfirmationDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppRadius.button),
                       ),
                     ),
-                    child: const Text('No'),
+                    child: Text(l10n.noButtonLabel),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -79,7 +81,7 @@ class _ReleaseConfirmationDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppRadius.button),
                       ),
                     ),
-                    child: const Text('Yes'),
+                    child: Text(l10n.yesButtonLabel),
                   ),
                 ),
               ],

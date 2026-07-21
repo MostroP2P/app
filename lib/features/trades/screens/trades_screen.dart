@@ -6,6 +6,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/trades_list_item.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart' show BottomNavBar;
 import 'package:mostro/shared/widgets/notification_bell.dart';
 
@@ -27,6 +28,7 @@ class _TradesScreenState extends ConsumerState<TradesScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
+    final l10n = AppLocalizations.of(context);
 
     final tradesAsync = ref.watch(filteredTradesWithOrderStateProvider);
     final selectedFilter = ref.watch(selectedStatusFilterProvider);
@@ -54,7 +56,7 @@ class _TradesScreenState extends ConsumerState<TradesScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'My Trades',
+                  l10n.navMyTrades,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: colors.textPrimary,
                         fontWeight: FontWeight.bold,
@@ -132,7 +134,7 @@ class _TradesScreenState extends ConsumerState<TradesScreen> {
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => setState(() => _drawerOpen = true),
-          tooltip: 'Menu',
+          tooltip: l10n.menuTooltip,
         ),
         title: Image.asset(
           'assets/images/mostro_logo.png',
@@ -174,6 +176,7 @@ class _StatusFilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PopupMenuButton<TradeStatusFilter>(
       initialValue: selected,
       onSelected: onChanged,
@@ -181,7 +184,7 @@ class _StatusFilterButton extends StatelessWidget {
           .map(
             (f) => PopupMenuItem(
               value: f,
-              child: Text(f.label),
+              child: Text(f.localizedLabel(l10n)),
             ),
           )
           .toList(),
@@ -200,7 +203,7 @@ class _StatusFilterButton extends StatelessWidget {
             Icon(Icons.filter_list, size: 14, color: colors.textSecondary),
             const SizedBox(width: 4),
             Text(
-              'Status | ${selected.label}',
+              '${l10n.tradeStatusFilterPrefix} | ${selected.localizedLabel(l10n)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: colors.textSecondary,
                   ),
@@ -223,6 +226,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -230,14 +234,14 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.bolt_outlined, size: 64, color: colors.textSubtle),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'No trades',
+            l10n.noTradesTitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Your active and completed trades will appear here.',
+            l10n.noTradesSubtitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colors.textSubtle,
                 ),
@@ -259,6 +263,7 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -266,13 +271,13 @@ class _ErrorState extends StatelessWidget {
           Icon(Icons.error_outline, size: 48, color: colors.textSubtle),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Could not load trades',
+            l10n.couldNotLoadTradesMessage,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSecondary,
                 ),
           ),
           const SizedBox(height: AppSpacing.md),
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
+          TextButton(onPressed: onRetry, child: Text(l10n.retry)),
         ],
       ),
     );

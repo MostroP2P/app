@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/status_chip.dart';
 
 /// A single card row in the My Trades list.
@@ -38,6 +39,7 @@ class TradesListItem extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
     // Live status from the polling provider; falls back to the DB snapshot.
     final liveStatusAsync = ref.watch(tradeStatusProvider(trade.orderId));
@@ -46,12 +48,12 @@ class TradesListItem extends ConsumerWidget {
         ) ??
         trade.status;
 
-    final titleText = trade.isSelling ? 'Selling Bitcoin' : 'Buying Bitcoin';
+    final titleText = trade.isSelling ? l10n.sellingBitcoin : l10n.buyingBitcoin;
     final (statusBg, statusFg) = _statusColors(effectiveStatus);
-    final statusLabel = effectiveStatus.label;
+    final statusLabel = effectiveStatus.localizedLabel(l10n);
     final roleLabel =
-        trade.role == TradeRole.creator ? 'Created by you' : 'Taken by you';
-    final timeAgo = _timeAgo(trade.createdAt);
+        trade.role == TradeRole.creator ? l10n.createdByYou : l10n.takenByYou;
+    final timeAgo = _timeAgo(trade.createdAt, l10n);
 
     return Card(
       margin: const EdgeInsets.symmetric(
@@ -188,13 +190,13 @@ class TradesListItem extends ConsumerWidget {
   }
 
   /// Returns a compact "time ago" string from a unix timestamp (e.g. "4m", "2h", "3d").
-  static String _timeAgo(int unixSeconds) {
+  static String _timeAgo(int unixSeconds, AppLocalizations l10n) {
     final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
     final diff = DateTime.now().difference(dt);
 
-    if (diff.isNegative || diff.inSeconds < 60) return 'now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
-    if (diff.inHours < 24) return '${diff.inHours}h';
-    return '${diff.inDays}d';
+    if (diff.isNegative || diff.inSeconds < 60) return l10n.timeAgoNow;
+    if (diff.inMinutes < 60) return l10n.timeAgoMinutes(diff.inMinutes);
+    if (diff.inHours < 24) return l10n.timeAgoHours(diff.inHours);
+    return l10n.timeAgoDays(diff.inDays);
   }
 }
