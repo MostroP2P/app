@@ -18,6 +18,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get error => 'Error';
 
   @override
+  String get actionFailedAnnouncement => 'Acción fallida';
+
+  @override
   String get cancel => 'Cancelar';
 
   @override
@@ -264,7 +267,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get rateButtonLabel => 'VALORAR';
 
   @override
-  String get viewDisputeButtonLabel => 'VER DISPUTA';
+  String get viewDisputeButtonLabel => 'Ver disputa';
 
   @override
   String get comingSoonMessage => 'Próximamente';
@@ -635,6 +638,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get noButtonLabel => 'No';
 
   @override
+  String get yesButtonLabel => 'Sí';
+
+  @override
   String get yesCancelButtonLabel => 'Sí, cancelar';
 
   @override
@@ -651,6 +657,27 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get releaseFailed =>
       'Error al liberar. Por favor, inténtelo de nuevo.';
+
+  @override
+  String get cancelTradeButton => 'Cancelar intercambio';
+
+  @override
+  String get payHoldInvoiceButton => 'Pagar factura hold';
+
+  @override
+  String get openDisputeButton => 'Abrir disputa';
+
+  @override
+  String get releaseSatsButton => 'Liberar sats';
+
+  @override
+  String get markFiatSentButton => 'Marcar fiat enviado';
+
+  @override
+  String get confirmReleaseSatsButton => 'Confirmar y liberar sats';
+
+  @override
+  String get shareOrderButton => 'Compartir orden';
 
   @override
   String get orderPillYouAreSelling => 'USTED ESTÁ VENDIENDO';
@@ -1321,9 +1348,6 @@ class AppLocalizationsEs extends AppLocalizations {
       '¿Seguro que quieres liberar los Satoshis al comprador?';
 
   @override
-  String get yesButtonLabel => 'Sí';
-
-  @override
   String get sellingBitcoin => 'Vendiendo Bitcoin';
 
   @override
@@ -1505,7 +1529,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeTimerFiatSentConsequence =>
-      'Si algo parece mal, abre una disputa desde el menú ⋮.';
+      'Si algo parece mal, abre una disputa con el botón de abajo.';
 
   @override
   String get tradeStepOrderTaken => 'Orden tomada';
@@ -1566,15 +1590,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get addLightningInvoiceButton => 'Agregar factura Lightning';
-
-  @override
-  String get payHoldInvoiceButton => 'Pagar hold invoice';
-
-  @override
-  String get markFiatSentButton => 'Marcar fiat enviado';
-
-  @override
-  String get confirmReleaseSatsButton => 'Confirmar y liberar sats';
 
   @override
   String get viewDisputeButton => 'Ver disputa';

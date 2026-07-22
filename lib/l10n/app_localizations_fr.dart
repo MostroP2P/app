@@ -18,6 +18,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get error => 'Erreur';
 
   @override
+  String get actionFailedAnnouncement => 'Action échouée';
+
+  @override
   String get cancel => 'Annuler';
 
   @override
@@ -266,7 +269,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get rateButtonLabel => 'NOTER';
 
   @override
-  String get viewDisputeButtonLabel => 'VOIR LE LITIGE';
+  String get viewDisputeButtonLabel => 'Voir le litige';
 
   @override
   String get comingSoonMessage => 'Bientôt disponible';
@@ -639,6 +642,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noButtonLabel => 'Non';
 
   @override
+  String get yesButtonLabel => 'Oui';
+
+  @override
   String get yesCancelButtonLabel => 'Oui, annuler';
 
   @override
@@ -654,6 +660,27 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get releaseFailed => 'Échec de la libération. Veuillez réessayer.';
+
+  @override
+  String get cancelTradeButton => 'Annuler l\'échange';
+
+  @override
+  String get payHoldInvoiceButton => 'Payer la facture hold';
+
+  @override
+  String get openDisputeButton => 'Ouvrir un litige';
+
+  @override
+  String get releaseSatsButton => 'Libérer les sats';
+
+  @override
+  String get markFiatSentButton => 'Marquer comme envoyé';
+
+  @override
+  String get confirmReleaseSatsButton => 'Confirmer et libérer les sats';
+
+  @override
+  String get shareOrderButton => 'Partager l\'ordre';
 
   @override
   String get orderPillYouAreSelling => 'VOUS VENDEZ';
@@ -1327,9 +1354,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Êtes-vous sûr de vouloir libérer les Satoshis à l\'acheteur ?';
 
   @override
-  String get yesButtonLabel => 'Oui';
-
-  @override
   String get sellingBitcoin => 'Vente de Bitcoin';
 
   @override
@@ -1513,7 +1537,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeTimerFiatSentConsequence =>
-      'Si quelque chose semble anormal, ouvrez un litige depuis le menu ⋮.';
+      'Si quelque chose semble anormal, ouvrez un litige avec le bouton ci-dessous.';
 
   @override
   String get tradeStepOrderTaken => 'Ordre pris';
@@ -1574,15 +1598,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get addLightningInvoiceButton => 'Ajouter une facture Lightning';
-
-  @override
-  String get payHoldInvoiceButton => 'Payer la facture de retenue';
-
-  @override
-  String get markFiatSentButton => 'Marquer le fiat envoyé';
-
-  @override
-  String get confirmReleaseSatsButton => 'Confirmer et libérer les sats';
 
   @override
   String get viewDisputeButton => 'Voir le litige';

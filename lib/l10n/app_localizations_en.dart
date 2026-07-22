@@ -18,6 +18,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get error => 'Error';
 
   @override
+  String get actionFailedAnnouncement => 'Action failed';
+
+  @override
   String get cancel => 'Cancel';
 
   @override
@@ -261,7 +264,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rateButtonLabel => 'RATE';
 
   @override
-  String get viewDisputeButtonLabel => 'VIEW DISPUTE';
+  String get viewDisputeButtonLabel => 'View dispute';
 
   @override
   String get comingSoonMessage => 'Coming soon';
@@ -627,6 +630,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noButtonLabel => 'No';
 
   @override
+  String get yesButtonLabel => 'Yes';
+
+  @override
   String get yesCancelButtonLabel => 'Yes, cancel';
 
   @override
@@ -640,6 +646,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get releaseFailed => 'Failed to release. Please try again.';
+
+  @override
+  String get cancelTradeButton => 'Cancel trade';
+
+  @override
+  String get payHoldInvoiceButton => 'Pay hold invoice';
+
+  @override
+  String get openDisputeButton => 'Open dispute';
+
+  @override
+  String get releaseSatsButton => 'Release sats';
+
+  @override
+  String get markFiatSentButton => 'Mark fiat sent';
+
+  @override
+  String get confirmReleaseSatsButton => 'Confirm & release sats';
+
+  @override
+  String get shareOrderButton => 'Share order';
 
   @override
   String get orderPillYouAreSelling => 'YOU ARE SELLING';
@@ -1304,9 +1331,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Are you sure you want to release the Satoshis to the buyer?';
 
   @override
-  String get yesButtonLabel => 'Yes';
-
-  @override
   String get sellingBitcoin => 'Selling Bitcoin';
 
   @override
@@ -1487,7 +1511,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeTimerFiatSentConsequence =>
-      'If something looks wrong, open a dispute from the ⋮ menu.';
+      'If something looks wrong, open a dispute using the button below.';
 
   @override
   String get tradeStepOrderTaken => 'Order taken';
@@ -1548,15 +1572,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addLightningInvoiceButton => 'Add Lightning invoice';
-
-  @override
-  String get payHoldInvoiceButton => 'Pay hold invoice';
-
-  @override
-  String get markFiatSentButton => 'Mark fiat sent';
-
-  @override
-  String get confirmReleaseSatsButton => 'Confirm & release sats';
 
   @override
   String get viewDisputeButton => 'View dispute';

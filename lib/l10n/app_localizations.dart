@@ -122,6 +122,12 @@ abstract class AppLocalizations {
   /// **'Error'**
   String get error;
 
+  /// Screen-reader-only announcement when a button action fails and the button enters its cooldown state
+  ///
+  /// In en, this message translates to:
+  /// **'Action failed'**
+  String get actionFailedAnnouncement;
+
   /// Cancel action
   ///
   /// In en, this message translates to:
@@ -539,7 +545,7 @@ abstract class AppLocalizations {
   /// Button label to view an active dispute
   ///
   /// In en, this message translates to:
-  /// **'VIEW DISPUTE'**
+  /// **'View dispute'**
   String get viewDisputeButtonLabel;
 
   /// Generic coming-soon placeholder message
@@ -1244,6 +1250,12 @@ abstract class AppLocalizations {
   /// **'No'**
   String get noButtonLabel;
 
+  /// Generic Yes button label
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get yesButtonLabel;
+
   /// Affirmative cancel button label in the cancel-trade dialog
   ///
   /// In en, this message translates to:
@@ -1273,6 +1285,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to release. Please try again.'**
   String get releaseFailed;
+
+  /// Button label to cancel an in-progress trade (secondary action row)
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel trade'**
+  String get cancelTradeButton;
+
+  /// Primary CTA for the seller to open the pay hold invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Pay hold invoice'**
+  String get payHoldInvoiceButton;
+
+  /// Button label to open a dispute on an in-progress trade
+  ///
+  /// In en, this message translates to:
+  /// **'Open dispute'**
+  String get openDisputeButton;
+
+  /// Button label for the seller to release sats during an active dispute (secondary action row)
+  ///
+  /// In en, this message translates to:
+  /// **'Release sats'**
+  String get releaseSatsButton;
+
+  /// Primary CTA button label for the buyer to mark fiat as sent
+  ///
+  /// In en, this message translates to:
+  /// **'Mark fiat sent'**
+  String get markFiatSentButton;
+
+  /// Primary CTA button label for the seller to confirm and release sats
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm & release sats'**
+  String get confirmReleaseSatsButton;
+
+  /// Menu item label to share the current order (not yet implemented — shows a coming-soon message)
+  ///
+  /// In en, this message translates to:
+  /// **'Share order'**
+  String get shareOrderButton;
 
   /// Order card pill label when the current user is the maker of a sell order
   ///
@@ -2474,12 +2528,6 @@ abstract class AppLocalizations {
   /// **'Are you sure you want to release the Satoshis to the buyer?'**
   String get releaseBitcoinConfirmation;
 
-  /// Generic Yes button label
-  ///
-  /// In en, this message translates to:
-  /// **'Yes'**
-  String get yesButtonLabel;
-
   /// Trade card title when the user is selling Bitcoin
   ///
   /// In en, this message translates to:
@@ -2771,7 +2819,7 @@ abstract class AppLocalizations {
   /// Timer consequence after fiat is marked sent
   ///
   /// In en, this message translates to:
-  /// **'If something looks wrong, open a dispute from the ⋮ menu.'**
+  /// **'If something looks wrong, open a dispute using the button below.'**
   String get tradeTimerFiatSentConsequence;
 
   /// Timeline step: order taken
@@ -2875,24 +2923,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add Lightning invoice'**
   String get addLightningInvoiceButton;
-
-  /// Primary CTA: pay hold invoice
-  ///
-  /// In en, this message translates to:
-  /// **'Pay hold invoice'**
-  String get payHoldInvoiceButton;
-
-  /// Primary CTA: mark fiat sent
-  ///
-  /// In en, this message translates to:
-  /// **'Mark fiat sent'**
-  String get markFiatSentButton;
-
-  /// Primary CTA: confirm and release sats
-  ///
-  /// In en, this message translates to:
-  /// **'Confirm & release sats'**
-  String get confirmReleaseSatsButton;
 
   /// Primary CTA: view dispute
   ///

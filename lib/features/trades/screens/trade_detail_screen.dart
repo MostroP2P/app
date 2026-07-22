@@ -82,8 +82,8 @@ extension TradeStatusL10n on TradeStatus {
       };
 }
 
-/// Overflow-menu actions (cancel / dispute / release collapsed behind ⋮).
-enum _MenuAction { cancel, dispute, release }
+/// Overflow-menu actions (currently just sharing the order).
+enum _OverflowAction { shareOrder }
 
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
@@ -183,7 +183,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (!mounted) return;
+    if (confirmed != true) {
+      throw const MostroActionAborted();
+    }
     try {
       await orders_api.cancelOrder(orderId: widget.orderId);
       ref.invalidate(rawTradesProvider);
@@ -197,6 +200,20 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.cancelRequestFailed)),
       );
+      rethrow;
+    }
+  }
+
+  Future<void> _markFiatSent() async {
+    try {
+      await orders_api.sendFiatSent(orderId: widget.orderId);
+    } catch (e, st) {
+      debugPrint('[TradeDetailScreen] sendFiatSent error: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).fiatSentFailed)),
+      );
+      rethrow;
     }
   }
 
@@ -226,14 +243,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context).openDisputeFailed)),
       );
+      rethrow;
     }
   }
 
-  /// Confirm and release the sats (seller). Shared between the primary CTA
-  /// in the fiat-sent state and the overflow menu in the disputed state.
+  /// Shared by the fiat-sent primary CTA and the disputed secondary row.
   Future<void> _releaseOrder() async {
     final confirmed = await showReleaseConfirmationDialog(context);
-    if (confirmed != true || !mounted) return;
+    if (!mounted) return;
+    if (confirmed != true) {
+      throw const MostroActionAborted();
+    }
     try {
       await orders_api.releaseOrder(orderId: widget.orderId);
       if (!mounted) return;
@@ -248,6 +268,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context).releaseFailed)),
       );
+      rethrow;
     }
   }
 
@@ -460,7 +481,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           onPressed: () =>
               context.canPop() ? context.pop() : context.go(AppRoute.home),
         ),
-        actions: [_buildOverflowMenu(status, isBuyer, colors)],
+        actions: [_buildOverflowMenu()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -478,6 +499,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
           // Single primary CTA for the current state.
           ..._buildPrimaryAction(status, isBuyer, green, colors),
+
+          // Secondary row of outlined destructive actions (cancel / dispute /
+          // release), shown only when at least one applies to the current
+          // status + role.
+          ..._buildSecondaryActionRow(status, isBuyer, colors),
 
           // Step timeline.
           if (_currentStep(status) >= 0) ...[
@@ -532,13 +558,44 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   static String _shortId(String id) =>
       id.length <= 14 ? id : '${id.substring(0, 8)}…${id.substring(id.length - 5)}';
 
-  // ── Overflow menu (collapsed secondary/destructive actions) ──────────────
+  // ── Overflow menu (share order) ───────────────────────────────────────────
 
-  Widget _buildOverflowMenu(
-      TradeStatus status, bool isBuyer, AppColors? colors) {
-    final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+  /// Unconditional `⋮` menu — sharing an order is always a valid action,
+  /// unlike the status-gated Cancel/Dispute/Release row below.
+  Widget _buildOverflowMenu() {
     final l10n = AppLocalizations.of(context);
+    return PopupMenuButton<_OverflowAction>(
+      icon: const Icon(Icons.more_vert),
+      onSelected: (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.comingSoonMessage),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: _OverflowAction.shareOrder,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.share, size: 18),
+            title: Text(l10n.shareOrderButton),
+            dense: true,
+          ),
+        ),
+      ],
+    );
+  }
 
+  // ── Secondary action row (visible cancel / dispute / release) ────────────
+
+  /// Empty list when no action applies.
+  List<Widget> _buildSecondaryActionRow(
+    TradeStatus status,
+    bool isBuyer,
+    AppColors? colors,
+  ) {
     final canCancel = const {
       TradeStatus.pending,
       TradeStatus.waitingInvoice,
@@ -552,49 +609,53 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final canRelease = status == TradeStatus.disputed && !isBuyer;
 
     if (!canCancel && !canDispute && !canRelease) {
-      return const SizedBox.shrink();
+      return const [];
     }
 
-    return PopupMenuButton<_MenuAction>(
-      icon: const Icon(Icons.more_vert),
-      onSelected: (action) => switch (action) {
-        _MenuAction.cancel => _cancelOrder(),
-        _MenuAction.dispute => _openDispute(),
-        _MenuAction.release => _releaseOrder(),
-      },
-      itemBuilder: (ctx) => [
-        if (canRelease)
-          PopupMenuItem(
-            value: _MenuAction.release,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.lock_open, size: 18),
-              title: Text(l10n.releaseSatsMenuItem),
-              dense: true,
-            ),
+    final l10n = AppLocalizations.of(context);
+
+    Widget destructiveButton({
+      required String label,
+      required Future<void> Function() onPressed,
+    }) =>
+        Expanded(
+          child: MostroReactiveButton(
+            outlined: true,
+            label: label,
+            variant: MostroButtonVariant.destructive,
+            onPressed: onPressed,
           ),
-        if (canCancel)
-          PopupMenuItem(
-            value: _MenuAction.cancel,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.cancel_outlined, size: 18, color: red),
-              title: Text(l10n.cancelOrderMenuItem, style: TextStyle(color: red)),
-              dense: true,
-            ),
-          ),
-        if (canDispute)
-          PopupMenuItem(
-            value: _MenuAction.dispute,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.gavel, size: 18, color: red),
-              title: Text(l10n.openDisputeMenuItem, style: TextStyle(color: red)),
-              dense: true,
-            ),
-          ),
-      ],
-    );
+        );
+
+    final buttons = [
+      if (canRelease)
+        destructiveButton(
+          label: l10n.releaseSatsButton,
+          onPressed: _releaseOrder,
+        ),
+      if (canCancel)
+        destructiveButton(
+          label: l10n.cancelTradeButton,
+          onPressed: _cancelOrder,
+        ),
+      if (canDispute)
+        destructiveButton(
+          label: l10n.openDisputeButton,
+          onPressed: _openDispute,
+        ),
+    ];
+
+    return [
+      const SizedBox(height: AppSpacing.sm),
+      Row(
+        children: [
+          for (var i = 0; i < buttons.length; i++) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.sm),
+            buttons[i],
+          ],
+        ],
+      ),
+    ];
   }
 
   // ── State strip ──────────────────────────────────────────────────────────
@@ -798,37 +859,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         return [
           MostroReactiveButton(
             label: l10n.markFiatSentButton,
-            backgroundColor: green,
             icon: Icons.check,
-            onPressed: () async {
-              await orders_api.sendFiatSent(orderId: widget.orderId);
-            },
-            onError: (e) {
-              debugPrint('[TradeDetailScreen] sendFiatSent onError: $e');
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                    content:
-                        Text(AppLocalizations.of(context).fiatSentFailed)),
-              );
-            },
+            onPressed: _markFiatSent,
           ),
         ];
       case (TradeStatus.fiatSent, false):
         return [
           MostroReactiveButton(
             label: l10n.confirmReleaseSatsButton,
-            backgroundColor: green,
             icon: Icons.lock_open,
             onPressed: _releaseOrder,
-            onError: (e) {
-              debugPrint('[TradeDetailScreen] releaseOrder onError: $e');
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                    content: Text(AppLocalizations.of(context).releaseFailed)),
-              );
-            },
           ),
         ];
       case (TradeStatus.disputed, _):

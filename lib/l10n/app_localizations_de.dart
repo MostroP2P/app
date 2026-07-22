@@ -18,6 +18,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get error => 'Fehler';
 
   @override
+  String get actionFailedAnnouncement => 'Aktion fehlgeschlagen';
+
+  @override
   String get cancel => 'Abbrechen';
 
   @override
@@ -264,7 +267,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get rateButtonLabel => 'BEWERTEN';
 
   @override
-  String get viewDisputeButtonLabel => 'STREITFALL ANZEIGEN';
+  String get viewDisputeButtonLabel => 'Streitfall anzeigen';
 
   @override
   String get comingSoonMessage => 'Demnächst verfügbar';
@@ -635,6 +638,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noButtonLabel => 'Nein';
 
   @override
+  String get yesButtonLabel => 'Ja';
+
+  @override
   String get yesCancelButtonLabel => 'Ja, abbrechen';
 
   @override
@@ -651,6 +657,27 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get releaseFailed =>
       'Freigabe fehlgeschlagen. Bitte erneut versuchen.';
+
+  @override
+  String get cancelTradeButton => 'Handel abbrechen';
+
+  @override
+  String get payHoldInvoiceButton => 'Hold-Rechnung bezahlen';
+
+  @override
+  String get openDisputeButton => 'Streitfall eröffnen';
+
+  @override
+  String get releaseSatsButton => 'Sats freigeben';
+
+  @override
+  String get markFiatSentButton => 'Als gesendet markieren';
+
+  @override
+  String get confirmReleaseSatsButton => 'Bestätigen und Sats freigeben';
+
+  @override
+  String get shareOrderButton => 'Bestellung teilen';
 
   @override
   String get orderPillYouAreSelling => 'SIE VERKAUFEN';
@@ -1326,9 +1353,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Möchtest du die Satoshis wirklich an den Käufer freigeben?';
 
   @override
-  String get yesButtonLabel => 'Ja';
-
-  @override
   String get sellingBitcoin => 'Bitcoin verkaufen';
 
   @override
@@ -1511,7 +1535,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tradeTimerFiatSentConsequence =>
-      'Wenn etwas nicht stimmt, öffne einen Streitfall über das ⋮-Menü.';
+      'Wenn etwas nicht stimmt, öffne einen Streitfall über die Schaltfläche unten.';
 
   @override
   String get tradeStepOrderTaken => 'Bestellung angenommen';
@@ -1573,15 +1597,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get addLightningInvoiceButton => 'Lightning-Rechnung hinzufügen';
-
-  @override
-  String get payHoldInvoiceButton => 'Hold-Invoice bezahlen';
-
-  @override
-  String get markFiatSentButton => 'Fiat als gesendet markieren';
-
-  @override
-  String get confirmReleaseSatsButton => 'Bestätigen und Sats freigeben';
 
   @override
   String get viewDisputeButton => 'Streitfall ansehen';
