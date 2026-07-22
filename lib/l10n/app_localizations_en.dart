@@ -1966,4 +1966,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disputeScreenTitle => 'Dispute';
+
+  @override
+  String get filtersDialogTitle => 'Filters';
+
+  @override
+  String get resetButton => 'Reset';
+
+  @override
+  String get currencyLabel => 'Currency';
+
+  @override
+  String get ratingLabel => 'Rating';
+
+  @override
+  String get applyButton => 'Apply';
+
+  @override
+  String get successLabel => 'Success';
+
+  @override
+  String get copyButton => 'Copy';
+
+  @override
+  String get shareButton => 'Share';
+
+  @override
+  String sendSatsToAddress(String sats) {
+    return 'Send $sats sats to:';
+  }
+
+  @override
+  String get changeButton => 'Change';
+
+  @override
+  String get buyLabel => 'Buy';
+
+  @override
+  String get sellLabel => 'Sell';
 }

@@ -604,5 +604,17 @@
   "disputeIdLabel": "ID du litige",
   "disputeReasonLabel": "Raison : {reason}",
   "adminLabel": "Administrateur",
-  "disputeScreenTitle": "Litige"
+  "disputeScreenTitle": "Litige",
+  "filtersDialogTitle": "Filtres",
+  "resetButton": "Réinitialiser",
+  "currencyLabel": "Devise",
+  "ratingLabel": "Note",
+  "applyButton": "Appliquer",
+  "successLabel": "Succès",
+  "copyButton": "Copier",
+  "shareButton": "Partager",
+  "sendSatsToAddress": "Envoyez {sats} sats à :",
+  "changeButton": "Modifier",
+  "buyLabel": "Acheter",
+  "sellLabel": "Vendre"
 }

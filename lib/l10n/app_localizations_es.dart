@@ -1990,4 +1990,42 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get disputeScreenTitle => 'Disputa';
+
+  @override
+  String get filtersDialogTitle => 'Filtros';
+
+  @override
+  String get resetButton => 'Restablecer';
+
+  @override
+  String get currencyLabel => 'Moneda';
+
+  @override
+  String get ratingLabel => 'Calificación';
+
+  @override
+  String get applyButton => 'Aplicar';
+
+  @override
+  String get successLabel => 'Éxito';
+
+  @override
+  String get copyButton => 'Copiar';
+
+  @override
+  String get shareButton => 'Compartir';
+
+  @override
+  String sendSatsToAddress(String sats) {
+    return 'Envía $sats sats a:';
+  }
+
+  @override
+  String get changeButton => 'Cambiar';
+
+  @override
+  String get buyLabel => 'Comprar';
+
+  @override
+  String get sellLabel => 'Vender';
 }

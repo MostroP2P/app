@@ -1323,5 +1323,32 @@
   "adminLabel": "Admin",
   "@adminLabel": {"description": "Sender label for administrator messages in a dispute"},
   "disputeScreenTitle": "Dispute",
-  "@disputeScreenTitle": {"description": "App bar title of the dispute chat screen"}
+  "@disputeScreenTitle": {"description": "App bar title of the dispute chat screen"},
+  "filtersDialogTitle": "Filters",
+  "@filtersDialogTitle": {"description": "Title of the order filter dialog"},
+  "resetButton": "Reset",
+  "@resetButton": {"description": "Button that resets all filters"},
+  "currencyLabel": "Currency",
+  "@currencyLabel": {"description": "Section label for the currency filter"},
+  "ratingLabel": "Rating",
+  "@ratingLabel": {"description": "Section label for the rating filter"},
+  "applyButton": "Apply",
+  "@applyButton": {"description": "Button that applies the filters and closes the dialog"},
+  "successLabel": "Success",
+  "@successLabel": {"description": "Accessibility label for a reactive button in the success state"},
+  "copyButton": "Copy",
+  "@copyButton": {"description": "Button that copies the Lightning invoice"},
+  "shareButton": "Share",
+  "@shareButton": {"description": "Button that shares the Lightning invoice"},
+  "sendSatsToAddress": "Send {sats} sats to:",
+  "@sendSatsToAddress": {
+    "description": "Prompt above a Lightning address confirmation",
+    "placeholders": {"sats": {"type": "String"}}
+  },
+  "changeButton": "Change",
+  "@changeButton": {"description": "Button that returns to edit the Lightning address"},
+  "buyLabel": "Buy",
+  "@buyLabel": {"description": "Buy action in the add-order button"},
+  "sellLabel": "Sell",
+  "@sellLabel": {"description": "Sell action in the add-order button"}
 }

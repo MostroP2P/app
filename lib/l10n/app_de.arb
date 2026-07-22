@@ -604,5 +604,17 @@
   "disputeIdLabel": "Streitfall-ID",
   "disputeReasonLabel": "Grund: {reason}",
   "adminLabel": "Administrator",
-  "disputeScreenTitle": "Streitfall"
+  "disputeScreenTitle": "Streitfall",
+  "filtersDialogTitle": "Filter",
+  "resetButton": "Zurücksetzen",
+  "currencyLabel": "Währung",
+  "ratingLabel": "Bewertung",
+  "applyButton": "Anwenden",
+  "successLabel": "Erfolg",
+  "copyButton": "Kopieren",
+  "shareButton": "Teilen",
+  "sendSatsToAddress": "Sende {sats} Sats an:",
+  "changeButton": "Ändern",
+  "buyLabel": "Kaufen",
+  "sellLabel": "Verkaufen"
 }

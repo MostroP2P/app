@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Confirmation widget for Lightning address payment.
 ///
@@ -26,6 +27,7 @@ class LnAddressConfirmationWidget extends StatelessWidget {
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -40,12 +42,13 @@ class LnAddressConfirmationWidget extends StatelessWidget {
             children: [
               Icon(Icons.bolt, color: green, size: 24),
               const SizedBox(width: AppSpacing.sm),
-              Text('Lightning Address', style: theme.textTheme.labelLarge),
+              Text(l10n.lightningAddressSettingTitle,
+                  style: theme.textTheme.labelLarge),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Send $amountSats sats to:',
+            l10n.sendSatsToAddress(amountSats.toString()),
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -71,7 +74,7 @@ class LnAddressConfirmationWidget extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                  child: const Text('Change'),
+                  child: Text(l10n.changeButton),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -85,7 +88,7 @@ class LnAddressConfirmationWidget extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                  child: const Text('Confirm'),
+                  child: Text(l10n.confirmButtonLabel),
                 ),
               ),
             ],

@@ -1996,4 +1996,42 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get disputeScreenTitle => 'Streitfall';
+
+  @override
+  String get filtersDialogTitle => 'Filter';
+
+  @override
+  String get resetButton => 'Zurücksetzen';
+
+  @override
+  String get currencyLabel => 'Währung';
+
+  @override
+  String get ratingLabel => 'Bewertung';
+
+  @override
+  String get applyButton => 'Anwenden';
+
+  @override
+  String get successLabel => 'Erfolg';
+
+  @override
+  String get copyButton => 'Kopieren';
+
+  @override
+  String get shareButton => 'Teilen';
+
+  @override
+  String sendSatsToAddress(String sats) {
+    return 'Sende $sats Sats an:';
+  }
+
+  @override
+  String get changeButton => 'Ändern';
+
+  @override
+  String get buyLabel => 'Kaufen';
+
+  @override
+  String get sellLabel => 'Verkaufen';
 }

@@ -3595,6 +3595,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dispute'**
   String get disputeScreenTitle;
+
+  /// Title of the order filter dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get filtersDialogTitle;
+
+  /// Button that resets all filters
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get resetButton;
+
+  /// Section label for the currency filter
+  ///
+  /// In en, this message translates to:
+  /// **'Currency'**
+  String get currencyLabel;
+
+  /// Section label for the rating filter
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get ratingLabel;
+
+  /// Button that applies the filters and closes the dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get applyButton;
+
+  /// Accessibility label for a reactive button in the success state
+  ///
+  /// In en, this message translates to:
+  /// **'Success'**
+  String get successLabel;
+
+  /// Button that copies the Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyButton;
+
+  /// Button that shares the Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareButton;
+
+  /// Prompt above a Lightning address confirmation
+  ///
+  /// In en, this message translates to:
+  /// **'Send {sats} sats to:'**
+  String sendSatsToAddress(String sats);
+
+  /// Button that returns to edit the Lightning address
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get changeButton;
+
+  /// Buy action in the add-order button
+  ///
+  /// In en, this message translates to:
+  /// **'Buy'**
+  String get buyLabel;
+
+  /// Sell action in the add-order button
+  ///
+  /// In en, this message translates to:
+  /// **'Sell'**
+  String get sellLabel;
 }
 
 class _AppLocalizationsDelegate

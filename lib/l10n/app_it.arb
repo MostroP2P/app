@@ -604,5 +604,17 @@
   "disputeIdLabel": "ID disputa",
   "disputeReasonLabel": "Motivo: {reason}",
   "adminLabel": "Amministratore",
-  "disputeScreenTitle": "Disputa"
+  "disputeScreenTitle": "Disputa",
+  "filtersDialogTitle": "Filtri",
+  "resetButton": "Reimposta",
+  "currencyLabel": "Valuta",
+  "ratingLabel": "Valutazione",
+  "applyButton": "Applica",
+  "successLabel": "Successo",
+  "copyButton": "Copia",
+  "shareButton": "Condividi",
+  "sendSatsToAddress": "Invia {sats} sats a:",
+  "changeButton": "Modifica",
+  "buyLabel": "Compra",
+  "sellLabel": "Vendi"
 }

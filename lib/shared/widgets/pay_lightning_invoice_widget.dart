@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Manual pay invoice widget — QR code + copy + share.
 ///
@@ -57,14 +58,14 @@ class PayLightningInvoiceWidget extends StatelessWidget {
                   await Clipboard.setData(ClipboardData(text: bolt11));
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Invoice copied'),
-                      duration: Duration(seconds: 1),
+                    SnackBar(
+                      content: Text(AppLocalizations.of(context).invoiceCopied),
+                      duration: const Duration(seconds: 1),
                     ),
                   );
                 },
                 icon: const Icon(Icons.copy, size: 16),
-                label: const Text('Copy'),
+                label: Text(AppLocalizations.of(context).copyButton),
                 style: FilledButton.styleFrom(
                   backgroundColor: green,
                   foregroundColor: Colors.black,
@@ -83,12 +84,14 @@ class PayLightningInvoiceWidget extends StatelessWidget {
                   } catch (e) {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Share failed: $e')),
+                      SnackBar(
+                        content: Text(AppLocalizations.of(context).shareFailed),
+                      ),
                     );
                   }
                 },
                 icon: const Icon(Icons.share, size: 16),
-                label: const Text('Share'),
+                label: Text(AppLocalizations.of(context).shareButton),
                 style: FilledButton.styleFrom(
                   backgroundColor: green,
                   foregroundColor: Colors.black,

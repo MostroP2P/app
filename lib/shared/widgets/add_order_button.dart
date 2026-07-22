@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Expandable FAB for creating orders.
 ///
@@ -88,7 +89,7 @@ class _AddOrderButtonState extends State<AddOrderButton>
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: _SubButton(
-                    label: 'Buy',
+                    label: AppLocalizations.of(context).buyLabel,
                     icon: Icons.arrow_downward,
                     color: green,
                     onTap: () {
@@ -109,7 +110,7 @@ class _AddOrderButtonState extends State<AddOrderButton>
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: _SubButton(
-                    label: 'Sell',
+                    label: AppLocalizations.of(context).sellLabel,
                     icon: Icons.arrow_upward,
                     color: sellColor,
                     onTap: () {

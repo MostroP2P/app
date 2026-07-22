@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Button that shows a spinner while waiting for a Mostro response,
 /// a success check on completion, and an error state on failure.
@@ -79,7 +80,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
     switch (_state) {
       case _ButtonState.loading:
         return Semantics(
-          label: 'Loading',
+          label: AppLocalizations.of(context).loading,
           liveRegion: true,
           child: const SizedBox(
             width: 20,
@@ -89,13 +90,13 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
         );
       case _ButtonState.success:
         return Semantics(
-          label: 'Success',
+          label: AppLocalizations.of(context).successLabel,
           liveRegion: true,
           child: const Icon(Icons.check, size: 20),
         );
       case _ButtonState.error:
         return Semantics(
-          label: 'Error',
+          label: AppLocalizations.of(context).error,
           liveRegion: true,
           child: const Icon(Icons.error_outline, size: 20),
         );

@@ -1999,4 +1999,42 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get disputeScreenTitle => 'Litige';
+
+  @override
+  String get filtersDialogTitle => 'Filtres';
+
+  @override
+  String get resetButton => 'Réinitialiser';
+
+  @override
+  String get currencyLabel => 'Devise';
+
+  @override
+  String get ratingLabel => 'Note';
+
+  @override
+  String get applyButton => 'Appliquer';
+
+  @override
+  String get successLabel => 'Succès';
+
+  @override
+  String get copyButton => 'Copier';
+
+  @override
+  String get shareButton => 'Partager';
+
+  @override
+  String sendSatsToAddress(String sats) {
+    return 'Envoyez $sats sats à :';
+  }
+
+  @override
+  String get changeButton => 'Modifier';
+
+  @override
+  String get buyLabel => 'Acheter';
+
+  @override
+  String get sellLabel => 'Vendre';
 }

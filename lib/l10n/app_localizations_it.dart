@@ -1988,4 +1988,42 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get disputeScreenTitle => 'Disputa';
+
+  @override
+  String get filtersDialogTitle => 'Filtri';
+
+  @override
+  String get resetButton => 'Reimposta';
+
+  @override
+  String get currencyLabel => 'Valuta';
+
+  @override
+  String get ratingLabel => 'Valutazione';
+
+  @override
+  String get applyButton => 'Applica';
+
+  @override
+  String get successLabel => 'Successo';
+
+  @override
+  String get copyButton => 'Copia';
+
+  @override
+  String get shareButton => 'Condividi';
+
+  @override
+  String sendSatsToAddress(String sats) {
+    return 'Invia $sats sats a:';
+  }
+
+  @override
+  String get changeButton => 'Modifica';
+
+  @override
+  String get buyLabel => 'Compra';
+
+  @override
+  String get sellLabel => 'Vendi';
 }
