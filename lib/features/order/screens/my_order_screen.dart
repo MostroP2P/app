@@ -178,6 +178,11 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     final flag = flags[resolvedOrder.fiatCode] ?? '';
     final title = isSelling ? l10n.myOrderSellTitle : l10n.myOrderBuyTitle;
     final premiumPositive = resolvedOrder.premium >= 0;
+    final premiumValue = (NumberFormat.decimalPattern(
+            Localizations.localeOf(context).toLanguageTag())
+          ..minimumFractionDigits = 1
+          ..maximumFractionDigits = 1)
+        .format(resolvedOrder.premium);
 
     return Scaffold(
       appBar: AppBar(
@@ -205,7 +210,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   AppLocalizations.of(context).marketPricePremiumLabel(
-                      '${premiumPositive ? '+' : ''}${resolvedOrder.premium.toStringAsFixed(1)}'),
+                      '${premiumPositive ? '+' : ''}$premiumValue'),
                   style: TextStyle(
                     color: premiumPositive ? green : sellColor,
                     fontSize: 13,
