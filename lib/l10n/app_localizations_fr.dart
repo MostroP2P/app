@@ -1853,22 +1853,22 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String previewBuyMarket(String amount, String price) {
-    return 'Vous achetez des BTC pour $amount à $price · actif pendant 24 h';
+    return 'Vous achetez des BTC pour *$amount* à *$price* · actif pendant *24 h*';
   }
 
   @override
   String previewSellMarket(String amount, String price) {
-    return 'Vous vendez des BTC pour $amount à $price · actif pendant 24 h';
+    return 'Vous vendez des BTC pour *$amount* à *$price* · actif pendant *24 h*';
   }
 
   @override
   String previewReceiveFixed(String sats, String amount) {
-    return 'Vous recevez $sats sats pour $amount · actif pendant 24 h';
+    return 'Vous recevez *$sats sats* pour *$amount* · actif pendant *24 h*';
   }
 
   @override
   String previewSellFixed(String sats, String amount) {
-    return 'Vous vendez $sats sats pour $amount · actif pendant 24 h';
+    return 'Vous vendez *$sats sats* pour *$amount* · actif pendant *24 h*';
   }
 
   @override

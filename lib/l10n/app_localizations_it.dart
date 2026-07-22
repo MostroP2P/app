@@ -1842,22 +1842,22 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String previewBuyMarket(String amount, String price) {
-    return 'Compri BTC per $amount a $price · attivo per 24 h';
+    return 'Compri BTC per *$amount* a *$price* · attivo per *24 h*';
   }
 
   @override
   String previewSellMarket(String amount, String price) {
-    return 'Vendi BTC per $amount a $price · attivo per 24 h';
+    return 'Vendi BTC per *$amount* a *$price* · attivo per *24 h*';
   }
 
   @override
   String previewReceiveFixed(String sats, String amount) {
-    return 'Ricevi $sats sats per $amount · attivo per 24 h';
+    return 'Ricevi *$sats sats* per *$amount* · attivo per *24 h*';
   }
 
   @override
   String previewSellFixed(String sats, String amount) {
-    return 'Vendi $sats sats per $amount · attivo per 24 h';
+    return 'Vendi *$sats sats* per *$amount* · attivo per *24 h*';
   }
 
   @override

@@ -1213,22 +1213,22 @@
   "@enterAmountForPreview": {"description": "Preview footer text before an amount is entered"},
   "previewLabel": "PREVIEW",
   "@previewLabel": {"description": "Label of the order preview footer"},
-  "previewBuyMarket": "You buy BTC for {amount} at {price} · live for 24 h",
+  "previewBuyMarket": "You buy BTC for *{amount}* at *{price}* · live for *24 h*",
   "@previewBuyMarket": {
     "description": "Preview sentence for a market buy order",
     "placeholders": {"amount": {"type": "String"}, "price": {"type": "String"}}
   },
-  "previewSellMarket": "You sell BTC for {amount} at {price} · live for 24 h",
+  "previewSellMarket": "You sell BTC for *{amount}* at *{price}* · live for *24 h*",
   "@previewSellMarket": {
     "description": "Preview sentence for a market sell order",
     "placeholders": {"amount": {"type": "String"}, "price": {"type": "String"}}
   },
-  "previewReceiveFixed": "You receive {sats} sats for {amount} · live for 24 h",
+  "previewReceiveFixed": "You receive *{sats} sats* for *{amount}* · live for *24 h*",
   "@previewReceiveFixed": {
     "description": "Preview sentence for a fixed-price buy order",
     "placeholders": {"sats": {"type": "String"}, "amount": {"type": "String"}}
   },
-  "previewSellFixed": "You sell {sats} sats for {amount} · live for 24 h",
+  "previewSellFixed": "You sell *{sats} sats* for *{amount}* · live for *24 h*",
   "@previewSellFixed": {
     "description": "Preview sentence for a fixed-price sell order",
     "placeholders": {"sats": {"type": "String"}, "amount": {"type": "String"}}

@@ -3365,25 +3365,25 @@ abstract class AppLocalizations {
   /// Preview sentence for a market buy order
   ///
   /// In en, this message translates to:
-  /// **'You buy BTC for {amount} at {price} · live for 24 h'**
+  /// **'You buy BTC for *{amount}* at *{price}* · live for *24 h*'**
   String previewBuyMarket(String amount, String price);
 
   /// Preview sentence for a market sell order
   ///
   /// In en, this message translates to:
-  /// **'You sell BTC for {amount} at {price} · live for 24 h'**
+  /// **'You sell BTC for *{amount}* at *{price}* · live for *24 h*'**
   String previewSellMarket(String amount, String price);
 
   /// Preview sentence for a fixed-price buy order
   ///
   /// In en, this message translates to:
-  /// **'You receive {sats} sats for {amount} · live for 24 h'**
+  /// **'You receive *{sats} sats* for *{amount}* · live for *24 h*'**
   String previewReceiveFixed(String sats, String amount);
 
   /// Preview sentence for a fixed-price sell order
   ///
   /// In en, this message translates to:
-  /// **'You sell {sats} sats for {amount} · live for 24 h'**
+  /// **'You sell *{sats} sats* for *{amount}* · live for *24 h*'**
   String previewSellFixed(String sats, String amount);
 
   /// Price label for market price with no premium

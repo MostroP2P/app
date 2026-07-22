@@ -481,9 +481,22 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
             ? l10n.previewBuyMarket(amountStr, priceLabel)
             : l10n.previewSellMarket(amountStr, priceLabel);
       }
-      body = Text(
-        sentence,
-        style: TextStyle(fontSize: 13, height: 1.5, color: secondary),
+      // Emphasized fragments (amounts, price, duration) are wrapped in '*' in
+      // the ARB; split on it and bold the odd-indexed segments.
+      final base = TextStyle(fontSize: 13, height: 1.5, color: secondary);
+      final bold = base.copyWith(
+        fontWeight: FontWeight.w700,
+        color: colors?.textPrimary ?? Colors.white,
+      );
+      final segments = sentence.split('*');
+      body = Text.rich(
+        TextSpan(
+          style: base,
+          children: [
+            for (var i = 0; i < segments.length; i++)
+              TextSpan(text: segments[i], style: i.isOdd ? bold : null),
+          ],
+        ),
       );
     }
 

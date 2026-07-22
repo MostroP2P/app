@@ -1820,22 +1820,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String previewBuyMarket(String amount, String price) {
-    return 'You buy BTC for $amount at $price · live for 24 h';
+    return 'You buy BTC for *$amount* at *$price* · live for *24 h*';
   }
 
   @override
   String previewSellMarket(String amount, String price) {
-    return 'You sell BTC for $amount at $price · live for 24 h';
+    return 'You sell BTC for *$amount* at *$price* · live for *24 h*';
   }
 
   @override
   String previewReceiveFixed(String sats, String amount) {
-    return 'You receive $sats sats for $amount · live for 24 h';
+    return 'You receive *$sats sats* for *$amount* · live for *24 h*';
   }
 
   @override
   String previewSellFixed(String sats, String amount) {
-    return 'You sell $sats sats for $amount · live for 24 h';
+    return 'You sell *$sats sats* for *$amount* · live for *24 h*';
   }
 
   @override

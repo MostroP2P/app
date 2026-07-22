@@ -1849,22 +1849,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String previewBuyMarket(String amount, String price) {
-    return 'Du kaufst BTC für $amount zu $price · 24 h aktiv';
+    return 'Du kaufst BTC für *$amount* zu *$price* · *24 h* aktiv';
   }
 
   @override
   String previewSellMarket(String amount, String price) {
-    return 'Du verkaufst BTC für $amount zu $price · 24 h aktiv';
+    return 'Du verkaufst BTC für *$amount* zu *$price* · *24 h* aktiv';
   }
 
   @override
   String previewReceiveFixed(String sats, String amount) {
-    return 'Du erhältst $sats Sats für $amount · 24 h aktiv';
+    return 'Du erhältst *$sats Sats* für *$amount* · *24 h* aktiv';
   }
 
   @override
   String previewSellFixed(String sats, String amount) {
-    return 'Du verkaufst $sats Sats für $amount · 24 h aktiv';
+    return 'Du verkaufst *$sats Sats* für *$amount* · *24 h* aktiv';
   }
 
   @override
