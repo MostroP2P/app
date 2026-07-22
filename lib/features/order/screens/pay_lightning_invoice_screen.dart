@@ -206,7 +206,7 @@ class _PayLightningInvoiceScreenState
                                 data: invoice,
                                 size: 200,
                                 backgroundColor: Colors.white,
-                                semanticsLabel: 'Lightning invoice QR code',
+                                semanticsLabel: l10n.lightningInvoiceQrLabel,
                               ),
                             ),
                           ),

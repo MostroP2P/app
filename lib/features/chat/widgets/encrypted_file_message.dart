@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Placeholder widget for encrypted file attachments (non-image).
 ///
@@ -36,7 +37,7 @@ class _EncryptedFileMessageState extends State<EncryptedFileMessage> {
 
     final icon = _iconForMime(widget.mimeType);
     final sizeLabel = _formatSize(widget.fileSizeBytes);
-    final typeLabel = _typeLabel(widget.mimeType);
+    final typeLabel = _typeLabel(widget.mimeType, AppLocalizations.of(context));
 
     return Card(
       shape: RoundedRectangleBorder(
@@ -90,7 +91,7 @@ class _EncryptedFileMessageState extends State<EncryptedFileMessage> {
                 // Download button
                 IconButton(
                   icon: Icon(Icons.download, color: colors.textSecondary),
-                  tooltip: 'Download',
+                  tooltip: AppLocalizations.of(context).downloadTooltip,
                   onPressed: _downloading ? null : () => _startDownload(context),
                 ),
               ],
@@ -118,9 +119,9 @@ class _EncryptedFileMessageState extends State<EncryptedFileMessage> {
     setState(() => _downloading = false);
     // Use this.context (State.context) which is guarded by the mounted check above.
     ScaffoldMessenger.of(this.context).showSnackBar(
-      const SnackBar(
-        content: Text('File download wired in Phase 10+'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(AppLocalizations.of(this.context).fileDownloadPlaceholder),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -142,12 +143,12 @@ class _EncryptedFileMessageState extends State<EncryptedFileMessage> {
     return '$kb KB';
   }
 
-  String _typeLabel(String mime) {
+  String _typeLabel(String mime, AppLocalizations l10n) {
     if (mime.contains('pdf')) return 'PDF';
-    if (mime.contains('video')) return 'Video';
-    if (mime.contains('image')) return 'Image';
-    if (mime.contains('zip') || mime.contains('tar')) return 'Archive';
-    return 'File';
+    if (mime.contains('video')) return l10n.fileTypeVideo;
+    if (mime.contains('image')) return l10n.fileTypeImage;
+    if (mime.contains('zip') || mime.contains('tar')) return l10n.fileTypeArchive;
+    return l10n.fileTypeFile;
   }
 }
 

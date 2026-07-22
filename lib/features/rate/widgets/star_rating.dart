@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Interactive 5-star rating selector.
 ///
@@ -41,7 +42,7 @@ class StarRating extends StatelessWidget {
         final starNumber = index + 1;
         return IconButton(
           onPressed: onChanged == null ? null : () => onChanged!(starNumber),
-          tooltip: 'Select $starNumber star${starNumber == 1 ? '' : 's'}',
+          tooltip: AppLocalizations.of(context).selectStarTooltip(starNumber),
           padding: const EdgeInsets.symmetric(horizontal: 4),
           constraints: BoxConstraints(minWidth: starSize + 8, minHeight: starSize + 8),
           icon: Icon(

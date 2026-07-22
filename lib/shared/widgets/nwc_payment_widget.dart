@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
 /// NWC auto-pay widget — single "Pay with Wallet" button.
@@ -67,7 +68,9 @@ class _NwcPaymentWidgetState extends State<NwcPaymentWidget> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.account_balance_wallet, size: 20),
-            label: Text(_paying ? 'Paying...' : 'Pay with Wallet'),
+            label: Text(_paying
+                ? AppLocalizations.of(context).payingStatus
+                : AppLocalizations.of(context).payWithWalletButton),
             style: FilledButton.styleFrom(
               backgroundColor: green,
               foregroundColor: Colors.black,

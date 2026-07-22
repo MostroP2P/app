@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
 /// Wallet Settings screen — Route `/wallet_settings`.
@@ -17,6 +18,7 @@ class WalletSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final wallet = ref.watch(nwcProvider);
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
@@ -24,7 +26,7 @@ class WalletSettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Wallet Configuration'),
+        title: Text(l10n.walletConfigurationTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
@@ -56,7 +58,9 @@ class WalletSettingsScreen extends ConsumerWidget {
     ref.read(nwcProvider.notifier).setDisconnected();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Wallet disconnected')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).walletDisconnectedMessage),
+        ),
       );
     }
   }
@@ -83,6 +87,7 @@ class _ConnectedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -102,7 +107,7 @@ class _ConnectedView extends StatelessWidget {
                   Icon(Icons.account_balance_wallet, color: green, size: 24),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    wallet.walletName ?? 'NWC Wallet',
+                    wallet.walletName ?? l10n.nwcWalletSettingTitle,
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: colors?.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -119,7 +124,7 @@ class _ConnectedView extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      'Connected',
+                      l10n.connectedBadgeLabel,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: const Color(0xFF6EE7B7),
                         fontWeight: FontWeight.w600,
@@ -135,7 +140,7 @@ class _ConnectedView extends StatelessWidget {
 
               // Balance
               _InfoRow(
-                label: 'Balance',
+                label: l10n.balanceLabel,
                 value: wallet.balanceSats != null
                     ? '${wallet.balanceSats} sats'
                     : '—',
@@ -147,7 +152,7 @@ class _ConnectedView extends StatelessWidget {
 
               // Pubkey (truncated)
               _InfoRow(
-                label: 'Pubkey',
+                label: l10n.pubkeyLabel,
                 value: _truncate(wallet.walletPubkey),
                 colors: colors,
                 theme: theme,
@@ -158,8 +163,8 @@ class _ConnectedView extends StatelessWidget {
 
               // Relays
               _InfoRow(
-                label: wallet.relayUrls.length == 1 ? 'Relay' : 'Relays',
-                value: _formatRelays(wallet.relayUrls),
+                label: wallet.relayUrls.length == 1 ? l10n.relayLabel : l10n.relaysLabel,
+                value: _formatRelays(wallet.relayUrls, l10n),
                 colors: colors,
                 theme: theme,
               ),
@@ -182,9 +187,9 @@ class _ConnectedView extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.button),
             ),
           ),
-          child: const Text(
-            'Disconnect',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          child: Text(
+            l10n.disconnectButtonLabel,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
 
@@ -198,10 +203,10 @@ class _ConnectedView extends StatelessWidget {
     return '${s.substring(0, 8)}…${s.substring(s.length - 8)}';
   }
 
-  String _formatRelays(List<String> relays) {
+  String _formatRelays(List<String> relays, AppLocalizations l10n) {
     if (relays.isEmpty) return '—';
     if (relays.length == 1) return relays.first;
-    return '${relays.first} (+${relays.length - 1} more)';
+    return '${relays.first} ${l10n.relaysMoreSuffix(relays.length - 1)}';
   }
 }
 
@@ -222,6 +227,7 @@ class _DisconnectedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -240,14 +246,14 @@ class _DisconnectedView extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                'No wallet connected',
+                l10n.noWalletConnectedTitle,
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: colors?.textSecondary,
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'Connect a wallet to enable automatic Lightning payments.',
+                l10n.connectWalletPrompt,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors?.textSubtle,
@@ -269,9 +275,9 @@ class _DisconnectedView extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.button),
             ),
           ),
-          child: const Text(
-            'Connect Wallet',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          child: Text(
+            l10n.connectWalletTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
 

@@ -105,6 +105,24 @@ jobs:
       - name: Generate Rust bridge bindings
         run: flutter_rust_bridge_codegen generate
 
+      # Regenerate localizations and fail if any locale is missing a key that
+      # exists in the English template (app_en.arb). The report is "{}" when
+      # everything is translated (see l10n.yaml: untranslated-messages-file).
+      - name: Check localizations are fully translated
+        run: |
+          flutter gen-l10n
+          report=lib/l10n/untranslated_messages.txt
+          if [ ! -f "$report" ]; then
+            echo "::error::Expected untranslated-messages report was not generated."
+            exit 1
+          fi
+          if [ "$(tr -d '[:space:]' < "$report")" != "{}" ]; then
+            echo "::error::Untranslated localization keys found (see below):"
+            cat "$report"
+            exit 1
+          fi
+          echo "All localization keys are translated across every locale."
+
       - name: Analyze
         run: flutter analyze
 

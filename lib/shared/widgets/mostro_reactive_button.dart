@@ -112,7 +112,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
     switch (_state) {
       case _ButtonState.loading:
         return Semantics(
-          label: 'Loading',
+          label: AppLocalizations.of(context).loading,
           liveRegion: true,
           child: const SizedBox(
             width: 20,
@@ -122,7 +122,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
         );
       case _ButtonState.success:
         return Semantics(
-          label: 'Success',
+          label: AppLocalizations.of(context).successLabel,
           liveRegion: true,
           child: const Icon(Icons.check, size: 20),
         );

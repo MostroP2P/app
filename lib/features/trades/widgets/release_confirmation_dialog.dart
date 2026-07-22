@@ -41,12 +41,12 @@ class _ReleaseConfirmationDialog extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              'Release Bitcoin',
+              l10n.releaseBitcoinTitle,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
-              'Are you sure you want to release the Satoshis to the buyer?',
+              l10n.releaseBitcoinConfirmation,
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),

@@ -8,6 +8,9 @@ pubspec.lock
 # flutter_rust_bridge generated bindings (regenerated via: flutter_rust_bridge_codegen generate)
 lib/src/rust/
 
+# l10n untranslated-keys report (regenerated via: flutter gen-l10n; must be empty)
+lib/l10n/untranslated_messages.txt
+
 # Rust
 rust/target/
 rust_builder/target/

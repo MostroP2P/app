@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mostro/l10n/app_localizations.dart';
+
 /// Deterministic pseudonymous avatar derived from a Nostr public key.
 ///
 /// Renders a colored circle background (HSV hue from [colorHue]) with a
@@ -44,7 +46,7 @@ class NymAvatar extends StatelessWidget {
           // Icon is ALWAYS white — FR-011c rendering contract.
           color: Colors.white,
           size: size * 0.55,
-          semanticLabel: 'Avatar icon',
+          semanticLabel: AppLocalizations.of(context).avatarIconLabel,
         ),
       ),
     );

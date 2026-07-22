@@ -37,6 +37,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   Future<void> _loadAndRevealWords() async {
     if (_loadingWords) return;
     setState(() => _loadingWords = true);
+    final l10n = AppLocalizations.of(context);
 
     try {
       final words = await IdentityService.getMnemonicWords();
@@ -44,8 +45,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       if (!mounted) return;
       if (words.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No identity found — try restarting the app.'),
+          SnackBar(
+            content: Text(l10n.noIdentityFoundMessage),
           ),
         );
         return;
@@ -65,7 +66,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             content: Text(
               kDebugMode
                   ? 'Failed to load secret words: $e'
-                  : 'Failed to load secret words. Please try again.',
+                  : l10n.failedToLoadSecretWordsMessage,
             ),
           ),
         );
@@ -76,6 +77,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   Future<void> _confirmBackup() async {
+    final l10n = AppLocalizations.of(context);
     try {
       await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
       await ref.read(backupCompletedProvider.notifier).markCompleted();
@@ -88,7 +90,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             content: Text(
               kDebugMode
                   ? 'Failed to confirm backup: $e'
-                  : 'Failed to confirm backup. Please try again.',
+                  : l10n.failedToConfirmBackupMessage,
             ),
           ),
         );
@@ -107,12 +109,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final l10n = AppLocalizations.of(context);
     final privacyMode = ref.watch(privacyModeProvider);
     final backupPending = ref.watch(backupReminderProvider);
     final backupDone = ref.watch(backupCompletedProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Account')),
+      appBar: AppBar(title: Text(l10n.accountScreenTitle)),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
@@ -134,19 +137,18 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 _CardHeader(
                   icon: Icons.key,
                   iconColor: green,
-                  title: 'Secret Words',
+                  title: l10n.secretWordsTitle,
                   badge: backupDone ? _BackedUpBadge(green: green) : null,
                   onInfo:
                       () => _showInfoDialog(
                         context,
-                        'Secret Words',
-                        'Your 12 secret words are the only way to recover your account. '
-                            'Back them up in a safe place — never share them with anyone.',
+                        l10n.secretWordsTitle,
+                        l10n.secretWordsInfoContent,
                       ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'To restore your account',
+                  l10n.toRestoreYourAccount,
                   style: theme.textTheme.bodySmall!.copyWith(color: textSec),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -203,7 +205,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                                     color: green,
                                   ),
                                   label: Text(
-                                    _wordsVisible ? 'Hide' : 'Show',
+                                    _wordsVisible ? l10n.hideButtonLabel : l10n.showButtonLabel,
                                     style: TextStyle(color: green),
                                   ),
                                 ),
@@ -238,19 +240,17 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 _CardHeader(
                   icon: Icons.shield_outlined,
                   iconColor: green,
-                  title: 'Privacy',
+                  title: l10n.privacyCardTitle,
                   onInfo:
                       () => _showInfoDialog(
                         context,
-                        'Privacy Modes',
-                        'Reputation mode lets others see your successful trades.\n\n'
-                            'Full privacy mode keeps your activity completely anonymous — '
-                            'no reputation is built.',
+                        l10n.privacyModesInfoTitle,
+                        l10n.privacyModesInfoContent,
                       ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Control your privacy settings',
+                  l10n.controlPrivacySettings,
                   style: theme.textTheme.bodySmall!.copyWith(color: textSec),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -258,8 +258,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _PrivacyOption(
-                      title: 'Reputation Mode',
-                      subtitle: 'Standard privacy with reputation',
+                      title: l10n.reputationMode,
+                      subtitle: l10n.reputationModeSubtitle,
                       selected: !privacyMode,
                       green: green,
                       onTap:
@@ -269,8 +269,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _PrivacyOption(
-                      title: 'Full Privacy Mode',
-                      subtitle: 'Maximum anonymity',
+                      title: l10n.fullPrivacyMode,
+                      subtitle: l10n.fullPrivacyModeSubtitle,
                       selected: privacyMode,
                       green: green,
                       onTap:
@@ -289,7 +289,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           FilledButton.icon(
             onPressed: () => _confirmGenerateNewUser(context),
             icon: const Icon(Icons.person_add_outlined),
-            label: const Text('Generate New User'),
+            label: Text(l10n.generateNewUserButton),
             style: FilledButton.styleFrom(
               backgroundColor: green,
               foregroundColor: Colors.black,
@@ -308,7 +308,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () => _showImportDialog(context),
                   icon: const Icon(Icons.download_outlined),
-                  label: const Text('Import Mostro User'),
+                  label: Text(l10n.importMostroUserButton),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: green,
                     side: BorderSide(color: green),
@@ -350,7 +350,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('OK'),
+                child: Text(AppLocalizations.of(context).okButtonLabel),
               ),
             ],
           ),
@@ -358,19 +358,17 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   void _confirmGenerateNewUser(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showDialog<void>(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Generate New User?'),
-            content: const Text(
-              'This will create a brand-new identity. Your current secret words '
-              'will no longer work — make sure they are backed up before continuing.',
-            ),
+            title: Text(l10n.generateNewUserDialogTitle),
+            content: Text(l10n.generateNewUserDialogContent),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
+                child: Text(l10n.cancel),
               ),
               FilledButton(
                 onPressed: () async {
@@ -401,13 +399,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                         content: Text(
                           kDebugMode
                               ? 'Failed to generate identity: $e'
-                              : 'Failed to generate identity. Please try again.',
+                              : l10n.failedToGenerateIdentityMessage,
                         ),
                       ),
                     );
                   }
                 },
-                child: const Text('Continue'),
+                child: Text(l10n.continueButtonLabel),
               ),
             ],
           ),
@@ -425,6 +423,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   Future<void> _importIdentity(BuildContext context, List<String> words) async {
+    final l10n = AppLocalizations.of(context);
     try {
       await IdentityService.importAndStore(words);
       ref.read(sessionProvider.notifier).clearSession();
@@ -445,7 +444,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           content: Text(
             kDebugMode
                 ? 'Import failed: $e'
-                : 'Invalid mnemonic. Please check your words and try again.',
+                : l10n.invalidMnemonicMessage,
           ),
         ),
       );
@@ -453,19 +452,17 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   void _confirmRefresh(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     showDialog<void>(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: const Text('Refresh User?'),
-            content: const Text(
-              'This will re-fetch your trades and orders from the Mostro instance. '
-              'Use this if you think your data is out of sync or orders are missing.',
-            ),
+            title: Text(l10n.refreshUserDialogTitle),
+            content: Text(l10n.refreshUserDialogContent),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
+                child: Text(l10n.cancel),
               ),
               FilledButton(
                 onPressed: () async {
@@ -474,7 +471,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     await orders_api.restartOrdersSubscription();
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Order book refreshed')),
+                      SnackBar(content: Text(l10n.orderBookRefreshedMessage)),
                     );
                   } catch (e) {
                     debugPrint('[account] refresh error: $e');
@@ -484,13 +481,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                         content: Text(
                           kDebugMode
                               ? 'Refresh failed: $e'
-                              : 'Refresh failed',
+                              : l10n.refreshFailedMessage,
                         ),
                       ),
                     );
                   }
                 },
-                child: const Text('Refresh'),
+                child: Text(l10n.refreshButtonLabel),
               ),
             ],
           ),
@@ -556,7 +553,7 @@ class _CardHeader extends StatelessWidget {
         IconButton(
           onPressed: onInfo,
           icon: const Icon(Icons.info_outline, size: 18),
-          tooltip: 'More information',
+          tooltip: AppLocalizations.of(context).moreInformationTooltip,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
         ),
@@ -581,6 +578,7 @@ class _BackupRitualBanner extends StatelessWidget {
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final l10n = AppLocalizations.of(context);
 
     return Material(
       color: cardBg,
@@ -603,7 +601,7 @@ class _BackupRitualBanner extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Secure your reputation',
+                      l10n.backupBannerTitle,
                       style: theme.textTheme.bodyMedium!.copyWith(
                         fontWeight: FontWeight.w600,
                         color: amber,
@@ -611,7 +609,7 @@ class _BackupRitualBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Back up your 12 words — it takes 60 seconds.',
+                      l10n.backupBannerSubtitle,
                       style:
                           theme.textTheme.bodySmall!.copyWith(color: textSec),
                     ),
@@ -648,7 +646,7 @@ class _BackedUpBadge extends StatelessWidget {
           Icon(Icons.check, size: 12, color: green),
           const SizedBox(width: 3),
           Text(
-            'Backed up',
+            AppLocalizations.of(context).backedUpBadgeLabel,
             style: TextStyle(
               color: green,
               fontSize: 11,
@@ -840,7 +838,9 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
     final validLength = words.length == 12 || words.length == 24;
     final validWords = words.every((w) => RegExp(r'^[a-zA-Z]+$').hasMatch(w));
     if (!validLength || !validWords) {
-      setState(() => _error = 'Enter a valid 12 or 24 word phrase.');
+      setState(
+        () => _error = AppLocalizations.of(context).enterValidMnemonicError,
+      );
       return;
     }
     Navigator.pop(context);
@@ -849,8 +849,9 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Import Mnemonic'),
+      title: Text(l10n.importMnemonicDialogTitle),
       content: TextField(
         controller: _controller,
         maxLines: 3,
@@ -858,7 +859,7 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
         enableSuggestions: false,
         enableIMEPersonalizedLearning: false,
         decoration: InputDecoration(
-          hintText: 'Enter your 12 or 24 word phrase...',
+          hintText: l10n.importMnemonicHintText,
           errorText: _error,
         ),
         onChanged: (_) {
@@ -868,9 +869,9 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(l10n.cancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Import')),
+        FilledButton(onPressed: _submit, child: Text(l10n.importButtonLabel)),
       ],
     );
   }

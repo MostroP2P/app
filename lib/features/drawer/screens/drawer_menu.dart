@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show orderBookNotificationCountProvider;
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart'
     show chatNotificationCountProvider;
 
@@ -105,6 +106,7 @@ class _SidebarContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentPath = GoRouterState.of(context).uri.path;
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       color: cardBg,
@@ -128,7 +130,7 @@ class _SidebarContent extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        'MOSTRO',
+                        l10n.drawerTitle,
                         style: (theme.textTheme.headlineLarge ??
                                 theme.textTheme.headlineMedium ??
                                 const TextStyle(
@@ -148,7 +150,7 @@ class _SidebarContent extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppRadius.chip),
                         ),
                         child: Text(
-                          'Beta',
+                          l10n.betaBadgeLabel,
                           style: TextStyle(
                             color: green,
                             fontSize: 10,
@@ -170,7 +172,7 @@ class _SidebarContent extends StatelessWidget {
               _NavItem(
                 icon: Icons.list_alt_outlined,
                 activeIcon: Icons.list_alt,
-                label: 'Order Book',
+                label: l10n.navOrderBook,
                 isActive: currentPath == AppRoute.home ||
                     currentPath == '/',
                 badgeCount: 0,
@@ -180,7 +182,7 @@ class _SidebarContent extends StatelessWidget {
               _NavItem(
                 icon: Icons.bolt_outlined,
                 activeIcon: Icons.bolt,
-                label: 'My Trades',
+                label: l10n.navMyTrades,
                 isActive: currentPath.startsWith(AppRoute.orderBook),
                 badgeCount: tradesCount,
                 green: green,
@@ -189,7 +191,7 @@ class _SidebarContent extends StatelessWidget {
               _NavItem(
                 icon: Icons.chat_bubble_outline,
                 activeIcon: Icons.chat_bubble,
-                label: 'Chat',
+                label: l10n.navChat,
                 isActive: currentPath.startsWith(AppRoute.chatList),
                 badgeCount: chatCount,
                 green: green,
@@ -205,7 +207,7 @@ class _SidebarContent extends StatelessWidget {
             // ── Account / settings items ─────────────────────────────────
             _MenuItem(
               icon: Icons.key_outlined,
-              label: 'Account',
+              label: l10n.drawerAccountMenuItem,
               onTap: () {
                 onNavigate?.call();
                 context.push(AppRoute.keyManagement);
@@ -214,7 +216,7 @@ class _SidebarContent extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             _MenuItem(
               icon: Icons.settings_outlined,
-              label: 'Settings',
+              label: l10n.drawerSettingsMenuItem,
               onTap: () {
                 onNavigate?.call();
                 context.push(AppRoute.settings);
@@ -223,7 +225,7 @@ class _SidebarContent extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             _MenuItem(
               icon: Icons.info_outline,
-              label: 'About',
+              label: l10n.drawerAboutMenuItem,
               onTap: () {
                 onNavigate?.call();
                 context.push(AppRoute.about);
@@ -260,6 +262,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
+    final l10n = AppLocalizations.of(context);
     final activeBg = green.withValues(alpha: 0.12);
     final iconColor = isActive ? green : Colors.white;
     final textColor = isActive ? green : Colors.white;
@@ -270,7 +273,7 @@ class _NavItem extends StatelessWidget {
       button: true,
       label: label,
       selected: isActive,
-      hint: badgeCount > 0 ? '$badgeCount new' : null,
+      hint: badgeCount > 0 ? l10n.drawerBadgeNewCount(badgeCount) : null,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

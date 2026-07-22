@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/src/rust/api/messages.dart' as messages_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
@@ -92,6 +93,16 @@ class ChatRoomState {
       unreadCount: unreadCount ?? this.unreadCount,
     );
   }
+}
+
+/// Localized display name for the peer.
+///
+/// [ChatRoomState.peerHandle] stays locale-independent (empty when the peer is
+/// unknown); the localized "Unknown" fallback is resolved only here, at render
+/// time, so a cached room never freezes a handle in a stale language.
+extension ChatRoomStateDisplay on ChatRoomState {
+  String displayHandle(AppLocalizations l10n) =>
+      peerHandle.isEmpty ? l10n.unknownPeerHandle : peerHandle;
 }
 
 // ── ChatRoomsNotifier ─────────────────────────────────────────────────────────

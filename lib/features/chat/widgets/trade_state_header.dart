@@ -9,6 +9,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/status_chip.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
@@ -83,6 +84,7 @@ class TradeStateHeader extends ConsumerWidget {
     final secondary = colors?.textSecondary ?? const Color(0xFFB0B3C6);
     final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final l10n = AppLocalizations.of(context);
 
     // Live status overrides the snapshot baked into the resolved order.
     final liveStatus = ref.watch(tradeStatusProvider(orderId)).valueOrNull;
@@ -94,10 +96,11 @@ class TradeStateHeader extends ConsumerWidget {
         ref.watch(tradeRoleFromDbProvider(orderId)).valueOrNull ??
         _deriveIsBuyer(order);
 
-    final roleWord = isBuyer ? 'Buying' : 'Selling';
     final amountLabel = order.amountSats != null
-        ? '$roleWord ${_fmtSats(order.amountSats!)} sats'
-        : '$roleWord Bitcoin';
+        ? (isBuyer
+            ? l10n.buyingSatsAmount(_fmtSats(order.amountSats!))
+            : l10n.sellingSatsAmount(_fmtSats(order.amountSats!)))
+        : (isBuyer ? l10n.buyingBitcoin : l10n.sellingBitcoin);
 
     final dot = Text('·', style: textTheme.bodySmall?.copyWith(color: secondary));
 
@@ -129,7 +132,7 @@ class TradeStateHeader extends ConsumerWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     StatusChip(
-                      label: statusFilter.label,
+                      label: statusFilter.localizedLabel(l10n),
                       background: pillBg,
                       foreground: pillFg,
                     ),
@@ -178,7 +181,7 @@ class TradeStateHeader extends ConsumerWidget {
                     const Spacer(),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
-                      'View order',
+                      l10n.viewOrderLink,
                       style: textTheme.bodySmall?.copyWith(
                         color: green,
                         fontWeight: FontWeight.w600,
@@ -299,7 +302,7 @@ class _CountdownChipState extends State<_CountdownChip> {
         Icon(Icons.schedule, size: 12, color: widget.color),
         const SizedBox(width: 3),
         Text(
-          '${_fmtRemaining(remaining)} left',
+          AppLocalizations.of(context).timeLeftLabel(_fmtRemaining(remaining)),
           style: textTheme.bodySmall?.copyWith(
             color: widget.color,
             fontWeight: FontWeight.w700,

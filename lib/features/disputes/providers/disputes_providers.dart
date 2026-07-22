@@ -114,21 +114,6 @@ class DisputeItem {
       isSelling: isSelling ?? this.isSelling,
     );
   }
-
-  /// Human-readable description shown in list items.
-  String get description {
-    if (status == DisputeStatus.resolved) {
-      return switch (resolution) {
-        DisputeResolution.fundsToBuyer =>
-          isSelling ? "Dispute resolved in buyer's favour" : 'Dispute resolved in your favour',
-        DisputeResolution.fundsToSeller =>
-          isSelling ? 'Dispute resolved in your favour' : "Dispute resolved in seller's favour",
-        DisputeResolution.cooperativeCancel => 'Order cancelled cooperatively',
-        null => 'Dispute resolved',
-      };
-    }
-    return initiatedByMe ? 'You opened this dispute' : 'Counterpart opened this dispute';
-  }
 }
 
 // ── DisputeNotifier ───────────────────────────────────────────────────────────

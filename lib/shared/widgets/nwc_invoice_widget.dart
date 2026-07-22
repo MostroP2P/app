@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
 /// Auto-generates a Lightning invoice via NWC when wallet is connected.
@@ -25,7 +26,7 @@ class NwcInvoiceWidget extends StatefulWidget {
 
 class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
   bool _loading = true;
-  String? _error;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -47,7 +48,7 @@ class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Unable to generate invoice automatically';
+        _hasError = true;
       });
       widget.onFallbackToManual();
     }
@@ -65,21 +66,21 @@ class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
           CircularProgressIndicator(color: green),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Generating invoice via NWC...',
+            AppLocalizations.of(context).generatingInvoiceNwc,
             style: TextStyle(color: colors?.textSecondary),
           ),
         ],
       );
     }
 
-    if (_error != null) {
+    if (_hasError) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.warning_amber, color: colors?.destructiveRed, size: 32),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            _error!,
+            AppLocalizations.of(context).unableToGenerateInvoice,
             style: TextStyle(color: colors?.textSecondary, fontSize: 12),
           ),
         ],

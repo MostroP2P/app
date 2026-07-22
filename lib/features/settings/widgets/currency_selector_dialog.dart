@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -99,10 +100,11 @@ class _CurrencySelectorDialogState
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Currency'),
+        title: Text(l10n.selectCurrencyDialogTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -115,7 +117,7 @@ class _CurrencySelectorDialogState
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search currencies…',
+                hintText: l10n.searchCurrenciesHint,
                 prefixIcon: Icon(Icons.search, color: colors.textSubtle),
               ),
             ),
@@ -126,7 +128,7 @@ class _CurrencySelectorDialogState
                 : _filtered.isEmpty
                     ? Center(
                         child: Text(
-                          'No currencies found',
+                          l10n.noCurrenciesFoundMessage,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       )

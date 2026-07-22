@@ -9,6 +9,7 @@ import 'package:mostro/features/chat/widgets/info_panels.dart';
 import 'package:mostro/features/chat/widgets/message_bubble.dart';
 import 'package:mostro/features/chat/widgets/message_input.dart';
 import 'package:mostro/features/chat/widgets/trade_state_header.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
 import 'package:mostro/src/rust/api/messages.dart' as messages_api;
@@ -102,6 +103,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
   Future<void> _onSend(String text) async {
     if (text.trim().isEmpty || _isSending) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _isSending = true);
     try {
       final sent = await messages_api.sendMessage(
@@ -112,13 +114,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       setState(() => _messages.add(sent));
       _scrollToBottom();
       ref.read(chatRoomsNotifierProvider.notifier).upsertRoom(
-            _buildRoomPreview(lastMsg: sent),
+            _buildRoomPreview(
+              lastMsg: sent,
+              rooms: ref.read(chatRoomsNotifierProvider),
+            ),
           );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to send: $e'),
+          content: Text(l10n.messageSendFailed),
           backgroundColor: Colors.red,
         ),
       );
@@ -142,7 +147,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     _scrollToBottom();
     _markRead();
     ref.read(chatRoomsNotifierProvider.notifier).upsertRoom(
-          _buildRoomPreview(lastMsg: msg),
+          _buildRoomPreview(
+            lastMsg: msg,
+            rooms: ref.read(chatRoomsNotifierProvider),
+          ),
         );
   }
 
@@ -170,14 +178,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         if (_showUserInfo) _showTradeInfo = false;
       });
 
-  ChatRoomState _resolveRoom() {
-    final rooms = ref.watch(chatRoomsNotifierProvider);
+  ChatRoomState _resolveRoom(List<ChatRoomState> rooms) {
     return rooms.firstWhere(
       (r) => r.orderId == widget.orderId,
       orElse: () => ChatRoomState(
         orderId: widget.orderId,
         peerPubkey: '',
-        peerHandle: 'Unknown',
+        // Locale-independent: the localized "Unknown" is resolved at render
+        // time via ChatRoomState.displayHandle, never cached in the model.
+        peerHandle: '',
         peerIconIndex: 0,
         peerColorHue: 180,
         isSelling: false,
@@ -185,8 +194,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     );
   }
 
-  ChatRoomState _buildRoomPreview({required rust_types.ChatMessage lastMsg}) {
-    final room = _resolveRoom();
+  ChatRoomState _buildRoomPreview({
+    required rust_types.ChatMessage lastMsg,
+    required List<ChatRoomState> rooms,
+  }) {
+    final room = _resolveRoom(rooms);
     // Use the bridge-provided isRead / isMine flags rather than recomputing
     // from local _messages, which may not yet reflect the latest markAsRead
     // call (the bridge call is async and may still be in flight).
@@ -211,8 +223,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   Widget build(BuildContext context) {
     if (widget.orderId.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chat')),
-        body: const Center(child: Text('Invalid trade ID')),
+        appBar: AppBar(title: Text(AppLocalizations.of(context).navChat)),
+        body: Center(child: Text(AppLocalizations.of(context).invalidTradeId)),
         bottomNavigationBar: const BottomNavBar(),
       );
     }
@@ -223,7 +235,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       (_, next) => next.whenData(_onIncomingMessage),
     );
 
-    final room = _resolveRoom();
+    final l10n = AppLocalizations.of(context);
+    final room = _resolveRoom(ref.watch(chatRoomsNotifierProvider));
+    final displayHandle = room.displayHandle(l10n);
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) {
       throw StateError('AppColors theme extension must be registered');
@@ -247,7 +261,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
               : _showUserInfo
                   ? UserInformationTab(
                       key: const ValueKey('user'),
-                      peerHandle: room.peerHandle,
+                      peerHandle: displayHandle,
                       peerPubkey: room.peerPubkey,
                       peerIconIndex: room.peerIconIndex,
                       peerColorHue: room.peerColorHue,
@@ -257,7 +271,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       color: colors.backgroundCard,
                       child: Center(
                         child: Text(
-                          'Select \u2139 or \u{1F464}\nfor details',
+                          l10n.selectForDetailsHint,
                           textAlign: TextAlign.center,
                           style: TextStyle(color: colors.textSubtle),
                         ),
@@ -286,7 +300,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 : _showUserInfo
                     ? UserInformationTab(
                         key: const ValueKey('user'),
-                        peerHandle: room.peerHandle,
+                        peerHandle: displayHandle,
                         peerPubkey: room.peerPubkey,
                         peerIconIndex: room.peerIconIndex,
                         peerColorHue: room.peerColorHue,
@@ -303,7 +317,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.lg),
                         child: Text(
-                          'No messages yet.\nSay hello to ${room.peerHandle}!',
+                          l10n.noMessagesYet(displayHandle),
                           textAlign: TextAlign.center,
                           style: TextStyle(color: colors.textSubtle),
                         ),
@@ -362,7 +376,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         title: _AppBarTitle(room: room),
         actions: [
           IconButton(
-            tooltip: 'Exchange Info',
+            tooltip: l10n.exchangeInfoTooltip,
             icon: Icon(
               Icons.info_outline,
               color: _showTradeInfo ? colors.mostroGreen : null,
@@ -370,7 +384,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             onPressed: _toggleTradeInfo,
           ),
           IconButton(
-            tooltip: 'User Info',
+            tooltip: l10n.userInfoTooltip,
             icon: Icon(
               Icons.person_outline,
               color: _showUserInfo ? colors.mostroGreen : null,
@@ -415,6 +429,8 @@ class _AppBarTitle extends StatelessWidget {
       throw StateError('AppColors theme extension must be registered');
     }
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
+    final handle = room.displayHandle(l10n);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,14 +446,14 @@ class _AppBarTitle extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              room.peerHandle,
+              handle,
               style: textTheme.headlineSmall,
               overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         Text(
-          'You are chatting with ${room.peerHandle}',
+          l10n.chattingWith(handle),
           style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
         ),
       ],

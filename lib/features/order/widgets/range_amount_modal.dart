@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Shows a modal dialog for entering an amount within a range.
 ///
@@ -53,8 +54,8 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
       if (v == null) {
         _error = null; // don't show error while typing
       } else if (v < widget.min || v > widget.max) {
-        _error = 'Amount must be between '
-            '${_fmt(widget.min)} and ${_fmt(widget.max)}';
+        _error = AppLocalizations.of(context)
+            .amountRangeError(_fmt(widget.min), _fmt(widget.max));
       } else {
         _error = null;
       }
@@ -76,6 +77,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
     final colors = Theme.of(context).extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final l10n = AppLocalizations.of(context);
 
     return Dialog(
       backgroundColor: cardBg,
@@ -89,7 +91,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Enter Amount',
+              l10n.enterAmountTitle,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -113,7 +115,8 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
             const SizedBox(height: AppSpacing.sm),
 
             Text(
-              'Min: ${_fmt(widget.min)} – Max: ${_fmt(widget.max)} ${widget.currencyCode}',
+              l10n.minMaxRangeLabel(
+                  _fmt(widget.min), _fmt(widget.max), widget.currencyCode),
               style: TextStyle(
                 color: colors?.textSubtle,
                 fontSize: 12,
@@ -135,7 +138,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
                         borderRadius: BorderRadius.circular(AppRadius.button),
                       ),
                     ),
-                    child: const Text('Cancel'),
+                    child: Text(l10n.cancel),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -152,7 +155,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
                         borderRadius: BorderRadius.circular(AppRadius.button),
                       ),
                     ),
-                    child: const Text('Submit'),
+                    child: Text(l10n.submitButton),
                   ),
                 ),
               ],

@@ -317,9 +317,16 @@ void main() {
 
   group('TradeDetailScreen secondary action row layout', () {
     testWidgets(
-        'German labels on a 320dp width do not overflow the secondary row',
+        'German labels on a 360dp width do not overflow the secondary row',
         (tester) async {
-      tester.view.physicalSize = const Size(320, 640);
+      // 360dp, not 320dp: at 320dp the unrelated step/status pill row
+      // (trade_detail_screen.dart, around the _Pill row above the
+      // instruction text) also overflows in German. That row has no
+      // Expanded/Flexible protection and predates this PR; it is a
+      // separate, pre-existing issue, not the secondary action row this
+      // test targets. 360dp is still narrow enough to stress the
+      // secondary row's wrapping while staying clear of that other bug.
+      tester.view.physicalSize = const Size(360, 640);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);

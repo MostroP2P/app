@@ -1009,4 +1009,1153 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sessionTimeoutMessage =>
       'No response received, check your connection and try again later';
+
+  @override
+  String get noIdentityFoundMessage =>
+      'No identity found — try restarting the app.';
+
+  @override
+  String get failedToLoadSecretWordsMessage =>
+      'Failed to load secret words. Please try again.';
+
+  @override
+  String get failedToConfirmBackupMessage =>
+      'Failed to confirm backup. Please try again.';
+
+  @override
+  String get secretWordsInfoContent =>
+      'Your 12 secret words are the only way to recover your account. Back them up in a safe place — never share them with anyone.';
+
+  @override
+  String get privacyModesInfoTitle => 'Privacy Modes';
+
+  @override
+  String get privacyModesInfoContent =>
+      'Reputation mode lets others see your successful trades.\n\nFull privacy mode keeps your activity completely anonymous — no reputation is built.';
+
+  @override
+  String get failedToGenerateIdentityMessage =>
+      'Failed to generate identity. Please try again.';
+
+  @override
+  String get invalidMnemonicMessage =>
+      'Invalid mnemonic. Please check your words and try again.';
+
+  @override
+  String get enterValidMnemonicError => 'Enter a valid 12 or 24 word phrase.';
+
+  @override
+  String get orderBookRefreshedMessage => 'Order book refreshed';
+
+  @override
+  String get refreshFailedMessage => 'Refresh failed';
+
+  @override
+  String get refreshButtonLabel => 'Refresh';
+
+  @override
+  String get okButtonLabel => 'OK';
+
+  @override
+  String get moreInformationTooltip => 'More information';
+
+  @override
+  String get backedUpBadgeLabel => 'Backed up';
+
+  @override
+  String get backupBannerTitle => 'Secure your reputation';
+
+  @override
+  String get backupBannerSubtitle =>
+      'Back up your 12 words — it takes 60 seconds.';
+
+  @override
+  String get failedToSaveBackupStatusMessage =>
+      'Failed to save backup status. Please try again.';
+
+  @override
+  String get backupRitualStep1Title => 'Step 1 of 3 · Write down your words';
+
+  @override
+  String get backupRitualStep2Title => 'Step 2 of 3 · Verify';
+
+  @override
+  String get backupRitualStep3Title => 'Step 3 of 3 · Done';
+
+  @override
+  String get backupRitualWarningTitle => 'Write them on paper. ';
+
+  @override
+  String get backupRitualWarningBody =>
+      'Don\'t store them in photos, screenshots or the cloud — anyone with these 12 words can steal your reputation.';
+
+  @override
+  String get wordsHiddenOnLeaveNote =>
+      'These words will be hidden when you leave this screen';
+
+  @override
+  String get wroteThemDownVerifyButton => 'I wrote them down — verify';
+
+  @override
+  String get tapCorrectWordsTitle => 'Tap the correct words';
+
+  @override
+  String get verifyInstructionsBody =>
+      'We ask for 3 at random. If you get them right, we know they\'re safely written down.';
+
+  @override
+  String optionsForWordLabel(int number) {
+    return 'OPTIONS FOR WORD #$number';
+  }
+
+  @override
+  String get wrongPickMessage => 'Not quite — check your paper and try again.';
+
+  @override
+  String get allWordsCorrectMessage => 'All 3 words correct!';
+
+  @override
+  String get showWordsAgainButton => 'Show words again';
+
+  @override
+  String get accountBackedUpTitle => 'Your account is backed up';
+
+  @override
+  String get accountBackedUpBody =>
+      'Your reputation is safe. If you ever lose your phone, restore your account with your 12 words.';
+
+  @override
+  String wordNumberLabel(int number) {
+    return 'Word #$number';
+  }
+
+  @override
+  String get backupTriggerBody =>
+      'Your reputation lives in a key only you hold. If you lose your phone, you lose that reputation — ';
+
+  @override
+  String get backupTriggerBodyHighlight => 'back it up in 60 seconds.';
+
+  @override
+  String get backupStepWriteDown => 'Write your 12 words down on paper';
+
+  @override
+  String get backupStepVerifyRandom => 'We ask for 3 at random to confirm';
+
+  @override
+  String get backupStepSecured => 'Done — your account is secured';
+
+  @override
+  String get backupNowButton => 'Back up now';
+
+  @override
+  String get remindMeTomorrowButton => 'Remind me tomorrow';
+
+  @override
+  String get nwcConnectionFailedMessage =>
+      'Connection failed. Please check your NWC URI and try again.';
+
+  @override
+  String get connectWalletDescription =>
+      'Connect your Lightning wallet using a\nNostr Wallet Connect (NWC) URI.';
+
+  @override
+  String get nwcUriLabel => 'NWC URI';
+
+  @override
+  String get clipboardInvalidNwcUriMessage =>
+      'Clipboard does not contain a valid NWC URI.';
+
+  @override
+  String get scanQrButtonLabel => 'Scan QR';
+
+  @override
+  String get connectButtonLabel => 'Connect';
+
+  @override
+  String get walletConfigurationTitle => 'Wallet Configuration';
+
+  @override
+  String get walletDisconnectedMessage => 'Wallet disconnected';
+
+  @override
+  String get connectedBadgeLabel => 'Connected';
+
+  @override
+  String get balanceLabel => 'Balance';
+
+  @override
+  String get relayLabel => 'Relay';
+
+  @override
+  String get noWalletConnectedTitle => 'No wallet connected';
+
+  @override
+  String get connectWalletPrompt =>
+      'Connect a wallet to enable automatic Lightning payments.';
+
+  @override
+  String get disconnectButtonLabel => 'Disconnect';
+
+  @override
+  String relaysMoreSuffix(int count) {
+    return '(+$count more)';
+  }
+
+  @override
+  String get chooseNotificationEventsSubtitle =>
+      'Choose which events trigger push notifications.';
+
+  @override
+  String get notifTradeUpdatesTitle => 'Trade updates';
+
+  @override
+  String get notifTradeUpdatesSubtitle =>
+      'Status changes in your active trades';
+
+  @override
+  String get notifNewMessagesTitle => 'New messages';
+
+  @override
+  String get notifNewMessagesSubtitle =>
+      'Messages from your trade counterparty';
+
+  @override
+  String get notifPaymentAlertsTitle => 'Payment alerts';
+
+  @override
+  String get notifPaymentAlertsSubtitle =>
+      'Lightning payment confirmations and failures';
+
+  @override
+  String get notifDisputeUpdatesTitle => 'Dispute updates';
+
+  @override
+  String get notifDisputeUpdatesSubtitle =>
+      'Admin actions and dispute resolutions';
+
+  @override
+  String get searchCurrenciesHint => 'Search currencies…';
+
+  @override
+  String get noCurrenciesFoundMessage => 'No currencies found';
+
+  @override
+  String get failedToResetNodeMessage => 'Failed to reset node';
+
+  @override
+  String get invalidPubkeyOrBridgeErrorMessage =>
+      'Invalid pubkey or bridge error';
+
+  @override
+  String get currentNodePublicKeyLabel => 'Current node public key';
+
+  @override
+  String get useCustomNodePubkeyLabel => 'Use a custom node pubkey';
+
+  @override
+  String get enterHexPubkeyHint => 'Enter 64-char hex pubkey';
+
+  @override
+  String get shareLogsTooltip => 'Share logs';
+
+  @override
+  String get noLogsToShareTooltip => 'No logs to share';
+
+  @override
+  String get disableLoggingTooltip => 'Disable logging';
+
+  @override
+  String get enableLoggingTooltip => 'Enable logging';
+
+  @override
+  String get loggingEnabledStatus => 'Logging enabled';
+
+  @override
+  String get loggingDisabledStatus => 'Logging disabled';
+
+  @override
+  String get noLogEntriesMessage => 'No log entries';
+
+  @override
+  String get failedToShareLogsMessage => 'Failed to share logs';
+
+  @override
+  String get tradeFilterAll => 'All';
+
+  @override
+  String get tradeFilterPending => 'Pending';
+
+  @override
+  String get tradeFilterWaitingInvoice => 'Waiting Invoice';
+
+  @override
+  String get tradeFilterWaitingPayment => 'Waiting Payment';
+
+  @override
+  String get tradeFilterActive => 'Active';
+
+  @override
+  String get tradeFilterFiatSent => 'Fiat Sent';
+
+  @override
+  String get tradeFilterSuccess => 'Success';
+
+  @override
+  String get tradeFilterCanceled => 'Canceled';
+
+  @override
+  String get tradeFilterDispute => 'Dispute';
+
+  @override
+  String get menuTooltip => 'Menu';
+
+  @override
+  String get tradeStatusFilterPrefix => 'Status';
+
+  @override
+  String get noTradesTitle => 'No trades';
+
+  @override
+  String get noTradesSubtitle =>
+      'Your active and completed trades will appear here.';
+
+  @override
+  String get couldNotLoadTradesMessage => 'Could not load trades';
+
+  @override
+  String get releaseBitcoinTitle => 'Release Bitcoin';
+
+  @override
+  String get releaseBitcoinConfirmation =>
+      'Are you sure you want to release the Satoshis to the buyer?';
+
+  @override
+  String get sellingBitcoin => 'Selling Bitcoin';
+
+  @override
+  String get buyingBitcoin => 'Buying Bitcoin';
+
+  @override
+  String get createdByYou => 'Created by you';
+
+  @override
+  String get takenByYou => 'Taken by you';
+
+  @override
+  String get timeAgoNow => 'now';
+
+  @override
+  String timeAgoMinutes(int count) {
+    return '${count}m';
+  }
+
+  @override
+  String timeAgoHours(int count) {
+    return '${count}h';
+  }
+
+  @override
+  String timeAgoDays(int count) {
+    return '${count}d';
+  }
+
+  @override
+  String get tradeStatusLoading => 'Loading';
+
+  @override
+  String get tradeStatusRate => 'Rate';
+
+  @override
+  String get tradeStatusRated => 'Rated';
+
+  @override
+  String get tradeInstructionActiveBuyer =>
+      'Once you have sent the money, mark it below. Only open a dispute if the seller stops responding.';
+
+  @override
+  String get tradeInstructionFiatSentBuyer =>
+      'Fiat payment marked as sent. Waiting for the seller to confirm receipt and release your sats.';
+
+  @override
+  String get tradeInstructionActiveSeller =>
+      'Contact the buyer with payment instructions via the chat above.';
+
+  @override
+  String get tradeInstructionFiatSentSeller =>
+      'The buyer has confirmed they sent the fiat payment. Once you verify receipt, release the sats.';
+
+  @override
+  String get tradeInstructionDisputed =>
+      'A dispute resolver has been assigned. They will contact you through the app.';
+
+  @override
+  String get tradeInstructionPendingRating =>
+      'The trade completed successfully. Rate your counterpart to help build trust in the community.';
+
+  @override
+  String get tradeInstructionRated => 'Thank you for your rating!';
+
+  @override
+  String get tradeInstructionPending =>
+      'Your order is published and waiting for a counterpart to take it. You can cancel it at any time.';
+
+  @override
+  String get tradeInstructionCancelled =>
+      'This trade was cancelled. No funds were exchanged.';
+
+  @override
+  String get tradeInstructionInProgress => 'Trade in progress.';
+
+  @override
+  String get theAgreedAmount => 'the agreed amount';
+
+  @override
+  String get tradeHeadlinePending => 'Waiting for someone to take your order';
+
+  @override
+  String get tradeHeadlineWaitingInvoiceBuyer =>
+      'Share a Lightning invoice to receive your sats';
+
+  @override
+  String get tradeHeadlineWaitingInvoiceSeller =>
+      'Waiting for the buyer to share an invoice';
+
+  @override
+  String get tradeHeadlineWaitingPaymentBuyer =>
+      'Waiting for the seller to lock the sats';
+
+  @override
+  String get tradeHeadlineWaitingPaymentSeller =>
+      'Pay the hold invoice to lock the sats';
+
+  @override
+  String tradeHeadlineActiveBuyer(String amount) {
+    return 'Send $amount to the seller';
+  }
+
+  @override
+  String tradeHeadlineActiveSeller(String amount) {
+    return 'Waiting for the buyer to send $amount';
+  }
+
+  @override
+  String get tradeHeadlineFiatSentBuyer =>
+      'Waiting for the seller to release your sats';
+
+  @override
+  String tradeHeadlineFiatSentSeller(String amount) {
+    return 'Confirm you received $amount';
+  }
+
+  @override
+  String get tradeHeadlineDisputed => 'Dispute in progress';
+
+  @override
+  String get tradeHeadlineComplete => 'Trade complete!';
+
+  @override
+  String get tradeHeadlineCompleteRated => 'Trade complete';
+
+  @override
+  String get tradeHeadlineCancelled => 'Order cancelled';
+
+  @override
+  String get tradeHeadlineLoading => 'Loading trade…';
+
+  @override
+  String get tradeTimerPendingLabel =>
+      'Time for this order to stay in the book';
+
+  @override
+  String get tradeTimerPendingConsequence =>
+      'If it expires, the order is removed from the book. It won\'t affect your reputation.';
+
+  @override
+  String get tradeTimerWaitingInvoiceLabelBuyer => 'Time to share your invoice';
+
+  @override
+  String get tradeTimerWaitingInvoiceLabelSeller =>
+      'Time for the buyer to share an invoice';
+
+  @override
+  String get tradeTimerWaitingInvoiceConsequence =>
+      'If it expires, the trade is cancelled and the order returns to the book.';
+
+  @override
+  String get tradeTimerWaitingPaymentLabelBuyer =>
+      'Time for the seller to lock the sats';
+
+  @override
+  String get tradeTimerWaitingPaymentLabelSeller =>
+      'Time to pay the hold invoice';
+
+  @override
+  String get tradeTimerActiveLabelBuyer => 'Time to send the fiat payment';
+
+  @override
+  String get tradeTimerActiveLabelSeller =>
+      'Time for the buyer to send the fiat';
+
+  @override
+  String get tradeTimerActiveConsequence =>
+      'If it expires, the trade can be cancelled. Coordinate in the chat if more time is needed.';
+
+  @override
+  String get tradeTimerFiatSentLabelBuyer =>
+      'Time for the seller to confirm receipt';
+
+  @override
+  String get tradeTimerFiatSentLabelSeller =>
+      'Time to confirm receipt and release';
+
+  @override
+  String get tradeTimerFiatSentConsequence =>
+      'If something looks wrong, open a dispute using the button below.';
+
+  @override
+  String get tradeStepOrderTaken => 'Order taken';
+
+  @override
+  String get tradeStepInvoiceBuyer =>
+      'You share an invoice · seller locks the sats';
+
+  @override
+  String get tradeStepInvoiceSeller =>
+      'Buyer shares an invoice · you lock the sats';
+
+  @override
+  String get tradeStepFiatBuyer => 'You send the fiat payment';
+
+  @override
+  String get tradeStepFiatSeller => 'Buyer sends the fiat payment';
+
+  @override
+  String get tradeStepReleaseBuyer => 'Seller confirms and releases your sats';
+
+  @override
+  String get tradeStepReleaseSeller =>
+      'You confirm receipt and release the sats';
+
+  @override
+  String get tradeStepRate => 'Rate your counterpart';
+
+  @override
+  String get activeTradeTitle => 'ACTIVE TRADE';
+
+  @override
+  String tradeIdShortLabel(String id) {
+    return 'ID $id';
+  }
+
+  @override
+  String tradeCreatedAtLabel(String date) {
+    return 'created $date';
+  }
+
+  @override
+  String get releaseSatsMenuItem => 'Release sats';
+
+  @override
+  String get cancelOrderMenuItem => 'Cancel order';
+
+  @override
+  String get openDisputeMenuItem => 'Open dispute';
+
+  @override
+  String get stepDoneLabel => 'DONE';
+
+  @override
+  String stepIndicator(int current, int total) {
+    return 'STEP $current OF $total';
+  }
+
+  @override
+  String get addLightningInvoiceButton => 'Add Lightning invoice';
+
+  @override
+  String get viewDisputeButton => 'View dispute';
+
+  @override
+  String get waitingForBuyer => 'Waiting for the buyer…';
+
+  @override
+  String get waitingForSeller => 'Waiting for the seller…';
+
+  @override
+  String get waitingForFiatPayment => 'Waiting for the fiat payment…';
+
+  @override
+  String get waitingForCounterpart => 'Waiting for a counterpart…';
+
+  @override
+  String get yourTradeTimelineTitle => 'YOUR TRADE';
+
+  @override
+  String get yourCounterpartFallback => 'your counterpart';
+
+  @override
+  String secureChatUnread(int count) {
+    return 'Secure chat · $count new';
+  }
+
+  @override
+  String get secureChatEncrypted => 'Secure chat · end-to-end encrypted';
+
+  @override
+  String get messageSendFailed => 'Failed to send message. Please try again.';
+
+  @override
+  String get invalidTradeId => 'Invalid trade ID';
+
+  @override
+  String get selectForDetailsHint => 'Select ℹ or 👤\nfor details';
+
+  @override
+  String noMessagesYet(String handle) {
+    return 'No messages yet.\nSay hello to $handle!';
+  }
+
+  @override
+  String get exchangeInfoTooltip => 'Exchange Info';
+
+  @override
+  String get userInfoTooltip => 'User Info';
+
+  @override
+  String chattingWith(String handle) {
+    return 'You are chatting with $handle';
+  }
+
+  @override
+  String get unknownPeerHandle => 'Unknown';
+
+  @override
+  String get messagesTab => 'Messages';
+
+  @override
+  String get disputesTab => 'Disputes';
+
+  @override
+  String get activeTradeConversations => 'Your active trade conversations';
+
+  @override
+  String get noMessagesAvailable => 'No messages available';
+
+  @override
+  String get disputesAndAdminChat => 'Disputes and admin chat';
+
+  @override
+  String get tradeInformationTitle => 'Trade Information';
+
+  @override
+  String get orderIdLabel => 'Order ID';
+
+  @override
+  String get fiatAmountLabel => 'Fiat Amount';
+
+  @override
+  String get satsAmountLabel => 'Sats Amount';
+
+  @override
+  String get statusLabel => 'Status';
+
+  @override
+  String get paymentMethodLabel => 'Payment Method';
+
+  @override
+  String get createdLabel => 'Created';
+
+  @override
+  String get tradeDetailsPlaceholder =>
+      'Details wired when trade provider available (Phase 10+)';
+
+  @override
+  String get userInformationTitle => 'User Information';
+
+  @override
+  String get peerPublicKeyLabel => 'Peer\'s Public Key';
+
+  @override
+  String get yourSharedKeyLabel => 'Your Shared Key';
+
+  @override
+  String get sharedKeyPlaceholder =>
+      'Available after bridge integration (Phase 10+)';
+
+  @override
+  String get sharedKeySafetyNote =>
+      'Keep your shared key safe — it is needed for dispute resolution';
+
+  @override
+  String get attachmentLabel => '[Attachment]';
+
+  @override
+  String sellingSatsTo(String handle) {
+    return 'You are selling sats to $handle';
+  }
+
+  @override
+  String buyingSatsFrom(String handle) {
+    return 'You are buying sats from $handle';
+  }
+
+  @override
+  String youMessagePrefix(String message) {
+    return 'You: $message';
+  }
+
+  @override
+  String get downloadTooltip => 'Download';
+
+  @override
+  String get fileDownloadPlaceholder => 'File download wired in Phase 10+';
+
+  @override
+  String get fileTypeVideo => 'Video';
+
+  @override
+  String get fileTypeImage => 'Image';
+
+  @override
+  String get fileTypeArchive => 'Archive';
+
+  @override
+  String get fileTypeFile => 'File';
+
+  @override
+  String get tapToDownload => 'Tap to download';
+
+  @override
+  String get imageDownloadPlaceholder => 'Image download wired in Phase 10+';
+
+  @override
+  String buyingSatsAmount(String sats) {
+    return 'Buying $sats sats';
+  }
+
+  @override
+  String sellingSatsAmount(String sats) {
+    return 'Selling $sats sats';
+  }
+
+  @override
+  String get viewOrderLink => 'View order';
+
+  @override
+  String timeLeftLabel(String time) {
+    return '$time left';
+  }
+
+  @override
+  String get waitingForTradeAmount =>
+      'Waiting for trade amount — please try again shortly.';
+
+  @override
+  String get fetchingTradeAmount => 'Fetching trade amount…';
+
+  @override
+  String get enterInvoiceManually => 'Enter invoice manually';
+
+  @override
+  String get enterLightningInvoiceInstruction =>
+      'Enter a Lightning Invoice to receive your sats';
+
+  @override
+  String get lightningInvoiceLabel => 'Lightning Invoice';
+
+  @override
+  String get submitButton => 'Submit';
+
+  @override
+  String get sellOrderDetailsTitle => 'SELL ORDER DETAILS';
+
+  @override
+  String get buyOrderDetailsTitle => 'BUY ORDER DETAILS';
+
+  @override
+  String get buyTheseSatsButton => 'BUY THESE SATS';
+
+  @override
+  String get sellSatsButton => 'SELL SATS';
+
+  @override
+  String get someoneSellingSats => 'Someone is selling sats';
+
+  @override
+  String get someoneBuyingSats => 'Someone is buying sats';
+
+  @override
+  String get takeOrderForPrefix => 'for ';
+
+  @override
+  String get takeOrderAtMarketPrice => ' at market price';
+
+  @override
+  String premiumLabel(String premium) {
+    return 'Premium: $premium%';
+  }
+
+  @override
+  String get creatorReputation => 'Creator reputation';
+
+  @override
+  String get ratingStatLabel => 'rating';
+
+  @override
+  String get tradesStatLabel => 'trades';
+
+  @override
+  String get daysActiveStatLabel => 'days active';
+
+  @override
+  String get timeToTakeOrder => 'TIME TO TAKE THIS ORDER';
+
+  @override
+  String get orderExpiryRemovedNote =>
+      'If it expires, the order is removed from the book. ';
+
+  @override
+  String get orderExpiryNoReputationNote => 'It won\'t affect your reputation.';
+
+  @override
+  String get minHint => 'Min';
+
+  @override
+  String get maxHint => 'Max';
+
+  @override
+  String get fiatAmountHint => 'Fiat amount';
+
+  @override
+  String get enterAmountForPreview => 'Enter an amount to see a live preview.';
+
+  @override
+  String get previewLabel => 'PREVIEW';
+
+  @override
+  String previewBuyMarket(String amount, String price) {
+    return 'You buy BTC for *$amount* at *$price* · live for *24 h*';
+  }
+
+  @override
+  String previewSellMarket(String amount, String price) {
+    return 'You sell BTC for *$amount* at *$price* · live for *24 h*';
+  }
+
+  @override
+  String previewReceiveFixed(String sats, String amount) {
+    return 'You receive *$sats sats* for *$amount* · live for *24 h*';
+  }
+
+  @override
+  String previewSellFixed(String sats, String amount) {
+    return 'You sell *$sats sats* for *$amount* · live for *24 h*';
+  }
+
+  @override
+  String get marketPriceLabel => 'market price';
+
+  @override
+  String marketPricePremium(String premium) {
+    return 'market $premium%';
+  }
+
+  @override
+  String get priceTypeLabel => 'Price Type';
+
+  @override
+  String get priceTypeMarket => 'Market';
+
+  @override
+  String get priceTypeFixed => 'Fixed';
+
+  @override
+  String get priceTypeInfoTooltip => 'Price type info';
+
+  @override
+  String get premiumSectionLabel => 'Premium';
+
+  @override
+  String get amountInSatsHint => 'Amount in sats';
+
+  @override
+  String get priceTypesDialogTitle => 'Price Types';
+
+  @override
+  String get priceTypesDialogContent =>
+      'Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.';
+
+  @override
+  String get startFromPreset => 'START FROM A PRESET';
+
+  @override
+  String get presetExpressTitle => 'Express';
+
+  @override
+  String get recommendedTag => 'RECOMMENDED';
+
+  @override
+  String get presetConservativeTitle => 'Conservative';
+
+  @override
+  String get presetConservativeSubtitle =>
+      'Market price · 0% premium · you choose amount & methods';
+
+  @override
+  String get presetCustomTitle => 'Custom';
+
+  @override
+  String get presetCustomSubtitle =>
+      'All fields — amount, range, methods, premium, fixed or market price';
+
+  @override
+  String expressPresetSubtitle(String details) {
+    return 'Same as your last successful order — $details';
+  }
+
+  @override
+  String expressPremiumSuffix(String premium) {
+    return '$premium% premium';
+  }
+
+  @override
+  String get paymentMethodsLabel => 'Payment Methods';
+
+  @override
+  String get addPaymentMethod => 'Add payment method';
+
+  @override
+  String get customPaymentMethodHint => 'Custom payment method...';
+
+  @override
+  String get customMethodAppendedNote =>
+      'Custom method will be appended to selection';
+
+  @override
+  String get selectPaymentMethodsTitle => 'Select Payment Methods';
+
+  @override
+  String amountRangeError(String min, String max) {
+    return 'Amount must be between $min and $max';
+  }
+
+  @override
+  String get enterAmountTitle => 'Enter Amount';
+
+  @override
+  String minMaxRangeLabel(String min, String max, String currency) {
+    return 'Min: $min – Max: $max $currency';
+  }
+
+  @override
+  String get ratingFailed => 'Rating failed. Please try again.';
+
+  @override
+  String get submitUppercaseButton => 'SUBMIT';
+
+  @override
+  String selectStarTooltip(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Select $count stars',
+      one: 'Select 1 star',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get disputeDetailsTitle => 'Dispute Details';
+
+  @override
+  String get disputeIdLabel => 'Dispute ID';
+
+  @override
+  String disputeReasonLabel(String reason) {
+    return 'Reason: $reason';
+  }
+
+  @override
+  String get adminLabel => 'Admin';
+
+  @override
+  String get disputeScreenTitle => 'Dispute';
+
+  @override
+  String get filtersDialogTitle => 'Filters';
+
+  @override
+  String get resetButton => 'Reset';
+
+  @override
+  String get currencyLabel => 'Currency';
+
+  @override
+  String get ratingLabel => 'Rating';
+
+  @override
+  String get applyButton => 'Apply';
+
+  @override
+  String get successLabel => 'Success';
+
+  @override
+  String get copyButton => 'Copy';
+
+  @override
+  String get shareButton => 'Share';
+
+  @override
+  String sendSatsToAddress(String sats) {
+    return 'Send $sats sats to:';
+  }
+
+  @override
+  String get changeButton => 'Change';
+
+  @override
+  String get buyLabel => 'Buy';
+
+  @override
+  String get sellLabel => 'Sell';
+
+  @override
+  String get unableToOpenNotification => 'Unable to open notification details.';
+
+  @override
+  String get reasonBestPremium => '⚡ Best premium';
+
+  @override
+  String get reasonMostReputable => '⭐ Most reputable';
+
+  @override
+  String get reasonJustPublished => '🆕 Just published';
+
+  @override
+  String get marketPriceCaption => 'Market price';
+
+  @override
+  String orderReputationStats(int trades, int days) {
+    return ' · $trades trades · $days days';
+  }
+
+  @override
+  String get hideEarlierEvents => 'Hide earlier events';
+
+  @override
+  String viewEarlierEvents(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'View $count earlier events',
+      one: 'View 1 earlier event',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get goToTrade => 'Go to trade';
+
+  @override
+  String get disputeWord => 'Dispute';
+
+  @override
+  String get tradeWord => 'Trade';
+
+  @override
+  String get notifFilterAll => 'All';
+
+  @override
+  String get notifFilterDisputes => 'Disputes';
+
+  @override
+  String notifFilterDisputesCount(int count) {
+    return 'Disputes · $count';
+  }
+
+  @override
+  String get notifFilterSystem => 'System';
+
+  @override
+  String notifFilterSystemCount(int count) {
+    return 'System · $count';
+  }
+
+  @override
+  String get payingStatus => 'Paying...';
+
+  @override
+  String get payWithWalletButton => 'Pay with Wallet';
+
+  @override
+  String get generatingInvoiceNwc => 'Generating invoice via NWC...';
+
+  @override
+  String get unableToGenerateInvoice =>
+      'Unable to generate invoice automatically';
+
+  @override
+  String get avatarIconLabel => 'Avatar icon';
+
+  @override
+  String marketPricePremiumLabel(String premium) {
+    return 'Market Price ($premium%)';
+  }
+
+  @override
+  String get disputeDescResolvedBuyerFavour =>
+      'Dispute resolved in buyer\'s favour';
+
+  @override
+  String get disputeDescResolvedYourFavour => 'Dispute resolved in your favour';
+
+  @override
+  String get disputeDescResolvedSellerFavour =>
+      'Dispute resolved in seller\'s favour';
+
+  @override
+  String get disputeDescCooperativeCancel => 'Order cancelled cooperatively';
+
+  @override
+  String get disputeDescResolved => 'Dispute resolved';
+
+  @override
+  String get disputeDescYouOpened => 'You opened this dispute';
+
+  @override
+  String get disputeDescCounterpartOpened => 'Counterpart opened this dispute';
+
+  @override
+  String get notificationsBellNoUnread =>
+      'Notifications, no unread notifications';
+
+  @override
+  String get notificationsBellBackupActive =>
+      'Notifications, backup reminder active';
+
+  @override
+  String notificationsBellUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Notifications, $count unread',
+      one: 'Notifications, 1 unread',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String drawerBadgeNewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count new',
+      one: '1 new',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get lightningInvoiceQrLabel => 'Lightning invoice QR code';
 }
