@@ -55,7 +55,7 @@ class AppSettingsState {
   factory AppSettingsState.fromPrefs(SharedPreferences prefs) {
     final themeModeStr = prefs.getString(_kThemeMode) ?? 'dark';
     return AppSettingsState(
-      language: prefs.getString(_kLanguage) ?? _deviceDefaultLanguage(),
+      language: _normalizeLanguage(prefs.getString(_kLanguage)),
       defaultFiatCode: prefs.getString(_kFiatCode),
       defaultLightningAddress: prefs.getString(_kLightningAddress),
       loggingEnabled: prefs.getBool(_kLoggingEnabled) ?? false,
@@ -80,8 +80,9 @@ class SettingsNotifier extends StateNotifier<AppSettingsState> {
   final SharedPreferences? _prefs;
 
   void setLanguage(String code) {
-    state = state.copyWith(language: code);
-    _prefs?.setString(_kLanguage, code);
+    final normalized = _normalizeLanguage(code);
+    state = state.copyWith(language: normalized);
+    _prefs?.setString(_kLanguage, normalized);
   }
 
   void setDefaultFiatCode(String? code) {
@@ -139,18 +140,28 @@ String _deviceDefaultLanguage() {
   return _supportedLanguageCodes.contains(deviceCode) ? deviceCode : 'en';
 }
 
+/// Normalizes a stored or selected language to a supported code.
+///
+/// Strips any region qualifier (e.g. `es-MX` -> `es`) and falls back to the
+/// device default when the value is empty or unsupported (e.g. `pt`). Keeping
+/// [AppSettingsState.language] normalized ensures the effective locale, the
+/// Settings display and the language picker all agree.
+String _normalizeLanguage(String? stored) {
+  final code = (stored ?? '').split(RegExp(r'[-_]')).first;
+  return _supportedLanguageCodes.contains(code)
+      ? code
+      : _deviceDefaultLanguage();
+}
+
 /// Current display locale, derived automatically from [settingsProvider].
 ///
 /// Rebuilds whenever [AppSettingsState.language] changes so that
 /// [MaterialApp.router] locale stays in sync without manual updates.
 ///
-/// The stored language is validated against [AppLocalizations.supportedLocales]
-/// and falls back to English when it is unknown, so a corrupted or unsupported
-/// preference never leaves the UI unlocalized.
+/// [AppSettingsState.language] is normalized to a supported code at the state
+/// boundary (see [_normalizeLanguage]), so the effective locale, the Settings
+/// display and the language picker always agree.
 final localeProvider = Provider<Locale>((ref) {
   final language = ref.watch(settingsProvider.select((s) => s.language));
-  final code = language.split(RegExp(r'[-_]')).first;
-  return _supportedLanguageCodes.contains(code)
-      ? Locale(code)
-      : const Locale('en');
+  return Locale(language);
 });
