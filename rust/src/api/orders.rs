@@ -2023,7 +2023,16 @@ async fn dispatch_mostro_message(
             // informational, and overwriting would corrupt the order's real
             // trade status/amount. We only read the current status to infer the
             // slash cause.
-            let amount_sats = u64::try_from(small_order.amount).unwrap_or(0);
+            let amount_sats = match u64::try_from(small_order.amount) {
+                Ok(v) => v,
+                Err(_) => {
+                    log::warn!(
+                        "[orders] gift-wrap BondSlashed: invalid amount {} for order={order_id}, ignoring",
+                        small_order.amount
+                    );
+                    return;
+                }
+            };
             let status = match crate::db::app_db::db() {
                 Some(db) => db
                     .get_trade_by_order_id(&order_id)

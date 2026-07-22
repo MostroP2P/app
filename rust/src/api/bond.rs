@@ -41,7 +41,6 @@ pub(crate) fn infer_slash_cause(status: Option<&OrderStatus>) -> SlashCause {
     match status {
         Some(
             OrderStatus::Dispute
-            | OrderStatus::InProgress
             | OrderStatus::CanceledByAdmin
             | OrderStatus::SettledByAdmin
             | OrderStatus::CompletedByAdmin,
@@ -90,7 +89,6 @@ mod tests {
     fn dispute_and_admin_states_infer_dispute() {
         for status in [
             OrderStatus::Dispute,
-            OrderStatus::InProgress,
             OrderStatus::CanceledByAdmin,
             OrderStatus::SettledByAdmin,
             OrderStatus::CompletedByAdmin,
@@ -103,6 +101,7 @@ mod tests {
     fn canceled_and_other_states_infer_timeout() {
         for status in [
             OrderStatus::Canceled,
+            OrderStatus::InProgress,
             OrderStatus::WaitingPayment,
             OrderStatus::WaitingBuyerInvoice,
             OrderStatus::Active,
