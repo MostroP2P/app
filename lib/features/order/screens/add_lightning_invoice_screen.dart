@@ -69,7 +69,7 @@ class _AddLightningInvoiceScreenState
     final resolvedSats = _resolvedSats(ref);
     if (_isLnAddress(input) && resolvedSats == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Waiting for trade amount — please try again shortly.')),
+        SnackBar(content: Text(AppLocalizations.of(context).waitingForTradeAmount)),
       );
       return;
     }
@@ -111,6 +111,7 @@ class _AddLightningInvoiceScreenState
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
+    final l10n = AppLocalizations.of(context);
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
 
@@ -121,7 +122,7 @@ class _AddLightningInvoiceScreenState
     // Show a loading indicator only in that case. Manual entry is always available.
     if (isWalletConnected && sats == null && !_manualMode) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Add Invoice')),
+        appBar: AppBar(title: Text(l10n.addInvoiceTitle)),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -129,13 +130,13 @@ class _AddLightningInvoiceScreenState
               const CircularProgressIndicator(),
               const SizedBox(height: AppSpacing.md),
               Text(
-                'Fetching trade amount…',
+                l10n.fetchingTradeAmount,
                 style: TextStyle(color: Theme.of(context).extension<AppColors>()?.textSecondary),
               ),
               const SizedBox(height: AppSpacing.md),
               TextButton(
                 onPressed: () => setState(() => _manualMode = true),
-                child: const Text('Enter invoice manually'),
+                child: Text(l10n.enterInvoiceManually),
               ),
             ],
           ),
@@ -147,7 +148,7 @@ class _AddLightningInvoiceScreenState
     // to manual, show the auto-invoice widget instead of the manual form.
     if (isWalletConnected && !_manualMode && sats != null && sats > BigInt.zero) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Add Invoice')),
+        appBar: AppBar(title: Text(l10n.addInvoiceTitle)),
         body: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Center(
@@ -165,7 +166,7 @@ class _AddLightningInvoiceScreenState
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Invoice')),
+      appBar: AppBar(title: Text(l10n.addInvoiceTitle)),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
@@ -187,7 +188,7 @@ class _AddLightningInvoiceScreenState
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
-                          'Enter a Lightning Invoice to receive your sats',
+                          l10n.enterLightningInvoiceInstruction,
                           style: theme.textTheme.bodyMedium,
                         ),
                       ),
@@ -217,7 +218,7 @@ class _AddLightningInvoiceScreenState
                     decoration: InputDecoration(
                       hintText: 'lnbc...',
                       floatingLabelBehavior: FloatingLabelBehavior.auto,
-                      labelText: 'Lightning Invoice',
+                      labelText: l10n.lightningInvoiceLabel,
                       filled: true,
                       fillColor: inputBg,
                       border: OutlineInputBorder(
@@ -242,7 +243,7 @@ class _AddLightningInvoiceScreenState
                   child: TextButton(
                     onPressed: () => context.pop(),
                     child: Text(
-                      'Cancel',
+                      l10n.cancel,
                       style: TextStyle(color: colors?.textSecondary),
                     ),
                   ),
@@ -266,7 +267,7 @@ class _AddLightningInvoiceScreenState
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Submit'),
+                        : Text(l10n.submitButton),
                   ),
                 ),
               ],

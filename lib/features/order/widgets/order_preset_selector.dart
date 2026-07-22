@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -62,12 +63,13 @@ class OrderPresetSelector extends ConsumerWidget {
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final selected = ref.watch(selectedOrderPresetProvider);
     final lastOrder = ref.watch(lastSuccessfulOrderProvider).valueOrNull;
+    final l10n = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'START FROM A PRESET',
+          l10n.startFromPreset,
           style: TextStyle(
             fontSize: 11,
             letterSpacing: 1,
@@ -80,9 +82,9 @@ class OrderPresetSelector extends ConsumerWidget {
             cardBg: cardBg,
             iconData: Icons.bolt,
             iconColor: green,
-            title: 'Express',
-            subtitle: _expressSubtitle(lastOrder),
-            tag: 'RECOMMENDED',
+            title: l10n.presetExpressTitle,
+            subtitle: _expressSubtitle(lastOrder, l10n),
+            tag: l10n.recommendedTag,
             tagColor: green,
             selected: selected == OrderPreset.express,
             highlightColor: green,
@@ -94,8 +96,8 @@ class OrderPresetSelector extends ConsumerWidget {
           cardBg: cardBg,
           iconData: Icons.shield_outlined,
           iconColor: blue,
-          title: 'Conservative',
-          subtitle: 'Market price · 0% premium · you choose amount & methods',
+          title: l10n.presetConservativeTitle,
+          subtitle: l10n.presetConservativeSubtitle,
           selected: selected == OrderPreset.conservative,
           highlightColor: green,
           onTap: () => onSelect(OrderPreset.conservative, null),
@@ -105,9 +107,8 @@ class OrderPresetSelector extends ConsumerWidget {
           cardBg: cardBg,
           iconData: Icons.settings,
           iconColor: purple,
-          title: 'Custom',
-          subtitle:
-              'All fields — amount, range, methods, premium, fixed or market price',
+          title: l10n.presetCustomTitle,
+          subtitle: l10n.presetCustomSubtitle,
           selected: selected == OrderPreset.custom,
           highlightColor: green,
           onTap: () => onSelect(OrderPreset.custom, null),
@@ -117,7 +118,7 @@ class OrderPresetSelector extends ConsumerWidget {
   }
 
   /// "Same as your last successful order — 50 ARS, MP, 0% premium".
-  static String _expressSubtitle(OrderInfo order) {
+  static String _expressSubtitle(OrderInfo order, AppLocalizations l10n) {
     final parts = <String>[];
     if (order.fiatAmount != null) {
       parts.add('${_formatNum(order.fiatAmount!)} ${order.fiatCode}');
@@ -134,8 +135,8 @@ class OrderPresetSelector extends ConsumerWidget {
         .firstOrNull;
     if (firstMethod != null) parts.add(firstMethod);
     final p = order.premium;
-    parts.add('${p > 0 ? '+' : ''}${_formatNum(p)}% premium');
-    return 'Same as your last successful order — ${parts.join(', ')}';
+    parts.add(l10n.expressPremiumSuffix('${p > 0 ? '+' : ''}${_formatNum(p)}'));
+    return l10n.expressPresetSubtitle(parts.join(', '));
   }
 
   static String _formatNum(double v) =>

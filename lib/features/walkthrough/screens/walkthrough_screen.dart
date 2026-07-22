@@ -7,6 +7,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/utils/highlight_config.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// First-run walkthrough. Six slides explaining Mostro concepts.
 ///
@@ -20,6 +21,7 @@ class WalkthroughScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final l10n = AppLocalizations.of(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final bodyPadding = screenWidth * 0.06;
 
@@ -51,11 +53,11 @@ class WalkthroughScreen extends ConsumerWidget {
       back: const Icon(Icons.arrow_back, color: Colors.white),
       next: const Icon(Icons.arrow_forward, color: Colors.white),
       skip: Text(
-        'Skip',
+        l10n.skip,
         style: theme.textTheme.labelLarge!.copyWith(color: Colors.white),
       ),
       done: Text(
-        'Done',
+        l10n.done,
         style: theme.textTheme.labelLarge!.copyWith(
           color: green,
           fontWeight: FontWeight.bold,
@@ -82,41 +84,36 @@ class WalkthroughScreen extends ConsumerWidget {
     required TextStyle baseBodyStyle,
     required TextStyle titleStyle,
   }) {
-    const slides = [
+    final l10n = AppLocalizations.of(context);
+    final slides = [
       (
-        title: 'Trade Bitcoin freely — no KYC',
-        body:
-            'Mostro is a peer-to-peer exchange that lets you trade Bitcoin for any currency and payment method — no KYC, and no need to give your data to anyone. It\'s built on Nostr, which makes it censorship-resistant. No one can stop you from trading.',
+        title: l10n.walkthroughSlideOneTitle,
+        body: l10n.walkthroughSlideOneBody,
         image: 'assets/images/wt-1.png',
       ),
       (
-        title: 'Privacy by default',
-        body:
-            'Mostro generates a new identity for every exchange, so your trades can\'t be linked. You can also decide how private you want to be:\n• Reputation mode – Lets others see your successful trades and trust level.\n• Full privacy mode – No reputation is built, but your activity is completely anonymous.\nSwitch modes anytime from the Account screen, where you should also save your secret words — they\'re the only way to recover your account.',
+        title: l10n.walkthroughSlideTwoTitle,
+        body: l10n.walkthroughSlideTwoBody,
         image: 'assets/images/wt-2.png',
       ),
       (
-        title: 'Security at every step',
-        body:
-            'Mostro uses Hold Invoices: sats stay in the seller\'s wallet until the end of the trade. This protects both sides. The app is also designed to be intuitive and easy for all kinds of users.',
+        title: l10n.walkthroughSlideThreeTitle,
+        body: l10n.walkthroughSlideThreeBody,
         image: 'assets/images/wt-3.png',
       ),
       (
-        title: 'Fully encrypted chat',
-        body:
-            'Each trade has its own private chat, end-to-end encrypted. Only the two users involved can read it. In case of a dispute, you can give the shared key to an admin to help resolve the issue.',
+        title: l10n.walkthroughSlideFourTitle,
+        body: l10n.walkthroughSlideFourBody,
         image: 'assets/images/wt-4.png',
       ),
       (
-        title: 'Take an offer',
-        body:
-            'Browse the order book, choose an offer that works for you, and follow the trade flow step by step. You\'ll be able to check the other user\'s profile, chat securely, and complete the trade with ease.',
+        title: l10n.walkthroughSlideFiveTitle,
+        body: l10n.walkthroughSlideFiveBody,
         image: 'assets/images/wt-5.png',
       ),
       (
-        title: 'Can\'t find what you need?',
-        body:
-            'You can also create your own offer and wait for someone to take it. Set the amount and preferred payment method — Mostro handles the rest.',
+        title: l10n.walkthroughSlideSixTitle,
+        body: l10n.walkthroughSlideSixBody,
         image: 'assets/images/wt-6.png',
       ),
     ];

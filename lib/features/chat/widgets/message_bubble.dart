@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 // ── ChatMessage model ─────────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ class MessageBubble extends StatelessWidget {
                         if (message.hasAttachment) ...[
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            '[Attachment]',
+                            AppLocalizations.of(context).attachmentLabel,
                             style: textTheme.bodySmall?.copyWith(
                               color: Colors.white70,
                               fontStyle: FontStyle.italic,
@@ -178,9 +179,9 @@ class MessageBubble extends StatelessWidget {
   void _copyToClipboard(BuildContext context, String text) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(AppLocalizations.of(context).messageCopied),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

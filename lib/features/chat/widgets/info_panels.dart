@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-void _copyToClipboard(BuildContext context, String text, String label) {
+void _copyToClipboard(BuildContext context, String text) {
   Clipboard.setData(ClipboardData(text: text));
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text('$label copied'),
+      content: Text(AppLocalizations.of(context).aboutCopiedToClipboard),
       duration: const Duration(seconds: 2),
     ),
   );
@@ -45,46 +46,46 @@ class TradeInformationTab extends StatelessWidget {
           children: [
             // Section header
             Text(
-              'Trade Information',
+              AppLocalizations.of(context).tradeInformationTitle,
               style: textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.md),
 
             // Order ID (copyable)
             _InfoRow(
-              label: 'Order ID',
+              label: AppLocalizations.of(context).orderIdLabel,
               value: orderId,
               colors: colors,
               textTheme: textTheme,
               copyable: true,
             ),
             _InfoRow(
-              label: 'Fiat Amount',
+              label: AppLocalizations.of(context).fiatAmountLabel,
               value: '—',
               colors: colors,
               textTheme: textTheme,
             ),
             _InfoRow(
-              label: 'Sats Amount',
+              label: AppLocalizations.of(context).satsAmountLabel,
               value: '—',
               colors: colors,
               textTheme: textTheme,
             ),
             _InfoRow(
-              label: 'Status',
+              label: AppLocalizations.of(context).statusLabel,
               value: null, // rendered as chip below
               colors: colors,
               textTheme: textTheme,
               customValue: _StatusChip(colors: colors),
             ),
             _InfoRow(
-              label: 'Payment Method',
+              label: AppLocalizations.of(context).paymentMethodLabel,
               value: '—',
               colors: colors,
               textTheme: textTheme,
             ),
             _InfoRow(
-              label: 'Created',
+              label: AppLocalizations.of(context).createdLabel,
               value: '—',
               colors: colors,
               textTheme: textTheme,
@@ -100,7 +101,7 @@ class TradeInformationTab extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.chip),
               ),
               child: Text(
-                'Details wired when trade provider available (Phase 10+)',
+                AppLocalizations.of(context).tradeDetailsPlaceholder,
                 style: textTheme.bodySmall?.copyWith(
                   color: colors.textSubtle,
                   fontStyle: FontStyle.italic,
@@ -145,7 +146,8 @@ class UserInformationTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Section header
-            Text('User Information', style: textTheme.headlineSmall),
+            Text(AppLocalizations.of(context).userInformationTitle,
+                style: textTheme.headlineSmall),
             const SizedBox(height: AppSpacing.md),
 
             // Avatar + handle
@@ -170,12 +172,12 @@ class UserInformationTab extends StatelessWidget {
 
             // Peer public key
             Text(
-              "Peer's Public Key",
+              AppLocalizations.of(context).peerPublicKeyLabel,
               style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
             ),
             const SizedBox(height: AppSpacing.xs),
             GestureDetector(
-              onTap: () => _copy(context, peerPubkey, "Peer's public key"),
+              onTap: () => _copy(context, peerPubkey),
               child: Text(
                 peerPubkey,
                 style: textTheme.bodySmall?.copyWith(
@@ -189,12 +191,12 @@ class UserInformationTab extends StatelessWidget {
 
             // Shared key
             Text(
-              'Your Shared Key',
+              AppLocalizations.of(context).yourSharedKeyLabel,
               style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Available after bridge integration (Phase 10+)',
+              AppLocalizations.of(context).sharedKeyPlaceholder,
               style: textTheme.bodySmall?.copyWith(
                 color: colors.textSubtle,
                 fontStyle: FontStyle.italic,
@@ -219,7 +221,7 @@ class UserInformationTab extends StatelessWidget {
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                      'Keep your shared key safe — it is needed for dispute resolution',
+                      AppLocalizations.of(context).sharedKeySafetyNote,
                       style: textTheme.bodySmall
                           ?.copyWith(color: colors.textSubtle),
                     ),
@@ -233,8 +235,8 @@ class UserInformationTab extends StatelessWidget {
     );
   }
 
-  void _copy(BuildContext context, String text, String label) =>
-      _copyToClipboard(context, text, label);
+  void _copy(BuildContext context, String text) =>
+      _copyToClipboard(context, text);
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
@@ -274,7 +276,7 @@ class _InfoRow extends StatelessWidget {
             child: customValue ??
                 GestureDetector(
                   onTap: copyable && value != null
-                      ? () => _copyToClipboard(context, value!, label)
+                      ? () => _copyToClipboard(context, value!)
                       : null,
                   child: Text(
                     value ?? '—',
@@ -307,7 +309,7 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.chip),
       ),
       child: Text(
-        'Active',
+        AppLocalizations.of(context).tradeStatusActive,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppColors.statusActive.$2,
               fontWeight: FontWeight.w500,

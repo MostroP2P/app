@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/log_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -23,18 +24,21 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
     final colorsRaw = Theme.of(context).extension<AppColors>();
     if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
     final colors = colorsRaw;
+    final l10n = AppLocalizations.of(context);
 
     final logAsync = ref.watch(logEntriesProvider);
     final entries = logAsync.valueOrNull ?? const [];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Log Report'),
+        title: Text(l10n.logReportSettingTitle),
         actions: [
           // Share logs — disabled when no entries exist.
           IconButton(
             icon: const Icon(Icons.share_outlined),
-            tooltip: entries.isNotEmpty ? 'Share logs' : 'No logs to share',
+            tooltip: entries.isNotEmpty
+                ? l10n.shareLogsTooltip
+                : l10n.noLogsToShareTooltip,
             onPressed: entries.isNotEmpty ? () => _shareLogs(entries) : null,
           ),
           // Toggle logging
@@ -45,7 +49,9 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
                   : Icons.toggle_off_outlined,
               color: loggingEnabled ? colors.mostroGreen : colors.textDisabled,
             ),
-            tooltip: loggingEnabled ? 'Disable logging' : 'Enable logging',
+            tooltip: loggingEnabled
+                ? l10n.disableLoggingTooltip
+                : l10n.enableLoggingTooltip,
             onPressed: () {
               ref
                   .read(settingsProvider.notifier)
@@ -79,7 +85,9 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  loggingEnabled ? 'Logging enabled' : 'Logging disabled',
+                  loggingEnabled
+                      ? l10n.loggingEnabledStatus
+                      : l10n.loggingDisabledStatus,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: loggingEnabled
                             ? colors.mostroGreen
@@ -94,7 +102,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
             child: entries.isEmpty
                 ? Center(
                     child: Text(
-                      'No log entries',
+                      l10n.noLogEntriesMessage,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   )
@@ -133,7 +141,9 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
       debugPrint('Failed to share logs: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to share logs')),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).failedToShareLogsMessage),
+          ),
         );
       }
     }

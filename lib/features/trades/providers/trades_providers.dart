@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/providers/nav_providers.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
@@ -22,6 +23,21 @@ enum TradeStatusFilter {
 
   const TradeStatusFilter(this.label);
   final String label;
+}
+
+/// Localized display label for the status filter dropdown.
+extension TradeStatusFilterL10n on TradeStatusFilter {
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+        TradeStatusFilter.all => l10n.tradeFilterAll,
+        TradeStatusFilter.pending => l10n.tradeFilterPending,
+        TradeStatusFilter.waitingInvoice => l10n.tradeFilterWaitingInvoice,
+        TradeStatusFilter.waitingPayment => l10n.tradeFilterWaitingPayment,
+        TradeStatusFilter.active => l10n.tradeFilterActive,
+        TradeStatusFilter.fiatSent => l10n.tradeFilterFiatSent,
+        TradeStatusFilter.success => l10n.tradeFilterSuccess,
+        TradeStatusFilter.canceled => l10n.tradeFilterCanceled,
+        TradeStatusFilter.dispute => l10n.tradeFilterDispute,
+      };
 }
 
 // ── TradeRole ─────────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 
 /// Rate counterpart screen — Route `/rate_user/:orderId`.
@@ -46,7 +47,7 @@ class _RateCounterpartScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Rating failed: $e')),
+        SnackBar(content: Text(AppLocalizations.of(context).ratingFailed)),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -60,6 +61,7 @@ class _RateCounterpartScreenState
 
     final textTheme = Theme.of(context).textTheme;
     final green = colors.mostroGreen;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: colors.backgroundDark,
@@ -72,7 +74,7 @@ class _RateCounterpartScreenState
 
               // ── "RATE" header ─────────────────────────────────────────
               Text(
-                'RATE',
+                l10n.rateScreenHeader,
                 style: textTheme.labelMedium?.copyWith(
                   color: colors.textSubtle,
                   letterSpacing: 2,
@@ -92,7 +94,7 @@ class _RateCounterpartScreenState
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'Successful order',
+                l10n.successfulOrder,
                 style: textTheme.titleMedium?.copyWith(
                   color: green,
                   fontWeight: FontWeight.bold,
@@ -142,9 +144,9 @@ class _RateCounterpartScreenState
                           color: Colors.black54,
                         ),
                       )
-                    : const Text(
-                        'SUBMIT',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                    : Text(
+                        l10n.submitUppercaseButton,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
               ),
 
@@ -161,9 +163,9 @@ class _RateCounterpartScreenState
                     borderRadius: BorderRadius.circular(AppRadius.button),
                   ),
                 ),
-                child: const Text(
-                  'CLOSE',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                child: Text(
+                  l10n.closeRatingButton,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
 

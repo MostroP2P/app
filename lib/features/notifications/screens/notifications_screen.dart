@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
@@ -37,7 +38,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(AppLocalizations.of(context).notificationsScreenTitle),
         actions: [
           PopupMenuButton<_MenuAction>(
             onSelected: (action) {
@@ -49,14 +50,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               }
             },
             itemBuilder:
-                (_) => const [
+                (context) => [
                   PopupMenuItem(
                     value: _MenuAction.markAllRead,
-                    child: Text('Mark all as read'),
+                    child:
+                        Text(AppLocalizations.of(context).markAllAsReadMenuItem),
                   ),
                   PopupMenuItem(
                     value: _MenuAction.clearAll,
-                    child: Text('Clear all'),
+                    child: Text(AppLocalizations.of(context).clearAllMenuItem),
                   ),
                 ],
           ),
@@ -190,9 +192,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   void _handleTap(BuildContext context, NotificationModel n) {
     void noId() {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open notification details.'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).unableToOpenNotification),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -245,15 +247,20 @@ class _FilterChipsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final chips = <(_NotificationFilter, String)>[
-      (_NotificationFilter.all, 'All'),
+      (_NotificationFilter.all, l10n.notifFilterAll),
       (
         _NotificationFilter.disputes,
-        disputeCount > 0 ? 'Disputes · $disputeCount' : 'Disputes',
+        disputeCount > 0
+            ? l10n.notifFilterDisputesCount(disputeCount)
+            : l10n.notifFilterDisputes,
       ),
       (
         _NotificationFilter.system,
-        systemCount > 0 ? 'System · $systemCount' : 'System',
+        systemCount > 0
+            ? l10n.notifFilterSystemCount(systemCount)
+            : l10n.notifFilterSystem,
       ),
     ];
 
@@ -369,7 +376,7 @@ class _BackupReminderBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'You must back up your account',
+                    AppLocalizations.of(context).youMustBackUpYourAccount,
                     style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
@@ -378,7 +385,7 @@ class _BackupReminderBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Tap to view and save your secret words.',
+                    AppLocalizations.of(context).tapToViewAndSaveSecretWords,
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall!.copyWith(fontSize: 11),
@@ -440,7 +447,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'No notifications',
+            AppLocalizations.of(context).noNotifications,
             style: Theme.of(
               context,
             ).textTheme.bodyMedium!.copyWith(color: Colors.white38),

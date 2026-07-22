@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show orderBookNotificationCountProvider;
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/providers/nav_providers.dart';
 
 /// Badge count for the Chat tab. Will be wired to Rust bridge.
@@ -28,6 +29,7 @@ class BottomNavBar extends ConsumerWidget {
     final disabledColor = colors?.textDisabled ?? const Color(0xFF6C757D);
     final tradesCount = ref.watch(orderBookNotificationCountProvider);
     final chatCount = ref.watch(chatNotificationCountProvider);
+    final l10n = AppLocalizations.of(context);
 
     return BottomNavigationBar(
       currentIndex: currentIndex,
@@ -49,10 +51,10 @@ class BottomNavBar extends ConsumerWidget {
         }
       },
       items: [
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt_outlined),
-          activeIcon: Icon(Icons.list_alt),
-          label: 'Order Book',
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.list_alt_outlined),
+          activeIcon: const Icon(Icons.list_alt),
+          label: l10n.navOrderBook,
         ),
         BottomNavigationBarItem(
           icon: _BadgeIcon(
@@ -65,7 +67,7 @@ class BottomNavBar extends ConsumerWidget {
             count: tradesCount,
             color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
           ),
-          label: 'My Trades',
+          label: l10n.navMyTrades,
         ),
         BottomNavigationBarItem(
           icon: _BadgeIcon(
@@ -78,7 +80,7 @@ class BottomNavBar extends ConsumerWidget {
             count: chatCount,
             color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
           ),
-          label: 'Chat',
+          label: l10n.navChat,
         ),
       ],
     );

@@ -1897,6 +1897,1980 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No response received, check your connection and try again later'**
   String get sessionTimeoutMessage;
+
+  /// Snackbar shown on the Account screen when no stored identity can be loaded
+  ///
+  /// In en, this message translates to:
+  /// **'No identity found — try restarting the app.'**
+  String get noIdentityFoundMessage;
+
+  /// Snackbar shown when loading the secret words fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load secret words. Please try again.'**
+  String get failedToLoadSecretWordsMessage;
+
+  /// Snackbar shown when confirming the backup fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to confirm backup. Please try again.'**
+  String get failedToConfirmBackupMessage;
+
+  /// Body of the Secret Words info dialog on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Your 12 secret words are the only way to recover your account. Back them up in a safe place — never share them with anyone.'**
+  String get secretWordsInfoContent;
+
+  /// Title of the privacy modes info dialog on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Modes'**
+  String get privacyModesInfoTitle;
+
+  /// Body of the privacy modes info dialog on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Reputation mode lets others see your successful trades.\n\nFull privacy mode keeps your activity completely anonymous — no reputation is built.'**
+  String get privacyModesInfoContent;
+
+  /// Snackbar shown when generating a new identity fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to generate identity. Please try again.'**
+  String get failedToGenerateIdentityMessage;
+
+  /// Snackbar shown when an imported mnemonic is invalid on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid mnemonic. Please check your words and try again.'**
+  String get invalidMnemonicMessage;
+
+  /// Validation error shown in the import mnemonic dialog when the phrase is not 12 or 24 words
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid 12 or 24 word phrase.'**
+  String get enterValidMnemonicError;
+
+  /// Snackbar confirming the order book was refreshed from the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Order book refreshed'**
+  String get orderBookRefreshedMessage;
+
+  /// Snackbar shown when refreshing the order book fails on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh failed'**
+  String get refreshFailedMessage;
+
+  /// Label for the refresh action in the Refresh User dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get refreshButtonLabel;
+
+  /// Generic OK button label for info dialogs
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get okButtonLabel;
+
+  /// Tooltip for the info icon buttons on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'More information'**
+  String get moreInformationTooltip;
+
+  /// Badge shown in the Secret Words card header once the backup is complete
+  ///
+  /// In en, this message translates to:
+  /// **'Backed up'**
+  String get backedUpBadgeLabel;
+
+  /// Title of the backup reminder banner on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Secure your reputation'**
+  String get backupBannerTitle;
+
+  /// Subtitle of the backup reminder banner on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Back up your 12 words — it takes 60 seconds.'**
+  String get backupBannerSubtitle;
+
+  /// Snackbar shown when persisting the backup-complete status fails in the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save backup status. Please try again.'**
+  String get failedToSaveBackupStatusMessage;
+
+  /// App bar title for step 1 of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Step 1 of 3 · Write down your words'**
+  String get backupRitualStep1Title;
+
+  /// App bar title for step 2 of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Step 2 of 3 · Verify'**
+  String get backupRitualStep2Title;
+
+  /// App bar title for step 3 of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Step 3 of 3 · Done'**
+  String get backupRitualStep3Title;
+
+  /// Bold lead-in of the warning card on the show-words step
+  ///
+  /// In en, this message translates to:
+  /// **'Write them on paper. '**
+  String get backupRitualWarningTitle;
+
+  /// Body of the warning card on the show-words step
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t store them in photos, screenshots or the cloud — anyone with these 12 words can steal your reputation.'**
+  String get backupRitualWarningBody;
+
+  /// Note reminding the user the words are hidden when leaving the ritual
+  ///
+  /// In en, this message translates to:
+  /// **'These words will be hidden when you leave this screen'**
+  String get wordsHiddenOnLeaveNote;
+
+  /// Primary button on the show-words step that starts verification
+  ///
+  /// In en, this message translates to:
+  /// **'I wrote them down — verify'**
+  String get wroteThemDownVerifyButton;
+
+  /// Title of the verification step
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the correct words'**
+  String get tapCorrectWordsTitle;
+
+  /// Instructions shown on the verification step
+  ///
+  /// In en, this message translates to:
+  /// **'We ask for 3 at random. If you get them right, we know they\'re safely written down.'**
+  String get verifyInstructionsBody;
+
+  /// Label above the option grid for the challenged word
+  ///
+  /// In en, this message translates to:
+  /// **'OPTIONS FOR WORD #{number}'**
+  String optionsForWordLabel(int number);
+
+  /// Error shown when the user taps a wrong verification option
+  ///
+  /// In en, this message translates to:
+  /// **'Not quite — check your paper and try again.'**
+  String get wrongPickMessage;
+
+  /// Success message shown when all challenged words are verified
+  ///
+  /// In en, this message translates to:
+  /// **'All 3 words correct!'**
+  String get allWordsCorrectMessage;
+
+  /// Button that returns from verification to the show-words step
+  ///
+  /// In en, this message translates to:
+  /// **'Show words again'**
+  String get showWordsAgainButton;
+
+  /// Title of the final done step of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is backed up'**
+  String get accountBackedUpTitle;
+
+  /// Body of the final done step of the backup ritual
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation is safe. If you ever lose your phone, restore your account with your 12 words.'**
+  String get accountBackedUpBody;
+
+  /// Label for a challenged word slot, showing its position in the mnemonic
+  ///
+  /// In en, this message translates to:
+  /// **'Word #{number}'**
+  String wordNumberLabel(int number);
+
+  /// Lead-in body text of the backup trigger bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation lives in a key only you hold. If you lose your phone, you lose that reputation — '**
+  String get backupTriggerBody;
+
+  /// Highlighted trailing phrase of the backup trigger body
+  ///
+  /// In en, this message translates to:
+  /// **'back it up in 60 seconds.'**
+  String get backupTriggerBodyHighlight;
+
+  /// Step 1 label in the backup trigger sheet preview
+  ///
+  /// In en, this message translates to:
+  /// **'Write your 12 words down on paper'**
+  String get backupStepWriteDown;
+
+  /// Step 2 label in the backup trigger sheet preview
+  ///
+  /// In en, this message translates to:
+  /// **'We ask for 3 at random to confirm'**
+  String get backupStepVerifyRandom;
+
+  /// Step 3 label in the backup trigger sheet preview
+  ///
+  /// In en, this message translates to:
+  /// **'Done — your account is secured'**
+  String get backupStepSecured;
+
+  /// Primary button in the backup trigger sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Back up now'**
+  String get backupNowButton;
+
+  /// Ghost button in the backup trigger sheet that snoozes the reminder
+  ///
+  /// In en, this message translates to:
+  /// **'Remind me tomorrow'**
+  String get remindMeTomorrowButton;
+
+  /// Snackbar shown when connecting a wallet via NWC fails
+  ///
+  /// In en, this message translates to:
+  /// **'Connection failed. Please check your NWC URI and try again.'**
+  String get nwcConnectionFailedMessage;
+
+  /// Description text on the Connect Wallet screen
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your Lightning wallet using a\nNostr Wallet Connect (NWC) URI.'**
+  String get connectWalletDescription;
+
+  /// Field label for the NWC URI input
+  ///
+  /// In en, this message translates to:
+  /// **'NWC URI'**
+  String get nwcUriLabel;
+
+  /// Snackbar shown when the clipboard has no valid NWC URI to paste
+  ///
+  /// In en, this message translates to:
+  /// **'Clipboard does not contain a valid NWC URI.'**
+  String get clipboardInvalidNwcUriMessage;
+
+  /// Button that opens the QR scanner on the Connect Wallet screen
+  ///
+  /// In en, this message translates to:
+  /// **'Scan QR'**
+  String get scanQrButtonLabel;
+
+  /// Primary button on the Connect Wallet screen
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get connectButtonLabel;
+
+  /// App bar title of the Wallet Settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet Configuration'**
+  String get walletConfigurationTitle;
+
+  /// Snackbar shown after disconnecting the wallet
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet disconnected'**
+  String get walletDisconnectedMessage;
+
+  /// Badge indicating the wallet is connected
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get connectedBadgeLabel;
+
+  /// Label for the wallet balance row
+  ///
+  /// In en, this message translates to:
+  /// **'Balance'**
+  String get balanceLabel;
+
+  /// Label for a single relay row on the Wallet Settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Relay'**
+  String get relayLabel;
+
+  /// Title shown when no wallet is connected
+  ///
+  /// In en, this message translates to:
+  /// **'No wallet connected'**
+  String get noWalletConnectedTitle;
+
+  /// Prompt shown when no wallet is connected
+  ///
+  /// In en, this message translates to:
+  /// **'Connect a wallet to enable automatic Lightning payments.'**
+  String get connectWalletPrompt;
+
+  /// Button that disconnects the wallet
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get disconnectButtonLabel;
+
+  /// Suffix showing how many additional relays exist beyond the first
+  ///
+  /// In en, this message translates to:
+  /// **'(+{count} more)'**
+  String relaysMoreSuffix(int count);
+
+  /// Subtitle on the notification settings screen
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which events trigger push notifications.'**
+  String get chooseNotificationEventsSubtitle;
+
+  /// Title of the trade updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Trade updates'**
+  String get notifTradeUpdatesTitle;
+
+  /// Subtitle of the trade updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Status changes in your active trades'**
+  String get notifTradeUpdatesSubtitle;
+
+  /// Title of the new messages notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'New messages'**
+  String get notifNewMessagesTitle;
+
+  /// Subtitle of the new messages notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Messages from your trade counterparty'**
+  String get notifNewMessagesSubtitle;
+
+  /// Title of the payment alerts notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Payment alerts'**
+  String get notifPaymentAlertsTitle;
+
+  /// Subtitle of the payment alerts notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning payment confirmations and failures'**
+  String get notifPaymentAlertsSubtitle;
+
+  /// Title of the dispute updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute updates'**
+  String get notifDisputeUpdatesTitle;
+
+  /// Subtitle of the dispute updates notification toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Admin actions and dispute resolutions'**
+  String get notifDisputeUpdatesSubtitle;
+
+  /// Hint text of the currency search field
+  ///
+  /// In en, this message translates to:
+  /// **'Search currencies…'**
+  String get searchCurrenciesHint;
+
+  /// Message shown when no currencies match the search
+  ///
+  /// In en, this message translates to:
+  /// **'No currencies found'**
+  String get noCurrenciesFoundMessage;
+
+  /// Error shown when resetting to the default Mostro node fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to reset node'**
+  String get failedToResetNodeMessage;
+
+  /// Error shown when setting a custom node pubkey fails
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid pubkey or bridge error'**
+  String get invalidPubkeyOrBridgeErrorMessage;
+
+  /// Accessibility label for the current node public key
+  ///
+  /// In en, this message translates to:
+  /// **'Current node public key'**
+  String get currentNodePublicKeyLabel;
+
+  /// Label above the custom node pubkey input
+  ///
+  /// In en, this message translates to:
+  /// **'Use a custom node pubkey'**
+  String get useCustomNodePubkeyLabel;
+
+  /// Hint text for the custom node pubkey input
+  ///
+  /// In en, this message translates to:
+  /// **'Enter 64-char hex pubkey'**
+  String get enterHexPubkeyHint;
+
+  /// Tooltip for the share logs action
+  ///
+  /// In en, this message translates to:
+  /// **'Share logs'**
+  String get shareLogsTooltip;
+
+  /// Tooltip for the share action when there are no logs
+  ///
+  /// In en, this message translates to:
+  /// **'No logs to share'**
+  String get noLogsToShareTooltip;
+
+  /// Tooltip to disable logging
+  ///
+  /// In en, this message translates to:
+  /// **'Disable logging'**
+  String get disableLoggingTooltip;
+
+  /// Tooltip to enable logging
+  ///
+  /// In en, this message translates to:
+  /// **'Enable logging'**
+  String get enableLoggingTooltip;
+
+  /// Status banner text when logging is enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Logging enabled'**
+  String get loggingEnabledStatus;
+
+  /// Status banner text when logging is disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Logging disabled'**
+  String get loggingDisabledStatus;
+
+  /// Message shown when there are no log entries
+  ///
+  /// In en, this message translates to:
+  /// **'No log entries'**
+  String get noLogEntriesMessage;
+
+  /// Snackbar shown when sharing logs fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to share logs'**
+  String get failedToShareLogsMessage;
+
+  /// My Trades status filter: all
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get tradeFilterAll;
+
+  /// My Trades status filter: pending
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get tradeFilterPending;
+
+  /// My Trades status filter: waiting invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting Invoice'**
+  String get tradeFilterWaitingInvoice;
+
+  /// My Trades status filter: waiting payment
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting Payment'**
+  String get tradeFilterWaitingPayment;
+
+  /// My Trades status filter: active
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get tradeFilterActive;
+
+  /// My Trades status filter: fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat Sent'**
+  String get tradeFilterFiatSent;
+
+  /// My Trades status filter: success
+  ///
+  /// In en, this message translates to:
+  /// **'Success'**
+  String get tradeFilterSuccess;
+
+  /// My Trades status filter: canceled
+  ///
+  /// In en, this message translates to:
+  /// **'Canceled'**
+  String get tradeFilterCanceled;
+
+  /// My Trades status filter: dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute'**
+  String get tradeFilterDispute;
+
+  /// Tooltip for the drawer menu button
+  ///
+  /// In en, this message translates to:
+  /// **'Menu'**
+  String get menuTooltip;
+
+  /// Prefix shown before the selected status filter
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get tradeStatusFilterPrefix;
+
+  /// Title of the empty My Trades state
+  ///
+  /// In en, this message translates to:
+  /// **'No trades'**
+  String get noTradesTitle;
+
+  /// Subtitle of the empty My Trades state
+  ///
+  /// In en, this message translates to:
+  /// **'Your active and completed trades will appear here.'**
+  String get noTradesSubtitle;
+
+  /// Error shown when the trades list fails to load
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load trades'**
+  String get couldNotLoadTradesMessage;
+
+  /// Title of the release confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Release Bitcoin'**
+  String get releaseBitcoinTitle;
+
+  /// Body of the release confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to release the Satoshis to the buyer?'**
+  String get releaseBitcoinConfirmation;
+
+  /// Generic Yes button label
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get yesButtonLabel;
+
+  /// Trade card title when the user is selling Bitcoin
+  ///
+  /// In en, this message translates to:
+  /// **'Selling Bitcoin'**
+  String get sellingBitcoin;
+
+  /// Trade card title when the user is buying Bitcoin
+  ///
+  /// In en, this message translates to:
+  /// **'Buying Bitcoin'**
+  String get buyingBitcoin;
+
+  /// Role badge when the user created the order
+  ///
+  /// In en, this message translates to:
+  /// **'Created by you'**
+  String get createdByYou;
+
+  /// Role badge when the user took the order
+  ///
+  /// In en, this message translates to:
+  /// **'Taken by you'**
+  String get takenByYou;
+
+  /// Compact relative time for just now
+  ///
+  /// In en, this message translates to:
+  /// **'now'**
+  String get timeAgoNow;
+
+  /// Compact relative time in minutes
+  ///
+  /// In en, this message translates to:
+  /// **'{count}m'**
+  String timeAgoMinutes(int count);
+
+  /// Compact relative time in hours
+  ///
+  /// In en, this message translates to:
+  /// **'{count}h'**
+  String timeAgoHours(int count);
+
+  /// Compact relative time in days
+  ///
+  /// In en, this message translates to:
+  /// **'{count}d'**
+  String timeAgoDays(int count);
+
+  /// Trade status pill: loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get tradeStatusLoading;
+
+  /// Trade status pill: pending rating
+  ///
+  /// In en, this message translates to:
+  /// **'Rate'**
+  String get tradeStatusRate;
+
+  /// Trade status pill: rated
+  ///
+  /// In en, this message translates to:
+  /// **'Rated'**
+  String get tradeStatusRated;
+
+  /// Instruction for buyer while trade is active
+  ///
+  /// In en, this message translates to:
+  /// **'Once you have sent the money, mark it below. Only open a dispute if the seller stops responding.'**
+  String get tradeInstructionActiveBuyer;
+
+  /// Instruction for buyer after marking fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat payment marked as sent. Waiting for the seller to confirm receipt and release your sats.'**
+  String get tradeInstructionFiatSentBuyer;
+
+  /// Instruction for seller while trade is active
+  ///
+  /// In en, this message translates to:
+  /// **'Contact the buyer with payment instructions via the chat above.'**
+  String get tradeInstructionActiveSeller;
+
+  /// Instruction for seller after buyer marks fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'The buyer has confirmed they sent the fiat payment. Once you verify receipt, release the sats.'**
+  String get tradeInstructionFiatSentSeller;
+
+  /// Instruction while a dispute is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'A dispute resolver has been assigned. They will contact you through the app.'**
+  String get tradeInstructionDisputed;
+
+  /// Instruction when the trade completed and awaits rating
+  ///
+  /// In en, this message translates to:
+  /// **'The trade completed successfully. Rate your counterpart to help build trust in the community.'**
+  String get tradeInstructionPendingRating;
+
+  /// Instruction after the counterpart has been rated
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you for your rating!'**
+  String get tradeInstructionRated;
+
+  /// Instruction while the order is pending a taker
+  ///
+  /// In en, this message translates to:
+  /// **'Your order is published and waiting for a counterpart to take it. You can cancel it at any time.'**
+  String get tradeInstructionPending;
+
+  /// Instruction when the trade was cancelled
+  ///
+  /// In en, this message translates to:
+  /// **'This trade was cancelled. No funds were exchanged.'**
+  String get tradeInstructionCancelled;
+
+  /// Generic in-progress instruction fallback
+  ///
+  /// In en, this message translates to:
+  /// **'Trade in progress.'**
+  String get tradeInstructionInProgress;
+
+  /// Fallback for the trade amount when the order is unknown
+  ///
+  /// In en, this message translates to:
+  /// **'the agreed amount'**
+  String get theAgreedAmount;
+
+  /// Headline while the order is pending
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for someone to take your order'**
+  String get tradeHeadlinePending;
+
+  /// Headline for buyer while waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Share a Lightning invoice to receive your sats'**
+  String get tradeHeadlineWaitingInvoiceBuyer;
+
+  /// Headline for seller while waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the buyer to share an invoice'**
+  String get tradeHeadlineWaitingInvoiceSeller;
+
+  /// Headline for buyer while waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the seller to lock the sats'**
+  String get tradeHeadlineWaitingPaymentBuyer;
+
+  /// Headline for seller while waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Pay the hold invoice to lock the sats'**
+  String get tradeHeadlineWaitingPaymentSeller;
+
+  /// Headline for buyer to send fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Send {amount} to the seller'**
+  String tradeHeadlineActiveBuyer(String amount);
+
+  /// Headline for seller waiting for fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the buyer to send {amount}'**
+  String tradeHeadlineActiveSeller(String amount);
+
+  /// Headline for buyer waiting for release
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the seller to release your sats'**
+  String get tradeHeadlineFiatSentBuyer;
+
+  /// Headline for seller to confirm receipt
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm you received {amount}'**
+  String tradeHeadlineFiatSentSeller(String amount);
+
+  /// Headline while a dispute is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute in progress'**
+  String get tradeHeadlineDisputed;
+
+  /// Headline when the trade completed
+  ///
+  /// In en, this message translates to:
+  /// **'Trade complete!'**
+  String get tradeHeadlineComplete;
+
+  /// Headline when the trade completed and was rated
+  ///
+  /// In en, this message translates to:
+  /// **'Trade complete'**
+  String get tradeHeadlineCompleteRated;
+
+  /// Headline when the order was cancelled
+  ///
+  /// In en, this message translates to:
+  /// **'Order cancelled'**
+  String get tradeHeadlineCancelled;
+
+  /// Headline while the trade is loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading trade…'**
+  String get tradeHeadlineLoading;
+
+  /// Timer label while the order is pending
+  ///
+  /// In en, this message translates to:
+  /// **'Time for this order to stay in the book'**
+  String get tradeTimerPendingLabel;
+
+  /// Timer consequence while the order is pending
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the order is removed from the book. It won\'t affect your reputation.'**
+  String get tradeTimerPendingConsequence;
+
+  /// Timer label for buyer waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Time to share your invoice'**
+  String get tradeTimerWaitingInvoiceLabelBuyer;
+
+  /// Timer label for seller waiting for invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the buyer to share an invoice'**
+  String get tradeTimerWaitingInvoiceLabelSeller;
+
+  /// Timer consequence for the waiting-invoice/payment state
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the trade is cancelled and the order returns to the book.'**
+  String get tradeTimerWaitingInvoiceConsequence;
+
+  /// Timer label for buyer waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the seller to lock the sats'**
+  String get tradeTimerWaitingPaymentLabelBuyer;
+
+  /// Timer label for seller waiting for payment
+  ///
+  /// In en, this message translates to:
+  /// **'Time to pay the hold invoice'**
+  String get tradeTimerWaitingPaymentLabelSeller;
+
+  /// Timer label for buyer to send fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Time to send the fiat payment'**
+  String get tradeTimerActiveLabelBuyer;
+
+  /// Timer label for seller waiting for fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the buyer to send the fiat'**
+  String get tradeTimerActiveLabelSeller;
+
+  /// Timer consequence while the trade is active
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the trade can be cancelled. Coordinate in the chat if more time is needed.'**
+  String get tradeTimerActiveConsequence;
+
+  /// Timer label for buyer waiting for confirmation
+  ///
+  /// In en, this message translates to:
+  /// **'Time for the seller to confirm receipt'**
+  String get tradeTimerFiatSentLabelBuyer;
+
+  /// Timer label for seller to confirm and release
+  ///
+  /// In en, this message translates to:
+  /// **'Time to confirm receipt and release'**
+  String get tradeTimerFiatSentLabelSeller;
+
+  /// Timer consequence after fiat is marked sent
+  ///
+  /// In en, this message translates to:
+  /// **'If something looks wrong, open a dispute from the ⋮ menu.'**
+  String get tradeTimerFiatSentConsequence;
+
+  /// Timeline step: order taken
+  ///
+  /// In en, this message translates to:
+  /// **'Order taken'**
+  String get tradeStepOrderTaken;
+
+  /// Timeline step for buyer: share invoice
+  ///
+  /// In en, this message translates to:
+  /// **'You share an invoice · seller locks the sats'**
+  String get tradeStepInvoiceBuyer;
+
+  /// Timeline step for seller: lock sats
+  ///
+  /// In en, this message translates to:
+  /// **'Buyer shares an invoice · you lock the sats'**
+  String get tradeStepInvoiceSeller;
+
+  /// Timeline step for buyer: send fiat
+  ///
+  /// In en, this message translates to:
+  /// **'You send the fiat payment'**
+  String get tradeStepFiatBuyer;
+
+  /// Timeline step for seller: buyer sends fiat
+  ///
+  /// In en, this message translates to:
+  /// **'Buyer sends the fiat payment'**
+  String get tradeStepFiatSeller;
+
+  /// Timeline step for buyer: seller releases sats
+  ///
+  /// In en, this message translates to:
+  /// **'Seller confirms and releases your sats'**
+  String get tradeStepReleaseBuyer;
+
+  /// Timeline step for seller: confirm and release
+  ///
+  /// In en, this message translates to:
+  /// **'You confirm receipt and release the sats'**
+  String get tradeStepReleaseSeller;
+
+  /// Timeline step and CTA: rate your counterpart
+  ///
+  /// In en, this message translates to:
+  /// **'Rate your counterpart'**
+  String get tradeStepRate;
+
+  /// App bar title while a trade is in flight
+  ///
+  /// In en, this message translates to:
+  /// **'ACTIVE TRADE'**
+  String get activeTradeTitle;
+
+  /// Short order ID label in the meta footer
+  ///
+  /// In en, this message translates to:
+  /// **'ID {id}'**
+  String tradeIdShortLabel(String id);
+
+  /// Created-at label in the meta footer
+  ///
+  /// In en, this message translates to:
+  /// **'created {date}'**
+  String tradeCreatedAtLabel(String date);
+
+  /// Overflow menu item: release sats
+  ///
+  /// In en, this message translates to:
+  /// **'Release sats'**
+  String get releaseSatsMenuItem;
+
+  /// Overflow menu item: cancel order
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel order'**
+  String get cancelOrderMenuItem;
+
+  /// Overflow menu item: open dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Open dispute'**
+  String get openDisputeMenuItem;
+
+  /// Step pill when all steps are complete
+  ///
+  /// In en, this message translates to:
+  /// **'DONE'**
+  String get stepDoneLabel;
+
+  /// Step pill showing progress
+  ///
+  /// In en, this message translates to:
+  /// **'STEP {current} OF {total}'**
+  String stepIndicator(int current, int total);
+
+  /// Primary CTA: add Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Add Lightning invoice'**
+  String get addLightningInvoiceButton;
+
+  /// Primary CTA: pay hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Pay hold invoice'**
+  String get payHoldInvoiceButton;
+
+  /// Primary CTA: mark fiat sent
+  ///
+  /// In en, this message translates to:
+  /// **'Mark fiat sent'**
+  String get markFiatSentButton;
+
+  /// Primary CTA: confirm and release sats
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm & release sats'**
+  String get confirmReleaseSatsButton;
+
+  /// Primary CTA: view dispute
+  ///
+  /// In en, this message translates to:
+  /// **'View dispute'**
+  String get viewDisputeButton;
+
+  /// Disabled CTA: waiting for the buyer
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the buyer…'**
+  String get waitingForBuyer;
+
+  /// Disabled CTA: waiting for the seller
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the seller…'**
+  String get waitingForSeller;
+
+  /// Disabled CTA: waiting for the fiat payment
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the fiat payment…'**
+  String get waitingForFiatPayment;
+
+  /// Disabled CTA: waiting for a counterpart
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for a counterpart…'**
+  String get waitingForCounterpart;
+
+  /// Header of the trade step timeline
+  ///
+  /// In en, this message translates to:
+  /// **'YOUR TRADE'**
+  String get yourTradeTimelineTitle;
+
+  /// Fallback name for the counterpart in the chat chip
+  ///
+  /// In en, this message translates to:
+  /// **'your counterpart'**
+  String get yourCounterpartFallback;
+
+  /// Chat chip subtitle with unread count
+  ///
+  /// In en, this message translates to:
+  /// **'Secure chat · {count} new'**
+  String secureChatUnread(int count);
+
+  /// Chat chip subtitle when there are no unread messages
+  ///
+  /// In en, this message translates to:
+  /// **'Secure chat · end-to-end encrypted'**
+  String get secureChatEncrypted;
+
+  /// Snackbar shown when sending a chat message fails
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send message. Please try again.'**
+  String get messageSendFailed;
+
+  /// Shown when the chat room has no valid trade ID
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid trade ID'**
+  String get invalidTradeId;
+
+  /// Side panel hint on tablet/desktop chat when no panel is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Select ℹ or 👤\nfor details'**
+  String get selectForDetailsHint;
+
+  /// Empty state inside a chat room
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet.\nSay hello to {handle}!'**
+  String noMessagesYet(String handle);
+
+  /// Tooltip for the trade info toggle in the chat room
+  ///
+  /// In en, this message translates to:
+  /// **'Exchange Info'**
+  String get exchangeInfoTooltip;
+
+  /// Tooltip for the user info toggle in the chat room
+  ///
+  /// In en, this message translates to:
+  /// **'User Info'**
+  String get userInfoTooltip;
+
+  /// App bar subtitle in a chat room
+  ///
+  /// In en, this message translates to:
+  /// **'You are chatting with {handle}'**
+  String chattingWith(String handle);
+
+  /// Fallback handle when the peer is unknown
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get unknownPeerHandle;
+
+  /// Chat screen tab: messages
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get messagesTab;
+
+  /// Chat screen tab: disputes
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes'**
+  String get disputesTab;
+
+  /// Description under the Messages tab
+  ///
+  /// In en, this message translates to:
+  /// **'Your active trade conversations'**
+  String get activeTradeConversations;
+
+  /// Empty state for the Messages tab
+  ///
+  /// In en, this message translates to:
+  /// **'No messages available'**
+  String get noMessagesAvailable;
+
+  /// Description under the Disputes tab
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes and admin chat'**
+  String get disputesAndAdminChat;
+
+  /// Title of the trade information panel
+  ///
+  /// In en, this message translates to:
+  /// **'Trade Information'**
+  String get tradeInformationTitle;
+
+  /// Label for the order ID field
+  ///
+  /// In en, this message translates to:
+  /// **'Order ID'**
+  String get orderIdLabel;
+
+  /// Label for the fiat amount field
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat Amount'**
+  String get fiatAmountLabel;
+
+  /// Label for the sats amount field
+  ///
+  /// In en, this message translates to:
+  /// **'Sats Amount'**
+  String get satsAmountLabel;
+
+  /// Label for the status field
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get statusLabel;
+
+  /// Label for the payment method field
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Method'**
+  String get paymentMethodLabel;
+
+  /// Label for the created date field
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get createdLabel;
+
+  /// Placeholder note in the trade information panel
+  ///
+  /// In en, this message translates to:
+  /// **'Details wired when trade provider available (Phase 10+)'**
+  String get tradeDetailsPlaceholder;
+
+  /// Title of the user information panel
+  ///
+  /// In en, this message translates to:
+  /// **'User Information'**
+  String get userInformationTitle;
+
+  /// Label for the peer public key
+  ///
+  /// In en, this message translates to:
+  /// **'Peer\'s Public Key'**
+  String get peerPublicKeyLabel;
+
+  /// Label for the shared key
+  ///
+  /// In en, this message translates to:
+  /// **'Your Shared Key'**
+  String get yourSharedKeyLabel;
+
+  /// Placeholder note for the shared key
+  ///
+  /// In en, this message translates to:
+  /// **'Available after bridge integration (Phase 10+)'**
+  String get sharedKeyPlaceholder;
+
+  /// Safety note about the shared key
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your shared key safe — it is needed for dispute resolution'**
+  String get sharedKeySafetyNote;
+
+  /// Label shown on a chat bubble that has a file attachment
+  ///
+  /// In en, this message translates to:
+  /// **'[Attachment]'**
+  String get attachmentLabel;
+
+  /// Chat list context line when the user is selling
+  ///
+  /// In en, this message translates to:
+  /// **'You are selling sats to {handle}'**
+  String sellingSatsTo(String handle);
+
+  /// Chat list context line when the user is buying
+  ///
+  /// In en, this message translates to:
+  /// **'You are buying sats from {handle}'**
+  String buyingSatsFrom(String handle);
+
+  /// Chat list last-message preview prefix for own messages
+  ///
+  /// In en, this message translates to:
+  /// **'You: {message}'**
+  String youMessagePrefix(String message);
+
+  /// Tooltip for the file download button
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get downloadTooltip;
+
+  /// Placeholder snackbar for file download (not yet wired)
+  ///
+  /// In en, this message translates to:
+  /// **'File download wired in Phase 10+'**
+  String get fileDownloadPlaceholder;
+
+  /// File type chip: video
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get fileTypeVideo;
+
+  /// File type chip: image
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get fileTypeImage;
+
+  /// File type chip: archive
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get fileTypeArchive;
+
+  /// File type chip: generic file
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get fileTypeFile;
+
+  /// Hint on an encrypted image placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to download'**
+  String get tapToDownload;
+
+  /// Placeholder snackbar for image download (not yet wired)
+  ///
+  /// In en, this message translates to:
+  /// **'Image download wired in Phase 10+'**
+  String get imageDownloadPlaceholder;
+
+  /// Trade state header amount when buying
+  ///
+  /// In en, this message translates to:
+  /// **'Buying {sats} sats'**
+  String buyingSatsAmount(String sats);
+
+  /// Trade state header amount when selling
+  ///
+  /// In en, this message translates to:
+  /// **'Selling {sats} sats'**
+  String sellingSatsAmount(String sats);
+
+  /// Link in the trade state header to view the order
+  ///
+  /// In en, this message translates to:
+  /// **'View order'**
+  String get viewOrderLink;
+
+  /// Countdown label showing remaining time
+  ///
+  /// In en, this message translates to:
+  /// **'{time} left'**
+  String timeLeftLabel(String time);
+
+  /// Snackbar when submitting an LN address before the sats amount is known
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for trade amount — please try again shortly.'**
+  String get waitingForTradeAmount;
+
+  /// Loading text while resolving the trade amount
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching trade amount…'**
+  String get fetchingTradeAmount;
+
+  /// Button to switch to manual invoice entry
+  ///
+  /// In en, this message translates to:
+  /// **'Enter invoice manually'**
+  String get enterInvoiceManually;
+
+  /// Instruction on the add invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a Lightning Invoice to receive your sats'**
+  String get enterLightningInvoiceInstruction;
+
+  /// Field label for the Lightning invoice input
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning Invoice'**
+  String get lightningInvoiceLabel;
+
+  /// Generic submit button label
+  ///
+  /// In en, this message translates to:
+  /// **'Submit'**
+  String get submitButton;
+
+  /// App bar title when taking a sell order
+  ///
+  /// In en, this message translates to:
+  /// **'SELL ORDER DETAILS'**
+  String get sellOrderDetailsTitle;
+
+  /// App bar title when taking a buy order
+  ///
+  /// In en, this message translates to:
+  /// **'BUY ORDER DETAILS'**
+  String get buyOrderDetailsTitle;
+
+  /// Primary button to buy sats
+  ///
+  /// In en, this message translates to:
+  /// **'BUY THESE SATS'**
+  String get buyTheseSatsButton;
+
+  /// Primary button to sell sats
+  ///
+  /// In en, this message translates to:
+  /// **'SELL SATS'**
+  String get sellSatsButton;
+
+  /// Headline when a counterpart is selling sats
+  ///
+  /// In en, this message translates to:
+  /// **'Someone is selling sats'**
+  String get someoneSellingSats;
+
+  /// Headline when a counterpart is buying sats
+  ///
+  /// In en, this message translates to:
+  /// **'Someone is buying sats'**
+  String get someoneBuyingSats;
+
+  /// Prefix before the order amount on the take order screen
+  ///
+  /// In en, this message translates to:
+  /// **'for '**
+  String get takeOrderForPrefix;
+
+  /// Suffix after the order amount indicating market price
+  ///
+  /// In en, this message translates to:
+  /// **' at market price'**
+  String get takeOrderAtMarketPrice;
+
+  /// Premium percentage label
+  ///
+  /// In en, this message translates to:
+  /// **'Premium: {premium}%'**
+  String premiumLabel(String premium);
+
+  /// Label for the creator reputation card
+  ///
+  /// In en, this message translates to:
+  /// **'Creator reputation'**
+  String get creatorReputation;
+
+  /// Reputation stat label: rating
+  ///
+  /// In en, this message translates to:
+  /// **'rating'**
+  String get ratingStatLabel;
+
+  /// Reputation stat label: trades
+  ///
+  /// In en, this message translates to:
+  /// **'trades'**
+  String get tradesStatLabel;
+
+  /// Reputation stat label: days active
+  ///
+  /// In en, this message translates to:
+  /// **'days active'**
+  String get daysActiveStatLabel;
+
+  /// Countdown label on the take order screen
+  ///
+  /// In en, this message translates to:
+  /// **'TIME TO TAKE THIS ORDER'**
+  String get timeToTakeOrder;
+
+  /// Consequence note prefix if the order expires
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the order is removed from the book. '**
+  String get orderExpiryRemovedNote;
+
+  /// Highlighted consequence note about reputation
+  ///
+  /// In en, this message translates to:
+  /// **'It won\'t affect your reputation.'**
+  String get orderExpiryNoReputationNote;
+
+  /// Hint for the minimum amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Min'**
+  String get minHint;
+
+  /// Hint for the maximum amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Max'**
+  String get maxHint;
+
+  /// Hint for the fiat amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat amount'**
+  String get fiatAmountHint;
+
+  /// Preview footer text before an amount is entered
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an amount to see a live preview.'**
+  String get enterAmountForPreview;
+
+  /// Label of the order preview footer
+  ///
+  /// In en, this message translates to:
+  /// **'PREVIEW'**
+  String get previewLabel;
+
+  /// Preview sentence for a market buy order
+  ///
+  /// In en, this message translates to:
+  /// **'You buy BTC for *{amount}* at *{price}* · live for *24 h*'**
+  String previewBuyMarket(String amount, String price);
+
+  /// Preview sentence for a market sell order
+  ///
+  /// In en, this message translates to:
+  /// **'You sell BTC for *{amount}* at *{price}* · live for *24 h*'**
+  String previewSellMarket(String amount, String price);
+
+  /// Preview sentence for a fixed-price buy order
+  ///
+  /// In en, this message translates to:
+  /// **'You receive *{sats} sats* for *{amount}* · live for *24 h*'**
+  String previewReceiveFixed(String sats, String amount);
+
+  /// Preview sentence for a fixed-price sell order
+  ///
+  /// In en, this message translates to:
+  /// **'You sell *{sats} sats* for *{amount}* · live for *24 h*'**
+  String previewSellFixed(String sats, String amount);
+
+  /// Price label for market price with no premium
+  ///
+  /// In en, this message translates to:
+  /// **'market price'**
+  String get marketPriceLabel;
+
+  /// Price label for market price with a premium
+  ///
+  /// In en, this message translates to:
+  /// **'market {premium}%'**
+  String marketPricePremium(String premium);
+
+  /// Label for the price type toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Price Type'**
+  String get priceTypeLabel;
+
+  /// Price type value: market
+  ///
+  /// In en, this message translates to:
+  /// **'Market'**
+  String get priceTypeMarket;
+
+  /// Price type value: fixed
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed'**
+  String get priceTypeFixed;
+
+  /// Tooltip for the price type info button
+  ///
+  /// In en, this message translates to:
+  /// **'Price type info'**
+  String get priceTypeInfoTooltip;
+
+  /// Label of the premium slider section
+  ///
+  /// In en, this message translates to:
+  /// **'Premium'**
+  String get premiumSectionLabel;
+
+  /// Hint for the fixed sats amount input
+  ///
+  /// In en, this message translates to:
+  /// **'Amount in sats'**
+  String get amountInSatsHint;
+
+  /// Title of the price types info dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Price Types'**
+  String get priceTypesDialogTitle;
+
+  /// Body of the price types info dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.'**
+  String get priceTypesDialogContent;
+
+  /// Header of the order preset selector
+  ///
+  /// In en, this message translates to:
+  /// **'START FROM A PRESET'**
+  String get startFromPreset;
+
+  /// Express preset card title
+  ///
+  /// In en, this message translates to:
+  /// **'Express'**
+  String get presetExpressTitle;
+
+  /// Recommended tag on the express preset
+  ///
+  /// In en, this message translates to:
+  /// **'RECOMMENDED'**
+  String get recommendedTag;
+
+  /// Conservative preset card title
+  ///
+  /// In en, this message translates to:
+  /// **'Conservative'**
+  String get presetConservativeTitle;
+
+  /// Conservative preset card subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Market price · 0% premium · you choose amount & methods'**
+  String get presetConservativeSubtitle;
+
+  /// Custom preset card title
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get presetCustomTitle;
+
+  /// Custom preset card subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'All fields — amount, range, methods, premium, fixed or market price'**
+  String get presetCustomSubtitle;
+
+  /// Express preset subtitle built from the last order
+  ///
+  /// In en, this message translates to:
+  /// **'Same as your last successful order — {details}'**
+  String expressPresetSubtitle(String details);
+
+  /// Premium fragment of the express preset subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'{premium}% premium'**
+  String expressPremiumSuffix(String premium);
+
+  /// Label of the payment methods section
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Methods'**
+  String get paymentMethodsLabel;
+
+  /// Button to open the payment method picker
+  ///
+  /// In en, this message translates to:
+  /// **'Add payment method'**
+  String get addPaymentMethod;
+
+  /// Hint for the custom payment method input
+  ///
+  /// In en, this message translates to:
+  /// **'Custom payment method...'**
+  String get customPaymentMethodHint;
+
+  /// Note explaining the custom method is appended
+  ///
+  /// In en, this message translates to:
+  /// **'Custom method will be appended to selection'**
+  String get customMethodAppendedNote;
+
+  /// Title of the payment method picker dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Select Payment Methods'**
+  String get selectPaymentMethodsTitle;
+
+  /// Validation error when the amount is out of range
+  ///
+  /// In en, this message translates to:
+  /// **'Amount must be between {min} and {max}'**
+  String amountRangeError(String min, String max);
+
+  /// Title of the range amount dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Enter Amount'**
+  String get enterAmountTitle;
+
+  /// Range bounds label in the amount dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Min: {min} – Max: {max} {currency}'**
+  String minMaxRangeLabel(String min, String max, String currency);
+
+  /// Snackbar shown when submitting a rating fails
+  ///
+  /// In en, this message translates to:
+  /// **'Rating failed. Please try again.'**
+  String get ratingFailed;
+
+  /// Uppercase submit button on the rate screen
+  ///
+  /// In en, this message translates to:
+  /// **'SUBMIT'**
+  String get submitUppercaseButton;
+
+  /// Tooltip for a star in the rating selector
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Select 1 star} other{Select {count} stars}}'**
+  String selectStarTooltip(int count);
+
+  /// Title of the dispute info card
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute Details'**
+  String get disputeDetailsTitle;
+
+  /// Label for the dispute ID field
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute ID'**
+  String get disputeIdLabel;
+
+  /// Label showing the dispute reason
+  ///
+  /// In en, this message translates to:
+  /// **'Reason: {reason}'**
+  String disputeReasonLabel(String reason);
+
+  /// Sender label for administrator messages in a dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get adminLabel;
+
+  /// App bar title of the dispute chat screen
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute'**
+  String get disputeScreenTitle;
+
+  /// Title of the order filter dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Filters'**
+  String get filtersDialogTitle;
+
+  /// Button that resets all filters
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get resetButton;
+
+  /// Section label for the currency filter
+  ///
+  /// In en, this message translates to:
+  /// **'Currency'**
+  String get currencyLabel;
+
+  /// Section label for the rating filter
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get ratingLabel;
+
+  /// Button that applies the filters and closes the dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get applyButton;
+
+  /// Accessibility label for a reactive button in the success state
+  ///
+  /// In en, this message translates to:
+  /// **'Success'**
+  String get successLabel;
+
+  /// Button that copies the Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get copyButton;
+
+  /// Button that shares the Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareButton;
+
+  /// Prompt above a Lightning address confirmation
+  ///
+  /// In en, this message translates to:
+  /// **'Send {sats} sats to:'**
+  String sendSatsToAddress(String sats);
+
+  /// Button that returns to edit the Lightning address
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get changeButton;
+
+  /// Buy action in the add-order button
+  ///
+  /// In en, this message translates to:
+  /// **'Buy'**
+  String get buyLabel;
+
+  /// Sell action in the add-order button
+  ///
+  /// In en, this message translates to:
+  /// **'Sell'**
+  String get sellLabel;
+
+  /// Snackbar shown when a notification has no linked detail to open
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to open notification details.'**
+  String get unableToOpenNotification;
+
+  /// Order-book reason badge: best premium
+  ///
+  /// In en, this message translates to:
+  /// **'⚡ Best premium'**
+  String get reasonBestPremium;
+
+  /// Order-book reason badge: most reputable
+  ///
+  /// In en, this message translates to:
+  /// **'⭐ Most reputable'**
+  String get reasonMostReputable;
+
+  /// Order-book reason badge: just published
+  ///
+  /// In en, this message translates to:
+  /// **'🆕 Just published'**
+  String get reasonJustPublished;
+
+  /// Caption under an order-book card amount
+  ///
+  /// In en, this message translates to:
+  /// **'Market price'**
+  String get marketPriceCaption;
+
+  /// Trades and active days in the order-book reputation row
+  ///
+  /// In en, this message translates to:
+  /// **' · {trades} trades · {days} days'**
+  String orderReputationStats(int trades, int days);
+
+  /// Notification group action to collapse earlier events
+  ///
+  /// In en, this message translates to:
+  /// **'Hide earlier events'**
+  String get hideEarlierEvents;
+
+  /// Notification group action to expand earlier events
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{View 1 earlier event} other{View {count} earlier events}}'**
+  String viewEarlierEvents(int count);
+
+  /// Notification group footer link to the trade
+  ///
+  /// In en, this message translates to:
+  /// **'Go to trade'**
+  String get goToTrade;
+
+  /// Word 'Dispute' used in a notification group title
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute'**
+  String get disputeWord;
+
+  /// Word 'Trade' used in a notification group title
+  ///
+  /// In en, this message translates to:
+  /// **'Trade'**
+  String get tradeWord;
+
+  /// Notifications filter chip: all
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get notifFilterAll;
+
+  /// Notifications filter chip: disputes
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes'**
+  String get notifFilterDisputes;
+
+  /// Notifications filter chip: disputes with count
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes · {count}'**
+  String notifFilterDisputesCount(int count);
+
+  /// Notifications filter chip: system
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get notifFilterSystem;
+
+  /// Notifications filter chip: system with count
+  ///
+  /// In en, this message translates to:
+  /// **'System · {count}'**
+  String notifFilterSystemCount(int count);
+
+  /// NWC pay button label while paying
+  ///
+  /// In en, this message translates to:
+  /// **'Paying...'**
+  String get payingStatus;
+
+  /// NWC pay button label
+  ///
+  /// In en, this message translates to:
+  /// **'Pay with Wallet'**
+  String get payWithWalletButton;
+
+  /// Status while auto-generating a Lightning invoice via NWC
+  ///
+  /// In en, this message translates to:
+  /// **'Generating invoice via NWC...'**
+  String get generatingInvoiceNwc;
+
+  /// Error when NWC invoice auto-generation fails
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to generate invoice automatically'**
+  String get unableToGenerateInvoice;
+
+  /// Accessibility label for the peer avatar icon
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar icon'**
+  String get avatarIconLabel;
+
+  /// Market price with premium on the my-order screen
+  ///
+  /// In en, this message translates to:
+  /// **'Market Price ({premium}%)'**
+  String marketPricePremiumLabel(String premium);
+
+  /// Dispute list-item summary: resolved in the buyer's favour
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved in buyer\'s favour'**
+  String get disputeDescResolvedBuyerFavour;
+
+  /// Dispute list-item summary: resolved in the viewing user's favour
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved in your favour'**
+  String get disputeDescResolvedYourFavour;
+
+  /// Dispute list-item summary: resolved in the seller's favour
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved in seller\'s favour'**
+  String get disputeDescResolvedSellerFavour;
+
+  /// Dispute list-item summary: order cancelled cooperatively
+  ///
+  /// In en, this message translates to:
+  /// **'Order cancelled cooperatively'**
+  String get disputeDescCooperativeCancel;
+
+  /// Dispute list-item summary: generic resolved outcome
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved'**
+  String get disputeDescResolved;
+
+  /// Dispute list-item summary: the viewing user opened the dispute
+  ///
+  /// In en, this message translates to:
+  /// **'You opened this dispute'**
+  String get disputeDescYouOpened;
+
+  /// Dispute list-item summary: the counterpart opened the dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Counterpart opened this dispute'**
+  String get disputeDescCounterpartOpened;
+
+  /// Notification bell accessibility label when there are no unread notifications
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications, no unread notifications'**
+  String get notificationsBellNoUnread;
+
+  /// Notification bell accessibility label when the backup reminder is active
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications, backup reminder active'**
+  String get notificationsBellBackupActive;
+
+  /// Notification bell accessibility label with the unread count
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Notifications, 1 unread} other{Notifications, {count} unread}}'**
+  String notificationsBellUnread(int count);
+
+  /// Drawer menu item badge accessibility hint with the number of new items
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 new} other{{count} new}}'**
+  String drawerBadgeNewCount(int count);
+
+  /// Accessibility label for the Lightning invoice QR code image
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning invoice QR code'**
+  String get lightningInvoiceQrLabel;
 }
 
 class _AppLocalizationsDelegate

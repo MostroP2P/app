@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/screens/backup_ritual_screen.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Opens the backup ritual trigger bottom sheet.
 ///
@@ -32,6 +33,7 @@ class BackupTriggerSheet extends ConsumerWidget {
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
     final textDisabled = colors?.textDisabled ?? const Color(0xFF6C757D);
     final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
+    final l10n = AppLocalizations.of(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -83,7 +85,7 @@ class BackupTriggerSheet extends ConsumerWidget {
             const SizedBox(height: AppSpacing.lg),
 
             Text(
-              'Secure your reputation',
+              l10n.backupBannerTitle,
               textAlign: TextAlign.center,
               style: theme.textTheme.titleLarge!
                   .copyWith(fontWeight: FontWeight.w700),
@@ -91,11 +93,10 @@ class BackupTriggerSheet extends ConsumerWidget {
             const SizedBox(height: AppSpacing.sm),
             Text.rich(
               TextSpan(
-                text: 'Your reputation lives in a key only you hold. '
-                    'If you lose your phone, you lose that reputation — ',
+                text: l10n.backupTriggerBody,
                 children: [
                   TextSpan(
-                    text: 'back it up in 60 seconds.',
+                    text: l10n.backupTriggerBodyHighlight,
                     style:
                         TextStyle(color: green, fontWeight: FontWeight.w600),
                   ),
@@ -116,10 +117,10 @@ class BackupTriggerSheet extends ConsumerWidget {
               ),
               child: Column(
                 children: [
-                  for (final (n, label) in const [
-                    (1, 'Write your 12 words down on paper'),
-                    (2, 'We ask for 3 at random to confirm'),
-                    (3, 'Done — your account is secured'),
+                  for (final (n, label) in [
+                    (1, l10n.backupStepWriteDown),
+                    (2, l10n.backupStepVerifyRandom),
+                    (3, l10n.backupStepSecured),
                   ]) ...[
                     if (n > 1) const SizedBox(height: AppSpacing.sm),
                     Row(
@@ -174,7 +175,7 @@ class BackupTriggerSheet extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              child: const Text('Back up now'),
+              child: Text(l10n.backupNowButton),
             ),
             const SizedBox(height: AppSpacing.sm),
 
@@ -191,7 +192,7 @@ class BackupTriggerSheet extends ConsumerWidget {
                 minimumSize: const Size.fromHeight(44),
                 textStyle: const TextStyle(fontSize: 13),
               ),
-              child: const Text('Remind me tomorrow'),
+              child: Text(l10n.remindMeTomorrowButton),
             ),
           ],
         ),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Fallback decoy words for the verification step, used only in the
 /// (degenerate) case where the mnemonic itself does not contain enough
@@ -79,8 +80,10 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
       if (!mounted) return;
       if (words.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No identity found — try restarting the app.'),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).noIdentityFoundMessage,
+            ),
           ),
         );
         Navigator.of(context).pop();
@@ -92,8 +95,10 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
       debugPrint('[backup-ritual] failed to load words: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to load secret words. Please try again.'),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).failedToLoadSecretWordsMessage,
+          ),
         ),
       );
       Navigator.of(context).pop();
@@ -172,8 +177,10 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
       debugPrint('[backup-ritual] confirm error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to save backup status. Please try again.'),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).failedToSaveBackupStatusMessage,
+            ),
           ),
         );
       }
@@ -202,10 +209,11 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final elevated = colors?.backgroundElevated ?? const Color(0xFF2A2D35);
 
+    final l10n = AppLocalizations.of(context);
     final title = switch (_step) {
-      0 => 'Step 1 of 3 · Write down your words',
-      1 => 'Step 2 of 3 · Verify',
-      _ => 'Step 3 of 3 · Done',
+      0 => l10n.backupRitualStep1Title,
+      1 => l10n.backupRitualStep2Title,
+      _ => l10n.backupRitualStep3Title,
     };
 
     return Scaffold(
@@ -254,6 +262,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
   // ── Step 1: show words ──────────────────────────────────────────────────
 
   Widget _buildShowWords(ThemeData theme, AppColors? colors) {
+    final l10n = AppLocalizations.of(context);
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final elevated = colors?.backgroundElevated ?? const Color(0xFF2A2D35);
@@ -288,16 +297,13 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text.rich(
-                  const TextSpan(
-                    text: 'Write them on paper. ',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  TextSpan(
+                    text: l10n.backupRitualWarningTitle,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                     children: [
                       TextSpan(
-                        text:
-                            "Don't store them in photos, screenshots or the "
-                            'cloud — anyone with these 12 words can steal '
-                            'your reputation.',
-                        style: TextStyle(fontWeight: FontWeight.w400),
+                        text: l10n.backupRitualWarningBody,
+                        style: const TextStyle(fontWeight: FontWeight.w400),
                       ),
                     ],
                   ),
@@ -355,7 +361,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
                     const SizedBox(width: AppSpacing.xs),
                     Flexible(
                       child: Text(
-                        'These words will be hidden when you leave this screen',
+                        l10n.wordsHiddenOnLeaveNote,
                         style: theme.textTheme.bodySmall!
                             .copyWith(color: textSec, fontSize: 12),
                       ),
@@ -371,9 +377,9 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
 
         FilledButton.icon(
           onPressed: _startVerification,
-          icon: const Text(
-            'I wrote them down — verify',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          icon: Text(
+            l10n.wroteThemDownVerifyButton,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
           label: const Icon(Icons.arrow_forward, size: 18),
           style: FilledButton.styleFrom(
@@ -393,6 +399,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
   // ── Step 2: verify ──────────────────────────────────────────────────────
 
   Widget _buildVerify(ThemeData theme, AppColors? colors) {
+    final l10n = AppLocalizations.of(context);
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final elevated = colors?.backgroundElevated ?? const Color(0xFF2A2D35);
@@ -409,14 +416,13 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
         children: [
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Tap the correct words',
+            l10n.tapCorrectWordsTitle,
             style: theme.textTheme.titleLarge!
                 .copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'We ask for 3 at random. If you get them right, we know '
-            "they're safely written down.",
+            l10n.verifyInstructionsBody,
             style:
                 theme.textTheme.bodySmall!.copyWith(color: textSec, height: 1.5),
           ),
@@ -451,7 +457,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
           // Options for the active slot
           if (hasActiveSlot) ...[
             Text(
-              'OPTIONS FOR WORD #${_challenge[_activeSlot] + 1}',
+              l10n.optionsForWordLabel(_challenge[_activeSlot] + 1),
               style: theme.textTheme.bodySmall!.copyWith(
                 color: textSubtle,
                 fontSize: 12,
@@ -485,7 +491,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
             if (_wrongPick != null) ...[
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'Not quite — check your paper and try again.',
+                l10n.wrongPickMessage,
                 style: theme.textTheme.bodySmall!
                     .copyWith(color: red, fontSize: 12),
               ),
@@ -497,7 +503,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
                 Icon(Icons.check_circle_outline, size: 16, color: green),
                 const SizedBox(width: AppSpacing.xs),
                 Text(
-                  'All 3 words correct!',
+                  l10n.allWordsCorrectMessage,
                   style: theme.textTheme.bodySmall!.copyWith(color: green),
                 ),
               ],
@@ -519,9 +525,9 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.card),
                     ),
                   ),
-                  child: const Text(
-                    'Show words again',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  child: Text(
+                    l10n.showWordsAgainButton,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -545,9 +551,9 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text(
-                          'Confirm',
-                          style: TextStyle(
+                      : Text(
+                          l10n.confirmButtonLabel,
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
@@ -564,6 +570,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
   // ── Step 3: done ────────────────────────────────────────────────────────
 
   Widget _buildDone(ThemeData theme, AppColors? colors) {
+    final l10n = AppLocalizations.of(context);
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
 
@@ -585,15 +592,14 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
         ),
         const SizedBox(height: AppSpacing.xl),
         Text(
-          'Your account is backed up',
+          l10n.accountBackedUpTitle,
           textAlign: TextAlign.center,
           style:
               theme.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Your reputation is safe. If you ever lose your phone, '
-          'restore your account with your 12 words.',
+          l10n.accountBackedUpBody,
           textAlign: TextAlign.center,
           style:
               theme.textTheme.bodyMedium!.copyWith(color: textSec, height: 1.5),
@@ -611,7 +617,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
               borderRadius: BorderRadius.circular(14),
             ),
           ),
-          child: const Text('Done'),
+          child: Text(l10n.done),
         ),
         ],
       ),
@@ -765,7 +771,7 @@ class _SlotRow extends StatelessWidget {
           SizedBox(
             width: 64,
             child: Text(
-              'Word #$wordNumber',
+              AppLocalizations.of(context).wordNumberLabel(wordNumber),
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 12,

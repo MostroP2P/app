@@ -24,15 +24,15 @@ class HighlightConfig {
     ],
     // Page 4: Encrypted Chat
     3: [
-      r'end.to.end encrypted|cifrado de extremo a extremo|crittografato end.to.end|chiffré de bout en bout|Ende.zu.Ende.verschlüsselt',
+      r'end.to.end encrypted|cifrado de extremo a extremo|crittografato end.to.end|cifrat[oa] end.to.end|chiffré de bout en bout|Ende.zu.Ende.verschlüsselt',
     ],
     // Page 5: Take an Offer
     4: [
-      "order book|libro de órdenes|libro degli ordini|carnet d'ordres|Orderbuch",
+      "order book|libro de órdenes|libro degli ordini|book degli ordini|carnet d'ordres|Orderbuch",
     ],
     // Page 6: Create Your Own Offer
     5: [
-      r'create your own offer|crea tu propia oferta|crea la tua offerta|créez votre propre offre|erstelle dein eigenes Angebot',
+      r'create your own offer|crear? tu propia oferta|crea(?:re)? la tua offerta|cré(?:er|ez) votre propre offre|dein eigenes Angebot erstellen',
     ],
   };
 

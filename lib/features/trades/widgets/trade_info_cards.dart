@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// Reusable info card container for trade detail.
 class TradeInfoCard extends StatelessWidget {
@@ -49,14 +50,14 @@ class OrderIdCard extends StatelessWidget {
             onPressed: () {
               Clipboard.setData(ClipboardData(text: orderId));
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Order ID copied'),
-                  duration: Duration(seconds: 1),
+                SnackBar(
+                  content: Text(AppLocalizations.of(context).orderIdCopied),
+                  duration: const Duration(seconds: 1),
                 ),
               );
             },
             icon: const Icon(Icons.copy, size: 18),
-            tooltip: 'Copy order ID',
+            tooltip: AppLocalizations.of(context).copyOrderIdTooltip,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),

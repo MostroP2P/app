@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/mostro_defaults.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 
 // ── Provider for current Mostro node pubkey ───────────────────────────────────
@@ -72,7 +73,9 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
       debugPrint('[MostroNodeSelector] setActiveMostroNode(default) failed: $e');
       ref.read(mostroPubkeyProvider.notifier).state = previous;
       if (!mounted) return;
-      setState(() => _errorText = 'Failed to reset node');
+      setState(
+        () => _errorText = AppLocalizations.of(context).failedToResetNodeMessage,
+      );
     }
   }
 
@@ -83,7 +86,9 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
       return;
     }
     if (!_hexRegex.hasMatch(input)) {
-      setState(() => _errorText = 'Must be a 64-character hex string');
+      setState(
+        () => _errorText = AppLocalizations.of(context).invalidHexPubkey,
+      );
       return;
     }
     final pubkey = input.toLowerCase();
@@ -97,7 +102,10 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
       debugPrint('[MostroNodeSelector] setActiveMostroNode failed: $e');
       ref.read(mostroPubkeyProvider.notifier).state = previous;
       if (!mounted) return;
-      setState(() => _errorText = 'Invalid pubkey or bridge error');
+      setState(
+        () => _errorText =
+            AppLocalizations.of(context).invalidPubkeyOrBridgeErrorMessage,
+      );
     }
   }
 
@@ -106,6 +114,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
     final currentPubkey = ref.watch(mostroPubkeyProvider);
     final colors = Theme.of(context).extension<AppColors>()!;
     final isDefault = currentPubkey == _defaultMostroPubkey;
+    final l10n = AppLocalizations.of(context);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -121,13 +130,13 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
           Row(
             children: [
               Text(
-                'Mostro Node',
+                l10n.mostroNodeTitle,
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close),
-                tooltip: 'Close',
+                tooltip: l10n.closeButtonLabel,
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -147,14 +156,14 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Current Node',
+                        l10n.currentNodeLabel,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: colors.textSubtle,
                             ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Semantics(
-                        label: 'Current node public key',
+                        label: l10n.currentNodePublicKeyLabel,
                         value: currentPubkey,
                         child: Text(
                           truncatePubkey(currentPubkey),
@@ -177,7 +186,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                       borderRadius: BorderRadius.circular(AppRadius.chip),
                     ),
                     child: Text(
-                      'Trusted',
+                      l10n.trustedBadgeLabel,
                       style: TextStyle(
                         color: colors.mostroGreen,
                         fontSize: 11,
@@ -190,7 +199,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Use a custom node pubkey',
+            l10n.useCustomNodePubkeyLabel,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colors.textSubtle,
                 ),
@@ -203,7 +212,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
             enableSuggestions: false,
             keyboardType: TextInputType.visiblePassword,
             decoration: InputDecoration(
-              hintText: 'Enter 64-char hex pubkey',
+              hintText: l10n.enterHexPubkeyHint,
               errorText: _errorText,
               counterText: '',
             ),
@@ -217,14 +226,14 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: _useDefault,
-                  child: const Text('Use Default'),
+                  child: Text(l10n.useDefaultButtonLabel),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: FilledButton(
                   onPressed: _confirm,
-                  child: const Text('Confirm'),
+                  child: Text(l10n.confirmButtonLabel),
                 ),
               ),
             ],

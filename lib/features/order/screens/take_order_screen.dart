@@ -186,17 +186,18 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
     final flags = ref.watch(currencyFlagsProvider);
     final privacyMode = ref.watch(privacyModeProvider);
+    final l10n = AppLocalizations.of(context);
 
     if (order == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Order Not Found')),
-        body: const Center(child: Text('This order is no longer available.')),
+        appBar: AppBar(title: Text(l10n.orderNotFoundTitle)),
+        body: Center(child: Text(l10n.orderNotFoundMessage)),
       );
     }
 
     final flag = flags[order.fiatCode] ?? '';
-    final title = widget.isBuying ? 'SELL ORDER DETAILS' : 'BUY ORDER DETAILS';
-    final actionLabel = widget.isBuying ? 'BUY THESE SATS' : 'SELL SATS';
+    final title = widget.isBuying ? l10n.sellOrderDetailsTitle : l10n.buyOrderDetailsTitle;
+    final actionLabel = widget.isBuying ? l10n.buyTheseSatsButton : l10n.sellSatsButton;
     final premiumPositive = order.premium >= 0;
 
     return Scaffold(
@@ -212,14 +213,14 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
               children: [
                 Text(
                   widget.isBuying
-                      ? 'Someone is selling sats'
-                      : 'Someone is buying sats',
+                      ? l10n.someoneSellingSats
+                      : l10n.someoneBuyingSats,
                   style: theme.textTheme.headlineMedium,
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text.rich(
                   TextSpan(
-                    text: 'for ',
+                    text: l10n.takeOrderForPrefix,
                     style: TextStyle(color: textSec, fontSize: 14),
                     children: [
                       TextSpan(
@@ -229,13 +230,14 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const TextSpan(text: ' at market price'),
+                      TextSpan(text: l10n.takeOrderAtMarketPrice),
                     ],
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Premium: ${premiumPositive ? '+' : ''}${order.premium.toStringAsFixed(1)}%',
+                  l10n.premiumLabel(
+                      '${premiumPositive ? '+' : ''}${order.premium.toStringAsFixed(1)}'),
                   style: TextStyle(
                     color: premiumPositive ? green : colors?.sellColor,
                     fontSize: 13,
@@ -299,14 +301,14 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: order.id));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Order ID copied'),
-                        duration: Duration(seconds: 1),
+                      SnackBar(
+                        content: Text(l10n.orderIdCopied),
+                        duration: const Duration(seconds: 1),
                       ),
                     );
                   },
                   icon: const Icon(Icons.copy, size: 18),
-                  tooltip: 'Copy order ID',
+                  tooltip: l10n.copyOrderIdTooltip,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -325,7 +327,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Creator reputation',
+                    l10n.creatorReputation,
                     style: TextStyle(color: textSec, fontSize: 12),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -334,7 +336,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                       Expanded(
                         child: _ReputationStat(
                           value: order.rating.toStringAsFixed(1),
-                          label: 'rating',
+                          label: l10n.ratingStatLabel,
                           icon: Icons.star,
                           iconColor: Colors.amber,
                         ),
@@ -342,13 +344,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                       Expanded(
                         child: _ReputationStat(
                           value: '${order.tradeCount}',
-                          label: 'trades',
+                          label: l10n.tradesStatLabel,
                         ),
                       ),
                       Expanded(
                         child: _ReputationStat(
                           value: '${order.daysActive}',
-                          label: 'days active',
+                          label: l10n.daysActiveStatLabel,
                         ),
                       ),
                     ],
@@ -407,7 +409,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'TIME TO TAKE THIS ORDER',
+                          l10n.timeToTakeOrder,
                           style: TextStyle(
                             color: green,
                             fontSize: 11,
@@ -418,8 +420,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                         const SizedBox(height: AppSpacing.xs),
                         Text.rich(
                           TextSpan(
-                            text: 'If it expires, the order is removed '
-                                'from the book. ',
+                            text: l10n.orderExpiryRemovedNote,
                             style: TextStyle(
                               color: textSec,
                               fontSize: 12,
@@ -427,7 +428,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                             ),
                             children: [
                               TextSpan(
-                                text: "It won't affect your reputation.",
+                                text: l10n.orderExpiryNoReputationNote,
                                 style: TextStyle(
                                   color: green,
                                   fontWeight: FontWeight.w600,
@@ -467,7 +468,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                  child: const Text('CLOSE'),
+                  child: Text(l10n.closeRatingButton),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),

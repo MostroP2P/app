@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 /// Commonly traded currencies shown first in the filter. The full list
@@ -45,6 +46,7 @@ class _OrderFilterDialog extends ConsumerWidget {
     final currencies = allCurrencies.isNotEmpty ? allCurrencies : _topCurrencies;
     final ratingRange = ref.watch(ratingFilterProvider);
     final premiumRange = ref.watch(premiumRangeFilterProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Dialog(
       backgroundColor: cardBg,
@@ -62,7 +64,8 @@ class _OrderFilterDialog extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Filters', style: theme.textTheme.headlineSmall),
+                  Text(l10n.filtersDialogTitle,
+                      style: theme.textTheme.headlineSmall),
                   TextButton(
                     onPressed: () {
                       ref.read(currencyFilterProvider.notifier).state = [];
@@ -72,14 +75,14 @@ class _OrderFilterDialog extends ConsumerWidget {
                       ref.read(premiumRangeFilterProvider.notifier).state =
                           defaultPremiumRange;
                     },
-                    child: Text('Reset', style: TextStyle(color: green)),
+                    child: Text(l10n.resetButton, style: TextStyle(color: green)),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
 
               // Currency chips
-              Text('Currency', style: theme.textTheme.labelLarge),
+              Text(l10n.currencyLabel, style: theme.textTheme.labelLarge),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -104,7 +107,7 @@ class _OrderFilterDialog extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
 
               // Payment method chips
-              Text('Payment Method', style: theme.textTheme.labelLarge),
+              Text(l10n.paymentMethodLabel, style: theme.textTheme.labelLarge),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -129,7 +132,7 @@ class _OrderFilterDialog extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
 
               // Rating range slider
-              Text('Rating', style: theme.textTheme.labelLarge),
+              Text(l10n.ratingLabel, style: theme.textTheme.labelLarge),
               RangeSlider(
                 values: RangeValues(ratingRange.min, ratingRange.max),
                 min: 0,
@@ -148,7 +151,7 @@ class _OrderFilterDialog extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
 
               // Premium range slider
-              Text('Premium', style: theme.textTheme.labelLarge),
+              Text(l10n.premiumSectionLabel, style: theme.textTheme.labelLarge),
               RangeSlider(
                 values: RangeValues(premiumRange.min, premiumRange.max),
                 min: -10,
@@ -178,7 +181,7 @@ class _OrderFilterDialog extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                  child: const Text('Apply'),
+                  child: Text(l10n.applyButton),
                 ),
               ),
             ],

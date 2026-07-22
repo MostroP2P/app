@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 /// Provider for the currently selected fiat code in the create-order form.
@@ -108,9 +109,9 @@ class _CurrencyPickerDialogState extends State<_CurrencyPickerDialog> {
             padding: const EdgeInsets.all(AppSpacing.md),
             child: TextField(
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Search currency...',
-                prefixIcon: Icon(Icons.search),
+              decoration: InputDecoration(
+                hintText: AppLocalizations.of(context).searchCurrenciesHint,
+                prefixIcon: const Icon(Icons.search),
               ),
               onChanged: (v) => setState(() => _query = v),
             ),
