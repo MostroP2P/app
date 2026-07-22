@@ -24,8 +24,9 @@ class DisputeListItem extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
 
-    final (statusBg, statusFg, statusLabel) = _statusChip(dispute.status);
+    final (statusBg, statusFg, statusLabel) = _statusChip(dispute.status, l10n);
     final truncatedId = dispute.tradeId.length > 16
         ? '${dispute.tradeId.substring(0, 16)}…'
         : dispute.tradeId;
@@ -102,7 +103,7 @@ class DisputeListItem extends ConsumerWidget {
 
                   // Description
                   Text(
-                    dispute.description,
+                    dispute.localizedDescription(l10n),
                     style: textTheme.bodySmall?.copyWith(
                       color: colors.textSecondary,
                     ),
@@ -118,23 +119,52 @@ class DisputeListItem extends ConsumerWidget {
     );
   }
 
-  static (Color, Color, String) _statusChip(DisputeStatus status) {
+  static (Color, Color, String) _statusChip(
+    DisputeStatus status,
+    AppLocalizations l10n,
+  ) {
     return switch (status) {
       DisputeStatus.open => (
         AppColors.statusPending.$1,
         AppColors.statusPending.$2,
-        'Initiated',
+        l10n.disputeInitiated,
       ),
       DisputeStatus.inReview => (
         AppColors.statusActive.$1,
         AppColors.statusActive.$2,
-        'In progress',
+        l10n.disputeInProgress,
       ),
       DisputeStatus.resolved => (
         AppColors.statusInactive.$1,
         AppColors.statusInactive.$2,
-        'Closed',
+        l10n.disputeStatusClosed,
       ),
     };
+  }
+}
+
+/// Localizes the summary line shown for a dispute in list items.
+///
+/// Kept out of [DisputeItem] so the model stays locale-independent; the
+/// wording is resolved at render time from the dispute's status, resolution
+/// and the viewing user's role.
+extension DisputeItemL10n on DisputeItem {
+  String localizedDescription(AppLocalizations l10n) {
+    if (status == DisputeStatus.resolved) {
+      return switch (resolution) {
+        DisputeResolution.fundsToBuyer => isSelling
+            ? l10n.disputeDescResolvedBuyerFavour
+            : l10n.disputeDescResolvedYourFavour,
+        DisputeResolution.fundsToSeller => isSelling
+            ? l10n.disputeDescResolvedYourFavour
+            : l10n.disputeDescResolvedSellerFavour,
+        DisputeResolution.cooperativeCancel =>
+          l10n.disputeDescCooperativeCancel,
+        null => l10n.disputeDescResolved,
+      };
+    }
+    return initiatedByMe
+        ? l10n.disputeDescYouOpened
+        : l10n.disputeDescCounterpartOpened;
   }
 }

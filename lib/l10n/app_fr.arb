@@ -638,5 +638,17 @@
   "generatingInvoiceNwc": "Génération de la facture via NWC...",
   "unableToGenerateInvoice": "Impossible de générer la facture automatiquement",
   "avatarIconLabel": "Icône d'avatar",
-  "marketPricePremiumLabel": "Prix du marché ({premium}%)"
+  "marketPricePremiumLabel": "Prix du marché ({premium}%)",
+  "disputeDescResolvedBuyerFavour": "Litige résolu en faveur de l'acheteur",
+  "disputeDescResolvedYourFavour": "Litige résolu en votre faveur",
+  "disputeDescResolvedSellerFavour": "Litige résolu en faveur du vendeur",
+  "disputeDescCooperativeCancel": "Commande annulée coopérativement",
+  "disputeDescResolved": "Litige résolu",
+  "disputeDescYouOpened": "Vous avez ouvert ce litige",
+  "disputeDescCounterpartOpened": "La contrepartie a ouvert ce litige",
+  "notificationsBellNoUnread": "Notifications, aucune notification non lue",
+  "notificationsBellBackupActive": "Notifications, rappel de sauvegarde actif",
+  "notificationsBellUnread": "{count, plural, =1{Notifications, 1 non lue} other{Notifications, {count} non lues}}",
+  "drawerBadgeNewCount": "{count, plural, =1{1 nouveau} other{{count} nouveaux}}",
+  "lightningInvoiceQrLabel": "QR code de la facture Lightning"
 }

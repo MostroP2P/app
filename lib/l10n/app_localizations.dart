@@ -3799,6 +3799,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Market Price ({premium}%)'**
   String marketPricePremiumLabel(String premium);
+
+  /// Dispute list-item summary: resolved in the buyer's favour
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved in buyer\'s favour'**
+  String get disputeDescResolvedBuyerFavour;
+
+  /// Dispute list-item summary: resolved in the viewing user's favour
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved in your favour'**
+  String get disputeDescResolvedYourFavour;
+
+  /// Dispute list-item summary: resolved in the seller's favour
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved in seller\'s favour'**
+  String get disputeDescResolvedSellerFavour;
+
+  /// Dispute list-item summary: order cancelled cooperatively
+  ///
+  /// In en, this message translates to:
+  /// **'Order cancelled cooperatively'**
+  String get disputeDescCooperativeCancel;
+
+  /// Dispute list-item summary: generic resolved outcome
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolved'**
+  String get disputeDescResolved;
+
+  /// Dispute list-item summary: the viewing user opened the dispute
+  ///
+  /// In en, this message translates to:
+  /// **'You opened this dispute'**
+  String get disputeDescYouOpened;
+
+  /// Dispute list-item summary: the counterpart opened the dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Counterpart opened this dispute'**
+  String get disputeDescCounterpartOpened;
+
+  /// Notification bell accessibility label when there are no unread notifications
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications, no unread notifications'**
+  String get notificationsBellNoUnread;
+
+  /// Notification bell accessibility label when the backup reminder is active
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications, backup reminder active'**
+  String get notificationsBellBackupActive;
+
+  /// Notification bell accessibility label with the unread count
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Notifications, 1 unread} other{Notifications, {count} unread}}'**
+  String notificationsBellUnread(int count);
+
+  /// Drawer menu item badge accessibility hint with the number of new items
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 new} other{{count} new}}'**
+  String drawerBadgeNewCount(int count);
+
+  /// Accessibility label for the Lightning invoice QR code image
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning invoice QR code'**
+  String get lightningInvoiceQrLabel;
 }
 
 class _AppLocalizationsDelegate

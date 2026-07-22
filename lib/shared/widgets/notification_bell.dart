@@ -6,6 +6,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 /// App-bar notification bell.
 ///
@@ -71,11 +72,12 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
       if (next > (prev ?? 0)) _triggerShake();
     });
 
+    final l10n = AppLocalizations.of(context);
     final semanticLabel = !isActive
-        ? 'Notifications, no unread notifications'
+        ? l10n.notificationsBellNoUnread
         : backupActive
-            ? 'Notifications, backup reminder active'
-            : 'Notifications, $unreadCount unread';
+            ? l10n.notificationsBellBackupActive
+            : l10n.notificationsBellUnread(unreadCount);
 
     return Semantics(
       label: semanticLabel,

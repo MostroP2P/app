@@ -262,6 +262,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
+    final l10n = AppLocalizations.of(context);
     final activeBg = green.withValues(alpha: 0.12);
     final iconColor = isActive ? green : Colors.white;
     final textColor = isActive ? green : Colors.white;
@@ -272,7 +273,7 @@ class _NavItem extends StatelessWidget {
       button: true,
       label: label,
       selected: isActive,
-      hint: badgeCount > 0 ? '$badgeCount new' : null,
+      hint: badgeCount > 0 ? l10n.drawerBadgeNewCount(badgeCount) : null,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

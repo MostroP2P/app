@@ -2112,4 +2112,61 @@ class AppLocalizationsEs extends AppLocalizations {
   String marketPricePremiumLabel(String premium) {
     return 'Precio de mercado ($premium%)';
   }
+
+  @override
+  String get disputeDescResolvedBuyerFavour =>
+      'Disputa resuelta a favor del comprador';
+
+  @override
+  String get disputeDescResolvedYourFavour => 'Disputa resuelta a tu favor';
+
+  @override
+  String get disputeDescResolvedSellerFavour =>
+      'Disputa resuelta a favor del vendedor';
+
+  @override
+  String get disputeDescCooperativeCancel => 'Orden cancelada cooperativamente';
+
+  @override
+  String get disputeDescResolved => 'Disputa resuelta';
+
+  @override
+  String get disputeDescYouOpened => 'Abriste esta disputa';
+
+  @override
+  String get disputeDescCounterpartOpened =>
+      'La contraparte abrió esta disputa';
+
+  @override
+  String get notificationsBellNoUnread =>
+      'Notificaciones, sin notificaciones sin leer';
+
+  @override
+  String get notificationsBellBackupActive =>
+      'Notificaciones, recordatorio de respaldo activo';
+
+  @override
+  String notificationsBellUnread(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Notificaciones, $count sin leer',
+      one: 'Notificaciones, 1 sin leer',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String drawerBadgeNewCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count nuevos',
+      one: '1 nuevo',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get lightningInvoiceQrLabel => 'Código QR de la factura Lightning';
 }

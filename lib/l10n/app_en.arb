@@ -1409,5 +1409,35 @@
   "@marketPricePremiumLabel": {
     "description": "Market price with premium on the my-order screen",
     "placeholders": {"premium": {"type": "String"}}
-  }
+  },
+  "disputeDescResolvedBuyerFavour": "Dispute resolved in buyer's favour",
+  "@disputeDescResolvedBuyerFavour": {"description": "Dispute list-item summary: resolved in the buyer's favour"},
+  "disputeDescResolvedYourFavour": "Dispute resolved in your favour",
+  "@disputeDescResolvedYourFavour": {"description": "Dispute list-item summary: resolved in the viewing user's favour"},
+  "disputeDescResolvedSellerFavour": "Dispute resolved in seller's favour",
+  "@disputeDescResolvedSellerFavour": {"description": "Dispute list-item summary: resolved in the seller's favour"},
+  "disputeDescCooperativeCancel": "Order cancelled cooperatively",
+  "@disputeDescCooperativeCancel": {"description": "Dispute list-item summary: order cancelled cooperatively"},
+  "disputeDescResolved": "Dispute resolved",
+  "@disputeDescResolved": {"description": "Dispute list-item summary: generic resolved outcome"},
+  "disputeDescYouOpened": "You opened this dispute",
+  "@disputeDescYouOpened": {"description": "Dispute list-item summary: the viewing user opened the dispute"},
+  "disputeDescCounterpartOpened": "Counterpart opened this dispute",
+  "@disputeDescCounterpartOpened": {"description": "Dispute list-item summary: the counterpart opened the dispute"},
+  "notificationsBellNoUnread": "Notifications, no unread notifications",
+  "@notificationsBellNoUnread": {"description": "Notification bell accessibility label when there are no unread notifications"},
+  "notificationsBellBackupActive": "Notifications, backup reminder active",
+  "@notificationsBellBackupActive": {"description": "Notification bell accessibility label when the backup reminder is active"},
+  "notificationsBellUnread": "{count, plural, =1{Notifications, 1 unread} other{Notifications, {count} unread}}",
+  "@notificationsBellUnread": {
+    "description": "Notification bell accessibility label with the unread count",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "drawerBadgeNewCount": "{count, plural, =1{1 new} other{{count} new}}",
+  "@drawerBadgeNewCount": {
+    "description": "Drawer menu item badge accessibility hint with the number of new items",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "lightningInvoiceQrLabel": "Lightning invoice QR code",
+  "@lightningInvoiceQrLabel": {"description": "Accessibility label for the Lightning invoice QR code image"}
 }
