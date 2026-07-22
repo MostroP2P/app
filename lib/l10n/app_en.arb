@@ -1350,5 +1350,7 @@
   "buyLabel": "Buy",
   "@buyLabel": {"description": "Buy action in the add-order button"},
   "sellLabel": "Sell",
-  "@sellLabel": {"description": "Sell action in the add-order button"}
+  "@sellLabel": {"description": "Sell action in the add-order button"},
+  "unableToOpenNotification": "Unable to open notification details.",
+  "@unableToOpenNotification": {"description": "Snackbar shown when a notification has no linked detail to open"}
 }

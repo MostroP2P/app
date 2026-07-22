@@ -2028,4 +2028,8 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get sellLabel => 'Vender';
+
+  @override
+  String get unableToOpenNotification =>
+      'No se pueden abrir los detalles de la notificación.';
 }

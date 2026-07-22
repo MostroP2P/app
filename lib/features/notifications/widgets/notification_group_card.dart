@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 
 /// Collapsible card grouping all notifications that reference the same
@@ -361,15 +362,15 @@ class _EventOverflowMenu extends StatelessWidget {
         }
       },
       itemBuilder:
-          (_) => [
+          (context) => [
             if (!isRead)
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: _EventMenuAction.markRead,
-                child: Text('Mark as read'),
+                child: Text(AppLocalizations.of(context).markAsRead),
               ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: _EventMenuAction.delete,
-              child: Text('Delete'),
+              child: Text(AppLocalizations.of(context).deleteNotificationLabel),
             ),
           ],
     );

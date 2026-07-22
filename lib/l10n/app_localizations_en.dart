@@ -2004,4 +2004,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sellLabel => 'Sell';
+
+  @override
+  String get unableToOpenNotification => 'Unable to open notification details.';
 }

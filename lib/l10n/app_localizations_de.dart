@@ -2034,4 +2034,8 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get sellLabel => 'Verkaufen';
+
+  @override
+  String get unableToOpenNotification =>
+      'Benachrichtigungsdetails können nicht geöffnet werden.';
 }

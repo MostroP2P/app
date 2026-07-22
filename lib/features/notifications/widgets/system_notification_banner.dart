@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/widgets/notification_group_card.dart'
     show relativeTime;
@@ -152,15 +153,15 @@ class _BannerOverflowMenu extends StatelessWidget {
         }
       },
       itemBuilder:
-          (_) => [
+          (context) => [
             if (!isRead)
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: _BannerMenuAction.markRead,
-                child: Text('Mark as read'),
+                child: Text(AppLocalizations.of(context).markAsRead),
               ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: _BannerMenuAction.delete,
-              child: Text('Delete'),
+              child: Text(AppLocalizations.of(context).deleteNotificationLabel),
             ),
           ],
     );

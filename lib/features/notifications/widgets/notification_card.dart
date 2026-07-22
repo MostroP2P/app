@@ -2,6 +2,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 
 class NotificationCard extends StatelessWidget {
@@ -219,15 +220,15 @@ class _OverflowMenu extends StatelessWidget {
             onDelete();
         }
       },
-      itemBuilder: (_) => [
+      itemBuilder: (context) => [
         if (!isRead)
-          const PopupMenuItem(
+          PopupMenuItem(
             value: _CardMenuAction.markRead,
-            child: Text('Mark as read'),
+            child: Text(AppLocalizations.of(context).markAsRead),
           ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _CardMenuAction.delete,
-          child: Text('Delete'),
+          child: Text(AppLocalizations.of(context).deleteNotificationLabel),
         ),
       ],
     );

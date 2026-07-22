@@ -616,5 +616,6 @@
   "sendSatsToAddress": "Sende {sats} Sats an:",
   "changeButton": "Ändern",
   "buyLabel": "Kaufen",
-  "sellLabel": "Verkaufen"
+  "sellLabel": "Verkaufen",
+  "unableToOpenNotification": "Benachrichtigungsdetails können nicht geöffnet werden."
 }

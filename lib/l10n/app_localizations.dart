@@ -3667,6 +3667,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sell'**
   String get sellLabel;
+
+  /// Snackbar shown when a notification has no linked detail to open
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to open notification details.'**
+  String get unableToOpenNotification;
 }
 
 class _AppLocalizationsDelegate

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
@@ -37,7 +38,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(AppLocalizations.of(context).notificationsScreenTitle),
         actions: [
           PopupMenuButton<_MenuAction>(
             onSelected: (action) {
@@ -49,14 +50,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               }
             },
             itemBuilder:
-                (_) => const [
+                (context) => [
                   PopupMenuItem(
                     value: _MenuAction.markAllRead,
-                    child: Text('Mark all as read'),
+                    child:
+                        Text(AppLocalizations.of(context).markAllAsReadMenuItem),
                   ),
                   PopupMenuItem(
                     value: _MenuAction.clearAll,
-                    child: Text('Clear all'),
+                    child: Text(AppLocalizations.of(context).clearAllMenuItem),
                   ),
                 ],
           ),
@@ -190,9 +192,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   void _handleTap(BuildContext context, NotificationModel n) {
     void noId() {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to open notification details.'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).unableToOpenNotification),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
