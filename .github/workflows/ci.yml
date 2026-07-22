@@ -112,7 +112,11 @@ jobs:
         run: |
           flutter gen-l10n
           report=lib/l10n/untranslated_messages.txt
-          if [ -f "$report" ] && [ "$(tr -d '[:space:]' < "$report")" != "{}" ]; then
+          if [ ! -f "$report" ]; then
+            echo "::error::Expected untranslated-messages report was not generated."
+            exit 1
+          fi
+          if [ "$(tr -d '[:space:]' < "$report")" != "{}" ]; then
             echo "::error::Untranslated localization keys found (see below):"
             cat "$report"
             exit 1

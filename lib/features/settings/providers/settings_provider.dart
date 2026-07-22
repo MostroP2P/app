@@ -130,14 +130,19 @@ final settingsProvider =
 final Set<String> _supportedLanguageCodes =
     AppLocalizations.supportedLocales.map((l) => l.languageCode).toSet();
 
-/// The device's language when the app supports it, otherwise English.
+/// The first supported language among the device's preferred locales, or
+/// English when none is supported.
 ///
-/// Used as the first-run default so a new user starts in their own language
-/// instead of always defaulting to English.
+/// Iterates the ordered [PlatformDispatcher.locales] rather than just the
+/// primary locale, so a device preferring e.g. `pt-BR` then `es` starts in
+/// Spanish instead of falling back to English. Used as the first-run default.
 String _deviceDefaultLanguage() {
-  final deviceCode =
-      WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-  return _supportedLanguageCodes.contains(deviceCode) ? deviceCode : 'en';
+  for (final locale in WidgetsBinding.instance.platformDispatcher.locales) {
+    if (_supportedLanguageCodes.contains(locale.languageCode)) {
+      return locale.languageCode;
+    }
+  }
+  return 'en';
 }
 
 /// Normalizes a stored or selected language to a supported code.

@@ -14,10 +14,10 @@ void main() {
   // Force a deterministic, supported device locale so the device-default
   // fallback is predictable across machines and CI.
   setUp(() {
-    binding.platformDispatcher.localeTestValue = const Locale('en');
+    binding.platformDispatcher.localesTestValue = const [Locale('en')];
   });
   tearDown(() {
-    binding.platformDispatcher.clearLocaleTestValue();
+    binding.platformDispatcher.clearLocalesTestValue();
   });
 
   Future<AppSettingsState> stateWith(String? language) async {
@@ -53,10 +53,20 @@ void main() {
     });
 
     test('device default follows a supported device locale', () async {
-      binding.platformDispatcher.localeTestValue = const Locale('de');
+      binding.platformDispatcher.localesTestValue = const [Locale('de')];
       expect((await stateWith('pt')).language, 'de'); // unsupported -> device
       expect((await stateWith(null)).language, 'de'); // first run -> device
       expect((await stateWith('es')).language, 'es'); // explicit supported wins
+    });
+
+    test('device default picks the first supported preferred locale', () async {
+      // Unsupported primary (pt-BR) but a supported secondary (es).
+      binding.platformDispatcher.localesTestValue = const [
+        Locale('pt', 'BR'),
+        Locale('es'),
+      ];
+      expect((await stateWith('pt')).language, 'es'); // unsupported stored -> secondary
+      expect((await stateWith(null)).language, 'es'); // first run -> secondary
     });
   });
 
