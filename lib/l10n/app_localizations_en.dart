@@ -2007,4 +2007,84 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get unableToOpenNotification => 'Unable to open notification details.';
+
+  @override
+  String get reasonBestPremium => '⚡ Best premium';
+
+  @override
+  String get reasonMostReputable => '⭐ Most reputable';
+
+  @override
+  String get reasonJustPublished => '🆕 Just published';
+
+  @override
+  String get marketPriceCaption => 'Market price';
+
+  @override
+  String orderReputationStats(int trades, int days) {
+    return ' · $trades trades · $days days';
+  }
+
+  @override
+  String get hideEarlierEvents => 'Hide earlier events';
+
+  @override
+  String viewEarlierEvents(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'View $count earlier events',
+      one: 'View 1 earlier event',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get goToTrade => 'Go to trade';
+
+  @override
+  String get disputeWord => 'Dispute';
+
+  @override
+  String get tradeWord => 'Trade';
+
+  @override
+  String get notifFilterAll => 'All';
+
+  @override
+  String get notifFilterDisputes => 'Disputes';
+
+  @override
+  String notifFilterDisputesCount(int count) {
+    return 'Disputes · $count';
+  }
+
+  @override
+  String get notifFilterSystem => 'System';
+
+  @override
+  String notifFilterSystemCount(int count) {
+    return 'System · $count';
+  }
+
+  @override
+  String get payingStatus => 'Paying...';
+
+  @override
+  String get payWithWalletButton => 'Pay with Wallet';
+
+  @override
+  String get generatingInvoiceNwc => 'Generating invoice via NWC...';
+
+  @override
+  String get unableToGenerateInvoice =>
+      'Unable to generate invoice automatically';
+
+  @override
+  String get avatarIconLabel => 'Avatar icon';
+
+  @override
+  String marketPricePremiumLabel(String premium) {
+    return 'Market Price ($premium%)';
+  }
 }

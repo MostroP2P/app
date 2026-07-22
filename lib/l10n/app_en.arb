@@ -1352,5 +1352,62 @@
   "sellLabel": "Sell",
   "@sellLabel": {"description": "Sell action in the add-order button"},
   "unableToOpenNotification": "Unable to open notification details.",
-  "@unableToOpenNotification": {"description": "Snackbar shown when a notification has no linked detail to open"}
+  "@unableToOpenNotification": {"description": "Snackbar shown when a notification has no linked detail to open"},
+  "reasonBestPremium": "⚡ Best premium",
+  "@reasonBestPremium": {"description": "Order-book reason badge: best premium"},
+  "reasonMostReputable": "⭐ Most reputable",
+  "@reasonMostReputable": {"description": "Order-book reason badge: most reputable"},
+  "reasonJustPublished": "🆕 Just published",
+  "@reasonJustPublished": {"description": "Order-book reason badge: just published"},
+  "marketPriceCaption": "Market price",
+  "@marketPriceCaption": {"description": "Caption under an order-book card amount"},
+  "orderReputationStats": " · {trades} trades · {days} days",
+  "@orderReputationStats": {
+    "description": "Trades and active days in the order-book reputation row",
+    "placeholders": {"trades": {"type": "int"}, "days": {"type": "int"}}
+  },
+  "hideEarlierEvents": "Hide earlier events",
+  "@hideEarlierEvents": {"description": "Notification group action to collapse earlier events"},
+  "viewEarlierEvents": "{count, plural, =1{View 1 earlier event} other{View {count} earlier events}}",
+  "@viewEarlierEvents": {
+    "description": "Notification group action to expand earlier events",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "goToTrade": "Go to trade",
+  "@goToTrade": {"description": "Notification group footer link to the trade"},
+  "disputeWord": "Dispute",
+  "@disputeWord": {"description": "Word 'Dispute' used in a notification group title"},
+  "tradeWord": "Trade",
+  "@tradeWord": {"description": "Word 'Trade' used in a notification group title"},
+  "notifFilterAll": "All",
+  "@notifFilterAll": {"description": "Notifications filter chip: all"},
+  "notifFilterDisputes": "Disputes",
+  "@notifFilterDisputes": {"description": "Notifications filter chip: disputes"},
+  "notifFilterDisputesCount": "Disputes · {count}",
+  "@notifFilterDisputesCount": {
+    "description": "Notifications filter chip: disputes with count",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "notifFilterSystem": "System",
+  "@notifFilterSystem": {"description": "Notifications filter chip: system"},
+  "notifFilterSystemCount": "System · {count}",
+  "@notifFilterSystemCount": {
+    "description": "Notifications filter chip: system with count",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "payingStatus": "Paying...",
+  "@payingStatus": {"description": "NWC pay button label while paying"},
+  "payWithWalletButton": "Pay with Wallet",
+  "@payWithWalletButton": {"description": "NWC pay button label"},
+  "generatingInvoiceNwc": "Generating invoice via NWC...",
+  "@generatingInvoiceNwc": {"description": "Status while auto-generating a Lightning invoice via NWC"},
+  "unableToGenerateInvoice": "Unable to generate invoice automatically",
+  "@unableToGenerateInvoice": {"description": "Error when NWC invoice auto-generation fails"},
+  "avatarIconLabel": "Avatar icon",
+  "@avatarIconLabel": {"description": "Accessibility label for the peer avatar icon"},
+  "marketPricePremiumLabel": "Market Price ({premium}%)",
+  "@marketPricePremiumLabel": {
+    "description": "Market price with premium on the my-order screen",
+    "placeholders": {"premium": {"type": "String"}}
+  }
 }

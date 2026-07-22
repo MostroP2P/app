@@ -81,7 +81,7 @@ class _NotificationGroupCardState extends State<NotificationGroupCard> {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  _groupTitle(),
+                  _groupTitle(AppLocalizations.of(context)),
                   style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
@@ -163,9 +163,10 @@ class _NotificationGroupCardState extends State<NotificationGroupCard> {
                                 Flexible(
                                   child: Text(
                                     _expanded
-                                        ? 'Hide earlier events'
-                                        : 'View ${_earlier.length} earlier '
-                                            '${_earlier.length == 1 ? 'event' : 'events'}',
+                                        ? AppLocalizations.of(context)
+                                            .hideEarlierEvents
+                                        : AppLocalizations.of(context)
+                                            .viewEarlierEvents(_earlier.length),
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall!
@@ -187,7 +188,9 @@ class _NotificationGroupCardState extends State<NotificationGroupCard> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        widget.isDisputeGroup ? 'View dispute' : 'Go to trade',
+                        widget.isDisputeGroup
+                            ? AppLocalizations.of(context).viewDisputeButton
+                            : AppLocalizations.of(context).goToTrade,
                         style: Theme.of(context).textTheme.bodySmall!.copyWith(
                           color: green,
                           fontSize: 12,
@@ -209,15 +212,15 @@ class _NotificationGroupCardState extends State<NotificationGroupCard> {
 
   /// "Trade · 5,400 sats" when an amount is derivable from any event's
   /// detail map, otherwise "Trade #a1b2c3d4" (short order id).
-  String _groupTitle() {
+  String _groupTitle(AppLocalizations l10n) {
+    final label = widget.isDisputeGroup ? l10n.disputeWord : l10n.tradeWord;
     final sats = _deriveSats();
     if (sats != null) {
-      final label = widget.isDisputeGroup ? 'Dispute' : 'Trade';
       return '$label · $sats sats';
     }
     final id = _latest.orderId ?? _latest.disputeId ?? '';
     final shortId = id.length > 8 ? id.substring(0, 8) : id;
-    return widget.isDisputeGroup ? 'Dispute #$shortId' : 'Trade #$shortId';
+    return '$label #$shortId';
   }
 
   /// Looks for an "N sats" amount in any event's detail values.
@@ -315,7 +318,7 @@ class _EventRow extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Text(
-            '· ${relativeTime(notification.timestamp)}',
+            '· ${relativeTime(notification.timestamp, AppLocalizations.of(context))}',
             style: Theme.of(
               context,
             ).textTheme.bodySmall!.copyWith(color: textSec, fontSize: 11),
@@ -378,10 +381,10 @@ class _EventOverflowMenu extends StatelessWidget {
 }
 
 /// Shared relative-time formatter for notification widgets.
-String relativeTime(DateTime dt) {
+String relativeTime(DateTime dt, AppLocalizations l10n) {
   final diff = DateTime.now().difference(dt);
-  if (diff.isNegative || diff.inMinutes < 1) return 'Just now';
-  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-  if (diff.inHours < 24) return '${diff.inHours}h ago';
-  return '${diff.inDays}d ago';
+  if (diff.isNegative || diff.inMinutes < 1) return l10n.justNow;
+  if (diff.inMinutes < 60) return l10n.minutesAgo(diff.inMinutes);
+  if (diff.inHours < 24) return l10n.hoursAgo(diff.inHours);
+  return l10n.daysAgo(diff.inDays);
 }

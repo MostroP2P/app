@@ -3673,6 +3673,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unable to open notification details.'**
   String get unableToOpenNotification;
+
+  /// Order-book reason badge: best premium
+  ///
+  /// In en, this message translates to:
+  /// **'⚡ Best premium'**
+  String get reasonBestPremium;
+
+  /// Order-book reason badge: most reputable
+  ///
+  /// In en, this message translates to:
+  /// **'⭐ Most reputable'**
+  String get reasonMostReputable;
+
+  /// Order-book reason badge: just published
+  ///
+  /// In en, this message translates to:
+  /// **'🆕 Just published'**
+  String get reasonJustPublished;
+
+  /// Caption under an order-book card amount
+  ///
+  /// In en, this message translates to:
+  /// **'Market price'**
+  String get marketPriceCaption;
+
+  /// Trades and active days in the order-book reputation row
+  ///
+  /// In en, this message translates to:
+  /// **' · {trades} trades · {days} days'**
+  String orderReputationStats(int trades, int days);
+
+  /// Notification group action to collapse earlier events
+  ///
+  /// In en, this message translates to:
+  /// **'Hide earlier events'**
+  String get hideEarlierEvents;
+
+  /// Notification group action to expand earlier events
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{View 1 earlier event} other{View {count} earlier events}}'**
+  String viewEarlierEvents(int count);
+
+  /// Notification group footer link to the trade
+  ///
+  /// In en, this message translates to:
+  /// **'Go to trade'**
+  String get goToTrade;
+
+  /// Word 'Dispute' used in a notification group title
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute'**
+  String get disputeWord;
+
+  /// Word 'Trade' used in a notification group title
+  ///
+  /// In en, this message translates to:
+  /// **'Trade'**
+  String get tradeWord;
+
+  /// Notifications filter chip: all
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get notifFilterAll;
+
+  /// Notifications filter chip: disputes
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes'**
+  String get notifFilterDisputes;
+
+  /// Notifications filter chip: disputes with count
+  ///
+  /// In en, this message translates to:
+  /// **'Disputes · {count}'**
+  String notifFilterDisputesCount(int count);
+
+  /// Notifications filter chip: system
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get notifFilterSystem;
+
+  /// Notifications filter chip: system with count
+  ///
+  /// In en, this message translates to:
+  /// **'System · {count}'**
+  String notifFilterSystemCount(int count);
+
+  /// NWC pay button label while paying
+  ///
+  /// In en, this message translates to:
+  /// **'Paying...'**
+  String get payingStatus;
+
+  /// NWC pay button label
+  ///
+  /// In en, this message translates to:
+  /// **'Pay with Wallet'**
+  String get payWithWalletButton;
+
+  /// Status while auto-generating a Lightning invoice via NWC
+  ///
+  /// In en, this message translates to:
+  /// **'Generating invoice via NWC...'**
+  String get generatingInvoiceNwc;
+
+  /// Error when NWC invoice auto-generation fails
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to generate invoice automatically'**
+  String get unableToGenerateInvoice;
+
+  /// Accessibility label for the peer avatar icon
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar icon'**
+  String get avatarIconLabel;
+
+  /// Market price with premium on the my-order screen
+  ///
+  /// In en, this message translates to:
+  /// **'Market Price ({premium}%)'**
+  String marketPricePremiumLabel(String premium);
 }
 
 class _AppLocalizationsDelegate

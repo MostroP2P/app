@@ -91,7 +91,8 @@ class NotificationCard extends StatelessWidget {
                         ],
                         const SizedBox(height: AppSpacing.sm),
                         Text(
-                          _relativeTime(notification.timestamp),
+                          _relativeTime(
+                              notification.timestamp, AppLocalizations.of(context)),
                           style: Theme.of(context).textTheme.bodySmall!.copyWith(
                                 color: textSec,
                                 fontSize: 12,
@@ -123,12 +124,12 @@ class NotificationCard extends StatelessWidget {
     );
   }
 
-  String _relativeTime(DateTime dt) {
+  String _relativeTime(DateTime dt, AppLocalizations l10n) {
     final diff = clock.now().difference(dt);
-    if (diff.isNegative || diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    if (diff.isNegative || diff.inMinutes < 1) return l10n.justNow;
+    if (diff.inMinutes < 60) return l10n.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return l10n.hoursAgo(diff.inHours);
+    return l10n.daysAgo(diff.inDays);
   }
 }
 

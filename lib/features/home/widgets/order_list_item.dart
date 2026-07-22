@@ -64,17 +64,17 @@ class OrderListItem extends StatelessWidget {
     // Reason pill styling (gold per design ≈ #FFC940; blue per info-blue).
     final (reasonLabel, reasonColor, reasonBg) = switch (reason) {
       OrderReason.bestPremium => (
-          '⚡ Best premium',
+          l10n.reasonBestPremium,
           green,
           green.withValues(alpha: 0.15),
         ),
       OrderReason.mostReputable => (
-          '⭐ Most reputable',
+          l10n.reasonMostReputable,
           Colors.amber,
           Colors.amber.withValues(alpha: 0.15),
         ),
       OrderReason.justPublished => (
-          '🆕 Just published',
+          l10n.reasonJustPublished,
           const Color(0xFF7BB4F0),
           blueFill.withValues(alpha: 0.55),
         ),
@@ -114,7 +114,7 @@ class OrderListItem extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  _relativeTime(order.createdAt),
+                  _relativeTime(order.createdAt, l10n),
                   style: theme.textTheme.bodySmall!.copyWith(color: textSec),
                 ),
               ],
@@ -151,7 +151,7 @@ class OrderListItem extends StatelessWidget {
 
             // Row 3: small secondary "Market price" caption
             Text(
-              'Market price',
+              l10n.marketPriceCaption,
               style: TextStyle(color: textSec, fontSize: 11),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -181,8 +181,8 @@ class OrderListItem extends StatelessWidget {
                   ),
                   Flexible(
                     child: Text(
-                      ' · ${order.tradeCount} trades'
-                      ' · ${order.daysActive} days',
+                      l10n.orderReputationStats(
+                          order.tradeCount, order.daysActive),
                       style: TextStyle(color: textSec, fontSize: 12),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -223,12 +223,12 @@ class OrderListItem extends StatelessWidget {
     );
   }
 
-  String _relativeTime(DateTime dt) {
+  String _relativeTime(DateTime dt, AppLocalizations l10n) {
     final diff = clock.now().difference(dt);
-    if (diff.isNegative || diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    if (diff.isNegative || diff.inMinutes < 1) return l10n.justNow;
+    if (diff.inMinutes < 60) return l10n.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return l10n.hoursAgo(diff.inHours);
+    return l10n.daysAgo(diff.inDays);
   }
 }
 
@@ -340,7 +340,7 @@ class OrderListEmpty extends StatelessWidget {
           const Icon(Icons.inbox_outlined, size: 48, color: Colors.white38),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'No orders available',
+            AppLocalizations.of(context).noOrdersAvailable,
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium!

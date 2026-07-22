@@ -247,15 +247,20 @@ class _FilterChipsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final chips = <(_NotificationFilter, String)>[
-      (_NotificationFilter.all, 'All'),
+      (_NotificationFilter.all, l10n.notifFilterAll),
       (
         _NotificationFilter.disputes,
-        disputeCount > 0 ? 'Disputes · $disputeCount' : 'Disputes',
+        disputeCount > 0
+            ? l10n.notifFilterDisputesCount(disputeCount)
+            : l10n.notifFilterDisputes,
       ),
       (
         _NotificationFilter.system,
-        systemCount > 0 ? 'System · $systemCount' : 'System',
+        systemCount > 0
+            ? l10n.notifFilterSystemCount(systemCount)
+            : l10n.notifFilterSystem,
       ),
     ];
 
@@ -371,7 +376,7 @@ class _BackupReminderBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'You must back up your account',
+                    AppLocalizations.of(context).youMustBackUpYourAccount,
                     style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
@@ -380,7 +385,7 @@ class _BackupReminderBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Tap to view and save your secret words.',
+                    AppLocalizations.of(context).tapToViewAndSaveSecretWords,
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall!.copyWith(fontSize: 11),
@@ -442,7 +447,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'No notifications',
+            AppLocalizations.of(context).noNotifications,
             style: Theme.of(
               context,
             ).textTheme.bodyMedium!.copyWith(color: Colors.white38),

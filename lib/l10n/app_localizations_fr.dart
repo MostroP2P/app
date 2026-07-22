@@ -2041,4 +2041,84 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get unableToOpenNotification =>
       'Impossible d\'ouvrir les détails de la notification.';
+
+  @override
+  String get reasonBestPremium => '⚡ Meilleure prime';
+
+  @override
+  String get reasonMostReputable => '⭐ Plus réputé';
+
+  @override
+  String get reasonJustPublished => '🆕 Vient d\'être publié';
+
+  @override
+  String get marketPriceCaption => 'Prix du marché';
+
+  @override
+  String orderReputationStats(int trades, int days) {
+    return ' · $trades transactions · $days jours';
+  }
+
+  @override
+  String get hideEarlierEvents => 'Masquer les événements précédents';
+
+  @override
+  String viewEarlierEvents(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Voir $count événements précédents',
+      one: 'Voir 1 événement précédent',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get goToTrade => 'Aller à la transaction';
+
+  @override
+  String get disputeWord => 'Litige';
+
+  @override
+  String get tradeWord => 'Transaction';
+
+  @override
+  String get notifFilterAll => 'Toutes';
+
+  @override
+  String get notifFilterDisputes => 'Litiges';
+
+  @override
+  String notifFilterDisputesCount(int count) {
+    return 'Litiges · $count';
+  }
+
+  @override
+  String get notifFilterSystem => 'Système';
+
+  @override
+  String notifFilterSystemCount(int count) {
+    return 'Système · $count';
+  }
+
+  @override
+  String get payingStatus => 'Paiement...';
+
+  @override
+  String get payWithWalletButton => 'Payer avec le portefeuille';
+
+  @override
+  String get generatingInvoiceNwc => 'Génération de la facture via NWC...';
+
+  @override
+  String get unableToGenerateInvoice =>
+      'Impossible de générer la facture automatiquement';
+
+  @override
+  String get avatarIconLabel => 'Icône d\'avatar';
+
+  @override
+  String marketPricePremiumLabel(String premium) {
+    return 'Prix du marché ($premium%)';
+  }
 }

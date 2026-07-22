@@ -99,7 +99,7 @@ class SystemNotificationBanner extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${notification.message} '
-                      '· ${relativeTime(notification.timestamp)}',
+                      '· ${relativeTime(notification.timestamp, AppLocalizations.of(context))}',
                       style: Theme.of(context).textTheme.bodySmall!.copyWith(
                         color: textSec,
                         fontSize: 11,

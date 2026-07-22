@@ -2030,4 +2030,84 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get unableToOpenNotification =>
       'Impossibile aprire i dettagli della notifica.';
+
+  @override
+  String get reasonBestPremium => '⚡ Miglior premio';
+
+  @override
+  String get reasonMostReputable => '⭐ Più affidabile';
+
+  @override
+  String get reasonJustPublished => '🆕 Appena pubblicata';
+
+  @override
+  String get marketPriceCaption => 'Prezzo di mercato';
+
+  @override
+  String orderReputationStats(int trades, int days) {
+    return ' · $trades operazioni · $days giorni';
+  }
+
+  @override
+  String get hideEarlierEvents => 'Nascondi eventi precedenti';
+
+  @override
+  String viewEarlierEvents(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Vedi $count eventi precedenti',
+      one: 'Vedi 1 evento precedente',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get goToTrade => 'Vai all\'operazione';
+
+  @override
+  String get disputeWord => 'Disputa';
+
+  @override
+  String get tradeWord => 'Operazione';
+
+  @override
+  String get notifFilterAll => 'Tutte';
+
+  @override
+  String get notifFilterDisputes => 'Dispute';
+
+  @override
+  String notifFilterDisputesCount(int count) {
+    return 'Dispute · $count';
+  }
+
+  @override
+  String get notifFilterSystem => 'Sistema';
+
+  @override
+  String notifFilterSystemCount(int count) {
+    return 'Sistema · $count';
+  }
+
+  @override
+  String get payingStatus => 'Pagamento in corso...';
+
+  @override
+  String get payWithWalletButton => 'Paga con il wallet';
+
+  @override
+  String get generatingInvoiceNwc => 'Generazione fattura tramite NWC...';
+
+  @override
+  String get unableToGenerateInvoice =>
+      'Impossibile generare la fattura automaticamente';
+
+  @override
+  String get avatarIconLabel => 'Icona avatar';
+
+  @override
+  String marketPricePremiumLabel(String premium) {
+    return 'Prezzo di mercato ($premium%)';
+  }
 }

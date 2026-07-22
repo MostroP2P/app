@@ -204,7 +204,8 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Market Price (${premiumPositive ? '+' : ''}${resolvedOrder.premium.toStringAsFixed(1)}%)',
+                  AppLocalizations.of(context).marketPricePremiumLabel(
+                      '${premiumPositive ? '+' : ''}${resolvedOrder.premium.toStringAsFixed(1)}'),
                   style: TextStyle(
                     color: premiumPositive ? green : sellColor,
                     fontSize: 13,
