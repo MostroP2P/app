@@ -1449,5 +1449,31 @@
     "placeholders": {"count": {"type": "int"}}
   },
   "lightningInvoiceQrLabel": "Lightning invoice QR code",
-  "@lightningInvoiceQrLabel": {"description": "Accessibility label for the Lightning invoice QR code image"}
+  "@lightningInvoiceQrLabel": {"description": "Accessibility label for the Lightning invoice QR code image"},
+  "bondSlashedTitle": "Bond slashed",
+  "@bondSlashedTitle": {"description": "Title of the notification shown when the user's anti-abuse bond is slashed"},
+  "bondSlashedMessageTimeout": "Your {amount}-sat anti-abuse bond for order {orderId} was forfeited after a waiting-state timeout. Your order status is unchanged.",
+  "@bondSlashedMessageTimeout": {
+    "description": "Bond-slashed notification body when the slash was caused by a waiting-state timeout",
+    "placeholders": {"amount": {"type": "String"}, "orderId": {"type": "String"}}
+  },
+  "bondSlashedMessageDispute": "Your {amount}-sat anti-abuse bond for order {orderId} was forfeited after a dispute resolution. Your order status is unchanged.",
+  "@bondSlashedMessageDispute": {
+    "description": "Bond-slashed notification body when the slash was caused by a dispute resolution",
+    "placeholders": {"amount": {"type": "String"}, "orderId": {"type": "String"}}
+  },
+  "bondSlashedCauseTimeout": "Waiting-state timeout",
+  "@bondSlashedCauseTimeout": {"description": "Bond-slashed detail value: the slash cause was a waiting-state timeout"},
+  "bondSlashedCauseDispute": "Dispute resolution",
+  "@bondSlashedCauseDispute": {"description": "Bond-slashed detail value: the slash cause was a dispute resolution"},
+  "bondSlashedDetailOrder": "Order",
+  "@bondSlashedDetailOrder": {"description": "Bond-slashed detail label for the order id"},
+  "bondSlashedDetailAmount": "Bond amount",
+  "@bondSlashedDetailAmount": {"description": "Bond-slashed detail label for the slashed bond amount"},
+  "bondSlashedDetailCause": "Cause",
+  "@bondSlashedDetailCause": {"description": "Bond-slashed detail label for the slash cause"},
+  "bondSlashedDetailFiat": "Fiat",
+  "@bondSlashedDetailFiat": {"description": "Bond-slashed detail label for the fiat amount and currency"},
+  "bondSlashedDetailPaymentMethod": "Payment method",
+  "@bondSlashedDetailPaymentMethod": {"description": "Bond-slashed detail label for the payment method"}
 }

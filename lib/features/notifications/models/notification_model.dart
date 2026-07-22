@@ -1,5 +1,7 @@
 import 'package:uuid/uuid.dart';
 
+import 'package:mostro/l10n/app_localizations.dart';
+
 /// In-app notification record.
 enum NotificationType {
   orderUpdate,
@@ -149,6 +151,7 @@ class NotificationModel {
   }
 
   factory NotificationModel.bondSlashed({
+    required AppLocalizations l10n,
     required String orderId,
     required int amountSats,
     required bool disputeCause,
@@ -156,26 +159,26 @@ class NotificationModel {
     int? fiatAmount,
     String? paymentMethod,
   }) {
-    final causeText = disputeCause
-        ? 'after a dispute resolution'
-        : 'after a waiting-state timeout';
+    final amount = amountSats.toString();
     return NotificationModel(
       id: const Uuid().v4(),
       type: NotificationType.bondSlashed,
-      title: 'Bond slashed',
-      message:
-          'Your $amountSats-sat anti-abuse bond for order $orderId was '
-          'forfeited $causeText. Your order status is unchanged.',
+      title: l10n.bondSlashedTitle,
+      message: disputeCause
+          ? l10n.bondSlashedMessageDispute(amount, orderId)
+          : l10n.bondSlashedMessageTimeout(amount, orderId),
       timestamp: DateTime.now(),
       orderId: orderId,
       detail: {
-        'Order': orderId,
-        'Bond amount': '$amountSats sats',
-        'Cause': disputeCause ? 'Dispute resolution' : 'Waiting-state timeout',
+        l10n.bondSlashedDetailOrder: orderId,
+        l10n.bondSlashedDetailAmount: '$amountSats sats',
+        l10n.bondSlashedDetailCause: disputeCause
+            ? l10n.bondSlashedCauseDispute
+            : l10n.bondSlashedCauseTimeout,
         if (fiatCode != null && fiatAmount != null)
-          'Fiat': '$fiatAmount $fiatCode',
+          l10n.bondSlashedDetailFiat: '$fiatAmount $fiatCode',
         if (paymentMethod != null && paymentMethod.isNotEmpty)
-          'Payment method': paymentMethod,
+          l10n.bondSlashedDetailPaymentMethod: paymentMethod,
       },
     );
   }

@@ -24,6 +24,7 @@ import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/types.dart' show SlashCause;
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +85,11 @@ Future<void> main() async {
   final backupPending = backupActive && !backupDismissed;
   final savedSettings = AppSettingsState.fromPrefs(prefs);
 
+  // Subscribe to bond-slashed notices BEFORE relay delivery starts, so the
+  // Tokio broadcast channel buffers any notice arriving during startup rather
+  // than dropping it (a receiver must exist at send time).
+  final bondSlashedStream = await bond_api.onBondSlashed();
+
   // Initialize the Nostr relay pool with default relays (from config.rs).
   // This must happen before any Nostr/order API calls.
   await nostr_api.initialize(relays: null);
@@ -123,7 +129,7 @@ Future<void> main() async {
     _restoreNwcConnection(savedNwcUri, container);
   }
 
-  _listenBondSlashed(container);
+  _consumeBondSlashed(bondSlashedStream, container);
 
   runApp(UncontrolledProviderScope(
     container: container,
@@ -176,17 +182,27 @@ void _forwardRustLogs() {
   });
 }
 
-/// Listens for bond-slashed notices from Rust and records an in-app
-/// notification. The tracked order is never touched here — the notice is
-/// informational, and the no-overwrite guard lives in the Rust dispatcher.
-void _listenBondSlashed(ProviderContainer container) {
+/// Consumes bond-slashed notices from [stream] and records an in-app
+/// notification for each. The tracked order is never touched here — the notice
+/// is informational, and the no-overwrite guard lives in the Rust dispatcher.
+///
+/// [stream] is subscribed before relay delivery starts (see [main]), so this
+/// drains any notice buffered during startup and then live ones. Notifications
+/// are added to [notificationsProvider] — the provider the bell and list watch.
+void _consumeBondSlashed(
+  bond_api.BondSlashedStream stream,
+  ProviderContainer container,
+) {
   Future.microtask(() async {
     try {
-      final stream = await bond_api.onBondSlashed();
       while (true) {
         final event = await stream.next();
-        await container.read(notificationsProviderWithDb.notifier).add(
+        final l10n = await AppLocalizations.delegate.load(
+          container.read(localeProvider),
+        );
+        await container.read(notificationsProvider.notifier).add(
               NotificationModel.bondSlashed(
+                l10n: l10n,
                 orderId: event.orderId,
                 amountSats: event.amountSats.toInt(),
                 disputeCause: event.cause == SlashCause.dispute,
