@@ -26,10 +26,11 @@ class ChatListItem extends StatelessWidget {
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
     final l10n = AppLocalizations.of(context);
+    final handle = room.displayHandle(l10n);
 
     final contextLine = room.isSelling
-        ? l10n.sellingSatsTo(room.peerHandle)
-        : l10n.buyingSatsFrom(room.peerHandle);
+        ? l10n.sellingSatsTo(handle)
+        : l10n.buyingSatsFrom(handle);
 
     final previewText = room.lastMessage == null
         ? null
@@ -66,7 +67,7 @@ class ChatListItem extends StatelessWidget {
                 children: [
                   // Peer handle
                   Text(
-                    room.peerHandle,
+                    handle,
                     style: textTheme.bodyLarge?.copyWith(
                       color: colors.textPrimary,
                       fontWeight: FontWeight.bold,

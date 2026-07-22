@@ -1083,7 +1083,8 @@ class _ChatChip extends ConsumerWidget {
     final rooms = ref.watch(chatRoomsNotifierProvider);
     final room = rooms.where((r) => r.orderId == orderId).firstOrNull;
 
-    final handle = room?.peerHandle ?? l10n.yourCounterpartFallback;
+    final handle =
+        room == null ? l10n.yourCounterpartFallback : room.displayHandle(l10n);
     final unread = room?.unreadCount ?? 0;
 
     return InkWell(

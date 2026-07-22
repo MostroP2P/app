@@ -140,7 +140,7 @@ class _HeaderTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
-    final handle = dispute.peerHandle ?? 'Unknown';
+    final handle = dispute.peerHandle ?? l10n.unknownPeerHandle;
 
     final title = dispute.isSelling
         ? l10n.disputeWithBuyer(handle)

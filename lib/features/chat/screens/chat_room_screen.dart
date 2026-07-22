@@ -117,7 +117,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             _buildRoomPreview(
               lastMsg: sent,
               rooms: ref.read(chatRoomsNotifierProvider),
-              l10n: l10n,
             ),
           );
     } catch (e) {
@@ -151,7 +150,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           _buildRoomPreview(
             lastMsg: msg,
             rooms: ref.read(chatRoomsNotifierProvider),
-            l10n: AppLocalizations.of(context),
           ),
         );
   }
@@ -180,13 +178,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         if (_showUserInfo) _showTradeInfo = false;
       });
 
-  ChatRoomState _resolveRoom(List<ChatRoomState> rooms, AppLocalizations l10n) {
+  ChatRoomState _resolveRoom(List<ChatRoomState> rooms) {
     return rooms.firstWhere(
       (r) => r.orderId == widget.orderId,
       orElse: () => ChatRoomState(
         orderId: widget.orderId,
         peerPubkey: '',
-        peerHandle: l10n.unknownPeerHandle,
+        // Locale-independent: the localized "Unknown" is resolved at render
+        // time via ChatRoomState.displayHandle, never cached in the model.
+        peerHandle: '',
         peerIconIndex: 0,
         peerColorHue: 180,
         isSelling: false,
@@ -197,9 +197,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   ChatRoomState _buildRoomPreview({
     required rust_types.ChatMessage lastMsg,
     required List<ChatRoomState> rooms,
-    required AppLocalizations l10n,
   }) {
-    final room = _resolveRoom(rooms, l10n);
+    final room = _resolveRoom(rooms);
     // Use the bridge-provided isRead / isMine flags rather than recomputing
     // from local _messages, which may not yet reflect the latest markAsRead
     // call (the bridge call is async and may still be in flight).
@@ -237,7 +236,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     );
 
     final l10n = AppLocalizations.of(context);
-    final room = _resolveRoom(ref.watch(chatRoomsNotifierProvider), l10n);
+    final room = _resolveRoom(ref.watch(chatRoomsNotifierProvider));
+    final displayHandle = room.displayHandle(l10n);
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) {
       throw StateError('AppColors theme extension must be registered');
@@ -261,7 +261,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
               : _showUserInfo
                   ? UserInformationTab(
                       key: const ValueKey('user'),
-                      peerHandle: room.peerHandle,
+                      peerHandle: displayHandle,
                       peerPubkey: room.peerPubkey,
                       peerIconIndex: room.peerIconIndex,
                       peerColorHue: room.peerColorHue,
@@ -300,7 +300,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 : _showUserInfo
                     ? UserInformationTab(
                         key: const ValueKey('user'),
-                        peerHandle: room.peerHandle,
+                        peerHandle: displayHandle,
                         peerPubkey: room.peerPubkey,
                         peerIconIndex: room.peerIconIndex,
                         peerColorHue: room.peerColorHue,
@@ -317,7 +317,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.lg),
                         child: Text(
-                          l10n.noMessagesYet(room.peerHandle),
+                          l10n.noMessagesYet(displayHandle),
                           textAlign: TextAlign.center,
                           style: TextStyle(color: colors.textSubtle),
                         ),
@@ -429,6 +429,8 @@ class _AppBarTitle extends StatelessWidget {
       throw StateError('AppColors theme extension must be registered');
     }
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
+    final handle = room.displayHandle(l10n);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,14 +446,14 @@ class _AppBarTitle extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              room.peerHandle,
+              handle,
               style: textTheme.headlineSmall,
               overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         Text(
-          AppLocalizations.of(context).chattingWith(room.peerHandle),
+          l10n.chattingWith(handle),
           style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
         ),
       ],
