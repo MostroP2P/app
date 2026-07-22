@@ -642,6 +642,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noButtonLabel => 'Non';
 
   @override
+  String get yesButtonLabel => 'Oui';
+
+  @override
   String get yesCancelButtonLabel => 'Oui, annuler';
 
   @override

@@ -1250,6 +1250,12 @@ abstract class AppLocalizations {
   /// **'No'**
   String get noButtonLabel;
 
+  /// No description provided for @yesButtonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get yesButtonLabel;
+
   /// Affirmative cancel button label in the cancel-trade dialog
   ///
   /// In en, this message translates to:

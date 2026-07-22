@@ -207,6 +207,7 @@
   "cancelTradeDialogTitle": "Annullare lo scambio?",
   "cancelTradeDialogContent": "Annullamento cooperativo richiesto. Anche l'altra parte deve accettare affinché lo scambio venga annullato.",
   "noButtonLabel": "No",
+  "yesButtonLabel": "Sì",
   "yesCancelButtonLabel": "Sì, annulla",
   "cancelRequestSent": "Richiesta di annullamento inviata",
   "cancelRequestFailed": "Annullamento fallito. Riprovare.",

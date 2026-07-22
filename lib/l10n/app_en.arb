@@ -436,6 +436,7 @@
   "cancelTradeDialogContent": "Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.",
   "@cancelTradeDialogContent": {"description": "Body text for the cancel-trade confirmation dialog"},
   "noButtonLabel": "No",
+  "yesButtonLabel": "Yes",
   "@noButtonLabel": {"description": "Negative button label in a confirmation dialog"},
   "yesCancelButtonLabel": "Yes, cancel",
   "@yesCancelButtonLabel": {"description": "Affirmative cancel button label in the cancel-trade dialog"},

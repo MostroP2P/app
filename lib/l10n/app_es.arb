@@ -207,6 +207,7 @@
   "cancelTradeDialogTitle": "¿Cancelar intercambio?",
   "cancelTradeDialogContent": "Se solicita una cancelación cooperativa. La otra parte también debe aceptar para que el intercambio quede cancelado.",
   "noButtonLabel": "No",
+  "yesButtonLabel": "Sí",
   "yesCancelButtonLabel": "Sí, cancelar",
   "cancelRequestSent": "Solicitud de cancelación enviada",
   "cancelRequestFailed": "No se pudo cancelar. Por favor, inténtelo de nuevo.",

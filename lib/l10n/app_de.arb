@@ -207,6 +207,7 @@
   "cancelTradeDialogTitle": "Handel abbrechen?",
   "cancelTradeDialogContent": "Kooperativen Abbruch angefragt. Die andere Partei muss ebenfalls zustimmen, damit der Handel vollständig abgebrochen wird.",
   "noButtonLabel": "Nein",
+  "yesButtonLabel": "Ja",
   "yesCancelButtonLabel": "Ja, abbrechen",
   "cancelRequestSent": "Abbruchanfrage gesendet",
   "cancelRequestFailed": "Abbrechen fehlgeschlagen. Bitte erneut versuchen.",

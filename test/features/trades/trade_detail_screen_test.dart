@@ -7,6 +7,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/l10n/app_localizations_en.dart';
 
 import '../../support/provider_harness.dart';
 
@@ -296,8 +297,9 @@ void main() {
       await tester.tap(find.text('Confirm & release sats'));
       await tester.pump();
 
-      expect(find.text('Yes'), findsOneWidget);
-      await tester.tap(find.text('Yes'));
+      final confirmLabel = AppLocalizationsEn().yesButtonLabel;
+      expect(find.text(confirmLabel), findsOneWidget);
+      await tester.tap(find.text(confirmLabel));
       await tester.pump();
       await tester.pump();
 

@@ -207,6 +207,7 @@
   "cancelTradeDialogTitle": "Annuler l'échange ?",
   "cancelTradeDialogContent": "Annulation coopérative demandée. L'autre partie doit également accepter pour que l'échange soit entièrement annulé.",
   "noButtonLabel": "Non",
+  "yesButtonLabel": "Oui",
   "yesCancelButtonLabel": "Oui, annuler",
   "cancelRequestSent": "Demande d'annulation envoyée",
   "cancelRequestFailed": "Échec de l'annulation. Veuillez réessayer.",
