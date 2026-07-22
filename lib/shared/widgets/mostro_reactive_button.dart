@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 
 enum MostroButtonVariant { primary, destructive }
 
@@ -34,10 +35,16 @@ class MostroReactiveButton extends StatefulWidget {
   State<MostroReactiveButton> createState() => _MostroReactiveButtonState();
 }
 
-enum _ButtonState { idle, loading, success, error }
+enum _ButtonState { idle, loading, success, cooldown }
 
 class _MostroReactiveButtonState extends State<MostroReactiveButton> {
   _ButtonState _state = _ButtonState.idle;
+
+  static const _kSuccessDisplay = Duration(milliseconds: 1500);
+
+  /// Matches SnackBar's default display duration, so the button re-enables
+  /// as the failure message disappears.
+  static const _kErrorCooldown = Duration(seconds: 4);
 
   Future<void> _handlePress() async {
     if (_state != _ButtonState.idle) return;
@@ -48,16 +55,16 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
       if (!mounted) return;
       setState(() => _state = _ButtonState.success);
 
-      await Future.delayed(const Duration(milliseconds: 1500));
+      await Future.delayed(_kSuccessDisplay);
       if (mounted) setState(() => _state = _ButtonState.idle);
     } on MostroActionAborted {
       if (mounted) setState(() => _state = _ButtonState.idle);
     } catch (e) {
       widget.onError?.call(e);
       if (!mounted) return;
-      setState(() => _state = _ButtonState.error);
+      setState(() => _state = _ButtonState.cooldown);
 
-      await Future.delayed(const Duration(seconds: 4));
+      await Future.delayed(_kErrorCooldown);
       if (mounted) setState(() => _state = _ButtonState.idle);
     }
   }
@@ -119,30 +126,44 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
           liveRegion: true,
           child: const Icon(Icons.check, size: 20),
         );
-      case _ButtonState.idle || _ButtonState.error:
-        if (widget.icon != null) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(widget.icon, size: 18),
-              const SizedBox(width: AppSpacing.sm),
-              Flexible(
-                child: Text(
-                  widget.label,
-                  maxLines: 2,
-                  textAlign: TextAlign.center,
-                  softWrap: true,
-                ),
-              ),
-            ],
-          );
-        }
-        return Text(
-          widget.label,
-          maxLines: 2,
-          textAlign: TextAlign.center,
-          softWrap: true,
+      case _ButtonState.idle:
+        return _buildLabel();
+      case _ButtonState.cooldown:
+        // No visual error styling — the SnackBar already reported the
+        // failure. This announcement keeps the state change perceivable to
+        // screen-reader users, who would otherwise get no signal at all
+        // while the button sits disabled for the cooldown.
+        return Semantics(
+          liveRegion: true,
+          label: AppLocalizations.of(context).actionFailedAnnouncement,
+          child: _buildLabel(),
         );
     }
+  }
+
+  Widget _buildLabel() {
+    if (widget.icon != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(widget.icon, size: 18),
+          const SizedBox(width: AppSpacing.sm),
+          Flexible(
+            child: Text(
+              widget.label,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              softWrap: true,
+            ),
+          ),
+        ],
+      );
+    }
+    return Text(
+      widget.label,
+      maxLines: 2,
+      textAlign: TextAlign.center,
+      softWrap: true,
+    );
   }
 }

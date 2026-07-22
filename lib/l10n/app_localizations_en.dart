@@ -18,6 +18,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get error => 'Error';
 
   @override
+  String get actionFailedAnnouncement => 'Action failed';
+
+  @override
   String get cancel => 'Cancel';
 
   @override
@@ -261,7 +264,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rateButtonLabel => 'RATE';
 
   @override
-  String get viewDisputeButtonLabel => 'VIEW DISPUTE';
+  String get viewDisputeButtonLabel => 'View dispute';
 
   @override
   String get comingSoonMessage => 'Coming soon';
@@ -642,7 +645,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get releaseFailed => 'Failed to release. Please try again.';
 
   @override
-  String get cancelTradeButton => 'Cancel order';
+  String get cancelTradeButton => 'Cancel trade';
+
+  @override
+  String get payHoldInvoiceButton => 'Pay hold invoice';
 
   @override
   String get openDisputeButton => 'Open dispute';

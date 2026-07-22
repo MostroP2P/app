@@ -18,6 +18,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get error => 'Fehler';
 
   @override
+  String get actionFailedAnnouncement => 'Aktion fehlgeschlagen';
+
+  @override
   String get cancel => 'Abbrechen';
 
   @override
@@ -264,7 +267,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get rateButtonLabel => 'BEWERTEN';
 
   @override
-  String get viewDisputeButtonLabel => 'STREITFALL ANZEIGEN';
+  String get viewDisputeButtonLabel => 'Streitfall anzeigen';
 
   @override
   String get comingSoonMessage => 'Demnächst verfügbar';
@@ -653,7 +656,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Freigabe fehlgeschlagen. Bitte erneut versuchen.';
 
   @override
-  String get cancelTradeButton => 'Bestellung stornieren';
+  String get cancelTradeButton => 'Handel abbrechen';
+
+  @override
+  String get payHoldInvoiceButton => 'Hold-Rechnung bezahlen';
 
   @override
   String get openDisputeButton => 'Streitfall eröffnen';

@@ -65,6 +65,9 @@ enum TradeStatus {
   final String label;
 }
 
+/// Overflow-menu actions (currently just sharing the order).
+enum _OverflowAction { shareOrder }
+
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
   Duration _remaining = const Duration(seconds: _kCountdownSeconds);
@@ -179,6 +182,19 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.cancelRequestFailed)),
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> _markFiatSent() async {
+    try {
+      await orders_api.sendFiatSent(orderId: widget.orderId);
+    } catch (e, st) {
+      debugPrint('[TradeDetailScreen] sendFiatSent error: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).fiatSentFailed)),
       );
       rethrow;
     }
@@ -456,7 +472,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           onPressed: () =>
               context.canPop() ? context.pop() : context.go(AppRoute.home),
         ),
-        actions: [_buildOverflowMenu(context)],
+        actions: [_buildOverflowMenu()],
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -537,11 +553,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   /// Unconditional `⋮` menu — sharing an order is always a valid action,
   /// unlike the status-gated Cancel/Dispute/Release row below.
-  Widget _buildOverflowMenu(BuildContext context) {
-    return PopupMenuButton<int>(
+  Widget _buildOverflowMenu() {
+    final l10n = AppLocalizations.of(context);
+    return PopupMenuButton<_OverflowAction>(
       icon: const Icon(Icons.more_vert),
       onSelected: (_) {
-        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.comingSoonMessage),
@@ -549,13 +565,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ),
         );
       },
-      itemBuilder: (ctx) => [
+      itemBuilder: (_) => [
         PopupMenuItem(
-          value: 0,
+          value: _OverflowAction.shareOrder,
           child: ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.share, size: 18),
-            title: Text(AppLocalizations.of(context).shareOrderButton),
+            title: Text(l10n.shareOrderButton),
             dense: true,
           ),
         ),
@@ -823,7 +839,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       case (TradeStatus.waitingPayment, false):
         return [
           bigButton(
-            label: 'Pay hold invoice',
+            label: l10n.payHoldInvoiceButton,
             icon: Icons.bolt,
             onPressed: () =>
                 context.push(AppRoute.payInvoicePath(widget.orderId)),
@@ -834,31 +850,21 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           MostroReactiveButton(
             label: l10n.markFiatSentButton,
             icon: Icons.check,
-            onPressed: () async {
-              await orders_api.sendFiatSent(orderId: widget.orderId);
-            },
-            onError: (e) {
-              debugPrint('[TradeDetailScreen] sendFiatSent onError: $e');
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                    content:
-                        Text(AppLocalizations.of(context).fiatSentFailed)),
-              );
-            },
+            onPressed: _markFiatSent,
           ),
         ];
       case (TradeStatus.fiatSent, false):
         return [
           MostroReactiveButton(
             label: l10n.confirmReleaseSatsButton,
+            icon: Icons.lock_open,
             onPressed: _releaseOrder,
           ),
         ];
       case (TradeStatus.disputed, _):
         return [
           bigButton(
-            label: 'View dispute',
+            label: l10n.viewDisputeButtonLabel,
             icon: Icons.gavel,
             background: red,
             foreground: Colors.white,

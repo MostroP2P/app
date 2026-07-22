@@ -122,6 +122,12 @@ abstract class AppLocalizations {
   /// **'Error'**
   String get error;
 
+  /// Screen-reader-only announcement when a button action fails and the button enters its cooldown state
+  ///
+  /// In en, this message translates to:
+  /// **'Action failed'**
+  String get actionFailedAnnouncement;
+
   /// Cancel action
   ///
   /// In en, this message translates to:
@@ -539,7 +545,7 @@ abstract class AppLocalizations {
   /// Button label to view an active dispute
   ///
   /// In en, this message translates to:
-  /// **'VIEW DISPUTE'**
+  /// **'View dispute'**
   String get viewDisputeButtonLabel;
 
   /// Generic coming-soon placeholder message
@@ -1277,8 +1283,14 @@ abstract class AppLocalizations {
   /// Button label to cancel an in-progress trade (secondary action row)
   ///
   /// In en, this message translates to:
-  /// **'Cancel order'**
+  /// **'Cancel trade'**
   String get cancelTradeButton;
+
+  /// Primary CTA for the seller to open the pay hold invoice screen
+  ///
+  /// In en, this message translates to:
+  /// **'Pay hold invoice'**
+  String get payHoldInvoiceButton;
 
   /// Button label to open a dispute on an in-progress trade
   ///

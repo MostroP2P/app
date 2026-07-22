@@ -89,7 +89,7 @@ void main() {
       );
 
       expect(find.text('Mark fiat sent'), findsOneWidget);
-      expect(_outlinedButtonWithText('Cancel order'), findsOneWidget);
+      expect(_outlinedButtonWithText('Cancel trade'), findsOneWidget);
       expect(_outlinedButtonWithText('Open dispute'), findsOneWidget);
       expect(_outlinedButtonWithText('Release sats'), findsNothing);
       expect(_anyPopupMenuButton(), findsOneWidget);
@@ -104,7 +104,7 @@ void main() {
         status: OrderStatus.fiatSent,
       );
 
-      expect(_outlinedButtonWithText('Cancel order'), findsOneWidget);
+      expect(_outlinedButtonWithText('Cancel trade'), findsOneWidget);
       expect(_outlinedButtonWithText('Open dispute'), findsOneWidget);
       expect(_outlinedButtonWithText('Release sats'), findsNothing);
       expect(_anyPopupMenuButton(), findsOneWidget);
@@ -119,7 +119,7 @@ void main() {
         status: OrderStatus.active,
       );
 
-      expect(_outlinedButtonWithText('Cancel order'), findsOneWidget);
+      expect(_outlinedButtonWithText('Cancel trade'), findsOneWidget);
       expect(_outlinedButtonWithText('Open dispute'), findsOneWidget);
       expect(_outlinedButtonWithText('Release sats'), findsNothing);
       expect(_anyPopupMenuButton(), findsOneWidget);
@@ -136,7 +136,7 @@ void main() {
       );
 
       expect(find.text('Confirm & release sats'), findsOneWidget);
-      expect(_outlinedButtonWithText('Cancel order'), findsOneWidget);
+      expect(_outlinedButtonWithText('Cancel trade'), findsOneWidget);
       expect(_outlinedButtonWithText('Open dispute'), findsOneWidget);
       expect(_outlinedButtonWithText('Release sats'), findsNothing);
       expect(_anyPopupMenuButton(), findsOneWidget);
@@ -154,7 +154,7 @@ void main() {
 
       expect(find.text('View dispute'), findsOneWidget);
       expect(_outlinedButtonWithText('Release sats'), findsOneWidget);
-      expect(_outlinedButtonWithText('Cancel order'), findsOneWidget);
+      expect(_outlinedButtonWithText('Cancel trade'), findsOneWidget);
       // canDispute is false once already disputed — no "Open dispute" button.
       expect(_outlinedButtonWithText('Open dispute'), findsNothing);
       expect(_anyPopupMenuButton(), findsOneWidget);
@@ -173,7 +173,7 @@ void main() {
       // all false for buyer + disputed — see gating logic in
       // trade_detail_screen.dart (`_buildSecondaryActionRow`).
       expect(_outlinedButtonWithText('Release sats'), findsNothing);
-      expect(_outlinedButtonWithText('Cancel order'), findsNothing);
+      expect(_outlinedButtonWithText('Cancel trade'), findsNothing);
       expect(_outlinedButtonWithText('Open dispute'), findsNothing);
       expect(_anyPopupMenuButton(), findsOneWidget);
     });
@@ -193,31 +193,123 @@ void main() {
 
       // Secondary row is visible for this status/role, with its own
       // Cancel/Dispute buttons — the menu must not duplicate them.
-      expect(_outlinedButtonWithText('Cancel order'), findsOneWidget);
+      expect(_outlinedButtonWithText('Cancel trade'), findsOneWidget);
       expect(_outlinedButtonWithText('Open dispute'), findsOneWidget);
       expect(_anyPopupMenuItem(), findsNothing);
 
       await tester.tap(find.byIcon(Icons.more_vert));
-      // The popup menu's opening route animates in — a zero-duration pump()
-      // leaves it mid-transition. pumpAndSettle() is unsafe here: the screen's
-      // 1s countdown Timer.periodic keeps scheduling frames for its full
-      // 15-minute duration, so it never reports "settled".
+      // The popup menu's opening route animates in — pumpAndSettle() is
+      // unsafe here: the screen's 1s countdown Timer.periodic keeps
+      // scheduling frames for its full 15-minute duration, so it never
+      // reports "settled". Two pumps let the open transition fully finish;
+      // tapping mid-transition hits the wrong on-screen position and misses
+      // the item.
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pump(const Duration(milliseconds: 350));
 
       expect(_anyPopupMenuItem(), findsOneWidget);
       expect(find.text('Share order'), findsOneWidget);
 
-      // Selecting the item via a real tap gesture is timing-fragile in a
-      // widget test (the popup's own closing-route animation delays when
-      // `onSelected` actually fires). Invoke the already-wired callback
-      // directly instead — this still exercises the real selection → SnackBar
-      // logic without depending on that animation's exact timing.
-      final popupButton =
-          tester.widget<PopupMenuButton<int>>(find.byType(PopupMenuButton<int>));
-      popupButton.onSelected!(0);
-      await tester.pump();
+      // A real tap gesture exercises the actual value wired to onSelected,
+      // catching a wrong PopupMenuItem value that a direct callback
+      // invocation would not — `_OverflowAction` is private to the screen,
+      // so the test cannot construct one to invoke onSelected directly
+      // anyway. Two more pumps: one for the closing-route animation onSelected
+      // waits on, one for the SnackBar's own entrance animation.
+      await tester.tap(_anyPopupMenuItem());
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(find.text('Coming soon'), findsOneWidget);
+    });
+  });
+
+  group('TradeDetailScreen secondary action failures propagate to the button',
+      () {
+    // No RustLib.init() in this harness (see _pumpTradeDetail's doc comment),
+    // so every orders_api / disputes_api call below fails for real —
+    // exercising the actual rethrow path instead of a mocked one.
+    testWidgets(
+        'cancel: bridge failure shows the SnackBar and does not crash',
+        (tester) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-9',
+        isBuyer: true,
+        status: OrderStatus.active,
+      );
+
+      await tester.tap(_outlinedButtonWithText('Cancel trade'));
+      await tester.pump();
+
+      expect(find.text('Yes, cancel'), findsOneWidget);
+      await tester.tap(find.text('Yes, cancel'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.text('Failed to cancel. Please try again.'),
+        findsOneWidget,
+      );
+
+      // Flush the button's own 4s error cooldown timer so it does not
+      // outlive this test.
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets(
+        'open dispute: bridge failure shows the SnackBar and does not crash',
+        (tester) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-10',
+        isBuyer: true,
+        status: OrderStatus.active,
+      );
+
+      await tester.tap(_outlinedButtonWithText('Open dispute'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.text('Could not open dispute. Please try again.'),
+        findsOneWidget,
+      );
+
+      // Flush the button's own 4s error cooldown timer so it does not
+      // outlive this test.
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets(
+        'release: bridge failure shows the SnackBar and does not crash',
+        (tester) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-11',
+        isBuyer: false,
+        status: OrderStatus.fiatSent,
+      );
+
+      await tester.tap(find.text('Confirm & release sats'));
+      await tester.pump();
+
+      expect(find.text('Yes'), findsOneWidget);
+      await tester.tap(find.text('Yes'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.text('Failed to release. Please try again.'),
+        findsOneWidget,
+      );
+
+      // Flush the button's own 4s error cooldown timer so it does not
+      // outlive this test.
+      await tester.pump(const Duration(seconds: 4));
     });
   });
 

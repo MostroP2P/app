@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
 
 Future<void> _pump(
@@ -15,6 +17,13 @@ Future<void> _pump(
   await tester.pumpWidget(
     MaterialApp(
       theme: buildDarkTheme(),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: MostroReactiveButton(
           label: 'Do it',
