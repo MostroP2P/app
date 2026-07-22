@@ -135,5 +135,27 @@ void main() {
       expect(accent, isNotNull);
       expect(accent, isNot(equals(green)));
     });
+
+    testWidgets(
+        'on MostroActionAborted: no success checkmark, no error report, '
+        'button immediately re-enabled', (tester) async {
+      Object? reportedError;
+      await _pump(
+        tester,
+        onPressed: () async => throw const MostroActionAborted(),
+        onError: (e) => reportedError = e,
+      );
+
+      await tester.tap(find.byType(FilledButton));
+      await tester.pump();
+
+      expect(reportedError, isNull);
+      expect(find.byIcon(Icons.check), findsNothing);
+      expect(find.text('Do it'), findsOneWidget);
+
+      final afterAbort =
+          tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(afterAbort.onPressed, isNotNull);
+    });
   });
 }

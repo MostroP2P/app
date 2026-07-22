@@ -165,7 +165,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     );
     if (!mounted) return;
     if (confirmed != true) {
-      throw StateError('Cancel declined by user');
+      throw const MostroActionAborted();
     }
     try {
       await orders_api.cancelOrder(orderId: widget.orderId);
@@ -219,7 +219,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final confirmed = await showReleaseConfirmationDialog(context);
     if (!mounted) return;
     if (confirmed != true) {
-      throw StateError('Release declined by user');
+      throw const MostroActionAborted();
     }
     try {
       await orders_api.releaseOrder(orderId: widget.orderId);

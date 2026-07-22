@@ -23,6 +23,7 @@ Future<void> _pumpTradeDetail(
   required String orderId,
   required bool isBuyer,
   required OrderStatus status,
+  Locale locale = const Locale('en'),
 }) async {
   final container = createContainer(overrides: [
     tradeRoleProvider.overrideWith((ref) => {orderId: isBuyer}),
@@ -35,7 +36,7 @@ Future<void> _pumpTradeDetail(
       container: container,
       child: MaterialApp(
         theme: buildDarkTheme(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -217,6 +218,27 @@ void main() {
       await tester.pump();
 
       expect(find.text('Coming soon'), findsOneWidget);
+    });
+  });
+
+  group('TradeDetailScreen secondary action row layout', () {
+    testWidgets(
+        'German labels on a 320dp width do not overflow the secondary row',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-8',
+        isBuyer: true,
+        status: OrderStatus.active,
+        locale: const Locale('de'),
+      );
+
+      expect(tester.takeException(), isNull);
     });
   });
 }

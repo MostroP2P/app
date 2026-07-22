@@ -4,6 +4,12 @@ import 'package:mostro/core/app_theme.dart';
 
 enum MostroButtonVariant { primary, destructive }
 
+/// Thrown by an onPressed handler when the user aborts before any work
+/// starts, for example declining a confirmation dialog. Not a failure.
+class MostroActionAborted implements Exception {
+  const MostroActionAborted();
+}
+
 /// Button that shows a spinner while waiting, then a success check.
 class MostroReactiveButton extends StatefulWidget {
   const MostroReactiveButton({
@@ -43,6 +49,8 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
       setState(() => _state = _ButtonState.success);
 
       await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) setState(() => _state = _ButtonState.idle);
+    } on MostroActionAborted {
       if (mounted) setState(() => _state = _ButtonState.idle);
     } catch (e) {
       widget.onError?.call(e);
@@ -118,11 +126,23 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
             children: [
               Icon(widget.icon, size: 18),
               const SizedBox(width: AppSpacing.sm),
-              Text(widget.label),
+              Flexible(
+                child: Text(
+                  widget.label,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  softWrap: true,
+                ),
+              ),
             ],
           );
         }
-        return Text(widget.label);
+        return Text(
+          widget.label,
+          maxLines: 2,
+          textAlign: TextAlign.center,
+          softWrap: true,
+        );
     }
   }
 }
