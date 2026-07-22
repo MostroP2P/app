@@ -1770,6 +1770,36 @@ async fn dispatch_mostro_message(
                 log::warn!("[orders] gift-wrap NewOrder has no order id");
             }
         }
+        Action::RestoreSession => {
+            // Daemon's restore reply (mostro send_restore_session_response ->
+            // Message::new_restore(RestoreData), addressed to the sending trade
+            // key). Correlated by trade pubkey only — RestoreSession carries no
+            // request_id — so take_matching_restore skips the nonce gate.
+            match &kind.payload {
+                Some(mostro_core::message::Payload::RestoreData(info)) => {
+                    if let Some(pending) = take_matching_restore(trade_pubkey_hex) {
+                        if let Some(tx) = pending.tx {
+                            let _ = tx.send(DaemonReply::Restored(info.clone()));
+                            crate::api::logging::blog_info("gift-wrap", format!(
+                                "RestoreData: notified waiting restore_session ({} orders, {} disputes)",
+                                info.restore_orders.len(),
+                                info.restore_disputes.len()
+                            ));
+                        }
+                    } else {
+                        crate::api::logging::blog_info("gift-wrap", format!(
+                            "RestoreData with no waiting caller for trade={}",
+                            &trade_pubkey_hex[..8]
+                        ));
+                    }
+                }
+                _ => {
+                    log::warn!(
+                        "[orders] RestoreSession reply payload is not RestoreData for trade={trade_pubkey_hex}"
+                    );
+                }
+            }
+        }
         Action::Canceled => {
             log::info!("[orders] gift-wrap Canceled for trade={trade_pubkey_hex}");
             if let Some(order_id) = &kind.id {
@@ -3290,45 +3320,68 @@ mod tests {
     }
 }
 
-/// Send a `RestoreSession` request to the active Mostro daemon and rebuild the
-/// user's active trades/disputes from the reply.
+/// Send a `RestoreSession` to the active daemon and return the user's active
+/// trades/disputes. Mirrors create_order's send/await, minus the order payload.
 ///
-/// Correlation differs from order actions: the daemon replies with
-/// `Payload::RestoreData(RestoreSessionInfo)` addressed to the IDENTITY pubkey
-/// (restore_session.rs:93, keyed by trade_pubkey — NOT a request_id). The
-/// RestoreSession message itself carries no request_id.
-///
-/// STATUS: send half implemented; await + reconstruction pending a design
-/// decision (reuse pending-request machinery adapted for pubkey correlation,
-/// vs. a separate restore-await path) — see issue #142.
-pub async fn restore_session() -> Result<()> {
-    // Identity keys — restore is looked up by master/identity key, not a
-    // per-trade key (matches the daemon's restore_session handler).
-    let identity_keys = crate::api::identity::get_active_keys().await?;
+/// Correlation: the request is sent from a fresh TRADE key (event.sender) while
+/// the Seal carries the IDENTITY key (event.identity). The daemon looks up
+/// trades by identity/master key and replies to the trade key
+/// (mostro restore_session.rs: master_key = event.identity, reply -> event.sender),
+/// so we subscribe on the trade key and correlate the reply by that pubkey.
+pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInfo> {
+    // Fresh trade key -> event.sender (daemon replies here).
+    let trade_key_info = crate::api::identity::derive_trade_key().await?;
+    let trade_index = trade_key_info.index;
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let trade_pk_hex = sender_keys.public_key().to_hex();
+
     let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
-    let transport_keys =
-        crate::api::identity::get_transport_identity_keys(&identity_keys).await?;
+    // Identity/transport keys sign the Seal -> event.identity (master key).
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
 
-    // Build the RestoreSession event (payload None, from identity key).
     let event_json =
-        actions::restore_session(&transport_keys, &mostro_pubkey).await?;
+        actions::restore_session(&identity_keys, &sender_keys, &mostro_pubkey).await?;
 
-    // Subscribe on the identity pubkey so the daemon's RestoreData reply is
-    // received (mirrors create_order's subscribe-before-publish ordering).
-    subscribe_gift_wraps(identity_keys.public_key(), 0).await;
+    // Register the pending-restore record BEFORE publishing so the reply can't
+    // race the map. Correlated by trade pubkey only (RestoreSession carries no
+    // request_id) -> take_matching_restore.
+    let (conf_tx, conf_rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    if let Ok(mut map) = pending_requests().lock() {
+        map.insert(
+            trade_pk_hex.clone(),
+            PendingRequest {
+                request_id: 0,
+                trade_index,
+                kind: PendingRequestKind::Restore,
+                tx: Some(conf_tx),
+            },
+        );
+    }
+
+    subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
 
     if let Err(e) = publish_event_json(&event_json).await {
+        remove_pending_request(&trade_pk_hex, 0);
         return Err(e);
     }
     crate::api::logging::blog_info(
         "restore",
-        "RestoreSession published — awaiting daemon RestoreData".to_string(),
+        format!("RestoreSession published trade_index={trade_index} — waiting for daemon"),
     );
 
-    // --- UNVERIFIED / UNDESIGNED: await the RestoreData reply -----------------
-    // The reply arrives asynchronously through dispatch_mostro_message, keyed
-    // by identity pubkey. This needs either (a) a pubkey-correlated pending
-    // entry + a new Payload::RestoreData dispatcher arm, or (b) a separate
-    // restore-await channel. Deferred pending grunch's architecture call (#142).
-    todo!("await Payload::RestoreData reply + reconstruct trades — see #142");
+    let confirmation = crate::rt::time::timeout(
+        std::time::Duration::from_secs(10),
+        conf_rx,
+    ).await;
+
+    if !matches!(confirmation, Ok(Ok(_))) {
+        detach_request_waiter(&trade_pk_hex, 0);
+    }
+
+    match confirmation {
+        Ok(Ok(DaemonReply::Restored(info))) => Ok(info),
+        Ok(Ok(_other)) => Err(anyhow::anyhow!("unexpected restore reply")),
+        _ => Err(anyhow::anyhow!("NoDaemonResponse")),
+    }
 }

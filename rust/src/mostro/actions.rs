@@ -468,8 +468,12 @@ mod tests {
 /// (identity) pubkey. Returns the NIP-59 Gift Wrap event JSON.
 pub async fn restore_session(
     identity_keys: &Keys,
+    trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
 ) -> Result<String> {
+    // identity_keys sign the Seal (-> event.identity = master key, used by the
+    // daemon to look up the user's trades); trade_keys sign the rumor
+    // (-> event.sender, the key the daemon replies to). Mirrors new_order.
     let msg = Message::new_restore(None);
-    wrap_message(identity_keys, identity_keys, mostro_pubkey, &msg).await
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
