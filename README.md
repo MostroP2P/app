@@ -233,13 +233,15 @@ Available via TestFlight (link in Releases) or build from source with Xcode.
 
 **Web**
 
-Open **<https://mostrop2p.github.io/app/>** in a modern browser — it always serves the latest
+Open **<https://mostro.network/app/>** in a modern browser — it always serves the latest
 build of `main`. Nothing is installed and nothing is uploaded: the identity is generated in
 your browser and stays there, and the app talks to Nostr relays directly.
+(`https://mostrop2p.github.io/app/` redirects there.)
 
 The very first visit reloads itself once while it installs the service worker that supplies
-the cross-origin isolation headers the Rust core needs; that is expected. A browser with
-service workers disabled cannot run the web client.
+the cross-origin isolation headers the Rust core needs; that is expected. Two requirements
+follow from it: the page must be loaded over **HTTPS** (a service worker needs a secure
+context), and a browser with service workers disabled cannot run the web client.
 
 **Desktop (macOS / Windows / Linux)**
 
@@ -360,8 +362,11 @@ order book populate from the daemon's Kind 38383 events without running anything
 
 ### Deploying the web client
 
-`main` is published automatically to **<https://mostrop2p.github.io/app/>** by
+`main` is published automatically to **<https://mostro.network/app/>** by
 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) on every merge.
+(The organization serves its Pages sites from that domain, so this project page lives under
+`mostro.network/app/` rather than `mostrop2p.github.io/app/`, which 301s to it. The sub-path
+is the same either way.)
 The workflow runs the same steps as above (`scripts/frb-generate.sh`, then
 `scripts/build-web.sh --release`) and finishes with:
 
@@ -382,6 +387,10 @@ Three things make it work on a static host that cannot set HTTP headers:
 - **`--pwa-strategy=none`** — Flutter's own (deprecated) service worker would register over
   the same scope and evict the isolation shim, silently un-isolating the page. Offline
   caching is the trade-off.
+
+The shim registers a service worker, which browsers only allow in a **secure context** — the
+site has to be reachable over HTTPS (Pages: *Settings → Pages → Enforce HTTPS*), or the page
+loads un-isolated and stays blank.
 
 Deploying elsewhere works too: either set `Cross-Origin-Opener-Policy: same-origin` and
 `Cross-Origin-Embedder-Policy: require-corp` at the server/CDN and drop the shim, or keep

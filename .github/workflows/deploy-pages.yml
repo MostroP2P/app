@@ -1,6 +1,7 @@
 name: Deploy web to GitHub Pages
 
-# Publishes the web client to https://mostrop2p.github.io/app/ on every merge to main.
+# Publishes the web client to https://mostro.network/app/ on every merge to main
+# (the org serves Pages from that domain; mostrop2p.github.io/app/ 301s to it).
 # The app is a pure client — outbound wss:// to Nostr relays, identity generated in the
 # browser, persistence in IndexedDB — so static hosting is enough (see issue #212).
 #

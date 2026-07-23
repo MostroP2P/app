@@ -40,7 +40,7 @@ flutter gen-l10n                            # after editing lib/l10n/*.arb
 - The page must be **cross-origin isolated** (`SharedArrayBuffer`). Locally that comes from
   `flutter run -d chrome --web-header ...`; in production from the vendored
   `web/coi-serviceworker.min.js`, which must stay the first script in `web/index.html`.
-- `main` deploys to <https://mostrop2p.github.io/app/> via `.github/workflows/deploy-pages.yml`
+- `main` deploys to <https://mostro.network/app/> via `.github/workflows/deploy-pages.yml`
   (`--base-href` for the sub-path, `--pwa-strategy=none` so Flutter's service worker does not
   take the isolation shim's scope). Every one of these, when wrong, yields a **blank page** —
   `test/web/pages_bundle_test.dart` guards them.
