@@ -45,6 +45,16 @@
 │  │  Service Fee          0.6%               ℹ️  │  │
 │  │  Fiat Currencies      All                ℹ️  │  │
 │  │                                               │  │
+│  │  ══ Anti-abuse Bond ══                        │  │
+│  │                                               │  │
+│  │  Bond status          Enabled            ℹ️  │  │
+│  │  Applies to           Makers and takers  ℹ️  │  │
+│  │  Bond amount          5%                 ℹ️  │  │
+│  │  Minimum bond         1,000 Satoshis     ℹ️  │  │
+│  │  Node share on slash  50%                ℹ️  │  │
+│  │  Slash on timeout     Enabled            ℹ️  │  │
+│  │  Payout claim window  3 days             ℹ️  │  │
+│  │                                               │  │
 │  │  ══ Technical Details ══                      │  │
 │  │                                               │  │
 │  │  Mostro Version       0.12.5             ℹ️  │  │
@@ -142,6 +152,13 @@
     ["lnd_chains", "bitcoin"],
     ["lnd_networks", "mainnet"],
     ["lnd_uris", "0220e455...@host:9735"],
+    ["bond_enabled", "true"],
+    ["bond_apply_to", "both"],
+    ["bond_slash_on_waiting_timeout", "true"],
+    ["bond_amount_pct", "0.05"],
+    ["bond_base_amount_sats", "1000"],
+    ["bond_slash_node_share_pct", "0.5"],
+    ["bond_payout_claim_window_days", "3"],
     ["y", "mostro", "[instance name]"],
     ["z", "info"]
   ],
@@ -161,6 +178,30 @@
 | Order Lifespan | `expirationHours` | Number + "hours" |
 | Service Fee | `fee` | Percentage (fee * 100 + "%") |
 | Fiat Currencies | `fiatCurrenciesAccepted` | Comma-separated or "All" |
+
+#### Anti-abuse Bond Section
+
+Advertises the node's anti-abuse bond policy — a Lightning hold invoice locked for the duration of a trade and released when it completes normally. Rendered between General Info and Technical Details.
+
+**Three-state visibility** (`bondPolicy`, from the `bond_enabled` tag):
+
+- `unsupported` — tag absent or malformed (legacy daemon). Only the status row renders, showing "Not supported".
+- `disabled` — `bond_enabled="false"`. Only the status row renders, showing "Disabled".
+- `enabled` — `bond_enabled="true"`. The status row plus every parameter the daemon populated renders.
+
+Each parameter row renders only when its tag parsed to a non-null value, so a partially-configured node never shows empty fields.
+
+| Field | Key | Format |
+|-------|-----|--------|
+| Bond status | `bondPolicy` | Enabled / Disabled / Not supported |
+| Applies to | `bondApplyTo` | Takers / Makers / Makers and takers |
+| Bond amount | `bondAmountPct` | Percentage (`pct * 100 + "%"`); the larger of this and the minimum bond is charged |
+| Minimum bond | `bondBaseAmountSats` | Formatted number + "Satoshis" |
+| Node share on slash | `bondSlashNodeSharePct` | Percentage (`pct * 100 + "%"`) |
+| Slash on waiting timeout | `bondSlashOnWaitingTimeout` | Enabled / Disabled |
+| Payout claim window | `bondPayoutClaimWindowDays` | Number + "days" |
+
+The bond parameters are meaningful only when `bondPolicy` is `enabled`; a disabled or unsupported node exposes them as null. The client never computes a bond charge — the daemon sends the exact bolt11; these fields exist for up-front UI disclosure only.
 
 #### Technical Details Section
 
