@@ -27,10 +27,23 @@ test/
 cd rust && cargo build
 cd rust && cargo test && cargo clippy      # mandated verify (Rust)
 ./scripts/frb-generate.sh                   # after ANY change to rust/src/api/
+./scripts/build-web.sh                      # web only: compile the Rust core to web/pkg/
 flutter analyze && flutter test             # Dart side
 flutter run -d linux|chrome|android         # Rust is a lib — there is no `cargo run`
 flutter gen-l10n                            # after editing lib/l10n/*.arb
 ```
+
+## Web (wasm) — non-obvious constraints
+- The Flutter build does **not** compile the Rust core on web. Run `./scripts/build-web.sh`
+  (never `flutter_rust_bridge_codegen build-web`: on current nightly it silently emits
+  non-shared memory and the FRB worker pool dies with `DataCloneError`).
+- The page must be **cross-origin isolated** (`SharedArrayBuffer`). Locally that comes from
+  `flutter run -d chrome --web-header ...`; in production from the vendored
+  `web/coi-serviceworker.min.js`, which must stay the first script in `web/index.html`.
+- `main` deploys to <https://mostro.network/app/> via `.github/workflows/deploy-pages.yml`
+  (`--base-href` for the sub-path, `--pwa-strategy=none` so Flutter's service worker does not
+  take the isolation shim's scope). Every one of these, when wrong, yields a **blank page** —
+  `test/web/pages_bundle_test.dart` guards them.
 
 ## Code Style
 
