@@ -127,3 +127,25 @@ final tradeInfoStreamProvider =
     await Future.delayed(const Duration(seconds: 1));
   }
 });
+
+/// Poll `listTrades()` every 1 s until `bondInvoice` is non-null, then stop.
+///
+/// Returns the full [TradeInfo] once the anti-abuse bond hold invoice is
+/// available. Used by [PayBondInvoiceScreen]; kept separate from
+/// [tradeInfoStreamProvider] (which keys on `holdInvoice`) because a taken
+/// bond order carries its invoice in `bondInvoice` and leaves `holdInvoice`
+/// null until the trade advances past the bond.
+final tradeBondInfoProvider =
+    StreamProvider.family.autoDispose<TradeInfo?, String>((ref, orderId) async* {
+  while (true) {
+    try {
+      final trades = await orders_api.listTrades();
+      final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+      yield trade;
+      if (trade?.bondInvoice != null) return;
+    } catch (e, st) {
+      debugPrint('[tradeBondInfoProvider] listTrades failed: $e\n$st');
+    }
+    await Future.delayed(const Duration(seconds: 1));
+  }
+});

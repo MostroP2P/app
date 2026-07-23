@@ -19,7 +19,8 @@ import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 /// Shown when the taker takes an order on a bond-requiring node: the daemon
 /// replies with `pay-bond-invoice` (a Lightning hold invoice for the taker's
 /// anti-abuse bond) instead of progressing the trade. The bond bolt11 rides in
-/// the trade's `holdInvoice` slot and the order sits at
+/// the trade's dedicated `bondInvoice` slot (kept apart from `holdInvoice` so
+/// it never collides with the escrow hold invoice) and the order sits at
 /// [OrderStatus.waitingTakerBond] until it is paid.
 ///
 /// The taker pays the bond (NWC or externally); once the daemon detects the
@@ -63,7 +64,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen> {
     final l10n = AppLocalizations.of(context);
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
-    final tradeAsync = ref.watch(tradeInfoStreamProvider(widget.orderId));
+    final tradeAsync = ref.watch(tradeBondInfoProvider(widget.orderId));
 
     // Listen to live status updates from mostrod. While the order sits at
     // waitingTakerBond we stay here; once the bond HTLC is locked the daemon
@@ -128,7 +129,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen> {
         );
       },
       data: (trade) {
-        final invoice = trade?.holdInvoice ?? '';
+        final invoice = trade?.bondInvoice ?? '';
         final amountSats = trade?.order.amountSats?.toInt() ?? 0;
 
         if (invoice.isEmpty) {

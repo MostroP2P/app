@@ -244,6 +244,13 @@ pub struct TradeInfo {
     pub counterparty_pubkey: String,
     pub current_step: TradeStep,
     pub hold_invoice: Option<String>,
+    /// Anti-abuse bond hold invoice the taker must pay on a bond-requiring node
+    /// (order sits at [`OrderStatus::WaitingTakerBond`] until it is paid). Kept
+    /// distinct from `hold_invoice` so the bond and the trade's escrow hold
+    /// invoice never collide as the trade advances past the bond. `serde`
+    /// default keeps trade rows persisted before this field deserializable.
+    #[serde(default)]
+    pub bond_invoice: Option<String>,
     pub buyer_invoice: Option<String>,
     pub trade_key_index: u32,
     pub cooperative_cancel_state: Option<CooperativeCancelState>,
