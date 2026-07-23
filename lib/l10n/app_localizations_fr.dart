@@ -974,6 +974,87 @@ class AppLocalizationsFr extends AppLocalizations {
       'L\'URI de connexion du nœud LND au format pubkey@hôte:port. Utilisée pour ouvrir des canaux de paiement directs.';
 
   @override
+  String get aboutAntiAbuseBondSection => 'Caution anti-abus';
+
+  @override
+  String get aboutBondEnabledValue => 'Activée';
+
+  @override
+  String get aboutBondDisabledValue => 'Désactivée';
+
+  @override
+  String get aboutBondUnsupportedValue => 'Non prise en charge';
+
+  @override
+  String get aboutBondStatusLabel => 'État de la caution';
+
+  @override
+  String get aboutBondStatusExplanation =>
+      'Indique si cette instance Mostro exige une caution anti-abus : une petite facture à retenue Lightning bloquée pendant toute la durée de l\'échange et libérée lorsque celui-ci se termine normalement. « Non prise en charge » signifie que le démon est antérieur à cette fonctionnalité.';
+
+  @override
+  String get aboutBondAppliesToLabel => 'S\'applique à';
+
+  @override
+  String get aboutBondAppliesToExplanation =>
+      'Quelle partie de l\'échange doit bloquer une caution : le preneur, le créateur, ou les deux.';
+
+  @override
+  String get aboutBondAppliesToTakers => 'Preneurs';
+
+  @override
+  String get aboutBondAppliesToMakers => 'Créateurs';
+
+  @override
+  String get aboutBondAppliesToBoth => 'Créateurs et preneurs';
+
+  @override
+  String get aboutBondAmountLabel => 'Montant de la caution';
+
+  @override
+  String get aboutBondAmountExplanation =>
+      'La caution en pourcentage du montant de l\'ordre. Le plus élevé entre cette valeur et la caution minimale est retenu.';
+
+  @override
+  String get aboutBondBaseAmountLabel => 'Caution minimale';
+
+  @override
+  String get aboutBondBaseAmountExplanation =>
+      'Le plancher d\'une caution, en satoshis. Il s\'applique lorsque le pourcentage du montant de l\'ordre passe en dessous.';
+
+  @override
+  String get aboutBondNodeShareLabel => 'Part du nœud en cas de saisie';
+
+  @override
+  String get aboutBondNodeShareExplanation =>
+      'La part d\'une caution saisie conservée par le nœud. Le reste est transmis à la contrepartie lésée.';
+
+  @override
+  String get aboutBondSlashOnTimeoutLabel => 'Saisie en cas de délai dépassé';
+
+  @override
+  String get aboutBondSlashOnTimeoutExplanation =>
+      'Indique si la caution est saisie lorsqu\'une partie laisse expirer un état d\'attente au lieu d\'agir.';
+
+  @override
+  String get aboutBondClaimWindowLabel => 'Délai de réclamation du paiement';
+
+  @override
+  String get aboutBondClaimWindowExplanation =>
+      'Le temps dont dispose la contrepartie lésée pour envoyer une facture Lightning et réclamer sa part d\'une caution saisie.';
+
+  @override
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count jours',
+      one: '$count jour',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get openDisputeFailed =>
       'Impossible d\'ouvrir le litige. Veuillez réessayer.';
 

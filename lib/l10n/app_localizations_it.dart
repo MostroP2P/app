@@ -968,6 +968,89 @@ class AppLocalizationsIt extends AppLocalizations {
       'L\'URI di connessione del nodo LND nel formato pubkey@host:porta. Utilizzato per aprire canali di pagamento diretti.';
 
   @override
+  String get aboutAntiAbuseBondSection => 'Cauzione anti-abuso';
+
+  @override
+  String get aboutBondEnabledValue => 'Attiva';
+
+  @override
+  String get aboutBondDisabledValue => 'Disattivata';
+
+  @override
+  String get aboutBondUnsupportedValue => 'Non supportata';
+
+  @override
+  String get aboutBondStatusLabel => 'Stato della cauzione';
+
+  @override
+  String get aboutBondStatusExplanation =>
+      'Indica se questa istanza Mostro richiede una cauzione anti-abuso: una piccola hold invoice Lightning bloccata per tutta la durata dello scambio e rilasciata quando questo si conclude normalmente. «Non supportata» significa che il daemon precede questa funzionalità.';
+
+  @override
+  String get aboutBondAppliesToLabel => 'Si applica a';
+
+  @override
+  String get aboutBondAppliesToExplanation =>
+      'Quale parte dello scambio deve bloccare una cauzione: chi accetta l\'ordine, chi lo crea, o entrambe.';
+
+  @override
+  String get aboutBondAppliesToTakers => 'Chi accetta l\'ordine';
+
+  @override
+  String get aboutBondAppliesToMakers => 'Chi crea l\'ordine';
+
+  @override
+  String get aboutBondAppliesToBoth => 'Entrambe le parti';
+
+  @override
+  String get aboutBondAmountLabel => 'Importo della cauzione';
+
+  @override
+  String get aboutBondAmountExplanation =>
+      'La cauzione come percentuale dell\'importo dell\'ordine. Viene applicato il maggiore tra questo valore e la cauzione minima.';
+
+  @override
+  String get aboutBondBaseAmountLabel => 'Cauzione minima';
+
+  @override
+  String get aboutBondBaseAmountExplanation =>
+      'Il valore minimo di una cauzione, in satoshi. Si applica quando la percentuale sull\'importo dell\'ordine scende al di sotto.';
+
+  @override
+  String get aboutBondNodeShareLabel =>
+      'Quota del nodo in caso di incameramento';
+
+  @override
+  String get aboutBondNodeShareExplanation =>
+      'La quota di una cauzione incamerata che il nodo trattiene. Il resto viene inoltrato alla controparte danneggiata.';
+
+  @override
+  String get aboutBondSlashOnTimeoutLabel =>
+      'Incameramento per scadenza dell\'attesa';
+
+  @override
+  String get aboutBondSlashOnTimeoutExplanation =>
+      'Indica se la cauzione viene incamerata quando una parte lascia scadere uno stato di attesa invece di agire.';
+
+  @override
+  String get aboutBondClaimWindowLabel => 'Termine per richiedere il pagamento';
+
+  @override
+  String get aboutBondClaimWindowExplanation =>
+      'Il tempo a disposizione della controparte danneggiata per inviare una fattura Lightning e richiedere la propria quota di una cauzione incamerata.';
+
+  @override
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count giorni',
+      one: '$count giorno',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get openDisputeFailed => 'Impossibile aprire la disputa. Riprovare.';
 
   @override

@@ -958,6 +958,87 @@ class AppLocalizationsEn extends AppLocalizations {
       'The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.';
 
   @override
+  String get aboutAntiAbuseBondSection => 'Anti-abuse Bond';
+
+  @override
+  String get aboutBondEnabledValue => 'Enabled';
+
+  @override
+  String get aboutBondDisabledValue => 'Disabled';
+
+  @override
+  String get aboutBondUnsupportedValue => 'Not supported';
+
+  @override
+  String get aboutBondStatusLabel => 'Bond status';
+
+  @override
+  String get aboutBondStatusExplanation =>
+      'Whether this Mostro instance requires an anti-abuse bond: a small Lightning hold invoice locked for the duration of a trade and released when the trade completes normally. \'Not supported\' means the daemon predates the feature.';
+
+  @override
+  String get aboutBondAppliesToLabel => 'Applies to';
+
+  @override
+  String get aboutBondAppliesToExplanation =>
+      'Which side of a trade must lock a bond: the taker, the maker, or both.';
+
+  @override
+  String get aboutBondAppliesToTakers => 'Takers';
+
+  @override
+  String get aboutBondAppliesToMakers => 'Makers';
+
+  @override
+  String get aboutBondAppliesToBoth => 'Makers and takers';
+
+  @override
+  String get aboutBondAmountLabel => 'Bond amount';
+
+  @override
+  String get aboutBondAmountExplanation =>
+      'The bond as a percentage of the order amount. The larger of this and the minimum bond is charged.';
+
+  @override
+  String get aboutBondBaseAmountLabel => 'Minimum bond';
+
+  @override
+  String get aboutBondBaseAmountExplanation =>
+      'The floor for a bond, in satoshis. It applies when the percentage of the order amount falls below it.';
+
+  @override
+  String get aboutBondNodeShareLabel => 'Node share on slash';
+
+  @override
+  String get aboutBondNodeShareExplanation =>
+      'The share of a slashed bond kept by the node. The remainder is forwarded to the affected counterparty.';
+
+  @override
+  String get aboutBondSlashOnTimeoutLabel => 'Slash on waiting timeout';
+
+  @override
+  String get aboutBondSlashOnTimeoutExplanation =>
+      'Whether the bond is slashed when a party lets a waiting state time out instead of acting.';
+
+  @override
+  String get aboutBondClaimWindowLabel => 'Payout claim window';
+
+  @override
+  String get aboutBondClaimWindowExplanation =>
+      'How long the affected counterparty has to submit a Lightning invoice and claim their share of a slashed bond.';
+
+  @override
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days',
+      one: '$count day',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get openDisputeFailed => 'Could not open dispute. Please try again.';
 
   @override

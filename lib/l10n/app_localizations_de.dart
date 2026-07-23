@@ -970,6 +970,88 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Verbindungs-URI des LND-Knotens im Format pubkey@host:port. Wird zum Öffnen direkter Zahlungskanäle verwendet.';
 
   @override
+  String get aboutAntiAbuseBondSection => 'Anti-Missbrauchs-Kaution';
+
+  @override
+  String get aboutBondEnabledValue => 'Aktiviert';
+
+  @override
+  String get aboutBondDisabledValue => 'Deaktiviert';
+
+  @override
+  String get aboutBondUnsupportedValue => 'Nicht unterstützt';
+
+  @override
+  String get aboutBondStatusLabel => 'Kautionsstatus';
+
+  @override
+  String get aboutBondStatusExplanation =>
+      'Gibt an, ob diese Mostro-Instanz eine Anti-Missbrauchs-Kaution verlangt: eine kleine Lightning-Hold-Invoice, die für die Dauer des Handels gesperrt und bei regulärem Abschluss wieder freigegeben wird. „Nicht unterstützt“ bedeutet, dass der Daemon älter als diese Funktion ist.';
+
+  @override
+  String get aboutBondAppliesToLabel => 'Gilt für';
+
+  @override
+  String get aboutBondAppliesToExplanation =>
+      'Welche Seite eines Handels eine Kaution sperren muss: die annehmende Seite, die erstellende Seite oder beide.';
+
+  @override
+  String get aboutBondAppliesToTakers => 'Annehmende Seite';
+
+  @override
+  String get aboutBondAppliesToMakers => 'Erstellende Seite';
+
+  @override
+  String get aboutBondAppliesToBoth => 'Beide Seiten';
+
+  @override
+  String get aboutBondAmountLabel => 'Kautionsbetrag';
+
+  @override
+  String get aboutBondAmountExplanation =>
+      'Die Kaution als Prozentsatz des Bestellbetrags. Berechnet wird der höhere Wert aus diesem Prozentsatz und der Mindestkaution.';
+
+  @override
+  String get aboutBondBaseAmountLabel => 'Mindestkaution';
+
+  @override
+  String get aboutBondBaseAmountExplanation =>
+      'Die Untergrenze einer Kaution in Satoshi. Sie gilt, wenn der Prozentsatz des Bestellbetrags darunter liegt.';
+
+  @override
+  String get aboutBondNodeShareLabel => 'Anteil des Knotens beim Einzug';
+
+  @override
+  String get aboutBondNodeShareExplanation =>
+      'Der Anteil einer eingezogenen Kaution, den der Knoten behält. Der Rest wird an die betroffene Gegenpartei weitergeleitet.';
+
+  @override
+  String get aboutBondSlashOnTimeoutLabel => 'Einzug bei Zeitüberschreitung';
+
+  @override
+  String get aboutBondSlashOnTimeoutExplanation =>
+      'Gibt an, ob die Kaution eingezogen wird, wenn eine Partei einen Wartezustand verstreichen lässt, statt zu handeln.';
+
+  @override
+  String get aboutBondClaimWindowLabel =>
+      'Frist für die Auszahlungsanforderung';
+
+  @override
+  String get aboutBondClaimWindowExplanation =>
+      'Wie lange die betroffene Gegenpartei Zeit hat, eine Lightning-Rechnung einzureichen und ihren Anteil an einer eingezogenen Kaution anzufordern.';
+
+  @override
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Tage',
+      one: '$count Tag',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get openDisputeFailed =>
       'Streit konnte nicht eröffnet werden. Bitte erneut versuchen.';
 

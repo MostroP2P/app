@@ -317,4 +317,66 @@ void main() {
       expect(instance.bondPayoutClaimWindowDays, isNull);
     });
   });
+
+  group('MostroInstance — percentage formatting', () {
+    test('bond fractions render as percentages', () {
+      final instance = MostroInstance.fromTags(_tagsWith(_enabledBondTags));
+
+      expect(instance.bondAmountPercent, '5%');
+      expect(instance.bondSlashNodeSharePercent, '50%');
+    });
+
+    test('a fractional percentage keeps two decimals', () {
+      final instance = MostroInstance.fromTags(
+        _enabledTagsWith({
+          'bond_amount_pct': '0.0125',
+          'bond_slash_node_share_pct': '0.335',
+        }),
+      );
+
+      expect(instance.bondAmountPercent, '1.25%');
+      expect(instance.bondSlashNodeSharePercent, '33.50%');
+    });
+
+    test('percentages are null when the parameters are absent', () {
+      final instance = MostroInstance.fromTags(
+        _tagsWith({'bond_enabled': 'true'}),
+      );
+
+      expect(instance.bondAmountPercent, isNull);
+      expect(instance.bondSlashNodeSharePercent, isNull);
+    });
+
+    test('percentages are null on a disabled node', () {
+      final instance = MostroInstance.fromTags(
+        _tagsWith({..._enabledBondTags, 'bond_enabled': 'false'}),
+      );
+
+      expect(instance.bondAmountPercent, isNull);
+      expect(instance.bondSlashNodeSharePercent, isNull);
+    });
+
+    test('a fraction that overflows when scaled yields null, not a crash', () {
+      // bond_amount_pct is uncapped, so a finite value like 1e308 passes the
+      // parser but overflows to Infinity once multiplied by 100.
+      final instance = MostroInstance.fromTags(
+        _enabledTagsWith({'bond_amount_pct': '1e308'}),
+      );
+
+      expect(instance.bondAmountPct, 1e308);
+      expect(instance.bondAmountPercent, isNull);
+    });
+
+    test('fee percentage formatting is unchanged', () {
+      expect(
+        MostroInstance.fromTags(_tagsWith({'fee': '0.006'})).feePercent,
+        '0.60%',
+      );
+      expect(
+        MostroInstance.fromTags(_tagsWith({'fee': '0.01'})).feePercent,
+        '1%',
+      );
+      expect(MostroInstance.fromTags(_tagsWith({})).feePercent, isNull);
+    });
+  });
 }
