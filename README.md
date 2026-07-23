@@ -234,8 +234,8 @@ Available via TestFlight (link in Releases) or build from source with Xcode.
 **Web**
 
 Open **<https://mostro.network/app/>** in a modern browser — it always serves the latest
-build of `main`. Nothing is installed and nothing is uploaded: the identity is generated in
-your browser and stays there, and the app talks to Nostr relays directly.
+build of `main`. No native app is installed and nothing is uploaded: the identity is generated
+in your browser and stays there, and the app talks to Nostr relays directly.
 (`https://mostrop2p.github.io/app/` redirects there.)
 
 The very first visit reloads itself once while it installs the service worker that supplies
@@ -392,9 +392,12 @@ The shim registers a service worker, which browsers only allow in a **secure con
 site has to be reachable over HTTPS (Pages: *Settings → Pages → Enforce HTTPS*), or the page
 loads un-isolated and stays blank.
 
-Deploying elsewhere works too: either set `Cross-Origin-Opener-Policy: same-origin` and
+Deploying elsewhere works too, but the bundle is not portable across paths: `--base-href`
+is baked in at build time, so rebuild with the path the site is actually served from
+(`/` at a domain root, `/whatever/` under a sub-path). What carries over unchanged is the
+isolation choice — either set `Cross-Origin-Opener-Policy: same-origin` and
 `Cross-Origin-Embedder-Policy: require-corp` at the server/CDN and drop the shim, or keep
-the shim and serve the bundle as-is.
+the shim and let it supply them.
 
 ### Build for Production
 

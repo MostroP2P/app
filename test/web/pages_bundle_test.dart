@@ -68,15 +68,41 @@ void main() {
   });
 
   group('deploy-pages workflow', () {
-    test('builds with the project sub-path and without Flutter service worker',
-        () {
+    test(
+      'builds with the project sub-path and without Flutter service worker',
+      () {
+        // Arrange
+        final yaml = workflow.readAsStringSync();
+
+        // Act / Assert — a missing --base-href 404s every asset; Flutter's own
+        // service worker would evict the isolation shim from the same scope.
+        expect(yaml, contains('--base-href'));
+        expect(yaml, contains('--pwa-strategy=none'));
+      },
+    );
+
+    test('only deploys from main, even on a manual dispatch', () {
       // Arrange
       final yaml = workflow.readAsStringSync();
 
-      // Act / Assert — a missing --base-href 404s every asset; Flutter's own
-      // service worker would evict the isolation shim from the same scope.
-      expect(yaml, contains('--base-href'));
-      expect(yaml, contains('--pwa-strategy=none'));
+      // Act / Assert — workflow_dispatch lets the operator pick any ref; without
+      // this guard a branch build could be published to the production URL.
+      expect(yaml, contains("if: github.ref == 'refs/heads/main'"));
+    });
+
+    test('grants Pages and OIDC write tokens to the deploy job only', () {
+      // Arrange
+      final yaml = workflow.readAsStringSync();
+
+      // Act — everything before the deploy job: workflow-wide scope plus build.
+      final beforeDeploy = yaml.substring(0, yaml.indexOf('  deploy:'));
+
+      // Assert — the build job runs codegen and third-party build scripts, so it
+      // must not hold a token that can publish or mint an OIDC identity.
+      expect(beforeDeploy, isNot(contains('pages: write')));
+      expect(beforeDeploy, isNot(contains('id-token: write')));
+      expect(yaml, contains('pages: write'));
+      expect(yaml, contains('id-token: write'));
     });
 
     test('compiles the Rust core through scripts/build-web.sh', () {

@@ -13,10 +13,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Granted per job, not workflow-wide: the build job runs codegen and third-party
+# build scripts and has no business holding a Pages or OIDC write token.
+permissions: {}
 
 # Never cancel a deployment that is already publishing — a half-applied Pages
 # deployment is worse than a queued one. Matches GitHub's starter workflow.
@@ -37,6 +36,8 @@ jobs:
   build:
     name: Build web bundle
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # The first uncached run compiles std from source (-Z build-std), which is slow.
     timeout-minutes: 60
     steps:
@@ -154,6 +155,14 @@ jobs:
     name: Deploy to Pages
     needs: build
     runs-on: ubuntu-latest
+    # workflow_dispatch lets the operator pick any ref. Publishing a branch build
+    # to the production URL would bypass the "everything lands via PR to main"
+    # rule, so only main deploys — a manual run elsewhere still builds and
+    # verifies, which is the useful part of dispatching it.
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
