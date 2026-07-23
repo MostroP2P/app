@@ -315,6 +315,57 @@ class _MostroNodeContent extends StatelessWidget {
         ),
 
         const SizedBox(height: AppSpacing.xl),
+        _SectionHeader(title: l10n.aboutAntiAbuseBondSection),
+        const SizedBox(height: AppSpacing.md),
+        // Status covers all three policy states. The parameters below need no
+        // policy check: the parser leaves them null unless the policy is
+        // enabled, so a disabled or legacy node shows the status row alone.
+        _NodeInfoRowInfo(
+          label: l10n.aboutBondStatusLabel,
+          value: _bondStatus(l10n),
+          explanation: l10n.aboutBondStatusExplanation,
+        ),
+        if (node.bondApplyTo != null)
+          _NodeInfoRowInfo(
+            label: l10n.aboutBondAppliesToLabel,
+            value: _bondAppliesTo(node.bondApplyTo!, l10n),
+            explanation: l10n.aboutBondAppliesToExplanation,
+          ),
+        if (node.bondAmountPercent != null)
+          _NodeInfoRowInfo(
+            label: l10n.aboutBondAmountLabel,
+            value: node.bondAmountPercent!,
+            explanation: l10n.aboutBondAmountExplanation,
+          ),
+        if (node.bondBaseAmountSats != null)
+          _NodeInfoRowInfo(
+            label: l10n.aboutBondBaseAmountLabel,
+            value:
+                '${_fmt(node.bondBaseAmountSats!)} ${l10n.aboutSatoshisSuffix}',
+            explanation: l10n.aboutBondBaseAmountExplanation,
+          ),
+        if (node.bondSlashNodeSharePercent != null)
+          _NodeInfoRowInfo(
+            label: l10n.aboutBondNodeShareLabel,
+            value: node.bondSlashNodeSharePercent!,
+            explanation: l10n.aboutBondNodeShareExplanation,
+          ),
+        if (node.bondSlashOnWaitingTimeout != null)
+          _NodeInfoRowInfo(
+            label: l10n.aboutBondSlashOnTimeoutLabel,
+            value: node.bondSlashOnWaitingTimeout!
+                ? l10n.aboutBondEnabledValue
+                : l10n.aboutBondDisabledValue,
+            explanation: l10n.aboutBondSlashOnTimeoutExplanation,
+          ),
+        if (node.bondPayoutClaimWindowDays != null)
+          _NodeInfoRowInfo(
+            label: l10n.aboutBondClaimWindowLabel,
+            value: '${node.bondPayoutClaimWindowDays} ${l10n.aboutDaysSuffix}',
+            explanation: l10n.aboutBondClaimWindowExplanation,
+          ),
+
+        const SizedBox(height: AppSpacing.xl),
         _SectionHeader(title: l10n.aboutTechnicalDetailsSection),
         const SizedBox(height: AppSpacing.md),
         if (node.mostroVersion != null)
@@ -422,6 +473,19 @@ class _MostroNodeContent extends StatelessWidget {
     if (raw == null || raw.trim().isEmpty) return l10n.aboutFiatCurrenciesAll;
     return raw;
   }
+
+  String _bondStatus(AppLocalizations l10n) => switch (node.bondPolicy) {
+        BondPolicy.enabled => l10n.aboutBondEnabledValue,
+        BondPolicy.disabled => l10n.aboutBondDisabledValue,
+        BondPolicy.unsupported => l10n.aboutBondUnsupportedValue,
+      };
+
+  String _bondAppliesTo(BondApplyTo applyTo, AppLocalizations l10n) =>
+      switch (applyTo) {
+        BondApplyTo.take => l10n.aboutBondAppliesToTakers,
+        BondApplyTo.make => l10n.aboutBondAppliesToMakers,
+        BondApplyTo.both => l10n.aboutBondAppliesToBoth,
+      };
 
   String _truncateHash(String hash) {
     if (hash.length <= 7) return hash;

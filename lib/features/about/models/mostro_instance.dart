@@ -243,9 +243,18 @@ class MostroInstance {
   }
 
   /// Fee formatted as a percentage string, e.g. "0.6%".
-  String? get feePercent {
-    if (fee == null) return null;
-    final pct = fee! * 100;
+  String? get feePercent => _asPercent(fee);
+
+  /// [bondAmountPct] formatted as a percentage string, e.g. "5%".
+  String? get bondAmountPercent => _asPercent(bondAmountPct);
+
+  /// [bondSlashNodeSharePct] formatted as a percentage string, e.g. "50%".
+  String? get bondSlashNodeSharePercent => _asPercent(bondSlashNodeSharePct);
+
+  /// Renders a fraction as a percentage, dropping a trailing ".00".
+  static String? _asPercent(double? fraction) {
+    if (fraction == null) return null;
+    final pct = fraction * 100;
     return pct == pct.truncateToDouble()
         ? '${pct.toInt()}%'
         : '${pct.toStringAsFixed(2)}%';
