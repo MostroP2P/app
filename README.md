@@ -273,16 +273,18 @@ cd app
 # Install Dart/Flutter dependencies
 flutter pub get
 
-# Install the flutter_rust_bridge codegen CLI if you don't have it yet.
-# The version MUST match `flutter_rust_bridge` in rust/Cargo.toml (=2.11.1).
-flutter_rust_bridge_codegen --version || \
-  cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked
+# Install the flutter_rust_bridge codegen CLI at the pinned version.
+# It MUST match `flutter_rust_bridge` in pubspec.yaml and rust/Cargo.toml (2.11.1):
+# a mismatched CLI generates bindings that fail to compile, with an error that
+# never mentions versions. Re-running this is cheap if it is already installed.
+cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked
 
 # Verify the Rust core compiles
 cd rust && cargo build && cd ..
 
-# Regenerate flutter_rust_bridge bindings (needed after any Rust API change)
-flutter_rust_bridge_codegen generate
+# Regenerate flutter_rust_bridge bindings (needed after any Rust API change).
+# The wrapper checks your CLI against the pin before generating.
+./scripts/frb-generate.sh
 ```
 
 ### Run
@@ -348,10 +350,12 @@ All CI checks must pass before merging. Run both suites locally before opening a
 If you modify any `#[frb]`-annotated Rust function in `rust/src/api/`:
 
 ```bash
-flutter_rust_bridge_codegen generate
+./scripts/frb-generate.sh
 ```
 
-> **Do not hand-edit** files under `lib/src/rust/` — they are auto-generated and will be overwritten on the next codegen run. Always commit generated files alongside the Rust changes that triggered them.
+This wraps `flutter_rust_bridge_codegen generate` and refuses to run when your local codegen CLI does not match the version pinned in `pubspec.yaml` — generating with a mismatched CLI produces bindings that fail to compile. Pass `--check` to verify without generating.
+
+> **Do not hand-edit** files under `lib/src/rust/` — they are auto-generated and will be overwritten on the next codegen run. They are gitignored and regenerated on the fly, both locally and in CI, so there is nothing to commit.
 
 ---
 
@@ -452,7 +456,7 @@ Contributions are welcome. Please read this section before opening an issue or p
 
 ### Development Notes
 
-- **Bridge changes:** Any modification to `rust/src/api/` requires re-running `flutter_rust_bridge_codegen generate`. Commit the generated files together with the Rust changes.
+- **Bridge changes:** Any modification to `rust/src/api/` requires re-running `./scripts/frb-generate.sh`. The generated files are gitignored — there is nothing to commit.
 - **Serde conventions:** `mostro-core` uses `#[serde(rename_all = "kebab-case")]` — all protocol status strings on the wire are kebab-case (e.g., `"waiting-buyer-invoice"`, `"fiat-sent"`, `"in-progress"`).
 - **`pub` vs `pub(crate)`:** Only types that must be exposed to the Dart bridge should be `pub`. Internal helpers and types wrapping `nostr-sdk` structs should be `pub(crate)` to prevent broken FRB stub generation.
 - **Key derivation:** Per-trade keys follow BIP-32 path `m/44'/1237'/38383'/0/N`. Never reuse the master identity key for trade-level messages.

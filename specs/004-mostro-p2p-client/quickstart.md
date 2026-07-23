@@ -14,7 +14,7 @@ Get the project building and running for the first time on all supported platfor
 | Rust | stable 1.94+ | `rustup.rs` |
 | wasm-pack | latest | `cargo install wasm-pack` |
 | WASM target | — | `rustup target add wasm32-unknown-unknown` |
-| flutter_rust_bridge codegen | 2.x | `cargo install flutter_rust_bridge_codegen` |
+| flutter_rust_bridge codegen | 2.11.1 (must match `pubspec.yaml`) | `cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked` |
 
 Platform-specific tools: Xcode (iOS/macOS), Android SDK (Android), standard C toolchain (Linux/Windows).
 
@@ -32,7 +32,7 @@ git checkout 004-mostro-p2p-client
 flutter pub get
 
 # 3. Generate flutter_rust_bridge bindings
-flutter_rust_bridge_codegen generate
+./scripts/frb-generate.sh
 
 # 4. Verify Rust builds (native)
 cd rust && cargo build && cargo test && cargo clippy -- -D warnings
@@ -107,10 +107,10 @@ Rust Core
 Run this whenever you add or change public functions in `rust/src/api/`:
 
 ```bash
-flutter_rust_bridge_codegen generate
+./scripts/frb-generate.sh
 ```
 
-The generated files in `lib/generated/` are committed to the repo for reproducibility.
+The wrapper verifies your codegen CLI matches the version pinned in `pubspec.yaml` before generating. The generated files live in `lib/src/rust/` and are gitignored — they are produced on the fly, locally and in CI, so there is nothing to commit.
 
 ---
 

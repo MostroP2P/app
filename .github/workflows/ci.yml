@@ -102,8 +102,11 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # Verifies FRB_VERSION above still agrees with pubspec.yaml and rust/Cargo.toml,
+      # then generates. Generating with a mismatched codegen produces bindings that
+      # fail to compile against the resolved Dart package (see issue #205).
       - name: Generate Rust bridge bindings
-        run: flutter_rust_bridge_codegen generate
+        run: ./scripts/frb-generate.sh
 
       # Regenerate localizations and fail if any locale is missing a key that
       # exists in the English template (app_en.arb). The report is "{}" when
