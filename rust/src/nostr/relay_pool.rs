@@ -13,7 +13,7 @@ use nostr_sdk::prelude::*;
 // conflicting with our internal `RelayStatus` from `crate::api::types`.
 use nostr_sdk::RelayStatus as SdkRelayStatus;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{ConnectionState, RelayInfo, RelaySource, RelayStatus};
@@ -231,9 +231,4 @@ fn map_sdk_status(s: SdkRelayStatus) -> RelayStatus {
     }
 }
 
-fn unix_now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
-}
+use crate::rt::unix_now;

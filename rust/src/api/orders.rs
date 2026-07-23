@@ -664,10 +664,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // Build a local OrderInfo representing the newly created order.
     // In Phase 7, this will be replaced by the actual Mostro response
     // after the NIP-59 message is published and acknowledged.
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+    let now = crate::rt::unix_now();
 
     // Clone params before the struct takes ownership of its fields.
     let params_for_dispatch = params.clone();
@@ -1046,10 +1043,7 @@ pub async fn take_order(
 
     // Accepted: build the trade from the daemon's actual reply instead of
     // optimistic assumptions, then persist and wire up the trade session.
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+    let now = crate::rt::unix_now();
     let initial_step = match role {
         TradeRole::Buyer => TradeStep::Buyer(BuyerStep::OrderTaken),
         TradeRole::Seller => TradeStep::Seller(SellerStep::TakerFound),
