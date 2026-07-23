@@ -4427,6 +4427,7 @@ impl SseDecode for crate::api::types::AttachmentInfo {
 impl SseDecode for crate::api::types::BondSlashedEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_eventId = <String>::sse_decode(deserializer);
         let mut var_orderId = <String>::sse_decode(deserializer);
         let mut var_amountSats = <u64>::sse_decode(deserializer);
         let mut var_fiatCode = <String>::sse_decode(deserializer);
@@ -4434,6 +4435,7 @@ impl SseDecode for crate::api::types::BondSlashedEvent {
         let mut var_paymentMethod = <String>::sse_decode(deserializer);
         let mut var_cause = <crate::api::types::SlashCause>::sse_decode(deserializer);
         return crate::api::types::BondSlashedEvent {
+            event_id: var_eventId,
             order_id: var_orderId,
             amount_sats: var_amountSats,
             fiat_code: var_fiatCode,
@@ -6047,6 +6049,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::AttachmentInfo>
 impl flutter_rust_bridge::IntoDart for crate::api::types::BondSlashedEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.event_id.into_into_dart().into_dart(),
             self.order_id.into_into_dart().into_dart(),
             self.amount_sats.into_into_dart().into_dart(),
             self.fiat_code.into_into_dart().into_dart(),
@@ -7204,6 +7207,7 @@ impl SseEncode for crate::api::types::AttachmentInfo {
 impl SseEncode for crate::api::types::BondSlashedEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.event_id, serializer);
         <String>::sse_encode(self.order_id, serializer);
         <u64>::sse_encode(self.amount_sats, serializer);
         <String>::sse_encode(self.fiat_code, serializer);

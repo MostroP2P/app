@@ -16,8 +16,17 @@ import 'package:mostro/features/notifications/providers/sembast_factory_io.dart'
 // ── Sembast persistence store ─────────────────────────────────────────────────
 
 class SembastNotificationsStore {
+  SembastNotificationsStore({DatabaseFactory? factory, String? path})
+      : _factoryOverride = factory,
+        _pathOverride = path;
+
   static const _dbName = 'notifications.db';
   static const _storeName = 'notifications';
+
+  /// Test seam: when set, bypasses platform factory/path resolution (e.g. an
+  /// in-memory Sembast factory for restart/replay tests).
+  final DatabaseFactory? _factoryOverride;
+  final String? _pathOverride;
 
   Database? _db;
   Completer<Database>? _opening;
@@ -30,7 +39,9 @@ class SembastNotificationsStore {
     _opening = Completer<Database>();
     try {
       final Database db;
-      if (kIsWeb) {
+      if (_factoryOverride != null) {
+        db = await _factoryOverride.openDatabase(_pathOverride ?? _dbName);
+      } else if (kIsWeb) {
         db = await databaseFactoryWeb.openDatabase(_dbName);
       } else {
         final dir = await getApplicationDocumentsDirectory();
@@ -86,16 +97,11 @@ final sembastNotificationsStoreProvider = Provider<SembastNotificationsStore>(
   (ref) => SembastNotificationsStore(),
 );
 
-/// In-memory list of all app notifications (backward-compat, no persistence).
-///
-/// Prefer [notificationsProviderWithDb] for new code.
+/// All app notifications, backed by Sembast persistence. Records survive
+/// restarts; each is keyed by a stable id, so a replayed event upserts in place
+/// rather than inserting a duplicate. Single source of truth for the list, the
+/// bell, and every producer (listeners and the push path).
 final notificationsProvider =
-    StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
-  (ref) => NotificationsNotifier(),
-);
-
-/// Notifications provider backed by Sembast persistence.
-final notificationsProviderWithDb =
     StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
   (ref) {
     final store = ref.watch(sembastNotificationsStoreProvider);
@@ -105,14 +111,9 @@ final notificationsProviderWithDb =
   },
 );
 
-/// Count of unread notifications (in-memory provider).
+/// Count of unread notifications.
 final unreadNotificationCountProvider = Provider<int>(
   (ref) => ref.watch(notificationsProvider).where((n) => !n.isRead).length,
-);
-
-/// Count of unread notifications (DB-backed provider).
-final unreadNotificationCountProviderWithDb = Provider<int>(
-  (ref) => ref.watch(notificationsProviderWithDb).where((n) => !n.isRead).length,
 );
 
 // ── Notifier ──────────────────────────────────────────────────────────────────
@@ -135,7 +136,13 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
   }
 
   Future<void> add(NotificationModel notification) async {
-    state = [notification, ...state];
+    // Idempotent by id: a replayed event (same id) updates in place instead of
+    // inserting a duplicate, keeping in-memory state consistent with the
+    // upserting store.
+    final exists = state.any((n) => n.id == notification.id);
+    state = exists
+        ? [for (final n in state) if (n.id == notification.id) notification else n]
+        : [notification, ...state];
     try {
       await store?.save(notification);
     } catch (e) {

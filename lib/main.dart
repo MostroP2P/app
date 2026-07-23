@@ -187,7 +187,8 @@ void _forwardRustLogs() {
 ///
 /// [stream] is subscribed before relay delivery starts (see [main]), so this
 /// drains any notice buffered during startup and then live ones. Notifications
-/// are added to [notificationsProvider] — the provider the bell and list watch.
+/// are added to [notificationsProvider] — the DB-backed provider the bell and
+/// list watch — keyed on the source event id for idempotent, persistent storage.
 void _consumeBondSlashed(
   bond_api.BondSlashedStream stream,
   ProviderContainer container,
@@ -197,8 +198,11 @@ void _consumeBondSlashed(
       while (true) {
         final event = await stream.next();
         // Only stable data is stored; the copy is localized at render time.
+        // The notification is keyed on the source event id so a replayed slash
+        // upserts one persisted record instead of accumulating duplicates.
         await container.read(notificationsProvider.notifier).add(
               NotificationModel.bondSlashed(
+                id: event.eventId,
                 orderId: event.orderId,
                 amountSats: event.amountSats.toInt(),
                 disputeCause: event.cause == SlashCause.dispute,

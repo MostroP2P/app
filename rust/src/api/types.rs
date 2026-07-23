@@ -430,6 +430,10 @@ pub enum SlashCause {
 /// status and amount are deliberately left untouched.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BondSlashedEvent {
+    /// Stable identity of the source gift-wrap event. The daemon replays stored
+    /// history on reconnect/restart, so consumers key the notification on this
+    /// id to persist exactly one record per slash.
+    pub event_id: String,
     /// The order whose bond was slashed.
     pub order_id: String,
     /// Slashed bond amount, in satoshis.

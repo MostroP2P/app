@@ -154,7 +154,12 @@ class NotificationModel {
   /// the user-facing title, message and detail labels are localized at render
   /// time via [resolvedTitle] / [resolvedMessage] / [resolvedDetail], so a
   /// language change is reflected without rebuilding stored records.
+  ///
+  /// [id] must be the source gift-wrap event id: the daemon replays stored
+  /// history on reconnect/restart, so keying the record on it makes the
+  /// upserting store idempotent — one slash yields exactly one notification.
   factory NotificationModel.bondSlashed({
+    required String id,
     required String orderId,
     required int amountSats,
     required bool disputeCause,
@@ -163,7 +168,7 @@ class NotificationModel {
     String? paymentMethod,
   }) {
     return NotificationModel(
-      id: const Uuid().v4(),
+      id: id,
       type: NotificationType.bondSlashed,
       title: '',
       message: '',

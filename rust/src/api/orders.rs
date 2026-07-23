@@ -1447,7 +1447,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                     ));
                     match crate::nostr::gift_wrap::unwrap_mostro_message(&recipient_keys, &event).await {
                         Ok(Some(unwrapped)) => {
-                            dispatch_mostro_message(unwrapped, &trade_pubkey_hex, trade_index).await;
+                            dispatch_mostro_message(unwrapped, &eid, &trade_pubkey_hex, trade_index).await;
                             last_activity = crate::rt::time::Instant::now();
                         }
                         Ok(None) => {
@@ -1494,6 +1494,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 /// and malformed `request_id` fields), then routes by action.
 async fn dispatch_mostro_message(
     unwrapped: mostro_core::nip59::UnwrappedMessage,
+    event_id: &str,
     trade_pubkey_hex: &str,
     trade_index: u32,
 ) {
@@ -2047,6 +2048,7 @@ async fn dispatch_mostro_message(
                 "[orders] gift-wrap BondSlashed: order={order_id} amount={amount_sats} cause={cause:?}"
             );
             crate::api::bond::emit_bond_slashed(crate::api::types::BondSlashedEvent {
+                event_id: event_id.to_string(),
                 order_id,
                 amount_sats,
                 fiat_code: small_order.fiat_code.clone(),
@@ -2577,7 +2579,7 @@ async fn handle_global_gift_wrap(
 
     match crate::nostr::gift_wrap::unwrap_mostro_message(&recipient_keys, event).await {
         Ok(Some(unwrapped)) => {
-            dispatch_mostro_message(unwrapped, &recipient_hex, trade_idx).await;
+            dispatch_mostro_message(unwrapped, &eid, &recipient_hex, trade_idx).await;
         }
         Ok(None) => {
             // `Ok(None)` = NIP-44 outer decrypt failed. On the global path
