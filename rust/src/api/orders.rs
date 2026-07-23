@@ -3386,3 +3386,49 @@ pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInf
         _ => Err(anyhow::anyhow!("NoDaemonResponse")),
     }
 }
+
+#[cfg(test)]
+mod restore_e2e_tests {
+    //! E2E smoke test for the RestoreSession handshake (#142).
+    //! Requires a live regtest stack: mostrod + relay on ws://localhost:7000.
+    //! Run with:  cargo test --lib restore_session_roundtrip -- --ignored --nocapture
+    //! Ignored by default so it never runs in CI without the stack.
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires live regtest daemon + relay on ws://localhost:7000"]
+    async fn restore_session_roundtrip() {
+        // Point ONLY at the local regtest relay.
+        crate::api::nostr::initialize(Some(vec!["ws://localhost:7000".to_string()]))
+            .await
+            .expect("relay pool init");
+
+        // Regtest daemon pubkey (from mostrod startup logs).
+        crate::config::set_active_mostro_pubkey(Some(
+            "bae71ea2566771ed45b1d267dc0c0753028fe960a7bc4aeee08a44da0cb91520".to_string(),
+        ));
+
+        // Fresh in-memory identity (no keyring needed — Rust never persists it).
+        let id = crate::api::identity::create_identity().await.expect("create identity");
+        println!("[test] created identity pubkey={}", id.public_key);
+
+        // Let the relay connection settle.
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+        // Fire the handshake.
+        println!("[test] calling restore_session()...");
+        let result = restore_session().await;
+        println!("[test] restore_session result: {:?}", result.is_ok());
+
+        match result {
+            Ok(info) => {
+                println!(
+                    "[test] ✓ round-trip OK — {} orders, {} disputes",
+                    info.restore_orders.len(),
+                    info.restore_disputes.len()
+                );
+            }
+            Err(e) => panic!("[test] restore_session failed: {e}"),
+        }
+    }
+}
