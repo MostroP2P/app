@@ -3328,6 +3328,7 @@ mod tests {
 /// trades by identity/master key and replies to the trade key
 /// (mostro restore_session.rs: master_key = event.identity, reply -> event.sender),
 /// so we subscribe on the trade key and correlate the reply by that pubkey.
+#[flutter_rust_bridge::frb(ignore)]
 pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInfo> {
     // Fresh trade key -> event.sender (daemon replies here).
     let trade_key_info = crate::api::identity::derive_trade_key().await?;
