@@ -463,9 +463,10 @@ mod tests {
 /// Build a `RestoreSession` request (mostro-core `Message::new_restore`).
 ///
 /// Payload MUST be `None` — the daemon rejects any other payload
-/// (`MessageKind::verify`). Sent from the IDENTITY key, not a derived trade
-/// key: the daemon's restore_session handler replies to the requesting
-/// (identity) pubkey. Returns the NIP-59 Gift Wrap event JSON.
+/// (`MessageKind::verify`). The Seal is signed by the identity key (used by
+/// the daemon to look up the user's trades); the rumor is signed by a fresh
+/// trade key, and the daemon's restore reply is addressed to that trade key.
+/// Returns the NIP-59 Gift Wrap event JSON.
 pub async fn restore_session(
     identity_keys: &Keys,
     trade_keys: &Keys,

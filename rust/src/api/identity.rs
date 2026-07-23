@@ -165,11 +165,17 @@ pub async fn load_identity_from_mnemonic(
 /// Currently this validates and loads the mnemonic; recovery contacts are
 /// initiated separately via the daemon API.
 pub async fn import_from_mnemonic(words: Vec<String>, recover: bool) -> Result<IdentityInfo> {
-    let info = load_identity_from_mnemonic(words, 0, false, None).await?;
+    // Source the authoritative privacy mode BEFORE loading, so the imported
+    // identity reflects the current session's mode and the recovery guard is
+    // enforced consistently (a hardcoded `false` here left info.privacy_mode
+    // always false, so the guard below could never fire — while
+    // restore_session() reads the real flag from reputation::get_privacy_mode()).
+    let privacy_mode = crate::api::reputation::get_privacy_mode();
+    let info = load_identity_from_mnemonic(words, 0, privacy_mode, None).await?;
     if recover {
         // Recovery is only possible in Reputation mode; Full-Privacy trades
         // are anonymous by design and cannot be replayed by the daemon.
-        if info.privacy_mode {
+        if privacy_mode {
             bail!("PrivacyModeRecoveryUnavailable");
         }
         crate::api::orders::restore_session().await?;

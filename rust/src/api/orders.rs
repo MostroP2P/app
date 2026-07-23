@@ -1785,6 +1785,14 @@ async fn dispatch_mostro_message(
                                 info.restore_orders.len(),
                                 info.restore_disputes.len()
                             ));
+                        } else {
+                            // Post-timeout late reply: the caller already
+                            // returned NoDaemonResponse and detached its waiter.
+                            // Logged for parity with the NewOrder/take/add-invoice arms.
+                            crate::api::logging::blog_info("gift-wrap", format!(
+                                "RestoreData: late reply for timed-out restore on trade={}",
+                                &trade_pubkey_hex[..8]
+                            ));
                         }
                     } else {
                         crate::api::logging::blog_info("gift-wrap", format!(
