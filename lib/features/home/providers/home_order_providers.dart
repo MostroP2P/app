@@ -120,10 +120,12 @@ class OrderItem {
         premium: info.premium,
         creatorPubkey: info.creatorPubkey,
         createdAt: DateTime.fromMillisecondsSinceEpoch(
-            platformInt64ToInt(info.createdAt) * 1000),
+          platformInt64ToInt(info.createdAt) * 1000,
+        ),
         expiresAt: info.expiresAt != null
             ? DateTime.fromMillisecondsSinceEpoch(
-                platformInt64ToInt(info.expiresAt!) * 1000)
+                platformInt64ToInt(info.expiresAt!) * 1000,
+              )
             : null,
         status: info.status,
         amountSats: info.amountSats,
