@@ -1,13 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
-
-/// Returns [v] as the correct `PlatformInt64` type for the current platform:
-/// `int` on native, `BigInt` on web (dart2js). Returning `dynamic` lets
-/// callers pass it directly to bridge parameters typed as `PlatformInt64?`
-/// without a static-type error on either platform.
-dynamic _toInt64(int v) => kIsWeb ? BigInt.from(v) : v;
 
 /// Secure-storage keys.
 const _kMnemonic = 'mostro_identity_mnemonic';
@@ -185,7 +180,7 @@ class IdentityService {
       words: words,
       tradeKeyIndex: tradeKeyIndex,
       privacyMode: privacyMode,
-      createdAt: createdAt > 0 ? _toInt64(createdAt ~/ 1000) : null,
+      createdAt: createdAt > 0 ? intToPlatformInt64(createdAt ~/ 1000) : null,
     );
 
     debugPrint('[identity] identity loaded — pubkey=${info.publicKey}');

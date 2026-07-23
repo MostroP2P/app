@@ -6,6 +6,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/log_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
 
   Future<void> _shareLogs(List<LogEntry> entries) async {
     final lines = entries.map((e) {
-      final time = _formatTimestamp(e.timestamp);
+      final time = _formatTimestamp(platformInt64ToInt(e.timestamp));
       final level = e.level.name.toUpperCase().padRight(7);
       final tag = _sanitizeForShare(e.tag);
       final message = _sanitizeForShare(e.message);
@@ -206,7 +207,7 @@ class _LogEntryTile extends StatelessWidget {
               const Spacer(),
               // Timestamp
               Text(
-                _formatTimestamp(entry.timestamp),
+                _formatTimestamp(platformInt64ToInt(entry.timestamp)),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],

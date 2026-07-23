@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/providers/nav_providers.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
@@ -120,11 +121,7 @@ TradeListItem _tradeInfoToItem(rust_types.TradeInfo trade) {
     trade.order.fiatAmountMax,
   );
 
-  // PlatformInt64 = `int` on native, `BigInt` on web. Web persistence is not
-  // yet implemented; the BigInt branch guards future correctness.
-  final createdAt = trade.startedAt is BigInt
-      ? (trade.startedAt as BigInt).toInt()
-      : trade.startedAt as int; // ignore: unnecessary_cast
+  final createdAt = platformInt64ToInt(trade.startedAt);
 
   return TradeListItem(
     orderId: trade.order.id,
