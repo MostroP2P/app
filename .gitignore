@@ -5,7 +5,7 @@ build/
 .flutter-plugins-dependencies
 pubspec.lock
 
-# flutter_rust_bridge generated bindings (regenerated via: flutter_rust_bridge_codegen generate)
+# flutter_rust_bridge generated bindings (regenerated via: ./scripts/frb-generate.sh)
 lib/src/rust/
 
 # l10n untranslated-keys report (regenerated via: flutter gen-l10n; must be empty)

@@ -3,6 +3,10 @@
 # Install: git config core.hooksPath .githooks
 set -e
 
+# Cheap and first: catches a partial flutter_rust_bridge version bump before it lands.
+echo "▶ flutter_rust_bridge pin check..."
+./scripts/frb-generate.sh --check
+
 echo "▶ cargo test..."
 (cd rust && cargo test 2>&1)
 

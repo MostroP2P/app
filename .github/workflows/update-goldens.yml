@@ -63,8 +63,10 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # Verifies FRB_VERSION above still agrees with pubspec.yaml and rust/Cargo.toml,
+      # then generates (see issue #205).
       - name: Generate Rust bridge bindings
-        run: flutter_rust_bridge_codegen generate
+        run: ./scripts/frb-generate.sh
 
       - name: Regenerate goldens
         run: flutter test --update-goldens
