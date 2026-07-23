@@ -1020,25 +1020,25 @@ class AppLocalizationsEs extends AppLocalizations {
       'El mínimo de una fianza, en satoshis. Se aplica cuando el porcentaje sobre el importe de la orden queda por debajo.';
 
   @override
-  String get aboutBondNodeShareLabel => 'Parte del nodo al ejecutar';
+  String get aboutBondNodeShareLabel => 'Parte del nodo al confiscar';
 
   @override
   String get aboutBondNodeShareExplanation =>
-      'La parte de una fianza ejecutada que retiene el nodo. El resto se envía a la contraparte afectada.';
+      'La parte de una fianza confiscada que retiene el nodo. El resto se envía a la contraparte afectada.';
 
   @override
-  String get aboutBondSlashOnTimeoutLabel => 'Ejecutar por tiempo de espera';
+  String get aboutBondSlashOnTimeoutLabel => 'Confiscar por tiempo de espera';
 
   @override
   String get aboutBondSlashOnTimeoutExplanation =>
-      'Indica si la fianza se ejecuta cuando una parte deja vencer un estado de espera en lugar de actuar.';
+      'Indica si la fianza se confisca cuando una parte deja vencer un estado de espera en lugar de actuar.';
 
   @override
   String get aboutBondClaimWindowLabel => 'Plazo para reclamar el pago';
 
   @override
   String get aboutBondClaimWindowExplanation =>
-      'El tiempo que tiene la contraparte afectada para enviar una factura Lightning y reclamar su parte de una fianza ejecutada.';
+      'El tiempo que tiene la contraparte afectada para enviar una factura Lightning y reclamar su parte de una fianza confiscada.';
 
   @override
   String aboutBondClaimWindowValue(int count) {
