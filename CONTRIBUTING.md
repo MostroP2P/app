@@ -32,7 +32,7 @@ Every change must respect the layering:
 - **Rust** (`rust/src/`) owns the Nostr protocol, cryptography, keys, relays, and business logic.
 - **Dart** (`lib/`) owns the UI, navigation, UI state, and device/OS I/O.
 - **No cryptography in Dart.** When in doubt: logic → Rust, device I/O → Dart.
-- Never hand-edit generated code in `lib/src/rust/`; regenerate it with `flutter_rust_bridge_codegen generate` after any change to `rust/src/api/`.
+- Never hand-edit generated code in `lib/src/rust/`; regenerate it with `./scripts/frb-generate.sh` after any change to `rust/src/api/`.
 
 ### Protocol / Transport Changes
 
@@ -62,8 +62,18 @@ Run the full verify before committing and before requesting review:
 
 - **Rust:** `cd rust && cargo fmt && cargo clippy && cargo test` — keep the tree `clippy`-clean.
 - **Dart:** `dart format .`, then `flutter analyze && flutter test` — keep it analyzer-warning-free.
-- **Bindings:** run `flutter_rust_bridge_codegen generate` after any change to `rust/src/api/`. The generated `lib/src/rust/` is gitignored and produced on the fly (locally and in CI) — do not commit it.
+- **Bindings:** run `./scripts/frb-generate.sh` after any change to `rust/src/api/`. It refuses to generate when your local `flutter_rust_bridge_codegen` does not match the version pinned in `pubspec.yaml`, because a mismatched CLI produces bindings that fail to compile with an error that never mentions versions. The generated `lib/src/rust/` is gitignored and produced on the fly (locally and in CI) — do not commit it.
 - **Localization:** run `flutter gen-l10n` after editing `lib/l10n/*.arb`.
+
+### Git hooks (opt-in)
+
+`.githooks/pre-commit` runs the Rust and Dart checks above, plus the flutter_rust_bridge pin check, before each commit. It is **not active by default** — Git only picks it up once you point `core.hooksPath` at it:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Without this, the checks above are yours to run manually.
 
 ### Configure Git user name and email metadata
 
