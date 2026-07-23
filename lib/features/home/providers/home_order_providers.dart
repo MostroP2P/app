@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -35,11 +36,6 @@ final ratingFilterProvider =
 /// Premium range filter. Default = full range.
 final premiumRangeFilterProvider =
     StateProvider<({double min, double max})>((_) => defaultPremiumRange);
-
-/// Converts a `PlatformInt64` value (int on native, BigInt on web/dart2js)
-/// to a plain Dart `int`.
-// ignore: unnecessary_cast
-int _platformInt64ToInt(dynamic v) => v is BigInt ? v.toInt() : v as int;
 
 // ── Order model ───────────────────────────────────────────────────────────────
 
@@ -124,10 +120,10 @@ class OrderItem {
         premium: info.premium,
         creatorPubkey: info.creatorPubkey,
         createdAt: DateTime.fromMillisecondsSinceEpoch(
-            _platformInt64ToInt(info.createdAt) * 1000),
+            platformInt64ToInt(info.createdAt) * 1000),
         expiresAt: info.expiresAt != null
             ? DateTime.fromMillisecondsSinceEpoch(
-                _platformInt64ToInt(info.expiresAt!) * 1000)
+                platformInt64ToInt(info.expiresAt!) * 1000)
             : null,
         status: info.status,
         amountSats: info.amountSats,

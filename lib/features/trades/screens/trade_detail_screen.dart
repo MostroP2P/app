@@ -17,6 +17,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
 
@@ -112,8 +113,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       final info = await orders_api.getOrder(orderId: widget.orderId);
       final raw = info?.expiresAt;
       if (raw == null || !mounted) return;
-      // PlatformInt64 = int on native, BigInt on web.
-      final expiresAtSeconds = raw is BigInt ? raw.toInt() : raw;
+      final expiresAtSeconds = platformInt64ToInt(raw);
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final diff = expiresAtSeconds - now;
       if (!mounted) return;
@@ -223,9 +223,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     try {
       final dispute = await disputes_api.openDispute(tradeId: widget.orderId);
       if (!mounted) return;
-      final raw = dispute.openedAt;
-      // PlatformInt64 = int on native, BigInt on web.
-      final openedAt = raw is BigInt ? raw.toInt() : raw;
+      final openedAt = platformInt64ToInt(dispute.openedAt);
       ref.read(disputeNotifierProvider.notifier).upsert(
             DisputeItem(
               id: dispute.id,
