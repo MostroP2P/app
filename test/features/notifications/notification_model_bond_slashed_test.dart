@@ -214,6 +214,28 @@ void main() {
       expect(stateOf(n2).single.isRead, isTrue);
     });
 
+    test('a failed write leaves neither the record nor its marker', () async {
+      final factory = newDatabaseFactoryMemory();
+      const path = 'n.db';
+      final store = SembastNotificationsStore(factory: factory, path: path);
+      final notifier = NotificationsNotifier(store: store);
+      await notifier.loadInitialData();
+
+      // The record write throws after the marker was written in the same
+      // transaction, so the whole commit must roll back.
+      await notifier.addIfNew(_FailingNotification(slashFor('evt-1')));
+
+      expect(await store.loadAll(), isEmpty);
+      expect(await store.isProcessed('evt-1'), isFalse);
+      expect(stateOf(notifier), isEmpty);
+
+      // Still unprocessed, so the next replay records it normally.
+      await notifier.addIfNew(slashFor('evt-1'));
+      expect(stateOf(notifier).length, 1);
+      expect(await store.isProcessed('evt-1'), isTrue);
+      expect((await store.loadAll()).length, 1);
+    });
+
     test('deleted notice is not resurrected by restart and replay', () async {
       final factory = newDatabaseFactoryMemory();
       const path = 'n.db';
@@ -231,4 +253,22 @@ void main() {
       expect(stateOf(n2), isEmpty);
     });
   });
+}
+
+/// Fails when serialized, to inject a write failure inside the store's
+/// record-plus-marker transaction.
+class _FailingNotification extends NotificationModel {
+  _FailingNotification(NotificationModel base)
+      : super(
+          id: base.id,
+          type: base.type,
+          title: base.title,
+          message: base.message,
+          timestamp: base.timestamp,
+          orderId: base.orderId,
+          detail: base.detail,
+        );
+
+  @override
+  Map<String, dynamic> toJson() => throw StateError('injected write failure');
 }

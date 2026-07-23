@@ -74,16 +74,37 @@ class SembastNotificationsStore {
 
   /// Upsert: updates existing record by id, inserts if not found.
   Future<void> save(NotificationModel notification) async {
-    final db = await _open();
+    await _upsert(await _open(), notification);
+  }
+
+  Future<void> _upsert(DatabaseClient client, NotificationModel notification) async {
     final json = Map<String, dynamic>.from(notification.toJson())
       ..removeWhere((_, v) => v == null);
     final finder = Finder(filter: Filter.equals('id', notification.id));
-    final existing = await _store.findFirst(db, finder: finder);
+    final existing = await _store.findFirst(client, finder: finder);
     if (existing != null) {
-      await _store.update(db, json, finder: finder);
+      await _store.update(client, json, finder: finder);
     } else {
-      await _store.add(db, json);
+      await _store.add(client, json);
     }
+  }
+
+  /// Records [notification] and marks its source event processed in a single
+  /// transaction, so a crash or a failed write can never leave one side of the
+  /// invariant behind — a record without its tombstone would let a later replay
+  /// resurrect a notice the user deleted.
+  ///
+  /// Returns false when the event was already processed (nothing is written).
+  /// Both writes commit atomically, so their order here is immaterial.
+  Future<bool> saveIfUnprocessed(NotificationModel notification) async {
+    final db = await _open();
+    return db.transaction((txn) async {
+      final already = await _processed.record(notification.id).get(txn) ?? false;
+      if (already) return false;
+      await _processed.record(notification.id).put(txn, true);
+      await _upsert(txn, notification);
+      return true;
+    });
   }
 
   Future<void> deleteRecord(String id) async {
@@ -181,16 +202,27 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
   /// exactly once. A replay of an already-processed id (even after the record
   /// was read or deleted) is a no-op, so user-managed state survives the
   /// daemon's history replay across restarts.
+  ///
+  /// The record and its processed marker are committed in one transaction and
+  /// state is published only once that commit succeeds. A failed write leaves
+  /// both the database and the state untouched, so the event stays unprocessed
+  /// and the next replay retries it instead of the in-memory guard hiding a
+  /// half-applied record.
   Future<void> addIfNew(NotificationModel notification) async {
-    final known = await store?.isProcessed(notification.id) ?? false;
-    if (known || state.any((n) => n.id == notification.id)) return;
-    state = [notification, ...state];
+    if (state.any((n) => n.id == notification.id)) return;
+    final store = this.store;
+    if (store == null) {
+      state = [notification, ...state];
+      return;
+    }
+    final bool recorded;
     try {
-      await store?.save(notification);
-      await store?.markProcessed(notification.id);
+      recorded = await store.saveIfUnprocessed(notification);
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to persist addIfNew: $e');
+      return;
     }
+    if (recorded) state = [notification, ...state];
   }
 
   Future<void> markAsRead(String id) async {
