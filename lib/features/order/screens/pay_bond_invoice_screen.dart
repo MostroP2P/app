@@ -1,0 +1,378 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
+import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
+
+/// Pay anti-abuse bond screen — Route `/pay_bond_invoice/:orderId`.
+///
+/// Shown when the taker takes an order on a bond-requiring node: the daemon
+/// replies with `pay-bond-invoice` (a Lightning hold invoice for the taker's
+/// anti-abuse bond) instead of progressing the trade. The bond bolt11 rides in
+/// the trade's `holdInvoice` slot and the order sits at
+/// [OrderStatus.waitingTakerBond] until it is paid.
+///
+/// The taker pays the bond (NWC or externally); once the daemon detects the
+/// locked HTLC it advances the order into the normal take flow. This screen
+/// watches the order status and forwards the taker to the next step — the
+/// add-invoice screen (buyer), the pay-invoice screen (seller) or the trade
+/// detail — mirroring [PayLightningInvoiceScreen].
+class PayBondInvoiceScreen extends ConsumerStatefulWidget {
+  const PayBondInvoiceScreen({super.key, required this.orderId});
+
+  final String orderId;
+
+  @override
+  ConsumerState<PayBondInvoiceScreen> createState() =>
+      _PayBondInvoiceScreenState();
+}
+
+class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen> {
+  bool _waiting = false;
+
+  /// `true` when NWC is connected but payment failed → show QR fallback.
+  bool _manualMode = false;
+
+  /// One-shot guard so we don't navigate twice as further statuses stream in.
+  bool _navigated = false;
+
+  /// NWC success callback: just show the spinner — the actual navigation is
+  /// driven by the [tradeStatusProvider] listener below, which waits for the
+  /// daemon to confirm the bond HTLC and advance the order.
+  void _onPaymentDetected() {
+    if (!mounted) return;
+    setState(() => _waiting = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>();
+    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
+    final l10n = AppLocalizations.of(context);
+
+    final isWalletConnected = ref.watch(isWalletConnectedProvider);
+    final tradeAsync = ref.watch(tradeInfoStreamProvider(widget.orderId));
+
+    // Listen to live status updates from mostrod. While the order sits at
+    // waitingTakerBond we stay here; once the bond HTLC is locked the daemon
+    // advances the order and we forward the taker to the matching next step.
+    ref.listen<AsyncValue<OrderStatus>>(
+      tradeStatusProvider(widget.orderId),
+      (prev, next) {
+        final status = next.valueOrNull;
+        if (status == null || _navigated || !mounted) return;
+        switch (status) {
+          // Bond not yet paid — keep waiting on this screen.
+          case OrderStatus.waitingTakerBond:
+          case OrderStatus.pending:
+            break;
+          // Buyer taker: provide the Lightning invoice next.
+          case OrderStatus.waitingBuyerInvoice:
+            _navigated = true;
+            context.pushReplacement(AppRoute.addInvoicePath(widget.orderId));
+            break;
+          // Seller taker: pay the trade hold invoice next.
+          case OrderStatus.waitingPayment:
+            _navigated = true;
+            context.pushReplacement(AppRoute.payInvoicePath(widget.orderId));
+            break;
+          // Trade already progressed past the invoice step.
+          case OrderStatus.active:
+          case OrderStatus.fiatSent:
+          case OrderStatus.inProgress:
+          case OrderStatus.settledHoldInvoice:
+          case OrderStatus.success:
+          case OrderStatus.dispute:
+            _navigated = true;
+            context.go(AppRoute.tradeDetailPath(widget.orderId));
+            break;
+          // Order died before the bond advanced the trade.
+          case OrderStatus.canceled:
+          case OrderStatus.cooperativelyCanceled:
+          case OrderStatus.canceledByAdmin:
+          case OrderStatus.expired:
+            _navigated = true;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.orderNoLongerActive)),
+            );
+            context.go(AppRoute.home);
+            break;
+          default:
+            break;
+        }
+      },
+    );
+
+    return tradeAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: Text(l10n.payBondInvoiceTitle)),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, st) {
+        debugPrint('[PayBondInvoiceScreen] load error: $e\n$st');
+        return Scaffold(
+          appBar: AppBar(title: Text(l10n.payBondInvoiceTitle)),
+          body: Center(child: Text(l10n.tradeLoadError)),
+        );
+      },
+      data: (trade) {
+        final invoice = trade?.holdInvoice ?? '';
+        final amountSats = trade?.order.amountSats?.toInt() ?? 0;
+
+        if (invoice.isEmpty) {
+          // Bond invoice not yet available — waiting for the Mostro daemon.
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.payBondInvoiceTitle)),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: green),
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.tradeWaitingForBondInvoice,
+                    style: TextStyle(color: colors?.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // If NWC wallet is connected and payment hasn't failed yet, auto-pay.
+        if (isWalletConnected && !_manualMode) {
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.payBondInvoiceTitle)),
+            body: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Center(
+                child: NwcPaymentWidget(
+                  bolt11: invoice,
+                  amountSats: amountSats,
+                  onPaymentSuccess: _onPaymentDetected,
+                  onFallbackToManual: () => setState(() => _manualMode = true),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(title: Text(l10n.payBondInvoiceTitle)),
+          body: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(AppRadius.card),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.shield_outlined, color: green, size: 24),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                l10n.payBondInvoiceInstruction,
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (amountSats > 0) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            l10n.payInvoiceAmount(amountSats.toString()),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.lg),
+
+                        // QR Code
+                        Expanded(
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card),
+                              ),
+                              child: QrImageView(
+                                data: invoice,
+                                size: 200,
+                                backgroundColor: Colors.white,
+                                semanticsLabel: l10n.bondInvoiceQrLabel,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+
+                        // Pay with external Lightning wallet (lightning: URI)
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () async {
+                              final uri = Uri.parse('lightning:$invoice');
+                              bool launched = false;
+                              try {
+                                launched = await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              } catch (_) {
+                                launched = false;
+                              }
+                              if (!launched && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(l10n.noLightningWalletFound),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.bolt, size: 18),
+                            label: Text(l10n.payWithLightningWallet),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: green,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.md,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.button),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+
+                        // Copy + Share buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: invoice),
+                                  );
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(l10n.invoiceCopied),
+                                      duration: const Duration(seconds: 1),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy, size: 16),
+                                label: Text(l10n.copyButtonLabel),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: green,
+                                  foregroundColor: Colors.black,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadius.button),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () async {
+                                  try {
+                                    await SharePlus.instance
+                                        .share(ShareParams(text: invoice));
+                                  } catch (e, st) {
+                                    debugPrint(
+                                      '[PayBondInvoiceScreen] share failed: $e\n$st',
+                                    );
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(l10n.shareFailed)),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.share, size: 16),
+                                label: Text(l10n.shareButtonLabel),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: green,
+                                  foregroundColor: Colors.black,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(AppRadius.button),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Waiting indicator or Cancel button
+                if (_waiting)
+                  Column(
+                    children: [
+                      CircularProgressIndicator(color: green),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        l10n.waitingForPaymentConfirmation,
+                        style: TextStyle(color: colors?.textSecondary),
+                      ),
+                    ],
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => context.pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor:
+                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                        side: BorderSide(
+                          color:
+                              colors?.destructiveRed ?? const Color(0xFFD84D4D),
+                        ),
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                        ),
+                      ),
+                      child: Text(l10n.cancel),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

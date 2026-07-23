@@ -95,6 +95,9 @@ TradeStatusFilter orderStatusToFilter(rust_types.OrderStatus status) {
     rust_types.OrderStatus.pending => TradeStatusFilter.pending,
     rust_types.OrderStatus.waitingBuyerInvoice => TradeStatusFilter.waitingInvoice,
     rust_types.OrderStatus.waitingPayment => TradeStatusFilter.waitingPayment,
+    // The taker must pay the anti-abuse bond hold invoice — a pending payment
+    // obligation, grouped with the waiting-payment trades.
+    rust_types.OrderStatus.waitingTakerBond => TradeStatusFilter.waitingPayment,
     rust_types.OrderStatus.active => TradeStatusFilter.active,
     rust_types.OrderStatus.inProgress => TradeStatusFilter.active,
     rust_types.OrderStatus.fiatSent => TradeStatusFilter.fiatSent,

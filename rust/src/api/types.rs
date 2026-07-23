@@ -35,6 +35,10 @@ pub enum OrderStatus {
     CompletedByAdmin,
     Dispute,
     InProgress,
+    /// The taker has taken a bond-requiring order and must pay the anti-abuse
+    /// bond hold invoice before the trade progresses. Maker-side bonds
+    /// (`WaitingMakerBond`) are out of scope here (see issue #191).
+    WaitingTakerBond,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

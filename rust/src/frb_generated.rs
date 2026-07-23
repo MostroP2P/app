@@ -5229,6 +5229,7 @@ impl SseDecode for crate::api::types::OrderStatus {
             12 => crate::api::types::OrderStatus::CompletedByAdmin,
             13 => crate::api::types::OrderStatus::Dispute,
             14 => crate::api::types::OrderStatus::InProgress,
+            15 => crate::api::types::OrderStatus::WaitingTakerBond,
             _ => unreachable!("Invalid variant for OrderStatus: {}", inner),
         };
     }
@@ -6570,6 +6571,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::OrderStatus {
             Self::CompletedByAdmin => 12.into_dart(),
             Self::Dispute => 13.into_dart(),
             Self::InProgress => 14.into_dart(),
+            Self::WaitingTakerBond => 15.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -7895,6 +7897,7 @@ impl SseEncode for crate::api::types::OrderStatus {
                 crate::api::types::OrderStatus::CompletedByAdmin => 12,
                 crate::api::types::OrderStatus::Dispute => 13,
                 crate::api::types::OrderStatus::InProgress => 14,
+                crate::api::types::OrderStatus::WaitingTakerBond => 15,
                 _ => {
                     unimplemented!("");
                 }

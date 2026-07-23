@@ -252,24 +252,20 @@ fn take_matching_add_invoice(trade_pubkey_hex: &str, got: Option<u64>) -> Option
 ///
 /// A take's success reply varies by role, order shape and daemon config —
 /// `add-invoice` (buyer, with the calculated sats in an `Order` payload),
-/// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload), or a
-/// direct progression message when an invoice was pre-attached — so
-/// classification goes by payload shape rather than by enumerating actions
-/// (the pattern MostriX uses). `pay-bond-invoice` maps to a stable
-/// `BondRequired` rejection: anti-abuse bonds are not supported yet, and an
-/// honest error beats a fake trade or a silent timeout.
+/// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload),
+/// `pay-bond-invoice` (bond-requiring node, anti-abuse bond hold invoice in a
+/// `PaymentRequest` payload), or a direct progression message when an invoice
+/// was pre-attached — so classification goes by payload shape rather than by
+/// enumerating actions (the pattern MostriX uses). `pay-bond-invoice` shares
+/// the `PaymentRequest` shape with `pay-invoice`, so its bond bolt11 rides in
+/// the same `hold_invoice` slot; Dart discriminates the bond by the
+/// `WaitingTakerBond` status (set via `status_for_action`) and routes the
+/// taker to the bond payment screen.
 fn classify_take_reply(
     action: &mostro_core::message::Action,
     payload: &Option<mostro_core::message::Payload>,
 ) -> DaemonReply {
-    use mostro_core::message::{Action, Payload};
-
-    if matches!(action, Action::PayBondInvoice) {
-        return DaemonReply::Rejected {
-            reason: "BondRequired".to_string(),
-            message: "BondRequired".to_string(),
-        };
-    }
+    use mostro_core::message::Payload;
 
     match payload {
         Some(Payload::PaymentRequest(small_order, invoice, amount)) => {
@@ -2076,6 +2072,7 @@ fn status_for_action(action: &mostro_core::message::Action) -> Option<OrderStatu
     match action {
         Action::WaitingSellerToPay => Some(OrderStatus::WaitingPayment),
         Action::WaitingBuyerInvoice => Some(OrderStatus::WaitingBuyerInvoice),
+        Action::PayBondInvoice => Some(OrderStatus::WaitingTakerBond),
         Action::BuyerInvoiceAccepted => Some(OrderStatus::Active),
         Action::FiatSentOk => Some(OrderStatus::FiatSent),
         Action::HoldInvoicePaymentSettled | Action::Released | Action::PurchaseCompleted => {
@@ -2118,10 +2115,13 @@ fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStatus> {
         S::SettledByAdmin => OrderStatus::SettledByAdmin,
         S::CompletedByAdmin => OrderStatus::CompletedByAdmin,
         S::Dispute => OrderStatus::Dispute,
-        // Anti-abuse bond is out of scope; these statuses have no local
-        // OrderStatus mapping. No wildcard, so future Status variants keep
-        // forcing this match to be revisited.
-        S::WaitingTakerBond | S::WaitingMakerBond => return None,
+        // Taker anti-abuse bond: the taker must pay a bond hold invoice before
+        // the trade progresses.
+        S::WaitingTakerBond => OrderStatus::WaitingTakerBond,
+        // Maker-side bond is out of scope here (issue #191); it has no local
+        // OrderStatus yet. No wildcard, so future Status variants keep forcing
+        // this match to be revisited.
+        S::WaitingMakerBond => return None,
     })
 }
 
@@ -3135,9 +3135,9 @@ mod tests {
     }
 
     /// `classify_take_reply` goes by payload shape: `PaymentRequest` carries
-    /// the hold invoice (seller flow), `Order` carries the calculated sats
-    /// (buyer flow), `pay-bond-invoice` maps to a stable BondRequired
-    /// rejection, and action-only replies are still acceptances.
+    /// the hold invoice (seller flow) or the anti-abuse bond hold invoice
+    /// (`pay-bond-invoice`), `Order` carries the calculated sats (buyer flow),
+    /// and action-only replies are still acceptances.
     #[test]
     fn classify_take_reply_maps_payload_shapes() {
         use mostro_core::message::{Action, Payload};
@@ -3183,13 +3183,39 @@ mod tests {
             _ => panic!("expected TakeAccepted"),
         }
 
-        // Anti-abuse bond: not supported — stable rejection marker.
-        match classify_take_reply(&Action::PayBondInvoice, &None) {
-            DaemonReply::Rejected { reason, message } => {
-                assert_eq!(reason, "BondRequired");
-                assert_eq!(message, "BondRequired");
+        // Anti-abuse bond: pay-bond-invoice carries the bond hold invoice in a
+        // PaymentRequest, surfaced through the same hold_invoice slot and
+        // flagged by the WaitingTakerBond status.
+        let so = small_order_with(Status::WaitingTakerBond, 1000);
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(Some(so), "lnbc1bond".into(), Some(1000))),
+        ) {
+            DaemonReply::TakeAccepted { status, amount_sats, hold_invoice, .. } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert_eq!(amount_sats, Some(1000));
+                assert_eq!(hold_invoice.as_deref(), Some("lnbc1bond"));
             }
-            _ => panic!("expected Rejected"),
+            _ => panic!("expected TakeAccepted"),
+        }
+
+        // A bond reply with no embedded status still resolves to
+        // WaitingTakerBond via status_for_action(PayBondInvoice).
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(None, "lnbc1bond".into(), Some(1000))),
+        ) {
+            DaemonReply::TakeAccepted { status, hold_invoice, .. } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert_eq!(hold_invoice.as_deref(), Some("lnbc1bond"));
+            }
+            _ => panic!("expected TakeAccepted"),
         }
 
         // Action-only progression reply: still a genuine acceptance, with
