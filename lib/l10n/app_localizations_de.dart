@@ -2193,16 +2193,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get lightningInvoiceQrLabel => 'QR-Code der Lightning-Rechnung';
 
   @override
-  String get bondSlashedTitle => 'Kaution einbehalten';
+  String get bondSlashedTitle => 'Kaution eingezogen';
 
   @override
   String bondSlashedMessageTimeout(String amount, String orderId) {
-    return 'Deine Anti-Missbrauchs-Kaution von $amount Sats für Bestellung $orderId wurde nach einer Zeitüberschreitung im Wartezustand einbehalten. Der Status deiner Bestellung bleibt unverändert.';
+    return 'Deine Anti-Missbrauchs-Kaution von $amount Sats für Bestellung $orderId wurde nach einer Zeitüberschreitung im Wartezustand eingezogen. Der Status deiner Bestellung bleibt unverändert.';
   }
 
   @override
   String bondSlashedMessageDispute(String amount, String orderId) {
-    return 'Deine Anti-Missbrauchs-Kaution von $amount Sats für Bestellung $orderId wurde nach der Beilegung eines Streits einbehalten. Der Status deiner Bestellung bleibt unverändert.';
+    return 'Deine Anti-Missbrauchs-Kaution von $amount Sats für Bestellung $orderId wurde nach der Beilegung eines Streits eingezogen. Der Status deiner Bestellung bleibt unverändert.';
   }
 
   @override

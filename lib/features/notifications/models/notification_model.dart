@@ -150,8 +150,11 @@ class NotificationModel {
     );
   }
 
+  /// Bond-slashed notification. Only stable, locale-independent data is stored;
+  /// the user-facing title, message and detail labels are localized at render
+  /// time via [resolvedTitle] / [resolvedMessage] / [resolvedDetail], so a
+  /// language change is reflected without rebuilding stored records.
   factory NotificationModel.bondSlashed({
-    required AppLocalizations l10n,
     required String orderId,
     required int amountSats,
     required bool disputeCause,
@@ -159,26 +162,25 @@ class NotificationModel {
     int? fiatAmount,
     String? paymentMethod,
   }) {
-    final amount = amountSats.toString();
     return NotificationModel(
       id: const Uuid().v4(),
       type: NotificationType.bondSlashed,
-      title: l10n.bondSlashedTitle,
-      message: disputeCause
-          ? l10n.bondSlashedMessageDispute(amount, orderId)
-          : l10n.bondSlashedMessageTimeout(amount, orderId),
+      title: '',
+      message: '',
       timestamp: DateTime.now(),
       orderId: orderId,
       detail: {
-        l10n.bondSlashedDetailOrder: orderId,
-        l10n.bondSlashedDetailAmount: '$amountSats sats',
-        l10n.bondSlashedDetailCause: disputeCause
-            ? l10n.bondSlashedCauseDispute
-            : l10n.bondSlashedCauseTimeout,
-        if (fiatCode != null && fiatAmount != null)
-          l10n.bondSlashedDetailFiat: '$fiatAmount $fiatCode',
+        // Stable keys and raw values — never localized labels. The amount is
+        // stored without a "sats" suffix so the group-card sats heuristic does
+        // not surface the bond amount as the trade amount.
+        _bondAmountKey: '$amountSats',
+        _bondCauseKey: disputeCause ? _bondCauseDispute : _bondCauseTimeout,
+        if (fiatCode != null && fiatAmount != null) ...{
+          _bondFiatCodeKey: fiatCode,
+          _bondFiatAmountKey: '$fiatAmount',
+        },
         if (paymentMethod != null && paymentMethod.isNotEmpty)
-          l10n.bondSlashedDetailPaymentMethod: paymentMethod,
+          _bondPaymentMethodKey: paymentMethod,
       },
     );
   }
@@ -191,5 +193,55 @@ class NotificationModel {
       message: 'Save your secret words to avoid losing access to your account.',
       timestamp: DateTime.now(),
     );
+  }
+
+  // ── Bond-slashed rendering ──────────────────────────────────────────────────
+  // Stable, locale-independent keys/values persisted by [bondSlashed]. Localized
+  // labels are produced at render time by the resolved* accessors below.
+  static const _bondAmountKey = 'bondAmountSats';
+  static const _bondCauseKey = 'cause';
+  static const _bondFiatCodeKey = 'fiatCode';
+  static const _bondFiatAmountKey = 'fiatAmount';
+  static const _bondPaymentMethodKey = 'paymentMethod';
+  static const _bondCauseDispute = 'dispute';
+  static const _bondCauseTimeout = 'timeout';
+
+  bool get _isBondSlashed => type == NotificationType.bondSlashed;
+
+  /// Title for display, localized at render time for bond-slashed notices and
+  /// falling back to the stored [title] for other types.
+  String resolvedTitle(AppLocalizations l10n) =>
+      _isBondSlashed ? l10n.bondSlashedTitle : title;
+
+  /// Message for display (see [resolvedTitle]).
+  String resolvedMessage(AppLocalizations l10n) {
+    if (!_isBondSlashed) return message;
+    final amount = detail?[_bondAmountKey] ?? '0';
+    final id = orderId ?? '';
+    return detail?[_bondCauseKey] == _bondCauseDispute
+        ? l10n.bondSlashedMessageDispute(amount, id)
+        : l10n.bondSlashedMessageTimeout(amount, id);
+  }
+
+  /// Detail rows for display, built from the stable stored keys and localized at
+  /// render time (see [resolvedTitle]).
+  Map<String, String> resolvedDetail(AppLocalizations l10n) {
+    if (!_isBondSlashed) return detail ?? const {};
+    final d = detail ?? const {};
+    final amount = d[_bondAmountKey] ?? '0';
+    final fiatCode = d[_bondFiatCodeKey];
+    final fiatAmount = d[_bondFiatAmountKey];
+    final paymentMethod = d[_bondPaymentMethodKey];
+    return {
+      l10n.bondSlashedDetailOrder: orderId ?? '',
+      l10n.bondSlashedDetailAmount: '$amount sats',
+      l10n.bondSlashedDetailCause: d[_bondCauseKey] == _bondCauseDispute
+          ? l10n.bondSlashedCauseDispute
+          : l10n.bondSlashedCauseTimeout,
+      if (fiatCode != null && fiatAmount != null)
+        l10n.bondSlashedDetailFiat: '$fiatAmount $fiatCode',
+      if (paymentMethod != null && paymentMethod.isNotEmpty)
+        l10n.bondSlashedDetailPaymentMethod: paymentMethod,
+    };
   }
 }

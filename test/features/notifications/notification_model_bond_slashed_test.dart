@@ -12,10 +12,9 @@ void main() {
     l10n = await AppLocalizations.delegate.load(const Locale('en'));
   });
 
-  group('NotificationModel.bondSlashed', () {
-    test('timeout cause is reflected in message and detail', () {
+  group('NotificationModel.bondSlashed — stored data is locale-independent', () {
+    test('stores stable keys and raw values, not localized labels', () {
       final n = NotificationModel.bondSlashed(
-        l10n: l10n,
         orderId: 'order-1',
         amountSats: 1000,
         disputeCause: false,
@@ -23,27 +22,77 @@ void main() {
 
       expect(n.type, NotificationType.bondSlashed);
       expect(n.orderId, 'order-1');
-      expect(n.message, contains('waiting-state timeout'));
-      expect(n.message, contains('order status is unchanged'));
-      expect(n.detail?['Cause'], 'Waiting-state timeout');
-      expect(n.detail?['Bond amount'], '1000 sats');
+      expect(n.title, isEmpty);
+      expect(n.message, isEmpty);
+      expect(n.detail?['bondAmountSats'], '1000');
+      expect(n.detail?['cause'], 'timeout');
     });
 
-    test('dispute cause is reflected in message and detail', () {
+    test('dispute cause is stored as a stable marker', () {
       final n = NotificationModel.bondSlashed(
-        l10n: l10n,
+        orderId: 'order-2',
+        amountSats: 500,
+        disputeCause: true,
+      );
+      expect(n.detail?['cause'], 'dispute');
+    });
+
+    test('optional fiat and payment method use stable keys', () {
+      final n = NotificationModel.bondSlashed(
+        orderId: 'order-3',
+        amountSats: 250,
+        disputeCause: false,
+        fiatCode: 'USD',
+        fiatAmount: 20,
+        paymentMethod: 'SEPA',
+      );
+      expect(n.detail?['fiatCode'], 'USD');
+      expect(n.detail?['fiatAmount'], '20');
+      expect(n.detail?['paymentMethod'], 'SEPA');
+    });
+
+    test('optional fields are omitted when absent', () {
+      final n = NotificationModel.bondSlashed(
+        orderId: 'order-4',
+        amountSats: 250,
+        disputeCause: false,
+      );
+      expect(n.detail?.containsKey('fiatCode'), isFalse);
+      expect(n.detail?.containsKey('paymentMethod'), isFalse);
+    });
+  });
+
+  group('NotificationModel.bondSlashed — localized at render time', () {
+    test('timeout notice resolves localized title, message and detail', () {
+      final n = NotificationModel.bondSlashed(
+        orderId: 'order-1',
+        amountSats: 1000,
+        disputeCause: false,
+      );
+
+      expect(n.resolvedTitle(l10n), 'Bond slashed');
+      expect(n.resolvedMessage(l10n), contains('waiting-state timeout'));
+      expect(n.resolvedMessage(l10n), contains('order status is unchanged'));
+
+      final detail = n.resolvedDetail(l10n);
+      expect(detail['Cause'], 'Waiting-state timeout');
+      expect(detail['Bond amount'], '1000 sats');
+      expect(detail['Order'], 'order-1');
+    });
+
+    test('dispute notice resolves the dispute copy', () {
+      final n = NotificationModel.bondSlashed(
         orderId: 'order-2',
         amountSats: 500,
         disputeCause: true,
       );
 
-      expect(n.message, contains('dispute resolution'));
-      expect(n.detail?['Cause'], 'Dispute resolution');
+      expect(n.resolvedMessage(l10n), contains('dispute resolution'));
+      expect(n.resolvedDetail(l10n)['Cause'], 'Dispute resolution');
     });
 
-    test('optional fiat and payment method are included when provided', () {
+    test('resolved detail includes fiat and payment method when present', () {
       final n = NotificationModel.bondSlashed(
-        l10n: l10n,
         orderId: 'order-3',
         amountSats: 250,
         disputeCause: false,
@@ -52,20 +101,9 @@ void main() {
         paymentMethod: 'SEPA',
       );
 
-      expect(n.detail?['Fiat'], '20 USD');
-      expect(n.detail?['Payment method'], 'SEPA');
-    });
-
-    test('optional fields are omitted when absent', () {
-      final n = NotificationModel.bondSlashed(
-        l10n: l10n,
-        orderId: 'order-4',
-        amountSats: 250,
-        disputeCause: false,
-      );
-
-      expect(n.detail?.containsKey('Fiat'), isFalse);
-      expect(n.detail?.containsKey('Payment method'), isFalse);
+      final detail = n.resolvedDetail(l10n);
+      expect(detail['Fiat'], '20 USD');
+      expect(detail['Payment method'], 'SEPA');
     });
   });
 }

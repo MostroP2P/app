@@ -24,7 +24,6 @@ import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/types.dart' show SlashCause;
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
-import 'package:mostro/l10n/app_localizations.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -197,12 +196,9 @@ void _consumeBondSlashed(
     try {
       while (true) {
         final event = await stream.next();
-        final l10n = await AppLocalizations.delegate.load(
-          container.read(localeProvider),
-        );
+        // Only stable data is stored; the copy is localized at render time.
         await container.read(notificationsProvider.notifier).add(
               NotificationModel.bondSlashed(
-                l10n: l10n,
                 orderId: event.orderId,
                 amountSats: event.amountSats.toInt(),
                 disputeCause: event.cause == SlashCause.dispute,
