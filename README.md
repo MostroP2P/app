@@ -260,6 +260,7 @@ Make sure the following tools are installed on your system:
 | Rust toolchain | 1.94+ stable | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
 | WASM target | — | `rustup target add wasm32-unknown-unknown` |
 | wasm-pack | latest | `cargo install wasm-pack` |
+| Rust nightly + `rust-src` (web only) | — | `rustup toolchain install nightly && rustup component add rust-src --toolchain nightly` |
 | flutter_rust_bridge CLI | 2.11.1 | `cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked` |
 | Xcode (macOS / iOS only) | 15+ | Mac App Store |
 | Android Studio / NDK (Android only) | latest | [developer.android.com](https://developer.android.com/studio) |
@@ -296,11 +297,58 @@ flutter run
 # Target a specific platform
 flutter run -d android
 flutter run -d ios
-flutter run -d chrome        # Web (WASM)
+flutter run -d chrome        # Web — needs extra steps, see "Running on Web" below
 flutter run -d macos
 flutter run -d windows
 flutter run -d linux
 ```
+
+### Running on Web
+
+Web needs two steps that the other platforms don't. On native, the Flutter build
+compiles the Rust core for you; on web it does **not** — you compile the Rust core to
+WebAssembly yourself, and the page must be served with cross-origin isolation headers.
+Skip either step and the app builds but shows a **blank page**.
+
+**One-time prerequisites** — in addition to the table above. `build-web` compiles the
+Rust core with `-Z build-std`, which requires a nightly toolchain with `rust-src`:
+
+```bash
+rustup toolchain install nightly
+rustup component add rust-src --toolchain nightly
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+```
+
+**1. Compile the Rust core to WASM.** This produces `web/pkg/` (`rust.js` +
+`rust_bg.wasm`). Re-run it after any change under `rust/src/`:
+
+```bash
+flutter_rust_bridge_codegen build-web
+```
+
+If you skip this, the console shows `Refused to execute script from '.../pkg/rust.js'
+because its MIME type ('text/html') is not executable` — the WASM was never built.
+
+**2. Run in Chrome with cross-origin isolation headers.** The Rust core uses
+`SharedArrayBuffer`, which browsers enable only under COOP/COEP:
+
+```bash
+flutter run -d chrome \
+  --web-header "Cross-Origin-Opener-Policy=same-origin" \
+  --web-header "Cross-Origin-Embedder-Policy=require-corp"
+```
+
+Without the headers the console shows `Buffers cannot be shared due to missing
+cross-origin headers` and the page stays blank.
+
+On first launch the app generates an identity and connects to relays; you should see the
+order book populate from the daemon's Kind 38383 events without running anything locally.
+
+**Deploying the production build.** `flutter build web` (see below) emits `build/web`, but
+the same two COOP/COEP headers must be set by whatever serves it — a reverse proxy, CDN
+config, or a [`coi-serviceworker`](https://github.com/gzuidhof/coi-serviceworker) shim —
+or the deployed site is blank for the same `SharedArrayBuffer` reason.
 
 ### Build for Production
 
