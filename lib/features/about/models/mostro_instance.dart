@@ -252,9 +252,14 @@ class MostroInstance {
   String? get bondSlashNodeSharePercent => _asPercent(bondSlashNodeSharePct);
 
   /// Renders a fraction as a percentage, dropping a trailing ".00".
+  ///
+  /// An uncapped fraction (e.g. `bond_amount_pct` near [double.maxFinite]) can
+  /// overflow to a non-finite value once scaled by 100; such a degenerate value
+  /// is dropped rather than crashing `toInt` on infinity.
   static String? _asPercent(double? fraction) {
     if (fraction == null) return null;
     final pct = fraction * 100;
+    if (!pct.isFinite) return null;
     return pct == pct.truncateToDouble()
         ? '${pct.toInt()}%'
         : '${pct.toStringAsFixed(2)}%';

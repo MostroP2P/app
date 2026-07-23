@@ -356,6 +356,17 @@ void main() {
       expect(instance.bondSlashNodeSharePercent, isNull);
     });
 
+    test('a fraction that overflows when scaled yields null, not a crash', () {
+      // bond_amount_pct is uncapped, so a finite value like 1e308 passes the
+      // parser but overflows to Infinity once multiplied by 100.
+      final instance = MostroInstance.fromTags(
+        _enabledTagsWith({'bond_amount_pct': '1e308'}),
+      );
+
+      expect(instance.bondAmountPct, 1e308);
+      expect(instance.bondAmountPercent, isNull);
+    });
+
     test('fee percentage formatting is unchanged', () {
       expect(
         MostroInstance.fromTags(_tagsWith({'fee': '0.006'})).feePercent,
