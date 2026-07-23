@@ -3431,4 +3431,39 @@ mod restore_e2e_tests {
             Err(e) => panic!("[test] restore_session failed: {e}"),
         }
     }
+
+    #[tokio::test]
+    #[ignore = "requires live regtest daemon + relay on ws://localhost:7000"]
+    async fn trade_then_restore_recovers_order() {
+        crate::api::nostr::initialize(Some(vec!["ws://localhost:7000".to_string()]))
+            .await
+            .expect("relay pool init");
+        crate::config::set_active_mostro_pubkey(Some(
+            "bae71ea2566771ed45b1d267dc0c0753028fe960a7bc4aeee08a44da0cb91520".to_string(),
+        ));
+        let id = crate::api::identity::create_identity().await.expect("create identity");
+        println!("[test] identity A pubkey={}", id.public_key);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let params = crate::api::types::NewOrderParams {
+            kind: crate::api::types::OrderKind::Sell,
+            fiat_amount: Some(100.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "USD".to_string(),
+            payment_method: "cash".to_string(),
+            premium: 0.0,
+            amount_sats: None,
+        };
+        println!("[test] creating order...");
+        let order = create_order(params).await.expect("create_order (may need bond flow)");
+        println!("[test] order created id={}", order.id);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        println!("[test] calling restore_session()...");
+        let info = restore_session().await.expect("restore round-trip");
+        println!("[test] restored {} orders", info.restore_orders.len());
+        for o in &info.restore_orders {
+            println!("[test]   order_id={} status={}", o.order_id, o.status);
+        }
+        assert!(!info.restore_orders.is_empty(), "restore should recover the created order");
+    }
 }
