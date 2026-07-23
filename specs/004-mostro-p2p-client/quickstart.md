@@ -14,7 +14,7 @@ Get the project building and running for the first time on all supported platfor
 | Rust | stable 1.94+ | `rustup.rs` |
 | wasm-pack | latest | `cargo install wasm-pack` |
 | WASM target | — | `rustup target add wasm32-unknown-unknown` |
-| flutter_rust_bridge codegen | 2.x | `cargo install flutter_rust_bridge_codegen` |
+| flutter_rust_bridge codegen | 2.11.1 (must match `pubspec.yaml`) | `cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked` |
 
 Platform-specific tools: Xcode (iOS/macOS), Android SDK (Android), standard C toolchain (Linux/Windows).
 
