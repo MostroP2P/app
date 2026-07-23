@@ -1862,6 +1862,138 @@ abstract class AppLocalizations {
   /// **'The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.'**
   String get aboutLndNodeUriExplanation;
 
+  /// About screen — anti-abuse bond section header
+  ///
+  /// In en, this message translates to:
+  /// **'Anti-abuse Bond'**
+  String get aboutAntiAbuseBondSection;
+
+  /// About screen — value shown when a bond setting is on
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get aboutBondEnabledValue;
+
+  /// About screen — value shown when a bond setting is off
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get aboutBondDisabledValue;
+
+  /// About screen — value shown when the daemon predates the anti-abuse bond feature
+  ///
+  /// In en, this message translates to:
+  /// **'Not supported'**
+  String get aboutBondUnsupportedValue;
+
+  /// About screen — bond status row label
+  ///
+  /// In en, this message translates to:
+  /// **'Bond status'**
+  String get aboutBondStatusLabel;
+
+  /// Info dialog explanation for the Bond status field
+  ///
+  /// In en, this message translates to:
+  /// **'Whether this Mostro instance requires an anti-abuse bond: a small Lightning hold invoice locked for the duration of a trade and released when the trade completes normally. \'Not supported\' means the daemon predates the feature.'**
+  String get aboutBondStatusExplanation;
+
+  /// About screen — bond applies-to row label
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to'**
+  String get aboutBondAppliesToLabel;
+
+  /// Info dialog explanation for the bond Applies to field
+  ///
+  /// In en, this message translates to:
+  /// **'Which side of a trade must lock a bond: the taker, the maker, or both.'**
+  String get aboutBondAppliesToExplanation;
+
+  /// About screen — bond applies to takers only
+  ///
+  /// In en, this message translates to:
+  /// **'Takers'**
+  String get aboutBondAppliesToTakers;
+
+  /// About screen — bond applies to makers only
+  ///
+  /// In en, this message translates to:
+  /// **'Makers'**
+  String get aboutBondAppliesToMakers;
+
+  /// About screen — bond applies to both sides of a trade
+  ///
+  /// In en, this message translates to:
+  /// **'Makers and takers'**
+  String get aboutBondAppliesToBoth;
+
+  /// About screen — bond amount percentage row label
+  ///
+  /// In en, this message translates to:
+  /// **'Bond amount'**
+  String get aboutBondAmountLabel;
+
+  /// Info dialog explanation for the Bond amount field
+  ///
+  /// In en, this message translates to:
+  /// **'The bond as a percentage of the order amount. The larger of this and the minimum bond is charged.'**
+  String get aboutBondAmountExplanation;
+
+  /// About screen — minimum bond row label
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum bond'**
+  String get aboutBondBaseAmountLabel;
+
+  /// Info dialog explanation for the Minimum bond field
+  ///
+  /// In en, this message translates to:
+  /// **'The floor for a bond, in satoshis. It applies when the percentage of the order amount falls below it.'**
+  String get aboutBondBaseAmountExplanation;
+
+  /// About screen — node share of a slashed bond row label
+  ///
+  /// In en, this message translates to:
+  /// **'Node share on slash'**
+  String get aboutBondNodeShareLabel;
+
+  /// Info dialog explanation for the Node share on slash field
+  ///
+  /// In en, this message translates to:
+  /// **'The share of a slashed bond kept by the node. The remainder is forwarded to the affected counterparty.'**
+  String get aboutBondNodeShareExplanation;
+
+  /// About screen — slash on waiting timeout row label
+  ///
+  /// In en, this message translates to:
+  /// **'Slash on waiting timeout'**
+  String get aboutBondSlashOnTimeoutLabel;
+
+  /// Info dialog explanation for the Slash on waiting timeout field
+  ///
+  /// In en, this message translates to:
+  /// **'Whether the bond is slashed when a party lets a waiting state time out instead of acting.'**
+  String get aboutBondSlashOnTimeoutExplanation;
+
+  /// About screen — bond payout claim window row label
+  ///
+  /// In en, this message translates to:
+  /// **'Payout claim window'**
+  String get aboutBondClaimWindowLabel;
+
+  /// Info dialog explanation for the Payout claim window field
+  ///
+  /// In en, this message translates to:
+  /// **'How long the affected counterparty has to submit a Lightning invoice and claim their share of a slashed bond.'**
+  String get aboutBondClaimWindowExplanation;
+
+  /// Suffix appended to day durations on the About screen
+  ///
+  /// In en, this message translates to:
+  /// **'days'**
+  String get aboutDaysSuffix;
+
   /// Snackbar shown when opening a dispute fails
   ///
   /// In en, this message translates to:

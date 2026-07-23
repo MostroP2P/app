@@ -971,6 +971,79 @@ class AppLocalizationsEs extends AppLocalizations {
       'El URI de conexión del nodo LND en el formato pubkey@host:puerto. Se utiliza para abrir canales de pago directos.';
 
   @override
+  String get aboutAntiAbuseBondSection => 'Fianza antiabuso';
+
+  @override
+  String get aboutBondEnabledValue => 'Habilitada';
+
+  @override
+  String get aboutBondDisabledValue => 'Deshabilitada';
+
+  @override
+  String get aboutBondUnsupportedValue => 'No compatible';
+
+  @override
+  String get aboutBondStatusLabel => 'Estado de la fianza';
+
+  @override
+  String get aboutBondStatusExplanation =>
+      'Indica si esta instancia de Mostro exige una fianza antiabuso: una pequeña hold invoice de Lightning que se bloquea mientras dura la operación y se libera cuando esta finaliza con normalidad. \'No compatible\' significa que el daemon es anterior a esta funcionalidad.';
+
+  @override
+  String get aboutBondAppliesToLabel => 'Se aplica a';
+
+  @override
+  String get aboutBondAppliesToExplanation =>
+      'Qué parte de la operación debe bloquear una fianza: quien toma la orden, quien la crea, o ambos.';
+
+  @override
+  String get aboutBondAppliesToTakers => 'Quien toma la orden';
+
+  @override
+  String get aboutBondAppliesToMakers => 'Quien crea la orden';
+
+  @override
+  String get aboutBondAppliesToBoth => 'Ambas partes';
+
+  @override
+  String get aboutBondAmountLabel => 'Importe de la fianza';
+
+  @override
+  String get aboutBondAmountExplanation =>
+      'La fianza como porcentaje del importe de la orden. Se cobra el mayor entre este valor y la fianza mínima.';
+
+  @override
+  String get aboutBondBaseAmountLabel => 'Fianza mínima';
+
+  @override
+  String get aboutBondBaseAmountExplanation =>
+      'El mínimo de una fianza, en satoshis. Se aplica cuando el porcentaje sobre el importe de la orden queda por debajo.';
+
+  @override
+  String get aboutBondNodeShareLabel => 'Parte del nodo al ejecutar';
+
+  @override
+  String get aboutBondNodeShareExplanation =>
+      'La parte de una fianza ejecutada que retiene el nodo. El resto se envía a la contraparte afectada.';
+
+  @override
+  String get aboutBondSlashOnTimeoutLabel => 'Ejecutar por tiempo de espera';
+
+  @override
+  String get aboutBondSlashOnTimeoutExplanation =>
+      'Indica si la fianza se ejecuta cuando una parte deja vencer un estado de espera en lugar de actuar.';
+
+  @override
+  String get aboutBondClaimWindowLabel => 'Plazo para reclamar el pago';
+
+  @override
+  String get aboutBondClaimWindowExplanation =>
+      'El tiempo que tiene la contraparte afectada para enviar una factura Lightning y reclamar su parte de una fianza ejecutada.';
+
+  @override
+  String get aboutDaysSuffix => 'días';
+
+  @override
   String get openDisputeFailed =>
       'No se pudo abrir la disputa. Por favor, inténtelo de nuevo.';
 
