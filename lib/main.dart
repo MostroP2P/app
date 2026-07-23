@@ -21,7 +21,7 @@ import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/bond.dart' as bond_api;
-import 'package:mostro/src/rust/api/types.dart' show SlashCause;
+import 'package:mostro/src/rust/api/types.dart' show SlashCause, BondSlashedEvent;
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
@@ -187,20 +187,29 @@ void _forwardRustLogs() {
 ///
 /// [stream] is subscribed before relay delivery starts (see [main]), so this
 /// drains any notice buffered during startup and then live ones. Notifications
-/// are added to [notificationsProvider] — the DB-backed provider the bell and
-/// list watch — keyed on the source event id for idempotent, persistent storage.
+/// go through [NotificationsNotifier.addIfNew] on the DB-backed
+/// [notificationsProvider], keyed on the source event id, so the daemon's
+/// history replay yields exactly one record and preserves read/delete state.
+///
+/// Errors are handled per event: a failed record insert is logged and the
+/// listener keeps going, so one transient failure never drops future notices.
+/// Only a closed/broken stream (a non-null throw from [next]) ends the loop.
 void _consumeBondSlashed(
   bond_api.BondSlashedStream stream,
   ProviderContainer container,
 ) {
   Future.microtask(() async {
-    try {
-      while (true) {
-        final event = await stream.next();
+    while (true) {
+      final BondSlashedEvent event;
+      try {
+        event = await stream.next();
+      } catch (e, st) {
+        debugPrint('[bond-slashed] stream closed: $e\n$st');
+        break;
+      }
+      try {
         // Only stable data is stored; the copy is localized at render time.
-        // The notification is keyed on the source event id so a replayed slash
-        // upserts one persisted record instead of accumulating duplicates.
-        await container.read(notificationsProvider.notifier).add(
+        await container.read(notificationsProvider.notifier).addIfNew(
               NotificationModel.bondSlashed(
                 id: event.eventId,
                 orderId: event.orderId,
@@ -211,9 +220,9 @@ void _consumeBondSlashed(
                 paymentMethod: event.paymentMethod,
               ),
             );
+      } catch (e, st) {
+        debugPrint('[bond-slashed] failed to record notice: $e\n$st');
       }
-    } catch (e, st) {
-      debugPrint('[bond-slashed] listener error: $e\n$st');
     }
   });
 }

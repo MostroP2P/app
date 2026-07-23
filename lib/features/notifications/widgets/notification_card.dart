@@ -24,6 +24,8 @@ class NotificationCard extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColors>();
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final l10n = AppLocalizations.of(context);
+    final detail = notification.resolvedDetail(l10n);
 
     return Material(
       color: Colors.transparent,
@@ -56,7 +58,7 @@ class NotificationCard extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                notification.title,
+                                notification.resolvedTitle(l10n),
                                 style: Theme.of(context)
                                     .textTheme
                                     .bodyLarge!
@@ -76,7 +78,7 @@ class NotificationCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          notification.message,
+                          notification.resolvedMessage(l10n),
                           style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                                 color: textSec,
                                 fontSize: 14,
@@ -84,15 +86,13 @@ class NotificationCard extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (notification.detail != null &&
-                            notification.detail!.isNotEmpty) ...[
+                        if (detail.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.sm),
-                          _DetailSection(detail: notification.detail!),
+                          _DetailSection(detail: detail),
                         ],
                         const SizedBox(height: AppSpacing.sm),
                         Text(
-                          _relativeTime(
-                              notification.timestamp, AppLocalizations.of(context)),
+                          _relativeTime(notification.timestamp, l10n),
                           style: Theme.of(context).textTheme.bodySmall!.copyWith(
                                 color: textSec,
                                 fontSize: 12,

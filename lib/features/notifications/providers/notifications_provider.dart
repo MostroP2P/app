@@ -32,6 +32,12 @@ class SembastNotificationsStore {
   Completer<Database>? _opening;
   final _store = intMapStoreFactory.store(_storeName);
 
+  /// Tombstone / processed-event ledger: ids of externally-sourced events that
+  /// have already been handled. It survives deletion of the notification record,
+  /// so a daemon history replay never resurrects a dismissed notice or resets
+  /// the read state of a known one.
+  final _processed = StoreRef<String, bool>('processed_events');
+
   Future<Database> _open() async {
     if (_db != null) return _db!;
     if (_opening != null) return _opening!.future;
@@ -85,9 +91,21 @@ class SembastNotificationsStore {
     await _store.delete(db, finder: Finder(filter: Filter.equals('id', id)));
   }
 
+  /// Clears the visible notification records but deliberately keeps the
+  /// processed-event ledger, so cleared notices are not resurrected by a replay.
   Future<void> deleteAll() async {
     final db = await _open();
     await _store.delete(db);
+  }
+
+  Future<bool> isProcessed(String eventId) async {
+    final db = await _open();
+    return await _processed.record(eventId).get(db) ?? false;
+  }
+
+  Future<void> markProcessed(String eventId) async {
+    final db = await _open();
+    await _processed.record(eventId).put(db, true);
   }
 }
 
@@ -98,9 +116,10 @@ final sembastNotificationsStoreProvider = Provider<SembastNotificationsStore>(
 );
 
 /// All app notifications, backed by Sembast persistence. Records survive
-/// restarts; each is keyed by a stable id, so a replayed event upserts in place
-/// rather than inserting a duplicate. Single source of truth for the list, the
-/// bell, and every producer (listeners and the push path).
+/// restarts and are keyed by a stable id; externally-sourced events go through
+/// [NotificationsNotifier.addIfNew], so a daemon history replay yields exactly
+/// one record and preserves the user's read/delete state. Single source of
+/// truth for the list, the bell, and every producer (listeners and push path).
 final notificationsProvider =
     StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
   (ref) {
@@ -125,28 +144,52 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
 
   /// Load persisted notifications into state. Called once on construction
   /// when a [store] is provided.
+  ///
+  /// Merges the persisted snapshot with whatever is already in state, keyed by
+  /// id, so a delayed load never drops (or overwrites with a stale copy) a
+  /// notification added live while the load was in flight. Records added this
+  /// session win on conflict.
   Future<void> loadInitialData() async {
     if (store == null) return;
     try {
-      final notifications = await store!.loadAll();
-      state = notifications;
+      final loaded = await store!.loadAll();
+      final byId = {for (final n in loaded) n.id: n};
+      for (final n in state) {
+        byId[n.id] = n;
+      }
+      state = byId.values.toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to load from Sembast: $e');
     }
   }
 
+  /// Adds a locally-generated notification (unique id). Idempotent by id: a
+  /// same-id entry is left untouched rather than replaced, so read state is
+  /// never reset. For externally-sourced, replayable events use [addIfNew].
   Future<void> add(NotificationModel notification) async {
-    // Idempotent by id: a replayed event (same id) updates in place instead of
-    // inserting a duplicate, keeping in-memory state consistent with the
-    // upserting store.
-    final exists = state.any((n) => n.id == notification.id);
-    state = exists
-        ? [for (final n in state) if (n.id == notification.id) notification else n]
-        : [notification, ...state];
+    if (state.any((n) => n.id == notification.id)) return;
+    state = [notification, ...state];
     try {
       await store?.save(notification);
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to persist add: $e');
+    }
+  }
+
+  /// Adds an externally-sourced notification keyed by a stable source event id,
+  /// exactly once. A replay of an already-processed id (even after the record
+  /// was read or deleted) is a no-op, so user-managed state survives the
+  /// daemon's history replay across restarts.
+  Future<void> addIfNew(NotificationModel notification) async {
+    final known = await store?.isProcessed(notification.id) ?? false;
+    if (known || state.any((n) => n.id == notification.id)) return;
+    state = [notification, ...state];
+    try {
+      await store?.save(notification);
+      await store?.markProcessed(notification.id);
+    } catch (e) {
+      debugPrint('NotificationsNotifier: failed to persist addIfNew: $e');
     }
   }
 

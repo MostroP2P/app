@@ -121,9 +121,9 @@ void main() {
   group('NotificationModel.bondSlashed — one record per slash across restart',
       () {
     // The daemon replays stored gift-wrap history on reconnect/restart, so the
-    // same slash can arrive more than once. Keyed on the source event id, it
-    // must yield exactly one persisted, visible notification whose cause
-    // survives a restart.
+    // same slash can arrive more than once. Keyed on the source event id and
+    // recorded through addIfNew, it must yield exactly one persisted, visible
+    // notification that preserves the user's read/delete state across restarts.
     NotificationModel slashFor(String eventId) => NotificationModel.bondSlashed(
           id: eventId,
           orderId: 'order-1',
@@ -131,51 +131,104 @@ void main() {
           disputeCause: true,
         );
 
-    test('replay keeps a single visible notification (in-memory dedup)',
-        () async {
-      final store = SembastNotificationsStore(
-        factory: newDatabaseFactoryMemory(),
-        path: 'n.db',
-      );
-      final notifier = NotificationsNotifier(store: store);
+    // Reads current notifier state without the deprecated debugState getter.
+    List<NotificationModel> stateOf(NotificationsNotifier n) {
+      late List<NotificationModel> snapshot;
+      n.addListener((s) => snapshot = s)();
+      return snapshot;
+    }
+
+    NotificationsNotifier notifierOver(DatabaseFactory factory, String path) =>
+        NotificationsNotifier(
+          store: SembastNotificationsStore(factory: factory, path: path),
+        );
+
+    test('replay keeps a single visible notification', () async {
+      final notifier = notifierOver(newDatabaseFactoryMemory(), 'n.db');
       await notifier.loadInitialData();
 
-      var latest = const <NotificationModel>[];
-      final removeListener = notifier.addListener((s) => latest = s);
+      await notifier.addIfNew(slashFor('evt-1'));
+      await notifier.addIfNew(slashFor('evt-1')); // replay, same id
 
-      await notifier.add(slashFor('gift-wrap-evt-1'));
-      await notifier.add(slashFor('gift-wrap-evt-1')); // replay, same id
-
-      expect(latest.length, 1);
-      expect(latest.single.id, 'gift-wrap-evt-1');
-      removeListener();
+      expect(stateOf(notifier).length, 1);
+      expect(stateOf(notifier).single.id, 'evt-1');
     });
 
-    test('persisted cause survives restart; replay stays deduplicated',
+    test('cause survives restart; post-restart replay stays deduplicated',
         () async {
       final factory = newDatabaseFactoryMemory();
       const path = 'n.db';
 
-      // First session: live delivery plus a same-event replay.
-      final store1 = SembastNotificationsStore(factory: factory, path: path);
-      await store1.save(slashFor('gift-wrap-evt-1'));
-      await store1.save(slashFor('gift-wrap-evt-1'));
-      expect((await store1.loadAll()).length, 1);
+      final n1 = notifierOver(factory, path);
+      await n1.loadInitialData();
+      await n1.addIfNew(slashFor('evt-1'));
 
-      // Restart: a fresh store over the same persisted database.
-      final store2 = SembastNotificationsStore(factory: factory, path: path);
-      final restored = await store2.loadAll();
-      expect(restored.length, 1);
-      expect(restored.single.id, 'gift-wrap-evt-1');
-      expect(restored.single.detail?['cause'], 'dispute');
-      expect(
-        restored.single.resolvedMessage(l10n),
-        contains('dispute resolution'),
-      );
+      // Restart over the same persisted database.
+      final n2 = notifierOver(factory, path);
+      await n2.loadInitialData();
 
-      // A post-restart replay of the same event still yields one record.
-      await store2.save(slashFor('gift-wrap-evt-1'));
-      expect((await store2.loadAll()).length, 1);
+      expect(stateOf(n2).length, 1);
+      final restored = stateOf(n2).single;
+      expect(restored.detail?['cause'], 'dispute');
+      expect(restored.resolvedMessage(l10n), contains('dispute resolution'));
+
+      await n2.addIfNew(slashFor('evt-1')); // replay after restart
+      expect(stateOf(n2).length, 1);
+    });
+
+    test('delayed hydration does not drop a concurrent live add', () async {
+      final factory = newDatabaseFactoryMemory();
+      const path = 'n.db';
+
+      // A record persisted by a previous session.
+      final seed = SembastNotificationsStore(factory: factory, path: path);
+      final persisted = slashFor('evt-persisted');
+      await seed.save(persisted);
+      await seed.markProcessed(persisted.id);
+
+      // New session: hydration is in flight while a live event is added.
+      final notifier = notifierOver(factory, path);
+      final hydration = notifier.loadInitialData();
+      await notifier.addIfNew(slashFor('evt-live'));
+      await hydration;
+
+      final ids = stateOf(notifier).map((n) => n.id).toSet();
+      expect(ids, {'evt-live', 'evt-persisted'});
+    });
+
+    test('read state survives restart and replay', () async {
+      final factory = newDatabaseFactoryMemory();
+      const path = 'n.db';
+
+      final n1 = notifierOver(factory, path);
+      await n1.loadInitialData();
+      await n1.addIfNew(slashFor('evt-1'));
+      await n1.markAsRead('evt-1');
+
+      // Restart, then the same event replays.
+      final n2 = notifierOver(factory, path);
+      await n2.loadInitialData();
+      await n2.addIfNew(slashFor('evt-1'));
+
+      expect(stateOf(n2).length, 1);
+      expect(stateOf(n2).single.isRead, isTrue);
+    });
+
+    test('deleted notice is not resurrected by restart and replay', () async {
+      final factory = newDatabaseFactoryMemory();
+      const path = 'n.db';
+
+      final n1 = notifierOver(factory, path);
+      await n1.loadInitialData();
+      await n1.addIfNew(slashFor('evt-1'));
+      await n1.delete('evt-1');
+
+      // Restart, then the daemon replays the deleted slash.
+      final n2 = notifierOver(factory, path);
+      await n2.loadInitialData();
+      await n2.addIfNew(slashFor('evt-1'));
+
+      expect(stateOf(n2), isEmpty);
     });
   });
 }
