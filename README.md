@@ -310,13 +310,14 @@ compiles the Rust core for you; on web it does **not** — you compile the Rust 
 WebAssembly yourself, and the page must be served with cross-origin isolation headers.
 Skip either step and the app builds but shows a **blank page**.
 
-**One-time prerequisites** — in addition to the table above. `build-web` compiles the
-Rust core with `-Z build-std`, which requires a nightly toolchain with `rust-src`:
+**One-time prerequisites** — in addition to the table above. The wasm build compiles
+the Rust core with `-Z build-std`, which requires a nightly toolchain with `rust-src`
+(and the wasm target on that same nightly toolchain):
 
 ```bash
 rustup toolchain install nightly
 rustup component add rust-src --toolchain nightly
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown --toolchain nightly
 cargo install wasm-pack
 ```
 
@@ -324,11 +325,17 @@ cargo install wasm-pack
 `rust_bg.wasm`). Re-run it after any change under `rust/src/`:
 
 ```bash
-flutter_rust_bridge_codegen build-web
+./scripts/build-web.sh              # add --release for an optimized build
 ```
 
-If you skip this, the console shows `Refused to execute script from '.../pkg/rust.js'
-because its MIME type ('text/html') is not executable` — the WASM was never built.
+Do **not** run `flutter_rust_bridge_codegen build-web` directly: on current nightly it
+silently produces WASM without shared memory, which crashes at runtime with
+`DataCloneError: ... #<Memory> could not be cloned` when FRB spawns its worker pool.
+The script adds the required linker flags and verifies the output (see issue #212).
+
+If you skip this step entirely, the console shows `Refused to execute script from
+'.../pkg/rust.js' because its MIME type ('text/html') is not executable` — the WASM was
+never built.
 
 **2. Run in Chrome with cross-origin isolation headers.** The Rust core uses
 `SharedArrayBuffer`, which browsers enable only under COOP/COEP:
