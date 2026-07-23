@@ -3901,6 +3901,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Lightning invoice QR code'**
   String get lightningInvoiceQrLabel;
+
+  /// Title of the notification shown when the user's anti-abuse bond is slashed
+  ///
+  /// In en, this message translates to:
+  /// **'Bond slashed'**
+  String get bondSlashedTitle;
+
+  /// Bond-slashed notification body when the slash was caused by a waiting-state timeout
+  ///
+  /// In en, this message translates to:
+  /// **'Your {amount}-sat anti-abuse bond for order {orderId} was forfeited after a waiting-state timeout. Your order status is unchanged.'**
+  String bondSlashedMessageTimeout(String amount, String orderId);
+
+  /// Bond-slashed notification body when the slash was caused by a dispute resolution
+  ///
+  /// In en, this message translates to:
+  /// **'Your {amount}-sat anti-abuse bond for order {orderId} was forfeited after a dispute resolution. Your order status is unchanged.'**
+  String bondSlashedMessageDispute(String amount, String orderId);
+
+  /// Bond-slashed detail value: the slash cause was a waiting-state timeout
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting-state timeout'**
+  String get bondSlashedCauseTimeout;
+
+  /// Bond-slashed detail value: the slash cause was a dispute resolution
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute resolution'**
+  String get bondSlashedCauseDispute;
+
+  /// Bond-slashed detail label for the order id
+  ///
+  /// In en, this message translates to:
+  /// **'Order'**
+  String get bondSlashedDetailOrder;
+
+  /// Bond-slashed detail label for the slashed bond amount
+  ///
+  /// In en, this message translates to:
+  /// **'Bond amount'**
+  String get bondSlashedDetailAmount;
+
+  /// Bond-slashed detail label for the slash cause
+  ///
+  /// In en, this message translates to:
+  /// **'Cause'**
+  String get bondSlashedDetailCause;
+
+  /// Bond-slashed detail label for the fiat amount and currency
+  ///
+  /// In en, this message translates to:
+  /// **'Fiat'**
+  String get bondSlashedDetailFiat;
+
+  /// Bond-slashed detail label for the payment method
+  ///
+  /// In en, this message translates to:
+  /// **'Payment method'**
+  String get bondSlashedDetailPaymentMethod;
 }
 
 class _AppLocalizationsDelegate

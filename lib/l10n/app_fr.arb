@@ -655,5 +655,15 @@
   "notificationsBellBackupActive": "Notifications, rappel de sauvegarde actif",
   "notificationsBellUnread": "{count, plural, =1{Notifications, 1 non lue} other{Notifications, {count} non lues}}",
   "drawerBadgeNewCount": "{count, plural, =1{1 nouveau} other{{count} nouveaux}}",
-  "lightningInvoiceQrLabel": "QR code de la facture Lightning"
+  "lightningInvoiceQrLabel": "QR code de la facture Lightning",
+  "bondSlashedTitle": "Caution confisquée",
+  "bondSlashedMessageTimeout": "Votre caution anti-abus de {amount} sats pour la commande {orderId} a été confisquée après l'expiration du délai d'attente. Le statut de votre commande est inchangé.",
+  "bondSlashedMessageDispute": "Votre caution anti-abus de {amount} sats pour la commande {orderId} a été confisquée après la résolution d'un litige. Le statut de votre commande est inchangé.",
+  "bondSlashedCauseTimeout": "Délai d'attente expiré",
+  "bondSlashedCauseDispute": "Résolution du litige",
+  "bondSlashedDetailOrder": "Commande",
+  "bondSlashedDetailAmount": "Montant de la caution",
+  "bondSlashedDetailCause": "Cause",
+  "bondSlashedDetailFiat": "Fiat",
+  "bondSlashedDetailPaymentMethod": "Moyen de paiement"
 }

@@ -124,7 +124,7 @@ class PushNotificationService {
       disputeId: disputeId,
     );
 
-    container?.read(notificationsProviderWithDb.notifier).add(notification);
+    container?.read(notificationsProvider.notifier).add(notification);
   }
 
   void _handleTap(RemoteMessage message) {

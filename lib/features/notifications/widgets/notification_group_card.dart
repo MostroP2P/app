@@ -283,7 +283,7 @@ class _EventRow extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        notification.title,
+                        notification.resolvedTitle(AppLocalizations.of(context)),
                         style: Theme.of(context).textTheme.bodySmall!.copyWith(
                           color: pillColor,
                           fontSize: 12,
@@ -307,7 +307,7 @@ class _EventRow extends StatelessWidget {
                           ),
                         Flexible(
                           child: Text(
-                            notification.title,
+                            notification.resolvedTitle(AppLocalizations.of(context)),
                             style: Theme.of(context).textTheme.bodySmall!
                                 .copyWith(color: textSec, fontSize: 12),
                             overflow: TextOverflow.ellipsis,

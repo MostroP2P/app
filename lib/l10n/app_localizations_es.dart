@@ -2184,4 +2184,38 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get lightningInvoiceQrLabel => 'Código QR de la factura Lightning';
+
+  @override
+  String get bondSlashedTitle => 'Fianza confiscada';
+
+  @override
+  String bondSlashedMessageTimeout(String amount, String orderId) {
+    return 'Tu fianza antiabuso de $amount sats para la orden $orderId fue confiscada tras agotarse el tiempo de espera. El estado de tu orden no cambió.';
+  }
+
+  @override
+  String bondSlashedMessageDispute(String amount, String orderId) {
+    return 'Tu fianza antiabuso de $amount sats para la orden $orderId fue confiscada tras la resolución de una disputa. El estado de tu orden no cambió.';
+  }
+
+  @override
+  String get bondSlashedCauseTimeout => 'Tiempo de espera agotado';
+
+  @override
+  String get bondSlashedCauseDispute => 'Resolución de disputa';
+
+  @override
+  String get bondSlashedDetailOrder => 'Orden';
+
+  @override
+  String get bondSlashedDetailAmount => 'Monto de la fianza';
+
+  @override
+  String get bondSlashedDetailCause => 'Motivo';
+
+  @override
+  String get bondSlashedDetailFiat => 'Fiat';
+
+  @override
+  String get bondSlashedDetailPaymentMethod => 'Método de pago';
 }

@@ -655,5 +655,15 @@
   "notificationsBellBackupActive": "Benachrichtigungen, Backup-Erinnerung aktiv",
   "notificationsBellUnread": "{count, plural, =1{Benachrichtigungen, 1 ungelesen} other{Benachrichtigungen, {count} ungelesen}}",
   "drawerBadgeNewCount": "{count, plural, =1{1 neu} other{{count} neu}}",
-  "lightningInvoiceQrLabel": "QR-Code der Lightning-Rechnung"
+  "lightningInvoiceQrLabel": "QR-Code der Lightning-Rechnung",
+  "bondSlashedTitle": "Kaution eingezogen",
+  "bondSlashedMessageTimeout": "Deine Anti-Missbrauchs-Kaution von {amount} Sats für Bestellung {orderId} wurde nach einer Zeitüberschreitung im Wartezustand eingezogen. Der Status deiner Bestellung bleibt unverändert.",
+  "bondSlashedMessageDispute": "Deine Anti-Missbrauchs-Kaution von {amount} Sats für Bestellung {orderId} wurde nach der Beilegung eines Streits eingezogen. Der Status deiner Bestellung bleibt unverändert.",
+  "bondSlashedCauseTimeout": "Zeitüberschreitung im Wartezustand",
+  "bondSlashedCauseDispute": "Streitbeilegung",
+  "bondSlashedDetailOrder": "Bestellung",
+  "bondSlashedDetailAmount": "Kautionsbetrag",
+  "bondSlashedDetailCause": "Grund",
+  "bondSlashedDetailFiat": "Fiat",
+  "bondSlashedDetailPaymentMethod": "Zahlungsmethode"
 }

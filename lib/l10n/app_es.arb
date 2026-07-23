@@ -655,5 +655,15 @@
   "notificationsBellBackupActive": "Notificaciones, recordatorio de respaldo activo",
   "notificationsBellUnread": "{count, plural, =1{Notificaciones, 1 sin leer} other{Notificaciones, {count} sin leer}}",
   "drawerBadgeNewCount": "{count, plural, =1{1 nuevo} other{{count} nuevos}}",
-  "lightningInvoiceQrLabel": "Código QR de la factura Lightning"
+  "lightningInvoiceQrLabel": "Código QR de la factura Lightning",
+  "bondSlashedTitle": "Fianza confiscada",
+  "bondSlashedMessageTimeout": "Tu fianza antiabuso de {amount} sats para la orden {orderId} fue confiscada tras agotarse el tiempo de espera. El estado de tu orden no cambió.",
+  "bondSlashedMessageDispute": "Tu fianza antiabuso de {amount} sats para la orden {orderId} fue confiscada tras la resolución de una disputa. El estado de tu orden no cambió.",
+  "bondSlashedCauseTimeout": "Tiempo de espera agotado",
+  "bondSlashedCauseDispute": "Resolución de disputa",
+  "bondSlashedDetailOrder": "Orden",
+  "bondSlashedDetailAmount": "Monto de la fianza",
+  "bondSlashedDetailCause": "Motivo",
+  "bondSlashedDetailFiat": "Fiat",
+  "bondSlashedDetailPaymentMethod": "Método de pago"
 }

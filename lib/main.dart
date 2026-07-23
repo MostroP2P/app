@@ -20,6 +20,10 @@ import 'package:mostro/src/rust/api/logging.dart' as logging_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
+import 'package:mostro/src/rust/api/bond.dart' as bond_api;
+import 'package:mostro/src/rust/api/types.dart' show SlashCause, BondSlashedEvent;
+import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,6 +84,11 @@ Future<void> main() async {
   final backupPending = backupActive && !backupDismissed;
   final savedSettings = AppSettingsState.fromPrefs(prefs);
 
+  // Subscribe to bond-slashed notices BEFORE relay delivery starts, so the
+  // Tokio broadcast channel buffers any notice arriving during startup rather
+  // than dropping it (a receiver must exist at send time).
+  final bondSlashedStream = await bond_api.onBondSlashed();
+
   // Initialize the Nostr relay pool with default relays (from config.rs).
   // This must happen before any Nostr/order API calls.
   await nostr_api.initialize(relays: null);
@@ -118,6 +127,8 @@ Future<void> main() async {
   if (savedNwcUri != null) {
     _restoreNwcConnection(savedNwcUri, container);
   }
+
+  _consumeBondSlashed(bondSlashedStream, container);
 
   runApp(UncontrolledProviderScope(
     container: container,
@@ -166,6 +177,52 @@ void _forwardRustLogs() {
       }
     } catch (e, st) {
       debugPrint('[rust-log] bridge error: $e\n$st');
+    }
+  });
+}
+
+/// Consumes bond-slashed notices from [stream] and records an in-app
+/// notification for each. The tracked order is never touched here — the notice
+/// is informational, and the no-overwrite guard lives in the Rust dispatcher.
+///
+/// [stream] is subscribed before relay delivery starts (see [main]), so this
+/// drains any notice buffered during startup and then live ones. Notifications
+/// go through [NotificationsNotifier.addIfNew] on the DB-backed
+/// [notificationsProvider], keyed on the source event id, so the daemon's
+/// history replay yields exactly one record and preserves read/delete state.
+///
+/// Errors are handled per event: a failed record insert is logged and the
+/// listener keeps going, so one transient failure never drops future notices.
+/// Only a closed/broken stream (a non-null throw from [next]) ends the loop.
+void _consumeBondSlashed(
+  bond_api.BondSlashedStream stream,
+  ProviderContainer container,
+) {
+  Future.microtask(() async {
+    while (true) {
+      final BondSlashedEvent event;
+      try {
+        event = await stream.next();
+      } catch (e, st) {
+        debugPrint('[bond-slashed] stream closed: $e\n$st');
+        break;
+      }
+      try {
+        // Only stable data is stored; the copy is localized at render time.
+        await container.read(notificationsProvider.notifier).addIfNew(
+              NotificationModel.bondSlashed(
+                id: event.eventId,
+                orderId: event.orderId,
+                amountSats: event.amountSats.toInt(),
+                disputeCause: event.cause == SlashCause.dispute,
+                fiatCode: event.fiatCode,
+                fiatAmount: event.fiatAmount.toInt(),
+                paymentMethod: event.paymentMethod,
+              ),
+            );
+      } catch (e, st) {
+        debugPrint('[bond-slashed] failed to record notice: $e\n$st');
+      }
     }
   });
 }

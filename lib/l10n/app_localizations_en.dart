@@ -2158,4 +2158,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lightningInvoiceQrLabel => 'Lightning invoice QR code';
+
+  @override
+  String get bondSlashedTitle => 'Bond slashed';
+
+  @override
+  String bondSlashedMessageTimeout(String amount, String orderId) {
+    return 'Your $amount-sat anti-abuse bond for order $orderId was forfeited after a waiting-state timeout. Your order status is unchanged.';
+  }
+
+  @override
+  String bondSlashedMessageDispute(String amount, String orderId) {
+    return 'Your $amount-sat anti-abuse bond for order $orderId was forfeited after a dispute resolution. Your order status is unchanged.';
+  }
+
+  @override
+  String get bondSlashedCauseTimeout => 'Waiting-state timeout';
+
+  @override
+  String get bondSlashedCauseDispute => 'Dispute resolution';
+
+  @override
+  String get bondSlashedDetailOrder => 'Order';
+
+  @override
+  String get bondSlashedDetailAmount => 'Bond amount';
+
+  @override
+  String get bondSlashedDetailCause => 'Cause';
+
+  @override
+  String get bondSlashedDetailFiat => 'Fiat';
+
+  @override
+  String get bondSlashedDetailPaymentMethod => 'Payment method';
 }

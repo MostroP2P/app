@@ -1447,7 +1447,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
                     ));
                     match crate::nostr::gift_wrap::unwrap_mostro_message(&recipient_keys, &event).await {
                         Ok(Some(unwrapped)) => {
-                            dispatch_mostro_message(unwrapped, &trade_pubkey_hex, trade_index).await;
+                            dispatch_mostro_message(unwrapped, &eid, &trade_pubkey_hex, trade_index).await;
                             last_activity = crate::rt::time::Instant::now();
                         }
                         Ok(None) => {
@@ -1494,6 +1494,7 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
 /// and malformed `request_id` fields), then routes by action.
 async fn dispatch_mostro_message(
     unwrapped: mostro_core::nip59::UnwrappedMessage,
+    event_id: &str,
     trade_pubkey_hex: &str,
     trade_index: u32,
 ) {
@@ -2002,6 +2003,59 @@ async fn dispatch_mostro_message(
                     "CantDo: reason={reason} — no matching pending request, ignoring event"
                 ));
             }
+        }
+        Action::BondSlashed => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] gift-wrap BondSlashed has no order id");
+                    return;
+                }
+            };
+            let small_order = match &kind.payload {
+                Some(mostro_core::message::Payload::Order(so)) => so,
+                _ => {
+                    log::warn!("[orders] gift-wrap BondSlashed payload is not an Order");
+                    return;
+                }
+            };
+            // The payload's amount is the SLASHED BOND amount and its status is
+            // null. Never write it back to the tracked order: this notice is
+            // informational, and overwriting would corrupt the order's real
+            // trade status/amount. We only read the current status to infer the
+            // slash cause.
+            let amount_sats = match u64::try_from(small_order.amount) {
+                Ok(v) => v,
+                Err(_) => {
+                    log::warn!(
+                        "[orders] gift-wrap BondSlashed: invalid amount {} for order={order_id}, ignoring",
+                        small_order.amount
+                    );
+                    return;
+                }
+            };
+            let status = match crate::db::app_db::db() {
+                Some(db) => db
+                    .get_trade_by_order_id(&order_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|t| t.order.status),
+                None => None,
+            };
+            let cause = crate::api::bond::infer_slash_cause(status.as_ref());
+            log::info!(
+                "[orders] gift-wrap BondSlashed: order={order_id} amount={amount_sats} cause={cause:?}"
+            );
+            crate::api::bond::emit_bond_slashed(crate::api::types::BondSlashedEvent {
+                event_id: event_id.to_string(),
+                order_id,
+                amount_sats,
+                fiat_code: small_order.fiat_code.clone(),
+                fiat_amount: small_order.fiat_amount,
+                payment_method: small_order.payment_method.clone(),
+                cause,
+            });
         }
         action => {
             log::debug!("[orders] gift-wrap unhandled action={action:?}");
@@ -2525,7 +2579,7 @@ async fn handle_global_gift_wrap(
 
     match crate::nostr::gift_wrap::unwrap_mostro_message(&recipient_keys, event).await {
         Ok(Some(unwrapped)) => {
-            dispatch_mostro_message(unwrapped, &recipient_hex, trade_idx).await;
+            dispatch_mostro_message(unwrapped, &eid, &recipient_hex, trade_idx).await;
         }
         Ok(None) => {
             // `Ok(None)` = NIP-44 outer decrypt failed. On the global path
