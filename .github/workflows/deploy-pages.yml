@@ -1,0 +1,161 @@
+name: Deploy web to GitHub Pages
+
+# Publishes the web client to https://mostrop2p.github.io/app/ on every merge to main.
+# The app is a pure client — outbound wss:// to Nostr relays, identity generated in the
+# browser, persistence in IndexedDB — so static hosting is enough (see issue #212).
+#
+# One-time repository setting this workflow depends on:
+#   Settings → Pages → Build and deployment → Source: "GitHub Actions"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a deployment that is already publishing — a half-applied Pages
+# deployment is worse than a queued one. Matches GitHub's starter workflow.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Keep in sync with ci.yml.
+  FLUTTER_VERSION: "3.38.2"
+  RUST_VERSION: "1.97.0"
+  FRB_VERSION: "2.11.1"
+  CARGO_EXPAND_VERSION: "1.0.123"
+  # The version this pipeline was validated against locally.
+  WASM_PACK_VERSION: "0.15.0"
+
+jobs:
+  build:
+    name: Build web bundle
+    runs-on: ubuntu-latest
+    # The first uncached run compiles std from source (-Z build-std), which is slow.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Two toolchains are needed:
+      #   • pinned stable — flutter_rust_bridge_codegen shells out to `cargo expand`;
+      #   • nightly with rust-src — scripts/build-web.sh compiles the core to wasm
+      #     with -Z build-std (it selects nightly itself via RUSTUP_TOOLCHAIN).
+      # Nightly is installed first so the pinned stable stays the default toolchain.
+      - name: Install Rust nightly (wasm)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+          components: rust-src
+
+      - name: Install Rust ${{ env.RUST_VERSION }} (codegen)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Cache build tools
+        id: tools-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/flutter_rust_bridge_codegen
+            ~/.cargo/bin/cargo-expand
+            ~/.cargo/bin/wasm-pack
+          key: pages-tools-${{ runner.os }}-frb${{ env.FRB_VERSION }}-expand${{ env.CARGO_EXPAND_VERSION }}-wasmpack${{ env.WASM_PACK_VERSION }}
+
+      - name: Install build tools
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo install flutter_rust_bridge_codegen --version "$FRB_VERSION" --locked
+          cargo install cargo-expand --version "$CARGO_EXPAND_VERSION" --locked
+          cargo install wasm-pack --version "$WASM_PACK_VERSION" --locked
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # lib/src/rust/ is gitignored and produced on the fly; without it the web
+      # build fails to compile. The script also verifies the FRB pins agree.
+      - name: Generate Rust bridge bindings
+        run: ./scripts/frb-generate.sh
+
+      # Compiles the Rust core to web/pkg/ with shared memory (wasm threads) and
+      # fails loudly if the emitted memory is not shared — the failure mode that
+      # otherwise only shows up at runtime as a blank page.
+      - name: Build Rust core to WASM (shared memory)
+        run: ./scripts/build-web.sh --release
+
+      # Project pages are served from a sub-path, so the base href must match the
+      # repository name or every asset 404s and the page stays blank.
+      #
+      # --pwa-strategy=none disables Flutter's (deprecated) service worker: it would
+      # register over the same scope as coi-serviceworker.min.js and evict the shim
+      # that supplies the COOP/COEP headers, un-isolating the page. Offline caching
+      # is the trade-off; cross-origin isolation is not optional here.
+      - name: Build Flutter web
+        run: |
+          flutter build web \
+            --release \
+            --base-href "/${GITHUB_REPOSITORY#*/}/" \
+            --pwa-strategy=none
+
+      # Guard the two silent-blank-page failure modes: the isolation shim must be
+      # in the bundle and referenced by index.html, and Flutter's service worker
+      # must not have been emitted alongside it.
+      - name: Verify bundle
+        run: |
+          set -euo pipefail
+          test -f build/web/coi-serviceworker.min.js \
+            || { echo "::error::coi-serviceworker.min.js missing from the bundle — the deployed page will not be cross-origin isolated."; exit 1; }
+          grep -q 'coi-serviceworker.min.js' build/web/index.html \
+            || { echo "::error::index.html does not load coi-serviceworker.min.js."; exit 1; }
+          # --pwa-strategy=none still emits flutter_service_worker.js (empty) and
+          # flutter_bootstrap.js still *embeds* flutter.js, whose minified loader
+          # mentions serviceWorkerSettings. The only meaningful signal is the
+          # generated call itself: `_flutter.loader.load()` with no settings.
+          loader_call="$(grep -o '_flutter\.loader\.load([^;]*)' build/web/flutter_bootstrap.js | tail -n 1)"
+          if [ -z "$loader_call" ]; then
+            echo "::error::flutter_bootstrap.js does not call _flutter.loader.load — the bundle layout changed; re-check this guard."
+            exit 1
+          fi
+          case "$loader_call" in
+            *serviceWorkerSettings*)
+              echo "::error::Flutter's service worker is being registered; it competes with the isolation shim for the same scope (expected --pwa-strategy=none)."
+              exit 1
+              ;;
+          esac
+          grep -q "base href=\"/${GITHUB_REPOSITORY#*/}/\"" build/web/index.html \
+            || { echo "::error::base href was not rewritten to the project sub-path — assets would 404."; exit 1; }
+          echo "Bundle looks deployable."
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

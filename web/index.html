@@ -16,6 +16,25 @@
   -->
   <base href="$FLUTTER_BASE_HREF">
 
+  <!--
+    Cross-origin isolation shim. MUST stay the first script on the page.
+
+    The Rust core runs on wasm threads (SharedArrayBuffer), which browsers only
+    enable on a cross-origin isolated page — i.e. one served with
+    Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy.
+    Static hosts such as GitHub Pages cannot set response headers, so this
+    service worker re-serves every request with them injected. Without it the
+    deployed page is blank (see issue #212).
+
+    It is a no-op when the headers are already present — e.g. the local
+    `flutter run -d chrome --web-header ...` flow — because the script bails out
+    as soon as it sees window.crossOriginIsolated.
+
+    Vendored (do not edit): coi-serviceworker v0.1.7, MIT, from
+    https://github.com/gzuidhof/coi-serviceworker — see coi-serviceworker.LICENSE.
+  -->
+  <script src="coi-serviceworker.min.js"></script>
+
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
