@@ -26,15 +26,33 @@ where
     wasm_bindgen_futures::spawn_local(future);
 }
 
-/// Timer primitives mirroring the subset of `tokio::time` used by the crate.
+/// Timer and clock primitives mirroring the subset of `std::time` / `tokio::time`
+/// used by the crate.
+///
+/// `SystemTime`/`UNIX_EPOCH` matter for the wall clock: `std::time::SystemTime::now()`
+/// is unimplemented on `wasm32-unknown-unknown` and panics at runtime ("time not
+/// implemented on this platform"). `wasmtimer` provides a browser-backed drop-in, so
+/// every wall-clock read must go through `crate::rt::time` (or `unix_now()` below).
 #[cfg(not(target_arch = "wasm32"))]
 pub mod time {
+    pub use std::time::{SystemTime, UNIX_EPOCH};
     pub use tokio::time::{sleep, timeout, Duration, Instant};
 }
 
 #[cfg(target_arch = "wasm32")]
 pub mod time {
     pub use std::time::Duration;
-    pub use wasmtimer::std::Instant;
+    pub use wasmtimer::std::{Instant, SystemTime, UNIX_EPOCH};
     pub use wasmtimer::tokio::{sleep, timeout};
+}
+
+/// Current Unix time in whole seconds, on both native and wasm.
+///
+/// Returns 0 if the clock is before the Unix epoch (never happens in practice),
+/// mirroring the `unwrap_or_default()` behaviour of the call sites this replaces.
+pub fn unix_now() -> i64 {
+    time::SystemTime::now()
+        .duration_since(time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }

@@ -110,10 +110,7 @@ pub(crate) fn forward_log(level: log::Level, target: &str, message: &str) {
             },
             tag: target.split("::").last().unwrap_or(target).to_string(),
             message: message.to_string(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs() as i64,
+            timestamp: crate::rt::unix_now(),
         };
         if let Ok(g) = tx.lock() {
             let _ = g.send(entry);

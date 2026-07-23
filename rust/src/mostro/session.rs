@@ -77,10 +77,7 @@ impl SessionManager {
             ));
         }
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
+        let now = crate::rt::unix_now();
 
         let session = Session {
             order_id: order_id.clone(),
@@ -149,10 +146,7 @@ impl SessionManager {
     /// Remove sessions older than `timeout_secs` that have no shared key
     /// (i.e., the take action was never acknowledged by Mostro).
     pub async fn cleanup_stale_sessions(&self, timeout_secs: i64) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
+        let now = crate::rt::unix_now();
 
         let mut sessions = self.sessions.write().await;
         sessions.retain(|_, s| {

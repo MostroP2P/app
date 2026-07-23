@@ -133,13 +133,8 @@ async fn try_upload(
     {
         use base64::{engine::general_purpose::STANDARD, Engine};
         use nostr_sdk::prelude::*;
-        use std::time::{SystemTime, UNIX_EPOCH};
 
-        let expiration = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            + 600; // 10 minutes
+        let expiration = crate::rt::unix_now() as u64 + 600; // 10 minutes
 
         // Build and sign the auth event.
         // Fallback: if no identity is loaded (e.g. first-run upload before

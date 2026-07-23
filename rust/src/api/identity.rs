@@ -365,13 +365,7 @@ fn reconcile_trade_key_index(
     }
 }
 
-fn unix_now() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
-}
+use crate::rt::unix_now;
 
 /// Expose the in-memory `Keys` for other Rust modules (relay pool, gift wrap).
 /// Returns `Err("NoIdentity")` if no identity is loaded.

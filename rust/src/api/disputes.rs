@@ -100,12 +100,7 @@ fn dispute_store() -> &'static DisputeStore {
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
-fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
-}
+use crate::rt::unix_now;
 
 // ── Public API ────────────────────────────────────────────────────────────────
 

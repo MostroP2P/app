@@ -1,5 +1,4 @@
 use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -171,12 +170,7 @@ pub fn queue_message(event_json: String) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn unix_now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
+use crate::rt::unix_now;
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

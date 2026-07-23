@@ -580,13 +580,7 @@ impl AttachmentProgressStream {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn unix_now() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
-}
+use crate::rt::unix_now;
 
 /// Strip directory components from a caller-supplied file name to prevent
 /// path traversal (e.g. `../../../etc/passwd` → `passwd`).
