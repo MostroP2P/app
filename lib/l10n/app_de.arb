@@ -337,7 +337,7 @@
   "aboutBondSlashOnTimeoutExplanation": "Gibt an, ob die Kaution eingezogen wird, wenn eine Partei einen Wartezustand verstreichen lässt, statt zu handeln.",
   "aboutBondClaimWindowLabel": "Frist für die Auszahlungsanforderung",
   "aboutBondClaimWindowExplanation": "Wie lange die betroffene Gegenpartei Zeit hat, eine Lightning-Rechnung einzureichen und ihren Anteil an einer eingezogenen Kaution anzufordern.",
-  "aboutDaysSuffix": "Tage",
+  "aboutBondClaimWindowValue": "{count, plural, =1{{count} Tag} other{{count} Tage}}",
   "openDisputeFailed": "Streit konnte nicht eröffnet werden. Bitte erneut versuchen.",
   "tradeWaitingInvoiceBuyerInstruction": "Sende deine Lightning-Rechnung, damit der Verkäufer die Gelder sperren kann.",
   "tradeWaitingInvoiceSellerInstruction": "Warte auf die Lightning-Rechnung des Käufers.",

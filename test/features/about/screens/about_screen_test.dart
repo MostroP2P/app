@@ -106,6 +106,19 @@ void main() {
       expect(find.text('15 days'), findsOneWidget);
     });
 
+    testWidgets('a one-day claim window renders the singular form',
+        (tester) async {
+      await _pumpWithNode(
+        tester,
+        MostroInstance.fromTags(
+          _tags({..._enabledBondTags, 'bond_payout_claim_window_days': '1'}),
+        ),
+      );
+
+      expect(find.text('1 day'), findsOneWidget);
+      expect(find.text('1 days'), findsNothing);
+    });
+
     testWidgets('a disabled policy shows the status row alone', (tester) async {
       await _pumpWithNode(
         tester,

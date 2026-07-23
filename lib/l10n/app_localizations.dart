@@ -1988,11 +1988,11 @@ abstract class AppLocalizations {
   /// **'How long the affected counterparty has to submit a Lightning invoice and claim their share of a slashed bond.'**
   String get aboutBondClaimWindowExplanation;
 
-  /// Suffix appended to day durations on the About screen
+  /// About screen — bond payout claim window value with a pluralized day count
   ///
   /// In en, this message translates to:
-  /// **'days'**
-  String get aboutDaysSuffix;
+  /// **'{count, plural, =1{{count} day} other{{count} days}}'**
+  String aboutBondClaimWindowValue(int count);
 
   /// Snackbar shown when opening a dispute fails
   ///

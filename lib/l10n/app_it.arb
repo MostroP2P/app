@@ -337,7 +337,7 @@
   "aboutBondSlashOnTimeoutExplanation": "Indica se la cauzione viene incamerata quando una parte lascia scadere uno stato di attesa invece di agire.",
   "aboutBondClaimWindowLabel": "Termine per richiedere il pagamento",
   "aboutBondClaimWindowExplanation": "Il tempo a disposizione della controparte danneggiata per inviare una fattura Lightning e richiedere la propria quota di una cauzione incamerata.",
-  "aboutDaysSuffix": "giorni",
+  "aboutBondClaimWindowValue": "{count, plural, =1{{count} giorno} other{{count} giorni}}",
   "openDisputeFailed": "Impossibile aprire la disputa. Riprovare.",
   "tradeWaitingInvoiceBuyerInstruction": "Invia la tua fattura Lightning per permettere al venditore di bloccare i fondi.",
   "tradeWaitingInvoiceSellerInstruction": "In attesa che il compratore invii la propria fattura Lightning.",

@@ -1028,7 +1028,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'How long the affected counterparty has to submit a Lightning invoice and claim their share of a slashed bond.';
 
   @override
-  String get aboutDaysSuffix => 'days';
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days',
+      one: '$count day',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get openDisputeFailed => 'Could not open dispute. Please try again.';

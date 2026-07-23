@@ -1041,7 +1041,15 @@ class AppLocalizationsEs extends AppLocalizations {
       'El tiempo que tiene la contraparte afectada para enviar una factura Lightning y reclamar su parte de una fianza ejecutada.';
 
   @override
-  String get aboutDaysSuffix => 'días';
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count días',
+      one: '$count día',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get openDisputeFailed =>

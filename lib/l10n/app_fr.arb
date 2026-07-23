@@ -337,7 +337,7 @@
   "aboutBondSlashOnTimeoutExplanation": "Indique si la caution est saisie lorsqu'une partie laisse expirer un état d'attente au lieu d'agir.",
   "aboutBondClaimWindowLabel": "Délai de réclamation du paiement",
   "aboutBondClaimWindowExplanation": "Le temps dont dispose la contrepartie lésée pour envoyer une facture Lightning et réclamer sa part d'une caution saisie.",
-  "aboutDaysSuffix": "jours",
+  "aboutBondClaimWindowValue": "{count, plural, =1{{count} jour} other{{count} jours}}",
   "openDisputeFailed": "Impossible d'ouvrir le litige. Veuillez réessayer.",
   "tradeWaitingInvoiceBuyerInstruction": "Soumettez votre facture Lightning pour que le vendeur puisse bloquer les fonds.",
   "tradeWaitingInvoiceSellerInstruction": "En attente de la facture Lightning de l'acheteur.",

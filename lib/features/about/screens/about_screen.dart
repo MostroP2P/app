@@ -361,7 +361,9 @@ class _MostroNodeContent extends StatelessWidget {
         if (node.bondPayoutClaimWindowDays != null)
           _NodeInfoRowInfo(
             label: l10n.aboutBondClaimWindowLabel,
-            value: '${node.bondPayoutClaimWindowDays} ${l10n.aboutDaysSuffix}',
+            value: l10n.aboutBondClaimWindowValue(
+              node.bondPayoutClaimWindowDays!,
+            ),
             explanation: l10n.aboutBondClaimWindowExplanation,
           ),
 

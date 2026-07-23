@@ -1040,7 +1040,15 @@ class AppLocalizationsIt extends AppLocalizations {
       'Il tempo a disposizione della controparte danneggiata per inviare una fattura Lightning e richiedere la propria quota di una cauzione incamerata.';
 
   @override
-  String get aboutDaysSuffix => 'giorni';
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count giorni',
+      one: '$count giorno',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get openDisputeFailed => 'Impossibile aprire la disputa. Riprovare.';

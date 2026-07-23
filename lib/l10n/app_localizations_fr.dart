@@ -1044,7 +1044,15 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le temps dont dispose la contrepartie lésée pour envoyer une facture Lightning et réclamer sa part d\'une caution saisie.';
 
   @override
-  String get aboutDaysSuffix => 'jours';
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count jours',
+      one: '$count jour',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get openDisputeFailed =>

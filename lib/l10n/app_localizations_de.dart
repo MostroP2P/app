@@ -1041,7 +1041,15 @@ class AppLocalizationsDe extends AppLocalizations {
       'Wie lange die betroffene Gegenpartei Zeit hat, eine Lightning-Rechnung einzureichen und ihren Anteil an einer eingezogenen Kaution anzufordern.';
 
   @override
-  String get aboutDaysSuffix => 'Tage';
+  String aboutBondClaimWindowValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Tage',
+      one: '$count Tag',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get openDisputeFailed =>

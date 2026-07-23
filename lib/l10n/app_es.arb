@@ -337,7 +337,7 @@
   "aboutBondSlashOnTimeoutExplanation": "Indica si la fianza se ejecuta cuando una parte deja vencer un estado de espera en lugar de actuar.",
   "aboutBondClaimWindowLabel": "Plazo para reclamar el pago",
   "aboutBondClaimWindowExplanation": "El tiempo que tiene la contraparte afectada para enviar una factura Lightning y reclamar su parte de una fianza ejecutada.",
-  "aboutDaysSuffix": "días",
+  "aboutBondClaimWindowValue": "{count, plural, =1{{count} día} other{{count} días}}",
   "openDisputeFailed": "No se pudo abrir la disputa. Por favor, inténtelo de nuevo.",
   "tradeWaitingInvoiceBuyerInstruction": "Envía tu factura Lightning para que el vendedor pueda bloquear los fondos.",
   "tradeWaitingInvoiceSellerInstruction": "Esperando a que el comprador envíe su factura Lightning.",
