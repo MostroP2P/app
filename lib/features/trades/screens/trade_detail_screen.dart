@@ -150,7 +150,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   static TradeStatus _mapOrderStatus(OrderStatus s) => switch (s) {
     OrderStatus.pending => TradeStatus.pending,
     OrderStatus.waitingBuyerInvoice => TradeStatus.waitingInvoice,
-    OrderStatus.waitingPayment => TradeStatus.waitingPayment,
+    OrderStatus.waitingPayment ||
+    OrderStatus.waitingTakerBond => TradeStatus.waitingPayment,
     OrderStatus.active || OrderStatus.inProgress => TradeStatus.active,
     OrderStatus.fiatSent => TradeStatus.fiatSent,
     OrderStatus.settledHoldInvoice ||

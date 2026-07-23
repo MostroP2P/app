@@ -5229,6 +5229,7 @@ impl SseDecode for crate::api::types::OrderStatus {
             12 => crate::api::types::OrderStatus::CompletedByAdmin,
             13 => crate::api::types::OrderStatus::Dispute,
             14 => crate::api::types::OrderStatus::InProgress,
+            15 => crate::api::types::OrderStatus::WaitingTakerBond,
             _ => unreachable!("Invalid variant for OrderStatus: {}", inner),
         };
     }
@@ -5379,6 +5380,7 @@ impl SseDecode for crate::api::types::TradeInfo {
         let mut var_counterpartyPubkey = <String>::sse_decode(deserializer);
         let mut var_currentStep = <crate::api::types::TradeStep>::sse_decode(deserializer);
         let mut var_holdInvoice = <Option<String>>::sse_decode(deserializer);
+        let mut var_bondInvoice = <Option<String>>::sse_decode(deserializer);
         let mut var_buyerInvoice = <Option<String>>::sse_decode(deserializer);
         let mut var_tradeKeyIndex = <u32>::sse_decode(deserializer);
         let mut var_cooperativeCancelState =
@@ -5394,6 +5396,7 @@ impl SseDecode for crate::api::types::TradeInfo {
             counterparty_pubkey: var_counterpartyPubkey,
             current_step: var_currentStep,
             hold_invoice: var_holdInvoice,
+            bond_invoice: var_bondInvoice,
             buyer_invoice: var_buyerInvoice,
             trade_key_index: var_tradeKeyIndex,
             cooperative_cancel_state: var_cooperativeCancelState,
@@ -6570,6 +6573,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::OrderStatus {
             Self::CompletedByAdmin => 12.into_dart(),
             Self::Dispute => 13.into_dart(),
             Self::InProgress => 14.into_dart(),
+            Self::WaitingTakerBond => 15.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -6787,6 +6791,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::TradeInfo {
             self.counterparty_pubkey.into_into_dart().into_dart(),
             self.current_step.into_into_dart().into_dart(),
             self.hold_invoice.into_into_dart().into_dart(),
+            self.bond_invoice.into_into_dart().into_dart(),
             self.buyer_invoice.into_into_dart().into_dart(),
             self.trade_key_index.into_into_dart().into_dart(),
             self.cooperative_cancel_state.into_into_dart().into_dart(),
@@ -7895,6 +7900,7 @@ impl SseEncode for crate::api::types::OrderStatus {
                 crate::api::types::OrderStatus::CompletedByAdmin => 12,
                 crate::api::types::OrderStatus::Dispute => 13,
                 crate::api::types::OrderStatus::InProgress => 14,
+                crate::api::types::OrderStatus::WaitingTakerBond => 15,
                 _ => {
                     unimplemented!("");
                 }
@@ -8043,6 +8049,7 @@ impl SseEncode for crate::api::types::TradeInfo {
         <String>::sse_encode(self.counterparty_pubkey, serializer);
         <crate::api::types::TradeStep>::sse_encode(self.current_step, serializer);
         <Option<String>>::sse_encode(self.hold_invoice, serializer);
+        <Option<String>>::sse_encode(self.bond_invoice, serializer);
         <Option<String>>::sse_encode(self.buyer_invoice, serializer);
         <u32>::sse_encode(self.trade_key_index, serializer);
         <Option<crate::api::types::CooperativeCancelState>>::sse_encode(

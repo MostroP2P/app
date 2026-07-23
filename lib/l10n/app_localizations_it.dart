@@ -232,8 +232,19 @@ class AppLocalizationsIt extends AppLocalizations {
   String get orderAlreadyTaken => 'L\'ordine è già stato preso';
 
   @override
-  String get bondRequired =>
-      'Questo nodo richiede una cauzione anti-abuso, non ancora supportata';
+  String get payBondInvoiceTitle => 'Paga la cauzione anti-abuso';
+
+  @override
+  String get payBondInvoiceInstruction =>
+      'Questo nodo richiede una cauzione anti-abuso. Paga questa hold invoice Lightning per prendere l\'ordine. Viene rilasciata quando lo scambio si completa normalmente.';
+
+  @override
+  String get tradeWaitingForBondInvoice =>
+      'In attesa della fattura della cauzione...';
+
+  @override
+  String get bondInvoiceQrLabel =>
+      'Codice QR della fattura della cauzione anti-abuso';
 
   @override
   String addInvoiceAmount(String sats) {

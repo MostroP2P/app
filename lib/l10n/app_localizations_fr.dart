@@ -234,8 +234,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get orderAlreadyTaken => 'Cet ordre a déjà été pris';
 
   @override
-  String get bondRequired =>
-      'Ce nœud exige une caution anti-abus, qui n\'est pas encore prise en charge';
+  String get payBondInvoiceTitle => 'Payer la caution anti-abus';
+
+  @override
+  String get payBondInvoiceInstruction =>
+      'Ce nœud exige une caution anti-abus. Payez cette facture à retenue Lightning pour prendre l\'ordre. Elle est libérée lorsque l\'échange se termine normalement.';
+
+  @override
+  String get tradeWaitingForBondInvoice =>
+      'En attente de la facture de caution...';
+
+  @override
+  String get bondInvoiceQrLabel => 'Code QR de la facture de caution anti-abus';
 
   @override
   String addInvoiceAmount(String sats) {

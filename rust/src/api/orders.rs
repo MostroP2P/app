@@ -46,6 +46,10 @@ enum DaemonReply {
         amount_sats: Option<u64>,
         /// Hold invoice bolt11 (seller taking a buy order), when present.
         hold_invoice: Option<String>,
+        /// Anti-abuse bond hold invoice bolt11 (`pay-bond-invoice` reply),
+        /// carried separately from `hold_invoice` so the bond never collides
+        /// with the trade's escrow hold invoice.
+        bond_invoice: Option<String>,
     },
     /// Daemon acknowledged an add-invoice. The reply doubles as a status
     /// update processed by the per-action arms; the caller only needs the
@@ -252,24 +256,26 @@ fn take_matching_add_invoice(trade_pubkey_hex: &str, got: Option<u64>) -> Option
 ///
 /// A take's success reply varies by role, order shape and daemon config —
 /// `add-invoice` (buyer, with the calculated sats in an `Order` payload),
-/// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload), or a
-/// direct progression message when an invoice was pre-attached — so
-/// classification goes by payload shape rather than by enumerating actions
-/// (the pattern MostriX uses). `pay-bond-invoice` maps to a stable
-/// `BondRequired` rejection: anti-abuse bonds are not supported yet, and an
-/// honest error beats a fake trade or a silent timeout.
+/// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload),
+/// `pay-bond-invoice` (bond-requiring node, anti-abuse bond hold invoice in a
+/// `PaymentRequest` payload), or a direct progression message when an invoice
+/// was pre-attached — so classification goes by payload shape rather than by
+/// enumerating actions (the pattern MostriX uses). `pay-bond-invoice` shares
+/// the `PaymentRequest` shape with `pay-invoice`, so its bond bolt11 rides in
+/// the same `hold_invoice` slot; Dart discriminates the bond by the
+/// `WaitingTakerBond` status and routes the taker to the bond payment screen.
+///
+/// The daemon deliberately stamps the bond message's embedded `SmallOrder`
+/// with the wire-mapped `Pending` status (`WaitingTakerBond` is never exposed
+/// on the NIP-69 wire, per `mostro`'s `nip33::create_status_tags`), so for
+/// `pay-bond-invoice` the *action* — not the payload — is authoritative for
+/// the status. Every other `PaymentRequest` reply (`pay-invoice`) carries the
+/// real order status in its payload.
 fn classify_take_reply(
     action: &mostro_core::message::Action,
     payload: &Option<mostro_core::message::Payload>,
 ) -> DaemonReply {
     use mostro_core::message::{Action, Payload};
-
-    if matches!(action, Action::PayBondInvoice) {
-        return DaemonReply::Rejected {
-            reason: "BondRequired".to_string(),
-            message: "BondRequired".to_string(),
-        };
-    }
 
     match payload {
         Some(Payload::PaymentRequest(small_order, invoice, amount)) => {
@@ -280,14 +286,26 @@ fn classify_take_reply(
                         if so.amount > 0 { Some(so.amount as u64) } else { None }
                     })
                 });
-            DaemonReply::TakeAccepted {
-                action: action.clone(),
-                status: small_order
+            // Bond replies advertise a wire-mapped `Pending` payload status, so
+            // the action determines the state; all other PaymentRequest replies
+            // carry the authoritative status in the payload. The bond bolt11
+            // travels in its own slot so it never collides with the trade's
+            // escrow hold invoice when the take resumes after the bond is paid.
+            let is_bond = matches!(action, Action::PayBondInvoice);
+            let status = if is_bond {
+                status_for_action(action)
+            } else {
+                small_order
                     .as_ref()
                     .and_then(|so| so.status.and_then(map_core_status))
-                    .or_else(|| status_for_action(action)),
+                    .or_else(|| status_for_action(action))
+            };
+            DaemonReply::TakeAccepted {
+                action: action.clone(),
+                status,
                 amount_sats,
-                hold_invoice: Some(invoice.clone()),
+                hold_invoice: if is_bond { None } else { Some(invoice.clone()) },
+                bond_invoice: if is_bond { Some(invoice.clone()) } else { None },
             }
         }
         Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
@@ -302,6 +320,7 @@ fn classify_take_reply(
                 None
             },
             hold_invoice: None,
+            bond_invoice: None,
         },
         // Action-only progression reply (payload absent or of another shape):
         // still a genuine acceptance. The take interception consumes the
@@ -314,6 +333,7 @@ fn classify_take_reply(
             status: status_for_action(action),
             amount_sats: None,
             hold_invoice: None,
+            bond_invoice: None,
         },
     }
 }
@@ -847,6 +867,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         counterparty_pubkey: String::new(),
         current_step: maker_step,
         hold_invoice: None,
+        bond_invoice: None,
         buyer_invoice: None,
         trade_key_index: trade_index,
         cooperative_cancel_state: None,
@@ -1010,17 +1031,18 @@ pub async fn take_order(
         detach_request_waiter(&trade_pk_hex, request_id);
     }
 
-    let (status, amount_sats, hold_invoice) = match reply {
+    let (status, amount_sats, hold_invoice, bond_invoice) = match reply {
         Ok(Ok(DaemonReply::TakeAccepted {
             action,
             status,
             amount_sats,
             hold_invoice,
+            bond_invoice,
         })) => {
             crate::api::logging::blog_info("orders", format!(
                 "take_order confirmed by daemon: order={order_id} reply={action:?}"
             ));
-            (status, amount_sats, hold_invoice)
+            (status, amount_sats, hold_invoice, bond_invoice)
         }
         Ok(Ok(DaemonReply::Rejected { reason, message })) => {
             crate::api::logging::blog_warn("orders", format!(
@@ -1032,7 +1054,7 @@ pub async fn take_order(
             // Only the create flow sends Confirmed; a take record can never
             // receive it. Treat defensively as an acceptance without data.
             log::warn!("[orders] take_order received a create-style confirmation");
-            (None, None, None)
+            (None, None, None, None)
         }
         _ => {
             // No daemon response within the timeout. Do not persist or show
@@ -1070,6 +1092,7 @@ pub async fn take_order(
         counterparty_pubkey: order.creator_pubkey.clone(),
         current_step: initial_step,
         hold_invoice,
+        bond_invoice,
         buyer_invoice: None,
         trade_key_index: trade_index,
         cooperative_cancel_state: None,
@@ -1905,6 +1928,72 @@ async fn dispatch_mostro_message(
                 }
             }
         }
+        // Mostro sends AddInvoice to the buyer (Order payload, calculated sats)
+        // asking for their Lightning invoice. In the normal take flow this is
+        // the take reply, consumed by the waiting take_order caller; it reaches
+        // the per-action arms only as a standalone message — after a taker bond
+        // is paid (the daemon resumes the take with WaitingBuyerInvoice) or on a
+        // reconnect. Sync the calculated sats and status so the bond payment
+        // screen advances to the add-invoice step with the real trade amount
+        // (not the bond amount) and My Trades reflects the state.
+        Action::AddInvoice => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] gift-wrap AddInvoice has no order id");
+                    return;
+                }
+            };
+            let amount = match &kind.payload {
+                Some(mostro_core::message::Payload::Order(small_order)) => {
+                    if small_order.amount > 0 {
+                        Some(small_order.amount as u64)
+                    } else {
+                        None
+                    }
+                }
+                _ => {
+                    log::warn!(
+                        "[orders] gift-wrap AddInvoice payload is not an Order"
+                    );
+                    None
+                }
+            };
+            log::info!("[orders] gift-wrap AddInvoice: order={order_id} amount={amount:?}");
+            // Update the order book amount too (not just status): the take
+            // persisted the bond amount there, and the buyer's add-invoice
+            // screen reads the sats from the order book, so overwrite it with
+            // the daemon's calculated trade amount.
+            if let Some(mut info) = order_book().get_order(&order_id).await {
+                info.status = crate::api::types::OrderStatus::WaitingBuyerInvoice;
+                if amount.is_some() {
+                    info.amount_sats = amount;
+                }
+                order_book().upsert_order(info).await;
+            } else {
+                order_book()
+                    .update_order_status(
+                        &order_id,
+                        crate::api::types::OrderStatus::WaitingBuyerInvoice,
+                    )
+                    .await;
+            }
+            if let Some(db) = crate::db::app_db::db() {
+                if let Err(e) = db
+                    .update_trade_fields(
+                        &order_id,
+                        Some(crate::api::types::OrderStatus::WaitingBuyerInvoice),
+                        None,
+                        amount,
+                    )
+                    .await
+                {
+                    log::warn!(
+                        "[orders] failed to sync buyer invoice request for order={order_id}: {e}"
+                    );
+                }
+            }
+        }
         // Handle remaining status-update actions from the daemon by syncing
         // the trade status in the DB so My Trades reflects the current state.
         Action::WaitingSellerToPay
@@ -2076,6 +2165,7 @@ fn status_for_action(action: &mostro_core::message::Action) -> Option<OrderStatu
     match action {
         Action::WaitingSellerToPay => Some(OrderStatus::WaitingPayment),
         Action::WaitingBuyerInvoice => Some(OrderStatus::WaitingBuyerInvoice),
+        Action::PayBondInvoice => Some(OrderStatus::WaitingTakerBond),
         Action::BuyerInvoiceAccepted => Some(OrderStatus::Active),
         Action::FiatSentOk => Some(OrderStatus::FiatSent),
         Action::HoldInvoicePaymentSettled | Action::Released | Action::PurchaseCompleted => {
@@ -2118,10 +2208,13 @@ fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStatus> {
         S::SettledByAdmin => OrderStatus::SettledByAdmin,
         S::CompletedByAdmin => OrderStatus::CompletedByAdmin,
         S::Dispute => OrderStatus::Dispute,
-        // Anti-abuse bond is out of scope; these statuses have no local
-        // OrderStatus mapping. No wildcard, so future Status variants keep
-        // forcing this match to be revisited.
-        S::WaitingTakerBond | S::WaitingMakerBond => return None,
+        // Taker anti-abuse bond: the taker must pay a bond hold invoice before
+        // the trade progresses.
+        S::WaitingTakerBond => OrderStatus::WaitingTakerBond,
+        // Maker-side bond is out of scope here (issue #191); it has no local
+        // OrderStatus yet. No wildcard, so future Status variants keep forcing
+        // this match to be revisited.
+        S::WaitingMakerBond => return None,
     })
 }
 
@@ -3135,9 +3228,9 @@ mod tests {
     }
 
     /// `classify_take_reply` goes by payload shape: `PaymentRequest` carries
-    /// the hold invoice (seller flow), `Order` carries the calculated sats
-    /// (buyer flow), `pay-bond-invoice` maps to a stable BondRequired
-    /// rejection, and action-only replies are still acceptances.
+    /// the hold invoice (seller flow) or the anti-abuse bond hold invoice
+    /// (`pay-bond-invoice`), `Order` carries the calculated sats (buyer flow),
+    /// and action-only replies are still acceptances.
     #[test]
     fn classify_take_reply_maps_payload_shapes() {
         use mostro_core::message::{Action, Payload};
@@ -3183,13 +3276,50 @@ mod tests {
             _ => panic!("expected TakeAccepted"),
         }
 
-        // Anti-abuse bond: not supported — stable rejection marker.
-        match classify_take_reply(&Action::PayBondInvoice, &None) {
-            DaemonReply::Rejected { reason, message } => {
-                assert_eq!(reason, "BondRequired");
-                assert_eq!(message, "BondRequired");
+        // Anti-abuse bond: pay-bond-invoice carries the bond hold invoice in a
+        // PaymentRequest. The daemon stamps the embedded SmallOrder with the
+        // wire-mapped `Pending` status (WaitingTakerBond is never exposed on the
+        // wire), so the action — not the payload — must drive the result to
+        // WaitingTakerBond. The bond bolt11 lands in `bond_invoice`, never
+        // `hold_invoice`, so it can't collide with the escrow hold invoice.
+        let so = small_order_with(Status::Pending, 1000);
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(Some(so), "lnbc1bond".into(), None)),
+        ) {
+            DaemonReply::TakeAccepted {
+                status,
+                amount_sats,
+                hold_invoice,
+                bond_invoice,
+                ..
+            } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert_eq!(amount_sats, Some(1000));
+                assert!(hold_invoice.is_none());
+                assert_eq!(bond_invoice.as_deref(), Some("lnbc1bond"));
             }
-            _ => panic!("expected Rejected"),
+            _ => panic!("expected TakeAccepted"),
+        }
+
+        // A bond reply with no embedded status still resolves to
+        // WaitingTakerBond via status_for_action(PayBondInvoice).
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(None, "lnbc1bond".into(), Some(1000))),
+        ) {
+            DaemonReply::TakeAccepted { status, hold_invoice, bond_invoice, .. } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert!(hold_invoice.is_none());
+                assert_eq!(bond_invoice.as_deref(), Some("lnbc1bond"));
+            }
+            _ => panic!("expected TakeAccepted"),
         }
 
         // Action-only progression reply: still a genuine acceptance, with

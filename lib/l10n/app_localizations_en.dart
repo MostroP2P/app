@@ -229,8 +229,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get orderAlreadyTaken => 'Order has already been taken';
 
   @override
-  String get bondRequired =>
-      'This node requires an anti-abuse bond, which is not supported yet';
+  String get payBondInvoiceTitle => 'Pay anti-abuse bond';
+
+  @override
+  String get payBondInvoiceInstruction =>
+      'This node requires an anti-abuse bond. Pay this Lightning hold invoice to take the order. It is released when the trade completes normally.';
+
+  @override
+  String get tradeWaitingForBondInvoice => 'Waiting for the bond invoice...';
+
+  @override
+  String get bondInvoiceQrLabel => 'Anti-abuse bond invoice QR code';
 
   @override
   String addInvoiceAmount(String sats) {

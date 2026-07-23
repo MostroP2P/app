@@ -482,11 +482,29 @@ abstract class AppLocalizations {
   /// **'Order has already been taken'**
   String get orderAlreadyTaken;
 
-  /// Error shown when the Mostro node asks for an anti-abuse bond before accepting the order — the app does not support bonds yet
+  /// Screen title for the taker anti-abuse bond payment step
   ///
   /// In en, this message translates to:
-  /// **'This node requires an anti-abuse bond, which is not supported yet'**
-  String get bondRequired;
+  /// **'Pay anti-abuse bond'**
+  String get payBondInvoiceTitle;
+
+  /// Instruction shown on the bond payment screen explaining the taker must pay the anti-abuse bond hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'This node requires an anti-abuse bond. Pay this Lightning hold invoice to take the order. It is released when the trade completes normally.'**
+  String get payBondInvoiceInstruction;
+
+  /// Loading message while the anti-abuse bond hold invoice is fetched from the Mostro node
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the bond invoice...'**
+  String get tradeWaitingForBondInvoice;
+
+  /// Accessibility label for the anti-abuse bond Lightning invoice QR code
+  ///
+  /// In en, this message translates to:
+  /// **'Anti-abuse bond invoice QR code'**
+  String get bondInvoiceQrLabel;
 
   /// Sats amount (calculated by the Mostro daemon) the buyer's invoice must be for, shown on the add-invoice screen
   ///
