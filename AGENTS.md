@@ -37,6 +37,7 @@ Rust is a **library** — there is no `cargo run`; the app is launched through F
 - `flutter analyze && flutter test` — enforce lints and run the Dart suites; keep the tree warning-free.
 - `flutter gen-l10n` — regenerate `AppLocalizations` after editing `lib/l10n/*.arb`.
 - `flutter run -d <device>` — launch the app locally on the given device (e.g. `linux`, `chrome`, or `android`).
+- `./scripts/build-web.sh [--release]` — **web only:** compile the Rust core to `web/pkg/` with shared memory (wasm threads). The Flutter build does not do this for you, and `flutter_rust_bridge_codegen build-web` silently produces a non-shared build that dies at runtime. Web also needs the page to be cross-origin isolated — locally via `flutter run -d chrome --web-header ...`, in production via the vendored `web/coi-serviceworker.min.js`. See the README's "Running on Web".
 
 ## Coding Style & Naming Conventions
 

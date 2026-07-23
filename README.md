@@ -231,9 +231,15 @@ Download the latest APK from the [Releases](../../releases) page and install it,
 
 Available via TestFlight (link in Releases) or build from source with Xcode.
 
-**Web (PWA)**
+**Web**
 
-Open the hosted web app in a modern browser and install it as a Progressive Web App using the browser's "Add to Home Screen" / "Install" option.
+Open **<https://mostrop2p.github.io/app/>** in a modern browser — it always serves the latest
+build of `main`. Nothing is installed and nothing is uploaded: the identity is generated in
+your browser and stays there, and the app talks to Nostr relays directly.
+
+The very first visit reloads itself once while it installs the service worker that supplies
+the cross-origin isolation headers the Rust core needs; that is expected. A browser with
+service workers disabled cannot run the web client.
 
 **Desktop (macOS / Windows / Linux)**
 
@@ -352,10 +358,34 @@ cross-origin headers` and the page stays blank.
 On first launch the app generates an identity and connects to relays; you should see the
 order book populate from the daemon's Kind 38383 events without running anything locally.
 
-**Deploying the production build.** `flutter build web` (see below) emits `build/web`, but
-the same two COOP/COEP headers must be set by whatever serves it — a reverse proxy, CDN
-config, or a [`coi-serviceworker`](https://github.com/gzuidhof/coi-serviceworker) shim —
-or the deployed site is blank for the same `SharedArrayBuffer` reason.
+### Deploying the web client
+
+`main` is published automatically to **<https://mostrop2p.github.io/app/>** by
+[`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) on every merge.
+The workflow runs the same steps as above (`scripts/frb-generate.sh`, then
+`scripts/build-web.sh --release`) and finishes with:
+
+```bash
+flutter build web --release --base-href "/app/" --pwa-strategy=none
+```
+
+Three things make it work on a static host that cannot set HTTP headers:
+
+- **`web/coi-serviceworker.min.js`** (vendored, MIT — see `web/coi-serviceworker.LICENSE`)
+  is loaded as the first script in `web/index.html`. It installs a service worker that
+  re-serves every request with the COOP/COEP headers injected, which is what makes
+  `SharedArrayBuffer` — and therefore the Rust core's wasm threads — available. The cost is
+  one automatic reload on a visitor's first load. It stays out of the way during local
+  development, where the headers already come from `--web-header`.
+- **`--base-href "/app/"`** — project pages are served from a sub-path; without it every
+  asset 404s and the page is blank.
+- **`--pwa-strategy=none`** — Flutter's own (deprecated) service worker would register over
+  the same scope and evict the isolation shim, silently un-isolating the page. Offline
+  caching is the trade-off.
+
+Deploying elsewhere works too: either set `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` at the server/CDN and drop the shim, or keep
+the shim and serve the bundle as-is.
 
 ### Build for Production
 
@@ -369,8 +399,9 @@ flutter build appbundle --release
 # iOS
 flutter build ios --release
 
-# Web (PWA)
-flutter build web --pwa-strategy=offline-first --release
+# Web — compile the Rust core first (see "Running on Web"), then:
+./scripts/build-web.sh --release
+flutter build web --release --base-href "/app/" --pwa-strategy=none
 
 # macOS
 flutter build macos --release
