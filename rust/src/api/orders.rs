@@ -2609,6 +2609,14 @@ async fn ingest_order_event(event: &nostr_sdk::Event) {
                 info.kind,
                 info.status
             );
+            // Restore is_mine=true for recovered orders (#142): if the
+            // order_id was planted by restore_session's reconstruction, this
+            // order belongs to the user even though we can't fingerprint it
+            // (the restore reply carries no order data to fingerprint).
+            if !info.is_mine && get_trade_key_index(&info.id).await.is_some() {
+                info.is_mine = true;
+                log::info!("[orders] order {} recognised as mine via restore mapping", info.id);
+            }
             // Restore is_mine=true for maker orders on cold start by
             // comparing against the content fingerprint stored at creation time.
             if !info.is_mine {
@@ -3381,7 +3389,20 @@ pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInf
     }
 
     match confirmation {
-        Ok(Ok(DaemonReply::Restored(info))) => Ok(info),
+        Ok(Ok(DaemonReply::Restored(info))) => {
+            for ro in &info.restore_orders {
+                if let Ok(idx) = u32::try_from(ro.trade_index) {
+                    store_trade_key_index(&ro.order_id.to_string(), idx).await;
+                    crate::api::logging::blog_info("restore", format!(
+                        "recovered order {} (trade_index {}, status {}) — mapped for hydration",
+                        ro.order_id, idx, ro.status
+                    ));
+                } else {
+                    log::warn!("[restore] order {} has invalid trade_index {}", ro.order_id, ro.trade_index);
+                }
+            }
+            Ok(info)
+        }
         Ok(Ok(_other)) => Err(anyhow::anyhow!("unexpected restore reply")),
         _ => Err(anyhow::anyhow!("NoDaemonResponse")),
     }
