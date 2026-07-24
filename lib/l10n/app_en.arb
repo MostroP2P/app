@@ -430,6 +430,8 @@
   "@relayRemoveFailed": {"description": "SnackBar message shown when removing a relay fails"},
   "backupConfirmCheckbox": "I have written down my words and backed them up securely",
   "@backupConfirmCheckbox": {"description": "Label for the backup confirmation checkbox on the Account screen"},
+  "backupRitualSecondFailureMessage": "That was incorrect again. Please review and back up your secret words, then verify from the start.",
+  "@backupRitualSecondFailureMessage": {"description": "Shown when the user picks a wrong word a second time during backup verification; sends them back to review the words and restart verification"},
 
   "cancelTradeDialogTitle": "Cancel trade?",
   "@cancelTradeDialogTitle": {"description": "Title for the cancel-trade confirmation dialog"},

@@ -632,6 +632,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'J\'ai noté mes mots et les ai sauvegardés en lieu sûr';
 
   @override
+  String get backupRitualSecondFailureMessage =>
+      'C\'est encore incorrect. Veuillez vérifier et sauvegarder vos mots secrets, puis recommencer la vérification depuis le début.';
+
+  @override
   String get cancelTradeDialogTitle => 'Annuler l\'échange ?';
 
   @override

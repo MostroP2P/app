@@ -203,6 +203,7 @@
   "relayAddFailed": "Relay konnte nicht hinzugefügt werden",
   "relayRemoveFailed": "Relay konnte nicht entfernt werden",
   "backupConfirmCheckbox": "Ich habe meine Wörter aufgeschrieben und sicher gespeichert",
+  "backupRitualSecondFailureMessage": "Das war erneut falsch. Bitte überprüfe und sichere deine geheimen Wörter und verifiziere dann von vorne.",
 
   "cancelTradeDialogTitle": "Handel abbrechen?",
   "cancelTradeDialogContent": "Kooperativen Abbruch angefragt. Die andere Partei muss ebenfalls zustimmen, damit der Handel vollständig abgebrochen wird.",

@@ -620,6 +620,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'I have written down my words and backed them up securely';
 
   @override
+  String get backupRitualSecondFailureMessage =>
+      'That was incorrect again. Please review and back up your secret words, then verify from the start.';
+
+  @override
   String get cancelTradeDialogTitle => 'Cancel trade?';
 
   @override

@@ -203,6 +203,7 @@
   "relayAddFailed": "Échec de l'ajout du relais",
   "relayRemoveFailed": "Échec de la suppression du relais",
   "backupConfirmCheckbox": "J'ai noté mes mots et les ai sauvegardés en lieu sûr",
+  "backupRitualSecondFailureMessage": "C'est encore incorrect. Veuillez vérifier et sauvegarder vos mots secrets, puis recommencer la vérification depuis le début.",
 
   "cancelTradeDialogTitle": "Annuler l'échange ?",
   "cancelTradeDialogContent": "Annulation coopérative demandée. L'autre partie doit également accepter pour que l'échange soit entièrement annulé.",

@@ -59,6 +59,11 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
   /// Option the user last tapped incorrectly (cleared on next tap).
   String? _wrongPick;
 
+  /// Wrong-pick counter for the current verification round. On the 2nd wrong
+  /// pick the user is sent back to the words screen and verification restarts,
+  /// so the confirmation can't be brute-forced by elimination (#204 review).
+  int _failCount = 0;
+
   bool _confirming = false;
 
   @override
@@ -119,6 +124,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
       _filled = [null, null, null];
       _activeSlot = 0;
       _wrongPick = null;
+      _failCount = 0;
       _options = _buildOptions(_challenge[0]);
       _step = 1;
     });
@@ -159,7 +165,22 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
         }
       });
     } else {
-      setState(() => _wrongPick = word);
+      _failCount++;
+      if (_failCount >= 2) {
+        // Second wrong pick this round: don't let the user keep guessing by
+        // elimination. Send them back to the 12 words to actually back them
+        // up, then restart verification from scratch (#204 review).
+        _backToWords();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).backupRitualSecondFailureMessage,
+            ),
+          ),
+        );
+      } else {
+        setState(() => _wrongPick = word);
+      }
     }
   }
 

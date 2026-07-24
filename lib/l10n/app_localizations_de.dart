@@ -628,6 +628,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ich habe meine Wörter aufgeschrieben und sicher gespeichert';
 
   @override
+  String get backupRitualSecondFailureMessage =>
+      'Das war erneut falsch. Bitte überprüfe und sichere deine geheimen Wörter und verifiziere dann von vorne.';
+
+  @override
   String get cancelTradeDialogTitle => 'Handel abbrechen?';
 
   @override
