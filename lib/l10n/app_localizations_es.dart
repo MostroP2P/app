@@ -628,6 +628,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'He anotado mis palabras y las he guardado de forma segura';
 
   @override
+  String get backupRitualSecondFailureMessage =>
+      'Eso fue incorrecto de nuevo. Por favor revisa y respalda tus palabras secretas, luego verifica desde el principio.';
+
+  @override
   String get cancelTradeDialogTitle => '¿Cancelar intercambio?';
 
   @override

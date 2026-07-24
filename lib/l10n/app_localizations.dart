@@ -1232,6 +1232,12 @@ abstract class AppLocalizations {
   /// **'I have written down my words and backed them up securely'**
   String get backupConfirmCheckbox;
 
+  /// Shown when the user picks a wrong word a second time during backup verification; sends them back to review the words and restart verification
+  ///
+  /// In en, this message translates to:
+  /// **'That was incorrect again. Please review and back up your secret words, then verify from the start.'**
+  String get backupRitualSecondFailureMessage;
+
   /// Title for the cancel-trade confirmation dialog
   ///
   /// In en, this message translates to:

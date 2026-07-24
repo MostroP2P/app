@@ -172,10 +172,9 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
         // up, then restart verification from scratch (#204 review).
         _backToWords();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'That was incorrect again. Please review and back up your 12 '
-              'words, then verify from the start.',
+              AppLocalizations.of(context).backupRitualSecondFailureMessage,
             ),
           ),
         );

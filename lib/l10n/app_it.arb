@@ -203,6 +203,7 @@
   "relayAddFailed": "Impossibile aggiungere il relay",
   "relayRemoveFailed": "Impossibile rimuovere il relay",
   "backupConfirmCheckbox": "Ho annotato le mie parole e le ho salvate in modo sicuro",
+  "backupRitualSecondFailureMessage": "Di nuovo errato. Per favore controlla e salva le tue parole segrete, poi verifica dall'inizio.",
 
   "cancelTradeDialogTitle": "Annullare lo scambio?",
   "cancelTradeDialogContent": "Annullamento cooperativo richiesto. Anche l'altra parte deve accettare affinché lo scambio venga annullato.",
