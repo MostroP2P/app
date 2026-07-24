@@ -53,6 +53,10 @@ enum DaemonReply {
     Acknowledged,
     /// Daemon rejected the request with a CantDo reason.
     Rejected { reason: String, message: String },
+    /// Daemon replied to a RestoreSession with the user's active trades and
+    /// disputes. Correlated by identity pubkey (RestoreSession carries no
+    /// request_id) — see take_matching_restore.
+    Restored(mostro_core::message::RestoreSessionInfo),
 }
 
 /// What kind of outgoing request a pending record tracks.
@@ -72,6 +76,10 @@ enum PendingRequestKind {
     Take,
     /// A buyer's add-invoice awaiting the daemon's acknowledgement.
     AddInvoice,
+    /// A session-restore awaiting the daemon's RestoreData reply. Correlated
+    /// by identity pubkey, not request_id (the RestoreSession message carries
+    /// no request_id — see mostro-core Message::new_restore).
+    Restore,
 }
 
 /// Everything one outgoing daemon request needs tracked until its reply is
@@ -124,6 +132,18 @@ fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
 /// in place: relays can replay historical events, and a stale reply must not
 /// confirm, reject, or reconcile a live request — the genuine reply (carrying
 /// the nonce) arrives later and finds the record.
+/// Remove and return the pending RESTORE request for `pubkey_hex`. Unlike
+/// `take_matching_request`, there is no request_id gate: the RestoreSession
+/// message carries no request_id, so the daemon's RestoreData reply is
+/// correlated purely by the identity pubkey it is addressed to.
+fn take_matching_restore(pubkey_hex: &str) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(pubkey_hex) {
+        Some(p) if matches!(p.kind, PendingRequestKind::Restore) => map.remove(pubkey_hex),
+        _ => None,
+    }
+}
+
 fn take_matching_request(trade_pubkey_hex: &str, got: Option<u64>) -> Option<PendingRequest> {
     let mut map = pending_requests().lock().ok()?;
     match map.get(trade_pubkey_hex) {
@@ -1745,6 +1765,44 @@ async fn dispatch_mostro_message(
                 log::warn!("[orders] gift-wrap NewOrder has no order id");
             }
         }
+        Action::RestoreSession => {
+            // Daemon's restore reply (mostro send_restore_session_response ->
+            // Message::new_restore(RestoreData), addressed to the sending trade
+            // key). Correlated by trade pubkey only — RestoreSession carries no
+            // request_id — so take_matching_restore skips the nonce gate.
+            match &kind.payload {
+                Some(mostro_core::message::Payload::RestoreData(info)) => {
+                    if let Some(pending) = take_matching_restore(trade_pubkey_hex) {
+                        if let Some(tx) = pending.tx {
+                            let _ = tx.send(DaemonReply::Restored(info.clone()));
+                            crate::api::logging::blog_info("gift-wrap", format!(
+                                "RestoreData: notified waiting restore_session ({} orders, {} disputes)",
+                                info.restore_orders.len(),
+                                info.restore_disputes.len()
+                            ));
+                        } else {
+                            // Post-timeout late reply: the caller already
+                            // returned NoDaemonResponse and detached its waiter.
+                            // Logged for parity with the NewOrder/take/add-invoice arms.
+                            crate::api::logging::blog_info("gift-wrap", format!(
+                                "RestoreData: late reply for timed-out restore on trade={}",
+                                &trade_pubkey_hex[..8]
+                            ));
+                        }
+                    } else {
+                        crate::api::logging::blog_info("gift-wrap", format!(
+                            "RestoreData with no waiting caller for trade={}",
+                            &trade_pubkey_hex[..8]
+                        ));
+                    }
+                }
+                _ => {
+                    log::warn!(
+                        "[orders] RestoreSession reply payload is not RestoreData for trade={trade_pubkey_hex}"
+                    );
+                }
+            }
+        }
         Action::Canceled => {
             log::info!("[orders] gift-wrap Canceled for trade={trade_pubkey_hex}");
             if let Some(order_id) = &kind.id {
@@ -3315,5 +3373,153 @@ mod tests {
         )
         .await;
         // If we reach here without panicking the test passes.
+    }
+}
+
+/// Send a `RestoreSession` to the active daemon and return the user's active
+/// trades/disputes. Mirrors create_order's send/await, minus the order payload.
+///
+/// Correlation: the request is sent from a fresh TRADE key (event.sender) while
+/// the Seal carries the IDENTITY key (event.identity). The daemon looks up
+/// trades by identity/master key and replies to the trade key
+/// (mostro restore_session.rs: master_key = event.identity, reply -> event.sender),
+/// so we subscribe on the trade key and correlate the reply by that pubkey.
+#[flutter_rust_bridge::frb(ignore)]
+pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInfo> {
+    // Fresh trade key -> event.sender (daemon replies here).
+    let trade_key_info = crate::api::identity::derive_trade_key().await?;
+    let trade_index = trade_key_info.index;
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let trade_pk_hex = sender_keys.public_key().to_hex();
+
+    let mostro_pubkey = nostr_sdk::PublicKey::from_hex(&active_mostro_pubkey())?;
+    // Identity/transport keys sign the Seal -> event.identity (master key).
+    let identity_keys =
+        crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
+
+    let event_json =
+        actions::restore_session(&identity_keys, &sender_keys, &mostro_pubkey).await?;
+
+    // Register the pending-restore record BEFORE publishing so the reply can't
+    // race the map. Correlated by trade pubkey only (RestoreSession carries no
+    // request_id) -> take_matching_restore.
+    let (conf_tx, conf_rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    if let Ok(mut map) = pending_requests().lock() {
+        map.insert(
+            trade_pk_hex.clone(),
+            PendingRequest {
+                request_id: 0,
+                trade_index,
+                kind: PendingRequestKind::Restore,
+                tx: Some(conf_tx),
+            },
+        );
+    }
+
+    subscribe_gift_wraps(sender_keys.public_key(), trade_index).await;
+
+    if let Err(e) = publish_event_json(&event_json).await {
+        remove_pending_request(&trade_pk_hex, 0);
+        return Err(e);
+    }
+    crate::api::logging::blog_info(
+        "restore",
+        format!("RestoreSession published trade_index={trade_index} — waiting for daemon"),
+    );
+
+    let confirmation = crate::rt::time::timeout(
+        std::time::Duration::from_secs(10),
+        conf_rx,
+    ).await;
+
+    if !matches!(confirmation, Ok(Ok(_))) {
+        detach_request_waiter(&trade_pk_hex, 0);
+    }
+
+    match confirmation {
+        Ok(Ok(DaemonReply::Restored(info))) => Ok(info),
+        Ok(Ok(_other)) => Err(anyhow::anyhow!("unexpected restore reply")),
+        _ => Err(anyhow::anyhow!("NoDaemonResponse")),
+    }
+}
+
+#[cfg(test)]
+mod restore_e2e_tests {
+    //! E2E smoke test for the RestoreSession handshake (#142).
+    //! Requires a live regtest stack: mostrod + relay on ws://localhost:7000.
+    //! Run with:  cargo test --lib restore_session_roundtrip -- --ignored --nocapture
+    //! Ignored by default so it never runs in CI without the stack.
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires live regtest daemon + relay on ws://localhost:7000"]
+    async fn restore_session_roundtrip() {
+        // Point ONLY at the local regtest relay.
+        crate::api::nostr::initialize(Some(vec!["ws://localhost:7000".to_string()]))
+            .await
+            .expect("relay pool init");
+
+        // Regtest daemon pubkey (from mostrod startup logs).
+        crate::config::set_active_mostro_pubkey(Some(
+            "bae71ea2566771ed45b1d267dc0c0753028fe960a7bc4aeee08a44da0cb91520".to_string(),
+        ));
+
+        // Fresh in-memory identity (no keyring needed — Rust never persists it).
+        let id = crate::api::identity::create_identity().await.expect("create identity");
+        println!("[test] created identity pubkey={}", id.public_key);
+
+        // Let the relay connection settle.
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+        // Fire the handshake.
+        println!("[test] calling restore_session()...");
+        let result = restore_session().await;
+        println!("[test] restore_session result: {:?}", result.is_ok());
+
+        match result {
+            Ok(info) => {
+                println!(
+                    "[test] ✓ round-trip OK — {} orders, {} disputes",
+                    info.restore_orders.len(),
+                    info.restore_disputes.len()
+                );
+            }
+            Err(e) => panic!("[test] restore_session failed: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires live regtest daemon + relay on ws://localhost:7000"]
+    async fn trade_then_restore_recovers_order() {
+        crate::api::nostr::initialize(Some(vec!["ws://localhost:7000".to_string()]))
+            .await
+            .expect("relay pool init");
+        crate::config::set_active_mostro_pubkey(Some(
+            "bae71ea2566771ed45b1d267dc0c0753028fe960a7bc4aeee08a44da0cb91520".to_string(),
+        ));
+        let id = crate::api::identity::create_identity().await.expect("create identity");
+        println!("[test] identity A pubkey={}", id.public_key);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let params = crate::api::types::NewOrderParams {
+            kind: crate::api::types::OrderKind::Sell,
+            fiat_amount: Some(100.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "USD".to_string(),
+            payment_method: "cash".to_string(),
+            premium: 0.0,
+            amount_sats: None,
+        };
+        println!("[test] creating order...");
+        let order = create_order(params).await.expect("create_order (may need bond flow)");
+        println!("[test] order created id={}", order.id);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        println!("[test] calling restore_session()...");
+        let info = restore_session().await.expect("restore round-trip");
+        println!("[test] restored {} orders", info.restore_orders.len());
+        for o in &info.restore_orders {
+            println!("[test]   order_id={} status={}", o.order_id, o.status);
+        }
+        assert!(!info.restore_orders.is_empty(), "restore should recover the created order");
     }
 }
