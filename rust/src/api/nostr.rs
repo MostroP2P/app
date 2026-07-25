@@ -243,6 +243,18 @@ pub(crate) async fn fetch_and_set_node_capabilities() {
             // to Unknown — which keeps every Cashu path shut. See escrow_mode.
             let (mode, config) = escrow_mode::parse_tags(&tags);
             escrow_mode::set_from_tags(mode, config);
+
+            // The service fee. Only Cashu mode needs it client-side — there the
+            // seller funds the whole fee as its own token — but it rides in the
+            // same event, so reading it here costs nothing.
+            if let Some(fee) = tags
+                .iter()
+                .find(|t| t.first().map(String::as_str) == Some("fee"))
+                .and_then(|t| t.get(1))
+                .and_then(|v| v.trim().parse::<f64>().ok())
+            {
+                crate::mostro::node_fee::set_fee(fee);
+            }
         }
         Ok(None) => {
             log::warn!("[nostr] no Kind 38385 event found — PoW defaults to 0");

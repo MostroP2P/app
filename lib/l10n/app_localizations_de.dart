@@ -2500,6 +2500,64 @@ class AppLocalizationsDe extends AppLocalizations {
       'Cashu funktioniert ohne Mint nicht – unten eine festlegen.';
 
   @override
+  String get lockEscrowTitle => 'Treuhand sperren';
+
+  @override
+  String get lockEscrowExplanation =>
+      'Sperre dein E-Cash in einer 2-von-3-Treuhand bei der Mint dieses Nodes. Weder du noch der Käufer könnt es allein bewegen — und verschwindet der Node, holst du es nach Ablauf der Sperrfrist selbst zurück.';
+
+  @override
+  String get lockEscrowAmount => 'Treuhand';
+
+  @override
+  String get lockEscrowFee => 'Mostro-Gebühr';
+
+  @override
+  String get lockEscrowTotal => 'Gesamt';
+
+  @override
+  String get lockEscrowBalance => 'Dein Guthaben';
+
+  @override
+  String get lockEscrowConfirm => 'Treuhand sperren';
+
+  @override
+  String get lockEscrowFundWallet => 'Wallet aufladen';
+
+  @override
+  String get lockEscrowSubmitted => 'Treuhand gesperrt und gesendet';
+
+  @override
+  String get lockEscrowInsufficientFunds =>
+      'Dein Guthaben deckt Treuhand und Gebühr nicht.';
+
+  @override
+  String get lockEscrowFeeUnknown =>
+      'Dieser Node hat seine Gebühr noch nicht veröffentlicht. Versuche es gleich erneut.';
+
+  @override
+  String get lockEscrowNotTheSeller =>
+      'Nur der Verkäufer finanziert die Treuhand.';
+
+  @override
+  String get lockEscrowInvalidToken =>
+      'Die Treuhand konnte nicht korrekt erstellt werden. Es wurde nichts gesendet.';
+
+  @override
+  String get lockEscrowFailed =>
+      'Die Mint konnte die Treuhand nicht sperren. Dein Geld wurde nicht bewegt.';
+
+  @override
+  String lockEscrowMint(String mint) {
+    return 'Mint: $mint';
+  }
+
+  @override
+  String lockEscrowLocktime(int days) {
+    return 'Von dir rückholbar nach $days Tagen';
+  }
+
+  @override
   String get cashuLastTokenPending =>
       'Du hast ein Token exportiert. Es ist Geld, bis jemand es einlöst — behalte es, bis du sicher bist, dass es angekommen ist.';
 
@@ -2508,4 +2566,27 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get cashuLastTokenDone => 'Ich habe es gesendet';
+
+  @override
+  String get lockEscrowRequestMissing =>
+      'Für diesen Handel gibt es noch keine Treuhand-Anfrage. Warte, bis die Annahme des Käufers eintrifft, und versuche es erneut.';
+
+  @override
+  String get lockEscrowWrongTradeKey =>
+      'Dieses Gerät hat nicht den Schlüssel, mit dem diese Order angenommen wurde. Stelle dein Konto auf dem Gerät wieder her, auf dem du den Handel begonnen hast.';
+
+  @override
+  String get lockEscrowLocktimeNotReached =>
+      'Die Treuhand ist noch gesperrt. Nach Ablauf der Sperrfrist kannst du sie selbst zurückholen.';
+
+  @override
+  String get lockEscrowClockInvalid =>
+      'Die Uhr deines Geräts geht falsch, daher lässt sich die Treuhand nicht korrekt datieren. Korrigiere das Datum und versuche es erneut.';
+
+  @override
+  String get lockEscrowRetry => 'Senden erneut versuchen';
+
+  @override
+  String get lockEscrowPendingSubmission =>
+      'Deine Treuhand ist gesperrt, aber der Node hat sie nicht bestätigt. Ein erneuter Versuch ist sicher — es wird kein zweites Mal gesperrt.';
 }

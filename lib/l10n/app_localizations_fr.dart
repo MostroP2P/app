@@ -2503,6 +2503,63 @@ class AppLocalizationsFr extends AppLocalizations {
       'Cashu ne peut pas fonctionner sans mint : configurez-en un ci-dessous.';
 
   @override
+  String get lockEscrowTitle => 'Verrouiller le séquestre';
+
+  @override
+  String get lockEscrowExplanation =>
+      'Verrouillez votre ecash dans un séquestre 2-sur-3 au mint de ce nœud. Ni vous ni l\'acheteur ne pouvez le déplacer seul — et si le nœud disparaît, vous pourrez le récupérer vous-même une fois le verrou expiré.';
+
+  @override
+  String get lockEscrowAmount => 'Séquestre';
+
+  @override
+  String get lockEscrowFee => 'Frais Mostro';
+
+  @override
+  String get lockEscrowTotal => 'Total';
+
+  @override
+  String get lockEscrowBalance => 'Votre solde';
+
+  @override
+  String get lockEscrowConfirm => 'Verrouiller le séquestre';
+
+  @override
+  String get lockEscrowFundWallet => 'Approvisionner le portefeuille';
+
+  @override
+  String get lockEscrowSubmitted => 'Séquestre verrouillé et envoyé';
+
+  @override
+  String get lockEscrowInsufficientFunds =>
+      'Votre portefeuille ne couvre pas le séquestre et les frais.';
+
+  @override
+  String get lockEscrowFeeUnknown =>
+      'Ce nœud n\'a pas encore publié ses frais. Réessayez dans un instant.';
+
+  @override
+  String get lockEscrowNotTheSeller => 'Seul le vendeur finance le séquestre.';
+
+  @override
+  String get lockEscrowInvalidToken =>
+      'Le séquestre n\'a pas pu être construit correctement. Rien n\'a été envoyé.';
+
+  @override
+  String get lockEscrowFailed =>
+      'Le mint n\'a pas pu verrouiller le séquestre. Vos fonds n\'ont pas bougé.';
+
+  @override
+  String lockEscrowMint(String mint) {
+    return 'Mint : $mint';
+  }
+
+  @override
+  String lockEscrowLocktime(int days) {
+    return 'Récupérable par vous après $days jours';
+  }
+
+  @override
   String get cashuLastTokenPending =>
       'Vous avez exporté un token. C\'est de l\'argent jusqu\'à ce que quelqu\'un l\'encaisse — gardez-le jusqu\'à confirmation.';
 
@@ -2511,4 +2568,27 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cashuLastTokenDone => 'Je l\'ai envoyé';
+
+  @override
+  String get lockEscrowRequestMissing =>
+      'Cet échange n\'a pas encore de demande de séquestre. Attendez que la prise de l\'acheteur arrive, puis réessayez.';
+
+  @override
+  String get lockEscrowWrongTradeKey =>
+      'Cet appareil ne détient pas la clé avec laquelle cet ordre a été pris. Restaurez votre compte sur l\'appareil où vous avez commencé l\'échange.';
+
+  @override
+  String get lockEscrowLocktimeNotReached =>
+      'Le séquestre est encore verrouillé. Vous pourrez le récupérer vous-même une fois le verrou expiré.';
+
+  @override
+  String get lockEscrowClockInvalid =>
+      'L\'horloge de votre appareil est incorrecte, le séquestre ne peut donc pas être daté correctement. Corrigez la date et réessayez.';
+
+  @override
+  String get lockEscrowRetry => 'Réessayer l\'envoi';
+
+  @override
+  String get lockEscrowPendingSubmission =>
+      'Votre séquestre est verrouillé mais le nœud ne l\'a pas confirmé. Réessayer est sans risque : il ne sera pas verrouillé une seconde fois.';
 }

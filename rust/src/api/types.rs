@@ -247,6 +247,43 @@ pub struct TradeInfo {
     pub started_at: i64,
     pub completed_at: Option<i64>,
     pub outcome: Option<TradeOutcome>,
+
+    /// The buyer's **per-order trade pubkey**, as the daemon stated it.
+    ///
+    /// Not the same as [`Self::counterparty_pubkey`], which holds the maker's
+    /// order-book key for a taker and nothing at all for a maker. The Cashu
+    /// escrow is locked to these keys, and the daemon re-derives them from the
+    /// order and rejects a proof that names any others — so this is the only
+    /// value that can be used to build one.
+    ///
+    /// `None` until the daemon sends a reply carrying an order payload.
+    #[serde(default)]
+    pub buyer_trade_pubkey: Option<String>,
+    /// The seller's per-order trade pubkey. See [`Self::buyer_trade_pubkey`].
+    #[serde(default)]
+    pub seller_trade_pubkey: Option<String>,
+
+    // ── Cashu escrow (phase C5) ──────────────────────────────────────────────
+    //
+    // All `None` on a Lightning trade, and on every trade that predates this
+    // field. `TradeInfo` is persisted as a JSON blob, so adding optional fields
+    // needs no migration — but they are `#[serde(default)]` so a row written by
+    // an older build still deserializes.
+    /// Mint the escrow was locked at. Recorded per trade rather than read back
+    /// from settings: a node may change its mint, and a trade must still be
+    /// settleable at the mint its funds actually sit in.
+    #[serde(default)]
+    pub cashu_mint_url: Option<String>,
+    /// The 2-of-3 escrow token the seller locked. Kept so the seller can
+    /// re-submit after an interrupted send, and so either party can settle or
+    /// reclaim without asking the daemon for it again.
+    #[serde(default)]
+    pub cashu_escrow_token: Option<String>,
+    /// Unix timestamp (seconds) when the escrow was locked. The locktime
+    /// refund window is counted from the node's advertised locktime, not from
+    /// this — this is for display and for ordering.
+    #[serde(default)]
+    pub cashu_locked_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -526,6 +563,30 @@ pub struct CashuWalletStatus {
     /// a mint missing any of them is refused at connect, so a non-empty list
     /// here means the wallet is bound to a mint that has since changed.
     pub missing_capabilities: Vec<String>,
+}
+
+/// What a seller is about to lock into a Cashu escrow — phase C5.
+///
+/// Shown before the seller commits anything. The amount comes from the order;
+/// the fee is derived from the node's advertised rate and must match what the
+/// daemon computed to the satoshi, so it is surfaced rather than hidden.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CashuEscrowQuote {
+    pub order_id: String,
+    /// The escrow itself: exactly the order amount.
+    pub amount_sats: u64,
+    /// The whole Mostro fee, funded as a separate token. Zero on a node that
+    /// charges none.
+    pub fee_sats: u64,
+    /// `amount_sats + fee_sats` — what the wallet must actually hold.
+    pub total_sats: u64,
+    /// Spendable balance right now, so the UI can say "fund your wallet"
+    /// instead of failing at the mint.
+    pub balance_sats: u64,
+    /// Mint the escrow will be locked at.
+    pub mint_url: String,
+    /// Days the escrow stays locked before the seller can reclaim it alone.
+    pub locktime_days: u32,
 }
 
 /// The settlement backend the active Mostro node runs, as resolved by

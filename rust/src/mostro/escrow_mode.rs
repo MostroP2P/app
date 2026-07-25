@@ -374,6 +374,21 @@ pub fn update_overrides(f: impl FnOnce(&mut EscrowOverrides)) {
     }
 }
 
+/// Serializes tests that write the globals above, **across modules**.
+///
+/// `api::escrow` and `api::cashu` both drive this state; two private mutexes
+/// would let one module's "force Cashu" leak into the other's "this is a
+/// Lightning node" assertion, which fails only under parallel execution and
+/// looks like flakiness. One global, one lock.
+#[cfg(test)]
+pub fn test_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    clear();
+    set_overrides(EscrowOverrides::default());
+    guard
+}
+
 /// Forget what the node advertised. Called when the active node changes, so a
 /// stale Cashu resolution can never leak onto a different node between the
 /// switch and the next successful fetch. The overrides are deliberately left

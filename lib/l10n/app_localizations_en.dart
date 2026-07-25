@@ -2466,6 +2466,63 @@ class AppLocalizationsEn extends AppLocalizations {
       'Cashu cannot run without a mint — set one below.';
 
   @override
+  String get lockEscrowTitle => 'Lock the escrow';
+
+  @override
+  String get lockEscrowExplanation =>
+      'Lock your ecash in a 2-of-3 escrow at this node\'s mint. Neither you nor the buyer can move it alone — and if the node disappears, you can reclaim it yourself once the locktime passes.';
+
+  @override
+  String get lockEscrowAmount => 'Escrow';
+
+  @override
+  String get lockEscrowFee => 'Mostro fee';
+
+  @override
+  String get lockEscrowTotal => 'Total';
+
+  @override
+  String get lockEscrowBalance => 'Your balance';
+
+  @override
+  String get lockEscrowConfirm => 'Lock escrow';
+
+  @override
+  String get lockEscrowFundWallet => 'Fund your wallet';
+
+  @override
+  String get lockEscrowSubmitted => 'Escrow locked and sent';
+
+  @override
+  String get lockEscrowInsufficientFunds =>
+      'Your wallet does not hold enough for the escrow and the fee.';
+
+  @override
+  String get lockEscrowFeeUnknown =>
+      'This node has not published its fee yet. Try again in a moment.';
+
+  @override
+  String get lockEscrowNotTheSeller => 'Only the seller funds the escrow.';
+
+  @override
+  String get lockEscrowInvalidToken =>
+      'The escrow could not be built correctly. Nothing was sent.';
+
+  @override
+  String get lockEscrowFailed =>
+      'The mint could not lock the escrow. Your funds have not moved.';
+
+  @override
+  String lockEscrowMint(String mint) {
+    return 'Mint: $mint';
+  }
+
+  @override
+  String lockEscrowLocktime(int days) {
+    return 'Reclaimable by you after $days days';
+  }
+
+  @override
   String get cashuLastTokenPending =>
       'You exported a token. It is money until someone redeems it — keep it until you are sure it arrived.';
 
@@ -2474,4 +2531,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cashuLastTokenDone => 'I\'ve sent it';
+
+  @override
+  String get lockEscrowRequestMissing =>
+      'This trade has no escrow request yet. Wait for the buyer\'s take to arrive, then try again.';
+
+  @override
+  String get lockEscrowWrongTradeKey =>
+      'This device does not hold the key this order was taken with. Restore your account on the device you started the trade on.';
+
+  @override
+  String get lockEscrowLocktimeNotReached =>
+      'The escrow is still locked. You can reclaim it yourself once the locktime passes.';
+
+  @override
+  String get lockEscrowClockInvalid =>
+      'Your device\'s clock is wrong, so the escrow cannot be timed correctly. Fix the date and try again.';
+
+  @override
+  String get lockEscrowRetry => 'Retry sending';
+
+  @override
+  String get lockEscrowPendingSubmission =>
+      'Your escrow is locked but the node has not confirmed it. Retrying is safe — it will not lock a second time.';
 }

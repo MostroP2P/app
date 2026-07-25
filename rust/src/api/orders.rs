@@ -46,6 +46,14 @@ enum DaemonReply {
         amount_sats: Option<u64>,
         /// Hold invoice bolt11 (seller taking a buy order), when present.
         hold_invoice: Option<String>,
+        /// The per-order trade pubkeys the daemon assigned, when the reply
+        /// carries an order payload.
+        ///
+        /// This is the *only* place the client learns the counterparty's trade
+        /// key for this order: the public 38383 event carries the maker's order
+        /// key, which is a different key, and Cashu's escrow is locked to the
+        /// trade keys the daemon holds.
+        trade_pubkeys: TradePubkeys,
     },
     /// Daemon acknowledged an add-invoice. The reply doubles as a status
     /// update processed by the per-action arms; the caller only needs the
@@ -53,6 +61,74 @@ enum DaemonReply {
     Acknowledged,
     /// Daemon rejected the request with a CantDo reason.
     Rejected { reason: String, message: String },
+}
+
+/// Buyer and seller trade pubkeys for one order, as the daemon states them.
+///
+/// Both `None` on a reply that carries no order payload; either may be `None`
+/// on a daemon that predates the field.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct TradePubkeys {
+    pub buyer: Option<String>,
+    pub seller: Option<String>,
+}
+
+impl TradePubkeys {
+    fn from_small_order(order: &mostro_core::order::SmallOrder) -> Self {
+        Self {
+            buyer: order.buyer_trade_pubkey.clone(),
+            seller: order.seller_trade_pubkey.clone(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.buyer.is_none() && self.seller.is_none()
+    }
+}
+
+/// Read the trade pubkeys out of whichever payload shape carries an order.
+fn trade_pubkeys_from_payload(
+    payload: &Option<mostro_core::message::Payload>,
+) -> TradePubkeys {
+    use mostro_core::message::Payload;
+    match payload {
+        Some(Payload::Order(so)) => TradePubkeys::from_small_order(so),
+        Some(Payload::PaymentRequest(Some(so), _, _)) => TradePubkeys::from_small_order(so),
+        _ => TradePubkeys::default(),
+    }
+}
+
+/// Persist the trade pubkeys against a stored trade, if it exists.
+///
+/// Read-modify-write rather than a new `Storage` method: this runs once per
+/// order, on a message the daemon sends exactly once.
+async fn store_trade_pubkeys(order_id: &str, pubkeys: &TradePubkeys) {
+    if pubkeys.is_empty() {
+        return;
+    }
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    match db.get_trade_by_order_id(order_id).await {
+        Ok(Some(mut trade)) => {
+            let mut changed = false;
+            if trade.buyer_trade_pubkey != pubkeys.buyer && pubkeys.buyer.is_some() {
+                trade.buyer_trade_pubkey = pubkeys.buyer.clone();
+                changed = true;
+            }
+            if trade.seller_trade_pubkey != pubkeys.seller && pubkeys.seller.is_some() {
+                trade.seller_trade_pubkey = pubkeys.seller.clone();
+                changed = true;
+            }
+            if changed {
+                if let Err(e) = db.save_trade(&trade).await {
+                    log::warn!("[orders] failed to persist trade pubkeys for {order_id}: {e}");
+                }
+            }
+        }
+        Ok(None) => {}
+        Err(e) => log::warn!("[orders] could not load trade {order_id} to store pubkeys: {e}"),
+    }
 }
 
 /// What kind of outgoing request a pending record tracks.
@@ -288,6 +364,7 @@ fn classify_take_reply(
                     .or_else(|| status_for_action(action)),
                 amount_sats,
                 hold_invoice: Some(invoice.clone()),
+                trade_pubkeys: trade_pubkeys_from_payload(payload),
             }
         }
         Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
@@ -302,6 +379,9 @@ fn classify_take_reply(
                 None
             },
             hold_invoice: None,
+            // In Cashu mode this payload *is* the escrow request, and these
+            // two keys are what the escrow gets locked to.
+            trade_pubkeys: TradePubkeys::from_small_order(small_order),
         },
         // Action-only progression reply (payload absent or of another shape):
         // still a genuine acceptance. The take interception consumes the
@@ -314,6 +394,7 @@ fn classify_take_reply(
             status: status_for_action(action),
             amount_sats: None,
             hold_invoice: None,
+            trade_pubkeys: TradePubkeys::default(),
         },
     }
 }
@@ -386,7 +467,7 @@ async fn store_trade_key_index(order_id: &str, index: u32) {
 /// Returns `None` when neither source has a record for the order.
 /// Callers must treat `None` as an error rather than silently using index 0,
 /// which would cause signature verification failures on the daemon side.
-async fn get_trade_key_index(order_id: &str) -> Option<u32> {
+pub(crate) async fn get_trade_key_index(order_id: &str) -> Option<u32> {
     // Fast path: in-memory cache.
     if let Some(idx) = trade_key_map()
         .read()
@@ -851,6 +932,12 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         started_at: now,
         completed_at: None,
         outcome: None,
+        // Populated only once a Cashu escrow is actually locked (C5).
+        buyer_trade_pubkey: None,
+        seller_trade_pubkey: None,
+        cashu_mint_url: None,
+        cashu_escrow_token: None,
+        cashu_locked_at: None,
     };
     if let Some(db) = crate::db::app_db::db() {
         if let Err(e) = db.save_trade(&trade).await {
@@ -1007,17 +1094,18 @@ pub async fn take_order(
         detach_request_waiter(&trade_pk_hex, request_id);
     }
 
-    let (status, amount_sats, hold_invoice) = match reply {
+    let (status, amount_sats, hold_invoice, trade_pubkeys) = match reply {
         Ok(Ok(DaemonReply::TakeAccepted {
             action,
             status,
             amount_sats,
             hold_invoice,
+            trade_pubkeys,
         })) => {
             crate::api::logging::blog_info("orders", format!(
                 "take_order confirmed by daemon: order={order_id} reply={action:?}"
             ));
-            (status, amount_sats, hold_invoice)
+            (status, amount_sats, hold_invoice, trade_pubkeys)
         }
         Ok(Ok(DaemonReply::Rejected { reason, message })) => {
             crate::api::logging::blog_warn("orders", format!(
@@ -1029,7 +1117,7 @@ pub async fn take_order(
             // Only the create flow sends Confirmed; a take record can never
             // receive it. Treat defensively as an acceptance without data.
             log::warn!("[orders] take_order received a create-style confirmation");
-            (None, None, None)
+            (None, None, None, TradePubkeys::default())
         }
         _ => {
             // No daemon response within the timeout. Do not persist or show
@@ -1071,6 +1159,14 @@ pub async fn take_order(
         started_at: now,
         completed_at: None,
         outcome: None,
+        // Populated only once a Cashu escrow is actually locked (C5).
+        // From the daemon's reply, not from the order book: this is the only
+        // source of the counterparty's per-order trade key.
+        buyer_trade_pubkey: trade_pubkeys.buyer.clone(),
+        seller_trade_pubkey: trade_pubkeys.seller.clone(),
+        cashu_mint_url: None,
+        cashu_escrow_token: None,
+        cashu_locked_at: None,
     };
 
     store_trade_key_index(&order_id, trade_index).await;
@@ -1929,6 +2025,12 @@ async fn dispatch_mostro_message(
                     return;
                 }
             };
+            // The escrow request reaches a *maker* seller here rather than
+            // through the take waiter, and it is the only message carrying the
+            // counterparty's per-order trade key. Without this the maker path
+            // has no buyer key to lock a Cashu escrow to.
+            store_trade_pubkeys(&order_id, &trade_pubkeys_from_payload(&kind.payload)).await;
+
             // Map action → OrderStatus for DB sync (shared with the take
             // reply classification).
             let new_status = status_for_action(&kind.action);
@@ -2298,7 +2400,7 @@ async fn subscribe_single_order(order_id: &str) {
 ///
 /// Returns an error if the pool is not initialised, the JSON is malformed,
 /// or the relay client reports a publish error.
-async fn publish_event_json(event_json: &str) -> Result<()> {
+pub(crate) async fn publish_event_json(event_json: &str) -> Result<()> {
     let pool =
         crate::api::nostr::get_pool().map_err(|_| anyhow::anyhow!("RelayPoolNotInitialized"))?;
     let event: nostr_sdk::Event =
@@ -2472,6 +2574,16 @@ pub(crate) async fn refresh_subscriptions_for_active_node() {
     // read as Unknown — which keeps Cashu shut — instead of carrying one
     // node's Cashu mode onto another.
     crate::mostro::escrow_mode::clear();
+
+    // Same for the fee: it funds a Cashu escrow's fee token, and one node's
+    // rate applied to another's order is a lock the daemon rejects.
+    crate::mostro::node_fee::clear();
+
+    // And the wallet, which is bound to the old node's mint. Proofs stay on
+    // disk; only the binding is dropped.
+    if let Err(e) = crate::api::cashu::cashu_disconnect().await {
+        log::warn!("[orders] failed to disconnect the Cashu wallet on node switch: {e}");
+    }
 
     let Ok(pool) = crate::api::nostr::get_pool() else {
         log::warn!(

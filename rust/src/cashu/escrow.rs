@@ -131,9 +131,9 @@ pub fn escrow_conditions(parties: &EscrowParties, locktime: u64) -> Result<Spend
 ///
 /// The fee is not escrowed — it is a straight payment the node redeems when the
 /// trade settles, so it carries none of the escrow's conditions.
-pub fn fee_conditions(mostro: PublicKey) -> SpendingConditions {
+pub fn fee_conditions(mostro: &PublicKey) -> SpendingConditions {
     SpendingConditions::P2PKConditions {
-        data: mostro,
+        data: *mostro,
         conditions: None,
     }
 }
@@ -224,7 +224,9 @@ impl CashuWallet {
     }
 
     /// Swap `amount_sats` into a token payable to Mostro alone.
-    pub async fn build_fee_token(&self, amount_sats: u64, mostro: PublicKey) -> Result<String> {
+    /// Taken by reference so the caller keeps its [`EscrowParties`] whole —
+    /// the wasm stub carries hex strings rather than `Copy` keys.
+    pub async fn build_fee_token(&self, amount_sats: u64, mostro: &PublicKey) -> Result<String> {
         self.build_locked_token(amount_sats, fee_conditions(mostro))
             .await
     }
@@ -595,7 +597,7 @@ mod tests {
         let parties = parties();
 
         // Act
-        let conditions = fee_conditions(parties.mostro);
+        let conditions = fee_conditions(&parties.mostro);
 
         // Assert — no locktime, no extra keys: the fee is a payment, not an
         // escrow, and conditions would make it unspendable for the node.

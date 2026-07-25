@@ -199,15 +199,9 @@ mod tests {
     use super::*;
     use crate::mostro::escrow_mode::{CashuNodeConfig, EscrowMode};
 
-    /// The escrow globals are process-wide; serialize the tests that write them
-    /// and start each one from a freshly-launched app's state.
-    fn escrow_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        escrow_mode::clear();
-        escrow_mode::set_overrides(EscrowOverrides::default());
-        guard
-    }
+    /// The escrow globals are process-wide and shared with `api::cashu`, so the
+    /// lock has to be too — see `escrow_mode::test_lock`.
+    use crate::mostro::escrow_mode::test_lock as escrow_lock;
 
     #[tokio::test]
     async fn a_fresh_client_reports_unknown_and_no_cashu() {

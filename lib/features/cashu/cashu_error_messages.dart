@@ -22,6 +22,16 @@ String cashuErrorMessage(Object error, AppLocalizations l10n) {
 /// Marker → message. Insertion-ordered, most specific first: a marker that is a
 /// prefix of another must come first, or the broader one would shadow it.
 final Map<String, String Function(AppLocalizations)> _messages = {
+  'CashuInsufficientFunds': (l) => l.lockEscrowInsufficientFunds,
+  'CashuNodeFeeUnknown': (l) => l.lockEscrowFeeUnknown,
+  'CashuEscrowRequestMissing': (l) => l.lockEscrowRequestMissing,
+  'CashuWrongTradeKey': (l) => l.lockEscrowWrongTradeKey,
+  'CashuLocktimeNotReached': (l) => l.lockEscrowLocktimeNotReached,
+  'DeviceClockInvalid': (l) => l.lockEscrowClockInvalid,
+  'InvalidEscrowParties': (l) => l.lockEscrowInvalidToken,
+  'InvalidEscrowToken': (l) => l.lockEscrowInvalidToken,
+  'NotTheSeller': (l) => l.lockEscrowNotTheSeller,
+  'CashuLockFailed': (l) => l.lockEscrowFailed,
   'CashuNotEnabled': (l) => l.cashuErrorNotEnabled,
   'CashuNotConnected': (l) => l.cashuErrorNotConnected,
   'CashuMintUnreachable': (l) => l.cashuErrorMintUnreachable,

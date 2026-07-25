@@ -2492,6 +2492,63 @@ class AppLocalizationsEs extends AppLocalizations {
       'Cashu no puede funcionar sin un mint: configura uno abajo.';
 
   @override
+  String get lockEscrowTitle => 'Bloquear la custodia';
+
+  @override
+  String get lockEscrowExplanation =>
+      'Bloqueá tu ecash en una custodia 2-de-3 en el mint de este nodo. Ni vos ni el comprador pueden moverlo solos, y si el nodo desaparece podés recuperarlo vos mismo cuando pase el locktime.';
+
+  @override
+  String get lockEscrowAmount => 'Custodia';
+
+  @override
+  String get lockEscrowFee => 'Comisión de Mostro';
+
+  @override
+  String get lockEscrowTotal => 'Total';
+
+  @override
+  String get lockEscrowBalance => 'Tu saldo';
+
+  @override
+  String get lockEscrowConfirm => 'Bloquear custodia';
+
+  @override
+  String get lockEscrowFundWallet => 'Cargá tu billetera';
+
+  @override
+  String get lockEscrowSubmitted => 'Custodia bloqueada y enviada';
+
+  @override
+  String get lockEscrowInsufficientFunds =>
+      'Tu billetera no alcanza para la custodia más la comisión.';
+
+  @override
+  String get lockEscrowFeeUnknown =>
+      'Este nodo todavía no publicó su comisión. Probá de nuevo en un momento.';
+
+  @override
+  String get lockEscrowNotTheSeller => 'Solo el vendedor financia la custodia.';
+
+  @override
+  String get lockEscrowInvalidToken =>
+      'No se pudo construir la custodia correctamente. No se envió nada.';
+
+  @override
+  String get lockEscrowFailed =>
+      'El mint no pudo bloquear la custodia. Tus fondos no se movieron.';
+
+  @override
+  String lockEscrowMint(String mint) {
+    return 'Mint: $mint';
+  }
+
+  @override
+  String lockEscrowLocktime(int days) {
+    return 'Podés recuperarlo tras $days días';
+  }
+
+  @override
   String get cashuLastTokenPending =>
       'Exportaste un token. Es dinero hasta que alguien lo canjee: guardalo hasta estar seguro de que llegó.';
 
@@ -2500,4 +2557,27 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cashuLastTokenDone => 'Ya lo envié';
+
+  @override
+  String get lockEscrowRequestMissing =>
+      'Esta operación todavía no tiene pedido de custodia. Esperá a que llegue la toma del comprador e intentá de nuevo.';
+
+  @override
+  String get lockEscrowWrongTradeKey =>
+      'Este dispositivo no tiene la clave con la que se tomó esta orden. Restaurá tu cuenta en el dispositivo donde empezaste la operación.';
+
+  @override
+  String get lockEscrowLocktimeNotReached =>
+      'La custodia sigue bloqueada. Vas a poder recuperarla vos mismo cuando pase el locktime.';
+
+  @override
+  String get lockEscrowClockInvalid =>
+      'El reloj de tu dispositivo está mal, así que la custodia no se puede fechar bien. Corregí la fecha e intentá de nuevo.';
+
+  @override
+  String get lockEscrowRetry => 'Reintentar envío';
+
+  @override
+  String get lockEscrowPendingSubmission =>
+      'Tu custodia está bloqueada pero el nodo no la confirmó. Reintentar es seguro: no se bloquea una segunda vez.';
 }

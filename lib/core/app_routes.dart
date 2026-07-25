@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/features/account/screens/account_screen.dart';
 import 'package:mostro/features/cashu/screens/cashu_wallet_screen.dart';
+import 'package:mostro/features/cashu/screens/lock_escrow_screen.dart';
 import 'package:mostro/features/home/screens/home_screen.dart';
 import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
@@ -57,6 +58,11 @@ abstract final class AppRoute {
   /// runs Cashu — the route is always registered, and the screen shows a
   /// disconnected wallet anywhere else.
   static const cashuWallet = '/cashu_wallet';
+
+  /// Seller-side escrow funding, the Cashu counterpart of `payInvoice`.
+  static const lockEscrow = '/lock_escrow/:orderId';
+
+  static String lockEscrowPath(String orderId) => '/lock_escrow/$orderId';
 
   /// Build a path with a single [id] substituted for the `:orderId` segment.
   static String tradeDetailPath(String orderId) =>
@@ -233,6 +239,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoute.cashuWallet,
       builder: (_, __) => const CashuWalletScreen(),
+    ),
+    GoRoute(
+      path: AppRoute.lockEscrow,
+      builder: (context, state) => LockEscrowScreen(
+        orderId: state.pathParameters['orderId']!,
+      ),
     ),
   ],
 );

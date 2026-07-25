@@ -53,3 +53,29 @@ class CashuWalletController {
 final cashuWalletControllerProvider = Provider<CashuWalletController>(
   (ref) => const CashuWalletController(),
 );
+
+/// Seller-side escrow commands — phase C5.
+///
+/// Split from the wallet controller because the audiences differ: the wallet is
+/// something a user opens, an escrow lock is something a trade demands. Both
+/// are one Rust call each.
+class CashuEscrowController {
+  const CashuEscrowController();
+
+  /// What locking this order would cost: escrow, fee, total, and the balance to
+  /// compare them against. Changes nothing.
+  Future<CashuEscrowQuote> quote(String orderId) =>
+      cashu_api.cashuEscrowQuote(orderId: orderId);
+
+  /// Fund the escrow and submit it to the daemon.
+  ///
+  /// Throws `CashuInsufficientFunds` when the wallet cannot cover
+  /// `amount + fee`, `NotTheSeller` when called for the wrong side, or a
+  /// `CashuLockFailed` marker when the mint refuses the swap.
+  Future<CashuEscrowQuote> lock(String orderId) =>
+      cashu_api.lockEscrow(orderId: orderId);
+}
+
+final cashuEscrowControllerProvider = Provider<CashuEscrowController>(
+  (ref) => const CashuEscrowController(),
+);

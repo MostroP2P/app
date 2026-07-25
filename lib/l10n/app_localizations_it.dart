@@ -2494,6 +2494,64 @@ class AppLocalizationsIt extends AppLocalizations {
       'Cashu non può funzionare senza una mint: impostane una qui sotto.';
 
   @override
+  String get lockEscrowTitle => 'Blocca il deposito';
+
+  @override
+  String get lockEscrowExplanation =>
+      'Blocca il tuo ecash in un deposito 2-su-3 presso la mint di questo nodo. Né tu né l\'acquirente potete muoverlo da soli — e se il nodo sparisce potrai recuperarlo tu stesso una volta scaduto il blocco.';
+
+  @override
+  String get lockEscrowAmount => 'Deposito';
+
+  @override
+  String get lockEscrowFee => 'Commissione Mostro';
+
+  @override
+  String get lockEscrowTotal => 'Totale';
+
+  @override
+  String get lockEscrowBalance => 'Il tuo saldo';
+
+  @override
+  String get lockEscrowConfirm => 'Blocca il deposito';
+
+  @override
+  String get lockEscrowFundWallet => 'Ricarica il portafoglio';
+
+  @override
+  String get lockEscrowSubmitted => 'Deposito bloccato e inviato';
+
+  @override
+  String get lockEscrowInsufficientFunds =>
+      'Il tuo portafoglio non copre deposito e commissione.';
+
+  @override
+  String get lockEscrowFeeUnknown =>
+      'Questo nodo non ha ancora pubblicato la sua commissione. Riprova tra poco.';
+
+  @override
+  String get lockEscrowNotTheSeller =>
+      'Solo il venditore finanzia il deposito.';
+
+  @override
+  String get lockEscrowInvalidToken =>
+      'Non è stato possibile costruire il deposito correttamente. Non è stato inviato nulla.';
+
+  @override
+  String get lockEscrowFailed =>
+      'La mint non ha potuto bloccare il deposito. I tuoi fondi non si sono mossi.';
+
+  @override
+  String lockEscrowMint(String mint) {
+    return 'Mint: $mint';
+  }
+
+  @override
+  String lockEscrowLocktime(int days) {
+    return 'Recuperabile da te dopo $days giorni';
+  }
+
+  @override
   String get cashuLastTokenPending =>
       'Hai esportato un token. È denaro finché qualcuno non lo riscuote: conservalo finché non sei sicuro che sia arrivato.';
 
@@ -2502,4 +2560,27 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get cashuLastTokenDone => 'L\'ho inviato';
+
+  @override
+  String get lockEscrowRequestMissing =>
+      'Questo scambio non ha ancora una richiesta di deposito. Attendi che arrivi la presa dell\'acquirente e riprova.';
+
+  @override
+  String get lockEscrowWrongTradeKey =>
+      'Questo dispositivo non ha la chiave con cui è stato preso questo ordine. Ripristina il tuo account sul dispositivo da cui hai iniziato lo scambio.';
+
+  @override
+  String get lockEscrowLocktimeNotReached =>
+      'Il deposito è ancora bloccato. Potrai recuperarlo tu stesso una volta scaduto il blocco.';
+
+  @override
+  String get lockEscrowClockInvalid =>
+      'L\'orologio del tuo dispositivo è errato, quindi il deposito non può essere datato correttamente. Correggi la data e riprova.';
+
+  @override
+  String get lockEscrowRetry => 'Riprova l\'invio';
+
+  @override
+  String get lockEscrowPendingSubmission =>
+      'Il tuo deposito è bloccato ma il nodo non lo ha confermato. Riprovare è sicuro: non verrà bloccato una seconda volta.';
 }

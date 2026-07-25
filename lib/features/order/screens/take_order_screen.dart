@@ -9,6 +9,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
@@ -131,6 +132,24 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       ref.read(tradeRoleProvider.notifier).update(
             (map) => {...map, widget.orderId: widget.isBuying},
           );
+
+      // In Cashu mode the flow after a take differs on both sides: there is no
+      // buyer invoice step at all, and the seller locks an escrow instead of
+      // paying a hold invoice.
+      //
+      // Awaited, not `read`: the provider is `AsyncLoading` for the first
+      // moments after launch, and a plain read would answer "not Cashu" and
+      // route a seller to a hold invoice that is never coming.
+      final escrowMode = await ref.read(escrowModeProvider.future);
+      if (!mounted) return;
+      if (escrowMode.isCashuAvailable) {
+        if (widget.isBuying) {
+          context.go(AppRoute.tradeDetailPath(widget.orderId));
+        } else {
+          context.push(AppRoute.lockEscrowPath(widget.orderId));
+        }
+        return;
+      }
 
       if (widget.isBuying) {
         // Check whether a default LN address is configured. If yes, Mostro
