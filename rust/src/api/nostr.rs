@@ -242,11 +242,7 @@ pub(crate) async fn fetch_and_set_node_capabilities() {
             // Today's daemons publish no escrow tags at all, so this resolves
             // to Unknown — which keeps every Cashu path shut. See escrow_mode.
             let (mode, config) = escrow_mode::parse_tags(&tags);
-            escrow_mode::set_resolved(escrow_mode::resolve(&escrow_mode::EscrowModeInputs {
-                from_tags: mode,
-                tag_config: config,
-                ..Default::default()
-            }));
+            escrow_mode::set_from_tags(mode, config);
         }
         Ok(None) => {
             log::warn!("[nostr] no Kind 38385 event found — PoW defaults to 0");

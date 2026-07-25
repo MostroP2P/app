@@ -5,7 +5,7 @@ use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use crate::api::types::{
     ChatMessage, IdentityInfo, OrderInfo, QueuedMessageStatus, RelayInfo, TradeInfo,
 };
-use crate::db::{schema::SQLITE_INIT_SQL, Storage};
+use crate::db::{schema::SQLITE_INIT_SQL, settings_keys, Storage};
 use crate::queue::outbox::QueuedMessage;
 
 pub struct SqliteStorage {
@@ -388,23 +388,43 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
-    async fn save_active_mostro_pubkey(&self, pubkey: &str) -> Result<()> {
-        sqlx::query(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('active_mostro_pubkey', ?)",
-        )
-        .bind(pubkey)
-        .execute(&self.pool)
-        .await?;
+    async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM settings WHERE key = ?")
+                .bind(key)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(v,)| v))
+    }
+
+    async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)")
+            .bind(key)
+            .bind(value)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
+    async fn delete_setting(&self, key: &str) -> Result<()> {
+        sqlx::query("DELETE FROM settings WHERE key = ?")
+            .bind(key)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    // The active node lives in the same k/v table under a fixed key. These two
+    // stay as named accessors so callers never handle the key string, but they
+    // delegate rather than duplicate the SQL.
+
+    async fn save_active_mostro_pubkey(&self, pubkey: &str) -> Result<()> {
+        self.set_setting(settings_keys::ACTIVE_MOSTRO_PUBKEY, pubkey)
+            .await
+    }
+
     async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT value FROM settings WHERE key = 'active_mostro_pubkey'",
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row.map(|(v,)| v))
+        self.get_setting(settings_keys::ACTIVE_MOSTRO_PUBKEY).await
     }
 
     async fn get_trade_by_order_id(&self, order_id: &str) -> Result<Option<TradeInfo>> {
@@ -533,6 +553,104 @@ mod tests {
         assert_eq!(
             storage.get_active_mostro_pubkey().await.unwrap().as_deref(),
             Some(pk2)
+        );
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn settings_kv_round_trip() {
+        // Arrange
+        let path = temp_db_path();
+        let path_str = path.to_str().unwrap().to_string();
+        let storage = SqliteStorage::open(&path_str).await.unwrap();
+
+        // Assert — an unwritten key reads as absent, not as an empty string.
+        assert_eq!(
+            storage
+                .get_setting(settings_keys::ESCROW_MODE_OVERRIDE)
+                .await
+                .unwrap(),
+            None
+        );
+
+        // Act / Assert — write, overwrite, read back.
+        storage
+            .set_setting(settings_keys::ESCROW_MODE_OVERRIDE, "auto")
+            .await
+            .unwrap();
+        storage
+            .set_setting(settings_keys::ESCROW_MODE_OVERRIDE, "force_cashu")
+            .await
+            .unwrap();
+        assert_eq!(
+            storage
+                .get_setting(settings_keys::ESCROW_MODE_OVERRIDE)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("force_cashu")
+        );
+
+        // Assert — keys are independent; writing one does not disturb another.
+        storage
+            .set_setting(settings_keys::CASHU_MINT_URL_OVERRIDE, "http://localhost:3338")
+            .await
+            .unwrap();
+        assert_eq!(
+            storage
+                .get_setting(settings_keys::ESCROW_MODE_OVERRIDE)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("force_cashu")
+        );
+
+        // Act — clearing a preference.
+        storage
+            .delete_setting(settings_keys::CASHU_MINT_URL_OVERRIDE)
+            .await
+            .unwrap();
+
+        // Assert — deleted reads as absent, and deleting again is not an error.
+        assert_eq!(
+            storage
+                .get_setting(settings_keys::CASHU_MINT_URL_OVERRIDE)
+                .await
+                .unwrap(),
+            None
+        );
+        storage
+            .delete_setting(settings_keys::CASHU_MINT_URL_OVERRIDE)
+            .await
+            .unwrap();
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn the_active_node_accessors_share_the_kv_store() {
+        // Arrange — the named accessors are wrappers; a value written through
+        // one must be visible through the other, or a future refactor could
+        // silently split them into two rows.
+        let path = temp_db_path();
+        let path_str = path.to_str().unwrap().to_string();
+        let storage = SqliteStorage::open(&path_str).await.unwrap();
+        let pk = "82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390";
+
+        // Act
+        storage.save_active_mostro_pubkey(pk).await.unwrap();
+
+        // Assert
+        assert_eq!(
+            storage
+                .get_setting(settings_keys::ACTIVE_MOSTRO_PUBKEY)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some(pk)
         );
 
         drop(storage);

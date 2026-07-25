@@ -16,6 +16,7 @@ import 'package:mostro/firebase_options.dart';
 import 'package:mostro/src/rust/frb_generated.dart';
 import 'package:mostro/src/rust/api.dart' as rust_api;
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/src/rust/api/escrow.dart' as escrow_api;
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 import 'package:mostro/src/rust/api/logging.dart' as logging_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
@@ -67,6 +68,10 @@ Future<void> main() async {
   try {
     await settings_api.rehydrateActiveMostroNode();
     activeMostroPubkey = await settings_api.getMostroPubkey();
+    // Load the escrow-mode overrides before the relay pool starts, so the first
+    // capability fetch already resolves against them. Nothing can have written
+    // them in a release build (docs/cashu/README.md §4.3).
+    await escrow_api.rehydrateEscrowOverrides();
     markBridgeReady();
   } catch (e) {
     debugPrint('[main] rehydrate active Mostro node failed: $e');

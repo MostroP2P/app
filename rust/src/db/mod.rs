@@ -8,6 +8,25 @@ pub mod indexeddb;
 
 use anyhow::Result;
 
+/// Keys used in the generic key-value settings store.
+///
+/// Collected here so the namespace is greppable in one place: the store has no
+/// schema, so a typo in a key string is a silently-lost preference rather than
+/// a compile error.
+pub mod settings_keys {
+    /// Active Mostro node pubkey (hex). Written through the dedicated
+    /// [`super::Storage::save_active_mostro_pubkey`] accessor.
+    pub const ACTIVE_MOSTRO_PUBKEY: &str = "active_mostro_pubkey";
+
+    /// Developer escrow-mode override — `"auto"` or `"force_cashu"`.
+    /// See [`crate::mostro::escrow_mode::EscrowModeOverride`].
+    pub const ESCROW_MODE_OVERRIDE: &str = "escrow_mode_override";
+
+    /// Developer mint-URL override, pointing Cashu at a local mint instead of
+    /// the one the node advertises.
+    pub const CASHU_MINT_URL_OVERRIDE: &str = "cashu_mint_url_override";
+}
+
 /// Storage trait — implemented by both SQLite (native) and IndexedDB (WASM).
 ///
 /// **Send-safety note**: `#[allow(async_fn_in_trait)]` is used here instead of
@@ -77,6 +96,21 @@ pub trait Storage: Send + Sync {
     async fn clear_trade_keys(&self) -> Result<()>;
 
     // ── Settings / Mostro node ────────────────────────────────────────────────
+
+    /// Read a value from the generic key-value settings store, or `None` when
+    /// the key was never written.
+    ///
+    /// The store is for small, self-contained preferences — anything with
+    /// structure gets its own table. See [`settings_keys`] for the keys in use.
+    async fn get_setting(&self, key: &str) -> Result<Option<String>>;
+
+    /// Write a value to the generic key-value settings store, replacing any
+    /// previous value for `key`.
+    async fn set_setting(&self, key: &str, value: &str) -> Result<()>;
+
+    /// Remove a key from the generic settings store. Absent keys are not an
+    /// error — clearing an unset preference is a no-op by design.
+    async fn delete_setting(&self, key: &str) -> Result<()>;
 
     /// Persist the active Mostro node's pubkey (hex). This is the *identity* of
     /// the selected node — node metadata (kind 0 / 38385) is a separate concern.

@@ -14,6 +14,23 @@ enum BondPolicy { unsupported, disabled, enabled }
 /// Which side of a trade a bond applies to (`bond_apply_to` tag).
 enum BondApplyTo { take, make, both }
 
+/// Settlement backend a Mostro daemon runs, from its `escrow_mode` tag.
+///
+/// Tri-state for the same reason as [BondPolicy]:
+/// - [unknown]: the tag is absent — a daemon that predates the Cashu feature.
+///   Not the same as knowing it runs Lightning.
+/// - [lightning]: `escrow_mode="lightning"`, or any value this client does not
+///   implement. A backend we cannot trade Cashu with reads as Lightning, the
+///   setting that leaves every Cashu path shut.
+/// - [cashu]: `escrow_mode="cashu"` — the remaining `cashu_*` tags are
+///   meaningful.
+///
+/// Mirrors Rust's `EscrowMode` (`rust/src/mostro/escrow_mode.rs`). This models
+/// what the *node advertises*; whether a Cashu path may actually run is a
+/// separate, stricter question answered by Rust (`is_cashu_mode()`, surfaced as
+/// `isCashuAvailableProvider`).
+enum EscrowMode { unknown, lightning, cashu }
+
 /// Dart model parsed from a Nostr Kind 38385 (Mostro instance status) event.
 ///
 /// All fields are derived from individual tags — the event `content` is empty
@@ -50,6 +67,10 @@ class MostroInstance {
     this.bondBaseAmountSats,
     this.bondSlashNodeSharePct,
     this.bondPayoutClaimWindowDays,
+    this.escrowMode = EscrowMode.unknown,
+    this.cashuMintUrl,
+    this.cashuEscrowLocktimeDays,
+    this.cashuSettlementMarginDays,
   });
 
   /// Mostro daemon pubkey (from `d` tag).
@@ -112,6 +133,24 @@ class MostroInstance {
 
   /// Days to claim a payout before forfeit, `> 0`.
   final int? bondPayoutClaimWindowDays;
+
+  // ── Settlement backend ──────────────────────────────────────────────────────
+
+  /// Which backend settles trades on this node; defaults to
+  /// [EscrowMode.unknown]. See [EscrowMode].
+  final EscrowMode escrowMode;
+
+  // The three Cashu parameters are non-null only when [escrowMode] is
+  // [EscrowMode.cashu]; otherwise, or on an absent/invalid tag, they are null.
+
+  /// Mint this node pins for every escrow. There is no per-order negotiation.
+  final String? cashuMintUrl;
+
+  /// NUT-11 locktime the seller must set on the escrow token, in days.
+  final int? cashuEscrowLocktimeDays;
+
+  /// How close to escrow expiry the node stops accepting `fiat-sent`, in days.
+  final int? cashuSettlementMarginDays;
 
   // ── Factory ─────────────────────────────────────────────────────────────────
 
@@ -195,10 +234,31 @@ class MostroInstance {
       return value > 0 ? value : null;
     }
 
+    // An absent tag stays `unknown`, which is what lets the About screen say
+    // "not advertised" instead of claiming the node confirmed Lightning. An
+    // unrecognised backend reads as Lightning: we cannot trade Cashu with it
+    // either, and that is the reading that keeps Cashu shut.
+    EscrowMode parseEscrowMode() {
+      // `get`, not `getOptional`: only an *absent* tag is unknown. A tag that
+      // is present but blank is a node that answered, and Rust's `parse_tags`
+      // reads it as Lightning — the two parsers must agree, or the About screen
+      // and the gate disagree about the same event.
+      final raw = get('escrow_mode');
+      if (raw == null) return EscrowMode.unknown;
+      return raw.trim().toLowerCase() == 'cashu'
+          ? EscrowMode.cashu
+          : EscrowMode.lightning;
+    }
+
     // Parameters are gated on an enabled policy so a disabled or malformed
     // event never exposes live bond values (consumers key off nullability).
     final bondPolicy = parseBondPolicy();
     final isEnabled = bondPolicy == BondPolicy.enabled;
+
+    // Same gating for the Cashu parameters: a Lightning node that happens to
+    // carry a stale `cashu_mint_url` tag must not surface it as live.
+    final escrowMode = parseEscrowMode();
+    final isCashu = escrowMode == EscrowMode.cashu;
 
     return MostroInstance(
       pubKey: get('d') ?? '',
@@ -239,6 +299,12 @@ class MostroInstance {
               : null,
       bondPayoutClaimWindowDays:
           isEnabled ? parsePositiveInt('bond_payout_claim_window_days') : null,
+      escrowMode: escrowMode,
+      cashuMintUrl: isCashu ? getOptional('cashu_mint_url') : null,
+      cashuEscrowLocktimeDays:
+          isCashu ? parsePositiveInt('cashu_escrow_locktime_days') : null,
+      cashuSettlementMarginDays:
+          isCashu ? parseNonNegativeInt('cashu_settlement_margin_days') : null,
     );
   }
 

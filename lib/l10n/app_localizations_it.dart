@@ -2304,4 +2304,202 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get bondSlashedDetailPaymentMethod => 'Metodo di pagamento';
+
+  @override
+  String aboutDaysValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count giorni',
+      one: '$count giorno',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get aboutCashuEscrowSection => 'Deposito Cashu';
+
+  @override
+  String get aboutCashuMintUrlLabel => 'Mint';
+
+  @override
+  String get aboutCashuMintUrlExplanation =>
+      'La mint Cashu che questo nodo usa per ogni deposito. L\'ecash bloccato per uno scambio è emesso da questa mint; non si sceglie per singolo ordine.';
+
+  @override
+  String get aboutCashuMintNotAdvertised => 'Non dichiarata';
+
+  @override
+  String get aboutCashuLocktimeLabel => 'Blocco del deposito';
+
+  @override
+  String get aboutCashuLocktimeExplanation =>
+      'Per quanto tempo l\'ecash del venditore resta bloccato in deposito. Alla scadenza il venditore può recuperare i fondi senza l\'intervento del nodo.';
+
+  @override
+  String get aboutCashuSettlementMarginLabel => 'Margine di liquidazione';
+
+  @override
+  String get aboutCashuSettlementMarginExplanation =>
+      'Quanto prima della scadenza del deposito questo nodo smette di accettare «fiat inviato», così nessuno scambio viene liquidato con troppo poco tempo per concludersi.';
+
+  @override
+  String get escrowModeLightning => 'Lightning';
+
+  @override
+  String get escrowModeCashu => 'Cashu';
+
+  @override
+  String get escrowModeUnknown => 'Non dichiarato';
+
+  @override
+  String get settingsEscrowOverrideTitle => 'Backend di deposito (sviluppo)';
+
+  @override
+  String get settingsEscrowOverrideSubtitle =>
+      'Prova Cashu con un nodo che non lo dichiara ancora. Solo nelle build di debug.';
+
+  @override
+  String get settingsForceCashuLabel => 'Forza il deposito Cashu';
+
+  @override
+  String get settingsCashuMintOverrideLabel => 'URL mint alternativo';
+
+  @override
+  String get settingsCashuMintOverrideApply => 'Applica';
+
+  @override
+  String get settingsCashuMintOverrideInvalid =>
+      'Non è un URL di mint valido. Usa http o https con un host.';
+
+  @override
+  String settingsEscrowEffectiveMode(String mode) {
+    return 'Backend effettivo: $mode';
+  }
+
+  @override
+  String settingsEscrowEffectiveMint(String mint) {
+    return 'Mint effettiva: $mint';
+  }
+
+  @override
+  String get cashuWalletTitle => 'Portafoglio Cashu';
+
+  @override
+  String get cashuWalletSubtitle =>
+      'Conserva ecash per gli scambi su questo nodo';
+
+  @override
+  String get cashuBalanceLabel => 'Saldo';
+
+  @override
+  String cashuMintLabel(String mint) {
+    return 'Mint: $mint';
+  }
+
+  @override
+  String get cashuNotConnected => 'Non connesso a una mint';
+
+  @override
+  String get cashuReceiveButton => 'Ricevi';
+
+  @override
+  String get cashuSendButton => 'Invia';
+
+  @override
+  String get cashuReceiveHint => 'Incolla o scansiona un token Cashu';
+
+  @override
+  String get cashuAmountLabel => 'Importo in sats';
+
+  @override
+  String cashuReceived(int sats) {
+    return 'Ricevuti $sats sats';
+  }
+
+  @override
+  String cashuReclaimed(int sats) {
+    return 'Recuperati $sats sats';
+  }
+
+  @override
+  String get cashuNothingToReclaim => 'Niente da recuperare';
+
+  @override
+  String get cashuCheckProofsButton => 'Cerca token non riscossi';
+
+  @override
+  String get cashuTokenTitle => 'Il tuo token';
+
+  @override
+  String get cashuTokenWarning =>
+      'Chi riscuote questo token tiene i fondi. Trattalo come contante: invialo una sola volta, a una sola persona.';
+
+  @override
+  String get cashuCopyToken => 'Copia';
+
+  @override
+  String get cashuTokenCopied => 'Token copiato';
+
+  @override
+  String get cashuWalletExplanation =>
+      'Questo portafoglio contiene ecash emesso dalla mint che usa il tuo nodo Mostro. Serve a finanziare e incassare scambi su quel nodo: non è un portafoglio generico.';
+
+  @override
+  String get cashuErrorNotEnabled =>
+      'Questo nodo Mostro non liquida gli scambi con Cashu.';
+
+  @override
+  String get cashuErrorNotConnected =>
+      'Il portafoglio non è ancora connesso a una mint.';
+
+  @override
+  String get cashuErrorMintUnreachable =>
+      'Impossibile raggiungere la mint. Controlla la connessione e riprova.';
+
+  @override
+  String get cashuErrorMintUnusable =>
+      'Alla mint di questo nodo mancano funzioni necessarie al deposito, quindi qui non si può scambiare.';
+
+  @override
+  String get cashuErrorUnsupportedOnWeb =>
+      'Il portafoglio Cashu non è ancora disponibile nella versione web.';
+
+  @override
+  String get cashuErrorAmountZero => 'Inserisci un importo maggiore di zero.';
+
+  @override
+  String cashuErrorAmountTooLarge(int sats) {
+    return 'Hai solo $sats sats.';
+  }
+
+  @override
+  String get cashuErrorReceiveFailed =>
+      'Non è stato possibile riscuotere il token. Potrebbe essere di un\'altra mint o già speso.';
+
+  @override
+  String get cashuErrorSendFailed =>
+      'Non è stato possibile creare il token. Potresti non avere fondi sufficienti.';
+
+  @override
+  String get cashuErrorNoIdentity =>
+      'Crea o importa un account prima di usare il portafoglio.';
+
+  @override
+  String get cashuErrorGeneric =>
+      'Qualcosa è andato storto con il portafoglio. Riprova.';
+
+  @override
+  String get settingsEscrowCashuUnavailable =>
+      'Cashu non può funzionare senza una mint: impostane una qui sotto.';
+
+  @override
+  String get cashuLastTokenPending =>
+      'Hai esportato un token. È denaro finché qualcuno non lo riscuote: conservalo finché non sei sicuro che sia arrivato.';
+
+  @override
+  String get cashuShowLastToken => 'Mostralo di nuovo';
+
+  @override
+  String get cashuLastTokenDone => 'L\'ho inviato';
 }

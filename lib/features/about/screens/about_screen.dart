@@ -422,51 +422,84 @@ class _MostroNodeContent extends StatelessWidget {
             explanation: l10n.aboutMaxOrdersPerResponseExplanation,
           ),
 
-        const SizedBox(height: AppSpacing.xl),
-        _SectionHeader(title: l10n.aboutLightningNetworkSection),
-        const SizedBox(height: AppSpacing.md),
-        if (node.lndVersion != null)
+        // Settlement backend. About reports what *this node* runs, so the two
+        // backends are mutually exclusive here: a Cashu node gets the Cashu
+        // section and no Lightning one. A node that advertises nothing
+        // (EscrowMode.unknown — every daemon in the wild today) keeps the
+        // Lightning section it has always shown.
+        if (node.escrowMode == EscrowMode.cashu) ...[
+          const SizedBox(height: AppSpacing.xl),
+          _SectionHeader(title: l10n.aboutCashuEscrowSection),
+          const SizedBox(height: AppSpacing.md),
+          // Shown unconditionally: a Cashu node with no mint is misconfigured,
+          // and saying so is more useful than an empty section. Rendered in
+          // full rather than through the copyable row, whose 20-character
+          // abbreviation would hide the mint's host — the one part that
+          // matters here.
           _NodeInfoRowInfo(
-            label: l10n.aboutLndVersionLabel,
-            value: node.lndVersion!,
-            explanation: l10n.aboutLndVersionExplanation,
+            label: l10n.aboutCashuMintUrlLabel,
+            value: node.cashuMintUrl ?? l10n.aboutCashuMintNotAdvertised,
+            explanation: l10n.aboutCashuMintUrlExplanation,
           ),
-        if (node.lndNodePublicKey != null)
-          _NodeInfoRowCopyable(
-            label: l10n.aboutLndNodePublicKeyLabel,
-            value: node.lndNodePublicKey!,
-            explanation: l10n.aboutLndNodePublicKeyExplanation,
-          ),
-        if (node.lndCommitHash != null)
-          _NodeInfoRowInfo(
-            label: l10n.aboutLndCommitLabel,
-            value: _truncateHash(node.lndCommitHash!),
-            explanation: l10n.aboutLndCommitExplanation,
-          ),
-        if (node.lndNodeAlias != null)
-          _NodeInfoRowInfo(
-            label: l10n.aboutLndNodeAliasLabel,
-            value: node.lndNodeAlias!,
-            explanation: l10n.aboutLndNodeAliasExplanation,
-          ),
-        if (node.lndChains != null)
-          _NodeInfoRowInfo(
-            label: l10n.aboutSupportedChainsLabel,
-            value: node.lndChains!,
-            explanation: l10n.aboutSupportedChainsExplanation,
-          ),
-        if (node.lndNetworks != null)
-          _NodeInfoRowInfo(
-            label: l10n.aboutSupportedNetworksLabel,
-            value: node.lndNetworks!,
-            explanation: l10n.aboutSupportedNetworksExplanation,
-          ),
-        if (node.lndUris != null)
-          _NodeInfoRowCopyable(
-            label: l10n.aboutLndNodeUriLabel,
-            value: node.lndUris!,
-            explanation: l10n.aboutLndNodeUriExplanation,
-          ),
+          if (node.cashuEscrowLocktimeDays != null)
+            _NodeInfoRowInfo(
+              label: l10n.aboutCashuLocktimeLabel,
+              value: l10n.aboutDaysValue(node.cashuEscrowLocktimeDays!),
+              explanation: l10n.aboutCashuLocktimeExplanation,
+            ),
+          if (node.cashuSettlementMarginDays != null)
+            _NodeInfoRowInfo(
+              label: l10n.aboutCashuSettlementMarginLabel,
+              value: l10n.aboutDaysValue(node.cashuSettlementMarginDays!),
+              explanation: l10n.aboutCashuSettlementMarginExplanation,
+            ),
+        ] else ...[
+          const SizedBox(height: AppSpacing.xl),
+          _SectionHeader(title: l10n.aboutLightningNetworkSection),
+          const SizedBox(height: AppSpacing.md),
+          if (node.lndVersion != null)
+            _NodeInfoRowInfo(
+              label: l10n.aboutLndVersionLabel,
+              value: node.lndVersion!,
+              explanation: l10n.aboutLndVersionExplanation,
+            ),
+          if (node.lndNodePublicKey != null)
+            _NodeInfoRowCopyable(
+              label: l10n.aboutLndNodePublicKeyLabel,
+              value: node.lndNodePublicKey!,
+              explanation: l10n.aboutLndNodePublicKeyExplanation,
+            ),
+          if (node.lndCommitHash != null)
+            _NodeInfoRowInfo(
+              label: l10n.aboutLndCommitLabel,
+              value: _truncateHash(node.lndCommitHash!),
+              explanation: l10n.aboutLndCommitExplanation,
+            ),
+          if (node.lndNodeAlias != null)
+            _NodeInfoRowInfo(
+              label: l10n.aboutLndNodeAliasLabel,
+              value: node.lndNodeAlias!,
+              explanation: l10n.aboutLndNodeAliasExplanation,
+            ),
+          if (node.lndChains != null)
+            _NodeInfoRowInfo(
+              label: l10n.aboutSupportedChainsLabel,
+              value: node.lndChains!,
+              explanation: l10n.aboutSupportedChainsExplanation,
+            ),
+          if (node.lndNetworks != null)
+            _NodeInfoRowInfo(
+              label: l10n.aboutSupportedNetworksLabel,
+              value: node.lndNetworks!,
+              explanation: l10n.aboutSupportedNetworksExplanation,
+            ),
+          if (node.lndUris != null)
+            _NodeInfoRowCopyable(
+              label: l10n.aboutLndNodeUriLabel,
+              value: node.lndUris!,
+              explanation: l10n.aboutLndNodeUriExplanation,
+            ),
+        ],
       ],
     );
   }

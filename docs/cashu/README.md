@@ -366,12 +366,21 @@ Every phase, without exception, carries these standing requirements:
   (`rust/src/api/settings.rs`, new `rust/src/api/` entries as needed).
 - Dart: parse the same tags in `MostroInstance.fromTags`
   (`lib/features/about/models/mostro_instance.dart`, mirroring `BondPolicy`);
-  `escrowModeProvider`; show a "Payment backend: Lightning / Cashu (mint URL,
-  locktime)" section in the About screen; dev-only override toggle in settings.
+  `escrowModeProvider`. About reports **what the node advertises**, so the two
+  backends are mutually exclusive on screen: a node advertising Cashu gets a
+  "Cashu escrow" section (mint, locktime, settlement margin) *instead of* the
+  Lightning Network section, while a Lightning or silent node renders exactly
+  what it does today. The client-side override never changes what About says —
+  it is surfaced only in the `kDebugMode` settings card, which shows the
+  effective resolution next to the toggle.
+- Persistence note: the overrides live in the settings k/v store, which is real
+  on SQLite and a stub on IndexedDB, so on web they apply for the session only
+  (tracked in #233).
 - Companion (out of this repo): upstream PR to `mostrod` adding the tags of §4.1.
 - **Done when:** against any current daemon the app shows Lightning and behaves
-  identically; flipping the override flips the provider and the About section; unit
-  tests for tag parsing + resolution order.
+  identically; flipping the override flips the resolved mode and the dev card's
+  effective state — **not** the About section, which reports only what the node
+  advertised; unit tests for tag parsing + resolution order.
 - Est. size: S (~400–600 lines).
 
 #### C2 — Cashu wallet core (Rust, cdk)

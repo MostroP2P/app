@@ -104,6 +104,28 @@ impl Storage for IndexedDbStorage {
         Ok(()) // IndexedDB not yet implemented
     }
 
+    // Settings k/v: same stub contract as the node pubkey below — writes are
+    // dropped and reads answer "nothing stored", so callers fall back to their
+    // defaults instead of failing. Tracked in #233.
+
+    async fn get_setting(&self, _key: &str) -> Result<Option<String>> {
+        log::warn!("get_setting: IndexedDB backend not implemented — falling back to default");
+        Ok(None)
+    }
+
+    async fn set_setting(&self, _key: &str, _value: &str) -> Result<()> {
+        log::warn!("set_setting: IndexedDB backend not implemented — preference will not survive reload");
+        Ok(())
+    }
+
+    async fn delete_setting(&self, _key: &str) -> Result<()> {
+        // Nothing was ever stored, so removal is already satisfied — but say so
+        // for the same reason the writes do: a silent no-op in a storage layer
+        // is indistinguishable from working storage when reading a log.
+        log::warn!("delete_setting: IndexedDB backend not implemented — nothing was stored to remove");
+        Ok(())
+    }
+
     async fn save_active_mostro_pubkey(&self, _pubkey: &str) -> Result<()> {
         // IndexedDB not yet implemented — node selection will not survive reload.
         log::warn!("save_active_mostro_pubkey: IndexedDB backend not implemented — node selection will not survive reload");

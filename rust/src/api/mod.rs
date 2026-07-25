@@ -1,6 +1,7 @@
 pub mod bond;
 pub mod cashu;
 pub mod disputes;
+pub mod escrow;
 pub mod identity;
 pub mod logging;
 pub mod messages;

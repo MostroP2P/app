@@ -528,6 +528,36 @@ pub struct CashuWalletStatus {
     pub missing_capabilities: Vec<String>,
 }
 
+/// The settlement backend the active Mostro node runs, as resolved by
+/// [`crate::mostro::escrow_mode`] with the developer overrides applied.
+///
+/// Phase C1b of `docs/cashu/README.md`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EscrowModeInfo {
+    /// Stable marker — `"unknown"`, `"lightning"` or `"cashu"`. Rust does not
+    /// translate; Dart maps this to a localized string.
+    pub mode: String,
+    /// Mint the node pins for every escrow, override applied. `None` on a
+    /// Lightning node, or on a Cashu node that published none.
+    pub mint_url: Option<String>,
+    /// NUT-11 locktime the seller must set, in days.
+    pub escrow_locktime_days: Option<u32>,
+    /// How close to expiry the daemon stops accepting `fiat-sent`, in days.
+    pub settlement_margin_days: Option<u32>,
+    /// True when [`Self::mode`] came from the developer override rather than
+    /// the node's own tags.
+    pub is_overridden: bool,
+    /// **The gate.** True only when the mode is Cashu *and* there is a usable
+    /// mint to connect to. `mode == "cashu"` alone is not enough — a node can
+    /// advertise Cashu and publish no mint.
+    pub is_cashu_available: bool,
+    /// Developer override state, mirrored so the dev-only settings surface can
+    /// render its own controls without a second call.
+    pub force_cashu_override: bool,
+    /// Mint URL override as stored, independent of what the node advertises.
+    pub mint_url_override: Option<String>,
+}
+
 /// Aggregated user-facing application settings.
 ///
 /// `privacy_mode` is a read-only mirror of `IdentityInfo.privacy_mode` —
