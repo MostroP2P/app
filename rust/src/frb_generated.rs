@@ -26,6 +26,7 @@
 // Section: imports
 
 use crate::api::bond::*;
+use crate::api::cashu::*;
 use crate::api::disputes::*;
 use crate::api::escrow::*;
 use crate::api::logging::*;
@@ -47,7 +48,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -612460854;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1080909844;
 
 // Section: executor
 
@@ -163,6 +164,63 @@ fn wire__crate__api__bond__BondSlashedStream_next_impl(
                         let mut api_that_guard = api_that_guard.unwrap();
                         let output_ok =
                             crate::api::bond::BondSlashedStream::next(&mut *api_that_guard).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__CashuWalletStream_next_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "CashuWalletStream_next",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, true,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref_mut().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let mut api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::cashu::CashuWalletStream::next(&mut *api_that_guard)
+                                .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1355,6 +1413,254 @@ fn wire__crate__api__orders__cancel_order_impl(
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
                         let output_ok = crate::api::orders::cancel_order(api_order_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__cashu_check_proofs_state_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cashu_check_proofs_state",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::cashu::cashu_check_proofs_state().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__cashu_connect_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cashu_connect",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::cashu::cashu_connect().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__cashu_create_token_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cashu_create_token",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_amount_sats = <u64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::cashu::cashu_create_token(api_amount_sats).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__cashu_disconnect_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cashu_disconnect",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::cashu::cashu_disconnect().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__cashu_get_balance_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cashu_get_balance",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::cashu::cashu_get_balance().await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__cashu_receive_token_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cashu_receive_token",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_encoded = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::cashu::cashu_receive_token(api_encoded).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__cashu__cashu_status_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "cashu_status",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::cashu::cashu_status().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3018,6 +3324,39 @@ fn wire__crate__api__bond__on_bond_slashed_impl(
         },
     )
 }
+fn wire__crate__api__cashu__on_cashu_wallet_changed_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "on_cashu_wallet_changed",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok =
+                        Result::<_, ()>::Ok(crate::api::cashu::on_cashu_wallet_changed())?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__nostr__on_connection_state_changed_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -4367,6 +4706,9 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BondSlashedStream>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>
+);
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConnectionStateStream>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
@@ -4428,6 +4770,16 @@ impl SseDecode for BondSlashedStream {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
             flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BondSlashedStream>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
+impl SseDecode for CashuWalletStream {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -4567,6 +4919,16 @@ impl SseDecode
 
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BondSlashedStream>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
+    }
+}
+
+impl SseDecode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4786,6 +5148,22 @@ impl SseDecode for crate::api::types::BuyerStep {
             4 => crate::api::types::BuyerStep::AwaitingRelease,
             5 => crate::api::types::BuyerStep::Complete,
             _ => unreachable!("Invalid variant for BuyerStep: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::CashuWalletStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_connected = <bool>::sse_decode(deserializer);
+        let mut var_mintUrl = <Option<String>>::sse_decode(deserializer);
+        let mut var_balanceSats = <Option<u64>>::sse_decode(deserializer);
+        let mut var_missingCapabilities = <Vec<String>>::sse_decode(deserializer);
+        return crate::api::types::CashuWalletStatus {
+            connected: var_connected,
+            mint_url: var_mintUrl,
+            balance_sats: var_balanceSats,
+            missing_capabilities: var_missingCapabilities,
         };
     }
 }
@@ -5900,265 +6278,283 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         2 => wire__crate__api__bond__BondSlashedStream_next_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__nostr__ConnectionStateStream_next_impl(
+        3 => {
+            wire__crate__api__cashu__CashuWalletStream_next_impl(port, ptr, rust_vec_len, data_len)
+        }
+        4 => wire__crate__api__nostr__ConnectionStateStream_next_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        4 => wire__crate__api__disputes__DisputeStream_next_impl(port, ptr, rust_vec_len, data_len),
-        5 => {
+        5 => wire__crate__api__disputes__DisputeStream_next_impl(port, ptr, rust_vec_len, data_len),
+        6 => {
             wire__crate__api__escrow__EscrowModeStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        6 => wire__crate__api__logging__LogEntryStream_next_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__messages__MessageStream_next_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__orders__OrderBook_clear_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__orders__OrderBook_default_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__orders__OrderBook_get_order_impl(port, ptr, rust_vec_len, data_len),
-        11 => {
+        7 => wire__crate__api__logging__LogEntryStream_next_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__messages__MessageStream_next_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__orders__OrderBook_clear_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__orders__OrderBook_default_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__orders__OrderBook_get_order_impl(port, ptr, rust_vec_len, data_len),
+        12 => {
             wire__crate__api__orders__OrderBook_get_orders_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__api__orders__OrderBook_new_impl(port, ptr, rust_vec_len, data_len),
-        13 => {
+        13 => wire__crate__api__orders__OrderBook_new_impl(port, ptr, rust_vec_len, data_len),
+        14 => {
             wire__crate__api__orders__OrderBook_remove_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        14 => {
+        15 => {
             wire__crate__api__orders__OrderBook_set_orders_impl(port, ptr, rust_vec_len, data_len)
         }
-        15 => wire__crate__api__orders__OrderBook_update_order_status_impl(
+        16 => wire__crate__api__orders__OrderBook_update_order_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => {
+        17 => {
             wire__crate__api__orders__OrderBook_upsert_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        17 => wire__crate__api__orders__OrdersStream_next_impl(port, ptr, rust_vec_len, data_len),
-        18 => {
+        18 => wire__crate__api__orders__OrdersStream_next_impl(port, ptr, rust_vec_len, data_len),
+        19 => {
             wire__crate__api__reputation__RatingStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => {
+        20 => {
             wire__crate__api__nostr__RelayStatusStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        20 => {
+        21 => {
             wire__crate__api__settings__SettingsStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        21 => wire__crate__api__messages__UnreadCountStream_next_impl(
+        22 => wire__crate__api__messages__UnreadCountStream_next_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => {
+        23 => {
             wire__crate__api__nwc__WalletStatusStream_next_impl(port, ptr, rust_vec_len, data_len)
         }
-        23 => wire__crate__api__nostr__add_relay_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__orders__cancel_order_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__logging__clear_logs_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__nwc__connect_wallet_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__identity__create_identity_impl(port, ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__orders__create_order_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__identity__delete_identity_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__identity__derive_trade_key_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__nwc__disconnect_wallet_impl(port, ptr, rust_vec_len, data_len),
-        32 => {
+        24 => wire__crate__api__nostr__add_relay_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__orders__cancel_order_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__cashu__cashu_check_proofs_state_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        27 => wire__crate__api__cashu__cashu_connect_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__cashu__cashu_create_token_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__cashu__cashu_disconnect_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__cashu__cashu_get_balance_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__cashu__cashu_receive_token_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__cashu__cashu_status_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__logging__clear_logs_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__nwc__connect_wallet_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__identity__create_identity_impl(port, ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__orders__create_order_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__identity__delete_identity_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__identity__derive_trade_key_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__nwc__disconnect_wallet_impl(port, ptr, rust_vec_len, data_len),
+        40 => {
             wire__crate__api__messages__download_attachment_impl(port, ptr, rust_vec_len, data_len)
         }
-        33 => wire__crate__api__identity__export_encrypted_backup_impl(
+        41 => wire__crate__api__identity__export_encrypted_backup_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__nostr__fetch_mostro_instance_tags_impl(
+        42 => wire__crate__api__nostr__fetch_mostro_instance_tags_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__nostr__flush_message_queue_impl(port, ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__get_app_version_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__messages__get_attachment_status_impl(
+        43 => wire__crate__api__nostr__flush_message_queue_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__get_app_version_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__messages__get_attachment_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__nwc__get_balance_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__nostr__get_connection_state_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__disputes__get_dispute_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__escrow__get_escrow_mode_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__identity__get_identity_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__messages__get_messages_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__settings__get_mostro_pubkey_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__identity__get_nym_identity_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__orders__get_order_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__orders__get_orders_impl(port, ptr, rust_vec_len, data_len),
-        48 => {
+        46 => wire__crate__api__nwc__get_balance_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__nostr__get_connection_state_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__disputes__get_dispute_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__escrow__get_escrow_mode_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__identity__get_identity_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__messages__get_messages_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__settings__get_mostro_pubkey_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__identity__get_nym_identity_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__orders__get_order_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__orders__get_orders_impl(port, ptr, rust_vec_len, data_len),
+        56 => {
             wire__crate__api__reputation__get_privacy_mode_impl(port, ptr, rust_vec_len, data_len)
         }
-        49 => wire__crate__api__reputation__get_rating_for_trade_impl(
+        57 => wire__crate__api__reputation__get_rating_for_trade_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__crate__api__nostr__get_relays_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__settings__get_settings_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__identity__get_trade_key_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__orders__get_trade_role_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__messages__get_unread_count_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__nwc__get_wallet_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__disputes__handle_admin_canceled_impl(
+        58 => wire__crate__api__nostr__get_relays_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__settings__get_settings_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__identity__get_trade_key_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__orders__get_trade_role_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__messages__get_unread_count_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__nwc__get_wallet_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__disputes__handle_admin_canceled_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => {
+        65 => {
             wire__crate__api__disputes__handle_admin_settled_impl(port, ptr, rust_vec_len, data_len)
         }
-        58 => wire__crate__api__disputes__handle_admin_took_dispute_impl(
+        66 => wire__crate__api__disputes__handle_admin_took_dispute_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__crate__api__reputation__handle_rating_received_impl(
+        67 => wire__crate__api__reputation__handle_rating_received_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => {
+        68 => {
             wire__crate__api__identity__import_from_mnemonic_impl(port, ptr, rust_vec_len, data_len)
         }
-        61 => wire__crate__api__identity__import_from_nsec_impl(port, ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__init_db_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__nostr__initialize_impl(port, ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__logging__install_log_bridge_impl(port, ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__orders__list_trades_impl(port, ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__identity__load_identity_from_mnemonic_impl(
+        69 => wire__crate__api__identity__import_from_nsec_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__init_db_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__nostr__initialize_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__logging__install_log_bridge_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__orders__list_trades_impl(port, ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__identity__load_identity_from_mnemonic_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__crate__api__nwc__make_invoice_impl(port, ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__messages__mark_as_read_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__messages__on_attachment_progress_impl(
+        75 => wire__crate__api__nwc__make_invoice_impl(port, ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__messages__mark_as_read_impl(port, ptr, rust_vec_len, data_len),
+        77 => wire__crate__api__messages__on_attachment_progress_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__crate__api__bond__on_bond_slashed_impl(port, ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__nostr__on_connection_state_changed_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        72 => {
-            wire__crate__api__disputes__on_dispute_updated_impl(port, ptr, rust_vec_len, data_len)
-        }
-        73 => {
-            wire__crate__api__escrow__on_escrow_mode_changed_impl(port, ptr, rust_vec_len, data_len)
-        }
-        74 => wire__crate__api__logging__on_log_entry_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__messages__on_new_message_impl(port, ptr, rust_vec_len, data_len),
-        76 => wire__crate__api__orders__on_orders_updated_impl(port, ptr, rust_vec_len, data_len),
-        77 => {
-            wire__crate__api__reputation__on_rating_received_impl(port, ptr, rust_vec_len, data_len)
-        }
-        78 => {
-            wire__crate__api__nostr__on_relay_status_changed_impl(port, ptr, rust_vec_len, data_len)
-        }
+        78 => wire__crate__api__bond__on_bond_slashed_impl(port, ptr, rust_vec_len, data_len),
         79 => {
-            wire__crate__api__settings__on_settings_changed_impl(port, ptr, rust_vec_len, data_len)
+            wire__crate__api__cashu__on_cashu_wallet_changed_impl(port, ptr, rust_vec_len, data_len)
         }
-        80 => wire__crate__api__messages__on_unread_count_changed_impl(
+        80 => wire__crate__api__nostr__on_connection_state_changed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         81 => {
+            wire__crate__api__disputes__on_dispute_updated_impl(port, ptr, rust_vec_len, data_len)
+        }
+        82 => {
+            wire__crate__api__escrow__on_escrow_mode_changed_impl(port, ptr, rust_vec_len, data_len)
+        }
+        83 => wire__crate__api__logging__on_log_entry_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__messages__on_new_message_impl(port, ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__orders__on_orders_updated_impl(port, ptr, rust_vec_len, data_len),
+        86 => {
+            wire__crate__api__reputation__on_rating_received_impl(port, ptr, rust_vec_len, data_len)
+        }
+        87 => {
+            wire__crate__api__nostr__on_relay_status_changed_impl(port, ptr, rust_vec_len, data_len)
+        }
+        88 => {
+            wire__crate__api__settings__on_settings_changed_impl(port, ptr, rust_vec_len, data_len)
+        }
+        89 => wire__crate__api__messages__on_unread_count_changed_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        90 => {
             wire__crate__api__nwc__on_wallet_status_changed_impl(port, ptr, rust_vec_len, data_len)
         }
-        82 => wire__crate__api__disputes__open_dispute_impl(port, ptr, rust_vec_len, data_len),
-        83 => {
+        91 => wire__crate__api__disputes__open_dispute_impl(port, ptr, rust_vec_len, data_len),
+        92 => {
             wire__crate__api__orders__order_filters_default_impl(port, ptr, rust_vec_len, data_len)
         }
-        84 => wire__crate__api__nwc__pay_invoice_impl(port, ptr, rust_vec_len, data_len),
-        85 => wire__crate__api__logging__recent_logs_impl(port, ptr, rust_vec_len, data_len),
-        86 => wire__crate__api__settings__rehydrate_active_mostro_node_impl(
+        93 => wire__crate__api__nwc__pay_invoice_impl(port, ptr, rust_vec_len, data_len),
+        94 => wire__crate__api__logging__recent_logs_impl(port, ptr, rust_vec_len, data_len),
+        95 => wire__crate__api__settings__rehydrate_active_mostro_node_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        87 => wire__crate__api__escrow__rehydrate_escrow_overrides_impl(
+        96 => wire__crate__api__escrow__rehydrate_escrow_overrides_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        88 => wire__crate__api__orders__release_order_impl(port, ptr, rust_vec_len, data_len),
-        89 => wire__crate__api__nostr__remove_relay_impl(port, ptr, rust_vec_len, data_len),
-        90 => wire__crate__api__orders__restart_orders_subscription_impl(
+        97 => wire__crate__api__orders__release_order_impl(port, ptr, rust_vec_len, data_len),
+        98 => wire__crate__api__nostr__remove_relay_impl(port, ptr, rust_vec_len, data_len),
+        99 => wire__crate__api__orders__restart_orders_subscription_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        91 => wire__crate__api__orders__send_fiat_sent_impl(port, ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__messages__send_file_impl(port, ptr, rust_vec_len, data_len),
-        93 => wire__crate__api__orders__send_invoice_impl(port, ptr, rust_vec_len, data_len),
-        94 => wire__crate__api__messages__send_message_impl(port, ptr, rust_vec_len, data_len),
-        95 => wire__crate__api__settings__set_active_mostro_node_impl(
+        100 => wire__crate__api__orders__send_fiat_sent_impl(port, ptr, rust_vec_len, data_len),
+        101 => wire__crate__api__messages__send_file_impl(port, ptr, rust_vec_len, data_len),
+        102 => wire__crate__api__orders__send_invoice_impl(port, ptr, rust_vec_len, data_len),
+        103 => wire__crate__api__messages__send_message_impl(port, ptr, rust_vec_len, data_len),
+        104 => wire__crate__api__settings__set_active_mostro_node_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        96 => wire__crate__api__escrow__set_cashu_mint_url_override_impl(
+        105 => wire__crate__api__escrow__set_cashu_mint_url_override_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        97 => wire__crate__api__settings__set_default_fiat_code_impl(
+        106 => wire__crate__api__settings__set_default_fiat_code_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        98 => wire__crate__api__settings__set_default_lightning_address_impl(
+        107 => wire__crate__api__settings__set_default_lightning_address_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        99 => wire__crate__api__escrow__set_escrow_mode_override_impl(
+        108 => wire__crate__api__escrow__set_escrow_mode_override_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        100 => wire__crate__api__settings__set_language_impl(port, ptr, rust_vec_len, data_len),
-        101 => {
+        109 => wire__crate__api__settings__set_language_impl(port, ptr, rust_vec_len, data_len),
+        110 => {
             wire__crate__api__settings__set_logging_enabled_impl(port, ptr, rust_vec_len, data_len)
         }
-        102 => {
+        111 => {
             wire__crate__api__reputation__set_privacy_mode_impl(port, ptr, rust_vec_len, data_len)
         }
-        103 => wire__crate__api__settings__set_theme_impl(port, ptr, rust_vec_len, data_len),
-        104 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
-        105 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
-        106 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
-        107 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
+        112 => wire__crate__api__settings__set_theme_impl(port, ptr, rust_vec_len, data_len),
+        113 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
+        114 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
+        115 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
+        116 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -6208,6 +6604,21 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<BondSlashedStream>> for BondSlashedStream {
     fn into_into_dart(self) -> FrbWrapper<BondSlashedStream> {
+        self.into()
+    }
+}
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<CashuWalletStream> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<CashuWalletStream> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<CashuWalletStream>> for CashuWalletStream {
+    fn into_into_dart(self) -> FrbWrapper<CashuWalletStream> {
         self.into()
     }
 }
@@ -6495,6 +6906,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::BuyerStep>
     for crate::api::types::BuyerStep
 {
     fn into_into_dart(self) -> crate::api::types::BuyerStep {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::CashuWalletStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.connected.into_into_dart().into_dart(),
+            self.mint_url.into_into_dart().into_dart(),
+            self.balance_sats.into_into_dart().into_dart(),
+            self.missing_capabilities.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::types::CashuWalletStatus
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::CashuWalletStatus>
+    for crate::api::types::CashuWalletStatus
+{
+    fn into_into_dart(self) -> crate::api::types::CashuWalletStatus {
         self
     }
 }
@@ -7379,6 +7813,13 @@ impl SseEncode for BondSlashedStream {
     }
 }
 
+impl SseEncode for CashuWalletStream {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
 impl SseEncode for ConnectionStateStream {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7483,6 +7924,17 @@ impl SseEncode
 
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BondSlashedStream>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
+    }
+}
+
+impl SseEncode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7694,6 +8146,16 @@ impl SseEncode for crate::api::types::BuyerStep {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::types::CashuWalletStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.connected, serializer);
+        <Option<String>>::sse_encode(self.mint_url, serializer);
+        <Option<u64>>::sse_encode(self.balance_sats, serializer);
+        <Vec<String>>::sse_encode(self.missing_capabilities, serializer);
     }
 }
 
@@ -8671,6 +9133,7 @@ mod io {
 
     use super::*;
     use crate::api::bond::*;
+    use crate::api::cashu::*;
     use crate::api::disputes::*;
     use crate::api::escrow::*;
     use crate::api::logging::*;
@@ -8716,6 +9179,20 @@ mod io {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BondSlashedStream>>::decrement_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCashuWalletStream(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_mostro_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCashuWalletStream(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -8899,6 +9376,7 @@ mod web {
 
     use super::*;
     use crate::api::bond::*;
+    use crate::api::cashu::*;
     use crate::api::disputes::*;
     use crate::api::escrow::*;
     use crate::api::logging::*;
@@ -8946,6 +9424,20 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BondSlashedStream>>::decrement_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCashuWalletStream(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCashuWalletStream(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CashuWalletStream>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

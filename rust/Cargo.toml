@@ -50,6 +50,10 @@ rand = { version = "0.8", features = ["getrandom"] }
 # Hashing (nym derivation)
 sha2 = "0.10"
 
+# Wipes key material on drop. The BIP-39 seed is copied out of the identity
+# state to seed the Cashu wallet; without this it lingers in freed memory.
+zeroize = { version = "1", features = ["zeroize_derive"] }
+
 # secp256k1 scalar math (ECDH shared-key derivation for P2P chat)
 k256 = { version = "0.13", features = ["ecdh", "arithmetic"] }
 
@@ -62,6 +66,15 @@ bip39 = { version = "2", features = ["all-languages", "rand"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# Cashu wallet (phase C2 of docs/cashu/README.md). Exact-pinned: cdk is pre-1.0
+# and its wallet API moves between minor releases — docs/cashu/cdk-spike.md
+# records what was verified against this version and how to upgrade.
+# `wallet` only: the mint, signatory, nostr and tor features are server-side or
+# unused here, and each drags in a large dependency subtree.
+cdk = { version = "=0.17.3", default-features = false, features = ["wallet"] }
+# Proof storage. Native by construction (rusqlite), which is why the web build
+# gets a typed stub instead — see rust/src/cashu/mod.rs.
+cdk-sqlite = { version = "=0.17.3", default-features = false, features = ["wallet"] }
 
 # Android logging backend. api::logging delegates to an `AndroidLogger`
 # instance rather than calling `init_once()`, which would install a competing

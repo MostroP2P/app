@@ -13,6 +13,7 @@ use anyhow::{anyhow, Result};
 use bip32::{DerivationPath, XPrv};
 use bip39::Mnemonic;
 use nostr_sdk::prelude::{Keys, SecretKey};
+use zeroize::Zeroizing;
 
 const DERIVATION_PREFIX: &str = "m/44'/1237'/38383'/0";
 
@@ -42,6 +43,22 @@ pub fn derive_trade_key(mnemonic_words: &[String], index: u32) -> Result<Keys> {
         return Err(anyhow!("index 0 is reserved for the identity key; use derive_master_key"));
     }
     derive_at_index(mnemonic_words, index)
+}
+
+/// Derive the raw BIP-39 seed from a mnemonic.
+///
+/// This is the same 64-byte seed [`derive_master_key`] feeds into BIP-32, with
+/// the same empty passphrase. The Cashu wallet (phase C2) uses it directly:
+/// `cdk` derives its blinding secrets from a 64-byte seed, so the wallet is
+/// recoverable from the very words the user already backed up — one secret to
+/// protect, not two.
+/// Returned in a [`Zeroizing`] wrapper so the copy is wiped when the caller
+/// drops it — the seed is the whole account, and it is about to cross into a
+/// third-party crate.
+pub fn derive_bip39_seed(mnemonic_words: &[String]) -> Result<Zeroizing<[u8; 64]>> {
+    let phrase = mnemonic_words.join(" ");
+    let mnemonic = Mnemonic::parse(&phrase).map_err(|e| anyhow!("invalid mnemonic: {e}"))?;
+    Ok(Zeroizing::new(mnemonic.to_seed("")))
 }
 
 // ── Internal ─────────────────────────────────────────────────────────────────

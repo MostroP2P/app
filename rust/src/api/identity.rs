@@ -220,6 +220,25 @@ pub async fn get_identity() -> Result<Option<IdentityInfo>> {
     Ok(guard.as_ref().map(|s| s.identity_info.clone()))
 }
 
+/// The BIP-39 seed of the loaded identity, or `None` when none is loaded.
+///
+/// Crate-internal on purpose — it is *not* part of the bridge surface, and FRB
+/// skips it because it is not `pub`. The Cashu wallet (phase C2) needs a
+/// 64-byte seed to derive its blinding secrets, and reusing this one is what
+/// makes the ecash recoverable from the words the user already backed up.
+pub(crate) async fn current_bip39_seed() -> Option<zeroize::Zeroizing<[u8; 64]>> {
+    let guard = identity_lock().read().await;
+    let state = guard.as_ref()?;
+    match key_ops::derive_bip39_seed(&state.mnemonic_words) {
+        Ok(seed) => Some(seed),
+        Err(e) => {
+            // Unreachable in practice: the mnemonic was validated on the way in.
+            log::error!("[identity] seed derivation failed for a loaded identity: {e}");
+            None
+        }
+    }
+}
+
 /// Delete the in-memory identity state. Flutter must also clear
 /// `flutter_secure_storage` after calling this.
 pub async fn delete_identity() -> Result<()> {

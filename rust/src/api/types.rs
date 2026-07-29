@@ -518,6 +518,31 @@ pub struct Dispute {
     pub is_read: bool,
 }
 
+/// State of the embedded Cashu wallet — phase C2 of `docs/cashu/README.md`.
+///
+/// Reported for every node, including Lightning ones, where it is simply
+/// "not connected": the UI asks before it knows what the node runs.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CashuWalletStatus {
+    /// Whether a wallet is bound to a mint right now. False on any Lightning
+    /// node, and before the first successful connect on a Cashu one.
+    pub connected: bool,
+    /// The mint the wallet is bound to, when connected.
+    pub mint_url: Option<String>,
+    /// Spendable balance in satoshis, or `None` when it could not be read.
+    ///
+    /// `None` and `Some(0)` are different facts and only one of them is
+    /// alarming: ecash is bearer money, and showing a user "0 sat" because a
+    /// store read failed invites exactly the wrong reaction. The UI must render
+    /// the unknown case as unknown.
+    pub balance_sats: Option<u64>,
+    /// Stable markers for anything the mint failed to advertise (`"nut07"`,
+    /// `"nut11"`, `"nut12"`, `"sat_keyset"`). Empty on a healthy connection —
+    /// a mint missing any of them is refused at connect, so a non-empty list
+    /// here means the wallet is bound to a mint that has since changed.
+    pub missing_capabilities: Vec<String>,
+}
+
 /// The settlement backend the active Mostro node runs, as resolved by
 /// [`crate::mostro::escrow_mode`] with the developer overrides applied.
 ///

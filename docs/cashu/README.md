@@ -392,7 +392,9 @@ buyer needs somewhere for redeemed ecash to land — so a minimal embedded walle
 hard prerequisite, not a nice-to-have.
 
 - Add `cdk` + `cdk-sqlite` deps (native); wasm gets a typed "not supported yet" stub
-  (NWC-client pattern, `rust/src/nwc/client.rs`).
+  (NWC-client pattern, `rust/src/nwc/client.rs`). Pinned at `=0.17.3` — what was
+  verified against that version, and how to upgrade, is in
+  [`cdk-spike.md`](cdk-spike.md).
 - `rust/src/cashu/mod.rs` — `CashuWallet`:
   - `connect(mint_url)` — reachability + **required NUTs 07/11/12** + `sat` keyset
     (mirror of daemon `CashuClient::connect`);

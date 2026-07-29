@@ -5,6 +5,7 @@ mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be
 // Zero crypto in Dart — this is the only source of trust.
 
 pub mod api;
+pub mod cashu;
 pub mod config;
 pub mod crypto;
 pub mod db;
