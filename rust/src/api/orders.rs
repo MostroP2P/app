@@ -1427,7 +1427,8 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
         .author(mostro_pubkey)
         .pubkey(trade_pubkey)
         .limit(0);
-    if let Err(e) = client.subscribe(filter, None).await {
+    let sub_id = trade_subscription_id(&trade_pubkey);
+    if let Err(e) = client.subscribe_with_id(sub_id.clone(), filter, None).await {
         log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
         return;
     }
@@ -1517,6 +1518,13 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
         // (request timed out and no genuine late reply ever arrived) is dead
         // state — drop it, whatever attempt it belongs to.
         purge_pending_request(&trade_pubkey_hex);
+        // Tear down the relay-side subscription on every exit path (idle
+        // timeout, shutdown, closed) so it never outlives the task. Re-fetch
+        // the pool rather than hold `client` across the loop (same approach as
+        // subscribe_incoming_chat).
+        if let Ok(pool) = crate::api::nostr::get_pool() {
+            pool.client().unsubscribe(&sub_id).await;
+        }
     });
 }
 
@@ -2350,7 +2358,8 @@ async fn subscribe_single_order(order_id: &str) {
 
         let mut rx = client.notifications();
         let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, &order_id);
-        if let Err(e) = client.subscribe(filter, None).await {
+        let sub_id = single_order_subscription_id(&order_id);
+        if let Err(e) = client.subscribe_with_id(sub_id.clone(), filter, None).await {
             log::warn!("[orders] subscribe_single_order subscribe failed: {e}");
             return;
         }
@@ -2410,6 +2419,10 @@ async fn subscribe_single_order(order_id: &str) {
                 Ok(Ok(_)) => continue,
             }
         }
+        // Tear down the relay-side subscription on every exit path (idle
+        // timeout, shutdown, closed) so the single-order watch never outlives
+        // the task. `client` is already owned by this closure.
+        client.unsubscribe(&sub_id).await;
     });
 }
 
@@ -2530,6 +2543,20 @@ async fn refetch_active_node_orders() {
 /// Stable subscription ID for the Kind 38383 order-book feed.
 fn orders_subscription_id() -> nostr_sdk::SubscriptionId {
     nostr_sdk::SubscriptionId::new("mostro-orders")
+}
+
+/// Stable per-trade subscription ID for the ephemeral Kind 14 Mostro-reply
+/// feed created by `subscribe_gift_wraps`. Deterministic (full trade pubkey
+/// hex, not a prefix — no collision) so a repeat subscribe for the same trade
+/// key replaces in place instead of stacking a second relay subscription.
+fn trade_subscription_id(trade_pubkey: &nostr_sdk::PublicKey) -> nostr_sdk::SubscriptionId {
+    nostr_sdk::SubscriptionId::new(format!("mostro-trade-{}", trade_pubkey.to_hex()))
+}
+
+/// Stable subscription ID for a single-order (`d`-tag) Kind 38383 watch
+/// created by `subscribe_single_order`.
+fn single_order_subscription_id(order_id: &str) -> nostr_sdk::SubscriptionId {
+    nostr_sdk::SubscriptionId::new(format!("mostro-order-{order_id}"))
 }
 
 /// Stable subscription ID for the Kind 14 Mostro-reply feed.
@@ -3197,6 +3224,32 @@ mod tests {
         assert_eq!(admin_pubkey_from_payload(None), None);
         assert_eq!(admin_pubkey_from_payload(Some(&Payload::Amount(42))), None);
     }
+
+    // ── deterministic subscription ids (#182) ─────────────────────────────────
+    #[test]
+    fn trade_subscription_id_is_deterministic_and_per_pubkey() {
+        let pk = nostr_sdk::Keys::generate().public_key();
+        // Idempotent: the same trade key always maps to the same id, so a
+        // repeat subscribe replaces in place instead of stacking a new
+        // relay-side subscription.
+        assert_eq!(trade_subscription_id(&pk), trade_subscription_id(&pk));
+        // Full pubkey hex (not a prefix) — no cross-trade collision.
+        assert_eq!(
+            trade_subscription_id(&pk),
+            nostr_sdk::SubscriptionId::new(format!("mostro-trade-{}", pk.to_hex())),
+        );
+        let other = nostr_sdk::Keys::generate().public_key();
+        assert_ne!(trade_subscription_id(&other), trade_subscription_id(&pk));
+    }
+
+    #[test]
+    fn single_order_subscription_id_matches_expected_format() {
+        assert_eq!(
+            single_order_subscription_id("abc123"),
+            nostr_sdk::SubscriptionId::new("mostro-order-abc123"),
+        );
+    }
+
 
     fn insert_pending_create(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonReply> {
         let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
