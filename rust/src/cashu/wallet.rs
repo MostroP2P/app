@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
 use cdk::amount::SplitTarget;
-use cdk::nuts::CurrencyUnit;
+use cdk::nuts::{CurrencyUnit, Proof, Token};
 use cdk::wallet::{ReceiveOptions, SendMemo, SendOptions, Wallet};
 use cdk::Amount;
 use cdk_sqlite::WalletSqliteDatabase;
@@ -147,6 +147,28 @@ impl CashuWallet {
     /// The mint this wallet is bound to.
     pub fn mint_url(&self) -> &str {
         &self.mint_url
+    }
+
+    /// The underlying `cdk` wallet, for the escrow primitives in
+    /// [`super::escrow`]. Crate-internal: everything outside this module goes
+    /// through the methods above, so mint access stays in one place.
+    pub(crate) fn inner(&self) -> &Wallet {
+        &self.inner
+    }
+
+    /// The proofs inside a token.
+    ///
+    /// Needs the mint's keysets — a v4 token identifies its keyset by id — so
+    /// this cannot be a free function on the token alone.
+    pub(crate) async fn proofs_of(&self, token: &Token) -> Result<Vec<Proof>> {
+        let keysets = self
+            .inner
+            .load_mint_keysets()
+            .await
+            .map_err(|e| anyhow!("CashuMintUnreachable: {e}"))?;
+        token
+            .proofs(&keysets)
+            .map_err(|e| anyhow!("InvalidEscrowToken: unreadable proofs ({e})"))
     }
 
     /// What the mint advertised at connect time.

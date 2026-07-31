@@ -17,6 +17,8 @@
 //! alone, and closing it belongs with the rest of IndexedDB in #233.
 
 #[cfg(not(target_arch = "wasm32"))]
+pub mod escrow;
+#[cfg(not(target_arch = "wasm32"))]
 mod wallet;
 
 #[cfg(not(target_arch = "wasm32"))]
