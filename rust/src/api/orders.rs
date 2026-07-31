@@ -1432,6 +1432,9 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
         log::warn!("[orders] subscribe_gift_wraps subscribe failed: {e}");
         return;
     }
+    // Claim ownership of this (deterministic) id. A later re-subscribe for the
+    // same trade supersedes us; on exit we only unsubscribe if still current.
+    let sub_gen = claim_subscription(&sub_id);
 
     let trade_pubkey_hex = trade_pubkey.to_hex();
     crate::api::logging::blog_info("orders", format!(
@@ -1519,11 +1522,15 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
         // state — drop it, whatever attempt it belongs to.
         purge_pending_request(&trade_pubkey_hex);
         // Tear down the relay-side subscription on every exit path (idle
-        // timeout, shutdown, closed) so it never outlives the task. Re-fetch
-        // the pool rather than hold `client` across the loop (same approach as
-        // subscribe_incoming_chat).
-        if let Ok(pool) = crate::api::nostr::get_pool() {
-            pool.client().unsubscribe(&sub_id).await;
+        // timeout, shutdown, closed) so it never outlives the task — but only
+        // if we still own the id. A newer watcher may have re-subscribed under
+        // the same deterministic id (retry within the idle window); unsubscribing
+        // then would kill *its* live subscription. Re-fetch the pool rather than
+        // hold `client` across the loop (same approach as subscribe_incoming_chat).
+        if owns_subscription(&sub_id, sub_gen) {
+            if let Ok(pool) = crate::api::nostr::get_pool() {
+                pool.client().unsubscribe(&sub_id).await;
+            }
         }
     });
 }
@@ -2363,6 +2370,9 @@ async fn subscribe_single_order(order_id: &str) {
             log::warn!("[orders] subscribe_single_order subscribe failed: {e}");
             return;
         }
+        // Claim ownership of this (deterministic) id; only the current owner
+        // unsubscribes on exit (see subscribe_gift_wraps for the rationale).
+        let sub_gen = claim_subscription(&sub_id);
         log::info!("[orders] subscribed to d-tag updates for order={order_id}");
 
         use nostr_sdk::RelayPoolNotification;
@@ -2421,8 +2431,12 @@ async fn subscribe_single_order(order_id: &str) {
         }
         // Tear down the relay-side subscription on every exit path (idle
         // timeout, shutdown, closed) so the single-order watch never outlives
-        // the task. `client` is already owned by this closure.
-        client.unsubscribe(&sub_id).await;
+        // the task — but only if we still own the id, so a stale watcher never
+        // unsubscribes a newer one's live subscription. `client` is already
+        // owned by this closure.
+        if owns_subscription(&sub_id, sub_gen) {
+            client.unsubscribe(&sub_id).await;
+        }
     });
 }
 
@@ -2557,6 +2571,43 @@ fn trade_subscription_id(trade_pubkey: &nostr_sdk::PublicKey) -> nostr_sdk::Subs
 /// created by `subscribe_single_order`.
 fn single_order_subscription_id(order_id: &str) -> nostr_sdk::SubscriptionId {
     nostr_sdk::SubscriptionId::new(format!("mostro-order-{order_id}"))
+}
+
+/// Per-subscription-id generation counter.
+///
+/// A deterministic subscription id is reused across re-subscribes for the same
+/// trade/order (e.g. a retry within the 30-min idle window). Without ownership
+/// tracking, an earlier watcher's exit-path `unsubscribe` would tear down the
+/// *replacement* watcher's live subscription on that same id. Each watcher
+/// claims the id on subscribe (bumping the generation) and only unsubscribes on
+/// exit if it still owns the current generation — a stale watcher skips cleanup
+/// and lets the newer owner keep the subscription.
+static SUBSCRIPTION_GENERATIONS: OnceLock<std::sync::Mutex<HashMap<nostr_sdk::SubscriptionId, u64>>> =
+    OnceLock::new();
+
+fn subscription_generations() -> &'static std::sync::Mutex<HashMap<nostr_sdk::SubscriptionId, u64>> {
+    SUBSCRIPTION_GENERATIONS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Claim `id` for the calling watcher: bump its generation and return the new
+/// value. A later watcher claiming the same id bumps it again, so this caller
+/// can later detect it has been superseded.
+fn claim_subscription(id: &nostr_sdk::SubscriptionId) -> u64 {
+    let mut gens = subscription_generations().lock().unwrap();
+    let g = gens.entry(id.clone()).or_insert(0);
+    *g += 1;
+    *g
+}
+
+/// True only if `my_gen` is still the current generation for `id` — i.e. no
+/// newer watcher has claimed it. A stale watcher must NOT unsubscribe, or it
+/// would kill the replacement's live subscription.
+fn owns_subscription(id: &nostr_sdk::SubscriptionId, my_gen: u64) -> bool {
+    subscription_generations()
+        .lock()
+        .unwrap()
+        .get(id)
+        .is_some_and(|current| *current == my_gen)
 }
 
 /// Stable subscription ID for the Kind 14 Mostro-reply feed.
@@ -3250,6 +3301,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_stale_watcher_does_not_unsubscribe_a_replacement() {
+        // Two watchers claim the same deterministic id in turn (a re-subscribe
+        // for the same trade — e.g. a retry within the idle window).
+        let id = nostr_sdk::SubscriptionId::new("mostro-trade-lifecycle-test");
+        let gen_a = claim_subscription(&id);
+        let gen_b = claim_subscription(&id);
+        assert_ne!(gen_a, gen_b, "each claim must advance the generation");
+        // Watcher A is now stale: it must NOT unsubscribe on exit, or it would
+        // tear down watcher B's live subscription on the shared id.
+        assert!(
+            !owns_subscription(&id, gen_a),
+            "the superseded watcher must not own the id",
+        );
+        // Watcher B still owns the id, so it (and only it) unsubscribes on exit.
+        assert!(
+            owns_subscription(&id, gen_b),
+            "the current watcher must own the id",
+        );
+        // Distinct ids are tracked independently.
+        let other = nostr_sdk::SubscriptionId::new("mostro-trade-other");
+        assert!(owns_subscription(&other, claim_subscription(&other)));
+    }
 
     fn insert_pending_create(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonReply> {
         let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
