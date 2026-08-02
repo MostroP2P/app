@@ -324,6 +324,13 @@ pub struct IdentityInfo {
     pub privacy_mode: bool,
     pub trade_key_index: u32,
     pub created_at: i64,
+    /// Whether the user has confirmed a backup of the current identity's
+    /// secret words (issue #141 — migrated out of Dart SharedPreferences into
+    /// the Rust identity record per Principle I). `#[serde(default)]` so
+    /// identities persisted before this field deserialize as `false` — an
+    /// unconfirmed backup, which correctly keeps the reminder armed.
+    #[serde(default)]
+    pub backup_confirmed: bool,
 }
 
 /// Deterministic pseudonymous identity derived from a public key.

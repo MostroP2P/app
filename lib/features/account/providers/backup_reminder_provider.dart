@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:mostro/src/rust/api/identity.dart' as identity_api;
+
 const kBackupReminderDismissedKey = 'backupReminderDismissed';
 const kBackupReminderActiveKey = 'backupReminderActive';
 
@@ -112,7 +114,21 @@ class BackupReminderNotifier extends StateNotifier<bool> {
 }
 
 class BackupCompletedNotifier extends StateNotifier<bool> {
-  BackupCompletedNotifier({bool? initialValue}) : super(initialValue ?? false) {
+  /// The three bridge calls are injectable so the notifier is testable without
+  /// a live Rust runtime; they default to the real identity-bridge functions
+  /// (issue #141).
+  BackupCompletedNotifier({
+    bool? initialValue,
+    Future<bool> Function()? getConfirmed,
+    Future<void> Function(bool confirmed)? setConfirmed,
+    Future<void> Function()? resetConfirmed,
+  })  : _getConfirmed = getConfirmed ?? identity_api.getBackupConfirmed,
+        _setConfirmed = setConfirmed ??
+            ((confirmed) =>
+                identity_api.setBackupConfirmed(confirmed: confirmed)),
+        _resetConfirmed =
+            resetConfirmed ?? identity_api.resetBackupConfirmation,
+        super(initialValue ?? false) {
     if (initialValue == null) {
       load();
     } else {
@@ -120,33 +136,61 @@ class BackupCompletedNotifier extends StateNotifier<bool> {
     }
   }
 
+  final Future<bool> Function() _getConfirmed;
+  final Future<void> Function(bool confirmed) _setConfirmed;
+  final Future<void> Function() _resetConfirmed;
+
   bool _loaded = false;
+
+  /// Marks that the one-time SharedPreferences -> Rust migration has run, so
+  /// the legacy key is only ever read once (issue #141).
+  static const _kMigratedKey = 'backupCompletedMigratedToRust';
 
   Future<void> load() async {
     if (_loaded) return;
-    final prefs = await SharedPreferences.getInstance();
-    // Legacy installs only have the dismissed flag, which was set exclusively
-    // by the explicit "I have written down my secret words" confirmation —
-    // treat it as a completed backup.
-    state = prefs.getBool(kBackupCompletedKey) ??
-        prefs.getBool(kBackupReminderDismissedKey) ??
-        false;
+    // The backup-confirmed flag now lives in the Rust identity record. On the
+    // first run after upgrading, copy the legacy SharedPreferences value into
+    // Rust once, then read from Rust exclusively.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final migrated = prefs.getBool(_kMigratedKey) ?? false;
+      if (!migrated) {
+        // Legacy installs only have the dismissed flag, which was set
+        // exclusively by the explicit "I have written down my secret words"
+        // confirmation — treat it as a completed backup.
+        final legacy = prefs.getBool(kBackupCompletedKey) ??
+            prefs.getBool(kBackupReminderDismissedKey) ??
+            false;
+        if (legacy) {
+          // Best-effort: if no identity is loaded yet, the bridge throws and we
+          // simply leave Rust at its default (false); the reminder stays armed,
+          // which is safe. The migration flag is only set once the copy sticks.
+          await _setConfirmed(true);
+        }
+        await prefs.setBool(_kMigratedKey, true);
+      }
+      state = await _getConfirmed();
+    } catch (_) {
+      // Rust unavailable (e.g. no identity yet, or tests without the bridge):
+      // fall back to unconfirmed so the reminder stays armed.
+      state = false;
+    }
     _loaded = true;
   }
 
-  /// Persist that the current identity has been backed up.
+  /// Persist that the current identity has been backed up (Rust identity
+  /// record, #141).
   Future<void> markCompleted() async {
     await load();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(kBackupCompletedKey, true);
+    await _setConfirmed(true);
     state = true;
   }
 
-  /// Clear the backed-up flag (new identity generated or imported).
+  /// Clear the backed-up flag (new identity generated or imported). The Rust
+  /// side is also reset in `create_identity`; this keeps the UI in sync (#141).
   Future<void> reset() async {
     await load();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(kBackupCompletedKey, false);
+    await _resetConfirmed();
     state = false;
   }
 }
