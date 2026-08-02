@@ -317,12 +317,20 @@ pub async fn set_backup_confirmed(confirmed: bool) -> Result<()> {
     if state.identity_info.backup_confirmed == confirmed {
         return Ok(());
     }
-    state.identity_info.backup_confirmed = confirmed;
+    // Persist before committing in memory: build the updated record, save it,
+    // and only then assign to state. Mutating first would leave the session
+    // reporting a confirmed backup that never reached disk if the save failed —
+    // and the no-op short-circuit above would stop a retry from re-saving, so
+    // the flag would silently vanish on the next restart. Same persist-then-
+    // commit discipline as the trade_key_index path (#217).
+    let mut updated = state.identity_info.clone();
+    updated.backup_confirmed = confirmed;
     if let Some(db) = crate::db::app_db::db() {
-        db.save_identity(&state.identity_info).await.map_err(|e| {
+        db.save_identity(&updated).await.map_err(|e| {
             anyhow!("StorageError: failed to persist backup_confirmed={confirmed}: {e}")
         })?;
     }
+    state.identity_info = updated;
     Ok(())
 }
 
