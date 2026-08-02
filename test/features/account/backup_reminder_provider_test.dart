@@ -128,47 +128,80 @@ void main() {
     });
   });
 
-  group('BackupCompletedNotifier', () {
-    test('load(): reads the explicit completed flag', () async {
+  group('BackupCompletedNotifier (backed by the Rust bridge, #141)', () {
+    // A fake identity-bridge backing store so the notifier is exercised without
+    // a live Rust runtime.
+    BackupCompletedNotifier makeNotifier({required bool initial}) {
+      var confirmed = initial;
+      return BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async => confirmed = false,
+      );
+    }
+
+    test('load(): reads the confirmed flag from the bridge', () async {
+      SharedPreferences.setMockInitialValues(
+          {'backupCompletedMigratedToRust': true});
+
+      final notifier = makeNotifier(initial: true);
+      await notifier.load();
+
+      expect(notifier.state, isTrue);
+    });
+
+    test('load(): migrates a legacy SharedPreferences flag into the bridge once',
+        () async {
+      // Legacy install: completed flag set, no migration marker. load() copies
+      // it into the bridge, marks the migration done, then reads the bridge.
       SharedPreferences.setMockInitialValues({kBackupCompletedKey: true});
 
-      final notifier = BackupCompletedNotifier();
+      var confirmed = false;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async => confirmed = false,
+      );
       await notifier.load();
 
+      expect(confirmed, isTrue, reason: 'legacy flag copied into the bridge');
       expect(notifier.state, isTrue);
+      final prefs = await _prefs();
+      expect(prefs.getBool('backupCompletedMigratedToRust'), isTrue);
     });
 
-    test('load(): legacy installs fall back to the dismissed flag', () async {
-      SharedPreferences.setMockInitialValues({
-        kBackupReminderDismissedKey: true,
-      });
+    test('markCompleted() writes true through the bridge', () async {
+      SharedPreferences.setMockInitialValues(
+          {'backupCompletedMigratedToRust': true});
 
-      final notifier = BackupCompletedNotifier();
-      await notifier.load();
-
-      expect(notifier.state, isTrue);
-    });
-
-    test('markCompleted() persists and flips state on', () async {
-      SharedPreferences.setMockInitialValues({});
-
-      final notifier = BackupCompletedNotifier();
+      // Track the fake bridge's backing value so we assert the write reached it,
+      // not only that notifier.state flipped.
+      var confirmed = false;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async => confirmed = false,
+      );
       await notifier.markCompleted();
 
+      expect(confirmed, isTrue, reason: 'markCompleted must write to the bridge');
       expect(notifier.state, isTrue);
-      final prefs = await _prefs();
-      expect(prefs.getBool(kBackupCompletedKey), isTrue);
     });
 
-    test('reset() clears the backed-up flag', () async {
-      SharedPreferences.setMockInitialValues({kBackupCompletedKey: true});
+    test('reset() clears the flag through the bridge', () async {
+      SharedPreferences.setMockInitialValues(
+          {'backupCompletedMigratedToRust': true});
 
-      final notifier = BackupCompletedNotifier();
+      var confirmed = true;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async => confirmed = false,
+      );
       await notifier.reset();
 
+      expect(confirmed, isFalse, reason: 'reset must clear the bridge value');
       expect(notifier.state, isFalse);
-      final prefs = await _prefs();
-      expect(prefs.getBool(kBackupCompletedKey), isFalse);
     });
   });
 }

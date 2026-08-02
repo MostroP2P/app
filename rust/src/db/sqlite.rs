@@ -940,6 +940,7 @@ mod tests {
             privacy_mode: false,
             trade_key_index: 21,
             created_at: 1_700_000_000,
+            backup_confirmed: false,
         };
         storage.save_identity(&identity).await.unwrap();
         let loaded = storage.get_identity().await.unwrap().unwrap();
@@ -948,9 +949,13 @@ mod tests {
 
         // INSERT OR REPLACE keeps a single row with the latest counter.
         identity.trade_key_index = 22;
+        // The backup-confirmed flag rides in the same JSON blob (#141) and must
+        // survive the round-trip alongside the counter.
+        identity.backup_confirmed = true;
         storage.save_identity(&identity).await.unwrap();
         let loaded = storage.get_identity().await.unwrap().unwrap();
         assert_eq!(loaded.trade_key_index, 22);
+        assert!(loaded.backup_confirmed, "backup_confirmed must persist");
 
         drop(storage);
         let _ = std::fs::remove_file(&path);
@@ -968,6 +973,7 @@ mod tests {
             privacy_mode: false,
             trade_key_index: 7,
             created_at: 1_700_000_000,
+            backup_confirmed: false,
         };
         storage.save_identity(&identity).await.unwrap();
         storage.save_trade_key("order-1", 5).await.unwrap();

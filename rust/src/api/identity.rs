@@ -141,6 +141,9 @@ pub async fn create_identity() -> Result<IdentityCreationResult> {
         privacy_mode: false,
         trade_key_index: 0,
         created_at: now,
+        // A freshly generated mnemonic has not been backed up yet — this is
+        // what re-arms the backup reminder for a new identity (issue #141).
+        backup_confirmed: false,
     };
 
     *guard = Some(IdentityState {
@@ -203,12 +206,15 @@ pub async fn load_identity_from_mnemonic(
         Some(ts) if ts > 0 => ts,
         _ => unix_now(),
     };
+    // Restore the backup-confirmed flag from the persisted identity record.
+    let backup_confirmed = restore_backup_confirmed(stored.as_ref(), &public_key);
     let identity_info = IdentityInfo {
         public_key: public_key.clone(),
         display_name: None,
         privacy_mode,
         trade_key_index,
         created_at,
+        backup_confirmed,
     };
 
     let mut guard = identity_lock().write().await;
@@ -264,6 +270,8 @@ pub async fn import_from_nsec(nsec: String) -> Result<IdentityInfo> {
         privacy_mode: false,
         trade_key_index: 0,
         created_at: now,
+        // nsec imports have no BIP-39 mnemonic to back up; leave unconfirmed.
+        backup_confirmed: false,
     };
 
     let mut guard = identity_lock().write().await;
@@ -280,6 +288,60 @@ pub async fn import_from_nsec(nsec: String) -> Result<IdentityInfo> {
 pub async fn get_identity() -> Result<Option<IdentityInfo>> {
     let guard = identity_lock().read().await;
     Ok(guard.as_ref().map(|s| s.identity_info.clone()))
+}
+
+/// Whether the current identity's secret words have been confirmed backed up.
+///
+/// Returns `false` when no identity is loaded — nothing has been backed up
+/// yet, which correctly leaves the reminder armed (issue #141).
+pub async fn get_backup_confirmed() -> Result<bool> {
+    let guard = identity_lock().read().await;
+    Ok(guard
+        .as_ref()
+        .map(|s| s.identity_info.backup_confirmed)
+        .unwrap_or(false))
+}
+
+/// Set the backup-confirmed flag and persist it to the identity record.
+///
+/// Mirrors the `trade_key_index` persist path: mutate under the identity lock,
+/// then `save_identity`, so the flag survives a restart. Unlike a trade-key
+/// index, persistence is best-effort rather than required — the flag only
+/// drives a reminder, so if the store is unavailable (e.g. the web IndexedDB
+/// backend, which does not implement `save_identity`) the worst case is the
+/// reminder re-appears next launch, which fails safe. A redundant write is
+/// skipped so confirming twice does not touch storage.
+pub async fn set_backup_confirmed(confirmed: bool) -> Result<()> {
+    let mut guard = identity_lock().write().await;
+    let state = guard.as_mut().ok_or_else(|| anyhow!("NoIdentity"))?;
+    if state.identity_info.backup_confirmed == confirmed {
+        return Ok(());
+    }
+    // Persist before committing in memory: build the updated record, save it,
+    // and only then assign to state. Mutating first would leave the session
+    // reporting a confirmed backup that never reached disk if the save failed —
+    // and the no-op short-circuit above would stop a retry from re-saving, so
+    // the flag would silently vanish on the next restart. Same persist-then-
+    // commit discipline as the trade_key_index path (#217).
+    let mut updated = state.identity_info.clone();
+    updated.backup_confirmed = confirmed;
+    if let Some(db) = crate::db::app_db::db() {
+        db.save_identity(&updated).await.map_err(|e| {
+            anyhow!("StorageError: failed to persist backup_confirmed={confirmed}: {e}")
+        })?;
+    }
+    state.identity_info = updated;
+    Ok(())
+}
+
+/// Re-arm the backup reminder by marking the current identity as not-yet
+/// backed up. Called when a new identity is generated so the security-relevant
+/// reminder re-appears (issue #141). A no-op when no identity is loaded.
+pub async fn reset_backup_confirmation() -> Result<()> {
+    if get_identity().await?.is_none() {
+        return Ok(());
+    }
+    set_backup_confirmed(false).await
 }
 
 /// Delete the in-memory identity state. Flutter must also clear
@@ -502,6 +564,19 @@ fn reconcile_trade_key_index(
     }
 }
 
+/// Restore the backup-confirmed flag from the persisted identity record on
+/// load. Only trusts a stored value that belongs to the same identity (guards
+/// against a leftover blob from a previous mnemonic), and defaults to
+/// `false` — importing a mnemonic is not itself the in-app backup ritual, so
+/// an identity with no persisted flag stays unconfirmed and keeps the reminder
+/// armed (issue #141).
+fn restore_backup_confirmed(stored: Option<&IdentityInfo>, public_key: &str) -> bool {
+    match stored {
+        Some(info) if info.public_key == public_key => info.backup_confirmed,
+        _ => false,
+    }
+}
+
 /// [`reconcile_trade_key_index`], publishing the result when the database knew
 /// a higher counter than the value Flutter passed in. That is exactly the case
 /// where secure storage is behind — an installation from before it was kept in
@@ -587,6 +662,7 @@ mod tests {
             privacy_mode: false,
             trade_key_index,
             created_at: 1,
+            backup_confirmed: false,
         }
     }
 
@@ -664,6 +740,40 @@ mod tests {
     fn reconcile_ignores_stored_index_of_other_identity() {
         let stored = stored_identity("other-pubkey", 99);
         assert_eq!(reconcile_trade_key_index(3, Some(&stored), "abc"), 3);
+    }
+
+    // ── backup_confirmed restore (#141) ───────────────────────────────────────
+    #[test]
+    fn restore_reads_the_persisted_backup_flag_for_the_same_identity() {
+        let mut stored = stored_identity("abc", 4);
+        stored.backup_confirmed = true;
+        assert!(restore_backup_confirmed(Some(&stored), "abc"));
+    }
+
+    #[test]
+    fn restore_defaults_to_unconfirmed_when_nothing_is_persisted() {
+        // No stored record: a fresh import has not completed the backup ritual,
+        // so the reminder must stay armed.
+        assert!(!restore_backup_confirmed(None, "abc"));
+    }
+
+    #[test]
+    fn restore_ignores_a_backup_flag_from_another_identity() {
+        // A leftover blob from a previous mnemonic must not mark the new
+        // identity as backed up.
+        let mut stored = stored_identity("other-pubkey", 0);
+        stored.backup_confirmed = true;
+        assert!(!restore_backup_confirmed(Some(&stored), "abc"));
+    }
+
+    #[test]
+    fn an_identity_persisted_before_the_field_deserializes_as_unconfirmed() {
+        // Serde default: an identity JSON blob written before backup_confirmed
+        // existed has no such key, and must load as `false` (reminder armed),
+        // not error.
+        let legacy = r#"{"public_key":"abc","display_name":null,"privacy_mode":false,"trade_key_index":3,"created_at":1}"#;
+        let info: IdentityInfo = serde_json::from_str(legacy).unwrap();
+        assert!(!info.backup_confirmed);
     }
 
     #[test]
