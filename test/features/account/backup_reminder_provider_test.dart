@@ -174,9 +174,17 @@ void main() {
       SharedPreferences.setMockInitialValues(
           {'backupCompletedMigratedToRust': true});
 
-      final notifier = makeNotifier(initial: false);
+      // Track the fake bridge's backing value so we assert the write reached it,
+      // not only that notifier.state flipped.
+      var confirmed = false;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async => confirmed = false,
+      );
       await notifier.markCompleted();
 
+      expect(confirmed, isTrue, reason: 'markCompleted must write to the bridge');
       expect(notifier.state, isTrue);
     });
 
@@ -184,9 +192,15 @@ void main() {
       SharedPreferences.setMockInitialValues(
           {'backupCompletedMigratedToRust': true});
 
-      final notifier = makeNotifier(initial: true);
+      var confirmed = true;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async => confirmed = false,
+      );
       await notifier.reset();
 
+      expect(confirmed, isFalse, reason: 'reset must clear the bridge value');
       expect(notifier.state, isFalse);
     });
   });
