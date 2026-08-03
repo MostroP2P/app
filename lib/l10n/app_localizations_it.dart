@@ -232,8 +232,60 @@ class AppLocalizationsIt extends AppLocalizations {
   String get orderAlreadyTaken => 'L\'ordine è già stato preso';
 
   @override
-  String get bondRequired =>
-      'Questo nodo richiede una cauzione anti-abuso, non ancora supportata';
+  String get payBondInvoiceTitle => 'Paga la cauzione anti-abuso';
+
+  @override
+  String get payBondInvoiceInstruction =>
+      'Questo nodo richiede una cauzione anti-abuso. Paga questa hold invoice Lightning per prendere l\'ordine. Viene rilasciata quando lo scambio si completa normalmente.';
+
+  @override
+  String get tradeWaitingForBondInvoice =>
+      'In attesa della fattura della cauzione...';
+
+  @override
+  String get leaveBondPaymentTitle => 'Uscire dal pagamento della cauzione?';
+
+  @override
+  String get leaveBondPaymentContent =>
+      'L\'ordine resta riservato fino alla scadenza della cauzione. Puoi pagarla più tardi dallo scambio, oppure riportare l\'ordine al libro ora.';
+
+  @override
+  String get keepPayingButton => 'Continua a pagare';
+
+  @override
+  String get leaveButton => 'Esci';
+
+  @override
+  String get releaseOrderButton => 'Riporta ordine';
+
+  @override
+  String get leaveBondPaymentWaitingContent =>
+      'Il pagamento della cauzione è ancora in corso di risoluzione, quindi l\'ordine non può ancora tornare al libro. Puoi uscire: lo scambio resta in I miei scambi e potrai riprenderlo.';
+
+  @override
+  String get keepWaitingButton => 'Continua ad attendere';
+
+  @override
+  String get bondPaymentNotPaidYet => 'Non ho ancora pagato';
+
+  @override
+  String get bondInvoiceQrLabel =>
+      'Codice QR della fattura della cauzione anti-abuso';
+
+  @override
+  String get tradeStatusWaitingBond => 'In attesa della cauzione';
+
+  @override
+  String get tradeHeadlineWaitingBond =>
+      'Paga la cauzione anti-abuso per prendere questo ordine.';
+
+  @override
+  String get tradeInstructionWaitingBond =>
+      'Paga la hold invoice della cauzione anti-abuso per prendere questo ordine.';
+
+  @override
+  String get tradeTimerWaitingBondLabel =>
+      'Tempo per pagare la cauzione anti-abuso';
 
   @override
   String get nodeProtocolUnsupported =>
@@ -649,6 +701,10 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get cancelTradeDialogContent =>
       'Annullamento cooperativo richiesto. Anche l\'altra parte deve accettare affinché lo scambio venga annullato.';
+
+  @override
+  String get cancelBondBackoutDialogContent =>
+      'Annullare e rimettere l\'ordine nel book? Nessuna cauzione è stata pagata, quindi l\'altra parte non è interessata.';
 
   @override
   String get noButtonLabel => 'No';

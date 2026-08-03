@@ -2168,6 +2168,8 @@ mod tests {
             counterparty_pubkey: "peer".into(),
             current_step: TradeStep::Buyer(BuyerStep::FiatSent),
             hold_invoice: None,
+            bond_invoice: None,
+            bond_amount_sats: None,
             buyer_invoice: None,
             trade_key_index: 1,
             cooperative_cancel_state: None,

@@ -117,7 +117,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
     try {
       // Dispatch take-order to Mostro via the Rust bridge.
-      await orders_api.takeOrder(
+      final trade = await orders_api.takeOrder(
         orderId: widget.orderId,
         role: widget.isBuying ? TradeRole.buyer : TradeRole.seller,
         fiatAmount: _selectedAmount,
@@ -133,7 +133,10 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
             (map) => {...map, widget.orderId: widget.isBuying},
           );
 
-      if (widget.isBuying) {
+      // Bond-requiring node replied with pay-bond-invoice: pay the bond first.
+      if (trade.order.status == OrderStatus.waitingTakerBond) {
+        context.push(AppRoute.payBondInvoicePath(widget.orderId));
+      } else if (widget.isBuying) {
         // Check whether a default LN address is configured. If yes, Mostro
         // will pay it directly and the buyer can skip the add-invoice step.
         final settings = await settings_api.getSettings();
@@ -151,7 +154,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context);
       // takeOrder now waits for the daemon's reply: errors here mean the
-      // trade was NOT created (CantDo rejection, unsupported bond, timeout).
+      // trade was NOT created (CantDo rejection or timeout).
       // Strip the Rust error prefix for a cleaner message.
       final raw = e.toString();
       final anyhowMatch = RegExp(r'^.*?AnyhowException\((.+)\)$').firstMatch(raw);
@@ -162,11 +165,10 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
         );
         context.go(AppRoute.home);
       } else {
-        // BondRequired is take-specific; every shared daemon marker (timeout,
-        // storage, node capability/protocol) maps centrally.
-        final display = msg.contains('BondRequired')
-            ? l10n.bondRequired
-            : localizedDaemonError(l10n, msg, fallback: msg);
+        // Every shared daemon marker (timeout, storage, node capability and
+        // protocol) maps centrally. BondRequired is gone: a bond-requiring
+        // node now replies pay-bond-invoice instead of rejecting the take.
+        final display = localizedDaemonError(l10n, msg, fallback: msg);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(display)),
         );

@@ -232,8 +232,60 @@ class AppLocalizationsEs extends AppLocalizations {
   String get orderAlreadyTaken => 'La orden ya fue tomada';
 
   @override
-  String get bondRequired =>
-      'Este nodo requiere un bono anti-abuso, que aún no está soportado';
+  String get payBondInvoiceTitle => 'Pagar fianza antiabuso';
+
+  @override
+  String get payBondInvoiceInstruction =>
+      'Este nodo exige una fianza antiabuso. Paga esta hold invoice de Lightning para tomar la orden. Se libera cuando la operación se completa con normalidad.';
+
+  @override
+  String get tradeWaitingForBondInvoice =>
+      'Esperando la factura de la fianza...';
+
+  @override
+  String get leaveBondPaymentTitle => '¿Salir del pago de la fianza?';
+
+  @override
+  String get leaveBondPaymentContent =>
+      'La orden queda reservada hasta que la fianza expire. Podés pagarla más tarde desde la operación, o devolver la orden al libro ahora.';
+
+  @override
+  String get keepPayingButton => 'Seguir pagando';
+
+  @override
+  String get leaveButton => 'Salir';
+
+  @override
+  String get releaseOrderButton => 'Devolver orden';
+
+  @override
+  String get leaveBondPaymentWaitingContent =>
+      'El pago de la fianza todavía se está resolviendo, así que la orden no puede volver al libro por ahora. Podés salir: la operación queda en Mis Operaciones y podés retomarla.';
+
+  @override
+  String get keepWaitingButton => 'Seguir esperando';
+
+  @override
+  String get bondPaymentNotPaidYet => 'Todavía no pagué';
+
+  @override
+  String get bondInvoiceQrLabel =>
+      'Código QR de la factura de la fianza antiabuso';
+
+  @override
+  String get tradeStatusWaitingBond => 'Esperando fianza';
+
+  @override
+  String get tradeHeadlineWaitingBond =>
+      'Paga la fianza antiabuso para tomar esta orden.';
+
+  @override
+  String get tradeInstructionWaitingBond =>
+      'Paga la hold invoice de la fianza antiabuso para tomar esta orden.';
+
+  @override
+  String get tradeTimerWaitingBondLabel =>
+      'Tiempo para pagar la fianza antiabuso';
 
   @override
   String get nodeProtocolUnsupported =>
@@ -649,6 +701,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get cancelTradeDialogContent =>
       'Se solicita una cancelación cooperativa. La otra parte también debe aceptar para que el intercambio quede cancelado.';
+
+  @override
+  String get cancelBondBackoutDialogContent =>
+      '¿Cancelar y devolver la orden al libro? No se pagó ninguna fianza, así que la otra parte no se ve afectada.';
 
   @override
   String get noButtonLabel => 'No';

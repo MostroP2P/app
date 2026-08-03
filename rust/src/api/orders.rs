@@ -46,6 +46,10 @@ enum DaemonReply {
         amount_sats: Option<u64>,
         /// Hold invoice bolt11 (seller taking a buy order), when present.
         hold_invoice: Option<String>,
+        /// Bond hold invoice bolt11 (`pay-bond-invoice`), separate from `hold_invoice`.
+        bond_invoice: Option<String>,
+        /// Bond amount in sats, separate from `amount_sats` (the trade amount).
+        bond_amount_sats: Option<u64>,
     },
     /// Daemon acknowledged an add-invoice. The reply doubles as a status
     /// update processed by the per-action arms; the caller only needs the
@@ -271,43 +275,49 @@ fn take_matching_add_invoice(trade_pubkey_hex: &str, got: Option<u64>) -> Option
 /// Classify the daemon's first reply to a take into a [`DaemonReply`].
 ///
 /// A take's success reply varies by role, order shape and daemon config —
-/// `add-invoice` (buyer, with the calculated sats in an `Order` payload),
-/// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload), or a
-/// direct progression message when an invoice was pre-attached — so
-/// classification goes by payload shape rather than by enumerating actions
-/// (the pattern MostriX uses). `pay-bond-invoice` maps to a stable
-/// `BondRequired` rejection: anti-abuse bonds are not supported yet, and an
-/// honest error beats a fake trade or a silent timeout.
+/// `add-invoice` (buyer, calculated sats in an `Order` payload), `pay-invoice`
+/// (seller, hold invoice in a `PaymentRequest`), `pay-bond-invoice` (bond node,
+/// bond hold invoice in a `PaymentRequest`), or a direct progression message —
+/// so classification goes by payload shape rather than by enumerating actions.
+///
+/// `pay-bond-invoice` shares the `PaymentRequest` shape with `pay-invoice`, but
+/// its bolt11 goes to the dedicated `bond_invoice` field, never `hold_invoice`.
+/// The daemon stamps the bond payload's status as the wire-mapped `Pending`
+/// (`WaitingTakerBond` is never on the NIP-69 wire, per `nip33::create_status_tags`),
+/// so for the bond the action — not the payload — is authoritative.
 fn classify_take_reply(
     action: &mostro_core::message::Action,
     payload: &Option<mostro_core::message::Payload>,
 ) -> DaemonReply {
     use mostro_core::message::{Action, Payload};
 
-    if matches!(action, Action::PayBondInvoice) {
-        return DaemonReply::Rejected {
-            reason: "BondRequired".to_string(),
-            message: "BondRequired".to_string(),
-        };
-    }
-
     match payload {
         Some(Payload::PaymentRequest(small_order, invoice, amount)) => {
-            let amount_sats = amount
+            let payment_amount = amount
                 .and_then(|a| u64::try_from(a).ok())
                 .or_else(|| {
                     small_order.as_ref().and_then(|so| {
                         if so.amount > 0 { Some(so.amount as u64) } else { None }
                     })
                 });
-            DaemonReply::TakeAccepted {
-                action: action.clone(),
-                status: small_order
+            // Bond: status from the action (payload is wire-mapped Pending), and
+            // the bolt11/amount into their own slots (see the fn doc).
+            let is_bond = matches!(action, Action::PayBondInvoice);
+            let status = if is_bond {
+                status_for_action(action)
+            } else {
+                small_order
                     .as_ref()
                     .and_then(|so| so.status.and_then(map_core_status))
-                    .or_else(|| status_for_action(action)),
-                amount_sats,
-                hold_invoice: Some(invoice.clone()),
+                    .or_else(|| status_for_action(action))
+            };
+            DaemonReply::TakeAccepted {
+                action: action.clone(),
+                status,
+                amount_sats: if is_bond { None } else { payment_amount },
+                hold_invoice: if is_bond { None } else { Some(invoice.clone()) },
+                bond_invoice: if is_bond { Some(invoice.clone()) } else { None },
+                bond_amount_sats: if is_bond { payment_amount } else { None },
             }
         }
         Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
@@ -322,6 +332,8 @@ fn classify_take_reply(
                 None
             },
             hold_invoice: None,
+            bond_invoice: None,
+            bond_amount_sats: None,
         },
         // Action-only progression reply (payload absent or of another shape):
         // still a genuine acceptance. The take interception consumes the
@@ -334,6 +346,8 @@ fn classify_take_reply(
             status: status_for_action(action),
             amount_sats: None,
             hold_invoice: None,
+            bond_invoice: None,
+            bond_amount_sats: None,
         },
     }
 }
@@ -881,6 +895,8 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         counterparty_pubkey: String::new(),
         current_step: maker_step,
         hold_invoice: None,
+        bond_invoice: None,
+        bond_amount_sats: None,
         buyer_invoice: None,
         trade_key_index: trade_index,
         cooperative_cancel_state: None,
@@ -1050,17 +1066,19 @@ pub async fn take_order(
         detach_request_waiter(&trade_pk_hex, request_id);
     }
 
-    let (status, amount_sats, hold_invoice) = match reply {
+    let (status, amount_sats, hold_invoice, bond_invoice, bond_amount_sats) = match reply {
         Ok(Ok(DaemonReply::TakeAccepted {
             action,
             status,
             amount_sats,
             hold_invoice,
+            bond_invoice,
+            bond_amount_sats,
         })) => {
             crate::api::logging::blog_info("orders", format!(
                 "take_order confirmed by daemon: order={order_id} reply={action:?}"
             ));
-            (status, amount_sats, hold_invoice)
+            (status, amount_sats, hold_invoice, bond_invoice, bond_amount_sats)
         }
         Ok(Ok(DaemonReply::Rejected { reason, message })) => {
             crate::api::logging::blog_warn("orders", format!(
@@ -1072,7 +1090,7 @@ pub async fn take_order(
             // Only the create flow sends Confirmed; a take record can never
             // receive it. Treat defensively as an acceptance without data.
             log::warn!("[orders] take_order received a create-style confirmation");
-            (None, None, None)
+            (None, None, None, None, None)
         }
         _ => {
             // No daemon response within the timeout. Do not persist or show
@@ -1107,6 +1125,8 @@ pub async fn take_order(
         counterparty_pubkey: order.creator_pubkey.clone(),
         current_step: initial_step,
         hold_invoice,
+        bond_invoice,
+        bond_amount_sats,
         buyer_invoice: None,
         trade_key_index: trade_index,
         cooperative_cancel_state: None,
@@ -1317,11 +1337,25 @@ pub async fn release_order(order_id: String) -> Result<()> {
     Ok(())
 }
 
-/// Cancel an active trade cooperatively.
+/// Cancel a trade the local user is party to.
 ///
 /// Sends a `Cancel` MostroMessage signed with the trade key used when the order
-/// was taken.  Both parties must cancel for it to take effect; the Mostro daemon
-/// handles the cooperative-cancel state machine.
+/// was taken. The effect depends on how far the order has progressed:
+///
+/// - **Taker, WaitingTakerBond / Pending** — a unilateral back-out before the
+///   taker committed (no bond paid). The order stays `Pending` on the daemon,
+///   which returns it to the book without involving the maker. Because the
+///   public NIP-69 bucket never changed, no fresh Kind 38383 need arrive during
+///   the session, so we reset the local book entry to `Pending` (available
+///   again) instead of removing it.
+/// - **Maker, Pending** — the maker withdraws an order nobody committed to. The
+///   listing dies, so it is dropped from the book.
+/// - **Active / FiatSent** — a cooperative cancel: both parties must cancel for
+///   it to take effect and the Mostro daemon runs the cooperative-cancel state
+///   machine. The order is dropped from the local book optimistically.
+///
+/// Status alone cannot tell the first two apart: maker-created orders are also
+/// persisted as `Pending`, so the classification goes by ownership as well.
 pub async fn cancel_order(order_id: String) -> Result<()> {
     let trade_index = get_trade_key_index(&order_id)
         .await
@@ -1340,10 +1374,28 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     .await?;
     publish_event_json(&event_json).await?;
 
+    let effect = match crate::db::app_db::db() {
+        Some(db) => classify_cancel(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .ok()
+                .flatten()
+                .as_ref(),
+        ),
+        None => CancelEffect::DropListing,
+    };
+
     // Optimistic update: mark the trade as Canceled in the local DB immediately
     // so the UI reflects the change without waiting for the daemon's gift-wrap
-    // response. Also remove the order from the in-memory order book.
-    order_book().remove_order(&order_id).await;
+    // response.
+    match effect {
+        CancelEffect::ReturnToBook => {
+            order_book()
+                .update_order_status(&order_id, OrderStatus::Pending)
+                .await;
+        }
+        CancelEffect::DropListing => order_book().remove_order(&order_id).await,
+    }
     if let Some(db) = crate::db::app_db::db() {
         if let Err(e) = db
             .update_trade_fields(
@@ -1358,7 +1410,9 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
         }
     }
 
-    log::info!("[orders] cancel published for order={order_id} trade_index={trade_index}");
+    log::info!(
+        "[orders] cancel published for order={order_id} trade_index={trade_index} effect={effect:?}"
+    );
     Ok(())
 }
 
@@ -1830,7 +1884,16 @@ async fn dispatch_mostro_message(
             log::info!("[orders] gift-wrap Canceled for trade={trade_pubkey_hex}");
             if let Some(order_id) = &kind.id {
                 let oid = order_id.to_string();
-                order_book().remove_order(&oid).await;
+                // Our trade is over, but someone else's order can outlive it: a
+                // taker back-out leaves the listing available and the daemon
+                // republishes it as Pending, so let the 38383 event decide.
+                let trade = match crate::db::app_db::db() {
+                    Some(db) => db.get_trade_by_order_id(&oid).await.ok().flatten(),
+                    None => None,
+                };
+                if cancel_drops_listing(trade.as_ref()) {
+                    order_book().remove_order(&oid).await;
+                }
                 // Sync the Canceled status into the trade DB so My Trades
                 // reflects the cancellation immediately.
                 if let Some(db) = crate::db::app_db::db() {
@@ -1976,6 +2039,73 @@ async fn dispatch_mostro_message(
                 {
                     log::warn!(
                         "[orders] failed to save hold invoice for order={order_id}: {e}"
+                    );
+                }
+            }
+        }
+        // A standalone AddInvoice (the take reply is consumed by the waiting
+        // take_order caller) advances the trade only in the post-bond case:
+        // after the taker pays the bond the daemon resumes the take with
+        // WaitingBuyerInvoice. The same action also arrives on payout-retry
+        // exhaustion, where the order MUST stay SettledHoldInvoice
+        // (ORDER_STATES.md §PAYMENT_FAILED) — so anything but WaitingTakerBond
+        // is left untouched.
+        Action::AddInvoice => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] gift-wrap AddInvoice has no order id");
+                    return;
+                }
+            };
+            let is_post_bond = match crate::db::app_db::db() {
+                Some(db) => matches!(
+                    db.get_trade_by_order_id(&order_id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|t| t.order.status),
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                ),
+                None => false,
+            };
+            if !is_post_bond {
+                log::debug!(
+                    "[orders] gift-wrap AddInvoice: order={order_id} not awaiting a \
+                     taker bond — leaving state untouched"
+                );
+                return;
+            }
+            let amount = add_invoice_amount(&kind.payload);
+            log::info!("[orders] gift-wrap AddInvoice (post-bond): order={order_id} amount={amount:?}");
+            // Sync the order book amount too — the buyer's add-invoice screen
+            // reads the sats from there.
+            if let Some(mut info) = order_book().get_order(&order_id).await {
+                info.status = crate::api::types::OrderStatus::WaitingBuyerInvoice;
+                if amount.is_some() {
+                    info.amount_sats = amount;
+                }
+                order_book().upsert_order(info).await;
+            } else {
+                order_book()
+                    .update_order_status(
+                        &order_id,
+                        crate::api::types::OrderStatus::WaitingBuyerInvoice,
+                    )
+                    .await;
+            }
+            if let Some(db) = crate::db::app_db::db() {
+                if let Err(e) = db
+                    .update_trade_fields(
+                        &order_id,
+                        Some(crate::api::types::OrderStatus::WaitingBuyerInvoice),
+                        None,
+                        amount,
+                    )
+                    .await
+                {
+                    log::warn!(
+                        "[orders] failed to sync buyer invoice request for order={order_id}: {e}"
                     );
                 }
             }
@@ -2180,6 +2310,7 @@ fn status_for_action(action: &mostro_core::message::Action) -> Option<OrderStatu
     match action {
         Action::WaitingSellerToPay => Some(OrderStatus::WaitingPayment),
         Action::WaitingBuyerInvoice => Some(OrderStatus::WaitingBuyerInvoice),
+        Action::PayBondInvoice => Some(OrderStatus::WaitingTakerBond),
         Action::BuyerInvoiceAccepted => Some(OrderStatus::Active),
         Action::FiatSentOk => Some(OrderStatus::FiatSent),
         Action::HoldInvoicePaymentSettled | Action::Released | Action::PurchaseCompleted => {
@@ -2204,6 +2335,162 @@ fn status_for_action(action: &mostro_core::message::Action) -> Option<OrderStatu
     }
 }
 
+/// The NIP-69 bucket the daemon publishes for a fine-grained status, mirroring
+/// `mostro`'s `nip33::create_status_tags`. `None` for states it does not
+/// advertise on the wire at all.
+fn public_bucket_of(status: &OrderStatus) -> Option<OrderStatus> {
+    use OrderStatus as S;
+    Some(match status {
+        S::WaitingTakerBond | S::Pending => S::Pending,
+        S::WaitingBuyerInvoice | S::WaitingPayment => S::InProgress,
+        S::Canceled | S::CanceledByAdmin | S::CooperativelyCanceled | S::Expired => S::Canceled,
+        S::Success | S::CompletedByAdmin => status.clone(),
+        _ => return None,
+    })
+}
+
+/// Whether a public Kind 38383 status may overwrite the status persisted for a
+/// trade we follow.
+///
+/// The daemon collapses fine-grained states onto coarse buckets, so the bucket
+/// that already corresponds to what we hold carries no information and must not
+/// clobber it. Every *other* bucket is a real transition — in particular a
+/// return to `Pending`, which is how an unanswered `WaitingBuyerInvoice` or
+/// `WaitingPayment` goes back on the book when the taker times out. Matching on
+/// "coarse ⇒ ignore" instead would strand the maker on the stale status.
+fn public_status_supersedes(current: &OrderStatus, incoming: &OrderStatus) -> bool {
+    if current == incoming {
+        return true; // same state: nothing to lose, and the amount may be newer
+    }
+    public_bucket_of(current).as_ref() != Some(incoming)
+}
+
+/// Authoritative `(status, amount_sats)` persisted for a trade we follow.
+async fn followed_trade_state(order_id: &str) -> Option<(OrderStatus, Option<u64>)> {
+    let db = crate::db::app_db::db()?;
+    let trade = db.get_trade_by_order_id(order_id).await.ok().flatten()?;
+    Some((trade.order.status, trade.order.amount_sats))
+}
+
+/// Whether a trade status still describes a live trade.
+///
+/// Once our trade ends the order can outlive it — a taker back-out leaves the
+/// order `Pending` for everyone else — so the listing regains authority.
+fn trade_status_is_live(status: &OrderStatus) -> bool {
+    use OrderStatus as S;
+    !matches!(
+        status,
+        S::Success
+            | S::Canceled
+            | S::CooperativelyCanceled
+            | S::CanceledByAdmin
+            | S::Expired
+            | S::SettledByAdmin
+            | S::CompletedByAdmin
+    )
+}
+
+/// Overlay the authoritative trade state onto an incoming public order, so the
+/// book cache behind `getOrder` never contradicts a live trade row.
+fn merge_followed_state(
+    mut incoming: OrderInfo,
+    followed: Option<&(OrderStatus, Option<u64>)>,
+) -> OrderInfo {
+    if let Some((status, amount_sats)) = followed {
+        if trade_status_is_live(status) && !public_status_supersedes(status, &incoming.status) {
+            incoming.status = status.clone();
+            // Public `amt` is the coarse listing figure, not the per-role amount.
+            if amount_sats.is_some() {
+                incoming.amount_sats = *amount_sats;
+            }
+        }
+    }
+    incoming
+}
+
+/// How a cancellation should affect the local order book.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum CancelEffect {
+    /// Taker pre-commit back-out: the order returns to the book as `Pending`.
+    ReturnToBook,
+    /// The listing itself dies: drop it from the book.
+    DropListing,
+}
+
+/// Classify a cancellation we initiate, by ownership as well as status: a
+/// maker-created order is persisted as `Pending` too, so status alone would
+/// read a maker's withdrawal as a taker's back-out.
+fn classify_cancel(trade: Option<&crate::api::types::TradeInfo>) -> CancelEffect {
+    match trade {
+        Some(t)
+            if !t.order.is_mine
+                && matches!(
+                    t.order.status,
+                    OrderStatus::WaitingTakerBond | OrderStatus::Pending
+                ) =>
+        {
+            CancelEffect::ReturnToBook
+        }
+        _ => CancelEffect::DropListing,
+    }
+}
+
+/// Whether a daemon `Canceled` should drop the order from the book: only when
+/// we own the listing, since someone else's order outlives our trade.
+fn cancel_drops_listing(trade: Option<&crate::api::types::TradeInfo>) -> bool {
+    trade.is_none_or(|t| t.order.is_mine)
+}
+
+/// Apply a public Kind 38383 update for a followed order to the trade row and
+/// the book cache, guarding both against coarse-bucket downgrades.
+async fn sync_public_order_update(order: OrderInfo) {
+    let followed = followed_trade_state(&order.id).await;
+    let apply = match &followed {
+        Some((cur, _)) => public_status_supersedes(cur, &order.status),
+        None => true,
+    };
+    if apply {
+        if let Some(db) = crate::db::app_db::db() {
+            if let Err(e) = db
+                .update_trade_fields(
+                    &order.id,
+                    Some(order.status.clone()),
+                    None,
+                    order.amount_sats,
+                )
+                .await
+            {
+                log::warn!(
+                    "[orders] failed to sync d-tag trade status for order={}: {e}",
+                    order.id
+                );
+            }
+        }
+    } else {
+        log::debug!(
+            "[orders] d-tag update: keeping fine-grained {:?} over coarse {:?} for order={}",
+            followed.as_ref().map(|(s, _)| s),
+            order.status,
+            order.id
+        );
+    }
+    order_book()
+        .upsert_order(merge_followed_state(order, followed.as_ref()))
+        .await;
+}
+
+/// Calculated trade sats from an `add-invoice` reply's `Order` payload, or
+/// `None` for a non-positive amount or a non-`Order` payload.
+fn add_invoice_amount(payload: &Option<mostro_core::message::Payload>) -> Option<u64> {
+    use mostro_core::message::Payload;
+    match payload {
+        Some(Payload::Order(small_order)) if small_order.amount > 0 => {
+            Some(small_order.amount as u64)
+        }
+        _ => None,
+    }
+}
+
 fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStatus> {
     use mostro_core::order::Status as S;
     Some(match s {
@@ -2222,10 +2509,10 @@ fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStatus> {
         S::SettledByAdmin => OrderStatus::SettledByAdmin,
         S::CompletedByAdmin => OrderStatus::CompletedByAdmin,
         S::Dispute => OrderStatus::Dispute,
-        // Anti-abuse bond is out of scope; these statuses have no local
-        // OrderStatus mapping. No wildcard, so future Status variants keep
-        // forcing this match to be revisited.
-        S::WaitingTakerBond | S::WaitingMakerBond => return None,
+        S::WaitingTakerBond => OrderStatus::WaitingTakerBond,
+        // Maker-side bond is out of scope (issue #191) — no local status yet.
+        // No wildcard, so new Status variants keep forcing a revisit here.
+        S::WaitingMakerBond => return None,
     })
 }
 
@@ -2383,24 +2670,7 @@ async fn subscribe_single_order(order_id: &str) {
                                 order.status
                             );
                             last_activity = crate::rt::time::Instant::now();
-                            // Sync trade status in DB so My Trades reflects it.
-                            if let Some(db) = crate::db::app_db::db() {
-                                if let Err(e) = db
-                                    .update_trade_fields(
-                                        &order.id,
-                                        Some(order.status.clone()),
-                                        None,
-                                        order.amount_sats,
-                                    )
-                                    .await
-                                {
-                                    log::warn!(
-                                        "[orders] failed to sync d-tag trade status for order={}: {e}",
-                                        order.id
-                                    );
-                                }
-                            }
-                            order_book().upsert_order(order).await;
+                            sync_public_order_update(order).await;
                         }
                     }
                 }
@@ -2868,27 +3138,12 @@ async fn ingest_order_event(event: &nostr_sdk::Event) {
                     }
                 }
             }
-            // Sync trade status in DB for own orders so My Trades
-            // reflects status changes even without gift-wrap delivery.
-            if info.is_mine && info.status != crate::api::types::OrderStatus::Pending {
-                if let Some(db) = crate::db::app_db::db() {
-                    if let Err(e) = db
-                        .update_trade_fields(
-                            &info.id,
-                            Some(info.status.clone()),
-                            None,
-                            info.amount_sats,
-                        )
-                        .await
-                    {
-                        log::warn!(
-                            "[orders] failed to sync trade status for order={}: {e}",
-                            info.id
-                        );
-                    }
-                }
-            }
-            order_book().upsert_order(info).await;
+            // Same policy as the per-order d-tag path. This is the only
+            // ingestion a maker gets — `subscribe_single_order` runs for takes
+            // alone — so diverging here stranded them on a stale status when
+            // an unanswered take sent the order back to Pending (PR #213
+            // review, Catrya).
+            sync_public_order_update(info).await;
         }
         None => {
             log::warn!(
@@ -3486,9 +3741,9 @@ mod tests {
     }
 
     /// `classify_take_reply` goes by payload shape: `PaymentRequest` carries
-    /// the hold invoice (seller flow), `Order` carries the calculated sats
-    /// (buyer flow), `pay-bond-invoice` maps to a stable BondRequired
-    /// rejection, and action-only replies are still acceptances.
+    /// the hold invoice (seller flow) or the anti-abuse bond hold invoice
+    /// (`pay-bond-invoice`), `Order` carries the calculated sats (buyer flow),
+    /// and action-only replies are still acceptances.
     #[test]
     fn classify_take_reply_maps_payload_shapes() {
         use mostro_core::message::{Action, Payload};
@@ -3534,13 +3789,56 @@ mod tests {
             _ => panic!("expected TakeAccepted"),
         }
 
-        // Anti-abuse bond: not supported — stable rejection marker.
-        match classify_take_reply(&Action::PayBondInvoice, &None) {
-            DaemonReply::Rejected { reason, message } => {
-                assert_eq!(reason, "BondRequired");
-                assert_eq!(message, "BondRequired");
+        // Bond reply: the daemon stamps the SmallOrder as wire-mapped `Pending`,
+        // yet the action must still resolve to WaitingTakerBond, and the bolt11
+        // must land in bond_invoice (not hold_invoice).
+        let so = small_order_with(Status::Pending, 1000);
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(Some(so), "lnbc1bond".into(), None)),
+        ) {
+            DaemonReply::TakeAccepted {
+                status,
+                amount_sats,
+                hold_invoice,
+                bond_invoice,
+                bond_amount_sats,
+                ..
+            } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert!(amount_sats.is_none());
+                assert_eq!(bond_amount_sats, Some(1000));
+                assert!(hold_invoice.is_none());
+                assert_eq!(bond_invoice.as_deref(), Some("lnbc1bond"));
             }
-            _ => panic!("expected Rejected"),
+            _ => panic!("expected TakeAccepted"),
+        }
+
+        // A bond reply with no embedded status still resolves to
+        // WaitingTakerBond via status_for_action(PayBondInvoice).
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(None, "lnbc1bond".into(), Some(1000))),
+        ) {
+            DaemonReply::TakeAccepted {
+                status,
+                hold_invoice,
+                bond_invoice,
+                bond_amount_sats,
+                ..
+            } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert!(hold_invoice.is_none());
+                assert_eq!(bond_invoice.as_deref(), Some("lnbc1bond"));
+                assert_eq!(bond_amount_sats, Some(1000));
+            }
+            _ => panic!("expected TakeAccepted"),
         }
 
         // Action-only progression reply: still a genuine acceptance, with
@@ -3554,6 +3852,321 @@ mod tests {
             }
             _ => panic!("expected TakeAccepted"),
         }
+    }
+
+    /// The `add-invoice` amount helper reads the buyer's calculated sats from
+    /// the `Order` payload and rejects anything it can't size.
+    #[test]
+    fn add_invoice_amount_reads_order_payload() {
+        use mostro_core::message::Payload;
+        use mostro_core::order::Status;
+
+        // Valid: positive amount in an Order payload.
+        let so = small_order_with(Status::WaitingBuyerInvoice, 9526);
+        assert_eq!(add_invoice_amount(&Some(Payload::Order(so))), Some(9526));
+
+        // Non-positive amount → None (nothing to size).
+        let so = small_order_with(Status::WaitingBuyerInvoice, 0);
+        assert_eq!(add_invoice_amount(&Some(Payload::Order(so))), None);
+
+        // Missing payload → None.
+        assert_eq!(add_invoice_amount(&None), None);
+
+        // Wrong payload shape (not an Order) → None.
+        assert_eq!(
+            add_invoice_amount(&Some(Payload::PaymentRequest(
+                None,
+                "lnbc1invoice".into(),
+                Some(9526),
+            ))),
+            None
+        );
+    }
+
+    /// A coarse public 38383 bucket must never overwrite a fine-grained trade
+    /// status (regression for the taker-bond flow, PR #213 review).
+    #[test]
+    fn public_bucket_never_downgrades_its_own_fine_grained_state() {
+        use crate::api::types::OrderStatus as S;
+
+        // The bucket the daemon publishes for a state carries no information
+        // about it, so it must never overwrite it.
+        for (fine, bucket) in [
+            (S::WaitingTakerBond, S::Pending),
+            (S::WaitingBuyerInvoice, S::InProgress),
+            (S::WaitingPayment, S::InProgress),
+        ] {
+            assert!(
+                !public_status_supersedes(&fine, &bucket),
+                "public {bucket:?} must not overwrite {fine:?}"
+            );
+        }
+
+        // Any other bucket is a real transition. A taker who never answers
+        // sends the order back on the book, and the maker must follow
+        // (PR #213 review, Catrya).
+        for stalled in [S::WaitingBuyerInvoice, S::WaitingPayment] {
+            assert!(
+                public_status_supersedes(&stalled, &S::Pending),
+                "a timed-out {stalled:?} must return to Pending"
+            );
+        }
+        assert!(public_status_supersedes(&S::Pending, &S::InProgress));
+        assert!(public_status_supersedes(&S::Pending, &S::Pending));
+
+        // Terminal buckets always win, even over an in-flight status.
+        for term in [
+            S::Canceled,
+            S::CanceledByAdmin,
+            S::CooperativelyCanceled,
+            S::Expired,
+            S::Success,
+            S::CompletedByAdmin,
+            S::SettledByAdmin,
+        ] {
+            assert!(
+                public_status_supersedes(&S::WaitingTakerBond, &term),
+                "terminal {term:?} must supersede WaitingTakerBond"
+            );
+            assert!(
+                public_status_supersedes(&S::Active, &term),
+                "terminal {term:?} must supersede Active"
+            );
+        }
+    }
+
+    /// Initialise the global store once, so the tests below drive the same
+    /// `app_db::db()` the production paths read instead of a local copy.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn init_test_db() {
+        static INIT: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
+        INIT.get_or_init(|| async {
+            let unique = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!("mostro_orders_test_{unique}.db"));
+            crate::db::app_db::init_db(&path.to_string_lossy())
+                .await
+                .expect("init temp db");
+        })
+        .await;
+    }
+
+    fn bond_trade(order_id: &str, role: TradeRole) -> crate::api::types::TradeInfo {
+        use crate::api::types::{BuyerStep, SellerStep, TradeInfo, TradeStep};
+
+        let mut order = dummy_order_info(order_id);
+        order.status = OrderStatus::WaitingTakerBond;
+        let step = match role {
+            TradeRole::Buyer => TradeStep::Buyer(BuyerStep::OrderTaken),
+            TradeRole::Seller => TradeStep::Seller(SellerStep::TakerFound),
+        };
+        TradeInfo {
+            id: format!("trade-{order_id}"),
+            order,
+            role,
+            counterparty_pubkey: String::new(),
+            current_step: step,
+            hold_invoice: None,
+            bond_invoice: Some("lnbc1bond".to_string()),
+            bond_amount_sats: Some(1000),
+            buyer_invoice: None,
+            trade_key_index: 0,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 0,
+            completed_at: None,
+            outcome: None,
+        }
+    }
+
+    /// A coarse public bucket must downgrade neither the trade row nor the book
+    /// cache, driven through the production sync path rather than a copy of its
+    /// decision — so it fails if either write regresses (PR #213 review).
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn coarse_public_update_downgrades_neither_trade_nor_book() {
+        use crate::api::types::OrderStatus as S;
+        use crate::db::Storage;
+
+        init_test_db().await;
+        let db = crate::db::app_db::db().expect("db initialised");
+
+        let order_id = format!("downgrade-{}", uuid::Uuid::new_v4());
+        let mut trade = bond_trade(&order_id, TradeRole::Buyer);
+        db.save_trade(&trade).await.unwrap();
+
+        // Bond unpaid: the daemon publishes WaitingTakerBond as Pending.
+        let mut public = dummy_order_info(&order_id);
+        public.status = S::Pending;
+        sync_public_order_update(public.clone()).await;
+
+        assert_eq!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .unwrap()
+                .map(|t| t.order.status),
+            Some(S::WaitingTakerBond),
+            "coarse Pending must not clobber the trade row"
+        );
+        assert_eq!(
+            order_book().get_order(&order_id).await.map(|o| o.status),
+            Some(S::WaitingTakerBond),
+            "coarse Pending must not clobber the book cache"
+        );
+
+        // Post-bond: the daemon publishes WaitingBuyerInvoice as InProgress and
+        // the listing carries the coarse amount, not this taker's.
+        trade.order.status = S::WaitingBuyerInvoice;
+        trade.order.amount_sats = Some(9526);
+        db.save_trade(&trade).await.unwrap();
+        public.status = S::InProgress;
+        public.amount_sats = Some(10_000);
+        sync_public_order_update(public.clone()).await;
+
+        let cached = order_book().get_order(&order_id).await.expect("order cached");
+        assert_eq!(cached.status, S::WaitingBuyerInvoice);
+        assert_eq!(
+            cached.amount_sats,
+            Some(9526),
+            "book must keep the per-role amount over the coarse listing figure"
+        );
+
+        // Terminal buckets are genuine endpoints and still win.
+        public.status = S::Canceled;
+        sync_public_order_update(public).await;
+        assert_eq!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .unwrap()
+                .map(|t| t.order.status),
+            Some(S::Canceled)
+        );
+    }
+
+    /// A taker who never answers sends the order back on the book, and the
+    /// maker must follow instead of staying on the stale fine-grained status
+    /// (PR #213 review, Catrya).
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn unanswered_take_returns_the_maker_to_pending() {
+        use crate::api::types::OrderStatus as S;
+        use crate::db::Storage;
+
+        init_test_db().await;
+        let db = crate::db::app_db::db().expect("db initialised");
+
+        for stalled in [S::WaitingBuyerInvoice, S::WaitingPayment] {
+            let order_id = format!("stalled-{}-{}", stalled_slug(&stalled), uuid::Uuid::new_v4());
+            let mut trade = bond_trade(&order_id, TradeRole::Seller);
+            trade.order.status = stalled.clone();
+            trade.order.is_mine = true; // maker's own listing
+            db.save_trade(&trade).await.unwrap();
+
+            // The daemon returns the order to the book and republishes it.
+            let mut public = dummy_order_info(&order_id);
+            public.status = S::Pending;
+            sync_public_order_update(public).await;
+
+            assert_eq!(
+                db.get_trade_by_order_id(&order_id)
+                    .await
+                    .unwrap()
+                    .map(|t| t.order.status),
+                Some(S::Pending),
+                "{stalled:?} must follow the order back to Pending"
+            );
+            assert_eq!(
+                order_book().get_order(&order_id).await.map(|o| o.status),
+                Some(S::Pending),
+                "{stalled:?} must show as available again in the book"
+            );
+        }
+    }
+
+    fn stalled_slug(s: &OrderStatus) -> &'static str {
+        match s {
+            OrderStatus::WaitingBuyerInvoice => "invoice",
+            OrderStatus::WaitingPayment => "payment",
+            _ => "other",
+        }
+    }
+
+    /// Once our trade reaches a terminal status the listing regains authority:
+    /// an order the taker backed out of must reappear as available.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn backed_out_take_returns_the_order_to_the_book() {
+        use crate::api::types::OrderStatus as S;
+        use crate::db::Storage;
+
+        init_test_db().await;
+        let db = crate::db::app_db::db().expect("db initialised");
+
+        let order_id = format!("backout-{}", uuid::Uuid::new_v4());
+        let mut trade = bond_trade(&order_id, TradeRole::Buyer);
+        trade.order.status = S::Canceled;
+        db.save_trade(&trade).await.unwrap();
+
+        let mut public = dummy_order_info(&order_id);
+        public.status = S::Pending;
+        sync_public_order_update(public).await;
+
+        assert_eq!(
+            order_book().get_order(&order_id).await.map(|o| o.status),
+            Some(S::Pending),
+            "the maker's order outlives our cancelled take and stays available"
+        );
+    }
+
+    /// Ownership, not status alone, decides how our own cancel hits the book:
+    /// maker-created orders are persisted as Pending too.
+    #[test]
+    fn cancel_classification_separates_maker_withdrawal_from_taker_backout() {
+        use crate::api::types::OrderStatus as S;
+
+        let taker_bond = bond_trade("c1", TradeRole::Buyer);
+        assert_eq!(
+            classify_cancel(Some(&taker_bond)),
+            CancelEffect::ReturnToBook
+        );
+
+        let mut taker_pending = bond_trade("c2", TradeRole::Buyer);
+        taker_pending.order.status = S::Pending;
+        assert_eq!(
+            classify_cancel(Some(&taker_pending)),
+            CancelEffect::ReturnToBook
+        );
+
+        // Same Pending status, but this listing is ours.
+        let mut maker_pending = bond_trade("c3", TradeRole::Seller);
+        maker_pending.order.status = S::Pending;
+        maker_pending.order.is_mine = true;
+        assert_eq!(
+            classify_cancel(Some(&maker_pending)),
+            CancelEffect::DropListing
+        );
+
+        // Committed trade: a cooperative cancel drops it.
+        let mut active = bond_trade("c4", TradeRole::Buyer);
+        active.order.status = S::Active;
+        assert_eq!(classify_cancel(Some(&active)), CancelEffect::DropListing);
+
+        assert_eq!(classify_cancel(None), CancelEffect::DropListing);
+    }
+
+    /// A daemon `Canceled` must not hide a listing that is not ours.
+    #[test]
+    fn daemon_cancel_only_drops_listings_we_own() {
+        let taker = bond_trade("d1", TradeRole::Buyer);
+        assert!(!cancel_drops_listing(Some(&taker)));
+
+        let mut maker = bond_trade("d2", TradeRole::Seller);
+        maker.order.is_mine = true;
+        assert!(cancel_drops_listing(Some(&maker)));
+
+        assert!(cancel_drops_listing(None));
     }
 
     /// Only the pending create's own local UUID may be rebound to an incoming

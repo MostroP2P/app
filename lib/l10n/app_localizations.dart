@@ -482,11 +482,101 @@ abstract class AppLocalizations {
   /// **'Order has already been taken'**
   String get orderAlreadyTaken;
 
-  /// Error shown when the Mostro node asks for an anti-abuse bond before accepting the order — the app does not support bonds yet
+  /// Screen title for the taker anti-abuse bond payment step
   ///
   /// In en, this message translates to:
-  /// **'This node requires an anti-abuse bond, which is not supported yet'**
-  String get bondRequired;
+  /// **'Pay anti-abuse bond'**
+  String get payBondInvoiceTitle;
+
+  /// Instruction shown on the bond payment screen explaining the taker must pay the anti-abuse bond hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'This node requires an anti-abuse bond. Pay this Lightning hold invoice to take the order. It is released when the trade completes normally.'**
+  String get payBondInvoiceInstruction;
+
+  /// Loading message while the anti-abuse bond hold invoice is fetched from the Mostro node
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the bond invoice...'**
+  String get tradeWaitingForBondInvoice;
+
+  /// Title of the dialog shown when the taker navigates back from the bond payment screen with the bond unpaid
+  ///
+  /// In en, this message translates to:
+  /// **'Leave bond payment?'**
+  String get leaveBondPaymentTitle;
+
+  /// Body of the leave-bond-payment dialog: leaving keeps the order reserved, the third action puts it back on the book
+  ///
+  /// In en, this message translates to:
+  /// **'The order stays reserved until the bond expires. You can pay it later from the trade, or put the order back on the book now.'**
+  String get leaveBondPaymentContent;
+
+  /// Dialog action that dismisses the leave prompt and stays on the bond payment screen
+  ///
+  /// In en, this message translates to:
+  /// **'Keep paying'**
+  String get keepPayingButton;
+
+  /// Dialog action that leaves the bond payment screen without cancelling, keeping the trade in My Trades
+  ///
+  /// In en, this message translates to:
+  /// **'Leave'**
+  String get leaveButton;
+
+  /// Dialog action that cancels the take and returns the order to the book
+  ///
+  /// In en, this message translates to:
+  /// **'Return order'**
+  String get releaseOrderButton;
+
+  /// Body of the leave dialog while a bond payment outcome is unknown: leaving is safe, releasing the order is not offered
+  ///
+  /// In en, this message translates to:
+  /// **'The bond payment is still resolving, so the order can\'t be returned to the book yet. You can leave — the trade stays in My Trades and you can come back to it.'**
+  String get leaveBondPaymentWaitingContent;
+
+  /// Dialog action that dismisses the leave prompt and stays on the bond screen while the payment resolves
+  ///
+  /// In en, this message translates to:
+  /// **'Keep waiting'**
+  String get keepWaitingButton;
+
+  /// Recovery action shown after a bond payment was launched, returning the screen to a cancellable state when the payment never happened
+  ///
+  /// In en, this message translates to:
+  /// **'I haven\'t paid yet'**
+  String get bondPaymentNotPaidYet;
+
+  /// Accessibility label for the anti-abuse bond Lightning invoice QR code
+  ///
+  /// In en, this message translates to:
+  /// **'Anti-abuse bond invoice QR code'**
+  String get bondInvoiceQrLabel;
+
+  /// Trade status pill label while the taker must still pay the anti-abuse bond
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting Bond'**
+  String get tradeStatusWaitingBond;
+
+  /// Trade detail headline while the taker must pay the anti-abuse bond hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Pay the anti-abuse bond to take this order.'**
+  String get tradeHeadlineWaitingBond;
+
+  /// Trade detail instruction while the taker must pay the anti-abuse bond hold invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Pay the anti-abuse bond hold invoice to take this order.'**
+  String get tradeInstructionWaitingBond;
+
+  /// Trade detail timer label for the window in which the taker must pay the anti-abuse bond
+  ///
+  /// In en, this message translates to:
+  /// **'Time to pay the anti-abuse bond'**
+  String get tradeTimerWaitingBondLabel;
 
   /// Error shown when the selected Mostro node advertises a protocol version this v2-native client does not speak, so it would never read the request
   ///
@@ -1267,6 +1357,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.'**
   String get cancelTradeDialogContent;
+
+  /// Body text for the cancel dialog when a taker backs out before paying the anti-abuse bond — a unilateral cancel that returns the order to the book
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel and return the order to the book? No bond has been paid, so the other party is not affected.'**
+  String get cancelBondBackoutDialogContent;
 
   /// Negative button label in a confirmation dialog
   ///

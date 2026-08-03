@@ -17,8 +17,13 @@ Buy | Sell
 Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
 | SettledHoldInvoice | Success | Canceled | Expired
 | CooperativelyCanceled | CanceledByAdmin | SettledByAdmin
-| CompletedByAdmin | Dispute | InProgress
+| CompletedByAdmin | Dispute | InProgress | WaitingTakerBond
 ```
+> Note: `WaitingTakerBond` is the local state for a taker that has taken an
+> order on a bond-requiring node and must pay the anti-abuse bond hold invoice
+> before the trade progresses. The daemon never exposes it on the NIP-69 wire
+> (it publishes as `Pending`); the client sets it from the `pay-bond-invoice`
+> action. Maker-side `WaitingMakerBond` is out of scope (issue #191).
 > Note: `PaymentFailed` is NOT a status - it's an Action notification sent when
 > Lightning payment to buyer fails. Order remains in `SettledHoldInvoice` status.
 
@@ -147,6 +152,8 @@ role: TradeRole
 counterparty_pubkey: String
 current_step: TradeStep
 hold_invoice: String?
+bond_invoice: String?
+bond_amount_sats: u64?
 buyer_invoice: String?
 trade_key_index: u32
 cooperative_cancel_state: CooperativeCancelState?
@@ -155,6 +162,11 @@ started_at: i64
 completed_at: i64?
 outcome: TradeOutcome?
 ```
+> Note: `bond_invoice` / `bond_amount_sats` carry the taker's anti-abuse bond
+> hold invoice and its sat amount, kept distinct from `hold_invoice` /
+> `order.amount_sats` so the bond never collides with the trade's escrow hold
+> invoice or overwrites the trade amount while the order sits at
+> `WaitingTakerBond`.
 
 ### ChatMessage
 ```text

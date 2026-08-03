@@ -51,6 +51,9 @@ enum TradeStatus {
   waitingInvoice('Waiting Invoice'),
   /// Seller must pay hold invoice (waitingPayment).
   waitingPayment('Waiting Payment'),
+  /// Taker must pay the anti-abuse bond (waitingTakerBond) — distinct from
+  /// [waitingPayment] so it routes to the bond screen, not the escrow flow.
+  waitingBond('Waiting Bond'),
   active('Active'),
   fiatSent('Fiat Sent'),
   completed('Completed'),
@@ -74,6 +77,7 @@ extension TradeStatusL10n on TradeStatus {
         TradeStatus.pending => l10n.tradeFilterPending,
         TradeStatus.waitingInvoice => l10n.tradeFilterWaitingInvoice,
         TradeStatus.waitingPayment => l10n.tradeFilterWaitingPayment,
+        TradeStatus.waitingBond => l10n.tradeStatusWaitingBond,
         TradeStatus.active => l10n.tradeStatusActive,
         TradeStatus.fiatSent => l10n.tradeStatusFiatSent,
         TradeStatus.completed => l10n.tradeStatusCompleted,
@@ -105,19 +109,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     super.dispose();
   }
 
-  /// Fetches the real `expiresAt` from the order and resets [_remaining].
+  /// Resolves the real deadline and resets [_remaining].
   ///
-  /// Falls back to the default [_kCountdownSeconds] when the field is null or
-  /// the order is no longer available.
+  /// Falls back to the default [_kCountdownSeconds] when no deadline is known.
   Future<void> _loadExpiresAt() async {
     try {
-      final info = await orders_api.getOrder(orderId: widget.orderId);
-      final raw = info?.expiresAt;
-      if (raw == null || !mounted) return;
-      final expiresAtSeconds = platformInt64ToInt(raw);
+      final deadline = await _resolveDeadline();
+      if (deadline == null || !mounted) return;
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final diff = expiresAtSeconds - now;
-      if (!mounted) return;
+      final diff = deadline - now;
       setState(() {
         _totalCountdownSeconds = diff > 0 ? diff : _kCountdownSeconds;
         _remaining = diff > 0 ? Duration(seconds: diff) : Duration.zero;
@@ -126,6 +126,25 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       // Keep the default remaining time on error.
     }
   }
+
+  /// Absolute deadline in epoch seconds: the trade's own bond timeout while the
+  /// taker still owes a bond, otherwise the public listing expiry.
+  ///
+  /// The two can differ by hours, and the listing is often already gone for a
+  /// taken trade — reading it there would restart a fresh countdown on every
+  /// re-entry and present a payment window that does not exist.
+  Future<int?> _resolveDeadline() async {
+    final trades = await ref.read(bridgeListTradesProvider)();
+    final trade = trades.where((t) => t.order.id == widget.orderId).firstOrNull;
+    if (trade?.order.status == OrderStatus.waitingTakerBond) {
+      return _epochSeconds(trade?.timeoutAt);
+    }
+    final info = await ref.read(bridgeGetOrderProvider)(widget.orderId);
+    return _epochSeconds(info?.expiresAt);
+  }
+
+  int? _epochSeconds(Object? raw) =>
+      raw == null ? null : platformInt64ToInt(raw);
 
   void _startCountdown() {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -152,6 +171,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     OrderStatus.pending => TradeStatus.pending,
     OrderStatus.waitingBuyerInvoice => TradeStatus.waitingInvoice,
     OrderStatus.waitingPayment => TradeStatus.waitingPayment,
+    OrderStatus.waitingTakerBond => TradeStatus.waitingBond,
     OrderStatus.active || OrderStatus.inProgress => TradeStatus.active,
     OrderStatus.fiatSent => TradeStatus.fiatSent,
     OrderStatus.settledHoldInvoice ||
@@ -167,11 +187,18 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   Future<void> _cancelOrder() async {
     final l10n = AppLocalizations.of(context);
+    // A back-out before the bond is paid is a unilateral cancel that returns the
+    // order to the book — not a cooperative cancel — so message it accordingly.
+    final isBondBackout =
+        ref.read(tradeStatusProvider(widget.orderId)).valueOrNull ==
+            OrderStatus.waitingTakerBond;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.cancelTradeDialogTitle),
-        content: Text(l10n.cancelTradeDialogContent),
+        content: Text(isBondBackout
+            ? l10n.cancelBondBackoutDialogContent
+            : l10n.cancelTradeDialogContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -193,7 +220,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.cancelRequestSent)),
+        SnackBar(
+          content: Text(isBondBackout
+              ? l10n.orderCancelledSuccess
+              : l10n.cancelRequestSent),
+        ),
       );
     } catch (e, st) {
       debugPrint('[TradeDetailScreen] cancelOrder error: $e\n$st');
@@ -295,6 +326,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ? l10n.tradeWaitingPaymentBuyerInstruction
           : l10n.tradeWaitingPaymentSellerInstruction;
     }
+    if (status == TradeStatus.waitingBond) {
+      return l10n.tradeInstructionWaitingBond;
+    }
     if (isBuyer) {
       if (status == TradeStatus.active) {
         return l10n.tradeInstructionActiveBuyer;
@@ -351,6 +385,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       TradeStatus.waitingPayment => isBuyer
           ? l10n.tradeHeadlineWaitingPaymentBuyer
           : l10n.tradeHeadlineWaitingPaymentSeller,
+      TradeStatus.waitingBond => l10n.tradeHeadlineWaitingBond,
       TradeStatus.active => isBuyer
           ? l10n.tradeHeadlineActiveBuyer(amount)
           : l10n.tradeHeadlineActiveSeller(amount),
@@ -386,6 +421,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
               : l10n.tradeTimerWaitingPaymentLabelSeller,
           l10n.tradeTimerWaitingInvoiceConsequence,
         ),
+      // Unpaid bond lapses → same "returns to the book" consequence as a
+      // waiting-invoice timeout.
+      TradeStatus.waitingBond => (
+          l10n.tradeTimerWaitingBondLabel,
+          l10n.tradeTimerWaitingInvoiceConsequence,
+        ),
       TradeStatus.active => (
           isBuyer
               ? l10n.tradeTimerActiveLabelBuyer
@@ -406,7 +447,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   (Color, Color) _statusPillColors(TradeStatus status) => switch (status) {
         TradeStatus.pending => AppColors.statusPending,
         TradeStatus.waitingInvoice ||
-        TradeStatus.waitingPayment => AppColors.statusWaiting,
+        TradeStatus.waitingPayment ||
+        TradeStatus.waitingBond => AppColors.statusWaiting,
         TradeStatus.active => AppColors.statusActive,
         TradeStatus.fiatSent => AppColors.statusSettled,
         TradeStatus.pendingRating ||
@@ -467,6 +509,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // Derive trade status from the polled order status.
     // Use TradeStatus.loading while the provider hasn't resolved so the UI
     // doesn't flash the pending CTA before the real status is known.
+    // Which deadline applies depends on the status, so re-resolve on change.
+    ref.listen<AsyncValue<OrderStatus>>(
+      tradeStatusProvider(widget.orderId),
+      (prev, next) {
+        if (prev?.valueOrNull != next.valueOrNull) _loadExpiresAt();
+      },
+    );
+
     final tradeStatusAsync = ref.watch(tradeStatusProvider(widget.orderId));
     final status = tradeStatusAsync.hasValue
         ? _mapOrderStatus(tradeStatusAsync.value!)
@@ -611,6 +661,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       TradeStatus.pending,
       TradeStatus.waitingInvoice,
       TradeStatus.waitingPayment,
+      // The taker can back out while the bond is unpaid; the daemon releases
+      // the bond (no slash) and returns the order to the book.
+      TradeStatus.waitingBond,
       TradeStatus.active,
       TradeStatus.fiatSent,
     }.contains(status) ||
@@ -864,6 +917,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             icon: Icons.bolt,
             onPressed: () =>
                 context.push(AppRoute.payInvoicePath(widget.orderId)),
+          ),
+        ];
+      // Bond unpaid (either role) → bond screen, never the escrow flow.
+      case (TradeStatus.waitingBond, _):
+        return [
+          bigButton(
+            label: l10n.payBondInvoiceTitle,
+            icon: Icons.shield_outlined,
+            onPressed: () =>
+                context.push(AppRoute.payBondInvoicePath(widget.orderId)),
           ),
         ];
       case (TradeStatus.active, true):

@@ -83,9 +83,14 @@ Pending
 └─→ CooperativelyCanceled (in mostro-core Status enum; set client-side via action notifications — the daemon does not send a status update for this transition)
 ```
 
-**15 mostro-core statuses**: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent,
+**16 client OrderStatus values**: Pending, WaitingBuyerInvoice, WaitingPayment, Active, FiatSent,
 SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, InProgress,
-SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired.
+SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired, WaitingTakerBond.
+
+`WaitingTakerBond` is the local state for a taker awaiting payment of the
+anti-abuse bond hold invoice on a bond-requiring node. The daemon never exposes
+it on the NIP-69 wire (it publishes as `Pending`); the client sets it from the
+`pay-bond-invoice` action. Maker-side `WaitingMakerBond` is out of scope (#191).
 
 ---
 
@@ -102,6 +107,8 @@ trade at a time (v2.0 scope constraint).
 | counterparty_pubkey | String | Other party's public key |
 | current_step | Enum | Current progress step (see below) |
 | hold_invoice | String? | Lightning hold invoice (bolt11) delivered by mostrod via a Kind 14 (NIP-44) message with `Action::PayInvoice` + `Payload::PaymentRequest`; persisted via `db.update_trade_fields` into `trades.data` (`$.hold_invoice`) so the pay-invoice UI can render the QR |
+| bond_invoice | String? | Anti-abuse bond hold invoice (bolt11) delivered with `Action::PayBondInvoice` + `Payload::PaymentRequest`; kept distinct from `hold_invoice` so the bond never collides with the trade's escrow hold invoice as the take resumes after the bond is paid |
+| bond_amount_sats | u64? | Sat amount of the bond hold invoice; kept apart from `order.amount_sats` so surfacing the bond figure never overwrites the trade amount |
 | buyer_invoice | String? | Buyer-provided invoice for sell orders |
 | trade_key_index | u32 | BIP-32 key index for this trade |
 | shared_key | String? | ECDH-derived key for P2P chat (hex) |

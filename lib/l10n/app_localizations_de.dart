@@ -232,8 +232,59 @@ class AppLocalizationsDe extends AppLocalizations {
   String get orderAlreadyTaken => 'Die Bestellung wurde bereits angenommen';
 
   @override
-  String get bondRequired =>
-      'Dieser Node verlangt eine Anti-Missbrauch-Kaution, die noch nicht unterstützt wird';
+  String get payBondInvoiceTitle => 'Anti-Missbrauchs-Kaution zahlen';
+
+  @override
+  String get payBondInvoiceInstruction =>
+      'Dieser Node verlangt eine Anti-Missbrauchs-Kaution. Zahle diese Lightning-Hold-Invoice, um die Order anzunehmen. Sie wird freigegeben, wenn der Handel regulär abgeschlossen wird.';
+
+  @override
+  String get tradeWaitingForBondInvoice => 'Warten auf die Kautionsrechnung...';
+
+  @override
+  String get leaveBondPaymentTitle => 'Kautionszahlung verlassen?';
+
+  @override
+  String get leaveBondPaymentContent =>
+      'Die Order bleibt reserviert, bis die Kaution abläuft. Du kannst sie später über den Handel bezahlen oder die Order jetzt ins Orderbuch zurückgeben.';
+
+  @override
+  String get keepPayingButton => 'Weiter bezahlen';
+
+  @override
+  String get leaveButton => 'Verlassen';
+
+  @override
+  String get releaseOrderButton => 'Order zurückgeben';
+
+  @override
+  String get leaveBondPaymentWaitingContent =>
+      'Die Kautionszahlung wird noch geklärt, daher kann die Order noch nicht ins Orderbuch zurückgegeben werden. Du kannst verlassen — der Handel bleibt in Meine Trades und du kannst zurückkehren.';
+
+  @override
+  String get keepWaitingButton => 'Weiter warten';
+
+  @override
+  String get bondPaymentNotPaidYet => 'Ich habe noch nicht bezahlt';
+
+  @override
+  String get bondInvoiceQrLabel =>
+      'QR-Code der Anti-Missbrauchs-Kautionsrechnung';
+
+  @override
+  String get tradeStatusWaitingBond => 'Warten auf Kaution';
+
+  @override
+  String get tradeHeadlineWaitingBond =>
+      'Zahle die Anti-Missbrauchs-Kaution, um diese Order anzunehmen.';
+
+  @override
+  String get tradeInstructionWaitingBond =>
+      'Zahle die Anti-Missbrauchs-Kautions-Hold-Invoice, um diese Order anzunehmen.';
+
+  @override
+  String get tradeTimerWaitingBondLabel =>
+      'Zeit zum Zahlen der Anti-Missbrauchs-Kaution';
 
   @override
   String get nodeProtocolUnsupported =>
@@ -649,6 +700,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get cancelTradeDialogContent =>
       'Kooperativen Abbruch angefragt. Die andere Partei muss ebenfalls zustimmen, damit der Handel vollständig abgebrochen wird.';
+
+  @override
+  String get cancelBondBackoutDialogContent =>
+      'Abbrechen und Auftrag zurück ins Orderbuch legen? Es wurde keine Kaution gezahlt, die Gegenpartei ist daher nicht betroffen.';
 
   @override
   String get noButtonLabel => 'Nein';

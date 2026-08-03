@@ -15,12 +15,16 @@ class NwcPaymentWidget extends StatefulWidget {
     required this.amountSats,
     required this.onPaymentSuccess,
     required this.onFallbackToManual,
+    this.onPaymentStarted,
   });
 
   final String bolt11;
   final int amountSats;
   final VoidCallback onPaymentSuccess;
   final VoidCallback onFallbackToManual;
+
+  /// Fired before the payment is dispatched, while the outcome is unknown.
+  final VoidCallback? onPaymentStarted;
 
   @override
   State<NwcPaymentWidget> createState() => _NwcPaymentWidgetState();
@@ -31,6 +35,7 @@ class _NwcPaymentWidgetState extends State<NwcPaymentWidget> {
 
   Future<void> _pay() async {
     setState(() => _paying = true);
+    widget.onPaymentStarted?.call();
     try {
       final result = await nwc_api.payInvoice(bolt11: widget.bolt11);
       if (!mounted) return;

@@ -74,6 +74,7 @@ void main() {
         OrderStatus.pending: TradeStatusFilter.pending,
         OrderStatus.waitingBuyerInvoice: TradeStatusFilter.waitingInvoice,
         OrderStatus.waitingPayment: TradeStatusFilter.waitingPayment,
+        OrderStatus.waitingTakerBond: TradeStatusFilter.waitingPayment,
         OrderStatus.active: TradeStatusFilter.active,
         OrderStatus.inProgress: TradeStatusFilter.active,
         OrderStatus.fiatSent: TradeStatusFilter.fiatSent,

@@ -3,6 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
 
+/// Seam over the Rust bridge: the accessors below are read through providers so
+/// tests can substitute them, since the bridge is uninitialised under
+/// `flutter test`.
+final bridgeListTradesProvider =
+    Provider<Future<List<TradeInfo>> Function()>((ref) => orders_api.listTrades);
+
+final bridgeGetOrderProvider = Provider<Future<OrderInfo?> Function(String)>(
+  (ref) => (orderId) => orders_api.getOrder(orderId: orderId),
+);
+
 /// Maps `orderId` → whether the local user is the buyer in that trade.
 ///
 /// Set this before navigating to [AddLightningInvoiceScreen] or
@@ -10,43 +20,61 @@ import 'package:mostro/src/rust/api/types.dart';
 final tradeRoleProvider =
     StateProvider<Map<String, bool>>((ref) => const {});
 
-/// Poll `getOrder()` every 2 s until `amountSats` is non-null, then stop.
+/// Poll every 2 s until the trade's `amountSats` is non-null, then stop.
 ///
-/// Returns `null` while waiting.  Useful for the add-invoice screen which
-/// needs the sats amount before it can submit a Lightning invoice.
+/// Sizes the buyer's add-invoice. A persisted trade row is authoritative: its
+/// amount is the daemon's calculated per-role sats, so keep polling until it
+/// arrives. The order book only answers when we follow no trade, since its
+/// amount is the coarse public 38383 figure — emitting that would stop the
+/// polling with the wrong invoice amount. See [tradeStatusProvider].
 final tradeAmountProvider =
     StreamProvider.family.autoDispose<BigInt?, String>((ref, orderId) async* {
+  final listTrades = ref.read(bridgeListTradesProvider);
+  final getOrder = ref.read(bridgeGetOrderProvider);
   while (true) {
-    final info = await orders_api.getOrder(orderId: orderId);
-    final sats = info?.amountSats;
-    yield sats;
-    if (sats != null) return; // done — no need to keep polling
+    try {
+      final trades = await listTrades();
+      final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+      final sats =
+          trade != null ? trade.order.amountSats : (await getOrder(orderId))?.amountSats;
+      yield sats;
+      if (sats != null) return; // done — no need to keep polling
+    } catch (e, st) {
+      debugPrint('[tradeAmountProvider] poll failed: $e\n$st');
+    }
     await Future.delayed(const Duration(seconds: 2));
   }
 });
 
-/// Live order status for a single trade, polled from the order book every 2 s.
+/// Live protocol status for a single tracked trade, polled every 2 s.
 ///
-/// Starts with an immediate fetch (no initial delay) so the first emission
-/// reflects the real relay status. When the order is no longer in the in-memory
-/// order book (e.g. after cancellation), falls back to the persisted trade DB
-/// so terminal statuses like Canceled are reflected in the UI.
+/// Prefers the persisted trade row over the in-memory order book: the book
+/// carries the daemon's coarse public NIP-69 status (Kind 38383), which
+/// collapses fine-grained states (e.g. `WaitingTakerBond` → `pending`,
+/// `WaitingBuyerInvoice`/`WaitingPayment` → `in-progress`), whereas the trade
+/// row holds the authoritative gift-wrap status. Falls back to the book only
+/// when no local trade row exists.
 final tradeStatusProvider =
     StreamProvider.family.autoDispose<OrderStatus, String>((ref, orderId) async* {
+  final listTrades = ref.read(bridgeListTradesProvider);
+  final getOrder = ref.read(bridgeGetOrderProvider);
   while (true) {
-    final info = await orders_api.getOrder(orderId: orderId);
-    if (info != null) {
-      yield info.status;
-      if (_isTerminal(info.status)) return;
-    } else {
-      // Order removed from in-memory book — check the persisted trade DB.
-      final trades = await orders_api.listTrades();
+    try {
+      final trades = await listTrades();
       final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
       if (trade != null) {
         yield trade.order.status;
-        // Terminal status — no need to keep polling.
         if (_isTerminal(trade.order.status)) return;
+      } else {
+        // No local trade row — fall back to the public order book.
+        final info = await getOrder(orderId);
+        if (info != null) {
+          yield info.status;
+          if (_isTerminal(info.status)) return;
+        }
       }
+    } catch (e, st) {
+      debugPrint('[tradeStatusProvider] poll failed: $e\n$st');
     }
     await Future.delayed(const Duration(seconds: 2));
   }
@@ -123,6 +151,26 @@ final tradeInfoStreamProvider =
       // Transient DB/bridge error — log and keep polling so the stream
       // stays subscribed across reconnects and brief failures.
       debugPrint('[tradeInfoStreamProvider] listTrades failed: $e\n$st');
+    }
+    await Future.delayed(const Duration(seconds: 1));
+  }
+});
+
+/// Poll `listTrades()` every 1 s until `bondInvoice` is non-null, then stop.
+///
+/// Used by [PayBondInvoiceScreen]; separate from [tradeInfoStreamProvider]
+/// (which keys on `holdInvoice`) because a taken bond order carries its invoice
+/// in `bondInvoice` and leaves `holdInvoice` null until it advances.
+final tradeBondInfoProvider =
+    StreamProvider.family.autoDispose<TradeInfo?, String>((ref, orderId) async* {
+  while (true) {
+    try {
+      final trades = await orders_api.listTrades();
+      final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+      yield trade;
+      if (trade?.bondInvoice != null) return;
+    } catch (e, st) {
+      debugPrint('[tradeBondInfoProvider] listTrades failed: $e\n$st');
     }
     await Future.delayed(const Duration(seconds: 1));
   }

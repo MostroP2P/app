@@ -35,6 +35,9 @@ pub enum OrderStatus {
     CompletedByAdmin,
     Dispute,
     InProgress,
+    /// Taker must pay the anti-abuse bond hold invoice before the trade
+    /// progresses. Maker-side bonds are out of scope (issue #191).
+    WaitingTakerBond,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -255,6 +258,15 @@ pub struct TradeInfo {
     pub counterparty_pubkey: String,
     pub current_step: TradeStep,
     pub hold_invoice: Option<String>,
+    /// Taker anti-abuse bond hold invoice, kept distinct from `hold_invoice` so
+    /// it never collides with the trade's escrow hold invoice past the bond.
+    /// `serde` default keeps pre-existing trade rows deserializable.
+    #[serde(default)]
+    pub bond_invoice: Option<String>,
+    /// Bond amount in sats, kept apart from `order.amount_sats` so the figure
+    /// shown on the bond screen never overwrites the trade amount.
+    #[serde(default)]
+    pub bond_amount_sats: Option<u64>,
     pub buyer_invoice: Option<String>,
     pub trade_key_index: u32,
     pub cooperative_cancel_state: Option<CooperativeCancelState>,
