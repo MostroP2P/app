@@ -1142,14 +1142,17 @@ pub async fn take_order(
     // receive status changes (pending → in-progress → waiting-payment …).
     subscribe_single_order(&order_id).await;
     // Create a session so the chat API can look up keys immediately.
-    let _ = crate::mostro::session::session_manager()
-        .create_session(
+    if let Err(e) = crate::mostro::session::session_manager()
+        .install_session(
             order_id.clone(),
             trade.role.clone(),
             trade_index,
             trade.order.clone(),
         )
-        .await;
+        .await
+    {
+        log::error!("[orders] no session for accepted take on order={order_id}: {e}");
+    }
 
     Ok(trade)
 }
@@ -1830,7 +1833,20 @@ async fn dispatch_mostro_message(
             log::info!("[orders] gift-wrap Canceled for trade={trade_pubkey_hex}");
             if let Some(order_id) = &kind.id {
                 let oid = order_id.to_string();
+                if !is_current_generation(&oid, trade_index).await {
+                    return;
+                }
                 order_book().remove_order(&oid).await;
+                // Read before the sync below overwrites it with Canceled.
+                let prev_status = match crate::db::app_db::db() {
+                    Some(db) => db
+                        .get_trade_by_order_id(&oid)
+                        .await
+                        .ok()
+                        .flatten()
+                        .map(|t| t.order.status),
+                    None => None,
+                };
                 // Sync the Canceled status into the trade DB so My Trades
                 // reflects the cancellation immediately.
                 if let Some(db) = crate::db::app_db::db() {
@@ -1846,6 +1862,7 @@ async fn dispatch_mostro_message(
                         log::warn!("[orders] failed to sync Canceled status for {oid}: {e}");
                     }
                 }
+                apply_cancel_cleanup(&oid, prev_status.as_ref(), trade_index).await;
             }
         }
         // Seller receives BuyerTookOrder → peer is buyer_trade_pubkey.
@@ -2116,6 +2133,9 @@ async fn dispatch_mostro_message(
                     return;
                 }
             };
+            if !is_current_generation(&order_id, trade_index).await {
+                return;
+            }
             let small_order = match &kind.payload {
                 Some(mostro_core::message::Payload::Order(so)) => so,
                 _ => {
@@ -2151,6 +2171,9 @@ async fn dispatch_mostro_message(
             log::info!(
                 "[orders] gift-wrap BondSlashed: order={order_id} amount={amount_sats} cause={cause:?}"
             );
+            crate::mostro::session::session_manager()
+                .resolve_deferred_removal(&order_id, trade_index)
+                .await;
             crate::api::bond::emit_bond_slashed(crate::api::types::BondSlashedEvent {
                 event_id: event_id.to_string(),
                 order_id,
@@ -2163,6 +2186,46 @@ async fn dispatch_mostro_message(
         }
         action => {
             log::debug!("[orders] gift-wrap unhandled action={action:?}");
+        }
+    }
+}
+
+/// Rejects a delivery addressed to a trade key the order has already moved on
+/// from. A retake reuses the order id under a new trade key, so a delayed
+/// `Canceled`/`BondSlashed` from the previous take would otherwise cancel the
+/// order book entry, the persisted trade, and the session of the fresh one.
+async fn is_current_generation(order_id: &str, trade_index: u32) -> bool {
+    let current = crate::mostro::session::session_manager()
+        .is_current_generation(order_id, trade_index)
+        .await;
+    if !current {
+        log::info!(
+            "[orders] gift-wrap for superseded trade key idx={trade_index} on order={order_id}, ignoring"
+        );
+    }
+    current
+}
+
+/// A cancel that may be followed by a `bond-slashed` keeps its session alive
+/// for the grace period, so the trailing notice still decrypts.
+async fn apply_cancel_cleanup(
+    order_id: &str,
+    prev_status: Option<&OrderStatus>,
+    trade_index: u32,
+) {
+    use crate::mostro::session::{
+        cancel_cleanup, defer_session_removal, session_manager, CancelCleanup,
+        BOND_SLASH_GRACE_SECS,
+    };
+    match cancel_cleanup(prev_status) {
+        CancelCleanup::Keep => {}
+        CancelCleanup::Immediate => {
+            session_manager()
+                .remove_session_if_current(order_id, trade_index)
+                .await
+        }
+        CancelCleanup::Defer => {
+            defer_session_removal(order_id.to_string(), trade_index, BOND_SLASH_GRACE_SECS).await;
         }
     }
 }
@@ -3729,6 +3792,89 @@ mod tests {
         assert!(session.shared_key.is_none());
     }
 
+    // ── Cancel cleanup ────────────────────────────────────────────────────────
+
+    /// Trade key indices for the take that gets canceled and a later retake.
+    const TAKE: u32 = 0;
+    const RETAKE: u32 = 7;
+
+    async fn session_for_cleanup() -> String {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        session_manager()
+            .create_session(
+                order_id.clone(),
+                TradeRole::Buyer,
+                TAKE,
+                dummy_order_info(&order_id),
+            )
+            .await
+            .expect("create_session");
+        order_id
+    }
+
+    #[tokio::test]
+    async fn a_committed_cancel_keeps_the_session_for_the_slash_notice() {
+        let order_id = session_for_cleanup().await;
+
+        apply_cancel_cleanup(&order_id, Some(&OrderStatus::WaitingBuyerInvoice), TAKE).await;
+
+        assert!(session_manager().get_session(&order_id).await.is_some());
+    }
+
+    #[tokio::test]
+    async fn a_pending_cancel_drops_the_session_at_once() {
+        let order_id = session_for_cleanup().await;
+
+        apply_cancel_cleanup(&order_id, Some(&OrderStatus::Pending), TAKE).await;
+
+        assert!(session_manager().get_session(&order_id).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_disputed_cancel_keeps_the_session_for_the_admin_chat() {
+        let order_id = session_for_cleanup().await;
+
+        apply_cancel_cleanup(&order_id, Some(&OrderStatus::Dispute), TAKE).await;
+
+        assert!(session_manager().get_session(&order_id).await.is_some());
+    }
+
+    #[tokio::test]
+    async fn a_trailing_bond_slashed_settles_the_deferred_session() {
+        let order_id = session_for_cleanup().await;
+
+        apply_cancel_cleanup(&order_id, Some(&OrderStatus::WaitingPayment), TAKE).await;
+        assert!(session_manager().get_session(&order_id).await.is_some());
+
+        assert!(
+            session_manager()
+                .resolve_deferred_removal(&order_id, TAKE)
+                .await,
+            "the cancel must have left a deferred removal for the notice to settle"
+        );
+        assert!(session_manager().get_session(&order_id).await.is_none());
+    }
+
+    /// The dispatcher gate: a delivery to a superseded trade key must not reach
+    /// the order book, the persisted trade, or the session.
+    #[tokio::test]
+    async fn a_delivery_to_a_superseded_trade_key_is_rejected() {
+        let order_id = session_for_cleanup().await;
+
+        assert!(is_current_generation(&order_id, TAKE).await);
+        assert!(!is_current_generation(&order_id, RETAKE).await);
+    }
+
+    /// A cancel that survived the gate still cannot claim another generation.
+    #[tokio::test]
+    async fn a_cancel_cleanup_spares_a_session_of_another_generation() {
+        let order_id = session_for_cleanup().await;
+
+        apply_cancel_cleanup(&order_id, Some(&OrderStatus::Pending), RETAKE).await;
+
+        assert!(session_manager().get_session(&order_id).await.is_some());
+    }
+
     // ── Peer-pubkey resolution ────────────────────────────────────────────────
 
     /// on_peer_pubkey_received with no session for the order is a graceful no-op.
@@ -3790,6 +3936,154 @@ mod tests {
 
         // Clean up the leftover non-restore record so we don't leak global state.
         let _ = remove_pending_request(&other_key, 9);
+    }
+
+    // ── Dispatcher: canceled → bond-slashed ───────────────────────────────────
+
+    /// A daemon message as `dispatch_mostro_message` receives it, already
+    /// unwrapped. Authored by the active Mostro pubkey so it clears the
+    /// daemon-auth gate.
+    fn daemon_message(
+        action: mostro_core::message::Action,
+        order_id: uuid::Uuid,
+        payload: Option<mostro_core::message::Payload>,
+    ) -> mostro_core::nip59::UnwrappedMessage {
+        let sender = nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
+            .expect("active mostro pubkey");
+        mostro_core::nip59::UnwrappedMessage {
+            message: mostro_core::message::Message::new_order(
+                Some(order_id),
+                None,
+                None,
+                action,
+                payload,
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::Timestamp::now(),
+        }
+    }
+
+    /// The `bond-slashed` payload: a bond-sized amount and a null status.
+    fn slashed_bond_payload(
+        order_id: uuid::Uuid,
+        amount_sats: i64,
+    ) -> mostro_core::message::Payload {
+        mostro_core::message::Payload::Order(mostro_core::order::SmallOrder {
+            id: Some(order_id),
+            kind: None,
+            status: None,
+            amount: amount_sats,
+            fiat_code: "USD".to_string(),
+            min_amount: None,
+            max_amount: None,
+            fiat_amount: 100,
+            payment_method: "Bank".to_string(),
+            premium: 0,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            buyer_invoice: None,
+            created_at: None,
+            expires_at: None,
+        })
+    }
+
+    /// The sequence #197 is about, driven through the real dispatcher: the
+    /// session survives `canceled` so the trailing `bond-slashed` is still
+    /// handled, and the notice reaches the Dart-facing stream.
+    #[tokio::test]
+    async fn a_canceled_then_bond_slashed_sequence_is_handled_end_to_end() {
+        let order_id = uuid::Uuid::new_v4();
+        let oid = order_id.to_string();
+        let trade_pubkey = nostr_sdk::Keys::generate().public_key().to_hex();
+        session_manager()
+            .create_session(oid.clone(), TradeRole::Buyer, TAKE, dummy_order_info(&oid))
+            .await
+            .expect("create_session");
+
+        let mut notices = crate::api::bond::on_bond_slashed();
+
+        dispatch_mostro_message(
+            daemon_message(mostro_core::message::Action::Canceled, order_id, None),
+            "cancel-event",
+            &trade_pubkey,
+            TAKE,
+        )
+        .await;
+        assert!(
+            session_manager().get_session(&oid).await.is_some(),
+            "the cancel must not drop the session while a slash may still trail it"
+        );
+
+        dispatch_mostro_message(
+            daemon_message(
+                mostro_core::message::Action::BondSlashed,
+                order_id,
+                Some(slashed_bond_payload(order_id, 21_000)),
+            ),
+            "slash-event",
+            &trade_pubkey,
+            TAKE,
+        )
+        .await;
+
+        let notice = await_bond_slashed(&mut notices, &oid).await;
+        assert_eq!(notice.amount_sats, 21_000);
+        assert!(
+            session_manager().get_session(&oid).await.is_none(),
+            "the notice settles the deferral"
+        );
+    }
+
+    /// A `canceled` delivered to the previous take's trade key must not reach
+    /// the order book entry or the session of the retake that replaced it.
+    #[tokio::test]
+    async fn a_canceled_from_a_superseded_trade_key_leaves_the_retake_alone() {
+        let order_id = uuid::Uuid::new_v4();
+        let oid = order_id.to_string();
+        let trade_pubkey = nostr_sdk::Keys::generate().public_key().to_hex();
+        session_manager()
+            .create_session(oid.clone(), TradeRole::Seller, RETAKE, dummy_order_info(&oid))
+            .await
+            .expect("create_session");
+        order_book().upsert_order(dummy_order_info(&oid)).await;
+
+        dispatch_mostro_message(
+            daemon_message(mostro_core::message::Action::Canceled, order_id, None),
+            "cancel-event",
+            &trade_pubkey,
+            TAKE,
+        )
+        .await;
+
+        assert!(
+            order_book().get_order(&oid).await.is_some(),
+            "an old key's cancel must not remove the retake's order book entry"
+        );
+        assert!(
+            session_manager().get_session(&oid).await.is_some(),
+            "nor arm a deferral against its session"
+        );
+    }
+
+    /// Reads from the shared broadcast until the notice for `order_id` shows up,
+    /// so a concurrent test's notice cannot be mistaken for this one.
+    async fn await_bond_slashed(
+        stream: &mut crate::api::bond::BondSlashedStream,
+        order_id: &str,
+    ) -> crate::api::types::BondSlashedEvent {
+        let deadline = std::time::Duration::from_secs(5);
+        tokio::time::timeout(deadline, async {
+            loop {
+                let event = stream.next().await.expect("bond-slashed stream");
+                if event.order_id == order_id {
+                    return event;
+                }
+            }
+        })
+        .await
+        .expect("bond-slashed notice never arrived")
     }
 }
 
