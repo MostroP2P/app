@@ -399,6 +399,83 @@ async fn derive_trade_key_with<S: Storage>(
     })
 }
 
+/// Raise `trade_key_index` to at least `floor`, never lowering it (#217).
+///
+/// A restore recovers trades that already occupy trade-key indexes; without
+/// this, the next `derive_trade_key()` would hand out an index a recovered
+/// trade already owns — reusing a key the daemon has bound. The bump is
+/// monotonic: a stale or partial `RestoreData`, or one that arrives after the
+/// counter has already advanced, must never rewind it. Idempotent — applying
+/// the same recovered set twice changes nothing.
+///
+/// Persisted under the same discipline as `derive_trade_key`: if the counter
+/// moves, the write must succeed or the call fails, so the advance is durable
+/// (a bumped-but-unpersisted counter would regress on the next restart).
+pub(crate) async fn ensure_trade_key_index_at_least(floor: u32) -> Result<()> {
+    let db = crate::db::app_db::db();
+    // Same durable-storage precondition as derive_trade_key: on native, refuse
+    // to advance the counter when there is no store, because the _with core
+    // would otherwise bump and publish the raised index WITHOUT persisting it
+    // (the `if let Some(db)` save is skipped) — and publication is best-effort,
+    // so a session loss would reload a stale pre-resync index and reopen the
+    // key-reuse bug this closes (#249).
+    #[cfg(not(target_arch = "wasm32"))]
+    require_durable_storage(db)?;
+    // Web is exempt for the same reason derive_trade_key is: `init_db` is never
+    // called there and IndexedDB has no save_identity yet, so the published
+    // index is web's durable record via the Flutter mirror until #233 lands.
+    #[cfg(target_arch = "wasm32")]
+    if db.is_none() {
+        log::warn!(
+            "[identity] no local store on web — the resynced trade-key counter              is durable only through the Flutter mirror"
+        );
+    }
+    ensure_trade_key_index_at_least_with(db, trade_key_index_tx(), floor).await
+}
+
+/// Testable core of [`ensure_trade_key_index_at_least`]: takes an explicit store
+/// and publish channel so tests can inject a failing store and a private channel,
+/// mirroring `derive_trade_key` / `derive_trade_key_with`.
+async fn ensure_trade_key_index_at_least_with<S: Storage>(
+    db: Option<&S>,
+    tx: &broadcast::Sender<u32>,
+    floor: u32,
+) -> Result<()> {
+    let mut guard = identity_lock().write().await;
+    let state = guard.as_mut().ok_or_else(|| anyhow!("NoIdentity"))?;
+    let current = state.identity_info.trade_key_index;
+    let raised = current.max(floor);
+    if raised == current {
+        // Already ahead of (or level with) the recovered set — no-op, no write.
+        return Ok(());
+    }
+    state.identity_info.trade_key_index = raised;
+    if let Some(db) = db {
+        if let Err(e) = db.save_identity(&state.identity_info).await {
+            // Roll back the in-memory bump on a failed persist. Without this, a
+            // retried restore with the same floor would see `raised == current`,
+            // take the no-op short-circuit above, and return Ok(()) WITHOUT ever
+            // re-attempting the write — silently leaving the durable counter
+            // un-raised and reopening the key-reuse bug this closes. (Unlike
+            // derive_trade_key_with, which safely keeps its forward mutation
+            // because it has no idempotency short-circuit to defeat.)
+            state.identity_info.trade_key_index = current;
+            return Err(anyhow!(
+                "StorageError: failed to persist resynced trade_key_index {raised}: {e}"
+            ));
+        }
+    }
+    // Only after the primary record is durable: mirror to secure storage the
+    // same way derive_trade_key_with does, so a later loss of mostro.db still
+    // reloads the resynced counter rather than a stale pre-restore index (#249).
+    publish_index(tx, raised);
+    crate::api::logging::blog_info(
+        "restore",
+        format!("trade_key_index resynced {current} -> {raised} from recovered trades"),
+    );
+    Ok(())
+}
+
 /// Re-derive an existing trade key by index.
 pub async fn get_trade_key(index: u32) -> Result<TradeKeyInfo> {
     let guard = identity_lock().read().await;
@@ -706,6 +783,33 @@ mod tests {
 
         let current = get_identity().await.unwrap().unwrap();
         assert_eq!(current.trade_key_index, 22);
+
+        // #217 resync — asserted here (not a separate #[tokio::test]) so it
+        // shares the single identity_lock lifecycle and can't race it. Uses the
+        // `_with` core so publications land on this test's private channel.
+        // Never lowers: a floor below current is a no-op — no write, no publish.
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10).await.unwrap();
+        assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 22);
+        assert!(
+            published.rx.try_recv().is_err(),
+            "a no-op resync must not publish",
+        );
+        // Raises to the recovered max, persists, and publishes to the mirror.
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        assert_eq!(published.next().await.unwrap(), 50);
+        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        // Idempotent: the same floor again changes nothing and publishes nothing.
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        assert!(
+            published.rx.try_recv().is_err(),
+            "an idempotent resync must not publish again",
+        );
+        // Regression (the bug #217 fixes): the next derived key is FRESH —
+        // index 51, past every recovered trade — not a reused recovered index.
+        let after = derive_trade_key_with(Some(&db), &tx).await.unwrap();
+        assert_eq!(after.index, 51);
 
         crate::api::logging::forward_log(log::Level::Info, "identity_probe", "before delete");
 

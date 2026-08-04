@@ -3071,6 +3071,35 @@ pub async fn get_trade_role(order_id: String) -> Result<Option<crate::api::types
     }
 }
 
+/// Highest trade-key index across all recovered orders and disputes (#217).
+///
+/// The counter must be raised to this so the next `derive_trade_key()` cannot
+/// hand out an index a recovered trade already owns. Returns `None` when the
+/// restore carried no trades (nothing to resync to). Indexes are `i64` on the
+/// wire; a value that is negative or beyond `u32::MAX` is not a real trade
+/// index, so it is dropped rather than truncated into the counter.
+fn recovered_max_trade_index(
+    info: &mostro_core::message::RestoreSessionInfo,
+) -> Option<u32> {
+    info.restore_orders
+        .iter()
+        .map(|o| o.trade_index)
+        .chain(info.restore_disputes.iter().map(|d| d.trade_index))
+        // `filter_map` with `try_from` drops both negatives and any value
+        // beyond `u32::MAX` — neither is a real trade index, and truncating
+        // one into a small `u32` could corrupt the counter this exists to
+        // protect. `u32::MAX` itself is also dropped: it is reserved as the
+        // terminal index, because storing it as the counter would make the
+        // next `derive_trade_key` compute `u32::MAX + 1` and overflow (panic
+        // in debug, wrap to 0 in release — reissuing index 0, the exact
+        // key-reuse this resync prevents). 4 billion trades is not reachable
+        // in practice, but the floor must never be a value the counter cannot
+        // advance past.
+        .filter_map(|i| u32::try_from(i).ok())
+        .filter(|&i| i < u32::MAX)
+        .max()
+}
+
 /// Send a `RestoreSession` to the active daemon and return the user's active
 /// trades/disputes. Mirrors create_order's send/await, minus the order payload.
 ///
@@ -3143,7 +3172,18 @@ pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInf
     }
 
     match confirmation {
-        Ok(Ok(DaemonReply::Restored(info))) => Ok(info),
+        Ok(Ok(DaemonReply::Restored(info))) => {
+            // #217: raise trade_key_index past every recovered trade before
+            // returning, so the next derive_trade_key() can't reuse a key a
+            // recovered trade already owns. Monotonic and idempotent. A persist
+            // failure fails the restore: an un-resynced counter reopens the
+            // key-reuse bug this closes, so silent success would be worse than
+            // a surfaced error the caller can retry.
+            if let Some(floor) = recovered_max_trade_index(&info) {
+                crate::api::identity::ensure_trade_key_index_at_least(floor).await?;
+            }
+            Ok(info)
+        }
         Ok(Ok(DaemonReply::Rejected { reason, message })) => {
             crate::api::logging::blog_warn("orders", format!(
                 "restore_session rejected: {reason} — {message}"
@@ -3187,6 +3227,55 @@ mod tests {
         );
     }
 
+    // ── #217 recovered_max_trade_index ────────────────────────────────────────
+    fn restored_order(trade_index: i64) -> mostro_core::message::RestoredOrdersInfo {
+        mostro_core::message::RestoredOrdersInfo {
+            order_id: uuid::Uuid::new_v4(),
+            trade_index,
+            status: "active".to_string(),
+        }
+    }
+
+    fn restored_dispute(trade_index: i64) -> mostro_core::message::RestoredDisputesInfo {
+        mostro_core::message::RestoredDisputesInfo {
+            dispute_id: uuid::Uuid::new_v4(),
+            order_id: uuid::Uuid::new_v4(),
+            trade_index,
+            status: "initiated".to_string(),
+            initiator: None,
+            solver_pubkey: None,
+        }
+    }
+
+    fn restore_info(
+        orders: Vec<i64>,
+        disputes: Vec<i64>,
+    ) -> mostro_core::message::RestoreSessionInfo {
+        mostro_core::message::RestoreSessionInfo {
+            restore_orders: orders.into_iter().map(restored_order).collect(),
+            restore_disputes: disputes.into_iter().map(restored_dispute).collect(),
+        }
+    }
+
+    #[test]
+    fn recovered_max_is_none_when_nothing_was_restored() {
+        assert_eq!(recovered_max_trade_index(&restore_info(vec![], vec![])), None);
+    }
+
+    #[test]
+    fn recovered_max_spans_orders_and_disputes() {
+        // Max lives in disputes here — the fn must consider both collections.
+        assert_eq!(
+            recovered_max_trade_index(&restore_info(vec![3, 7], vec![12, 5])),
+            Some(12)
+        );
+        // ...and the other way round.
+        assert_eq!(
+            recovered_max_trade_index(&restore_info(vec![40, 9], vec![2])),
+            Some(40)
+        );
+    }
+
     #[test]
     fn a_dispute_message_without_a_peer_payload_yields_no_solver() {
         use mostro_core::message::Payload;
@@ -3196,6 +3285,38 @@ mod tests {
         // the wrong party.
         assert_eq!(admin_pubkey_from_payload(None), None);
         assert_eq!(admin_pubkey_from_payload(Some(&Payload::Amount(42))), None);
+    }
+
+    #[test]
+    fn recovered_max_drops_negative_and_out_of_range_indexes() {
+        // A negative index is not a real trade index — dropped, not counted.
+        assert_eq!(
+            recovered_max_trade_index(&restore_info(vec![-1, 8], vec![-99])),
+            Some(8)
+        );
+        // Beyond u32::MAX: dropped rather than truncated into a small counter.
+        let huge = i64::from(u32::MAX) + 1;
+        assert_eq!(
+            recovered_max_trade_index(&restore_info(vec![huge, 4], vec![])),
+            Some(4)
+        );
+        // u32::MAX itself is dropped — reserved as the terminal index, since
+        // storing it would make the next derive_trade_key overflow on +1.
+        let terminal = i64::from(u32::MAX);
+        assert_eq!(
+            recovered_max_trade_index(&restore_info(vec![terminal, 4], vec![])),
+            Some(4)
+        );
+        // Only u32::MAX present -> None (no safe floor to resync to).
+        assert_eq!(
+            recovered_max_trade_index(&restore_info(vec![terminal], vec![])),
+            None
+        );
+        // All invalid -> None (nothing safe to resync to).
+        assert_eq!(
+            recovered_max_trade_index(&restore_info(vec![-1], vec![huge])),
+            None
+        );
     }
 
     fn insert_pending_create(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonReply> {
