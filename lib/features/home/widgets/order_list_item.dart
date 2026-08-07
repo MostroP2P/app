@@ -114,30 +114,38 @@ class OrderListItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Row 1: reason pill (+ "yours" pill) · relative timestamp
+                // Row 1: reason pill (+ "yours" pill) · relative timestamp.
+                // Pills keep their intrinsic width and wrap to a second run
+                // when they don't fit beside the timestamp — shrinking them
+                // ellipsized the labels on small phones ("ESTÁS COMP…").
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (reasonLabel != null) ...[
-                      Flexible(
-                        child: _Pill(
-                          label: reasonLabel,
-                          color: reasonColor!,
-                          background: reasonBg!,
-                        ),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          // Own-order pill first: on an own order it must
+                          // always be readable, so the reason badge is the
+                          // one that drops to the next run when they don't
+                          // fit together.
+                          if (mineLabel != null)
+                            _Pill(
+                              label: mineLabel,
+                              color: pal.textSecondary,
+                              background: pal.bgElevated,
+                            ),
+                          if (reasonLabel != null)
+                            _Pill(
+                              label: reasonLabel,
+                              color: reasonColor!,
+                              background: reasonBg!,
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                    ],
-                    if (mineLabel != null) ...[
-                      Flexible(
-                        child: _Pill(
-                          label: mineLabel,
-                          color: pal.textSecondary,
-                          background: pal.bgElevated,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    const Spacer(),
+                    ),
+                    const SizedBox(width: 6),
                     Text(
                       _relativeTime(order.createdAt, l10n),
                       style: TextStyle(fontSize: 11, color: pal.textTertiary),
