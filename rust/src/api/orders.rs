@@ -30,7 +30,7 @@ fn trade_key_map() -> &'static std::sync::RwLock<HashMap<String, u32>> {
 // ── Pending daemon-request bookkeeping ───────────────────────────────────────
 
 /// Result sent by the gift-wrap handler to the waiting request caller.
-enum DaemonReply {
+pub(crate) enum DaemonReply {
     /// Daemon accepted the order and assigned a UUID (create flow).
     Confirmed { daemon_id: String },
     /// Daemon accepted the take (take flow). Unlike a create, the take's
@@ -51,6 +51,11 @@ enum DaemonReply {
     /// update processed by the per-action arms; the caller only needs the
     /// unblock, so no data travels with it.
     Acknowledged,
+    /// Daemon accepted the dispute and assigned it a UUID. That id — not a
+    /// locally minted one — is what the solver and the daemon's Kind 38386
+    /// dispute event refer to, so it travels with the reply. `None` when the
+    /// acceptance carried no dispute payload.
+    DisputeAccepted { dispute_id: Option<String> },
     /// Daemon rejected the request with a CantDo reason.
     Rejected { reason: String, message: String },
     /// Daemon replied to a RestoreSession with the user's active trades and
@@ -80,6 +85,8 @@ enum PendingRequestKind {
     /// by trade pubkey, not request_id (the RestoreSession message carries
     /// no request_id — see mostro-core Message::new_restore).
     Restore,
+    /// An open-dispute awaiting the daemon's `DisputeInitiatedByYou`.
+    Dispute,
 }
 
 /// Everything one outgoing daemon request needs tracked until its reply is
@@ -190,7 +197,7 @@ fn take_pending_create_by_content_key(content_key: &str) -> Option<PendingReques
 /// The nonce gate matters for same-key overlaps: `send_invoice` reuses the
 /// take's trade key, so a newer attempt may have overwritten this record —
 /// a timed-out older attempt must not detach the newer attempt's live waiter.
-fn detach_request_waiter(trade_pubkey_hex: &str, request_id: u64) {
+pub(crate) fn detach_request_waiter(trade_pubkey_hex: &str, request_id: u64) {
     if let Ok(mut m) = pending_requests().lock() {
         if let Some(p) = m.get_mut(trade_pubkey_hex) {
             if p.request_id == request_id {
@@ -203,7 +210,7 @@ fn detach_request_waiter(trade_pubkey_hex: &str, request_id: u64) {
 /// Drop the pending request for `trade_pubkey_hex` — but only when
 /// `request_id` still identifies this caller's own attempt (publish failure
 /// rollback). Same same-key overlap rationale as [`detach_request_waiter`].
-fn remove_pending_request(trade_pubkey_hex: &str, request_id: u64) {
+pub(crate) fn remove_pending_request(trade_pubkey_hex: &str, request_id: u64) {
     if let Ok(mut m) = pending_requests().lock() {
         if m.get(trade_pubkey_hex).is_some_and(|p| p.request_id == request_id) {
             m.remove(trade_pubkey_hex);
@@ -266,6 +273,50 @@ fn take_matching_add_invoice(trade_pubkey_hex: &str, got: Option<u64>) -> Option
         }
         _ => None,
     }
+}
+
+/// Remove and return the pending request for `trade_pubkey_hex` only when it
+/// is a `Dispute` and `got` echoes its nonce. Like an add-invoice, the
+/// consumed message is also a status update, so it still flows through the
+/// per-action arms (see `dispatch_mostro_message`).
+fn take_matching_dispute(trade_pubkey_hex: &str, got: Option<u64>) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(p)
+            if request_id_matches(p.request_id, got)
+                && matches!(p.kind, PendingRequestKind::Dispute) =>
+        {
+            map.remove(trade_pubkey_hex)
+        }
+        _ => None,
+    }
+}
+
+/// Register an open-dispute as the pending request for `trade_pubkey_hex` and
+/// return the channel its reply arrives on.
+///
+/// Lives here because the pending map and its nonce gate are the dispatcher's;
+/// `disputes::open_dispute` drives the publish and the wait, and cleans up
+/// through [`remove_pending_request`] (publish failed) or
+/// [`detach_request_waiter`] (timed out).
+pub(crate) fn register_dispute_request(
+    trade_pubkey_hex: String,
+    request_id: u64,
+    trade_index: u32,
+) -> tokio::sync::oneshot::Receiver<DaemonReply> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    if let Ok(mut map) = pending_requests().lock() {
+        map.insert(
+            trade_pubkey_hex,
+            PendingRequest {
+                request_id,
+                trade_index,
+                kind: PendingRequestKind::Dispute,
+                tx: Some(tx),
+            },
+        );
+    }
+    rx
 }
 
 /// Classify the daemon's first reply to a take into a [`DaemonReply`].
@@ -1755,6 +1806,48 @@ async fn dispatch_mostro_message(
                     kind.action,
                     &trade_pubkey_hex[..8]
                 ));
+            }
+        }
+
+        // A dispute's only success reply is DisputeInitiatedByYou, so the arm
+        // gates on that action as well as on the nonce — anything else leaves
+        // the record for the genuine reply rather than unblocking the caller
+        // on a message that is not an acceptance. Falls through like an
+        // add-invoice: the reply is also the status update that moves the
+        // order to Dispute.
+        //
+        // DisputeInitiatedByPeer echoes the same nonce but the daemon
+        // addresses it to the counterparty's trade key, which has no pending
+        // record of ours (mostro src/app/dispute.rs, notify_dispute_to_users).
+        if kind.action == Action::DisputeInitiatedByYou {
+            if let Some(pending) = take_matching_dispute(trade_pubkey_hex, kind.request_id) {
+                if let Some(tx) = pending.tx {
+                    crate::api::logging::blog_info("gift-wrap", format!(
+                        "DisputeInitiatedByYou: accepted waiting open_dispute for trade={}",
+                        &trade_pubkey_hex[..8]
+                    ));
+                    let _ = tx.send(DaemonReply::DisputeAccepted {
+                        dispute_id: dispute_id_from_payload(kind.payload.as_ref()),
+                    });
+                } else {
+                    // Genuine acceptance after the 10s timeout: the caller
+                    // already returned NoDaemonResponse and persisted no
+                    // dispute. Record it now — the status arm below moves the
+                    // trade to Dispute regardless, and a disputed trade with
+                    // no dispute record has no solver to reach (PR #275
+                    // review).
+                    crate::api::logging::blog_warn("gift-wrap", format!(
+                        "DisputeInitiatedByYou: late acceptance for timed-out open_dispute on trade={}",
+                        &trade_pubkey_hex[..8]
+                    ));
+                    if let Some(order_id) = kind.id.map(|id| id.to_string()) {
+                        crate::api::disputes::record_late_acceptance(
+                            &order_id,
+                            dispute_id_from_payload(kind.payload.as_ref()),
+                        )
+                        .await;
+                    }
+                }
             }
         }
     }
@@ -3309,6 +3402,17 @@ fn admin_pubkey_from_payload(
     }
 }
 
+/// The daemon's dispute UUID out of a `Dispute` payload.
+fn dispute_id_from_payload(
+    payload: Option<&mostro_core::message::Payload>,
+) -> Option<String> {
+    use mostro_core::message::Payload;
+    match payload {
+        Some(Payload::Dispute(id, _)) => Some(id.to_string()),
+        _ => None,
+    }
+}
+
 /// Parse a Kind 38383 event and upsert it into the order book, applying
 /// maker-order reconciliation (is_mine detection, local→daemon id bridging,
 /// trade-status sync).
@@ -3853,6 +3957,22 @@ mod tests {
         assert_eq!(admin_pubkey_from_payload(Some(&Payload::Amount(42))), None);
     }
 
+    #[test]
+    fn the_daemon_dispute_id_is_read_from_a_dispute_payload() {
+        use mostro_core::message::Payload;
+
+        let id = uuid::Uuid::new_v4();
+        assert_eq!(
+            dispute_id_from_payload(Some(&Payload::Dispute(id, None))).as_deref(),
+            Some(id.to_string().as_str())
+        );
+
+        // An acceptance carrying no dispute payload leaves the id unknown
+        // rather than inventing one — open_dispute falls back to a local uuid.
+        assert_eq!(dispute_id_from_payload(None), None);
+        assert_eq!(dispute_id_from_payload(Some(&Payload::Amount(42))), None);
+    }
+
     fn insert_pending_create(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonReply> {
         let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
         pending_requests().lock().unwrap().insert(
@@ -4050,6 +4170,56 @@ mod tests {
         assert!(!pending_requests().lock().unwrap().contains_key(ai_key));
 
         pending_requests().lock().unwrap().remove(take_key);
+    }
+
+    /// `take_matching_dispute` mirrors the take rules for its own kind: only
+    /// Dispute records, only with the exact nonce.
+    #[tokio::test]
+    async fn take_matching_dispute_only_consumes_dispute_records() {
+        let take_key = "test-dispute-take-pubkey";
+        let dispute_key = "test-dispute-dispute-pubkey";
+        let _rx_t = insert_pending_take(take_key, 71);
+        let _rx_d = register_dispute_request(dispute_key.to_string(), 72, 5);
+
+        // A Take record is never consumed here, even with its exact nonce.
+        assert!(take_matching_dispute(take_key, Some(71)).is_none());
+        assert!(pending_requests().lock().unwrap().contains_key(take_key));
+
+        assert!(take_matching_dispute(dispute_key, None).is_none());
+        assert!(take_matching_dispute(dispute_key, Some(99)).is_none());
+        let pending = take_matching_dispute(dispute_key, Some(72)).expect("must match");
+        assert!(matches!(pending.kind, PendingRequestKind::Dispute));
+        assert_eq!(pending.trade_index, 5);
+        assert!(!pending_requests().lock().unwrap().contains_key(dispute_key));
+
+        pending_requests().lock().unwrap().remove(take_key);
+    }
+
+    /// #202: the CantDo arm resolves whatever request the nonce identifies, so
+    /// a registered dispute is rejected through the same path as any other
+    /// request. Before the dispute registered one, its rejection matched no
+    /// pending request and was dropped — leaving a local dispute Open forever.
+    #[tokio::test]
+    async fn a_cantdo_rejection_reaches_the_waiting_open_dispute() {
+        let key = "test-dispute-cantdo-pubkey";
+        let mut rx = register_dispute_request(key.to_string(), 73, 6);
+
+        // Exactly what the Action::CantDo arm does to find its caller.
+        let pending = take_matching_restore(key)
+            .or_else(|| take_matching_request(key, Some(73)))
+            .expect("the rejection must find the dispute record");
+        assert!(matches!(pending.kind, PendingRequestKind::Dispute));
+
+        let sent = pending
+            .tx
+            .expect("the waiter is still attached")
+            .send(DaemonReply::Rejected {
+                reason: "NotAllowedByStatus".to_string(),
+                message: "rejected".to_string(),
+            });
+        assert!(sent.is_ok(), "the caller must still be listening");
+
+        assert!(matches!(rx.try_recv(), Ok(DaemonReply::Rejected { .. })));
     }
 
     /// Same-key overlap (send_invoice reuses the take's trade key): a newer

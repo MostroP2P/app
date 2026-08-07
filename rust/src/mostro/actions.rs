@@ -196,22 +196,29 @@ pub async fn cancel(
 }
 
 /// Build and wrap a Dispute MostroMessage.
+///
+/// `request_id` is the correlation nonce the daemon echoes in its reply
+/// (`DisputeInitiatedByYou` or `CantDo`); `open_dispute` relies on it to tell
+/// the genuine reply apart from stale relay-replayed events. This is why the
+/// message is built here instead of through `simple_action`, which sends no
+/// nonce.
 pub async fn dispute(
     identity_keys: &Keys,
     trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    request_id: u64,
 ) -> Result<String> {
-    simple_action(
-        identity_keys,
-        trade_keys,
-        mostro_pubkey,
-        order_id,
-        trade_index,
+    let id = Uuid::parse_str(order_id)?;
+    let msg = Message::new_order(
+        Some(id),
+        Some(request_id),
+        Some(trade_index as i64),
         Action::Dispute,
-    )
-    .await
+        None,
+    );
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap a RateUser MostroMessage.

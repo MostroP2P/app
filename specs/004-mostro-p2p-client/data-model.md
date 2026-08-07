@@ -191,7 +191,7 @@ An exception flow on an active trade.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| id | UUID | Primary key |
+| id | UUID | Primary key — the daemon's dispute id when we opened it (see below) |
 | trade_id | UUID | FK → Trade |
 | initiated_by | Enum | `Me` or `Counterparty` |
 | reason | String? | Optional reason text |
@@ -204,6 +204,13 @@ An exception flow on an active trade.
 - A dispute can only be opened on a trade with `current_step` between
   `PaymentLocked` and `AwaitingRelease`/`AwaitingFiat`.
 - Only one open dispute per trade.
+
+**On `id`**: for a dispute we opened, this is the UUID the daemon assigned and
+returned in its acceptance — the same id its Kind 38386 dispute event and the
+solver use. A record created for a **peer-opened** dispute (built from
+`admin-took-dispute`, which is the first the counterparty hears of it) still
+gets a locally minted UUID, so the two sides currently know the same dispute
+under different ids.
 
 ---
 
