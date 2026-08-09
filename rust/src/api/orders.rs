@@ -1516,18 +1516,19 @@ pub(crate) async fn subscribe_gift_wraps(trade_pubkey: nostr_sdk::PublicKey, tra
             }
         }
 
-        // The subscription bounds the pending record's lifetime: once no
-        // reply can be delivered here anymore, a still-unconsumed record
-        // (request timed out and no genuine late reply ever arrived) is dead
-        // state — drop it, whatever attempt it belongs to.
-        purge_pending_request(&trade_pubkey_hex);
-        // Tear down the relay-side subscription on every exit path (idle
-        // timeout, shutdown, closed) so it never outlives the task — but only
-        // if we still own the id. A newer watcher may have re-subscribed under
-        // the same deterministic id (retry within the idle window); unsubscribing
-        // then would kill *its* live subscription. Re-fetch the pool rather than
-        // hold `client` across the loop (same approach as subscribe_incoming_chat).
+        // All exit-side effects are tied to *this* watcher's ownership of the
+        // deterministic id. A newer watcher may have re-subscribed under the
+        // same id (retry within the idle window) and registered its own pending
+        // request; if we lost ownership we must touch neither the subscription
+        // nor the pending record, or we would tear down / purge the replacement
+        // watcher's live state and strand its real daemon reply (NoDaemonResponse
+        // despite an active subscription). Re-fetch the pool rather than hold
+        // `client` across the loop (same approach as subscribe_incoming_chat).
         if owns_subscription(&sub_id, sub_gen) {
+            // The subscription bounds the pending record's lifetime: once no
+            // reply can be delivered here anymore, a still-unconsumed record
+            // (request timed out, no genuine late reply arrived) is dead state.
+            purge_pending_request(&trade_pubkey_hex);
             if let Ok(pool) = crate::api::nostr::get_pool() {
                 pool.client().unsubscribe(&sub_id).await;
             }
@@ -3323,6 +3324,52 @@ mod tests {
         // Distinct ids are tracked independently.
         let other = nostr_sdk::SubscriptionId::new("mostro-trade-other");
         assert!(owns_subscription(&other, claim_subscription(&other)));
+    }
+
+    #[test]
+    fn a_stale_watcher_exit_does_not_purge_a_replacements_pending_request() {
+        // Two watchers claim the same deterministic id in turn (a re-subscribe
+        // for the same trade — e.g. a retry within the idle window). The
+        // replacement (B) registers its own pending request for the trade key.
+        let id = nostr_sdk::SubscriptionId::new("mostro-trade-purge-race");
+        let trade_hex = "purge-race-trade-key";
+        let gen_a = claim_subscription(&id);
+        let gen_b = claim_subscription(&id);
+        assert_ne!(gen_a, gen_b, "each claim must advance the generation");
+        let _rx = insert_pending_create(trade_hex, 1);
+
+        // Precondition: B's pending request is registered.
+        assert!(
+            pending_requests().lock().unwrap().contains_key(trade_hex),
+            "the replacement's pending request should be registered",
+        );
+
+        // Watcher A exits. It lost ownership, so — mirroring the guard in
+        // subscribe_gift_wraps — it must run NO exit-side effect, including the
+        // pending-request purge. Emulate the exact guarded exit path.
+        assert!(
+            !owns_subscription(&id, gen_a),
+            "the superseded watcher must not own the id",
+        );
+        if owns_subscription(&id, gen_a) {
+            purge_pending_request(trade_hex);
+        }
+
+        // B's pending request must survive A's exit — otherwise the real daemon
+        // reply can no longer resolve B's attempt and the caller falls back to
+        // NoDaemonResponse despite an active subscription.
+        assert!(
+            pending_requests().lock().unwrap().contains_key(trade_hex),
+            "a stale watcher's exit must not purge the replacement's pending request",
+        );
+
+        // Owner B's own exit legitimately purges.
+        assert!(owns_subscription(&id, gen_b));
+        purge_pending_request(trade_hex);
+        assert!(
+            !pending_requests().lock().unwrap().contains_key(trade_hex),
+            "the owning watcher's exit purges its own pending request",
+        );
     }
 
     fn insert_pending_create(key: &str, request_id: u64) -> tokio::sync::oneshot::Receiver<DaemonReply> {
