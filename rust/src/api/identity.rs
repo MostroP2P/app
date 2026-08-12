@@ -304,6 +304,26 @@ pub async fn delete_identity() -> Result<()> {
         if let Err(e) = db.clear_trade_keys().await {
             log::warn!("[identity] failed to clear trade key mappings: {e}");
         }
+        // Messages before trades: messages.trade_id is an FK onto trades(id).
+        // Both belong to the deleted identity — their trade keys were just
+        // cleared, so the rows are dead state a new identity must not inherit
+        // (privacy: a fresh user must not see the previous one's My Trades or
+        // chats). See issue #273.
+        if let Err(e) = db.clear_messages().await {
+            log::warn!("[identity] failed to clear messages: {e}");
+        }
+        if let Err(e) = db.clear_trades().await {
+            log::warn!("[identity] failed to clear trades: {e}");
+        }
+    }
+
+    // Empty the in-memory sessions too: they key decryption for the deleted
+    // identity's trades and must not carry into the new one.
+    let dropped = crate::mostro::session::session_manager().clear_all().await;
+    if dropped > 0 {
+        log::debug!(
+            "[identity] cleared {dropped} in-memory session(s) on identity deletion"
+        );
     }
 
     // Last, so the cleanup warnings above are dropped too: buffered lines name

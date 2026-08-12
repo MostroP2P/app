@@ -130,6 +130,16 @@ pub trait Storage: Send + Sync {
     /// order→index mappings belong to the removed identity's derivation tree.
     async fn clear_trade_keys(&self) -> Result<()>;
 
+    /// Delete ALL trade rows. Used on identity deletion: the recovered trade
+    /// history belongs to the removed identity, and its trade keys are cleared
+    /// alongside, so the rows are dead state a new identity must not inherit.
+    async fn clear_trades(&self) -> Result<()>;
+
+    /// Delete ALL chat message rows. Used on identity deletion: the peer and
+    /// admin conversations belong to the removed identity and must not leak
+    /// into the fresh one.
+    async fn clear_messages(&self) -> Result<()>;
+
     // ── Settings / Mostro node ────────────────────────────────────────────────
 
     /// Read a value from the generic key-value settings store, or `None` when

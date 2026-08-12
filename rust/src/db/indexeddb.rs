@@ -240,6 +240,14 @@ impl Storage for IndexedDbStorage {
         Ok(()) // IndexedDB not yet implemented (#233)
     }
 
+    async fn clear_trades(&self) -> Result<()> {
+        Ok(()) // IndexedDB not yet implemented (#233)
+    }
+
+    async fn clear_messages(&self) -> Result<()> {
+        Ok(()) // IndexedDB not yet implemented (#233)
+    }
+
     // ── Settings KV — fully implemented (chat cursor + preferences, #246) ───
 
     async fn get_setting(&self, key: &str) -> Result<Option<String>> {

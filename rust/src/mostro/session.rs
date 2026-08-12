@@ -169,6 +169,16 @@ impl SessionManager {
         });
         before - sessions.len()
     }
+
+    /// Drop every in-memory session. Used on identity deletion: the sessions
+    /// belong to the removed identity's trades, and a new identity must not
+    /// inherit them. Returns the number of sessions dropped.
+    pub async fn clear_all(&self) -> usize {
+        let mut sessions = self.sessions.write().await;
+        let dropped = sessions.len();
+        sessions.clear();
+        dropped
+    }
 }
 
 // ── Global singleton ────────────────────────────────────────────────────────
