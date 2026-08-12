@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
@@ -149,6 +151,45 @@ void main() {
       expect(
         await _orderIds(container, filter: TradeStatusFilter.pending),
         ['order-y'],
+      );
+    });
+
+    test('re-buckets live when the status transitions', () async {
+      // The core promise of #269: as a trade's live status changes, it moves
+      // between filter buckets in step with its chip. Drive the live status
+      // with a controllable stream and assert the trade leaves the old bucket
+      // and enters the new one.
+      final controller = StreamController<OrderStatus>();
+      addTearDown(controller.close);
+      final container = createContainer(overrides: [
+        rawTradesProvider.overrideWith(
+          (ref) async => [fakeTrade(id: 'z', status: OrderStatus.pending)],
+        ),
+        tradeStatusProvider('order-z').overrideWith((ref) => controller.stream),
+      ]);
+
+      // First live status: Pending. In the Pending bucket, not Waiting Invoice.
+      controller.add(OrderStatus.pending);
+      await container.read(tradeStatusProvider('order-z').future);
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.pending),
+        ['order-z'],
+      );
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.waitingInvoice),
+        isEmpty,
+      );
+
+      // Transition to Waiting Invoice: leaves Pending, enters Waiting Invoice.
+      controller.add(OrderStatus.waitingBuyerInvoice);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.pending),
+        isEmpty,
+      );
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.waitingInvoice),
+        ['order-z'],
       );
     });
   });
