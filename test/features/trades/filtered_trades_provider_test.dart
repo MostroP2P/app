@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/src/rust/api/types.dart' show TradeInfo, OrderStatus;
 
 import '../../support/fake_trades.dart';
@@ -93,6 +94,62 @@ void main() {
       expected.forEach((status, bucket) {
         expect(orderStatusToFilter(status), bucket, reason: '$status');
       });
+    });
+  });
+
+  group('live status buckets the filter (issue #269)', () {
+    // A trade whose persisted snapshot is Pending, but whose live status (the
+    // one the row chip shows) has already moved to waitingBuyerInvoice. The
+    // filter must follow the live status, not the stale snapshot.
+    ProviderContainer staleSnapshotContainer() => createContainer(overrides: [
+          rawTradesProvider.overrideWith(
+            (ref) async => [fakeTrade(id: 'x', status: OrderStatus.pending)],
+          ),
+          tradeStatusProvider('order-x').overrideWith(
+            (ref) => Stream.value(OrderStatus.waitingBuyerInvoice),
+          ),
+        ]);
+
+    // Wait for the overridden tradeStatusProvider stream to emit its first
+    // value, so the derived filter provider sees the live status rather than
+    // racing the snapshot fallback (which only applies until live loads).
+    Future<void> primeLiveStatus(ProviderContainer c) async {
+      await c.read(tradeStatusProvider('order-x').future);
+    }
+
+    test('trade does NOT appear under the stale Pending bucket', () async {
+      final container = staleSnapshotContainer();
+      await primeLiveStatus(container);
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.pending),
+        isEmpty,
+      );
+    });
+
+    test('trade appears under the live Waiting Invoice bucket', () async {
+      final container = staleSnapshotContainer();
+      await primeLiveStatus(container);
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.waitingInvoice),
+        ['order-x'],
+      );
+    });
+
+    test('falls back to the snapshot bucket until live status loads', () async {
+      // No tradeStatusProvider override: live is unavailable, so the snapshot
+      // status (Pending) is used. This preserves behaviour before first poll.
+      final container = createContainer(overrides: [
+        rawTradesProvider.overrideWith(
+          (ref) async => [fakeTrade(id: 'y', status: OrderStatus.pending)],
+        ),
+        tradeStatusProvider('order-y').overrideWith(
+          (ref) => const Stream.empty(),
+        ),
+      ]);
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.pending),
+        ['order-y'],
+      );
     });
   });
 }
