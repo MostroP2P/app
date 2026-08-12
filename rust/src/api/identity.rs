@@ -309,12 +309,21 @@ pub async fn delete_identity() -> Result<()> {
         // cleared, so the rows are dead state a new identity must not inherit
         // (privacy: a fresh user must not see the previous one's My Trades or
         // chats). See issue #273.
-        if let Err(e) = db.clear_messages().await {
-            log::warn!("[identity] failed to clear messages: {e}");
-        }
-        if let Err(e) = db.clear_trades().await {
-            log::warn!("[identity] failed to clear trades: {e}");
-        }
+        //
+        // Unlike the identity row and trade-key mappings above (which have the
+        // `reconcile_trade_key_index` pubkey guard as a fallback), the trades
+        // and messages tables are NOT identity-scoped and have no such guard:
+        // a silent failure here would leak the previous identity's history into
+        // the next one. Propagate the error so the caller (regenerate /
+        // importAndStore) aborts before creating the replacement identity —
+        // delete_identity runs before the new identity exists, so there is no
+        // half-rotated state to unwind.
+        db.clear_messages()
+            .await
+            .map_err(|e| anyhow!("failed to clear messages on identity deletion: {e}"))?;
+        db.clear_trades()
+            .await
+            .map_err(|e| anyhow!("failed to clear trades on identity deletion: {e}"))?;
     }
 
     // Empty the in-memory sessions too: they key decryption for the deleted
