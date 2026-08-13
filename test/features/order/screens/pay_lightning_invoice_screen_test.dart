@@ -5,6 +5,7 @@ import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -53,7 +54,7 @@ Widget _app({required bool walletConnected, required TradeInfo trade}) {
 
 void main() {
   testWidgets(
-    '#244: after NWC payment the pay widget is replaced by a waiting spinner',
+    '#244: after payment, all invoice-submission controls are hidden and a waiting spinner is shown',
     (tester) async {
       await tester.pumpWidget(
         _app(walletConnected: true, trade: _payableTrade()),
@@ -73,9 +74,14 @@ void main() {
       nwc.onPaymentSuccess();
       await tester.pump();
 
-      // After payment: the pay widget is gone and the confirmation spinner
-      // (with its label) is shown instead — no re-armed pay button.
+      // After payment: the screen shows a waiting-only state. Every
+      // invoice-submission control is gone (NWC widget, QR, pay-external), so
+      // the user cannot re-send the already-settled bolt11 (#244). Only the
+      // confirmation spinner and its label remain.
       expect(find.byType(NwcPaymentWidget), findsNothing);
+      expect(find.byType(QrImageView), findsNothing);
+      expect(find.text(l10n.payWithLightningWallet), findsNothing);
+      expect(find.text(l10n.copyButtonLabel), findsNothing);
       expect(find.text(l10n.waitingForPaymentConfirmation), findsOneWidget);
     },
   );
