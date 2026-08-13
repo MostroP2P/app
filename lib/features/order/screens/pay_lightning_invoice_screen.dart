@@ -212,7 +212,13 @@ class _PayLightningInvoiceScreenState
         }
 
         // If NWC wallet is connected and payment hasn't failed yet, show auto-pay.
-        if (isWalletConnected && !_manualMode) {
+        // Once a payment has been detected (_waiting), fall through to the
+        // invoice/QR branch instead: it renders the same waiting-for-
+        // confirmation spinner in context, whereas NwcPaymentWidget re-arms its
+        // own pay button in its finally block and would let the user re-send the
+        // same bolt11 (the wallet rejects the duplicate and drops them onto the
+        // QR of an already-settled invoice). Issue #244.
+        if (isWalletConnected && !_manualMode && !_waiting) {
           return Scaffold(
             appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
             body: Padding(

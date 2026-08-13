@@ -11,6 +11,7 @@ TradeInfo fakeTrade({
   String paymentMethod = 'Wire',
   bool isMine = false,
   int startedAt = 1000,
+  BigInt? amountSats,
 }) {
   final order = OrderInfo(
     id: 'order-$id',
@@ -22,6 +23,7 @@ TradeInfo fakeTrade({
     premium: 0,
     creatorPubkey: 'pubkey-$id',
     createdAt: startedAt,
+    amountSats: amountSats ?? BigInt.zero,
     isMine: isMine,
     rating: 0,
     totalReviews: 0,
