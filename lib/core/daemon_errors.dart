@@ -44,5 +44,11 @@ String localizedDaemonError(
   if (raw.contains('TradeNotDisputable')) {
     return l10n.tradeNotDisputable;
   }
+  // The fiat code failed the create-order preflight (#175): a stale or tampered
+  // saved default that is not a valid ISO 4217 code. Re-picking a currency fixes
+  // it before the request is ever published.
+  if (raw.contains('InvalidFiatCode')) {
+    return l10n.invalidFiatCode;
+  }
   return fallback;
 }

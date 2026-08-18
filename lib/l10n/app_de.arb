@@ -1,4 +1,5 @@
 {
+  "invalidFiatCode": "Diese Währung wird nicht unterstützt. Bitte wähle vor dem Erstellen der Order eine andere.",
   "@@locale": "de",
   "@@last_modified": "2026-03-31",
 

@@ -87,7 +87,7 @@ fn validate_locale(locale: &str) -> Result<()> {
 }
 
 /// Validates an ISO 4217 fiat code: exactly 3 uppercase ASCII letters.
-fn validate_fiat_code(code: &str) -> Result<()> {
+pub(crate) fn validate_fiat_code(code: &str) -> Result<()> {
     let valid = code.len() == 3 && code.chars().all(|c| c.is_ascii_uppercase());
     if valid {
         Ok(())
@@ -350,6 +350,25 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("InvalidFiatCode"));
+    }
+
+    /// #175: create_order preflights the fiat code with this same validator, so
+    /// a stale or tampered saved default is rejected locally with the stable
+    /// InvalidFiatCode marker instead of going out as a daemon CantDo. Covers
+    /// the format cases that reach the create path.
+    #[test]
+    fn validate_fiat_code_marker_cases() {
+        // Valid ISO 4217 shape passes.
+        assert!(validate_fiat_code("USD").is_ok());
+        assert!(validate_fiat_code("EUR").is_ok());
+        // Bad shapes all fail with the InvalidFiatCode marker.
+        for bad in ["", "US", "USDD", "usd", "Us1", "US$", "ドル"] {
+            let err = validate_fiat_code(bad).unwrap_err();
+            assert!(
+                err.to_string().contains("InvalidFiatCode"),
+                "{bad:?} must be rejected with the InvalidFiatCode marker"
+            );
+        }
     }
 
     #[tokio::test]

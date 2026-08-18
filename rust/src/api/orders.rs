@@ -674,9 +674,13 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
             ));
         }
     }
-    if params.fiat_code.trim().is_empty() {
-        return Err(anyhow::anyhow!("fiat_code must not be empty"));
-    }
+    // #175: validate the fiat code before publishing, so a stale or tampered
+    // saved default is rejected locally with a stable InvalidFiatCode marker
+    // (Dart localizes it) instead of going out and coming back as a daemon
+    // CantDo. Reuses the settings validator so every caller inherits the check.
+    // Format-level (ISO 4217 shape); membership against the bundled fiat list
+    // would require porting assets/data/fiat.json into Rust — see PR note.
+    crate::api::settings::validate_fiat_code(params.fiat_code.trim())?;
     if params.payment_method.trim().is_empty() {
         return Err(anyhow::anyhow!("payment_method must not be empty"));
     }

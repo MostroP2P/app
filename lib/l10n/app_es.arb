@@ -1,4 +1,5 @@
 {
+  "invalidFiatCode": "Esa moneda no es compatible. Elige otra antes de crear la orden.",
   "@@locale": "es",
   "@@last_modified": "2026-03-31",
 
