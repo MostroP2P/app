@@ -221,7 +221,12 @@ TradeUpdate {
 ```
 
 ### on_order_status_changed(order_id: String) → Stream<OrderStatus>
-Emits when a specific order's status changes.
+**Superseded by `on_trade_updated()`.** A separate per-order status
+stream is not implemented: `on_trade_updated()` already emits a
+`TradeUpdate { order_id, status }` on every daemon-driven status
+transition, and clients filter by `order_id`. `tradeStatusProvider`
+consumes that push channel directly (with a low-frequency reconnection
+fallback), so a dedicated single-order status stream would duplicate it.
 
 ### on_trade_step_changed() → Stream<TradeInfo>
 Emits when the active trade's step changes. Used to update the

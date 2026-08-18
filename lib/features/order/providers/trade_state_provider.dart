@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -25,32 +26,106 @@ final tradeAmountProvider =
   }
 });
 
-/// Live order status for a single trade, polled from the order book every 2 s.
+/// Live order status for a single trade.
 ///
-/// Starts with an immediate fetch (no initial delay) so the first emission
-/// reflects the real relay status. When the order is no longer in the in-memory
-/// order book (e.g. after cancellation), falls back to the persisted trade DB
-/// so terminal statuses like Canceled are reflected in the UI.
+/// Push-first: emits an immediate status from the order book (falling back to
+/// the persisted trade DB when the order has left the in-memory book), then
+/// reflects each `on_trade_updated` push for this `orderId` as it arrives, so
+/// the UI reacts to daemon-driven status changes in real time instead of on a
+/// fixed 2 s poll. A long reconnection-fallback poll runs only to reconcile a
+/// push that was dropped or missed (app resumed from background, stream
+/// reconnect); the daemon stays the authority either way.
 final tradeStatusProvider =
     StreamProvider.family.autoDispose<OrderStatus, String>((ref, orderId) async* {
-  while (true) {
-    final info = await orders_api.getOrder(orderId: orderId);
-    if (info != null) {
-      yield info.status;
-      if (_isTerminal(info.status)) return;
-    } else {
-      // Order removed from in-memory book — check the persisted trade DB.
-      final trades = await orders_api.listTrades();
-      final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
-      if (trade != null) {
-        yield trade.order.status;
-        // Terminal status — no need to keep polling.
-        if (_isTerminal(trade.order.status)) return;
-      }
+  // Push-first: a single event stream carries both push updates for THIS order
+  // (bridged from the shared [tradeUpdatesProvider] via ref.listen, so one relay
+  // subscription feeds every watched trade and tests can drive it through
+  // `tradeUpdatesProvider.overrideWith`) and periodic reconnection-fallback
+  // ticks. Merging both into one stream means a single subscription drains them
+  // in order — no abandoned `moveNext()` futures, no busy-looping.
+  final events = StreamController<_StatusEvent>();
+
+  final sub = ref.listen<AsyncValue<TradeUpdate>>(tradeUpdatesProvider,
+      (_, next) {
+    final u = next.valueOrNull;
+    if (u != null && u.orderId == orderId && !events.isClosed) {
+      events.add(_PushEvent(u.status));
     }
-    await Future.delayed(const Duration(seconds: 2));
+  });
+
+  final ticker = Timer.periodic(_reconnectPoll, (_) {
+    if (!events.isClosed) events.add(const _FallbackTick());
+  });
+
+  ref.onDispose(() {
+    sub.close();
+    ticker.cancel();
+    events.close();
+  });
+
+  // Immediate first emission — current status, same DB fallback as before for
+  // orders already gone from the in-memory book.
+  OrderStatus? last = await _currentStatus(orderId);
+  if (last != null) {
+    yield last;
+    if (_isTerminal(last)) return;
+  }
+
+  // Drain the merged stream. A push carries the new status directly; a fallback
+  // tick triggers a reconciliation fetch. Only distinct statuses are emitted.
+  await for (final event in events.stream) {
+    final status = switch (event) {
+      _PushEvent(:final status) => status,
+      _FallbackTick() => await _currentStatus(orderId),
+    };
+    if (status != null && status != last) {
+      last = status;
+      yield status;
+      if (_isTerminal(status)) return;
+    }
   }
 });
+
+/// Internal event type merged into [tradeStatusProvider]'s single stream: either
+/// a pushed status or a periodic fallback tick that triggers a reconciliation
+/// fetch.
+sealed class _StatusEvent {
+  const _StatusEvent();
+}
+
+class _PushEvent extends _StatusEvent {
+  const _PushEvent(this.status);
+  final OrderStatus status;
+}
+
+class _FallbackTick extends _StatusEvent {
+  const _FallbackTick();
+}
+
+/// Long fallback interval for [tradeStatusProvider]: pushes carry the real-time
+/// signal, so this only reconciles a dropped/missed update rather than driving
+/// the UI (was a 2 s poll before the push-first migration).
+const _reconnectPoll = Duration(seconds: 30);
+
+/// Current status for [orderId]: the in-memory order book first, then the
+/// persisted trade DB when the order has been removed from the book (e.g. after
+/// a cancellation wipe). Returns null when neither knows the order.
+///
+/// A bridge/DB failure yields null rather than propagating: the reconciliation
+/// fetch is best-effort, so a transient failure must not tear down the whole
+/// status stream — the next push or fallback tick recovers. (This also lets the
+/// provider run in tests without `RustLib.init()`, where these calls fail.)
+Future<OrderStatus?> _currentStatus(String orderId) async {
+  try {
+    final info = await orders_api.getOrder(orderId: orderId);
+    if (info != null) return info.status;
+    final trades = await orders_api.listTrades();
+    return trades.where((t) => t.order.id == orderId).firstOrNull?.order.status;
+  } catch (e, st) {
+    debugPrint('[tradeStatusProvider] status fetch failed for $orderId: $e\n$st');
+    return null;
+  }
+}
 
 /// Trade lifecycle updates pushed from Rust (daemon-driven cancellations).
 ///

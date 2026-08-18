@@ -1375,6 +1375,12 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
             log::warn!("[orders] failed to optimistically update cancel status for {order_id}: {e}");
         }
     }
+    // Push the optimistic Canceled to the trade-status stream: the order is
+    // gone from the book and the daemon's gift-wrap confirmation may arrive
+    // much later (or never, if the app closes), so a push-first listener needs
+    // this signal now — the old 2 s poll saw the DB write, the push channel
+    // must too.
+    emit_trade_update(&order_id, crate::api::types::OrderStatus::Canceled);
 
     crate::api::logging::blog_info(
         "orders",
