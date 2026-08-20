@@ -134,6 +134,18 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     });
   }
 
+  /// Clears the countdown when the current state no longer has one (e.g. a
+  /// waiting order advanced to active / fiat-sent). Idempotent: does nothing if
+  /// no deadline is currently applied, so it won't setState on every rebuild.
+  void _clearDeadline() {
+    if (_appliedDeadline == null && _remaining == Duration.zero) return;
+    _appliedDeadline = null;
+    if (!mounted) return;
+    setState(() {
+      _remaining = Duration.zero;
+    });
+  }
+
   void _startCountdown() {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -511,16 +523,22 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       timeoutAtEpoch: tradeInfo?.timeoutAt != null
           ? platformInt64ToInt(tradeInfo!.timeoutAt!)
           : null,
+      waitingSinceEpoch:
+          tradeInfo != null ? platformInt64ToInt(tradeInfo.startedAt) : null,
       expirationSeconds: expirationSeconds,
     );
-    if (countdown != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _applyDeadline(
-              countdown.deadlineEpochSeconds, countdown.totalWindowSeconds);
-        }
-      });
-    }
+    // When the resolved state has no countdown (active / fiat-sent / terminal),
+    // clear any timer left over from a prior waiting state so a stale countdown
+    // never lingers across the transition.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (countdown != null) {
+        _applyDeadline(
+            countdown.deadlineEpochSeconds, countdown.totalWindowSeconds);
+      } else {
+        _clearDeadline();
+      }
+    });
 
     final inFlight = const {
       TradeStatus.waitingInvoice,

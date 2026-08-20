@@ -99,11 +99,16 @@ class TradeStateHeader extends ConsumerWidget {
     final expirationSeconds =
         ref.watch(mostroNodeProvider).valueOrNull?.expirationSeconds;
     final countdown = waitingCountdownDeadline(
-      status: liveStatus,
+      // Fall back to the order snapshot's status while tradeStatusProvider
+      // resolves, mirroring the pill above — otherwise a known waiting/pending
+      // order shows no countdown during the provider's loading frame.
+      status: liveStatus ?? order.status,
       pendingExpiresAt: order.expiresAt,
       timeoutAtEpoch: tradeInfo?.timeoutAt != null
           ? platformInt64ToInt(tradeInfo!.timeoutAt!)
           : null,
+      waitingSinceEpoch:
+          tradeInfo != null ? platformInt64ToInt(tradeInfo.startedAt) : null,
       expirationSeconds: expirationSeconds,
     );
     final (pillBg, pillFg) = _statusColors(statusFilter);
