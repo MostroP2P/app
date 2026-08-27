@@ -62,6 +62,11 @@ impl RelayPool {
         }
 
         client.connect().await;
+        // Seed the liveness baseline at connect time so a socket that is silent
+        // from the very first moment (never delivers an initial event) is still
+        // measured against SILENCE_TIMEOUT_SECS rather than being ignored (#291).
+        pool.last_event_at
+            .store(unix_now() as u64, Ordering::Relaxed);
 
         // Give the SDK a moment to initiate WebSocket handshakes before the
         // first status poll.  Without this the initial broadcast is always
@@ -287,6 +292,11 @@ impl RelayPool {
                     this.client.disconnect().await;
                     crate::rt::time::sleep(Duration::from_millis(200)).await;
                     this.client.connect().await;
+                    // Rearm the baseline so the next silence window is measured from
+                    // this reconnect, not the stale pre-reconnect timestamp —
+                    // otherwise a still-silent socket would reconnect every poll.
+                    this.last_event_at
+                        .store(unix_now() as u64, Ordering::Relaxed);
                 }
             }
         });
@@ -357,22 +367,42 @@ mod watchdog_tests {
 
     #[test]
     fn silent_online_past_threshold_reconnects() {
-        assert!(should_force_reconnect(ConnectionState::Online, 1_000, 1_300, T));
+        assert!(should_force_reconnect(
+            ConnectionState::Online,
+            1_000,
+            1_300,
+            T
+        ));
     }
 
     #[test]
     fn recent_traffic_does_not_reconnect() {
-        assert!(!should_force_reconnect(ConnectionState::Online, 1_295, 1_300, T));
+        assert!(!should_force_reconnect(
+            ConnectionState::Online,
+            1_295,
+            1_300,
+            T
+        ));
     }
 
     #[test]
     fn exactly_at_threshold_does_not_reconnect() {
-        assert!(!should_force_reconnect(ConnectionState::Online, 1_090, 1_300, T));
+        assert!(!should_force_reconnect(
+            ConnectionState::Online,
+            1_090,
+            1_300,
+            T
+        ));
     }
 
     #[test]
     fn offline_never_reconnects_here() {
-        assert!(!should_force_reconnect(ConnectionState::Offline, 1_000, 2_000, T));
+        assert!(!should_force_reconnect(
+            ConnectionState::Offline,
+            1_000,
+            2_000,
+            T
+        ));
         assert!(!should_force_reconnect(
             ConnectionState::Reconnecting,
             1_000,
@@ -382,7 +412,41 @@ mod watchdog_tests {
     }
 
     #[test]
-    fn zero_last_event_is_never_a_basis() {
-        assert!(!should_force_reconnect(ConnectionState::Online, 0, 999_999, T));
+    fn zero_last_event_guards_pre_connect_window() {
+        // Before the constructor's first connect, last_event_at is 0. The guard
+        // prevents a spurious reconnect in that microsecond window. Once Online,
+        // Fix 1 guarantees a non-zero baseline, so this path is defensive only.
+        assert!(!should_force_reconnect(
+            ConnectionState::Online,
+            0,
+            999_999,
+            T
+        ));
+    }
+
+    #[test]
+    fn baseline_set_at_connect_triggers_on_startup_silence() {
+        // Fix 1: the constructor seeds last_event_at at connect time, so a socket
+        // silent from startup is measured from then. Past threshold, still Online,
+        // no traffic → the watchdog fires (previously this was wrongly ignored).
+        assert!(should_force_reconnect(
+            ConnectionState::Online,
+            1_000,
+            1_300,
+            T
+        ));
+    }
+
+    #[test]
+    fn fresh_baseline_after_reconnect_does_not_retrigger() {
+        // Fix 2: the watchdog rearms the baseline right after reconnecting, so the
+        // next 30s poll sees a recent baseline and waits the full interval instead
+        // of reconnecting again — no thrash loop.
+        assert!(!should_force_reconnect(
+            ConnectionState::Online,
+            1_270,
+            1_300,
+            T
+        ));
     }
 }
