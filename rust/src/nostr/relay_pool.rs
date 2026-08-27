@@ -12,6 +12,7 @@ use nostr_sdk::prelude::*;
 // The SDK re-exports its own `RelayStatus` via the prelude. Alias it to avoid
 // conflicting with our internal `RelayStatus` from `crate::api::types`.
 use nostr_sdk::RelayStatus as SdkRelayStatus;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, RwLock};
@@ -21,12 +22,22 @@ use crate::api::types::{ConnectionState, RelayInfo, RelaySource, RelayStatus};
 /// How often the background task polls each relay's SDK status (seconds).
 const STATUS_POLL_INTERVAL_SECS: u64 = 2;
 
+/// How often the silence watchdog checks for a dead-but-Connected socket.
+const WATCHDOG_POLL_INTERVAL_SECS: u64 = 30;
+/// Silence longer than this (while Online) triggers a forced reconnect. Above
+/// the ~60s Android relay-drop cycle, well under the 22-min failure window.
+const SILENCE_TIMEOUT_SECS: u64 = 210;
+
 /// Shared relay pool state.
 pub struct RelayPool {
     client: Arc<Client>,
     relays: Arc<RwLock<Vec<RelayInfo>>>,
     conn_tx: broadcast::Sender<ConnectionState>,
     relay_tx: broadcast::Sender<RelayInfo>,
+    /// Unix-seconds timestamp of the last event or message from any relay.
+    /// Bumped by `spawn_liveness_observer`; read by `spawn_silence_watchdog`
+    /// to detect a socket that reports Connected but has gone silent (#291).
+    last_event_at: Arc<AtomicU64>,
 }
 
 impl RelayPool {
@@ -43,6 +54,7 @@ impl RelayPool {
             relays: Arc::new(RwLock::new(Vec::new())),
             conn_tx,
             relay_tx,
+            last_event_at: Arc::new(AtomicU64::new(0)),
         });
 
         for url in relay_urls {
@@ -60,6 +72,8 @@ impl RelayPool {
         pool.broadcast_connection_state().await;
 
         pool.spawn_status_monitor();
+        pool.spawn_liveness_observer();
+        pool.spawn_silence_watchdog();
         Ok(pool)
     }
 
@@ -215,6 +229,68 @@ impl RelayPool {
             }
         });
     }
+
+    /// Bump `last_event_at` on every event or message from any relay.
+    ///
+    /// This is the liveness signal for the silence watchdog: a socket that the
+    /// SDK still reports as Connected but which has silently stopped delivering
+    /// (issue #291) is exactly one where this timestamp stops advancing. We
+    /// listen on a single pool-owned `notifications()` receiver rather than
+    /// instrumenting each transient consumer, so the signal survives any one
+    /// subscription being dropped and rebuilt. `Message` fires on every relay
+    /// message (not just novel events), giving the broadest "traffic flowing"
+    /// signal.
+    fn spawn_liveness_observer(self: &Arc<Self>) {
+        let client = self.client.clone();
+        let last_event_at = self.last_event_at.clone();
+        crate::rt::spawn(async move {
+            let mut rx = client.notifications();
+            loop {
+                match rx.recv().await {
+                    Ok(RelayPoolNotification::Event { .. })
+                    | Ok(RelayPoolNotification::Message { .. }) => {
+                        last_event_at.store(unix_now() as u64, Ordering::Relaxed);
+                    }
+                    Ok(RelayPoolNotification::Shutdown) => break,
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        last_event_at.store(unix_now() as u64, Ordering::Relaxed);
+                        continue;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
+    /// Every WATCHDOG_POLL_INTERVAL_SECS, if the pool is Online yet no traffic
+    /// has arrived for longer than SILENCE_TIMEOUT_SECS, force a reconnect.
+    /// This catches the #291 failure where the SDK still reports Connected but
+    /// the socket has silently died. The forced disconnect/connect drives the
+    /// existing Online→resubscribe path in `api::nostr`, which rebuilds the
+    /// order and chat subscriptions.
+    fn spawn_silence_watchdog(self: &Arc<Self>) {
+        let this = self.clone();
+        crate::rt::spawn(async move {
+            loop {
+                crate::rt::time::sleep(Duration::from_secs(WATCHDOG_POLL_INTERVAL_SECS)).await;
+                let state = this.connection_state().await;
+                let last = this.last_event_at.load(Ordering::Relaxed);
+                let now = unix_now() as u64;
+                if should_force_reconnect(state, last, now, SILENCE_TIMEOUT_SECS) {
+                    crate::api::logging::blog_info(
+                        "relay",
+                        format!(
+                            "silence watchdog: {}s without traffic while Online — forcing reconnect (#291)",
+                            now.saturating_sub(last)
+                        ),
+                    );
+                    this.client.disconnect().await;
+                    crate::rt::time::sleep(Duration::from_millis(200)).await;
+                    this.client.connect().await;
+                }
+            }
+        });
+    }
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -250,3 +326,63 @@ fn map_sdk_status(s: SdkRelayStatus) -> RelayStatus {
 }
 
 use crate::rt::unix_now;
+
+/// Decide whether the silence watchdog should force a reconnect.
+///
+/// Returns true only when the pool believes it is Online yet no event or
+/// message has arrived for longer than `threshold_secs`. A `last_event_at`
+/// of 0 (no traffic ever seen) is treated as "not yet a basis for judgement",
+/// so a freshly-started pool is never force-reconnected before its first
+/// event — that startup window is the SDK's own connect path to handle.
+fn should_force_reconnect(
+    state: ConnectionState,
+    last_event_at: u64,
+    now: u64,
+    threshold_secs: u64,
+) -> bool {
+    if !matches!(state, ConnectionState::Online) {
+        return false;
+    }
+    if last_event_at == 0 {
+        return false;
+    }
+    now.saturating_sub(last_event_at) > threshold_secs
+}
+
+#[cfg(test)]
+mod watchdog_tests {
+    use super::*;
+
+    const T: u64 = 210; // threshold seconds
+
+    #[test]
+    fn silent_online_past_threshold_reconnects() {
+        assert!(should_force_reconnect(ConnectionState::Online, 1_000, 1_300, T));
+    }
+
+    #[test]
+    fn recent_traffic_does_not_reconnect() {
+        assert!(!should_force_reconnect(ConnectionState::Online, 1_295, 1_300, T));
+    }
+
+    #[test]
+    fn exactly_at_threshold_does_not_reconnect() {
+        assert!(!should_force_reconnect(ConnectionState::Online, 1_090, 1_300, T));
+    }
+
+    #[test]
+    fn offline_never_reconnects_here() {
+        assert!(!should_force_reconnect(ConnectionState::Offline, 1_000, 2_000, T));
+        assert!(!should_force_reconnect(
+            ConnectionState::Reconnecting,
+            1_000,
+            2_000,
+            T
+        ));
+    }
+
+    #[test]
+    fn zero_last_event_is_never_a_basis() {
+        assert!(!should_force_reconnect(ConnectionState::Online, 0, 999_999, T));
+    }
+}
