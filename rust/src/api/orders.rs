@@ -1230,9 +1230,6 @@ pub(crate) async fn subscribe_daemon_messages(
         log::warn!("[orders] subscribe_daemon_messages subscribe failed: {e}");
         return;
     }
-    // Claim ownership of this (deterministic) id. A later re-subscribe for the
-    // same trade supersedes us; on exit we only unsubscribe if still current.
-    let sub_gen = claim_subscription(&sub_id);
 
     let trade_pubkey_hex = trade_pubkey.to_hex();
     crate::api::logging::blog_info(
@@ -1348,14 +1345,14 @@ pub(crate) async fn subscribe_daemon_messages(
         // watcher's live state and strand its real daemon reply (NoDaemonResponse
         // despite an active subscription). Re-fetch the pool rather than hold
         // `client` across the loop (same approach as subscribe_incoming_chat).
-        if owns_subscription(&sub_id, sub_gen) {
-            // The subscription bounds the pending record's lifetime: once no
-            // reply can be delivered here anymore, a still-unconsumed record
-            // (request timed out, no genuine late reply arrived) is dead state.
-            purge_pending_request(&trade_pubkey_hex);
-            if let Ok(pool) = crate::api::nostr::get_pool() {
-                pool.client().unsubscribe(&sub_id).await;
-            }
+        // The subscription bounds the pending record's lifetime: once no reply
+        // can be delivered here anymore, a still-unconsumed record (request
+        // timed out, no genuine late reply arrived) is dead state. Each trade
+        // key derives a unique subscription id, so exactly one watcher ever
+        // holds it — cleanup is unconditional (#255 review).
+        purge_pending_request(&trade_pubkey_hex);
+        if let Ok(pool) = crate::api::nostr::get_pool() {
+            pool.client().unsubscribe(&sub_id).await;
         }
     });
 }
@@ -2469,9 +2466,6 @@ async fn subscribe_single_order(order_id: &str) {
             log::warn!("[orders] subscribe_single_order subscribe failed: {e}");
             return;
         }
-        // Claim ownership of this (deterministic) id; only the current owner
-        // unsubscribes on exit (see subscribe_gift_wraps for the rationale).
-        let sub_gen = claim_subscription(&sub_id);
         log::info!("[orders] subscribed to d-tag updates for order={order_id}");
 
         use crate::rt::time::{timeout, Duration};
@@ -2549,9 +2543,9 @@ async fn subscribe_single_order(order_id: &str) {
         // the task — but only if we still own the id, so a stale watcher never
         // unsubscribes a newer one's live subscription. `client` is already
         // owned by this closure.
-        if owns_subscription(&sub_id, sub_gen) {
-            client.unsubscribe(&sub_id).await;
-        }
+        // Each order derives a unique subscription id, so exactly one watcher
+        // ever holds it — unsubscribe unconditionally on exit (#255 review).
+        client.unsubscribe(&sub_id).await;
     });
 }
 
@@ -2866,7 +2860,7 @@ fn orders_subscription_id() -> nostr_sdk::SubscriptionId {
 }
 
 /// Stable per-trade subscription ID for the ephemeral Kind 14 Mostro-reply
-/// feed created by `subscribe_gift_wraps`. Deterministic (full trade pubkey
+/// feed created by `subscribe_daemon_messages`. Deterministic (full trade pubkey
 /// hex, not a prefix — no collision) so a repeat subscribe for the same trade
 /// key replaces in place instead of stacking a second relay subscription.
 fn trade_subscription_id(trade_pubkey: &nostr_sdk::PublicKey) -> nostr_sdk::SubscriptionId {
@@ -2877,45 +2871,6 @@ fn trade_subscription_id(trade_pubkey: &nostr_sdk::PublicKey) -> nostr_sdk::Subs
 /// created by `subscribe_single_order`.
 fn single_order_subscription_id(order_id: &str) -> nostr_sdk::SubscriptionId {
     nostr_sdk::SubscriptionId::new(format!("mostro-order-{order_id}"))
-}
-
-/// Per-subscription-id generation counter.
-///
-/// A deterministic subscription id is reused across re-subscribes for the same
-/// trade/order (e.g. a retry within the 30-min idle window). Without ownership
-/// tracking, an earlier watcher's exit-path `unsubscribe` would tear down the
-/// *replacement* watcher's live subscription on that same id. Each watcher
-/// claims the id on subscribe (bumping the generation) and only unsubscribes on
-/// exit if it still owns the current generation — a stale watcher skips cleanup
-/// and lets the newer owner keep the subscription.
-static SUBSCRIPTION_GENERATIONS: OnceLock<
-    std::sync::Mutex<HashMap<nostr_sdk::SubscriptionId, u64>>,
-> = OnceLock::new();
-
-fn subscription_generations() -> &'static std::sync::Mutex<HashMap<nostr_sdk::SubscriptionId, u64>>
-{
-    SUBSCRIPTION_GENERATIONS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-}
-
-/// Claim `id` for the calling watcher: bump its generation and return the new
-/// value. A later watcher claiming the same id bumps it again, so this caller
-/// can later detect it has been superseded.
-fn claim_subscription(id: &nostr_sdk::SubscriptionId) -> u64 {
-    let mut gens = subscription_generations().lock().unwrap();
-    let g = gens.entry(id.clone()).or_insert(0);
-    *g += 1;
-    *g
-}
-
-/// True only if `my_gen` is still the current generation for `id` — i.e. no
-/// newer watcher has claimed it. A stale watcher must NOT unsubscribe, or it
-/// would kill the replacement's live subscription.
-fn owns_subscription(id: &nostr_sdk::SubscriptionId, my_gen: u64) -> bool {
-    subscription_generations()
-        .lock()
-        .unwrap()
-        .get(id)
-        .is_some_and(|current| *current == my_gen)
 }
 
 /// Stable subscription ID for the Kind 14 Mostro-reply feed.
@@ -3987,76 +3942,6 @@ mod tests {
         assert_eq!(
             single_order_subscription_id("abc123"),
             nostr_sdk::SubscriptionId::new("mostro-order-abc123"),
-        );
-    }
-
-    #[test]
-    fn a_stale_watcher_does_not_unsubscribe_a_replacement() {
-        // Two watchers claim the same deterministic id in turn (a re-subscribe
-        // for the same trade — e.g. a retry within the idle window).
-        let id = nostr_sdk::SubscriptionId::new("mostro-trade-lifecycle-test");
-        let gen_a = claim_subscription(&id);
-        let gen_b = claim_subscription(&id);
-        assert_ne!(gen_a, gen_b, "each claim must advance the generation");
-        // Watcher A is now stale: it must NOT unsubscribe on exit, or it would
-        // tear down watcher B's live subscription on the shared id.
-        assert!(
-            !owns_subscription(&id, gen_a),
-            "the superseded watcher must not own the id",
-        );
-        // Watcher B still owns the id, so it (and only it) unsubscribes on exit.
-        assert!(
-            owns_subscription(&id, gen_b),
-            "the current watcher must own the id",
-        );
-        // Distinct ids are tracked independently.
-        let other = nostr_sdk::SubscriptionId::new("mostro-trade-other");
-        assert!(owns_subscription(&other, claim_subscription(&other)));
-    }
-
-    #[test]
-    fn a_stale_watcher_exit_does_not_purge_a_replacements_pending_request() {
-        // Two watchers claim the same deterministic id in turn (a re-subscribe
-        // for the same trade — e.g. a retry within the idle window). The
-        // replacement (B) registers its own pending request for the trade key.
-        let id = nostr_sdk::SubscriptionId::new("mostro-trade-purge-race");
-        let trade_hex = "purge-race-trade-key";
-        let gen_a = claim_subscription(&id);
-        let gen_b = claim_subscription(&id);
-        assert_ne!(gen_a, gen_b, "each claim must advance the generation");
-        let _rx = insert_pending_create(trade_hex, 1);
-
-        // Precondition: B's pending request is registered.
-        assert!(
-            pending_requests().lock().unwrap().contains_key(trade_hex),
-            "the replacement's pending request should be registered",
-        );
-
-        // Watcher A exits. It lost ownership, so — mirroring the guard in
-        // subscribe_gift_wraps — it must run NO exit-side effect, including the
-        // pending-request purge. Emulate the exact guarded exit path.
-        assert!(
-            !owns_subscription(&id, gen_a),
-            "the superseded watcher must not own the id",
-        );
-        if owns_subscription(&id, gen_a) {
-            purge_pending_request(trade_hex);
-        }
-
-        // B's pending request must survive A's exit — otherwise the real daemon
-        // reply can no longer resolve B's attempt and the caller falls back to
-        // NoDaemonResponse despite an active subscription.
-        assert!(
-            pending_requests().lock().unwrap().contains_key(trade_hex),
-            "a stale watcher's exit must not purge the replacement's pending request",
-        );
-
-        // Owner B's own exit legitimately purges.
-        assert!(owns_subscription(&id, gen_b));
-        purge_pending_request(trade_hex);
-        assert!(
-            !pending_requests().lock().unwrap().contains_key(trade_hex),
-            "the owning watcher's exit purges its own pending request",
         );
     }
 
