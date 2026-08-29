@@ -18,12 +18,14 @@ import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/dispute_confirmation_dialog.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart';
 
 /// Trade detail screen — Route `/trade_detail/:orderId`.
 ///
@@ -510,13 +512,42 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // Use TradeStatus.loading while the provider hasn't resolved so the UI
     // doesn't flash the pending CTA before the real status is known.
     final tradeStatusAsync = ref.watch(tradeStatusProvider(widget.orderId));
-    final status = tradeStatusAsync.hasValue
+    final orderStatus = tradeStatusAsync.hasValue
         ? _mapOrderStatus(tradeStatusAsync.value!)
         : TradeStatus.loading;
+
+    // The protocol has no "rated" order status — a settled trade stays
+    // settled once the rating is sent — so `rated` is only reachable by
+    // overlaying the local rating on top of the mapping above (#327). The
+    // lookup only matters (and is only watched) once the trade settles, and
+    // while its first fetch is unresolved the screen holds `loading` for
+    // the same reason as above — never flash a CTA that may change on the
+    // next frame. A refresh keeps the previous value, so resolving a fresh
+    // rating does not bounce through the spinner.
+    final TradeStatus status;
+    if (orderStatus != TradeStatus.pendingRating) {
+      status = orderStatus;
+    } else {
+      final ratingAsync = ref.watch(tradeRatingProvider(widget.orderId));
+      if (ratingAsync.isLoading && !ratingAsync.hasValue) {
+        status = TradeStatus.loading;
+      } else if (ref.watch(ratedByMeProvider(widget.orderId))) {
+        status = TradeStatus.rated;
+      } else {
+        status = TradeStatus.pendingRating;
+      }
+    }
 
     // Look up order details from the live order book.
     final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
     final order = allOrders.where((o) => o.id == widget.orderId).firstOrNull;
+
+    // Counterpart (taker) reputation snapshot persisted from the daemon's
+    // follow-up Peer DM (#305). Read via tradeInfoProvider (not the polling
+    // stream): it refreshes on the TradeUpdate the Rust side emits after
+    // persisting the snapshot. Present only once someone took the order, and
+    // the taker's role is the opposite of the user's own.
+    final trade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
 
     final inFlight = const {
       TradeStatus.waitingInvoice,
@@ -557,6 +588,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           // + contextual timer.
           _buildStateStrip(theme, colors, isBuyer, status, order),
           const SizedBox(height: AppSpacing.lg),
+
+          // Counterpart (taker) reputation — who took the order (#305).
+          if (trade?.peerRating != null) ...[
+            PeerReputationCard(
+              rating: trade!.peerRating!,
+              reviews: trade.peerReviews ?? 0,
+              days: trade.peerDays ?? 0,
+              counterpartIsBuyer: !isBuyer,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
 
           // Single primary CTA for the current state.
           ..._buildPrimaryAction(status, isBuyer, green, colors),

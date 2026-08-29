@@ -49,6 +49,32 @@ pub(crate) enum DaemonReply {
     Restored(mostro_core::message::RestoreSessionInfo),
 }
 
+/// What travels over a pending request's waiter channel: the daemon's reply,
+/// plus — for a take — the per-order lock handed from the dispatcher to the
+/// woken `take_order`.
+///
+/// The guard rides INSIDE the channel value on purpose: every path that loses
+/// the value releases the lock by dropping it — a waiter that already timed
+/// out fails the send and the returned `Wake` drops here, a reply that lands
+/// in the buffer of a receiver dropped moments later drops with it. Nothing
+/// ever parks a held guard where no destructor will reach it.
+pub(crate) struct Wake {
+    pub(crate) reply: DaemonReply,
+    /// `Some` only on the reply that resolves a take: the dispatcher's
+    /// per-order guard, so no other handler of the order can slot in between
+    /// the consumed reply and the take's persistence (#259). Every other
+    /// flow sends `None` — creates own no row yet worth guarding this way,
+    /// and an add-invoice reply is persisted by the dispatch arms themselves,
+    /// which still hold the guard.
+    pub(crate) order_guard: Option<tokio::sync::OwnedMutexGuard<()>>,
+}
+
+impl From<DaemonReply> for Wake {
+    fn from(reply: DaemonReply) -> Self {
+        Self { reply, order_guard: None }
+    }
+}
+
 /// What kind of outgoing request a pending record tracks.
 pub(crate) enum PendingRequestKind {
     Create {
@@ -92,7 +118,7 @@ pub(crate) struct PendingRequest {
     /// only this sender and leaves the rest of the record, so a genuine late
     /// reply still reconciles trade-key and id bindings instead of being
     /// indistinguishable from a stale replay.
-    pub(crate) tx: Option<tokio::sync::oneshot::Sender<DaemonReply>>,
+    pub(crate) tx: Option<tokio::sync::oneshot::Sender<Wake>>,
 }
 
 /// Maps `trade_pubkey_hex` → the pending daemon request for that trade key.
@@ -429,8 +455,8 @@ mod tests {
     fn insert_pending_create(
         key: &str,
         request_id: u64,
-    ) -> tokio::sync::oneshot::Receiver<DaemonReply> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    ) -> tokio::sync::oneshot::Receiver<Wake> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Wake>();
         pending_requests().lock().unwrap().insert(
             key.to_string(),
             PendingRequest {
@@ -456,8 +482,8 @@ mod tests {
     fn insert_pending_take(
         key: &str,
         request_id: u64,
-    ) -> tokio::sync::oneshot::Receiver<DaemonReply> {
-        let (tx, rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+    ) -> tokio::sync::oneshot::Receiver<Wake> {
+        let (tx, rx) = tokio::sync::oneshot::channel::<Wake>();
         pending_requests().lock().unwrap().insert(
             key.to_string(),
             PendingRequest {
@@ -480,7 +506,7 @@ mod tests {
         let order_key = "test-order-pubkey";
 
         // A pending Restore record (request_id 0, nonce-less).
-        let (rtx, _rrx) = tokio::sync::oneshot::channel::<DaemonReply>();
+        let (rtx, _rrx) = tokio::sync::oneshot::channel::<Wake>();
         pending_requests().lock().unwrap().insert(
             restore_key.to_string(),
             PendingRequest {
@@ -523,9 +549,9 @@ mod tests {
         // Genuine reply: record consumed exactly once, waiter still attached.
         let pending = take_matching_request(key, Some(7)).expect("must match");
         let tx = pending.tx.expect("waiter must still be attached");
-        let _ = tx.send(DaemonReply::Confirmed {
+        let _ = tx.send(Wake::from(DaemonReply::Confirmed {
             daemon_id: "d".to_string(),
-        });
+        }));
         assert!(!pending_requests().lock().unwrap().contains_key(key));
         assert!(take_matching_request(key, Some(7)).is_none());
     }
@@ -606,7 +632,7 @@ mod tests {
         let ai_key = "test-ai-addinvoice-pubkey";
         let _rx_t = insert_pending_take(take_key, 51);
 
-        let (tx, _rx) = tokio::sync::oneshot::channel::<DaemonReply>();
+        let (tx, _rx) = tokio::sync::oneshot::channel::<Wake>();
         pending_requests().lock().unwrap().insert(
             ai_key.to_string(),
             PendingRequest {

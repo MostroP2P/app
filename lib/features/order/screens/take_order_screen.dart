@@ -16,6 +16,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart' show ReputationStat;
 import 'package:mostro/features/trades/providers/trades_providers.dart' show refreshTrades;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
@@ -366,7 +367,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: order.rating.toStringAsFixed(1),
                           label: l10n.ratingStatLabel,
                           icon: Icons.star,
@@ -374,13 +375,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.tradeCount}',
                           label: l10n.tradesStatLabel,
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.daysActive}',
                           label: l10n.daysActiveStatLabel,
                         ),
@@ -537,46 +538,6 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
         '${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
-  }
-}
-
-/// One column of the 3-column creator-reputation block.
-class _ReputationStat extends StatelessWidget {
-  const _ReputationStat({
-    required this.value,
-    required this.label,
-    this.icon,
-    this.iconColor,
-  });
-
-  final String value;
-  final String label;
-  final IconData? icon;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: iconColor),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            Text(
-              value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(color: textSec, fontSize: 11)),
-      ],
-    );
   }
 }
 

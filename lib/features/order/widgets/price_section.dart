@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
@@ -9,11 +12,25 @@ import 'package:mostro/l10n/app_localizations.dart';
 /// Whether Market or Fixed price mode is selected.
 final isMarketPriceProvider = StateProvider<bool>((_) => true);
 
-/// Premium slider value (-10% to +10%).
+/// Premium slider value. Whole percent only (Mostro rounds the premium to an
+/// integer). Default slider range is [-10%, +10%], but the input accepts (and
+/// the slider expands to fit) values up to [-999%, +999%].
 final premiumValueProvider = StateProvider<double>((_) => 0.0);
+
+/// Default premium slider bound. The slider grows past this to fit a typed value.
+const double kPremiumSliderDefault = 10.0;
+
+/// Hard limit for a manually entered premium magnitude.
+const double kPremiumMaxMagnitude = 999.0;
 
 /// Fixed sats amount (only used in Fixed price mode).
 final fixedSatsProvider = StateProvider<String>((_) => '');
+
+/// Whether the order being created is a range order (min/max fiat amount).
+/// Range orders are incompatible with a fixed sats price — Mostro prices them
+/// at market with a premium — so PriceSection locks the toggle to Market and
+/// disables Fixed while this is true.
+final isRangeOrderProvider = StateProvider<bool>((_) => false);
 
 /// Price type toggle + premium/fixed sats input.
 class PriceSection extends ConsumerStatefulWidget {
@@ -27,25 +44,63 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
   late final TextEditingController _premiumController;
   bool _editingPremium = false;
 
+  // Slider bounds captured when a drag starts and held until it ends, so the
+  // scale does not shrink under the user's finger while dragging a value that
+  // sits outside the default ±10% range back toward zero. Null when idle.
+  double? _dragMin;
+  double? _dragMax;
+
+  // Applies a typed premium a short while after the user stops typing, so the
+  // slider tracks the field live without needing Enter (matches v1 behaviour).
+  Timer? _premiumDebounce;
+  static const Duration _premiumDebounceDelay = Duration(seconds: 2);
+
   @override
   void initState() {
     super.initState();
     _premiumController = TextEditingController(
-      text: ref.read(premiumValueProvider).toStringAsFixed(1),
+      text: ref.read(premiumValueProvider).round().toString(),
     );
   }
 
   @override
   void dispose() {
+    _premiumDebounce?.cancel();
     _premiumController.dispose();
     super.dispose();
   }
 
   void _syncControllerFromProvider(double? prev, double next) {
     if (_editingPremium) return;
-    final newText = next.toStringAsFixed(1);
+    final newText = next.round().toString();
     if (_premiumController.text != newText) {
       _premiumController.text = newText;
+    }
+  }
+
+  /// Parse [v] and push it (clamped to ±[kPremiumMaxMagnitude]) to the premium
+  /// provider. Returns false when [v] is empty or a lone sign so callers can
+  /// decide whether to restore the field. Does not touch the controller text,
+  /// so it is safe to call mid-typing.
+  bool _applyPremiumText(String v) {
+    final parsed = int.tryParse(v);
+    if (parsed == null) return false;
+    ref.read(premiumValueProvider.notifier).state = parsed
+        .clamp(
+          -kPremiumMaxMagnitude.toInt(),
+          kPremiumMaxMagnitude.toInt(),
+        )
+        .toDouble();
+    return true;
+  }
+
+  /// Finish editing the field: commit [v], or restore the text from the current
+  /// premium when [v] does not parse. Cancels any pending live update.
+  void _endPremiumEditing(String v) {
+    _premiumDebounce?.cancel();
+    setState(() => _editingPremium = false);
+    if (!_applyPremiumText(v)) {
+      _syncControllerFromProvider(null, ref.read(premiumValueProvider));
     }
   }
 
@@ -57,8 +112,19 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
     final purple = colors?.purpleButton ?? const Color(0xFF8359C2);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
     final isMarket = ref.watch(isMarketPriceProvider);
+    final isRange = ref.watch(isRangeOrderProvider);
     final premium = ref.watch(premiumValueProvider);
     final l10n = AppLocalizations.of(context);
+
+    // Slider bounds default to ±10% but expand to fit a manually entered value.
+    // While a drag is active the frozen bounds win, so the scale stays stable.
+    final sliderMin = _dragMin ??
+        (premium < -kPremiumSliderDefault ? premium : -kPremiumSliderDefault);
+    final sliderMax = _dragMax ??
+        (premium > kPremiumSliderDefault ? premium : kPremiumSliderDefault);
+    // Whole-percent steps (Mostro rounds the premium to an integer).
+    final sliderDivisions =
+        (sliderMax - sliderMin).round().clamp(1, 2000);
 
     // Sync controller from provider via listener (not in build body).
     ref.listen<double>(premiumValueProvider, _syncControllerFromProvider);
@@ -82,8 +148,11 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
             Switch(
               value: isMarket,
               activeThumbColor: green,
-              onChanged: (v) =>
-                  ref.read(isMarketPriceProvider.notifier).state = v,
+              // Range orders must use market price (Mostro applies a premium to
+              // the variable amount), so Fixed is locked out while in range.
+              onChanged: isRange
+                  ? null
+                  : (v) => ref.read(isMarketPriceProvider.notifier).state = v,
             ).withAutomationId(AutomationIds.orderCreatePriceType),
             IconButton(
               onPressed: () => _showPriceInfo(context),
@@ -95,6 +164,27 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
+
+        // Range orders can't use a fixed price — explain why Fixed is disabled.
+        if (isRange) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline,
+                    size: 14, color: colors?.textSubtle),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    l10n.fixedPriceRangeNotAvailable,
+                    style: TextStyle(fontSize: 12, color: colors?.textSubtle),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
 
         if (isMarket) ...[
           // Premium slider with editable field
@@ -125,8 +215,20 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                             controller: _premiumController,
                             keyboardType: const TextInputType.numberWithOptions(
                               signed: true,
-                              decimal: true,
                             ),
+                            // Whole percent only: optional sign + up to 3
+                            // digits. Blocks '.' / ',' so no decimals slip in.
+                            inputFormatters: [
+                              TextInputFormatter.withFunction(
+                                (oldValue, newValue) {
+                                  if (newValue.text.isEmpty) return newValue;
+                                  return RegExp(r'^[+-]?\d{0,3}$')
+                                          .hasMatch(newValue.text)
+                                      ? newValue
+                                      : oldValue;
+                                },
+                              ),
+                            ],
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: purple,
@@ -148,22 +250,21 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                             ),
                             onTap: () =>
                                 setState(() => _editingPremium = true),
-                            onSubmitted: (v) {
-                              setState(() => _editingPremium = false);
-                              final parsed = double.tryParse(v);
-                              if (parsed != null) {
-                                ref.read(premiumValueProvider.notifier).state =
-                                    parsed.clamp(-10.0, 10.0);
-                              }
-                            },
-                            onTapOutside: (_) {
-                              setState(() => _editingPremium = false);
-                              // Sync controller to current provider value.
-                              _syncControllerFromProvider(
-                                null,
-                                ref.read(premiumValueProvider),
+                            onChanged: (v) {
+                              // Live update like v1: apply the typed value a
+                              // couple of seconds after the user stops typing,
+                              // so the slider follows without needing Enter.
+                              // The controller is left untouched here, so the
+                              // cursor and in-progress text are never disturbed.
+                              _premiumDebounce?.cancel();
+                              _premiumDebounce = Timer(
+                                _premiumDebounceDelay,
+                                () => _applyPremiumText(v),
                               );
                             },
+                            onSubmitted: _endPremiumEditing,
+                            onTapOutside: (_) =>
+                                _endPremiumEditing(_premiumController.text),
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -181,27 +282,36 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                   ],
                 ),
                 Slider(
-                  value: premium,
-                  min: -10,
-                  max: 10,
-                  divisions: 40,
+                  value: premium.clamp(sliderMin, sliderMax),
+                  min: sliderMin,
+                  max: sliderMax,
+                  divisions: sliderDivisions,
                   activeColor: purple,
-                  label: '${premium >= 0 ? '+' : ''}${premium.toStringAsFixed(1)}%',
-                  onChanged: (v) =>
-                      ref.read(premiumValueProvider.notifier).state = v,
+                  label: '${premium >= 0 ? '+' : ''}${premium.round()}%',
+                  onChangeStart: (_) => setState(() {
+                    _dragMin = sliderMin;
+                    _dragMax = sliderMax;
+                  }),
+                  onChanged: (v) => ref
+                      .read(premiumValueProvider.notifier)
+                      .state = v.roundToDouble(),
+                  onChangeEnd: (_) => setState(() {
+                    _dragMin = null;
+                    _dragMax = null;
+                  }),
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '-10%',
+                      '${sliderMin.round()}%',
                       style: TextStyle(
                         color: colors?.textSubtle,
                         fontSize: 11,
                       ),
                     ),
                     Text(
-                      '+10%',
+                      '+${sliderMax.round()}%',
                       style: TextStyle(
                         color: colors?.textSubtle,
                         fontSize: 11,

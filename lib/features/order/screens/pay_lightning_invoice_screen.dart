@@ -14,11 +14,12 @@ import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
-    show refreshTrades;
+    show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' show OrderStatus, TradeUpdate;
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart';
 
 /// Pay Lightning Invoice screen — Route `/pay_invoice/:orderId`.
 ///
@@ -110,6 +111,13 @@ class _PayLightningInvoiceScreenState
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
     final tradeAsync = ref.watch(tradeInfoStreamProvider(widget.orderId));
+
+    // Counterpart (taker) reputation: the maker is the seller here (paying the
+    // hold invoice), so the taker is the buyer (#305). Read via a separate
+    // tradeInfoProvider rather than `tradeAsync`, because the polling stream
+    // stops once the hold invoice arrives — which may be before the follow-up
+    // Peer DM persists — and tradeInfoProvider refreshes on its TradeUpdate.
+    final peerTrade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
 
     // Listen to live status updates from mostrod. Once the hold invoice is
     // settled, mostrod broadcasts a BuyerTookOrder/HoldInvoicePaymentAccepted
@@ -219,13 +227,32 @@ class _PayLightningInvoiceScreenState
             appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
             body: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Center(
-                child: NwcPaymentWidget(
-                  bolt11: invoice,
-                  amountSats: amountSats,
-                  onPaymentSuccess: _onPaymentDetected,
-                  onFallbackToManual: () => setState(() => _manualMode = true),
-                ),
+              child: Column(
+                children: [
+                  // The seller must see who took their order even when NWC
+                  // auto-pays the hold invoice — the app can settle without a
+                  // manual step, so this is where the decision matters (#305).
+                  if (peerTrade?.peerRating != null) ...[
+                    PeerReputationCard(
+                      rating: peerTrade!.peerRating!,
+                      reviews: peerTrade.peerReviews ?? 0,
+                      days: peerTrade.peerDays ?? 0,
+                      counterpartIsBuyer: true,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  Expanded(
+                    child: Center(
+                      child: NwcPaymentWidget(
+                        bolt11: invoice,
+                        amountSats: amountSats,
+                        onPaymentSuccess: _onPaymentDetected,
+                        onFallbackToManual: () =>
+                            setState(() => _manualMode = true),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -244,6 +271,16 @@ class _PayLightningInvoiceScreenState
             ),
             child: Column(
               children: [
+                // Counterpart (taker) reputation — see `peerTrade` above.
+                if (peerTrade?.peerRating != null) ...[
+                  PeerReputationCard(
+                    rating: peerTrade!.peerRating!,
+                    reviews: peerTrade.peerReviews ?? 0,
+                    days: peerTrade.peerDays ?? 0,
+                    counterpartIsBuyer: true,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
                 // Info card with QR
                 Expanded(
                   child: Container(

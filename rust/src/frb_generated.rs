@@ -5991,6 +5991,9 @@ impl SseDecode for crate::api::types::TradeInfo {
         let mut var_startedAt = <i64>::sse_decode(deserializer);
         let mut var_completedAt = <Option<i64>>::sse_decode(deserializer);
         let mut var_outcome = <Option<crate::api::types::TradeOutcome>>::sse_decode(deserializer);
+        let mut var_peerRating = <Option<f64>>::sse_decode(deserializer);
+        let mut var_peerReviews = <Option<u32>>::sse_decode(deserializer);
+        let mut var_peerDays = <Option<u32>>::sse_decode(deserializer);
         return crate::api::types::TradeInfo {
             id: var_id,
             order: var_order,
@@ -6005,6 +6008,9 @@ impl SseDecode for crate::api::types::TradeInfo {
             started_at: var_startedAt,
             completed_at: var_completedAt,
             outcome: var_outcome,
+            peer_rating: var_peerRating,
+            peer_reviews: var_peerReviews,
+            peer_days: var_peerDays,
         };
     }
 }
@@ -7537,6 +7543,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::TradeInfo {
             self.started_at.into_into_dart().into_dart(),
             self.completed_at.into_into_dart().into_dart(),
             self.outcome.into_into_dart().into_dart(),
+            self.peer_rating.into_into_dart().into_dart(),
+            self.peer_reviews.into_into_dart().into_dart(),
+            self.peer_days.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -8908,6 +8917,9 @@ impl SseEncode for crate::api::types::TradeInfo {
         <i64>::sse_encode(self.started_at, serializer);
         <Option<i64>>::sse_encode(self.completed_at, serializer);
         <Option<crate::api::types::TradeOutcome>>::sse_encode(self.outcome, serializer);
+        <Option<f64>>::sse_encode(self.peer_rating, serializer);
+        <Option<u32>>::sse_encode(self.peer_reviews, serializer);
+        <Option<u32>>::sse_encode(self.peer_days, serializer);
     }
 }
 

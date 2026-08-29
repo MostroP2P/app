@@ -189,4 +189,16 @@ pub trait Storage: Send + Sync {
         hold_invoice: Option<String>,
         amount_sats: Option<u64>,
     ) -> Result<()>;
+
+    /// Persist the counterparty (taker) reputation snapshot on a trade
+    /// identified by `order.id` (issue #305). No-op when no matching trade
+    /// exists. `days` saturates at `u32::MAX`; a full-privacy taker sends no
+    /// snapshot, so this is only called when one was carried.
+    async fn update_trade_peer_reputation(
+        &self,
+        order_id: &str,
+        rating: f64,
+        reviews: u32,
+        days: u32,
+    ) -> Result<()>;
 }

@@ -162,6 +162,33 @@ pub(crate) fn add_invoice_sync(
     }
 }
 
+/// Counterparty (taker) reputation from the daemon's follow-up `Peer` DM
+/// (issue #305). The daemon rides it on the same `PayInvoice` / `AddInvoice`
+/// action as the flow message, with an empty `pubkey` and the reputation
+/// snapshot. Returns `(rating, reviews, operating_days)` when present.
+///
+/// `reputation` is `None` for a full-privacy taker; a brand-new user arrives
+/// as all-zeros — the two are indistinguishable on the wire, so this only
+/// reports whether a snapshot was carried, leaving the display to the UI.
+pub(crate) fn peer_reputation(
+    payload: &Option<mostro_core::message::Payload>,
+) -> Option<(f64, u32, u32)> {
+    match payload {
+        Some(mostro_core::message::Payload::Peer(peer)) => peer.reputation.as_ref().map(|u| {
+            // Saturate rather than wrap or zero out: reviews is an unconstrained
+            // i64, so clamp negatives to 0 and anything past u32::MAX to u32::MAX
+            // (defaulting overflow to 0 would turn a huge count into "no reviews").
+            // operating_days is u64, so it only needs the upper bound.
+            (
+                u.rating,
+                u.reviews.clamp(0, u32::MAX as i64) as u32,
+                u.operating_days.min(u32::MAX as u64) as u32,
+            )
+        }),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +319,86 @@ mod tests {
 
         // No payload → nothing to sync.
         assert!(add_invoice_sync(&None).is_none());
+    }
+
+    /// The follow-up Peer payload that `add_invoice_sync` ignores is exactly
+    /// what `peer_reputation` must pick up: the counterparty's reputation
+    /// snapshot rides here (issue #305), with an empty pubkey.
+    #[test]
+    fn peer_reputation_reads_the_snapshot_add_invoice_sync_ignores() {
+        use mostro_core::message::{Payload, Peer};
+        use mostro_core::user::UserInfo;
+
+        // Real-world shape from the reproduction: rating 4.375, 4 reviews, 64 days.
+        let peer = Payload::Peer(Peer {
+            pubkey: String::new(),
+            reputation: Some(UserInfo {
+                rating: 4.375,
+                reviews: 4,
+                operating_days: 64,
+            }),
+        });
+        assert_eq!(peer_reputation(&Some(peer)), Some((4.375, 4, 64)));
+
+        // A full-privacy taker carries no snapshot.
+        let private = Payload::Peer(Peer {
+            pubkey: String::new(),
+            reputation: None,
+        });
+        assert_eq!(peer_reputation(&Some(private)), None);
+
+        // A brand-new user is all-zeros but still a snapshot — not None.
+        let fresh = Payload::Peer(Peer {
+            pubkey: String::new(),
+            reputation: Some(UserInfo {
+                rating: 0.0,
+                reviews: 0,
+                operating_days: 0,
+            }),
+        });
+        assert_eq!(peer_reputation(&Some(fresh)), Some((0.0, 0, 0)));
+
+        // Non-Peer payloads and the empty case carry no reputation.
+        let so = small_order_with(mostro_core::order::Status::WaitingBuyerInvoice, 484);
+        assert_eq!(peer_reputation(&Some(Payload::Order(so))), None);
+        assert_eq!(peer_reputation(&None), None);
+    }
+
+    /// `reviews` is an unconstrained i64 and `operating_days` a u64, so
+    /// out-of-range values must saturate into u32, not wrap or collapse to 0 —
+    /// a huge count reading as "no reviews" would be worse than clamping.
+    #[test]
+    fn peer_reputation_saturates_out_of_range_counts() {
+        use mostro_core::message::{Payload, Peer};
+        use mostro_core::user::UserInfo;
+
+        let peer = |reviews: i64, operating_days: u64| {
+            Payload::Peer(Peer {
+                pubkey: String::new(),
+                reputation: Some(UserInfo {
+                    rating: 5.0,
+                    reviews,
+                    operating_days,
+                }),
+            })
+        };
+
+        // Above u32::MAX saturates to u32::MAX, not 0 / wraparound.
+        assert_eq!(
+            peer_reputation(&Some(peer(i64::MAX, u64::MAX))),
+            Some((5.0, u32::MAX, u32::MAX))
+        );
+        // Exact boundary is preserved; one past it saturates.
+        assert_eq!(
+            peer_reputation(&Some(peer(u32::MAX as i64, u32::MAX as u64))),
+            Some((5.0, u32::MAX, u32::MAX))
+        );
+        assert_eq!(
+            peer_reputation(&Some(peer(u32::MAX as i64 + 1, u32::MAX as u64 + 1))),
+            Some((5.0, u32::MAX, u32::MAX))
+        );
+        // A negative review count clamps to 0.
+        assert_eq!(peer_reputation(&Some(peer(-7, 0))), Some((5.0, 0, 0)));
     }
 
     /// The hard-terminal set must match protocol finality: statuses mostrod

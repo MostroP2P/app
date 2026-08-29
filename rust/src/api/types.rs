@@ -262,6 +262,17 @@ pub struct TradeInfo {
     pub started_at: i64,
     pub completed_at: Option<i64>,
     pub outcome: Option<TradeOutcome>,
+    /// Counterparty (taker) reputation snapshot from the daemon's follow-up
+    /// Peer DM (issue #305). All-zeros is ambiguous on the wire — a brand-new
+    /// user and a full-privacy taker are indistinguishable — so the UI shows
+    /// the raw numbers rather than guessing. `#[serde(default)]` keeps trade
+    /// rows written before this field existed deserializable.
+    #[serde(default)]
+    pub peer_rating: Option<f64>,
+    #[serde(default)]
+    pub peer_reviews: Option<u32>,
+    #[serde(default)]
+    pub peer_days: Option<u32>,
 }
 
 /// A trade lifecycle change pushed from Rust so the UI does not have to poll

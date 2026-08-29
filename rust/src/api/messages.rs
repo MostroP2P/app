@@ -1915,6 +1915,9 @@ mod tests {
             started_at: 1,
             completed_at: None,
             outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
         };
         assert!(chat_still_relevant(&base));
 
