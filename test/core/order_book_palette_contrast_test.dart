@@ -65,9 +65,12 @@ void main() {
         _expectAA(
             '$mode textSecondary/bgElevated', pal.textSecondary, pal.bgElevated);
         _expectAA('$mode textSecondary/bg', pal.textSecondary, pal.bg);
+        // Empty/error state copy renders on the list well behind the cards.
+        _expectAA('$mode textSecondary/bgWell', pal.textSecondary, pal.bgWell);
         // Timestamps, "Market price", the sort caption, and separators.
         _expectAA('$mode textTertiary/bgCard', pal.textTertiary, pal.bgCard);
         _expectAA('$mode textTertiary/bg', pal.textTertiary, pal.bg);
+        _expectAA('$mode textTertiary/bgWell', pal.textTertiary, pal.bgWell);
       });
 
       test('reason pills on their fills', () {

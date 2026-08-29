@@ -2,21 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/features/order/providers/payment_methods_provider.dart';
+import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-
-/// Common payment methods available for selection.
-const _commonMethods = [
-  'Mercado Pago',
-  'Bank Transfer',
-  'Pix',
-  'Zelle',
-  'Wise',
-  'SEPA',
-  'Revolut',
-  'Cash',
-  'PayPal',
-  'Nequi',
-];
 
 /// Selected payment methods for the create-order form.
 final selectedPaymentMethodsProvider =
@@ -57,6 +47,20 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
+    // When the currency changes, drop any selected methods that are not valid
+    // for the new currency (the custom free-text entry is left untouched).
+    ref.listen<String>(selectedFiatCodeProvider, (_, next) {
+      // Don't prune while the asset is still loading: the provider returns an
+      // empty list during load, which would wipe every selection.
+      if (!ref.read(paymentMethodsDataProvider).hasValue) return;
+      final valid = ref.read(paymentMethodsForCurrencyProvider(next)).toSet();
+      final current = ref.read(selectedPaymentMethodsProvider);
+      final pruned = current.where(valid.contains).toList();
+      if (pruned.length != current.length) {
+        ref.read(selectedPaymentMethodsProvider.notifier).state = pruned;
+      }
+    });
+
     final selected = ref.watch(selectedPaymentMethodsProvider);
     final custom = ref.watch(customPaymentMethodProvider);
     final l10n = AppLocalizations.of(context);
@@ -111,7 +115,8 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
         ),
         const SizedBox(height: AppSpacing.sm),
 
-        // Custom method text field
+        // Custom method text field. This is the free-text entry, so it is the
+        // one an automated driver can fill with an arbitrary method.
         TextField(
           controller: _customController,
           decoration: InputDecoration(
@@ -126,7 +131,7 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
           style: theme.textTheme.bodyMedium,
           onChanged: (v) =>
               ref.read(customPaymentMethodProvider.notifier).state = v,
-        ),
+        ).withAutomationId(AutomationIds.orderCreatePaymentMethod),
 
         if (custom.isNotEmpty)
           Padding(
@@ -146,12 +151,15 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
   void _showMethodPicker(BuildContext context) {
     final selected = ref.read(selectedPaymentMethodsProvider);
 
+    final fiatCode = ref.read(selectedFiatCodeProvider);
+    final methods = ref.read(paymentMethodsForCurrencyProvider(fiatCode));
     showDialog<void>(
       context: context,
       builder: (dialogContext) => _MethodPickerDialog(
         selected: selected,
-        onDone: (methods) {
-          ref.read(selectedPaymentMethodsProvider.notifier).state = methods;
+        methods: methods,
+        onDone: (chosen) {
+          ref.read(selectedPaymentMethodsProvider.notifier).state = chosen;
           Navigator.pop(dialogContext);
         },
       ),
@@ -162,10 +170,12 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
 class _MethodPickerDialog extends StatefulWidget {
   const _MethodPickerDialog({
     required this.selected,
+    required this.methods,
     required this.onDone,
   });
 
   final List<String> selected;
+  final List<String> methods;
   final ValueChanged<List<String>> onDone;
 
   @override
@@ -202,7 +212,7 @@ class _MethodPickerDialogState extends State<_MethodPickerDialog> {
             Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.xs,
-              children: _commonMethods.map((method) {
+              children: widget.methods.map((method) {
                 final isSelected = _selected.contains(method);
                 return FilterChip(
                   label: Text(method, style: const TextStyle(fontSize: 12)),

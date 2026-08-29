@@ -13,6 +13,11 @@ Initiate a dispute on an active trade.
 completion (i.e., funds are in escrow). No existing open dispute on
 this trade.
 
+The daemon accepts a dispute only on an `Active` or `FiatSent` order and
+answers anything earlier with `CantDo`, so the status already held locally is
+checked before publishing. `InProgress` passes: it is the public bucket, i.e. a
+trade whose real state is unknown, and that call belongs to the daemon.
+
 **Side effects**: Sends Dispute action to Mostro daemon via NIP-44 (Kind 14).
 Creates local Dispute record. Updates trade step to `Disputed`.
 

@@ -5,11 +5,10 @@
 /// event signed with `K_sign` and `p`-tagged to `pub(K_conv)` — both derived
 /// from the trade-key ECDH secret via `crate::crypto::chat_keys` — carrying a
 /// NIP-44 encrypted kind 1 inner event signed by the sender's trade key. The
-/// old NIP-59 gift wrap (kind 1059) — whose random ephemeral authors made
-/// third-party flooding unattributable and unfilterable — is no longer
-/// written; it is still *read* from pre-migration peers until
-/// [`LEGACY_CHAT_DEPRECATION_TS`] so mixed-version trades keep chatting.
-/// Admin/dispute chat (api/disputes.rs) still uses gift wrap.
+/// old NIP-59 gift wrap — whose random ephemeral authors made third-party
+/// flooding unattributable and unfilterable — is neither written nor read:
+/// this client speaks protocol v2 only. The admin/dispute chat
+/// (api/disputes.rs) rides the same envelope.
 ///
 /// Messages persist to the `messages` table (native; web is memory-only until
 /// IndexedDB lands, #233); the in-memory store is a write-through cache. The
@@ -345,13 +344,37 @@ pub(crate) async fn store_outgoing_admin_message(
 
 async fn publish_chat_payload(ctx: &ChatContext, payload: &str) -> Result<nostr_sdk::Event> {
     let (outer, inner) =
-        crate::nostr::gift_wrap::mostro_wrap(&ctx.trade_keys, &ctx.conv, &ctx.sign, payload)
+        crate::nostr::transport::mostro_wrap(&ctx.trade_keys, &ctx.conv, &ctx.sign, payload)
             .await?;
     let pool = crate::api::nostr::get_pool().map_err(|_| anyhow!("relay pool not ready"))?;
-    pool.client()
+    let output = pool
+        .client()
         .send_event(&outer)
         .await
         .map_err(|e| anyhow!("publish failed: {e}"))?;
+    // Envelope metadata only — chat plaintext never enters a log record.
+    let eid = outer.id.to_hex();
+    for relay in &output.success {
+        crate::api::logging::blog_info(
+            "publish",
+            format!(
+                "ev={} kind=14 relay={} OK",
+                crate::api::logging::short_id(&eid),
+                crate::api::logging::display_relay(&relay.to_string()),
+            ),
+        );
+    }
+    for (relay, err) in &output.failed {
+        crate::api::logging::blog_warn(
+            "publish",
+            format!(
+                "ev={} kind=14 relay={} FAIL: {}",
+                crate::api::logging::short_id(&eid),
+                crate::api::logging::display_relay(&relay.to_string()),
+                crate::api::logging::sanitize_relay_text(err),
+            ),
+        );
+    }
     Ok(inner)
 }
 
@@ -376,7 +399,7 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
     // payload this size can never fit under MAX_CONTENT_BYTES, so no
     // receiver would accept it. The exact boundary (padding + JSON
     // escaping) is enforced post-encryption in `mostro_wrap`.
-    if content.len() > crate::nostr::gift_wrap::MAX_CONTENT_BYTES {
+    if content.len() > crate::nostr::transport::MAX_CONTENT_BYTES {
         bail!(
             "MessageTooLarge: {} bytes exceeds the maximum message size",
             content.len()
@@ -859,14 +882,6 @@ const OUTER_LRU_CAP: usize = 512;
 const MAX_STORED_MESSAGES_PER_TRADE: usize = 1000;
 const MAX_STORED_BYTES_PER_TRADE: usize = 5 * 1024 * 1024;
 
-/// End of the dual-read migration window: until this instant (unix seconds,
-/// 2026-12-31T00:00:00Z) the client also *accepts* the superseded NIP-59
-/// gift-wrap chat (kind 1059) from pre-migration peers. It always *sends*
-/// the new envelope. After the deadline the legacy subscription is simply
-/// not created. Trades in flight at the cutover keep working: the legacy
-/// path only reads, never writes.
-pub(crate) const LEGACY_CHAT_DEPRECATION_TS: i64 = 1_798_675_200;
-
 /// Subscription id for the chat envelope of one order — explicit so every
 /// exit path can unsubscribe and a lingering relay subscription never
 /// outlives its task.
@@ -923,26 +938,6 @@ impl ChatChannel {
         crate::db::settings_keys::chat_cursor(&format!("{}{order_id}", self.id_prefix()))
     }
 
-    /// Whether to also read the pre-migration gift-wrap form until
-    /// [`LEGACY_CHAT_DEPRECATION_TS`]. Both channels do: the peer chat for
-    /// pre-migration counterparties (#246), and the dispute chat because the
-    /// current solver client still speaks only gift wrap
-    /// (mostrix#102 tracks its migration) — without the dual-read its
-    /// replies would be invisible (PR #254 review).
-    fn reads_legacy_gift_wrap(self) -> bool {
-        true
-    }
-}
-
-/// Subscription id for the legacy gift-wrap dual-read of one channel of one
-/// order. Channel-scoped like the primary id: each task owns and cleans up
-/// exactly its own subscriptions, so a dispute listener exiting can never
-/// tear down the peer task's live legacy delivery (PR #254 review).
-fn legacy_chat_subscription_id(channel: ChatChannel, order_id: &str) -> nostr_sdk::SubscriptionId {
-    nostr_sdk::SubscriptionId::new(format!(
-        "mostro-chat-legacy-{}{order_id}",
-        channel.id_prefix()
-    ))
 }
 
 /// Orders with a live chat task. Single-owner guard: `on_peer_pubkey_received`
@@ -1071,9 +1066,8 @@ fn parse_chat_payload(payload: &str) -> (String, Option<AttachmentInfo>) {
 /// third-party flooding: relays drop everything not signed by the
 /// conversation key, so junk never reaches us — bounded by the persisted
 /// `since` cursor plus a `limit`, so a restart never re-downloads an
-/// unbounded backlog. Until [`LEGACY_CHAT_DEPRECATION_TS`] it additionally
-/// dual-reads the superseded NIP-59 gift wrap (kind 1059) so pre-migration
-/// peers keep working; it never *writes* the legacy form.
+/// unbounded backlog. Kind 14 is the only shape read: this client speaks
+/// protocol v2 only and never subscribes to the superseded gift wrap.
 ///
 /// Incoming events run the spec's cheapest-check-first pipeline: author →
 /// outer-id LRU → rate-limit budget → `mostro_unwrap` (p tag, timestamp
@@ -1123,9 +1117,6 @@ pub(crate) async fn subscribe_incoming_chat(
         let client = pool.client();
         client
             .unsubscribe(&chat_subscription_id(channel, &order_id))
-            .await;
-        client
-            .unsubscribe(&legacy_chat_subscription_id(channel, &order_id))
             .await;
     }
     log::debug!("[messages] incoming-chat subscription exiting order={order_id}");
@@ -1226,8 +1217,6 @@ async fn run_chat_subscription(
     // locally (the cursor only advances on durably stored messages).
     let cursor = load_chat_cursor(channel, order_id).await.unwrap_or(0);
     let sub_id = chat_subscription_id(channel, order_id);
-    let legacy_sub_id = legacy_chat_subscription_id(channel, order_id);
-    let reads_legacy = channel.reads_legacy_gift_wrap();
 
     let mut filter = nostr_sdk::Filter::new()
         .kind(nostr_sdk::Kind::PrivateDirectMessage)
@@ -1237,7 +1226,7 @@ async fn run_chat_subscription(
         filter = filter.since(nostr_sdk::Timestamp::from_secs(cursor as u64));
     }
 
-    // Obtain the receiver BEFORE subscribing — same pattern as subscribe_gift_wraps.
+    // Obtain the receiver BEFORE subscribing — same pattern as subscribe_daemon_messages.
     // This avoids a race where an event arrives between subscribe() and notifications()
     // and would otherwise be missed.
     let mut rx = client.notifications();
@@ -1247,52 +1236,9 @@ async fn run_chat_subscription(
         return;
     }
 
-    // Dual-read window: also accept the superseded gift-wrap envelope from
-    // pre-migration peers, read-only, until the deprecation date. The legacy
-    // address is the old NIP-04-style shared pubkey.
-    let legacy_shared: Option<nostr_sdk::Keys> = if reads_legacy && unix_now() < LEGACY_CHAT_DEPRECATION_TS {
-        // The legacy address doubles as the decryption key. For the peer
-        // chat, v1 gift-wraps to the NIP-04-style shared pubkey, so the
-        // receiver unwraps with the shared SECRET as its keypair. For the
-        // dispute chat, the pre-migration solver (mostrix) gift-wraps
-        // straight to the trade pubkey, so the trade keys unwrap it.
-        let keys = match channel {
-            ChatChannel::Peer => crate::crypto::ecdh::derive_nip04_shared_key(trade_keys, peer_pubkey)
-                .ok()
-                .and_then(|raw| nostr_sdk::SecretKey::from_slice(&raw).ok())
-                .map(nostr_sdk::Keys::new),
-            ChatChannel::Dispute => Some(trade_keys.clone()),
-        };
-        match keys {
-            None => {
-                log::warn!("[messages] legacy shared key derivation failed order={order_id}");
-                None
-            }
-            Some(keys) => {
-                let legacy_filter = nostr_sdk::Filter::new()
-                    .kind(nostr_sdk::Kind::GiftWrap)
-                    .pubkey(keys.public_key())
-                    .limit(CHAT_BACKLOG_LIMIT);
-                match client
-                    .subscribe_with_id(legacy_sub_id.clone(), legacy_filter, None)
-                    .await
-                {
-                    Ok(_) => Some(keys),
-                    Err(e) => {
-                        log::warn!("[messages] legacy chat subscribe failed: {e}");
-                        None
-                    }
-                }
-            }
-        }
-    } else {
-        None
-    };
-
     log::info!(
-        "[messages] incoming-chat subscription active order={order_id} author={} since={cursor} legacy={}",
+        "[messages] incoming-chat subscription active order={order_id} author={} since={cursor}",
         sign_pubkey.to_hex(),
-        legacy_shared.is_some(),
     );
 
     let mut state = ChatRxState::new(channel, cursor);
@@ -1307,19 +1253,6 @@ async fn run_chat_subscription(
                 if subscription_id == sub_id {
                     handle_chat_event(channel, order_id, &allowed_signers, conv, &sign_pubkey, &my_trade_pubkey, &event, &mut state)
                         .await;
-                } else if subscription_id == legacy_sub_id {
-                    if let Some(shared) = &legacy_shared {
-                        handle_legacy_chat_event(
-                            channel,
-                            order_id,
-                            shared,
-                            &my_trade_pubkey,
-                            &allowed_signers,
-                            &event,
-                            &mut state,
-                        )
-                        .await;
-                    }
                 }
                 if state.flooded {
                     return;
@@ -1329,7 +1262,7 @@ async fn run_chat_subscription(
                 // EOSE for one of our subscriptions: stored catch-up is over,
                 // the token bucket meters everything from here on.
                 if let nostr_sdk::RelayMessage::EndOfStoredEvents(sid) = message {
-                    if *sid == sub_id || *sid == legacy_sub_id {
+                    if *sid == sub_id {
                         state.live = true;
                     }
                 }
@@ -1380,7 +1313,7 @@ async fn handle_chat_event(
     }
 
     // Steps 2,3,4,7–11,13 — the crypto-side validation.
-    let inner = match crate::nostr::gift_wrap::mostro_unwrap(
+    let inner = match crate::nostr::transport::mostro_unwrap(
         conv,
         sign_pubkey,
         allowed_signers,
@@ -1461,138 +1394,6 @@ async fn handle_chat_event(
             .advance_cursor(order_id, event.created_at.as_secs() as i64)
             .await;
     }
-}
-
-/// Validate and store one legacy gift-wrap chat event (dual-read window).
-///
-/// The legacy envelope has no author to pin, so this path keeps the old
-/// exposure — but bounded: same LRU, same live-stream budget, same size cap
-/// before decryption, same durable dedup and quota. It exists only so a
-/// pre-migration counterparty is not cut off mid-trade, and disappears at
-/// [`LEGACY_CHAT_DEPRECATION_TS`].
-async fn handle_legacy_chat_event(
-    channel: ChatChannel,
-    order_id: &str,
-    legacy_shared: &nostr_sdk::Keys,
-    my_trade_pubkey: &nostr_sdk::PublicKey,
-    allowed_signers: &[nostr_sdk::PublicKey],
-    event: &nostr_sdk::Event,
-    state: &mut ChatRxState,
-) {
-    let legacy_shared_hex = legacy_shared.public_key().to_hex();
-    if event.kind != nostr_sdk::Kind::GiftWrap {
-        return;
-    }
-    let is_for_us = event.tags.iter().any(|t| {
-        let s = t.as_slice();
-        s.first().map(|v| v.as_str()) == Some("p")
-            && s.get(1).map(|v| v.as_str()) == Some(legacy_shared_hex.as_str())
-    });
-    if !is_for_us {
-        return;
-    }
-    if !state.outer_seen.insert(&event.id.to_hex()) {
-        return;
-    }
-    if !state.budget_ok(order_id) {
-        return;
-    }
-    if event.content.len() > crate::nostr::gift_wrap::MAX_CONTENT_BYTES {
-        state.reject(order_id);
-        return;
-    }
-
-    let event_json = match serde_json::to_string(event) {
-        Ok(j) => j,
-        Err(_) => return,
-    };
-    let rumor_json = match crate::nostr::gift_wrap::unwrap(legacy_shared, &event_json).await {
-        Ok(j) => j,
-        Err(e) => {
-            log::debug!("[messages] legacy chat decrypt failed order={order_id}: {e}");
-            state.reject(order_id);
-            return;
-        }
-    };
-    let rumor: serde_json::Value = match serde_json::from_str(&rumor_json) {
-        Ok(v) => v,
-        Err(_) => {
-            state.reject(order_id);
-            return;
-        }
-    };
-
-    // The rumor is unsigned (NIP-59), so the claimed sender is only checked
-    // for membership: this is exactly the weakness the new envelope fixes.
-    // Anyone can wrap to the public shared address, so an unauthorized or
-    // malformed sender still counts toward the flood breaker — resetting the
-    // streak before this check would let a flooder keep it at zero forever.
-    let sender_hex = rumor.get("pubkey").and_then(|v| v.as_str()).unwrap_or("");
-    let Ok(sender) = nostr_sdk::PublicKey::from_hex(sender_hex) else {
-        state.reject(order_id);
-        return;
-    };
-    if !allowed_signers.contains(&sender) {
-        state.reject(order_id);
-        return;
-    }
-    state.consecutive_rejected = 0;
-
-    // No id, no dedup identity: a fabricated fallback id would make the same
-    // rumor accepted again on every replay, so it is rejected outright.
-    let Some(rumor_id) = rumor
-        .get("id")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-    else {
-        log::debug!("[messages] legacy rumor without id order={order_id} — dropped");
-        return;
-    };
-    match message_store().is_known(order_id, &rumor_id).await {
-        Err(e) => {
-            log::warn!("[messages] {e} — dropping legacy event order={order_id}");
-            return;
-        }
-        Ok(true) => return,
-        Ok(false) => {}
-    }
-
-    let raw_content = rumor.get("content").and_then(|v| v.as_str()).unwrap_or("");
-    if message_store()
-        .quota_exceeded(order_id, raw_content.len())
-        .await
-    {
-        log::warn!("[messages] retention quota reached order={order_id} — dropping message");
-        return;
-    }
-
-    // Legacy senders wrapped text as {"text": ...}; also accept the file
-    // pointer shape and plain text.
-    let (content, attachment) = match serde_json::from_str::<serde_json::Value>(raw_content)
-        .ok()
-        .and_then(|v| v.get("text").and_then(|t| t.as_str()).map(String::from))
-    {
-        Some(text) => (text, None),
-        None => parse_chat_payload(raw_content),
-    };
-
-    let is_echo = sender == *my_trade_pubkey;
-    let msg = ChatMessage {
-        id: rumor_id,
-        trade_id: order_id.to_string(),
-        sender_pubkey: sender_hex.to_string(),
-        content,
-        message_type: channel.message_type(),
-        is_mine: is_echo,
-        is_read: is_echo,
-        has_attachment: attachment.is_some(),
-        attachment,
-        created_at: rumor
-            .get("created_at")
-            .and_then(|v| v.as_i64())
-            .unwrap_or_else(unix_now),
-    };
-    let _ = message_store().add_message(msg).await;
 }
 
 /// Rebuild the chat listeners for every persisted trade that can still chat.
@@ -1683,17 +1484,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn only_the_peer_channel_reads_the_legacy_gift_wrap() {
-        // The dispute chat migrates straight to the envelope, so it has no
-        // pre-migration form to dual-read and never subscribes to kind 1059.
-        // Both channels dual-read until the deprecation date: the peer chat
-        // for pre-migration counterparties, the dispute chat because the
-        // current solver client (mostrix#102) still writes only gift wrap.
-        assert!(ChatChannel::Peer.reads_legacy_gift_wrap());
-        assert!(ChatChannel::Dispute.reads_legacy_gift_wrap());
-    }
-
     /// PR #254 review: the peer and dispute streams are independent, so each
     /// channel owns its own durable cursor (peer keeps the historical key so
     /// existing installs do not refetch) and its own subscription ids.
@@ -1711,9 +1501,52 @@ mod tests {
             ChatChannel::Peer.cursor_key("o1"),
             ChatChannel::Dispute.cursor_key("o1"),
         );
-        assert_ne!(
-            legacy_chat_subscription_id(ChatChannel::Peer, "o1"),
-            legacy_chat_subscription_id(ChatChannel::Dispute, "o1"),
+    }
+
+    /// Protocol v1 is not spoken in either direction: the chat pipeline reads
+    /// kind 14 only, so a gift wrap addressed to us is somebody else's traffic
+    /// and must never reach the store — not even during a migration window,
+    /// because there is no longer one.
+    #[tokio::test]
+    async fn a_gift_wrap_never_reaches_the_chat_store() {
+        use nostr_sdk::prelude::*;
+
+        let sign = Keys::generate();
+        let trade = Keys::generate();
+        let conv = Keys::generate();
+        let order_id = uuid::Uuid::new_v4().to_string();
+
+        // Authored by the very key the subscription pins, so the only thing
+        // standing between this event and the store is the kind check.
+        let gift_wrap = EventBuilder::new(Kind::GiftWrap, "ciphertext")
+            .tag(Tag::public_key(trade.public_key()))
+            .sign_with_keys(&sign)
+            .unwrap();
+
+        let mut state = ChatRxState::new(ChatChannel::Peer, 0);
+        handle_chat_event(
+            ChatChannel::Peer,
+            &order_id,
+            &[trade.public_key(), sign.public_key()],
+            &conv,
+            &sign.public_key(),
+            &trade.public_key(),
+            &gift_wrap,
+            &mut state,
+        )
+        .await;
+
+        assert!(
+            get_messages(order_id).await.unwrap().is_empty(),
+            "a kind-1059 event must not be read by the chat pipeline"
+        );
+        // Observing the store alone would pass for the wrong reason — the
+        // ciphertext is junk, so it would be dropped further down anyway.
+        // The LRU insert is the first side effect after the kind check, so a
+        // still-unseen id is what proves the event was rejected *on its kind*.
+        assert!(
+            state.outer_seen.insert(&gift_wrap.id.to_hex()),
+            "the gift wrap must be rejected on its kind, before any other work"
         );
     }
 
@@ -2047,99 +1880,6 @@ mod tests {
         assert!(!store.quota_exceeded(&other, 1024).await);
     }
 
-    #[tokio::test]
-    async fn legacy_gift_wrap_is_accepted_during_the_window() {
-        use nostr_sdk::prelude::*;
-
-        // Mixed-version pair: the peer still runs the pre-migration client
-        // and gift-wraps {"text": ...} to the NIP-04-style shared pubkey.
-        let my_keys = Keys::generate();
-        let peer_keys = Keys::generate();
-        let shared_keys = {
-            let raw =
-                crate::crypto::ecdh::derive_nip04_shared_key(&peer_keys, &my_keys.public_key())
-                    .unwrap();
-            Keys::new(SecretKey::from_slice(&raw).unwrap())
-        };
-        let shared_pk = shared_keys.public_key();
-        let payload = serde_json::json!({ "text": "hola desde v1" }).to_string();
-        let event_json = crate::nostr::gift_wrap::wrap(
-            &peer_keys,
-            &shared_pk,
-            &payload,
-            Kind::PrivateDirectMessage,
-        )
-        .await
-        .unwrap();
-        let event: Event = serde_json::from_str(&event_json).unwrap();
-
-        let order_id = uuid::Uuid::new_v4().to_string();
-        let mut state = ChatRxState::new(ChatChannel::Peer, 0);
-        handle_legacy_chat_event(
-            ChatChannel::Peer,
-            &order_id,
-            &shared_keys,
-            &my_keys.public_key(),
-            &[my_keys.public_key(), peer_keys.public_key()],
-            &event,
-            &mut state,
-        )
-        .await;
-
-        let msgs = get_messages(order_id.clone()).await.unwrap();
-        assert_eq!(msgs.len(), 1, "legacy message must be accepted");
-        assert_eq!(msgs[0].content, "hola desde v1");
-        assert!(!msgs[0].is_mine);
-
-        // Replay of the same rumor in a fresh wrap is deduped durably.
-        let event_json2 = crate::nostr::gift_wrap::wrap(
-            &peer_keys,
-            &shared_pk,
-            &payload,
-            Kind::PrivateDirectMessage,
-        )
-        .await
-        .unwrap();
-        let event2: Event = serde_json::from_str(&event_json2).unwrap();
-        handle_legacy_chat_event(
-            ChatChannel::Peer,
-            &order_id,
-            &shared_keys,
-            &my_keys.public_key(),
-            &[my_keys.public_key(), peer_keys.public_key()],
-            &event2,
-            &mut state,
-        )
-        .await;
-        // Different rumor id (new timestamp/id) → may store; a stranger's
-        // wrap must never store.
-        let stranger = Keys::generate();
-        let stranger_json = crate::nostr::gift_wrap::wrap(
-            &stranger,
-            &shared_pk,
-            &serde_json::json!({ "text": "spoof" }).to_string(),
-            Kind::PrivateDirectMessage,
-        )
-        .await
-        .unwrap();
-        let stranger_event: Event = serde_json::from_str(&stranger_json).unwrap();
-        handle_legacy_chat_event(
-            ChatChannel::Peer,
-            &order_id,
-            &shared_keys,
-            &my_keys.public_key(),
-            &[my_keys.public_key(), peer_keys.public_key()],
-            &stranger_event,
-            &mut state,
-        )
-        .await;
-        let msgs = get_messages(order_id).await.unwrap();
-        assert!(
-            msgs.iter().all(|m| m.content != "spoof"),
-            "stranger-authored rumor must be rejected"
-        );
-    }
-
     #[test]
     fn chat_still_relevant_selects_only_live_trades() {
         use crate::api::types::*;
@@ -2175,6 +1915,9 @@ mod tests {
             started_at: 1,
             completed_at: None,
             outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
         };
         assert!(chat_still_relevant(&base));
 

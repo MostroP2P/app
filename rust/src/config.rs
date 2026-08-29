@@ -34,7 +34,7 @@ pub fn active_mostro_pubkey() -> String {
 
 /// Set (or clear) the active Mostro pubkey override.
 ///
-/// Any gift-wrapped responses still in flight from a previously active
+/// Any daemon responses still in flight from a previously active
 /// daemon will be rejected by `dispatch_mostro_message` once this changes
 /// — callers that care about clean handoff should quiesce pending trades
 /// before swapping the override.

@@ -110,11 +110,13 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
           // ── Message input (in-progress only) ─────────────────────────
           if (isInProgress)
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              // #267: add the bottom system-bar inset so the message input
+              // clears the gesture / 3-button navigation bar.
+              padding: EdgeInsets.fromLTRB(
                 AppSpacing.md,
                 AppSpacing.xs,
                 AppSpacing.md,
-                AppSpacing.md,
+                AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
               ),
               child: DisputeMessageInput(
                 onSendText: _onSendText,

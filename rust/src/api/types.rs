@@ -262,6 +262,30 @@ pub struct TradeInfo {
     pub started_at: i64,
     pub completed_at: Option<i64>,
     pub outcome: Option<TradeOutcome>,
+    /// Counterparty (taker) reputation snapshot from the daemon's follow-up
+    /// Peer DM (issue #305). All-zeros is ambiguous on the wire — a brand-new
+    /// user and a full-privacy taker are indistinguishable — so the UI shows
+    /// the raw numbers rather than guessing. `#[serde(default)]` keeps trade
+    /// rows written before this field existed deserializable.
+    #[serde(default)]
+    pub peer_rating: Option<f64>,
+    #[serde(default)]
+    pub peer_reviews: Option<u32>,
+    #[serde(default)]
+    pub peer_days: Option<u32>,
+}
+
+/// A trade lifecycle change pushed from Rust so the UI does not have to poll
+/// for it. Emitted on every daemon-driven status sync — cancellations
+/// (including the wipe of a never-active trade, whose DB row no longer
+/// exists by the time this arrives, so polling could never observe the
+/// transition) as well as progression statuses like `WaitingBuyerInvoice`
+/// and `WaitingPayment`, which screens use to react to the daemon's
+/// add-invoice / pay-invoice requests.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TradeUpdate {
+    pub order_id: String,
+    pub status: OrderStatus,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -445,7 +469,7 @@ pub enum SlashCause {
 /// status and amount are deliberately left untouched.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BondSlashedEvent {
-    /// Stable identity of the source gift-wrap event. The daemon replays stored
+    /// Stable identity of the source daemon event. The daemon replays stored
     /// history on reconnect/restart, so consumers key the notification on this
     /// id to persist exactly one record per slash.
     pub event_id: String,

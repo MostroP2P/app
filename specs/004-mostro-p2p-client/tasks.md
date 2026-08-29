@@ -31,7 +31,7 @@
 - [x] T004 Configure `rust/build.rs` to invoke `flutter_rust_bridge_codegen generate` and set up `rust_builder/` scaffolding for wasm-pack web builds
 - [x] T005 [P] Add Rust WASM target and document in `quickstart.md`: `rustup target add wasm32-unknown-unknown`; add `wasm-pack` and `flutter_rust_bridge_codegen` to prerequisites
 - [x] T006 [P] Configure linting: `.clippy.toml` (Rust, deny warnings), `analysis_options.yaml` (Flutter, strict), pre-commit hooks running `cargo clippy -- -D warnings` and `flutter analyze`
-- [x] T007 [P] Populate `assets/data/fiat.json` with full fiat currency list (ISO 4217 code, name, country flag emoji); create placeholder walkthrough images `assets/images/wt-1.png` through `wt-6.png`; create skeleton ARB files `assets/l10n/app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb`
+- [x] T007 [P] Populate `assets/data/fiat.json` with full fiat currency list (ISO 4217 code, name, country flag emoji); create placeholder walkthrough images `assets/images/wt-1.png` through `wt-6.png`; create skeleton ARB files `assets/l10n/app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb` (historical: those PNG placeholders were replaced by the real `wt-1.webp` … `wt-6.webp` illustrations in #264)
 
 **Checkpoint**: `flutter pub get`, `cd rust && cargo build`, `flutter analyze` all pass.
 

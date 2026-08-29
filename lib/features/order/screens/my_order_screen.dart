@@ -6,10 +6,14 @@ import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/features/trades/screens/trade_detail_screen.dart'
+    show TradeStatusMachineName, tradeStatusFromOrderStatus;
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -51,7 +55,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
               child: Text(dl10n.yesCancelButtonLabel),
-            ),
+            ).withAutomationId(AutomationIds.tradeCancelConfirm),
           ],
         );
       },
@@ -132,12 +136,15 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
         'lastHandledStatus=$_lastHandledStatus orderStatus=${resolvedOrder.status}');
 
     if (liveStatus != null && liveStatus != OrderStatus.pending && liveStatus != _lastHandledStatus) {
-      // For sellers: skip intermediate WaitingBuyerInvoice but still track it
-      // so we don't re-process it. Navigate to the appropriate screen when
-      // status reaches WaitingPayment or beyond.
+      // Invoice requests are not navigated from here: the app-wide
+      // TradeActionListener pushes the add/pay-invoice screen for the
+      // actionable role no matter which screen is open — including this
+      // one. The counterparty's copy of those statuses is informational
+      // (e.g. waiting-seller-to-pay persists WaitingPayment on the buyer
+      // side) and must not navigate either. Track them so they are not
+      // re-processed, and navigate to the trade detail from Active on.
       final shouldNavigate = switch (liveStatus) {
-        OrderStatus.waitingBuyerInvoice when isSelling => false, // skip — intermediate state
-        OrderStatus.waitingPayment when !isSelling => false,    // skip — buyer doesn't see this
+        OrderStatus.waitingBuyerInvoice || OrderStatus.waitingPayment => false,
         _ => true,
       };
 
@@ -162,15 +169,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             _lastHandledStatus = null;
             return;
           }
-          if (intendedStatus == OrderStatus.waitingPayment && isSelling) {
-            debugPrint('[MyOrderScreen] navigating to PayLightningInvoiceScreen');
-            context.go(AppRoute.payInvoicePath(widget.orderId));
-          } else if (intendedStatus == OrderStatus.waitingBuyerInvoice &&
-              !isSelling) {
-            context.go(AppRoute.addInvoicePath(widget.orderId));
-          } else {
-            context.go(AppRoute.tradeDetailPath(widget.orderId));
-          }
+          context.go(AppRoute.tradeDetailPath(widget.orderId));
         });
       } else {
         // Mark this status as handled so we don't re-process it on next build.
@@ -196,7 +195,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
           onPressed: () => context.canPop()
               ? context.pop()
               : context.go(AppRoute.home),
-        ),
+        ).withAutomationId(AutomationIds.appBarBack),
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -271,6 +270,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                       fontFamily: 'monospace',
                     ),
                     overflow: TextOverflow.ellipsis,
+                  ).withAutomationId(
+                    AutomationIds.orderId,
+                    label: resolvedOrder.id,
                   ),
                 ),
                 IconButton(
@@ -293,7 +295,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // Status indicator
+          // Status indicator. A pending order the user created opens here
+          // rather than on the trade detail, so it exposes the same
+          // `order.status` readout, in the same machine vocabulary.
           _InfoCard(
             color: cardBg,
             child: Builder(builder: (ctx) {
@@ -310,6 +314,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 ],
               );
             }),
+          ).withAutomationId(
+            AutomationIds.orderStatus,
+            label: tradeStatusFromOrderStatus(resolvedOrder.status).machineName,
           ),
         ],
       ),
@@ -337,7 +344,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                     ),
                   ),
                   child: Text(l10n.closeButtonLabel),
-                ),
+                  // Creating an order lands here; this is the way back to the
+                  // order book, which is where a driver continues from.
+                ).withAutomationId(AutomationIds.orderConfirmHome),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -362,7 +371,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                           ),
                         )
                       : Text(l10n.cancelOrderButton),
-                ),
+                ).withAutomationId(AutomationIds.tradeCancel),
               ),
             ],
           ),

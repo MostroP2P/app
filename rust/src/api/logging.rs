@@ -140,8 +140,11 @@ impl log::Log for BridgeLogger {
             return;
         };
 
-        platform_console(record);
-        forward_log(record.level(), record.target(), &record.args().to_string());
+        // Format once and scrub before ANY sink sees the text, so a leaked
+        // secret can reach neither the console/logcat nor the retained buffer.
+        let message = scrub_secrets(&record.args().to_string()).into_owned();
+        platform_console(record.level(), record.target(), &message);
+        forward_log(record.level(), record.target(), &message);
     }
 
     fn flush(&self) {}
@@ -151,9 +154,10 @@ impl log::Log for BridgeLogger {
 
 /// Android discards a process's stderr, so records go to logcat. The fixed tag
 /// keeps `adb logcat -s mostro` useful; `android_logger` prepends the module
-/// path to the message.
+/// path to the message. Takes the pre-scrubbed message text (not the raw
+/// record) so redaction happens once, upstream, for every sink.
 #[cfg(target_os = "android")]
-fn platform_console(record: &log::Record) {
+fn platform_console(level: log::Level, target: &str, message: &str) {
     use log::Log as _;
 
     static ANDROID: OnceLock<android_logger::AndroidLogger> = OnceLock::new();
@@ -161,14 +165,20 @@ fn platform_console(record: &log::Record) {
         .get_or_init(|| {
             android_logger::AndroidLogger::new(android_logger::Config::default().with_tag("mostro"))
         })
-        .log(record);
+        .log(
+            &log::Record::builder()
+                .level(level)
+                .target(target)
+                .args(format_args!("{message}"))
+                .build(),
+        );
 }
 
 /// `wasm32` has no stderr; devtools filters on the console severity.
 #[cfg(target_arch = "wasm32")]
-fn platform_console(record: &log::Record) {
-    let line = format!("{}: {}", record.target(), record.args());
-    match record.level() {
+fn platform_console(level: log::Level, target: &str, message: &str) {
+    let line = format!("{target}: {message}");
+    match level {
         log::Level::Error => web_sys::console::error_1(&line.into()),
         log::Level::Warn => web_sys::console::warn_1(&line.into()),
         log::Level::Info => web_sys::console::info_1(&line.into()),
@@ -179,17 +189,88 @@ fn platform_console(record: &log::Record) {
 /// Desktop and iOS: stderr, which is what `flutter run` shows. The timestamp
 /// is UTC time-of-day; the Flutter side renders local time.
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-fn platform_console(record: &log::Record) {
+fn platform_console(level: log::Level, target: &str, message: &str) {
     let secs = crate::rt::unix_now();
     eprintln!(
         "{:02}:{:02}:{:02}Z [{:<5}] {}: {}",
         (secs / 3600) % 24,
         (secs / 60) % 60,
         secs % 60,
-        record.level(),
-        record.target(),
-        record.args(),
+        level,
+        target,
+        message,
     );
+}
+
+// ── Redaction helpers ────────────────────────────────────────────────────────
+
+/// First 8 chars of an id (event id, order UUID, pubkey) — enough to correlate
+/// log lines, deliberately not enough to reconstruct the full identifier.
+pub(crate) fn short_id(id: &str) -> &str {
+    id.get(..8).unwrap_or(id)
+}
+
+/// Safety net applied to every record before any sink: masks `nsec1…` key
+/// material wherever it appears, in any casing (bech32 also allows uniform
+/// uppercase). Call-site discipline is the primary rule (never log secrets);
+/// this guarantees a slip cannot reach the console, logcat, or the retained
+/// buffer. Returns the input unchanged (no allocation) when there is nothing
+/// to mask.
+pub(crate) fn scrub_secrets(message: &str) -> std::borrow::Cow<'_, str> {
+    const MARKER: &[u8] = b"nsec1";
+
+    // Case-insensitive marker search without allocating on the clean path.
+    fn find_marker(haystack: &str) -> Option<usize> {
+        haystack
+            .as_bytes()
+            .windows(MARKER.len())
+            .position(|w| w.eq_ignore_ascii_case(MARKER))
+    }
+
+    if find_marker(message).is_none() {
+        return std::borrow::Cow::Borrowed(message);
+    }
+    let mut out = String::with_capacity(message.len());
+    let mut rest = message;
+    while let Some(pos) = find_marker(rest) {
+        let after = pos + MARKER.len();
+        out.push_str(&rest[..after]);
+        out.push_str("[redacted]");
+        // Skip the bech32 payload: the alphanumeric run following the prefix.
+        let tail = &rest[after..];
+        let skip = tail
+            .find(|c: char| !c.is_ascii_alphanumeric())
+            .unwrap_or(tail.len());
+        rest = &tail[skip..];
+    }
+    out.push_str(rest);
+    std::borrow::Cow::Owned(out)
+}
+
+/// Renders a relay URL as `scheme://host[:port]` only — userinfo, path,
+/// query and fragment are dropped so tokenized/private relay URLs never
+/// enter a log record.
+pub(crate) fn display_relay(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return sanitize_relay_text(url);
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = authority.rsplit('@').next().unwrap_or(authority);
+    // The authority may still carry control characters — same policy as any
+    // remote-influenced text before it enters a log record.
+    sanitize_relay_text(&format!("{scheme}://{host}"))
+}
+
+/// Bounds and normalizes text that originates from a remote peer (relay error
+/// strings, NOTICE/CLOSED messages) before it enters a log record: control
+/// characters are replaced (a newline could forge log-entry boundaries) and
+/// the length is capped so a hostile relay cannot bloat the retained buffer.
+pub(crate) fn sanitize_relay_text(text: &str) -> String {
+    const MAX_CHARS: usize = 200;
+    text.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(MAX_CHARS)
+        .collect()
 }
 
 // ── Buffer and Flutter stream ────────────────────────────────────────────────
@@ -329,6 +410,88 @@ mod tests {
         })
         .await
         .unwrap_or_else(|_| panic!("timed out waiting for a '{tag}' entry"))
+    }
+
+    #[test]
+    fn short_id_truncates_without_panicking() {
+        assert_eq!(short_id("0ed2bc2f-5d03-427d-a507-920438bb3925"), "0ed2bc2f");
+        assert_eq!(short_id("abc"), "abc");
+        assert_eq!(short_id(""), "");
+    }
+
+    #[test]
+    fn scrub_secrets_masks_nsec_and_leaves_clean_text_alone() {
+        // Clean text: borrowed through unchanged, no allocation.
+        let clean = "order=0ed2bc2f status Pending→Active";
+        assert!(matches!(
+            scrub_secrets(clean),
+            std::borrow::Cow::Borrowed(_)
+        ));
+
+        let dirty = "imported key nsec1qyfxw6vlx3s24r0uzkkfnvyd5wsy4751m0nrg2 done";
+        let scrubbed = scrub_secrets(dirty);
+        assert_eq!(scrubbed, "imported key nsec1[redacted] done");
+
+        // Multiple occurrences, including at the end of the string.
+        let double = "a nsec1abc b nsec1def";
+        assert_eq!(scrub_secrets(double), "a nsec1[redacted] b nsec1[redacted]");
+
+        // bech32 allows uniform uppercase — the marker must match any casing.
+        let upper = "key NSEC1QYFXW6VLX3S24R0UZKK end";
+        assert_eq!(scrub_secrets(upper), "key NSEC1[redacted] end");
+        let mixed = "key NsEc1abcDEF end";
+        assert_eq!(scrub_secrets(mixed), "key NsEc1[redacted] end");
+    }
+
+    #[test]
+    fn display_relay_keeps_only_scheme_and_host() {
+        assert_eq!(display_relay("wss://nos.lol"), "wss://nos.lol");
+        assert_eq!(display_relay("wss://relay.example.com:7777"), "wss://relay.example.com:7777");
+        assert_eq!(
+            display_relay("wss://user:token@relay.example.com/path?secret=x#f"),
+            "wss://relay.example.com"
+        );
+        // Not a URL at all: falls back to plain sanitization.
+        assert_eq!(display_relay("not a url"), "not a url");
+        // Control characters in the authority cannot forge log boundaries.
+        assert_eq!(
+            display_relay("wss://relay.example\nforged"),
+            "wss://relay.example forged"
+        );
+    }
+
+    #[test]
+    fn sanitize_relay_text_strips_control_chars_and_caps_length() {
+        assert_eq!(
+            sanitize_relay_text("auth-required:\nplease\tauth"),
+            "auth-required: please auth"
+        );
+        let long = "x".repeat(500);
+        assert_eq!(sanitize_relay_text(&long).chars().count(), 200);
+        assert_eq!(sanitize_relay_text("plain error"), "plain error");
+    }
+
+    /// The #241 invariant: key material logged by mistake must reach neither
+    /// the retained buffer (`recent_logs`) nor the live stream.
+    #[tokio::test]
+    async fn forbidden_material_never_reaches_recent_logs() {
+        install_log_bridge();
+        let mut stream = on_log_entry();
+
+        log::warn!(target: "scrub_probe", "oops nsec1deadbeefdeadbeef leaked");
+
+        let entry = recv_tagged(&mut stream, "scrub_probe").await;
+        assert!(!entry.message.contains("nsec1dead"), "stream leaked: {}", entry.message);
+        assert!(entry.message.contains("nsec1[redacted]"));
+
+        let retained = recent_logs();
+        assert!(
+            retained
+                .iter()
+                .filter(|e| e.tag == "scrub_probe")
+                .all(|e| !e.message.contains("nsec1dead")),
+            "recent_logs leaked the key"
+        );
     }
 
     #[test]

@@ -180,8 +180,11 @@ final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
   return allOrders.where((o) {
     // Order book shows only pending orders.
     if (o.status != OrderStatus.pending) return false;
-    // Own orders are always shown regardless of which tab is active.
-    if (!o.isMine && o.kind != targetKind) return false;
+    // Own orders follow the same tab split as everyone else's — a sell
+    // order lives in BUY BTC, a buy order in SELL BTC — distinguished only
+    // by the "you are selling/buying" pill (issue #290). Managing them has
+    // its own place (My Trades / MyOrderScreen on tap).
+    if (o.kind != targetKind) return false;
 
     if (selectedCurrencies.isNotEmpty &&
         !selectedCurrencies.contains(o.fiatCode)) {

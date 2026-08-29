@@ -134,9 +134,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
+            // #267: add the bottom system-bar inset so the last item isn't
+            // hidden behind the gesture / 3-button navigation bar.
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
             ),
             children: [
               // ── System section (banners) ──

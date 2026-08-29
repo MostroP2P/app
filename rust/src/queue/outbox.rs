@@ -66,10 +66,9 @@ impl MessageOutbox {
     pub fn enqueue(&self, event_json: String) {
         let now = unix_now();
         let msg = QueuedMessage::new(event_json, now);
-        self.queue
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .push(msg);
+        let mut q = self.queue.lock().unwrap_or_else(|e| e.into_inner());
+        q.push(msg);
+        crate::api::logging::blog_info("queue", format!("enqueued total={}", q.len()));
     }
 
     /// Attempt to publish all pending messages.
@@ -114,14 +113,34 @@ impl MessageOutbox {
                 Ok(()) => {
                     msg.status = QueuedMessageStatus::Sent;
                     sent += 1;
+                    crate::api::logging::blog_info(
+                        "queue",
+                        format!("flushed after {} retries", msg.retry_count),
+                    );
                 }
-                Err(_) => {
+                Err(e) => {
                     msg.retry_count += 1;
                     if msg.retry_count >= MAX_RETRIES {
                         msg.status = QueuedMessageStatus::Failed;
+                        crate::api::logging::blog_warn(
+                            "queue",
+                            format!(
+                                "giving up after {MAX_RETRIES} failures: {}",
+                                crate::api::logging::sanitize_relay_text(&e.to_string()),
+                            ),
+                        );
                     } else {
                         msg.status = QueuedMessageStatus::Pending;
                         msg.next_retry_at = Some(now + msg.next_retry_delay_secs());
+                        crate::api::logging::blog_warn(
+                            "queue",
+                            format!(
+                                "publish failed (attempt {}), retrying in {}s: {}",
+                                msg.retry_count,
+                                msg.next_retry_delay_secs(),
+                                crate::api::logging::sanitize_relay_text(&e.to_string()),
+                            ),
+                        );
                     }
                 }
             }

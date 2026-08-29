@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -55,6 +57,8 @@ class TradesListItem extends ConsumerWidget {
         trade.role == TradeRole.creator ? l10n.createdByYou : l10n.takenByYou;
     final timeAgo = _timeAgo(trade.createdAt, l10n);
 
+    // The row wraps exactly one tap target, so merging keeps the tap action
+    // on the node that carries the identifier.
     return Card(
       margin: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
@@ -168,7 +172,7 @@ class TradesListItem extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    ).withAutomationId(AutomationIds.tradesItem(trade.orderId));
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

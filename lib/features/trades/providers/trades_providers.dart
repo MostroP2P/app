@@ -156,6 +156,11 @@ String _formatFiat(double? amount, double? min, double? max) {
 /// Exposed so callers (e.g. [refreshTrades]) can invalidate it when new trades
 /// are added. Per-row live status comes from [tradeStatusProvider].
 final rawTradesProvider = FutureProvider<List<rust_types.TradeInfo>>((ref) {
+  // Refetch whenever Rust pushes a trade lifecycle change: a daemon cancel
+  // wipes the row (it must leave My Trades no matter which screen is open)
+  // and a sweep resync rewrites its status — pull-to-refresh must not be
+  // the only way to observe either.
+  ref.listen(tradeUpdatesProvider, (_, __) => ref.invalidateSelf());
   return orders_api.listTrades();
 });
 

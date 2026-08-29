@@ -275,6 +275,10 @@ impl Storage for IndexedDbStorage {
         Ok(None) // no persisted trade: role lookup returns None (#233)
     }
 
+    async fn delete_trade_by_order_id(&self, _order_id: &str) -> Result<()> {
+        Ok(()) // no persisted trades on web: nothing to delete (#233)
+    }
+
     async fn update_trade_order_id(
         &self,
         _old_order_id: &str,
@@ -292,6 +296,17 @@ impl Storage for IndexedDbStorage {
         _amount_sats: Option<u64>,
     ) -> Result<()> {
         log::warn!("update_trade_fields: IndexedDB backend not implemented — trade fields will not persist");
+        Ok(())
+    }
+
+    async fn update_trade_peer_reputation(
+        &self,
+        _order_id: &str,
+        _rating: f64,
+        _reviews: u32,
+        _days: u32,
+    ) -> Result<()> {
+        log::warn!("update_trade_peer_reputation: IndexedDB backend not implemented — peer reputation will not persist");
         Ok(())
     }
 }

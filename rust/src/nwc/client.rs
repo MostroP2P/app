@@ -116,6 +116,19 @@ mod native {
             let relay_urls: Vec<String> =
                 uri.relays.iter().map(|r| r.to_string()).collect();
 
+            // Host-only display: NWC relay URLs are the likeliest of all to
+            // carry tokens, and the URI itself (secret!) never enters a log.
+            crate::api::logging::blog_info(
+                "nwc",
+                format!(
+                    "client ready relays-configured={} wallet-relay={}",
+                    relay_urls.len(),
+                    relay_urls
+                        .first()
+                        .map_or_else(|| "-".to_string(), |u| crate::api::logging::display_relay(u)),
+                ),
+            );
+
             Ok(Self {
                 client,
                 info: NwcWalletInfo {
@@ -136,6 +149,9 @@ mod native {
         /// BEFORE publishing the request so the response is never missed,
         /// even if the wallet replies before EOSE.
         async fn send_request(&self, request: Request) -> Result<Nip47Response> {
+            // Method name only — params (invoices, amounts) never enter a log.
+            let method = request.method.to_string();
+            crate::api::logging::blog_info("nwc", format!("→ {method}"));
             let event = request
                 .to_event(&self.uri)
                 .map_err(|e| anyhow!("Failed to build NIP-47 request event: {e}"))?;
@@ -192,6 +208,37 @@ mod native {
 
             // Always clean up the subscription, even on timeout/error.
             self.client.unsubscribe(&sub_id).await;
+
+            // One outcome line per round-trip; wallet/transport error text is
+            // remote-controlled, so it passes through sanitize_relay_text.
+            match &result {
+                Ok(resp) => match &resp.error {
+                    Some(err) => crate::api::logging::blog_warn(
+                        "nwc",
+                        format!(
+                            "← {method} ERROR: {}",
+                            crate::api::logging::sanitize_relay_text(&err.to_string()),
+                        ),
+                    ),
+                    None if resp.result.is_some() => {
+                        crate::api::logging::blog_info("nwc", format!("← {method} OK"))
+                    }
+                    // Neither error nor result: the wallet answered with an
+                    // incomplete payload — callers will fail to parse it, so
+                    // the log must not claim success.
+                    None => crate::api::logging::blog_warn(
+                        "nwc",
+                        format!("← {method} EMPTY_RESPONSE"),
+                    ),
+                },
+                Err(e) => crate::api::logging::blog_warn(
+                    "nwc",
+                    format!(
+                        "← {method} FAILED: {}",
+                        crate::api::logging::sanitize_relay_text(&e.to_string()),
+                    ),
+                ),
+            }
 
             result
         }
@@ -343,6 +390,7 @@ mod native {
         /// Disconnect the nostr-sdk client from all relays.
         pub async fn disconnect(&self) {
             self.client.disconnect().await;
+            crate::api::logging::blog_info("nwc", "disconnected".to_string());
         }
     }
 

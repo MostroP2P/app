@@ -26,13 +26,20 @@ void main() {
       expect(helper.ids(), ['buy']);
     });
 
-    test('own orders show regardless of the active tab', () async {
+    test('own orders follow the same tab split as everyone else', () async {
+      // Issue #290: own orders used to show in both tabs, which read as
+      // duplication. A sell order lives in BUY BTC, a buy order in SELL
+      // BTC — same as third-party orders.
       final helper = await bookWith([
         fakeOrder(id: 'mine-buy', kind: 'buy', isMine: true),
-        fakeOrder(id: 'other-buy', kind: 'buy'),
+        fakeOrder(id: 'mine-sell', kind: 'sell', isMine: true),
+        fakeOrder(id: 'other-sell', kind: 'sell'),
       ]);
-      helper.setTab(OrderType.buy); // buy tab targets sell orders
 
+      helper.setTab(OrderType.buy); // targets sell orders
+      expect(helper.ids(), ['mine-sell', 'other-sell']);
+
+      helper.setTab(OrderType.sell); // targets buy orders
       expect(helper.ids(), ['mine-buy']);
     });
 

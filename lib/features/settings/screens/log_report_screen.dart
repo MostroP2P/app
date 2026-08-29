@@ -108,7 +108,14 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.all(AppSpacing.md),
+                    // #267: bottom system-bar inset so the last log entry
+                    // clears the gesture / 3-button navigation bar.
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.md,
+                      AppSpacing.md,
+                      AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
+                    ),
                     itemCount: entries.length,
                     itemBuilder: (context, index) {
                       return _LogEntryTile(

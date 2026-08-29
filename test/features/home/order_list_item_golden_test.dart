@@ -8,6 +8,8 @@ import '../../support/fake_orders.dart';
 import '../../support/golden_harness.dart';
 
 /// Fixed-amount and range order cards stacked, keyed for a tight golden.
+/// The first card is [OrderListItem.highlighted] so one golden pair covers
+/// both the glow ring and the plain hairline.
 Widget _gallery() {
   return Padding(
     key: const ValueKey('order-gallery'),
@@ -27,6 +29,7 @@ Widget _gallery() {
             minutesAgo: 12,
           ),
           reason: OrderReason.bestPremium,
+          highlighted: true,
         ),
         const SizedBox(height: 8),
         OrderListItem(

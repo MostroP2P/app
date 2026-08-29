@@ -8,11 +8,18 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart'
+    show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/types.dart' show OrderStatus, TradeUpdate;
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart';
 
 /// Pay Lightning Invoice screen — Route `/pay_invoice/:orderId`.
 ///
@@ -31,6 +38,8 @@ class PayLightningInvoiceScreen extends ConsumerStatefulWidget {
 class _PayLightningInvoiceScreenState
     extends ConsumerState<PayLightningInvoiceScreen> {
   bool _waiting = false;
+  /// `true` while a protocol cancel is in flight — blocks re-entry.
+  bool _canceling = false;
   /// `true` when NWC is connected but payment failed → show QR fallback.
   bool _manualMode = false;
   /// One-shot guard so we don't navigate twice as further statuses stream in.
@@ -44,6 +53,54 @@ class _PayLightningInvoiceScreenState
     setState(() => _waiting = true);
   }
 
+  /// Cancel button = cancel the trade itself (confirmed via dialog), not
+  /// just leave the screen — going back is what lands on trade detail (#268).
+  Future<void> _cancelOrder() async {
+    // Serialize state-changing requests: one cancel at a time (review round 1).
+    if (_canceling) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.cancelTradeDialogTitle),
+        content: Text(l10n.cancelTradeDialogContent),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.noButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.yesCancelButtonLabel),
+          ).withAutomationId(AutomationIds.tradeCancelConfirm),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _canceling = true);
+    try {
+      await orders_api.cancelOrder(orderId: widget.orderId);
+      if (!mounted) return;
+      _navigated = true;
+      refreshTrades(ref);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.cancelRequestSent)),
+      );
+      context.go(AppRoute.home);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            localizedDaemonError(l10n, e, fallback: l10n.cancelRequestFailed),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _canceling = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -54,6 +111,13 @@ class _PayLightningInvoiceScreenState
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
     final tradeAsync = ref.watch(tradeInfoStreamProvider(widget.orderId));
+
+    // Counterpart (taker) reputation: the maker is the seller here (paying the
+    // hold invoice), so the taker is the buyer (#305). Read via a separate
+    // tradeInfoProvider rather than `tradeAsync`, because the polling stream
+    // stops once the hold invoice arrives — which may be before the follow-up
+    // Peer DM persists — and tradeInfoProvider refreshes on its TradeUpdate.
+    final peerTrade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
 
     // Listen to live status updates from mostrod. Once the hold invoice is
     // settled, mostrod broadcasts a BuyerTookOrder/HoldInvoicePaymentAccepted
@@ -94,6 +158,30 @@ class _PayLightningInvoiceScreenState
         }
       },
     );
+
+    // Push-based cancellation signal. The polling listener above cannot see
+    // a daemon cancel anymore: the wiped trade has no DB row left, and after
+    // a timeout republish the book reads `pending` — a status the switch
+    // above deliberately ignores.
+    ref.listen<AsyncValue<TradeUpdate>>(tradeUpdatesProvider, (prev, next) {
+      final update = next.valueOrNull;
+      if (update == null || _navigated || !mounted) return;
+      if (update.orderId != widget.orderId) return;
+      switch (update.status) {
+        case OrderStatus.canceled:
+        case OrderStatus.cooperativelyCanceled:
+        case OrderStatus.canceledByAdmin:
+        case OrderStatus.expired:
+          _navigated = true;
+          refreshTrades(ref);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.orderNoLongerActive)),
+          );
+          context.go(AppRoute.home);
+        default:
+          break;
+      }
+    });
 
     return tradeAsync.when(
       loading: () => Scaffold(
@@ -139,13 +227,32 @@ class _PayLightningInvoiceScreenState
             appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
             body: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Center(
-                child: NwcPaymentWidget(
-                  bolt11: invoice,
-                  amountSats: amountSats,
-                  onPaymentSuccess: _onPaymentDetected,
-                  onFallbackToManual: () => setState(() => _manualMode = true),
-                ),
+              child: Column(
+                children: [
+                  // The seller must see who took their order even when NWC
+                  // auto-pays the hold invoice — the app can settle without a
+                  // manual step, so this is where the decision matters (#305).
+                  if (peerTrade?.peerRating != null) ...[
+                    PeerReputationCard(
+                      rating: peerTrade!.peerRating!,
+                      reviews: peerTrade.peerReviews ?? 0,
+                      days: peerTrade.peerDays ?? 0,
+                      counterpartIsBuyer: true,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  Expanded(
+                    child: Center(
+                      child: NwcPaymentWidget(
+                        bolt11: invoice,
+                        amountSats: amountSats,
+                        onPaymentSuccess: _onPaymentDetected,
+                        onFallbackToManual: () =>
+                            setState(() => _manualMode = true),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -154,9 +261,26 @@ class _PayLightningInvoiceScreenState
         return Scaffold(
           appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
           body: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            // #267: bottom system-bar inset so the Cancel button clears the
+            // gesture / 3-button navigation bar.
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+            ),
             child: Column(
               children: [
+                // Counterpart (taker) reputation — see `peerTrade` above.
+                if (peerTrade?.peerRating != null) ...[
+                  PeerReputationCard(
+                    rating: peerTrade!.peerRating!,
+                    reviews: peerTrade.peerReviews ?? 0,
+                    days: peerTrade.peerDays ?? 0,
+                    counterpartIsBuyer: true,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
                 // Info card with QR
                 Expanded(
                   child: Container(
@@ -183,12 +307,18 @@ class _PayLightningInvoiceScreenState
                         // Sats amount of the hold invoice (from the daemon's
                         // pay-invoice reply, stored in the trade record).
                         const SizedBox(height: AppSpacing.md),
+                        // The invoice itself is only rendered as a QR, so the
+                        // readout is what an automated driver can correlate
+                        // the settlement against.
                         Text(
                           l10n.payInvoiceAmount(amountSats.toString()),
                           style: theme.textTheme.titleMedium?.copyWith(
                             color: green,
                             fontWeight: FontWeight.bold,
                           ),
+                        ).withAutomationId(
+                          AutomationIds.payInvoiceText,
+                          label: invoice,
                         ),
                         const SizedBox(height: AppSpacing.lg),
 
@@ -338,7 +468,7 @@ class _PayLightningInvoiceScreenState
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => context.pop(),
+                      onPressed: _canceling ? null : _cancelOrder,
                       style: OutlinedButton.styleFrom(
                         foregroundColor:
                             colors?.destructiveRed ?? const Color(0xFFD84D4D),
@@ -352,7 +482,7 @@ class _PayLightningInvoiceScreenState
                         ),
                       ),
                       child: Text(l10n.cancel),
-                    ),
+                    ).withAutomationId(AutomationIds.payCancel),
                   ),
               ],
             ),

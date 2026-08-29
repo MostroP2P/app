@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
+import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
@@ -44,7 +47,14 @@ class _RateCounterpartScreenState
         tradeId: widget.orderId,
         score: _rating,
       );
-      if (mounted) context.pop();
+      // submitRating awaits a real relay publish, so the screen may have
+      // been disposed by now — and ref, like context, must not be touched
+      // after that.
+      if (!mounted) return;
+      // The screen underneath buckets a settled trade as "rate me" until a
+      // local rating exists, so refresh it before popping back (#327).
+      ref.invalidate(tradeRatingProvider(widget.orderId));
+      context.pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -152,7 +162,7 @@ class _RateCounterpartScreenState
                         l10n.submitUppercaseButton,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-              ),
+              ).withAutomationId(AutomationIds.tradeRateSubmit),
 
               const SizedBox(height: AppSpacing.sm),
 
@@ -171,7 +181,7 @@ class _RateCounterpartScreenState
                   l10n.closeRatingButton,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-              ),
+              ).withAutomationId(AutomationIds.tradeRateClose),
 
               const SizedBox(height: AppSpacing.lg),
             ],

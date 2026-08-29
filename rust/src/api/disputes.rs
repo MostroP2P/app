@@ -1,7 +1,7 @@
 /// Disputes API — open, track, and resolve trade disputes.
 ///
-/// Dispute initiation sends a `Dispute` action to the Mostro daemon via NIP-59
-/// Gift Wrap.  Incoming admin actions (`adminTookDispute`, `adminSettled`,
+/// Dispute initiation sends a `Dispute` action to the Mostro daemon over
+/// transport v2 (NIP-44, signed kind 14).  Incoming admin actions (`adminTookDispute`, `adminSettled`,
 /// `adminCanceled`) update the local `Dispute` record and — for
 /// `adminTookDispute` — trigger ECDH admin shared key derivation via the
 /// session manager.
@@ -181,11 +181,23 @@ fn dispute_store() -> &'static DisputeStore {
 
 use crate::rt::unix_now;
 
+/// Mirrors the daemon's own precondition: it only accepts a dispute on an
+/// Active or FiatSent order, and answers anything earlier with `CantDo`
+/// (issue #203). `InProgress` is the public order-book bucket — a trade whose
+/// real state we don't know — so that call is left to the daemon.
+fn status_allows_dispute(status: &crate::api::types::OrderStatus) -> bool {
+    use crate::api::types::OrderStatus;
+    matches!(
+        status,
+        OrderStatus::Active | OrderStatus::FiatSent | OrderStatus::InProgress
+    )
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Initiate a dispute on an active trade.
 ///
-/// Sends a `Dispute` action to the Mostro daemon via NIP-59 Gift Wrap and
+/// Sends a `Dispute` action to the Mostro daemon over transport v2 and
 /// creates a local `Dispute` record.
 ///
 /// **Preconditions**: Trade MUST be disputable (funds in escrow). No existing
@@ -206,6 +218,12 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
             bail!("DisputeAlreadyOpen: dispute already exists for trade {trade_id}");
         }
     }
+    if let Some(status) = crate::api::orders::local_trade_status(&trade_id).await {
+        if !status_allows_dispute(&status) {
+            bail!("TradeNotDisputable: trade {trade_id} is {status:?}");
+        }
+    }
+
     // Mark this process's concrete in-flight open attempt: only while the
     // marker is held may the post-publish insert claim an admin-took
     // placeholder as ours. Dropped on every exit path.
@@ -311,40 +329,6 @@ pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
     // that shape had no reader on the other side of the envelope.
     let ctx = crate::api::messages::admin_chat_context(trade_index, &admin_pubkey).await?;
     let inner = crate::api::messages::publish_chat_payload_for(&ctx, &text).await?;
-
-    // Interop dual-write (PR #254 review): the current solver client
-    // (mostrix) still reads only NIP-59 gift wrap — its envelope migration is
-    // tracked in mostrix#102. Until the deprecation date the evidence also
-    // goes out in the pre-migration shape it understands, gift-wrapped
-    // straight to the solver. Best-effort: the envelope copy above is the
-    // durable one, and this copy disappears with the dual-read window.
-    if crate::rt::unix_now() < crate::api::messages::LEGACY_CHAT_DEPRECATION_TS {
-        let legacy_send: Result<()> = async {
-            let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-            let payload = serde_json::json!({
-                "type": "evidence",
-                "trade_id": trade_id,
-                "text": text,
-            })
-            .to_string();
-            let event_json = crate::nostr::gift_wrap::wrap(
-                &sender_keys,
-                &admin_pubkey,
-                &payload,
-                nostr_sdk::Kind::from(14u16),
-            )
-            .await
-            .map_err(|e| anyhow!("legacy wrap failed: {e}"))?;
-            crate::api::orders::publish_event(&event_json)
-                .await
-                .map_err(|e| anyhow!("legacy publish failed: {e}"))?;
-            Ok(())
-        }
-        .await;
-        if let Err(e) = legacy_send {
-            log::warn!("[disputes] legacy evidence copy not sent trade={trade_id}: {e}");
-        }
-    }
 
     // Record it locally so the dispute conversation has history, exactly as a
     // peer message does. Keyed by the inner event id, so our own echo arriving
@@ -586,6 +570,28 @@ mod tests {
             .try_insert_if_absent_or_resolved(dispute)
             .await
             .expect("seed_dispute: insert failed")
+    }
+
+    #[test]
+    fn only_a_funded_trade_is_disputable() {
+        use crate::api::types::OrderStatus as S;
+
+        for allowed in [S::Active, S::FiatSent, S::InProgress] {
+            assert!(status_allows_dispute(&allowed), "{allowed:?} must pass");
+        }
+        for rejected in [
+            S::Pending,
+            S::WaitingBuyerInvoice,
+            S::WaitingPayment,
+            S::Canceled,
+            S::Success,
+            S::Dispute,
+        ] {
+            assert!(
+                !status_allows_dispute(&rejected),
+                "{rejected:?} must not reach the daemon"
+            );
+        }
     }
 
     #[tokio::test]

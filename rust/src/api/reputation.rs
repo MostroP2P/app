@@ -2,7 +2,7 @@
 ///
 /// After a trade completes both parties are prompted to rate their counterpart
 /// (1–5 stars).  Ratings are sent to the Mostro daemon via a `RateUser`
-/// action in a NIP-59 Gift Wrap.
+/// action over transport v2 (NIP-44, signed kind 14).
 ///
 /// Privacy mode disables reputation data in both directions — no ratings are
 /// sent or received when it is active.
@@ -121,7 +121,7 @@ use crate::rt::unix_now;
 /// - No rating MUST already have been submitted for this trade.
 ///
 /// **Side effects**: Sends a `RateUser` action to the Mostro daemon via
-/// NIP-59 Gift Wrap (deferred to Phase 14+ once bridge bindings are ready).
+/// transport v2 (deferred to Phase 14+ once bridge bindings are ready).
 ///
 /// **Errors**: `InvalidScore`, `PrivacyModeEnabled`, `AlreadyRated`.
 pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
@@ -148,7 +148,7 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
         })
         .await?;
 
-    // Send the RateUser message via NIP-59 Gift Wrap.  Roll back the slot
+    // Send the RateUser message over transport v2.  Roll back the slot
     // reservation if any step fails so the caller can retry after a transient
     // network error without hitting AlreadyRated.
     if let Some(trade_index) = crate::api::orders::trade_key_for_order(&trade_id).await {

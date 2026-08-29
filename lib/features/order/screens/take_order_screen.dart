@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
@@ -14,6 +16,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart' show ReputationStat;
 import 'package:mostro/features/trades/providers/trades_providers.dart' show refreshTrades;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
@@ -49,6 +52,10 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   @override
   void initState() {
     super.initState();
+    // Defense in depth (#268): if the user already participates in this
+    // order (deep link, stale book entry, back navigation), Take Order
+    // must not offer to take it again — land on the trade instead.
+    _redirectIfParticipant();
     // Try immediately in case the provider already has data.
     _tryStartCountdown();
     // If the provider is still loading, listen for the first value.
@@ -56,6 +63,12 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       ref.listenManual(orderBookProvider, (_, __) => _tryStartCountdown(),
           fireImmediately: true);
     });
+  }
+
+  Future<void> _redirectIfParticipant() async {
+    final role = await orders_api.getTradeRole(orderId: widget.orderId);
+    if (!mounted || role == null) return;
+    context.go(AppRoute.tradeDetailPath(widget.orderId));
   }
 
   void _tryStartCountdown() {
@@ -101,6 +114,16 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
     if (order == null || _submitting) return;
 
+    // Serialize with the async initState redirect: a participant racing the
+    // role lookup must never dispatch a second take (which the daemon would
+    // reject and strand them on home instead of their trade).
+    final role = await orders_api.getTradeRole(orderId: widget.orderId);
+    if (!mounted) return;
+    if (role != null) {
+      context.go(AppRoute.tradeDetailPath(widget.orderId));
+      return;
+    }
+
     // Range orders: show amount modal first.
     if (order.isRange) {
       final amount = await showRangeAmountModal(
@@ -142,9 +165,15 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
           // LN address was included in take-sell payload — go straight to trade.
           context.go(AppRoute.tradeDetailPath(widget.orderId));
         } else {
+          // Rebuild the stack with trade detail as the base so back/close
+          // from add-invoice lands on the trade, never back on Take Order
+          // offering to take an already-taken order (#268).
+          context.go(AppRoute.tradeDetailPath(widget.orderId));
           context.push(AppRoute.addInvoicePath(widget.orderId));
         }
       } else {
+        // Same stack shape for the seller's pay-invoice screen (#268).
+        context.go(AppRoute.tradeDetailPath(widget.orderId));
         context.push(AppRoute.payInvoicePath(widget.orderId));
       }
     } catch (e) {
@@ -296,6 +325,9 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                       fontFamily: 'monospace',
                     ),
                     overflow: TextOverflow.ellipsis,
+                  ).withAutomationId(
+                    AutomationIds.orderId,
+                    label: order.id,
                   ),
                 ),
                 IconButton(
@@ -335,7 +367,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: order.rating.toStringAsFixed(1),
                           label: l10n.ratingStatLabel,
                           icon: Icons.star,
@@ -343,13 +375,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.tradeCount}',
                           label: l10n.tradesStatLabel,
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.daysActive}',
                           label: l10n.daysActiveStatLabel,
                         ),
@@ -470,7 +502,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                     ),
                   ),
                   child: Text(l10n.closeRatingButton),
-                ),
+                ).withAutomationId(AutomationIds.orderTakeClose),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -492,7 +524,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Text(actionLabel),
-                ),
+                ).withAutomationId(AutomationIds.orderTakeConfirm),
               ),
             ],
           ),
@@ -506,46 +538,6 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
         '${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
-  }
-}
-
-/// One column of the 3-column creator-reputation block.
-class _ReputationStat extends StatelessWidget {
-  const _ReputationStat({
-    required this.value,
-    required this.label,
-    this.icon,
-    this.iconColor,
-  });
-
-  final String value;
-  final String label;
-  final IconData? icon;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: iconColor),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            Text(
-              value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(color: textSec, fontSize: 11)),
-      ],
-    );
   }
 }
 

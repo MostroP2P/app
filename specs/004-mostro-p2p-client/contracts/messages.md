@@ -7,19 +7,28 @@ of the protocol spec (<https://mostro.network/protocol/chat.html>, issue
 #246): a kind 14 outer event signed with `K_sign` and `p`-tagged to
 `pub(K_conv)` — both HKDF-SHA256 derivations of the trade-key ECDH secret —
 carrying a NIP-44 encrypted kind 1 inner event signed by the sender's trade
-key. NIP-59 gift wrap (kind 1059) is no longer *written* for peer chat (its
-random ephemeral authors made third-party flooding unattributable); it is
-still *read* from pre-migration peers until the dual-read deadline
-(`LEGACY_CHAT_DEPRECATION_TS`, 2026-12-31T00:00:00Z), bounded by the same
-LRU / rate budget / size cap / durable dedup / quota as the new envelope.
+key. NIP-59 gift wrap (kind 1059) is **not spoken in either direction** on
+this channel: its random ephemeral authors made third-party flooding
+unattributable (#246), and the protocol spec now defines the envelope as
+the only chat transport.
+
 Admin/dispute chat uses the **same chat envelope**, keyed to the solver's
 pubkey (from `admin-took-dispute`) instead of the counterparty's trade key
-(<https://mostro.network/protocol/dispute_chat.html>). Interop dual-path
-until `LEGACY_CHAT_DEPRECATION_TS`: the current solver client (mostrix)
-still speaks only NIP-59 gift wrap (mostrix#102), so outgoing evidence is
-additionally *written* as a gift wrap to the solver, and solver gift wraps
-addressed to the trade pubkey are still *read*, under the same bounds as
-the peer dual-read. Each channel keeps its **own** durable `since` cursor
+(<https://mostro.network/protocol/dispute_chat.html>, which states it
+carries "no gift wrap and no ephemeral key").
+
+> **Interop note.** An earlier revision of this contract mandated a
+> gift-wrap dual read/write on the dispute channel until
+> `LEGACY_CHAT_DEPRECATION_TS` (2026-12-31T00:00:00Z), because the solver
+> client (mostrix) still writes kind 1059 — its migration is mostrix#102.
+> That dual path, and the constant, were removed when this client dropped
+> every protocol-v1 path: the cutoff is now "protocol v2 only, always"
+> rather than a date. Until mostrix#102 ships, a solver replying in the
+> legacy shape is not visible here and evidence sent from here does not
+> reach a gift-wrap-only solver. This is a known, accepted interop gap,
+> not an oversight.
+
+Each channel keeps its **own** durable `since` cursor
 (`chat_cursor:<order>` for peer, `chat_cursor:dispute-<order>` for
 dispute) and its own subscription ids, so the two independent streams can
 never suppress or tear down each other. Messages persist locally after

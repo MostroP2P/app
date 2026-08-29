@@ -52,6 +52,22 @@ final tradeStatusProvider =
   }
 });
 
+/// Trade lifecycle updates pushed from Rust (daemon-driven cancellations).
+///
+/// Complements [tradeStatusProvider]'s polling, which cannot observe a
+/// cancellation anymore: a never-active trade is wiped from the DB on the
+/// daemon's Canceled, and after a timeout republish the order book reads
+/// `pending` again. Screens filter by `orderId`.
+final tradeUpdatesProvider =
+    StreamProvider.autoDispose<TradeUpdate>((ref) async* {
+  final stream = await orders_api.onTradeUpdated();
+  while (true) {
+    final update = await stream.next();
+    if (update == null) break;
+    yield update;
+  }
+});
+
 /// Whether a status is terminal (no further changes possible).
 bool _isTerminal(OrderStatus s) => const {
   OrderStatus.success,

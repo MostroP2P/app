@@ -94,6 +94,15 @@ impl SessionManager {
         if sessions.contains_key(&order_id) {
             return Err(anyhow!("SessionAlreadyExists: {}", order_id));
         }
+        crate::api::logging::blog_info(
+            "session",
+            format!(
+                "created order={} idx={} role={:?}",
+                crate::api::logging::short_id(&order_id),
+                session.trade_key_index,
+                session.role,
+            ),
+        );
         sessions.insert(order_id, session.clone());
         Ok(session)
     }
@@ -122,7 +131,12 @@ impl SessionManager {
 
     /// Remove a session (on completion, cancellation, or timeout).
     pub async fn remove_session(&self, order_id: &str) {
-        self.sessions.write().await.remove(order_id);
+        if self.sessions.write().await.remove(order_id).is_some() {
+            crate::api::logging::blog_info(
+                "session",
+                format!("removed order={}", crate::api::logging::short_id(order_id)),
+            );
+        }
     }
 
     /// Store the ECDH admin shared key derived from `adminTookDispute`.
@@ -144,14 +158,16 @@ impl SessionManager {
     }
 
     /// Remove sessions older than `timeout_secs` that have no shared key
-    /// (i.e., the take action was never acknowledged by Mostro).
-    pub async fn cleanup_stale_sessions(&self, timeout_secs: i64) {
+    /// (i.e., the trade never went active). Returns how many were dropped.
+    pub async fn cleanup_stale_sessions(&self, timeout_secs: i64) -> usize {
         let now = crate::rt::unix_now();
 
         let mut sessions = self.sessions.write().await;
+        let before = sessions.len();
         sessions.retain(|_, s| {
             s.shared_key.is_some() || (now - s.created_at) < timeout_secs
         });
+        before - sessions.len()
     }
 }
 

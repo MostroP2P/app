@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show orderBookNotificationCountProvider;
 import 'package:mostro/l10n/app_localizations.dart';
@@ -17,7 +18,7 @@ import 'package:mostro/shared/widgets/bottom_nav_bar.dart'
 /// **Persistent mode** (`persistent: true`): renders as a fixed-width
 /// [240 px] sidebar column, suitable for embedding in a [Row] on desktop.
 ///
-/// Header: Mostro mascot icon + "Beta" label + "MOSTRO" title.
+/// Header: Mostro beta logo.
 /// Desktop nav: Order Book, My Trades, Chat — active item highlighted.
 /// Account items: Account, Settings, About.
 class DrawerMenu extends ConsumerWidget {
@@ -50,7 +51,6 @@ class DrawerMenu extends ConsumerWidget {
     final panel = _SidebarContent(
       green: green,
       cardBg: cardBg,
-      theme: theme,
       persistent: persistent,
       tradesCount: tradesCount,
       chatCount: chatCount,
@@ -86,7 +86,6 @@ class _SidebarContent extends StatelessWidget {
   const _SidebarContent({
     required this.green,
     required this.cardBg,
-    required this.theme,
     required this.persistent,
     required this.tradesCount,
     required this.chatCount,
@@ -95,7 +94,6 @@ class _SidebarContent extends StatelessWidget {
 
   final Color green;
   final Color cardBg;
-  final ThemeData theme;
   final bool persistent;
   final int tradesCount;
   final int chatCount;
@@ -122,45 +120,11 @@ class _SidebarContent extends StatelessWidget {
                 AppSpacing.xl,
                 AppSpacing.lg,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.psychology_outlined, size: 48, color: green),
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    children: [
-                      Text(
-                        l10n.drawerTitle,
-                        style: (theme.textTheme.headlineLarge ??
-                                theme.textTheme.headlineMedium ??
-                                const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ))
-                            .copyWith(color: green, letterSpacing: 2),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: green),
-                          borderRadius: BorderRadius.circular(AppRadius.chip),
-                        ),
-                        child: Text(
-                          l10n.betaBadgeLabel,
-                          style: TextStyle(
-                            color: green,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              child: Image.asset(
+                'assets/images/mostro_logo_beta.webp',
+                height: 56,
+                fit: BoxFit.contain,
+                semanticLabel: '${l10n.drawerTitle} ${l10n.betaBadgeLabel}',
               ),
             ),
 
@@ -170,6 +134,7 @@ class _SidebarContent extends StatelessWidget {
             // ── Primary navigation (desktop persistent sidebar only) ─────
             if (persistent) ...[
               _NavItem(
+                automationId: AutomationIds.navOrderBook,
                 icon: Icons.list_alt_outlined,
                 activeIcon: Icons.list_alt,
                 label: l10n.navOrderBook,
@@ -180,6 +145,7 @@ class _SidebarContent extends StatelessWidget {
                 onTap: () => context.go(AppRoute.home),
               ),
               _NavItem(
+                automationId: AutomationIds.navTrades,
                 icon: Icons.bolt_outlined,
                 activeIcon: Icons.bolt,
                 label: l10n.navMyTrades,
@@ -189,6 +155,7 @@ class _SidebarContent extends StatelessWidget {
                 onTap: () => context.go(AppRoute.orderBook),
               ),
               _NavItem(
+                automationId: AutomationIds.navChat,
                 icon: Icons.chat_bubble_outline,
                 activeIcon: Icons.chat_bubble,
                 label: l10n.navChat,
@@ -206,6 +173,7 @@ class _SidebarContent extends StatelessWidget {
 
             // ── Account / settings items ─────────────────────────────────
             _MenuItem(
+              automationId: AutomationIds.drawerAccount,
               icon: Icons.key_outlined,
               label: l10n.drawerAccountMenuItem,
               onTap: () {
@@ -215,6 +183,7 @@ class _SidebarContent extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             _MenuItem(
+              automationId: AutomationIds.drawerSettings,
               icon: Icons.settings_outlined,
               label: l10n.drawerSettingsMenuItem,
               onTap: () {
@@ -224,6 +193,7 @@ class _SidebarContent extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             _MenuItem(
+              automationId: AutomationIds.drawerAbout,
               icon: Icons.info_outline,
               label: l10n.drawerAboutMenuItem,
               onTap: () {
@@ -242,6 +212,7 @@ class _SidebarContent extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
+    required this.automationId,
     required this.icon,
     required this.activeIcon,
     required this.label,
@@ -250,6 +221,9 @@ class _NavItem extends StatelessWidget {
     required this.green,
     required this.onTap,
   });
+
+  /// Stable identifier for UI automation; see `AutomationIds`.
+  final String automationId;
 
   final IconData icon;
   final IconData activeIcon;
@@ -270,6 +244,7 @@ class _NavItem extends StatelessWidget {
         isActive ? FontWeight.w600 : FontWeight.w500;
 
     return Semantics(
+      identifier: automationId,
       button: true,
       label: label,
       selected: isActive,
@@ -329,10 +304,14 @@ class _NavItem extends StatelessWidget {
 
 class _MenuItem extends StatelessWidget {
   const _MenuItem({
+    required this.automationId,
     required this.icon,
     required this.label,
     required this.onTap,
   });
+
+  /// Stable identifier for UI automation; see `AutomationIds`.
+  final String automationId;
 
   final IconData icon;
   final String label;
@@ -341,6 +320,7 @@ class _MenuItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      identifier: automationId,
       button: true,
       label: label,
       child: Material(

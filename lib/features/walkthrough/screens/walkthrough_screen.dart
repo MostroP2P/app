@@ -5,6 +5,8 @@ import 'package:introduction_screen/introduction_screen.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/utils/highlight_config.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -50,19 +52,21 @@ class WalkthroughScreen extends ConsumerWidget {
       onSkip: () => _onIntroEnd(context, ref),
       showSkipButton: true,
       showBackButton: true,
-      back: const Icon(Icons.arrow_back, color: Colors.white),
-      next: const Icon(Icons.arrow_forward, color: Colors.white),
+      back: const Icon(Icons.arrow_back, color: Colors.white)
+          .withAutomationId(AutomationIds.walkthroughBack),
+      next: const Icon(Icons.arrow_forward, color: Colors.white)
+          .withAutomationId(AutomationIds.walkthroughNext),
       skip: Text(
         l10n.skip,
         style: theme.textTheme.labelLarge!.copyWith(color: Colors.white),
-      ),
+      ).withAutomationId(AutomationIds.walkthroughSkip),
       done: Text(
         l10n.done,
         style: theme.textTheme.labelLarge!.copyWith(
           color: green,
           fontWeight: FontWeight.bold,
         ),
-      ),
+      ).withAutomationId(AutomationIds.walkthroughDone),
       dotsDecorator: DotsDecorator(
         activeColor: theme.primaryColor,
         color: theme.cardColor,
@@ -74,6 +78,14 @@ class WalkthroughScreen extends ConsumerWidget {
         shape: const CircleBorder(),
       ),
       globalBackgroundColor: theme.scaffoldBackgroundColor,
+      // #267: pad the Skip/Back/Next/Done controls past the bottom system bar.
+      // The package's default controlsPadding has no bottom inset.
+      controlsPadding: EdgeInsets.fromLTRB(
+        16.0,
+        16.0,
+        16.0,
+        16.0 + MediaQuery.of(context).viewPadding.bottom,
+      ),
     );
   }
 
@@ -89,32 +101,32 @@ class WalkthroughScreen extends ConsumerWidget {
       (
         title: l10n.walkthroughSlideOneTitle,
         body: l10n.walkthroughSlideOneBody,
-        image: 'assets/images/wt-1.png',
+        image: 'assets/images/wt-1.webp',
       ),
       (
         title: l10n.walkthroughSlideTwoTitle,
         body: l10n.walkthroughSlideTwoBody,
-        image: 'assets/images/wt-2.png',
+        image: 'assets/images/wt-2.webp',
       ),
       (
         title: l10n.walkthroughSlideThreeTitle,
         body: l10n.walkthroughSlideThreeBody,
-        image: 'assets/images/wt-3.png',
+        image: 'assets/images/wt-3.webp',
       ),
       (
         title: l10n.walkthroughSlideFourTitle,
         body: l10n.walkthroughSlideFourBody,
-        image: 'assets/images/wt-4.png',
+        image: 'assets/images/wt-4.webp',
       ),
       (
         title: l10n.walkthroughSlideFiveTitle,
         body: l10n.walkthroughSlideFiveBody,
-        image: 'assets/images/wt-5.png',
+        image: 'assets/images/wt-5.webp',
       ),
       (
         title: l10n.walkthroughSlideSixTitle,
         body: l10n.walkthroughSlideSixBody,
-        image: 'assets/images/wt-6.png',
+        image: 'assets/images/wt-6.webp',
       ),
     ];
 

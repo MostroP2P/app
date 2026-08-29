@@ -34,7 +34,7 @@ Mostro App is the official cross-platform client for the [Mostro](https://mostro
 **Key features:**
 
 - **Non-custodial** — Your keys stay on your device. No exchange holds your funds.
-- **Privacy-first** — End-to-end encrypted over Nostr: NIP-44 direct messages with the Mostro daemon, NIP-59 Gift Wrap for peer-to-peer chat. Optional privacy mode hides reputation data.
+- **Privacy-first** — End-to-end encrypted over Nostr: NIP-44 direct messages with the Mostro daemon, and a signed kind-14 envelope for peer-to-peer and dispute chat. Optional privacy mode hides reputation data.
 - **Lightning-native** — All BTC settlements happen via Lightning invoices (BOLT 11). Supports [Nostr Wallet Connect (NWC)](https://nwc.dev) for automated invoice generation.
 - **Censorship-resistant** — Built on the Nostr network; no central server or domain to block.
 - **Multi-platform** — Single codebase targets Android, iOS, Web (PWA), macOS, Windows, and Linux.
@@ -109,7 +109,7 @@ The Mostro protocol is a message-passing specification built on top of [Nostr](h
 |---------|-------------|
 | **Order Book** | Mostro daemons publish pending orders as Nostr events of [Kind 38383](https://mostro.network/protocol/list_orders.html) — parameterized replaceable events. |
 | **Trade Messages** | All trade actions (take order, add invoice, confirm fiat sent, release funds) are sent as NIP-44-encrypted direct messages — signed Kind 14 events authored by the per-trade key and directed to the Mostro node pubkey (Mostro protocol v2). |
-| **P2P Chat** | Direct messages between buyer and seller (and dispute–admin chat) use [NIP-59 Gift Wrap](https://github.com/nostr-protocol/nips/blob/master/59.md) (Kind 1059) directed to the peer's pubkey. |
+| **P2P Chat** | Direct messages between buyer and seller (and dispute–admin chat) ride the [chat envelope](https://mostro.network/protocol/chat.html): a Kind 14 event signed with `K_sign` and `p`-tagged to `pub(K_conv)`, both derived from the trade-key ECDH secret, carrying a NIP-44 encrypted Kind 1 inner event signed by the sender's trade key. |
 | **Hold Invoices** | The seller pays a Lightning hold invoice when taking a buy order. Funds are locked until the buyer confirms fiat receipt, then the daemon releases the HTLC. |
 | **Reputation** | Each trade can result in a mutual star rating, published as a Nostr event by the daemon. |
 | **Disputes** | Either party can open a dispute, escalating to a human Mostro operator for resolution. |
@@ -138,13 +138,11 @@ Both parties rate each other (optional)
 |------|-------------|
 | `38383` | Public order book (published by Mostro daemon) |
 | `14` | NIP-44 direct DM — encrypted trade messages to/from the daemon, signed by the trade key (Mostro protocol v2) |
-| `1059` | NIP-59 Gift Wrap — P2P chat between peers and dispute–admin chat |
 
 ### Protocol Reference
 
 - Full spec: [mostro.network/protocol](https://mostro.network/protocol)
 - NIP-44 Encrypted Payloads: [github.com/nostr-protocol/nips/blob/master/44.md](https://github.com/nostr-protocol/nips/blob/master/44.md)
-- NIP-59 Gift Wrap: [github.com/nostr-protocol/nips/blob/master/59.md](https://github.com/nostr-protocol/nips/blob/master/59.md)
 - Order Kind 38383: [mostro.network/protocol/list_orders.html](https://mostro.network/protocol/list_orders.html)
 
 ---
@@ -270,6 +268,7 @@ Make sure the following tools are installed on your system:
 | wasm-pack | latest | `cargo install wasm-pack` |
 | Rust nightly + `rust-src` (web only) | — | `rustup toolchain install nightly && rustup component add rust-src --toolchain nightly` |
 | flutter_rust_bridge CLI | 2.11.1 | `cargo install flutter_rust_bridge_codegen --version 2.11.1 --locked` |
+| Linux desktop toolchain (Debian/Ubuntu) | — | `sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-dev lld` |
 | Xcode (macOS / iOS only) | 15+ | Mac App Store |
 | Android Studio / NDK (Android only) | latest | [developer.android.com](https://developer.android.com/studio) |
 
@@ -495,7 +494,7 @@ app/
 │       ├── crypto/             #   BIP-32/39 derivation, ECDH, file encryption
 │       ├── db/                 #   SQLite (native) / IndexedDB (WASM)
 │       ├── mostro/             #   Protocol FSM & state machine
-│       ├── nostr/              #   Relay pool, gift wrap, event parsers
+│       ├── nostr/              #   Relay pool, message envelopes, event parsers
 │       ├── nwc/                #   Nostr Wallet Connect client
 │       └── queue/              #   Offline outbound message queue
 │
@@ -610,7 +609,7 @@ We aim to acknowledge reports within 72 hours and provide a fix within 30 days f
 ### Security Model
 
 - **Keys never leave the device** — the BIP-39 seed is stored in platform secure storage (`flutter_secure_storage`, backed by Android Keystore / iOS Keychain / Linux SecretService).
-- **End-to-end encrypted trade messages** — all communication between the app and the Mostro daemon uses NIP-44 encrypted direct messages (secp256k1 ECDH + ChaCha20 + HMAC-SHA256). Peer-to-peer and dispute chat use NIP-59 Gift Wrap.
+- **End-to-end encrypted trade messages** — all communication between the app and the Mostro daemon uses NIP-44 encrypted direct messages (secp256k1 ECDH + ChaCha20 + HMAC-SHA256). Peer-to-peer and dispute chat use the signed kind-14 chat envelope, whose author is pinned to the conversation key so third parties cannot inject messages.
 - **Per-trade ephemeral keys** — a new BIP-32 child key is derived for each trade, preventing cross-trade correlation even if a single trade key is compromised.
 - **The Mostro daemon never sees plaintext** — all messages are encrypted to the daemon's public key; only the holder of the corresponding private key can decrypt them.
 - **No telemetry** — the app does not collect analytics, crash reports, or any usage data.

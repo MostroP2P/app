@@ -87,6 +87,12 @@ Pending
 SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, InProgress,
 SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired.
 
+This is the protocol state machine, which only daemon messages expose in full.
+The public Kind 38383 event carries NIP-69's four-bucket view instead, so an
+`InProgress` reaching this client stands for "taken, real state unknown" rather
+than for the admin-took-dispute transition above. See "Public status vs. trade
+status" in `contracts/orders.md`.
+
 ---
 
 ### Trade
@@ -106,10 +112,16 @@ trade at a time (v2.0 scope constraint).
 | trade_key_index | u32 | BIP-32 key index for this trade |
 | shared_key | String? | ECDH-derived key for P2P chat (hex) |
 | cooperative_cancel_state | Enum? | `RequestedByMe`, `RequestedByPeer`, `Accepted`, null |
-| timeout_at | Timestamp? | When current state times out |
+| timeout_at | Timestamp? | When current state times out (set on take: `now + 900`; used by the stale-state sweep as its age gate) |
 | started_at | Timestamp | When trade began |
 | completed_at | Timestamp? | When trade finished (null if active) |
 | outcome | Enum? | `Success`, `Canceled`, `Expired`, `DisputeWon`, `DisputeLost` |
+
+Trade rows are history: they are updated in place (`status`,
+`hold_invoice`, `amount_sats` — see `update_trade_fields`) but never
+deleted, with one exception: a trade canceled by the daemon while still
+in pending/waiting states (never active) is **deleted** rather than kept
+(see `contracts/orders.md` — Daemon cancellation semantics).
 
 **Buyer progress steps**: `OrderTaken`, `PayInvoice`, `PaymentLocked`,
 `FiatSent`, `AwaitingRelease`, `Complete`

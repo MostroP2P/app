@@ -6,6 +6,8 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
@@ -113,7 +115,14 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.connectWalletTitle)),
       body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        // #267: bottom system-bar inset so the Connect button clears the
+        // gesture / 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -168,7 +177,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                     style: (theme.textTheme.bodySmall ?? const TextStyle())
                         .copyWith(fontFamily: 'monospace'),
                     onChanged: (_) => setState(() {}),
-                  ),
+                  ).withAutomationId(AutomationIds.walletNwcUri),
                   const SizedBox(height: AppSpacing.sm),
 
                   // QR scan + paste row
@@ -202,7 +211,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                         style: TextButton.styleFrom(
                           foregroundColor: colors?.textSecondary,
                         ),
-                      ),
+                      ).withAutomationId(AutomationIds.walletNwcPaste),
                       TextButton.icon(
                         onPressed: () => setState(() => _showScanner = true),
                         icon: const Icon(Icons.qr_code_scanner, size: 16),
@@ -244,7 +253,7 @@ class _ConnectWalletScreenState extends ConsumerState<ConnectWalletScreen> {
                       l10n.connectButtonLabel,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-            ),
+            ).withAutomationId(AutomationIds.walletNwcConnect),
 
             const SizedBox(height: AppSpacing.lg),
           ],

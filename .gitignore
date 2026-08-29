@@ -8,6 +8,11 @@ pubspec.lock
 # flutter_rust_bridge generated bindings (regenerated via: ./scripts/frb-generate.sh)
 lib/src/rust/
 
+# l10n generated bindings (pubspec `generate: true` regenerates them on `flutter pub get`;
+# the .arb sources next to them ARE committed)
+lib/l10n/app_localizations.dart
+lib/l10n/app_localizations_*.dart
+
 # l10n untranslated-keys report (regenerated via: flutter gen-l10n; must be empty)
 lib/l10n/untranslated_messages.txt
 

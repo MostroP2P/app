@@ -27,6 +27,12 @@ Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
 > `CooperativelyCanceled` is a **client-side UI state only** — the protocol
 > does not change order status for cooperative cancellation.
 
+> Note: `InProgress` reaches this client as NIP-69's public bucket for "the
+> order left the book", not as the mostro-core FSM state that follows an admin
+> taking a dispute. It carries no claim about the escrow, so it MUST NOT be
+> mapped onto `Active` in the UI. See "Public status vs. trade status" in
+> `contracts/orders.md`.
+
 ### TradeRole
 ```text
 Buyer | Seller

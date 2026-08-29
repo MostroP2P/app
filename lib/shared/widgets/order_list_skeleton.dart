@@ -17,6 +17,8 @@ class OrderListSkeleton extends StatelessWidget {
     return Semantics(
       label: AppLocalizations.of(context).loadingOrders,
       child: Shimmer.fromColors(
+        // Card tone over the lighter list well, pulsing toward the inner
+        // panel tone — matches how a loaded card sits on [bgWell].
         baseColor: pal.bgCard,
         highlightColor: pal.bgElevated,
         child: ListView.builder(
@@ -42,7 +44,7 @@ class _SkeletonCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
       ),
     );
   }
