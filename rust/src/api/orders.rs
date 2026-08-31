@@ -1200,18 +1200,23 @@ pub(crate) async fn subscribe_daemon_messages(trade_pubkey: nostr_sdk::PublicKey
         .author(mostro_pubkey)
         .pubkey(trade_pubkey)
         .limit(0);
-    if let Err(e) = client.subscribe(filter, None).await {
+    let trade_pubkey_hex = trade_pubkey.to_hex();
+    let sub_id = daemon_message_subscription_id(&trade_pubkey_hex);
+    if let Err(e) = client
+        .subscribe_with_id(sub_id.clone(), filter, None)
+        .await
+    {
         log::warn!("[orders] subscribe_daemon_messages subscribe failed: {e}");
         return;
     }
 
-    let trade_pubkey_hex = trade_pubkey.to_hex();
     crate::api::logging::blog_info("orders", format!(
         "daemon-message subscription active for trade={}",
         &trade_pubkey_hex[..8]
     ));
 
     // ── Event loop: spawned as a background task ──
+    let unsub_client = client.clone();
     crate::rt::spawn(async move {
         use nostr_sdk::RelayPoolNotification;
         use crate::rt::time::{timeout, Duration};
@@ -1291,6 +1296,12 @@ pub(crate) async fn subscribe_daemon_messages(trade_pubkey: nostr_sdk::PublicKey
                 Ok(Ok(_)) => continue,
             }
         }
+
+        // Drop the relay-side REQ. Without this the task exits but the
+        // subscription lives on: relays cap concurrent REQs, and once past the
+        // cap they answer CLOSED — which can take the order-book feed down
+        // with it.
+        unsub_client.unsubscribe(&sub_id).await;
 
         // The subscription bounds the pending record's lifetime: once no
         // reply can be delivered here anymore, a still-unconsumed record
@@ -2373,7 +2384,11 @@ async fn subscribe_single_order(order_id: &str) {
 
         let mut rx = client.notifications();
         let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, &order_id);
-        if let Err(e) = client.subscribe(filter, None).await {
+        let sub_id = single_order_subscription_id(&order_id);
+        if let Err(e) = client
+            .subscribe_with_id(sub_id.clone(), filter, None)
+            .await
+        {
             log::warn!("[orders] subscribe_single_order subscribe failed: {e}");
             return;
         }
@@ -2449,6 +2464,9 @@ async fn subscribe_single_order(order_id: &str) {
                 Ok(Ok(_)) => continue,
             }
         }
+
+        // Drop the relay-side REQ; see subscribe_daemon_messages.
+        client.unsubscribe(&sub_id).await;
     });
 }
 
@@ -2761,6 +2779,19 @@ async fn refetch_active_node_orders() {
 }
 
 /// Stable subscription ID for the Kind 38383 order-book feed.
+/// Stable id for a trade's daemon-message subscription.
+///
+/// Stable so the task can drop the relay-side REQ when it exits. Keyed by
+/// trade pubkey, so unsubscribing one trade cannot close another's feed.
+fn daemon_message_subscription_id(trade_pubkey_hex: &str) -> nostr_sdk::SubscriptionId {
+    nostr_sdk::SubscriptionId::new(format!("mostro-daemon-{trade_pubkey_hex}"))
+}
+
+/// Stable id for a single order's d-tag update subscription.
+fn single_order_subscription_id(order_id: &str) -> nostr_sdk::SubscriptionId {
+    nostr_sdk::SubscriptionId::new(format!("mostro-order-{order_id}"))
+}
+
 fn orders_subscription_id() -> nostr_sdk::SubscriptionId {
     nostr_sdk::SubscriptionId::new("mostro-orders")
 }
@@ -3706,6 +3737,32 @@ mod tests {
     use super::*;
     use crate::api::types::TradeRole;
     use crate::mostro::session::session_manager;
+
+    /// Unsubscribing is only safe if each id addresses exactly one feed: a
+    /// collision would have one trade's exit close another's subscription, or
+    /// the order-book feed itself.
+    #[test]
+    fn every_subscription_id_addresses_one_feed() {
+        let a = "aa".repeat(32);
+        let b = "bb".repeat(32);
+
+        assert_eq!(
+            daemon_message_subscription_id(&a),
+            daemon_message_subscription_id(&a),
+            "the id must be stable, or the exit path unsubscribes nothing"
+        );
+
+        let ids = [
+            daemon_message_subscription_id(&a),
+            daemon_message_subscription_id(&b),
+            single_order_subscription_id(&a),
+            single_order_subscription_id(&b),
+            orders_subscription_id(),
+            mostro_dm_subscription_id(),
+        ];
+        let unique: std::collections::HashSet<_> = ids.iter().collect();
+        assert_eq!(unique.len(), ids.len(), "subscription ids collided: {ids:?}");
+    }
 
     #[test]
     fn the_solver_pubkey_is_read_from_a_peer_payload() {
