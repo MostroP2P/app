@@ -119,7 +119,12 @@ enum _OverflowAction { shareOrder }
 
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
-  Duration _remaining = const Duration(seconds: _kCountdownSeconds);
+
+  /// Drives only the contextual timer. A notifier rather than screen state:
+  /// this ticks every second, and this build method lays out the entire trade
+  /// detail — steps, actions, reputation, chat entry point.
+  final ValueNotifier<Duration> _remaining =
+      ValueNotifier(const Duration(seconds: _kCountdownSeconds));
   int _totalCountdownSeconds = _kCountdownSeconds;
 
   @override
@@ -132,6 +137,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _remaining.dispose();
     super.dispose();
   }
 
@@ -150,8 +156,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       if (!mounted) return;
       setState(() {
         _totalCountdownSeconds = diff > 0 ? diff : _kCountdownSeconds;
-        _remaining = diff > 0 ? Duration(seconds: diff) : Duration.zero;
       });
+      _remaining.value = diff > 0 ? Duration(seconds: diff) : Duration.zero;
     } catch (_) {
       // Keep the default remaining time on error.
     }
@@ -160,15 +166,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   void _startCountdown() {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() {
-        final next = _remaining - const Duration(seconds: 1);
-        if (next.inSeconds <= 0) {
-          _countdownTimer?.cancel();
-          _remaining = Duration.zero;
-        } else {
-          _remaining = next;
-        }
-      });
+      final next = _remaining.value - const Duration(seconds: 1);
+      if (next.inSeconds <= 0) {
+        _countdownTimer?.cancel();
+        _remaining.value = Duration.zero;
+      } else {
+        _remaining.value = next;
+      }
     });
   }
 
@@ -788,7 +792,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final currentStep = _currentStep(status);
     final totalSteps = _steps(isBuyer).length;
     final timerCtx = _timerContext(isBuyer, status);
-    final showTimer = timerCtx != null && _remaining > Duration.zero;
+    final showTimer = timerCtx != null;
     final l10n = AppLocalizations.of(context);
 
     return Container(
@@ -847,17 +851,30 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             _getInstructionText(isBuyer, status),
             style: theme.textTheme.bodyMedium,
           ),
-          if (showTimer) ...[
-            const SizedBox(height: AppSpacing.lg),
-            _buildContextualTimer(colors, timerCtx),
-          ],
+          // The per-second tick repaints this builder only, instead of
+          // rebuilding the whole trade-detail layout once a second.
+          if (showTimer)
+            ValueListenableBuilder<Duration>(
+              valueListenable: _remaining,
+              builder: (context, remaining, _) {
+                if (remaining <= Duration.zero) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: AppSpacing.lg),
+                    _buildContextualTimer(colors, timerCtx, remaining),
+                  ],
+                );
+              },
+            ),
         ],
       ),
     );
   }
 
   /// Mini timer row: clock + remaining + label, progress bar, consequence.
-  Widget _buildContextualTimer(AppColors? colors, (String, String) ctx) {
+  Widget _buildContextualTimer(
+      AppColors? colors, (String, String) ctx, Duration remaining) {
     final (label, consequence) = ctx;
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
@@ -866,7 +883,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final track = colors?.backgroundInput ?? const Color(0xFF252A3A);
 
     final fraction = _totalCountdownSeconds > 0
-        ? (_remaining.inSeconds / _totalCountdownSeconds).clamp(0.0, 1.0)
+        ? (remaining.inSeconds / _totalCountdownSeconds).clamp(0.0, 1.0)
         : 0.0;
     // Lime → amber at <10% remaining → red at <2%.
     final timerColor = fraction < 0.02
@@ -883,7 +900,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             Icon(Icons.schedule, size: 16, color: timerColor),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              _formatDuration(_remaining),
+              _formatDuration(remaining),
               style: TextStyle(
                 color: timerColor,
                 fontSize: 13,
