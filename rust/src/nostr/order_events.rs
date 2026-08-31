@@ -207,6 +207,17 @@ fn parse_range(min: &str, max: &str) -> (Option<f64>, Option<f64>, Option<f64>) 
     }
 }
 
+/// Ceiling on the stored events a relay may replay for the order book, both on
+/// the live subscription and on the one-shot refetch.
+///
+/// Kind 38383 is addressable, so a well-behaved relay already returns only the
+/// latest event per order — this is a bound on what a misbehaving or hostile
+/// one can push at us, not on the book itself. Set well above any realistic
+/// active book: if a node ever legitimately approaches it, the answer is
+/// pagination, not a larger number, because the cost of the replay is paid on
+/// the ingest path.
+pub const ORDER_BOOK_FETCH_LIMIT: usize = 5_000;
+
 /// Build a Nostr filter for **all** Kind 38383 orders from a specific Mostro node,
 /// regardless of status.
 ///
@@ -218,6 +229,7 @@ pub fn all_orders_filter(mostro_pubkey: &PublicKey) -> Filter {
     Filter::new()
         .kind(Kind::from(KIND_ORDER))
         .author(*mostro_pubkey)
+        .limit(ORDER_BOOK_FETCH_LIMIT)
 }
 
 /// Build a Nostr filter for a **single** Kind 38383 order by `d`-tag (order ID).
@@ -236,6 +248,21 @@ pub fn trade_order_filter(mostro_pubkey: &PublicKey, order_id: &str) -> Filter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An unbounded filter lets a relay replay its entire history of the
+    /// node's orders, and every replayed event is paid for on the ingest path.
+    #[test]
+    fn the_order_book_filter_caps_what_a_relay_may_replay() {
+        let mostro = Keys::generate().public_key();
+
+        let filter = all_orders_filter(&mostro);
+
+        assert_eq!(
+            filter.limit,
+            Some(ORDER_BOOK_FETCH_LIMIT),
+            "the order-book filter must carry a replay ceiling"
+        );
+    }
 
     /// Build a signed Kind 38383 event with the standard order tags and the
     /// given `fa` tag values.
