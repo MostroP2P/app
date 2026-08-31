@@ -13,26 +13,27 @@ const int kWaitingCountdownFallbackSeconds = 900;
 /// Chooses the countdown target for a trade (#270):
 ///
 /// - **Pending**: counts to the 24 h pending-order expiry ([pendingExpiresAt]).
-/// - **Waiting states** (buyer-invoice / payment): counts to the state-change
-///   deadline — the trade's [timeoutAtEpoch] when the daemon persisted one,
-///   else [waitingSinceEpoch] + `expiration_seconds` (the state-change message
-///   timestamp plus the window, per the v1 timeout contract), falling back to
-///   [kWaitingCountdownFallbackSeconds] for the window when the node omits it.
+/// - **Waiting states** (buyer-invoice / payment): counts to the trade's
+///   [timeoutAtEpoch] when one is present, else **no countdown** (null).
+///   There is deliberately no `startedAt`-based fallback: `startedAt` is the
+///   order-creation time, so for a maker whose order sat in the book before
+///   being taken it yields a deadline already in the past — a countdown born at
+///   zero. "No anchor, no countdown" is correct until the daemon stamps
+///   `timeout_at` on waiting-state entry from the node's `expiration_seconds`
+///   (a follow-up daemon change; #306 review). Today `timeout_at` is a fixed
+///   900 written client-side on take, not persisted by the daemon.
 /// - **Any other state**: no countdown (null).
 ///
-/// The fallback is anchored on [waitingSinceEpoch] (a fixed timestamp such as
-/// `TradeInfo.startedAt`) rather than the current time, so the deadline is
-/// stable across the per-second rebuilds that drive the ticking UI — otherwise
-/// a `now + window` deadline would slide forward every second and never reach
-/// zero. This keeps the helper pure (no clock read, no cache).
+/// The helper is pure — no clock read, no cache — so its result is stable across
+/// the per-second rebuilds that drive the ticking UI.
 ///
 /// The UI only informs — the daemon stays the authority on expiry, so callers
 /// never cancel locally at zero.
 CountdownDeadline? waitingCountdownDeadline({
   required OrderStatus? status,
   DateTime? pendingExpiresAt,
+  int? pendingCreatedAtEpoch,
   int? timeoutAtEpoch,
-  int? waitingSinceEpoch,
   int? expirationSeconds,
 }) {
   final window = expirationSeconds ?? kWaitingCountdownFallbackSeconds;
@@ -40,17 +41,21 @@ CountdownDeadline? waitingCountdownDeadline({
     case OrderStatus.pending:
       if (pendingExpiresAt == null) return null;
       final deadline = pendingExpiresAt.millisecondsSinceEpoch ~/ 1000;
-      return (deadlineEpochSeconds: deadline, totalWindowSeconds: window);
+      // The ring spans the whole pending window (creation -> 24 h expiry), not
+      // the waiting window, so the progress ring is meaningful (#306 review).
+      final total =
+          (pendingCreatedAtEpoch != null && deadline > pendingCreatedAtEpoch)
+              ? deadline - pendingCreatedAtEpoch
+              : window;
+      return (deadlineEpochSeconds: deadline, totalWindowSeconds: total);
     case OrderStatus.waitingBuyerInvoice:
     case OrderStatus.waitingPayment:
+      // Only count down when timeout_at is present. The startedAt fallback
+      // produced a past deadline for makers (startedAt is creation time), so
+      // "no anchor, no countdown" until the daemon stamps timeout_at properly
+      // (#306 review).
       if (timeoutAtEpoch != null) {
         return (deadlineEpochSeconds: timeoutAtEpoch, totalWindowSeconds: window);
-      }
-      if (waitingSinceEpoch != null) {
-        return (
-          deadlineEpochSeconds: waitingSinceEpoch + window,
-          totalWindowSeconds: window,
-        );
       }
       return null;
     default:

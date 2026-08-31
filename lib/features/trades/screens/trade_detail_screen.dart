@@ -520,11 +520,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final countdown = waitingCountdownDeadline(
       status: tradeStatusAsync.valueOrNull,
       pendingExpiresAt: order?.expiresAt,
+      pendingCreatedAtEpoch:
+          order != null ? order.createdAt.millisecondsSinceEpoch ~/ 1000 : null,
       timeoutAtEpoch: tradeInfo?.timeoutAt != null
           ? platformInt64ToInt(tradeInfo!.timeoutAt!)
           : null,
-      waitingSinceEpoch:
-          tradeInfo != null ? platformInt64ToInt(tradeInfo.startedAt) : null,
       expirationSeconds: expirationSeconds,
     );
     // When the resolved state has no countdown (active / fiat-sent / terminal),

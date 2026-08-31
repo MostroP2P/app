@@ -104,11 +104,11 @@ class TradeStateHeader extends ConsumerWidget {
       // order shows no countdown during the provider's loading frame.
       status: liveStatus ?? order.status,
       pendingExpiresAt: order.expiresAt,
+      pendingCreatedAtEpoch:
+          order.createdAt.millisecondsSinceEpoch ~/ 1000,
       timeoutAtEpoch: tradeInfo?.timeoutAt != null
           ? platformInt64ToInt(tradeInfo!.timeoutAt!)
           : null,
-      waitingSinceEpoch:
-          tradeInfo != null ? platformInt64ToInt(tradeInfo.startedAt) : null,
       expirationSeconds: expirationSeconds,
     );
     final (pillBg, pillFg) = _statusColors(statusFilter);

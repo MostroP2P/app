@@ -4,12 +4,29 @@ import 'package:mostro/src/rust/api/types.dart';
 
 void main() {
   group('waitingCountdownDeadline', () {
-    test('pending counts to the pending expiry, window from expiration_seconds',
+    test('pending counts to the pending expiry; ring spans creation to expiry',
         () {
-      final expiresAt = DateTime.fromMillisecondsSinceEpoch(2000 * 1000);
+      // 24 h window: created at epoch 1000, expires at 1000 + 86400.
+      const createdAt = 1000;
+      final expiresAt =
+          DateTime.fromMillisecondsSinceEpoch((createdAt + 86400) * 1000);
       final r = waitingCountdownDeadline(
         status: OrderStatus.pending,
         pendingExpiresAt: expiresAt,
+        pendingCreatedAtEpoch: createdAt,
+        expirationSeconds: 900,
+      );
+      expect(r, isNotNull);
+      expect(r!.deadlineEpochSeconds, createdAt + 86400);
+      // The ring spans the whole pending window, not the waiting window (#306).
+      expect(r.totalWindowSeconds, 86400);
+    });
+
+    test('pending ring falls back to the window when no createdAt is given', () {
+      final r = waitingCountdownDeadline(
+        status: OrderStatus.pending,
+        pendingExpiresAt: DateTime.fromMillisecondsSinceEpoch(2000 * 1000),
+        pendingCreatedAtEpoch: null,
         expirationSeconds: 900,
       );
       expect(r, isNotNull);
@@ -26,7 +43,7 @@ void main() {
       expect(r, isNull);
     });
 
-    test('waiting state prefers the persisted timeout_at', () {
+    test('waiting state counts to the persisted timeout_at', () {
       for (final status in [
         OrderStatus.waitingBuyerInvoice,
         OrderStatus.waitingPayment,
@@ -34,7 +51,6 @@ void main() {
         final r = waitingCountdownDeadline(
           status: status,
           timeoutAtEpoch: 5000,
-          waitingSinceEpoch: 1000,
           expirationSeconds: 900,
         );
         expect(r, isNotNull, reason: '$status');
@@ -43,41 +59,24 @@ void main() {
       }
     });
 
-    test('waiting falls back to startedAt + window when timeout_at is absent',
-        () {
-      final r = waitingCountdownDeadline(
-        status: OrderStatus.waitingPayment,
-        timeoutAtEpoch: null,
-        waitingSinceEpoch: 1000,
-        expirationSeconds: 900,
-      );
-      expect(r, isNotNull);
-      expect(r!.deadlineEpochSeconds, 1900); // 1000 + 900, not now-based
-      expect(r.totalWindowSeconds, 900);
-    });
-
-    test('waiting fallback uses the 900 s default when the node omits '
-        'expiration_seconds', () {
-      final r = waitingCountdownDeadline(
-        status: OrderStatus.waitingPayment,
-        timeoutAtEpoch: null,
-        waitingSinceEpoch: 1000,
-        expirationSeconds: null,
-      );
-      expect(r, isNotNull);
-      expect(r!.totalWindowSeconds, kWaitingCountdownFallbackSeconds);
-      expect(r.deadlineEpochSeconds, 1000 + kWaitingCountdownFallbackSeconds);
-    });
-
-    test('waiting with neither timeout_at nor a start anchor yields no '
-        'countdown', () {
-      final r = waitingCountdownDeadline(
-        status: OrderStatus.waitingBuyerInvoice,
-        timeoutAtEpoch: null,
-        waitingSinceEpoch: null,
-        expirationSeconds: 900,
-      );
-      expect(r, isNull);
+    test(
+        'a waiting order with no timeout_at yields no countdown, not a past '
+        'deadline (#306: no startedAt fallback)', () {
+      // startedAt is order-creation time; for a maker whose order sat in the
+      // book before being taken, anchoring on it produced a deadline already in
+      // the past — a countdown born at zero. With no timeout_at the helper now
+      // returns null rather than a bogus deadline.
+      for (final status in [
+        OrderStatus.waitingBuyerInvoice,
+        OrderStatus.waitingPayment,
+      ]) {
+        final r = waitingCountdownDeadline(
+          status: status,
+          timeoutAtEpoch: null,
+          expirationSeconds: 900,
+        );
+        expect(r, isNull, reason: '$status');
+      }
     });
 
     test('non-countdown states produce no countdown', () {
@@ -92,25 +91,25 @@ void main() {
           status: status,
           pendingExpiresAt: DateTime.fromMillisecondsSinceEpoch(2000 * 1000),
           timeoutAtEpoch: 5000,
-          waitingSinceEpoch: 1000,
           expirationSeconds: 900,
         );
         expect(r, isNull, reason: '$status');
       }
     });
 
-    test('the fallback deadline is stable across repeated resolutions '
+    test('the resolved deadline is stable across repeated resolutions '
         '(#270 regression: no now-drift)', () {
+      // The helper is pure: given the same inputs it returns the same deadline,
+      // so the ticking per-second rebuild never slides the target forward.
       CountdownDeadline? resolve() => waitingCountdownDeadline(
             status: OrderStatus.waitingPayment,
-            timeoutAtEpoch: null,
-            waitingSinceEpoch: 1000,
+            timeoutAtEpoch: 5000,
             expirationSeconds: 900,
           );
       final first = resolve();
       final second = resolve();
       final third = resolve();
-      expect(first!.deadlineEpochSeconds, 1900);
+      expect(first!.deadlineEpochSeconds, 5000);
       expect(second!.deadlineEpochSeconds, first.deadlineEpochSeconds);
       expect(third!.deadlineEpochSeconds, first.deadlineEpochSeconds);
     });
