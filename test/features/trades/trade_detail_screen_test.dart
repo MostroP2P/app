@@ -120,6 +120,35 @@ Finder _anyPopupMenuItem() =>
     find.byWidgetPredicate((widget) => widget is PopupMenuItem);
 
 void main() {
+  /// The countdown ticks once a second for the whole life of the screen. If
+  /// that tick goes through `setState`, this build method — which lays out
+  /// the steps, actions, reputation and chat entry point — re-runs every
+  /// second.
+  ///
+  /// Widget identity is the observable: Flutter allocates fresh widget
+  /// objects on every build, so an `AppBar` instance surviving a tick means
+  /// the screen itself was not rebuilt.
+  testWidgets('the countdown tick does not rebuild the screen', (tester) async {
+    await _pumpTradeDetail(
+      tester,
+      orderId: 'countdown-order',
+      isBuyer: true,
+      status: OrderStatus.active,
+    );
+
+    final before = tester.widget(find.byType(AppBar));
+
+    // Two ticks of the 1s countdown.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(
+      identical(tester.widget(find.byType(AppBar)), before),
+      isTrue,
+      reason: 'the per-second tick must repaint the timer, not the screen',
+    );
+  });
+
   group('TradeDetailScreen secondary action row', () {
     testWidgets('buyer + active: Fiat Sent CTA, Cancel + Dispute, no Release',
         (tester) async {
