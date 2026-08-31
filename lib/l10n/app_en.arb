@@ -1263,6 +1263,10 @@
   },
   "creatorReputation": "Creator reputation",
   "@creatorReputation": {"description": "Label for the creator reputation card"},
+  "buyerReputation": "Buyer reputation",
+  "@buyerReputation": {"description": "Title of the counterpart reputation card when the taker is the buyer"},
+  "sellerReputation": "Seller reputation",
+  "@sellerReputation": {"description": "Title of the counterpart reputation card when the taker is the seller"},
   "ratingStatLabel": "rating",
   "@ratingStatLabel": {"description": "Reputation stat label: rating"},
   "tradesStatLabel": "trades",
@@ -1279,6 +1283,14 @@
   "@minHint": {"description": "Hint for the minimum amount input"},
   "maxHint": "Max",
   "@maxHint": {"description": "Hint for the maximum amount input"},
+  "orderAmountOutOfRange": "Amount must be between {min} and {max} sats for this Mostro node",
+  "@orderAmountOutOfRange": {
+    "description": "Shown when a fixed-sats order amount is outside the node min/max order amount",
+    "placeholders": {
+      "min": {"type": "int"},
+      "max": {"type": "int"}
+    }
+  },
   "fiatAmountHint": "Fiat amount",
   "@fiatAmountHint": {"description": "Hint for the fiat amount input"},
   "enterAmountForPreview": "Enter an amount to see a live preview.",
@@ -1324,6 +1336,8 @@
   "@premiumSectionLabel": {"description": "Label of the premium slider section"},
   "amountInSatsHint": "Amount in sats",
   "@amountInSatsHint": {"description": "Hint for the fixed sats amount input"},
+  "fixedPriceRangeNotAvailable": "Fixed price isn't available for range orders. Turn off the range to use a fixed price.",
+  "@fixedPriceRangeNotAvailable": {"description": "Explains why the fixed-price toggle is disabled while a range order is being created"},
   "priceTypesDialogTitle": "Price Types",
   "@priceTypesDialogTitle": {"description": "Title of the price types info dialog"},
   "priceTypesDialogContent": "Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.",

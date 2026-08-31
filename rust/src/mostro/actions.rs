@@ -2,7 +2,7 @@
 ///
 /// Each function constructs a `Message` using the `mostro-core` types,
 /// wraps it as a transport-v2 (NIP-44, signed Kind 14) event via
-/// `gift_wrap::wrap_mostro_message`, and returns the event JSON ready for
+/// `transport::wrap_mostro_message`, and returns the event JSON ready for
 /// publication.
 ///
 /// **Key split.** Mostro-core 0.10 requires two `Keys` values per wrap:
@@ -18,7 +18,7 @@ use nostr_sdk::prelude::*;
 use uuid::Uuid;
 
 use crate::api::types::{NewOrderParams, OrderKind};
-use crate::nostr::gift_wrap;
+use crate::nostr::transport;
 
 // ── Public action builders ────────────────────────────────────────────────────
 
@@ -339,7 +339,7 @@ async fn simple_action(
 }
 
 /// Wrap `msg` as a transport-v2 (NIP-44, signed Kind 14) event via
-/// `gift_wrap::wrap_mostro_message`, applying the daemon-advertised PoW
+/// `transport::wrap_mostro_message`, applying the daemon-advertised PoW
 /// difficulty, and return the event JSON.
 async fn wrap_message(
     identity_keys: &Keys,
@@ -396,7 +396,7 @@ async fn wrap_message_at(
     crate::mostro::protocol_version::ensure_supported(&mostro_pubkey.to_hex()).await?;
 
     let event =
-        gift_wrap::wrap_mostro_message(identity_keys, trade_keys, mostro_pubkey, msg, pow).await?;
+        transport::wrap_mostro_message(identity_keys, trade_keys, mostro_pubkey, msg, pow).await?;
     Ok(event.as_json())
 }
 
@@ -586,7 +586,7 @@ mod tests {
         .unwrap();
 
         let event = Event::from_json(&json).unwrap();
-        let unwrapped = gift_wrap::unwrap_mostro_message(&mostro_keys, &event)
+        let unwrapped = transport::unwrap_mostro_message(&mostro_keys, &event)
             .await
             .unwrap()
             .expect("message must decrypt for the recipient");
@@ -631,7 +631,7 @@ mod tests {
         .unwrap();
 
         let event = Event::from_json(&json).unwrap();
-        let unwrapped = gift_wrap::unwrap_mostro_message(&mostro_keys, &event)
+        let unwrapped = transport::unwrap_mostro_message(&mostro_keys, &event)
             .await
             .unwrap()
             .expect("message must decrypt for the recipient");
@@ -655,7 +655,7 @@ mod tests {
         .unwrap();
 
         let event = Event::from_json(&json).unwrap();
-        let unwrapped = gift_wrap::unwrap_mostro_message(&mostro_keys, &event)
+        let unwrapped = transport::unwrap_mostro_message(&mostro_keys, &event)
             .await
             .unwrap()
             .expect("message must decrypt for the recipient");
@@ -689,7 +689,7 @@ mod tests {
             .await
             .unwrap();
         let event = Event::from_json(&json).unwrap();
-        let unwrapped = gift_wrap::unwrap_mostro_message(&mostro_keys, &event)
+        let unwrapped = transport::unwrap_mostro_message(&mostro_keys, &event)
             .await
             .unwrap()
             .expect("message must decrypt for the recipient");

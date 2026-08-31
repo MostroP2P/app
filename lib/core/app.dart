@@ -7,6 +7,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/notifications/services/push_notification_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/shared/widgets/test_environment_banner.dart';
 import 'package:mostro/shared/widgets/trade_action_listener.dart';
 
 /// Root application widget.
@@ -62,8 +63,13 @@ class _MostroAppState extends ConsumerState<MostroApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      builder: (context, child) => NotificationListenerWidget(
-        child: TradeActionListener(child: child ?? const SizedBox.shrink()),
+      // The banner sits outermost so the marker is present on every route,
+      // including the ones the listeners push. It renders nothing unless the
+      // app was started through lib/main_mortsom.dart.
+      builder: (context, child) => TestEnvironmentBanner(
+        child: NotificationListenerWidget(
+          child: TradeActionListener(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }

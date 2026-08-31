@@ -2,7 +2,7 @@
 ///
 /// Public orders use Kind 38383 (replaceable parameterised events).
 /// **The Mostro node** (daemon) is the author/publisher of these events —
-/// makers send a `new-order` NIP-59 gift-wrap to the daemon, and the daemon
+/// makers send a `new-order` daemon message (transport v2) to the daemon, and it
 /// responds by publishing the order as a Kind 38383 event signed with its own
 /// key.  Clients therefore filter by `author = mostro_pubkey` to get the
 /// orders belonging to a specific Mostro instance.
@@ -81,7 +81,7 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
 
     // is_mine is always false for Kind 38383 events: the event author is the
     // Mostro node, not the maker. Ownership is confirmed later via incoming
-    // trade messages (gift-wrap response from the daemon).
+    // trade messages (the daemon's kind-14 response).
     let is_mine = false;
     let _ = my_pubkey; // unused — kept in signature for future use
 

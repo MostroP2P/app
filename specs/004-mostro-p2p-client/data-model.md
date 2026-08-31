@@ -116,6 +116,7 @@ trade at a time (v2.0 scope constraint).
 | started_at | Timestamp | When trade began |
 | completed_at | Timestamp? | When trade finished (null if active) |
 | outcome | Enum? | `Success`, `Canceled`, `Expired`, `DisputeWon`, `DisputeLost` |
+| rated_at | Timestamp? | When the local user rated the counterparty; durable marker written by `db.mark_trade_rated` after `submit_rating` publishes (issue #339). "Did I rate this trade" is local knowledge nothing on the wire can rebuild, so the in-memory `RATING_STORE` rehydrates from this on restart — the store stays the cache, this is authoritative on load. The score itself is not persisted (the rated UI shows only a label) |
 
 Trade rows are history: they are updated in place (`status`,
 `hold_invoice`, `amount_sats` — see `update_trade_fields`) but never

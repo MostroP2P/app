@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
@@ -156,7 +158,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               fontWeight: FontWeight.w700,
               letterSpacing: 1,
             ),
-            tabs: [Tab(text: l10n.tabBuyBtc), Tab(text: l10n.tabSellBtc)],
+            // Named by the visible tab, not by what it filters: the Buy BTC
+            // tab lists sell orders, so deriving the id from the filtered
+            // OrderType would swap the two.
+            tabs: [
+              Tab(
+                child: Text(l10n.tabBuyBtc)
+                    .withAutomationId(AutomationIds.orderBookTabBuy),
+              ),
+              Tab(
+                child: Text(l10n.tabSellBtc)
+                    .withAutomationId(AutomationIds.orderBookTabSell),
+              ),
+            ],
           ),
         ),
 
@@ -333,7 +347,7 @@ class _MostroAppBar extends StatelessWidget {
                         iconSize: 22,
                         icon: Icon(Icons.menu, color: palette.textPrimary),
                         tooltip: AppLocalizations.of(context).menuTooltip,
-                      ),
+                      ).withAutomationId(AutomationIds.appBarDrawer),
                     const Spacer(),
                     const NotificationBell(),
                   ],
