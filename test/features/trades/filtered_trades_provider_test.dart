@@ -192,5 +192,26 @@ void main() {
         ['order-z'],
       );
     });
+    test(
+        'a terminal trade keeps its snapshot bucket and ignores live status (#299)',
+        () async {
+      // A terminal trade must not spawn a live-status poller. Override its
+      // tradeStatusProvider with a NON-terminal live status: if the guard
+      // failed to skip the watch, the trade would follow that live status out
+      // of the success bucket. Because terminal trades bucket by snapshot, the
+      // override is never read, so it stays in success (#299 review).
+      final container = createContainer(overrides: [
+        rawTradesProvider.overrideWith(
+          (ref) async => [fakeTrade(id: 'done', status: OrderStatus.success)],
+        ),
+        tradeStatusProvider('order-done').overrideWith(
+          (ref) => Stream.value(OrderStatus.pending),
+        ),
+      ]);
+      expect(
+        await _orderIds(container, filter: TradeStatusFilter.success),
+        ['order-done'],
+      );
+    });
   });
 }

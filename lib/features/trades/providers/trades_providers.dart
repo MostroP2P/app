@@ -207,7 +207,14 @@ final filteredTradesWithOrderStateProvider =
   // of truth. Until the live status has loaded we fall back to the snapshot
   // bucket, so nothing briefly escapes the active filter.
   final items = trades.map((trade) {
-    final live = ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
+    // Terminal trades cannot change further, so don't create a long-lived 2s
+    // poller for them — mirroring the guard in orderBookNotificationCountProvider
+    // (#299 review). Their snapshot status is authoritative here: order status
+    // only ever moves toward terminal, so a snapshot can lag but never run ahead,
+    // and falling back to it (live == null) buckets them by their real status.
+    final live = _terminalOrderStatuses.contains(trade.order.status)
+        ? null
+        : ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
     return _tradeInfoToItem(
       trade,
       statusOverride: live == null ? null : orderStatusToFilter(live),
