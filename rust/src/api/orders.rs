@@ -2864,7 +2864,13 @@ fn orders_subscription_id() -> nostr_sdk::SubscriptionId {
 /// hex, not a prefix — no collision) so a repeat subscribe for the same trade
 /// key replaces in place instead of stacking a second relay subscription.
 fn trade_subscription_id(trade_pubkey: &nostr_sdk::PublicKey) -> nostr_sdk::SubscriptionId {
-    nostr_sdk::SubscriptionId::new(format!("mostro-trade-{}", trade_pubkey.to_hex()))
+    // NIP-01 caps subscription ids at 64 chars. The full 64-char pubkey hex makes
+    // "mostro-trade-" + 64 = 77, which relays answer with CLOSED and zero events —
+    // the per-trade subscription is inert and only the global mostro-dm bulk feed
+    // keeps replies flowing. 32 hex chars (128 bits) rules out collisions with
+    // headroom to spare (#255 review).
+    let hex = trade_pubkey.to_hex();
+    nostr_sdk::SubscriptionId::new(format!("mostro-trade-{}", &hex[..32]))
 }
 
 /// Stable subscription ID for a single-order (`d`-tag) Kind 38383 watch
@@ -3928,10 +3934,11 @@ mod tests {
         // repeat subscribe replaces in place instead of stacking a new
         // relay-side subscription.
         assert_eq!(trade_subscription_id(&pk), trade_subscription_id(&pk));
-        // Full pubkey hex (not a prefix) — no cross-trade collision.
+        // First 32 hex chars (128 bits) — no realistic cross-trade collision,
+        // and short enough to stay under NIP-01's 64-char id limit (#255 review).
         assert_eq!(
             trade_subscription_id(&pk),
-            nostr_sdk::SubscriptionId::new(format!("mostro-trade-{}", pk.to_hex())),
+            nostr_sdk::SubscriptionId::new(format!("mostro-trade-{}", &pk.to_hex()[..32])),
         );
         let other = nostr_sdk::Keys::generate().public_key();
         assert_ne!(trade_subscription_id(&other), trade_subscription_id(&pk));
@@ -3943,6 +3950,18 @@ mod tests {
             single_order_subscription_id("abc123"),
             nostr_sdk::SubscriptionId::new("mostro-order-abc123"),
         );
+    }
+    #[test]
+    fn subscription_ids_stay_within_the_nip01_64_char_limit() {
+        // NIP-01: a subscription id is a non-empty string of at most 64 chars.
+        // A relay answers CLOSED and delivers zero events for an over-long id,
+        // and the failure is masked by the global bulk feed — so guard the
+        // length here, where a later prefix change would otherwise cross it
+        // unnoticed (#255 review).
+        let pk = nostr_sdk::Keys::generate().public_key();
+        assert!(trade_subscription_id(&pk).to_string().len() <= 64);
+        let order_id = "550e8400-e29b-41d4-a716-446655440000";
+        assert!(single_order_subscription_id(order_id).to_string().len() <= 64);
     }
 
     #[test]
