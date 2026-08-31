@@ -145,6 +145,21 @@ Both parties rate each other (optional)
 - NIP-44 Encrypted Payloads: [github.com/nostr-protocol/nips/blob/master/44.md](https://github.com/nostr-protocol/nips/blob/master/44.md)
 - Order Kind 38383: [mostro.network/protocol/list_orders.html](https://mostro.network/protocol/list_orders.html)
 
+#### Supported NIPs & BUDs
+
+| Spec | Used for |
+|------|----------|
+| [NIP-06](https://github.com/nostr-protocol/nips/blob/master/06.md) | Key derivation from a BIP-39 mnemonic (`rust/src/crypto/keys.rs`) |
+| [NIP-13](https://github.com/nostr-protocol/nips/blob/master/13.md) | Proof-of-work mining on outgoing events, to the daemon's required difficulty (`rust/src/mostro/pow.rs`) |
+| [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) | Encrypted payloads — daemon messages and the peer/dispute chat envelope (`rust/src/crypto/ecdh.rs`, `rust/src/nostr/transport.rs`) |
+| [NIP-47](https://github.com/nostr-protocol/nips/blob/master/47.md) | Nostr Wallet Connect, for paying invoices from a connected wallet (`rust/src/nwc/client.rs`) |
+| [NIP-69](https://github.com/nostr-protocol/nips/blob/master/69.md) | Public order-book status (`s` tag on Kind 38383) |
+| [BUD-01](https://github.com/hzrd149/blossom/blob/master/buds/01.md) | Blob retrieval (`GET /<sha256>`) for encrypted file attachments (`rust/src/nostr/blossom.rs`) |
+
+**Not used:** NIP-59 (gift wrap) was dropped from peer and dispute chat in #246/#254 — this client neither reads nor writes Kind 1059. Chat instead rides a custom Kind-14 envelope (see "P2P Chat" above), which is *not* NIP-17 despite sharing its kind number.
+
+**Partial / known gap:** file uploads are not BUD-02 compliant as written — `try_upload` in `rust/src/nostr/blossom.rs` sends `PUT /{sha256}` instead of BUD-02's `PUT /upload`. Tracked in #341. The Kind-24242 authorization event is implemented correctly (that mechanism is [BUD-11](https://github.com/hzrd149/blossom/blob/master/buds/11.md), not BUD-02 — the code comment mislabels this too, also noted in #341); only the upload path itself is wrong. File content encryption (ChaCha20-Poly1305) happens application-side before upload and is not part of any BUD.
+
 ---
 
 ## Architecture & Fundamentals
@@ -161,7 +176,7 @@ Mostro App uses a **split-architecture** model: all cryptography, protocol logic
 ┌──────────────────▼──────────────────────────┐
 │                  Rust Core                  │
 │                                             │
-│  nostr-sdk 0.44   →  relay pool, NIP-44/59  │
+│  nostr-sdk 0.44   →  relay pool, NIP-44     │
 │  mostro-core 0.13.1 →  protocol FSM, types,   │
 │                      transport              │
 │  bip32 / bip39    →  HD key derivation      │

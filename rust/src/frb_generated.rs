@@ -5994,6 +5994,7 @@ impl SseDecode for crate::api::types::TradeInfo {
         let mut var_peerRating = <Option<f64>>::sse_decode(deserializer);
         let mut var_peerReviews = <Option<u32>>::sse_decode(deserializer);
         let mut var_peerDays = <Option<u32>>::sse_decode(deserializer);
+        let mut var_ratedAt = <Option<i64>>::sse_decode(deserializer);
         return crate::api::types::TradeInfo {
             id: var_id,
             order: var_order,
@@ -6011,6 +6012,7 @@ impl SseDecode for crate::api::types::TradeInfo {
             peer_rating: var_peerRating,
             peer_reviews: var_peerReviews,
             peer_days: var_peerDays,
+            rated_at: var_ratedAt,
         };
     }
 }
@@ -7546,6 +7548,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::TradeInfo {
             self.peer_rating.into_into_dart().into_dart(),
             self.peer_reviews.into_into_dart().into_dart(),
             self.peer_days.into_into_dart().into_dart(),
+            self.rated_at.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -8920,6 +8923,7 @@ impl SseEncode for crate::api::types::TradeInfo {
         <Option<f64>>::sse_encode(self.peer_rating, serializer);
         <Option<u32>>::sse_encode(self.peer_reviews, serializer);
         <Option<u32>>::sse_encode(self.peer_days, serializer);
+        <Option<i64>>::sse_encode(self.rated_at, serializer);
     }
 }
 

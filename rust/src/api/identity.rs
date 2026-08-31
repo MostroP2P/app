@@ -746,6 +746,9 @@ mod tests {
         ) -> Result<()> {
             unimplemented!()
         }
+        async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
+            unimplemented!()
+        }
         async fn save_queued_message(
             &self,
             _msg: &crate::queue::outbox::QueuedMessage,

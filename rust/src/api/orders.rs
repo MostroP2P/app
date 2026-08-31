@@ -625,6 +625,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         peer_rating: None,
         peer_reviews: None,
         peer_days: None,
+        rated_at: None,
     };
     if let Some(db) = crate::db::app_db::db() {
         if let Err(e) = db.save_trade(&trade).await {
@@ -866,6 +867,7 @@ pub async fn take_order(
         peer_rating: None,
         peer_reviews: None,
         peer_days: None,
+        rated_at: None,
     };
 
     // The other side of the race guarded in `dispatch_mostro_message`: this

@@ -309,6 +309,11 @@ impl Storage for IndexedDbStorage {
         log::warn!("update_trade_peer_reputation: IndexedDB backend not implemented — peer reputation will not persist");
         Ok(())
     }
+
+    async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
+        log::warn!("mark_trade_rated: IndexedDB backend not implemented — rated marker will not persist");
+        Ok(())
+    }
 }
 
 /// The active-node settings key (shared with the SQLite backend).

@@ -201,4 +201,11 @@ pub trait Storage: Send + Sync {
         reviews: u32,
         days: u32,
     ) -> Result<()>;
+
+    /// Set the durable "local user rated this trade" marker (`rated_at`, unix
+    /// seconds) on the trade identified by `order.id` (issue #339). Written
+    /// after `submit_rating` publishes so the rated state and the
+    /// duplicate-rating guard survive a restart. No-op when no matching trade
+    /// exists.
+    async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()>;
 }

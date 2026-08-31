@@ -1918,6 +1918,7 @@ mod tests {
             peer_rating: None,
             peer_reviews: None,
             peer_days: None,
+            rated_at: None,
         };
         assert!(chat_still_relevant(&base));
 

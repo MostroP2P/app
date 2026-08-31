@@ -5,9 +5,11 @@ import 'package:mostro/src/rust/api/types.dart';
 
 /// The rating held for [tradeId], or `null` when neither side has rated.
 ///
-/// The Rust store is in-memory by design (ratings live in the daemon's kind
-/// 38383 tags, not in the local DB), so this resolves to `null` again after a
-/// restart and the rate prompt comes back.
+/// The Rust store is in-memory (ratings live in the daemon's kind 38383 tags,
+/// not in the local DB), but the local user's own rating is backed by a durable
+/// `rated_at` marker on the trade row (issue #339): on a restart the in-memory
+/// store rehydrates from it, so a trade the user already rated still resolves as
+/// rated and the rate prompt does not come back.
 final tradeRatingProvider = FutureProvider.autoDispose
     .family<RatingInfo?, String>((ref, tradeId) async {
   return reputation_api.getRatingForTrade(tradeId: tradeId);
