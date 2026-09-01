@@ -393,6 +393,38 @@ Ordered; 3.2 depends on 3.1, 3.3 on 3.2. Requires PR 1.7 (lag visibility) first.
   move behind a post-first-frame loading state.
 - **Verify:** cold-start trace: first frame well under the 2 s budget on a mid-range device.
 
+### PR 3.8 — `perf(bridge): windowed order queries` — **CONDITIONAL, measure first**
+- **Why this entry exists:** "infinite scroll" — fetch a page, show a skeleton, fetch the next
+  page as the user scrolls — keeps being proposed for the order book, from the same static
+  reading each time. Recorded here so the reasoning is not redone.
+- **The list is already lazy.** Home renders through `ListView.separated` with an
+  `itemBuilder` (`lib/features/home/screens/home_screen.dart:83`): Flutter builds only the
+  visible cards plus `cacheExtent` of look-ahead, which is exactly the "prefetch a bit more
+  than the viewport" behaviour. The initial skeleton exists too (`home_screen.dart:256`).
+  Ten thousand orders in memory do not slow the scroll itself.
+- **The network cannot be paged.** The book is one relay subscription on kind 38383 filtered
+  by author (`rust/src/api/orders.rs:1227`). Nostr has no offset or cursor; `.limit()` is a
+  hint that truncates the market silently (PR 1.6, withdrawn); `since`/`until` windows do
+  not work either because the UI filters by currency, payment method and side, and filtering
+  needs the whole set. The payload is small anyway — a thousand events is about a megabyte.
+- **What actually hurts at 1k orders** is the root cause at the top of this document: full
+  `Vec` clones and full-snapshot bridge emissions per mutation, O(N²) bulk ingest, and Dart
+  re-mapping, re-filtering and re-sorting the entire book per emission. PR 2.1/2.2 make that
+  O(N) and Phase 3 makes it O(1) per event. Paging the list would fix none of it.
+- **The one variant that can pay off is paging the bridge, not the relay:** filter and sort
+  in Rust, and have Dart hold a window (`get_orders(filters, offset, limit)`) instead of the
+  whole book. That bounds Dart memory and per-emission work once the book is tens of
+  thousands of entries. It depends on the `HashMap` book (3.1) and the delta stream (3.2),
+  and its natural first step is the decision PR 3.3 already forces: the Rust `OrderFilters`
+  path is dead code today — wiring it up (rather than deleting it) is what makes a windowed
+  query possible later.
+- **Trigger:** implement only if the PR 5.2 large-book widget tests show Dart-side cost
+  (memory or per-delta work) at 10k orders after Phase 3 lands. If they do not, this stays
+  unimplemented, like 1.6 and 1.10.
+- **Verify (if triggered):** Rust test that a window over the filtered/sorted book matches a
+  full filter+sort; Dart test that scrolling past the window requests the next one and a
+  delta inside the window updates in place.
+
 ---
 
 ## Phase 4 — Persistence & web parity (most work; depends on Phase 3 shape)
