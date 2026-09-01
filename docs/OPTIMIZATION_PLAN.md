@@ -412,18 +412,37 @@ Ordered; 3.2 depends on 3.1, 3.3 on 3.2. Requires PR 1.7 (lag visibility) first.
   re-mapping, re-filtering and re-sorting the entire book per emission. PR 2.1/2.2 make that
   O(N) and Phase 3 makes it O(1) per event. Paging the list would fix none of it.
 - **The one variant that can pay off is paging the bridge, not the relay:** filter and sort
-  in Rust, and have Dart hold a window (`get_orders(filters, offset, limit)`) instead of the
-  whole book. That bounds Dart memory and per-emission work once the book is tens of
-  thousands of entries. It depends on the `HashMap` book (3.1) and the delta stream (3.2),
-  and its natural first step is the decision PR 3.3 already forces: the Rust `OrderFilters`
-  path is dead code today — wiring it up (rather than deleting it) is what makes a windowed
-  query possible later.
+  in Rust, and have Dart hold a window instead of the whole book. That bounds Dart memory
+  and per-emission work once the book is tens of thousands of entries. It depends on the
+  `HashMap` book (3.1) and the delta stream (3.2), and its natural first step is the
+  decision PR 3.3 already forces: the Rust `OrderFilters` path is dead code today — wiring
+  it up (rather than deleting it) is what makes a windowed query possible later.
+- **The window must be revision-consistent, not positional.** A naive
+  `get_orders(filters, offset, limit)` over the live sorted book is wrong: an order arriving,
+  expiring or changing rank *before* the offset shifts the boundary, and the next request
+  skips or repeats entries. The contract, if this is ever built:
+  - `get_orders_window(filters, cursor, limit) -> { revision, items, next_cursor }`. The
+    cursor is a **keyset** (sort key + order id of the last item), never an offset, so
+    mutations before the window cannot move it. `revision` is the book revision PR 3.1
+    already introduces.
+  - Dart keeps `(filters, revision, items)` and applies only deltas with a newer revision,
+    the same rule as the snapshot/delta resync in 3.1. Per delta: *before* the window — no
+    membership change (keyset cursor); *inside* — upsert in place, or evict when the order no
+    longer matches the filters or its sort key leaves the window; *after* — ignore until the
+    next page is requested. A `Removed` for an unknown id is a no-op.
+  - When evictions shrink the window below `limit`, refill by requesting from the current
+    `next_cursor`; on a lagged stream, refetch the window from its first cursor and rebase
+    on the returned `revision`.
 - **Trigger:** implement only if the PR 5.2 large-book widget tests show Dart-side cost
   (memory or per-delta work) at 10k orders after Phase 3 lands. If they do not, this stays
   unimplemented, like 1.6 and 1.10.
-- **Verify (if triggered):** Rust test that a window over the filtered/sorted book matches a
-  full filter+sort; Dart test that scrolling past the window requests the next one and a
-  delta inside the window updates in place.
+- **Verify (if triggered):** Rust tests that a window over the filtered/sorted book matches
+  a full filter+sort, and that an insertion, removal and rank change landing *before*,
+  *inside* and *after* the window between two page requests yield neither a skipped nor a
+  duplicated order across the concatenated pages; Dart tests that scrolling past the window
+  requests the next one from `next_cursor`, that a delta inside the window updates in place
+  or evicts, that an eviction below `limit` triggers a refill, and that a stale-revision
+  delta is dropped.
 
 ---
 
