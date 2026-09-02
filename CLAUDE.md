@@ -95,6 +95,15 @@ bridged by flutter_rust_bridge.
   a mismatched CLI yields bindings that fail to compile, with an error that never mentions
   versions (see issue #205). `--check` verifies without generating.
 - FRB scans only `crate::api` → changes in `nostr/`, `crypto/`, `mostro/`, etc. need no regen.
+- **Regenerate after pulling, too — not just after your own edits.** `lib/src/rust/` and
+  `lib/l10n/app_localizations*.dart` are gitignored, so a `git pull` that brings in someone
+  else's `rust/src/api/` field or `.arb` key leaves your copies stale. CI regenerates both
+  before it analyses (`ci.yml` → `frb-generate.sh`, `flutter gen-l10n`), so green CI proves
+  nothing about your checkout. The failure is loud but misdirected — the analyzer blames
+  whatever *uses* the missing field, so a stale `TradeInfo` reads as a broken test helper
+  rather than as out-of-date bindings. If `flutter analyze` reports a field or l10n getter
+  that plainly exists in `rust/src/api/types.rs` or `lib/l10n/*.arb`, regenerate before
+  believing it.
 
 ## Transport (protocol v2)
 - **Daemon messages** (new-order, take, release, cancel, dispute, rate, invoice, restore):
