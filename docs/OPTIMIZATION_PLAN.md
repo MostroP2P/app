@@ -410,8 +410,9 @@ PR 3.8 is conditional (gated on the PR 5.2 measurements) and does not count towa
   stable `mostro-orders` id by `subscribe_node_filters` (`rust/src/api/orders.rs:2858`).
   Nostr has no offset or cursor; `.limit()` is a hint that truncates the market silently
   (PR 1.6, withdrawn); `since`/`until` windows do not work either because the UI filters by
-  currency, payment method and side, and filtering needs the whole set. The payload is small anyway — a thousand events is roughly 650 KB
-  (50 live kind 38383 events from `relay.mostro.network` averaged 653 B, max 905 B).
+  currency, payment method and side, and filtering needs the whole set. The payload is small
+  anyway — a thousand events is roughly 650 KB (50 live kind 38383 events from
+  `relay.mostro.network` averaged 653 B, max 905 B).
 - **What actually hurts at 1k orders** is the root cause at the top of this document: full
   `Vec` clones and full-snapshot bridge emissions per mutation, O(N²) bulk ingest, and Dart
   re-mapping, re-filtering and re-sorting the entire book per emission. PR 2.1/2.2 make that
