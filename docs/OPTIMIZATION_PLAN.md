@@ -28,7 +28,8 @@ regression protection.
 
 Independent one-to-few-line fixes. Land in any order.
 
-> **Status: implemented.** PRs #349, #350, #351, #352, #353, #355, #356, #357, #358.
+> **Status: in progress.** Merged: #349, #350, #351, #352, #353, #358. Still open: #355,
+> #356, #357.
 > **#354 (PR 1.6) was opened and then closed** after review showed the bound it added could
 > silently truncate the order book while protecting against nothing — see the entry below.
 > Two items were withdrawn after measurement rather than implemented — PR 1.10 entirely, and
@@ -174,7 +175,7 @@ Independent one-to-few-line fixes. Land in any order.
 
 Each PR stands alone; none requires Phase 3's redesign.
 
-> **Status: implemented.** PRs #360–#369. All independent of each other except
+> **Status: in progress.** #360 merged; #361–#369 open. All independent of each other except
 > **PR 2.2 (#361), which is stacked on PR 2.1 (#360)** — it builds on the deferred-upsert
 > primitive introduced there, so the "fully independent" claim below is not quite true for
 > that pair. Two sub-items were withdrawn after inspection (2.3's `local_trade_status`
@@ -302,6 +303,8 @@ Each PR stands alone; none requires Phase 3's redesign.
 ## Phase 3 — Structural: delta pipeline & push-based state (the big lever)
 
 Ordered; 3.2 depends on 3.1, 3.3 on 3.2. Requires PR 1.7 (lag visibility) first.
+PR 3.8 is conditional (gated on the PR 5.2 measurements) and does not count towards M4:
+"Phase 3 done" means 3.1–3.7.
 
 ### PR 3.1 — `feat(core): HashMap order book + delta broadcast type`
 - **Evidence:** `Vec` + full-snapshot `broadcast::Sender<Vec<OrderInfo>>`
@@ -403,10 +406,12 @@ Ordered; 3.2 depends on 3.1, 3.3 on 3.2. Requires PR 1.7 (lag visibility) first.
   than the viewport" behaviour. The initial skeleton exists too (`home_screen.dart:256`).
   Ten thousand orders in memory do not slow the scroll itself.
 - **The network cannot be paged.** The book is one relay subscription on kind 38383 filtered
-  by author (`rust/src/api/orders.rs:1227`). Nostr has no offset or cursor; `.limit()` is a
-  hint that truncates the market silently (PR 1.6, withdrawn); `since`/`until` windows do
-  not work either because the UI filters by currency, payment method and side, and filtering
-  needs the whole set. The payload is small anyway — a thousand events is about a megabyte.
+  by author — `all_orders_filter` (`rust/src/nostr/order_events.rs:217`), subscribed under the
+  stable `mostro-orders` id by `subscribe_node_filters` (`rust/src/api/orders.rs:2858`).
+  Nostr has no offset or cursor; `.limit()` is a hint that truncates the market silently
+  (PR 1.6, withdrawn); `since`/`until` windows do not work either because the UI filters by
+  currency, payment method and side, and filtering needs the whole set. The payload is small anyway — a thousand events is roughly 650 KB
+  (50 live kind 38383 events from `relay.mostro.network` averaged 653 B, max 905 B).
 - **What actually hurts at 1k orders** is the root cause at the top of this document: full
   `Vec` clones and full-snapshot bridge emissions per mutation, O(N²) bulk ingest, and Dart
   re-mapping, re-filtering and re-sorting the entire book per emission. PR 2.1/2.2 make that
