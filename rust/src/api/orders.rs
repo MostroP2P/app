@@ -169,10 +169,21 @@ pub struct OrderFilters {
     pub payment_method: Option<String>,
 }
 
+/// How long relay-driven book updates are collected before one snapshot is
+/// published.
+///
+/// Short enough to read as immediate, long enough that a burst of 38383 events
+/// costs one emission instead of one each. Only the relay firehose goes
+/// through this: daemon-message handlers and user actions publish directly.
+const PUBLISH_COALESCE_MS: u64 = 200;
+
 /// Shared order cache + broadcast channel for UI updates.
 pub struct OrderBook {
     orders: Arc<RwLock<Vec<OrderInfo>>>,
     tx: broadcast::Sender<Vec<OrderInfo>>,
+    /// Set while a coalescing window is armed. Shared with the window's task,
+    /// which clears it.
+    publish_scheduled: Arc<AtomicBool>,
 }
 
 impl Default for OrderBook {
@@ -187,6 +198,7 @@ impl OrderBook {
         Self {
             orders: Arc::new(RwLock::new(Vec::new())),
             tx,
+            publish_scheduled: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -223,6 +235,37 @@ impl OrderBook {
     pub(crate) async fn upsert_order_deferred(&self, order: OrderInfo) {
         let mut orders = self.orders.write().await;
         Self::apply_upsert(&mut orders, order);
+    }
+
+    /// Insert or update a single order, publishing at most once per
+    /// [`PUBLISH_COALESCE_MS`] window.
+    ///
+    /// For the relay firehose, where events arrive far faster than anyone can
+    /// read them and every emission carries the whole book. The window is
+    /// trailing: the burst that opens it is published when it closes, so the
+    /// subscriber sees the settled book rather than each intermediate state.
+    pub(crate) async fn upsert_order_coalesced(&self, order: OrderInfo) {
+        self.upsert_order_deferred(order).await;
+        self.schedule_publish();
+    }
+
+    /// Arm the coalescing window, unless one is already running.
+    fn schedule_publish(&self) {
+        if self.publish_scheduled.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let orders = Arc::clone(&self.orders);
+        let scheduled = Arc::clone(&self.publish_scheduled);
+        let tx = self.tx.clone();
+        crate::rt::spawn(async move {
+            crate::rt::time::sleep(std::time::Duration::from_millis(PUBLISH_COALESCE_MS))
+                .await;
+            // Released before the snapshot is taken, so an update arriving
+            // during the read opens a new window instead of being swallowed.
+            scheduled.store(false, Ordering::Release);
+            let snapshot = orders.read().await.clone();
+            let _ = tx.send(snapshot);
+        });
     }
 
     /// Publish the current book to subscribers.
@@ -3223,17 +3266,18 @@ fn dispute_id_from_payload(
 ///
 /// Shared by the live subscription loop and the node-switch refetch so both
 /// paths populate the book identically.
-/// Whether an ingested event publishes the book straight away.
+/// When an ingested event reaches subscribers.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Publish {
-    /// Live subscription: one event, one emission.
-    Immediately,
+    /// At most one emission per coalescing window — the relay firehose, where
+    /// events arrive faster than the UI can consume whole-book snapshots.
+    Coalesced,
     /// Bulk ingest: the caller publishes once for the whole batch.
     WhenBatchEnds,
 }
 
 async fn ingest_order_event(event: &nostr_sdk::Event) {
-    ingest_order_event_with(event, Publish::Immediately).await;
+    ingest_order_event_with(event, Publish::Coalesced).await;
 }
 
 async fn ingest_order_event_with(event: &nostr_sdk::Event, publish: Publish) {
@@ -3345,7 +3389,7 @@ async fn ingest_order_event_with(event: &nostr_sdk::Event, publish: Publish) {
                 }
             }
             match publish {
-                Publish::Immediately => order_book().upsert_order(info).await,
+                Publish::Coalesced => order_book().upsert_order_coalesced(info).await,
                 Publish::WhenBatchEnds => order_book().upsert_order_deferred(info).await,
             }
         }
@@ -3872,16 +3916,70 @@ mod tests {
         );
     }
 
-    /// The live subscription still emits per event: deferring is opt-in.
+    /// Daemon-message handlers and user actions still emit immediately:
+    /// both deferring and coalescing are opt-in.
     #[tokio::test]
-    async fn a_live_upsert_still_publishes_immediately() {
+    async fn a_direct_upsert_still_publishes_immediately() {
         let book = OrderBook::new();
         let mut rx = book.subscribe();
 
         book.upsert_order(dummy_order_info("live-1")).await;
 
-        let snapshot = rx.try_recv().expect("a live upsert publishes");
+        let snapshot = rx.try_recv().expect("a direct upsert publishes");
         assert_eq!(snapshot.len(), 1);
+    }
+
+    /// A relay firehose delivers many 38383 events back to back. Each one
+    /// publishing a whole-book snapshot is what makes a busy book expensive,
+    /// so a burst inside one window must collapse to a single emission.
+    #[tokio::test]
+    async fn live_relay_updates_coalesce_into_one_emission() {
+        const BURST: usize = 20;
+        let book = OrderBook::new();
+        let mut rx = book.subscribe();
+
+        for n in 0..BURST {
+            book.upsert_order_coalesced(dummy_order_info(&format!("burst-{n}")))
+                .await;
+        }
+
+        assert!(
+            matches!(rx.try_recv(), Err(broadcast::error::TryRecvError::Empty)),
+            "nothing should be published before the window closes"
+        );
+
+        crate::rt::time::sleep(std::time::Duration::from_millis(
+            PUBLISH_COALESCE_MS * 4,
+        ))
+        .await;
+
+        let snapshot = rx.try_recv().expect("the window publishes once");
+        assert_eq!(snapshot.len(), BURST, "the snapshot carries the whole burst");
+        assert!(
+            matches!(rx.try_recv(), Err(broadcast::error::TryRecvError::Empty)),
+            "one emission per window, not one per event"
+        );
+    }
+
+    /// The window must re-arm, or the book would publish once and then go
+    /// silent for the rest of the session.
+    #[tokio::test]
+    async fn a_later_update_opens_a_new_window() {
+        let book = OrderBook::new();
+        let mut rx = book.subscribe();
+        let settle = || {
+            crate::rt::time::sleep(std::time::Duration::from_millis(
+                PUBLISH_COALESCE_MS * 4,
+            ))
+        };
+
+        book.upsert_order_coalesced(dummy_order_info("first")).await;
+        settle().await;
+        assert_eq!(rx.try_recv().expect("first window").len(), 1);
+
+        book.upsert_order_coalesced(dummy_order_info("second")).await;
+        settle().await;
+        assert_eq!(rx.try_recv().expect("second window").len(), 2);
     }
 
     /// `global_dm_keys()` is a process-global shared by every test in this
