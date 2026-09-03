@@ -1,7 +1,7 @@
 /// Disputes API — open, track, and resolve trade disputes.
 ///
-/// Dispute initiation sends a `Dispute` action to the Mostro daemon via NIP-59
-/// Gift Wrap.  Incoming admin actions (`adminTookDispute`, `adminSettled`,
+/// Dispute initiation sends a `Dispute` action to the Mostro daemon over
+/// transport v2 (NIP-44, signed kind 14).  Incoming admin actions (`adminTookDispute`, `adminSettled`,
 /// `adminCanceled`) update the local `Dispute` record and — for
 /// `adminTookDispute` — trigger ECDH admin shared key derivation via the
 /// session manager.
@@ -197,7 +197,7 @@ fn status_allows_dispute(status: &crate::api::types::OrderStatus) -> bool {
 
 /// Initiate a dispute on an active trade.
 ///
-/// Sends a `Dispute` action to the Mostro daemon via NIP-59 Gift Wrap and
+/// Sends a `Dispute` action to the Mostro daemon over transport v2 and
 /// creates a local `Dispute` record.
 ///
 /// **Preconditions**: Trade MUST be disputable (funds in escrow). No existing
@@ -329,40 +329,6 @@ pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
     // that shape had no reader on the other side of the envelope.
     let ctx = crate::api::messages::admin_chat_context(trade_index, &admin_pubkey).await?;
     let inner = crate::api::messages::publish_chat_payload_for(&ctx, &text).await?;
-
-    // Interop dual-write (PR #254 review): the current solver client
-    // (mostrix) still reads only NIP-59 gift wrap — its envelope migration is
-    // tracked in mostrix#102. Until the deprecation date the evidence also
-    // goes out in the pre-migration shape it understands, gift-wrapped
-    // straight to the solver. Best-effort: the envelope copy above is the
-    // durable one, and this copy disappears with the dual-read window.
-    if crate::rt::unix_now() < crate::api::messages::LEGACY_CHAT_DEPRECATION_TS {
-        let legacy_send: Result<()> = async {
-            let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-            let payload = serde_json::json!({
-                "type": "evidence",
-                "trade_id": trade_id,
-                "text": text,
-            })
-            .to_string();
-            let event_json = crate::nostr::gift_wrap::wrap(
-                &sender_keys,
-                &admin_pubkey,
-                &payload,
-                nostr_sdk::Kind::from(14u16),
-            )
-            .await
-            .map_err(|e| anyhow!("legacy wrap failed: {e}"))?;
-            crate::api::orders::publish_event(&event_json)
-                .await
-                .map_err(|e| anyhow!("legacy publish failed: {e}"))?;
-            Ok(())
-        }
-        .await;
-        if let Err(e) = legacy_send {
-            log::warn!("[disputes] legacy evidence copy not sent trade={trade_id}: {e}");
-        }
-    }
 
     // Record it locally so the dispute conversation has history, exactly as a
     // peer message does. Keyed by the inner event id, so our own echo arriving

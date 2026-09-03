@@ -88,6 +88,8 @@ or a direct progression message. Only on a correlated reply is the trade
 created: the TradeInfo is built from the reply's real data (status,
 calculated `amount_sats`, `hold_invoice`), persisted to My Trades, the
 order book entry is synced, and the trade session/subscriptions start.
+That persistence half runs under the per-order lock (see *Per-order
+serialization*), acquired after the reply and never around the wait for it.
 On rejection or timeout **nothing is persisted** — no phantom trade.
 
 **Errors**: `OrderNotFound`, `CannotTakeOwnOrder`, `OrderAlreadyTaken`,
@@ -316,6 +318,60 @@ Every arm above that syncs a status also emits a `TradeUpdate` (see
 persistence attempt — DB failures are logged, never suppress the
 emission, and leave the row behind the book. `Canceled` included, which
 emits whether it wiped the row or kept it as history.
+
+### Per-order serialization
+
+`dispatch_mostro_message` and `take_order`'s persistence block both check
+local state and mutate the order book, the trade row and the session
+several `await`s later. Those two halves are **one operation per
+`order_id`**, held under a per-order mutex (#259).
+
+Without it, a delivery that passed its check can be overtaken by a retake
+of the same order while it is suspended: the retake persists its own
+state, then the suspended handler resumes and writes the previous
+generation's outcome over it. The `Canceled` arm is the reachable case —
+it has mutated book and DB with no generation check of its own.
+
+Invariants:
+
+- **The lock is keyed by `order_id`, never global.** One stalled handler
+  must not stop every other trade.
+- **`dispatch_mostro_message` takes it once the message kind is parsed**,
+  covering the local→daemon id reconcile, the waiter interception and
+  every per-action arm. A message carrying no order id owns no order state
+  and takes no lock.
+- **No caller may hold it while waiting for a daemon reply.** That reply is
+  delivered by `dispatch_mostro_message`, which takes the same lock, so
+  `take_order` acquires it only *after* its wait resolves — around the
+  persistence block alone. Holding it across the wait deadlocks the take
+  until its 10 s timeout.
+- **The take reply hands the guard off.** The dispatcher that resolves a
+  waiting `take_order` sends its own guard through the waiter channel
+  (`Wake.order_guard`), so consumed-reply → persistence is one critical
+  section: released instead, a second daemon message already queued on the
+  FIFO mutex would beat the woken task and run its arm against a trade row
+  and session that do not exist yet. The guard rides *inside* the channel
+  value, so every losing path releases it by dropping — a timed-out
+  waiter's failed send, a receiver dropped with the reply unread. Only the
+  take reply carries a guard: an add-invoice's effects are persisted by
+  the dispatch arms themselves (still holding it), and a create's gap is
+  owned by the reconcile block and the Kind 38383 fingerprint path.
+- **The registry tracks live work, not history**: entries no handler holds
+  any more are dropped on the next acquisition, so it does not grow with
+  every order ever dispatched.
+- **A generation gate backs the lock**, read under it so it cannot
+  interleave with a retake's rebind: a message addressed to a trade key
+  *older* than the one currently bound to its order (`trade_keys` binding)
+  belongs to a superseded attempt and is dropped whole — the lock
+  serializes concurrent handlers, the gate rejects the late ones.
+  Strictly-older only: a retake's first reply arrives on the NEW key while
+  the binding still holds the old index (`take_order` rebinds only after
+  that reply resolves its waiter), and the identity counter only grows, so
+  newer-than-bound is always legitimate. No binding fails open (a create's
+  confirmation precedes any binding for the daemon id). `BondSlashed` is
+  exempt: it never writes order state, and a trailing slash notice
+  addressed to the slashed (superseded) generation is by-design delivery
+  (#197).
 
 ### Daemon cancellation semantics
 

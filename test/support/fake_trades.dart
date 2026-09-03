@@ -12,6 +12,10 @@ TradeInfo fakeTrade({
   bool isMine = false,
   int startedAt = 1000,
   BigInt? amountSats,
+  String? holdInvoice,
+  double? peerRating,
+  int? peerReviews,
+  int? peerDays,
 }) {
   final order = OrderInfo(
     id: 'order-$id',
@@ -38,5 +42,9 @@ TradeInfo fakeTrade({
     currentStep: const TradeStep.disputed(),
     tradeKeyIndex: 0,
     startedAt: startedAt,
+    holdInvoice: holdInvoice,
+    peerRating: peerRating,
+    peerReviews: peerReviews,
+    peerDays: peerDays,
   );
 }

@@ -597,6 +597,47 @@ impl Storage for SqliteStorage {
         query.execute(&self.pool).await?;
         Ok(())
     }
+
+    async fn update_trade_peer_reputation(
+        &self,
+        order_id: &str,
+        rating: f64,
+        reviews: u32,
+        days: u32,
+    ) -> Result<()> {
+        // Layer the three scalars with json_set in one statement. Bind rating
+        // via json(?) so SQLite stores it as a JSON number, not a string — a
+        // string would fail to deserialize back into `Option<f64>`. reviews and
+        // days go through json(?) for the same reason (they map to Option<u32>).
+        let sql = "UPDATE trades SET data = json_set(\
+             data, \
+             '$.peer_rating', json(?), \
+             '$.peer_reviews', json(?), \
+             '$.peer_days', json(?)) \
+             WHERE json_extract(data, '$.order.id') = ?";
+        sqlx::query(sql)
+            .bind(rating.to_string())
+            .bind(reviews.to_string())
+            .bind(days.to_string())
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
+        // Bind via json(?) so SQLite stores the timestamp as a JSON number, not
+        // a string — a string would fail to deserialize back into Option<i64>.
+        let sql = "UPDATE trades SET data = json_set(\
+             data, '$.rated_at', json(?)) \
+             WHERE json_extract(data, '$.order.id') = ?";
+        sqlx::query(sql)
+            .bind(rated_at.to_string())
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -689,6 +730,10 @@ mod tests {
             started_at: 1,
             completed_at: None,
             outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
         };
         storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
         storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
@@ -707,6 +752,180 @@ mod tests {
         // Unknown order id: no-op, not an error.
         storage.delete_trade_by_order_id("order-missing").await.unwrap();
         assert_eq!(storage.list_trades().await.unwrap().len(), 1);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The taker reputation snapshot (issue #305) round-trips through the
+    /// nested-JSON update: written by order id, read back as numbers on
+    /// `TradeInfo`, and stored on a row whose `trades.id` differs from the
+    /// order id (taker-shaped), so the update must go through `$.order.id`.
+    #[tokio::test]
+    async fn update_trade_peer_reputation_round_trips_by_order_id() {
+        use crate::api::types::*;
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let trade = |row_id: &str, order_id: &str| TradeInfo {
+            id: row_id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Sell,
+                status: OrderStatus::WaitingBuyerInvoice,
+                amount_sats: None,
+                fiat_amount: Some(100.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "maker".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        };
+        storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
+        storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
+
+        // The reproduction's numbers: rating 4.375, 4 reviews, 64 days.
+        storage
+            .update_trade_peer_reputation("order-a", 4.375, 4, 64)
+            .await
+            .unwrap();
+
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.peer_rating, Some(4.375));
+        assert_eq!(a.peer_reviews, Some(4));
+        assert_eq!(a.peer_days, Some(64));
+
+        // The sibling row is untouched — the update is scoped by order id.
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.peer_rating, None);
+        assert_eq!(b.peer_reviews, None);
+        assert_eq!(b.peer_days, None);
+
+        // A brand-new taker persists as all-zeros, not as absent — the UI
+        // shows the raw numbers rather than guessing "new user".
+        storage
+            .update_trade_peer_reputation("order-b", 0.0, 0, 0)
+            .await
+            .unwrap();
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.peer_rating, Some(0.0));
+        assert_eq!(b.peer_reviews, Some(0));
+        assert_eq!(b.peer_days, Some(0));
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The durable rated marker (issue #339) round-trips as a JSON number, is
+    /// scoped to a single order id, and is absent until written.
+    #[tokio::test]
+    async fn mark_trade_rated_round_trips_by_order_id() {
+        use crate::api::types::*;
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let trade = |row_id: &str, order_id: &str| TradeInfo {
+            id: row_id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Sell,
+                status: OrderStatus::WaitingBuyerInvoice,
+                amount_sats: None,
+                fiat_amount: Some(100.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "maker".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        };
+        storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
+        storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
+
+        // Absent until written.
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.rated_at, None);
+
+        storage.mark_trade_rated("order-a", 1_700_000_000).await.unwrap();
+
+        // Stored as a JSON number that deserializes back into Option<i64>.
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.rated_at, Some(1_700_000_000));
+
+        // The sibling row is untouched — the update is scoped by order id.
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.rated_at, None);
 
         drop(storage);
         let _ = std::fs::remove_file(&path);

@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
@@ -14,6 +16,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart' show ReputationStat;
 import 'package:mostro/features/trades/providers/trades_providers.dart' show refreshTrades;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
@@ -322,6 +325,9 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                       fontFamily: 'monospace',
                     ),
                     overflow: TextOverflow.ellipsis,
+                  ).withAutomationId(
+                    AutomationIds.orderId,
+                    label: order.id,
                   ),
                 ),
                 IconButton(
@@ -361,7 +367,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: order.rating.toStringAsFixed(1),
                           label: l10n.ratingStatLabel,
                           icon: Icons.star,
@@ -369,13 +375,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.tradeCount}',
                           label: l10n.tradesStatLabel,
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.daysActive}',
                           label: l10n.daysActiveStatLabel,
                         ),
@@ -496,7 +502,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                     ),
                   ),
                   child: Text(l10n.closeRatingButton),
-                ),
+                ).withAutomationId(AutomationIds.orderTakeClose),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -518,7 +524,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Text(actionLabel),
-                ),
+                ).withAutomationId(AutomationIds.orderTakeConfirm),
               ),
             ],
           ),
@@ -532,46 +538,6 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
         '${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
-  }
-}
-
-/// One column of the 3-column creator-reputation block.
-class _ReputationStat extends StatelessWidget {
-  const _ReputationStat({
-    required this.value,
-    required this.label,
-    this.icon,
-    this.iconColor,
-  });
-
-  final String value;
-  final String label;
-  final IconData? icon;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: iconColor),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            Text(
-              value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(color: textSec, fontSize: 11)),
-      ],
-    );
   }
 }
 
