@@ -1048,9 +1048,11 @@ pub async fn take_order(
     // success / canceled at the end); the fine-grained states only ever arrive
     // as daemon messages.
     subscribe_single_order(&order_id).await;
-    // Create a session so the chat API can look up keys immediately.
+    // Create (or replace, on a retake) the session so the chat API can look
+    // up keys immediately. A confirmed take always wins over whatever a
+    // prior failed/timed-out attempt left behind (#335).
     let _ = crate::mostro::session::session_manager()
-        .create_session(
+        .install_session(
             order_id.clone(),
             trade.role.clone(),
             trade_index,
@@ -5452,6 +5454,41 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("SessionAlreadyExists"));
+    }
+
+    /// Reproduces #335 part 1: `take_order` calls `create_session` and
+    /// discards the error with `let _ = ...` (orders.rs, current production
+    /// code). A retake over an order that already has a session (first take
+    /// timed out or was rejected, second take succeeded with a fresh trade
+    /// key) silently keeps the OLD session — chat key lookups then use the
+    /// wrong `trade_key_index`. This test fails today; it should pass once
+    /// the retake path replaces the stale session instead of discarding it.
+    #[tokio::test]
+    async fn retake_replaces_stale_session_trade_key_index() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let order = dummy_order_info(&order_id);
+        let mgr = session_manager();
+
+        // First take: derives trade key index 0, session gets created.
+        let _ = mgr
+            .install_session(order_id.clone(), TradeRole::Buyer, 0, order.clone())
+            .await;
+
+        // Retake (first attempt timed out / was rejected by the daemon):
+        // derives a fresh trade key index 1. `take_order` calls
+        // `install_session` the same way.
+        let _ = mgr
+            .install_session(order_id.clone(), TradeRole::Buyer, 1, order)
+            .await;
+
+        let session = mgr
+            .get_session(&order_id)
+            .await
+            .expect("session must exist");
+        assert_eq!(
+            session.trade_key_index, 1,
+            "the confirmed retake's trade_key_index must win, not the stale one"
+        );
     }
 
     /// After create_session the session has no peer pubkey or shared key yet.
