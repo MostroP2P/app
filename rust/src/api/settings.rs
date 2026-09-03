@@ -86,7 +86,13 @@ fn validate_locale(locale: &str) -> Result<()> {
     }
 }
 
-/// Validates an ISO 4217 fiat code: exactly 3 uppercase ASCII letters.
+/// Validates the *syntactic* shape of an ISO 4217 fiat code: exactly 3
+/// uppercase ASCII letters. This does not check membership in any supported
+/// currency set — a well-formed but unsupported code (e.g. "XYZ") passes here
+/// and is left for the daemon to reject. Membership validation against the
+/// daemon's advertised `supported_currencies` is tracked as a follow-up
+/// (#175 review) so there is a single authoritative source rather than a
+/// bundled list that can drift.
 pub(crate) fn validate_fiat_code(code: &str) -> Result<()> {
     let valid = code.len() == 3 && code.chars().all(|c| c.is_ascii_uppercase());
     if valid {
@@ -369,6 +375,11 @@ mod tests {
                 "{bad:?} must be rejected with the InvalidFiatCode marker"
             );
         }
+        // A well-formed but unsupported code passes syntax validation — this
+        // documents the boundary so the guarantee is not misread as "rejects
+        // unsupported currencies". Membership is a tracked follow-up (#175
+        // review), enforced by the daemon in the meantime.
+        assert!(validate_fiat_code("XYZ").is_ok());
     }
 
     #[tokio::test]
