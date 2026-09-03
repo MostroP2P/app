@@ -57,18 +57,29 @@ final tradeStatusProvider =
     if (!events.isClosed) events.add(const _FallbackTick());
   });
 
-  ref.onDispose(() {
+  // Tear down the listener, the fallback ticker and the controller. Idempotent,
+  // so the terminal-status returns below can stop the ticker immediately rather
+  // than leaving it waking every 30 s until the provider is disposed (#303
+  // review) — which compounds with #299 watching every trade in the list.
+  var stopped = false;
+  void stop() {
+    if (stopped) return;
+    stopped = true;
     sub.close();
     ticker.cancel();
-    events.close();
-  });
+    if (!events.isClosed) events.close();
+  }
+  ref.onDispose(stop);
 
   // Immediate first emission — current status, same DB fallback as before for
   // orders already gone from the in-memory book.
   OrderStatus? last = await _currentStatus(orderId);
   if (last != null) {
     yield last;
-    if (_isTerminal(last)) return;
+    if (_isTerminal(last)) {
+      stop();
+      return;
+    }
   }
 
   // Drain the merged stream. A push carries the new status directly; a fallback
@@ -81,7 +92,10 @@ final tradeStatusProvider =
     if (status != null && status != last) {
       last = status;
       yield status;
-      if (_isTerminal(status)) return;
+      if (_isTerminal(status)) {
+        stop();
+        return;
+      }
     }
   }
 });
