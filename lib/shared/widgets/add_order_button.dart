@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
 /// Expandable FAB for creating orders.
@@ -96,7 +98,7 @@ class _AddOrderButtonState extends State<AddOrderButton>
                       _collapse();
                       context.push('${AppRoute.addOrder}?type=buy');
                     },
-                  ),
+                  ).withAutomationId(AutomationIds.orderAddBuy),
                 ),
               ),
             ),
@@ -117,7 +119,7 @@ class _AddOrderButtonState extends State<AddOrderButton>
                       _collapse();
                       context.push('${AppRoute.addOrder}?type=sell');
                     },
-                  ),
+                  ).withAutomationId(AutomationIds.orderAddSell),
                 ),
               ),
             ),
@@ -135,7 +137,7 @@ class _AddOrderButtonState extends State<AddOrderButton>
                   color: _expanded ? Colors.white : Colors.black,
                 ),
               ),
-            ),
+            ).withAutomationId(AutomationIds.orderAddFab),
           ],
         ),
       ],

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show orderBookNotificationCountProvider;
 import 'package:mostro/l10n/app_localizations.dart';
@@ -50,10 +52,15 @@ class BottomNavBar extends ConsumerWidget {
             assert(false, 'Unexpected bottom nav index: $index');
         }
       },
+      // The identifier rides the item's icon: BottomNavigationBar builds the
+      // item's own semantics node, so this is the innermost widget the tab
+      // owns, and its bounds are inside the tab's tap target.
       items: [
         BottomNavigationBarItem(
-          icon: const Icon(Icons.list_alt_outlined),
-          activeIcon: const Icon(Icons.list_alt),
+          icon: const Icon(Icons.list_alt_outlined)
+              .withAutomationId(AutomationIds.navOrderBook),
+          activeIcon: const Icon(Icons.list_alt)
+              .withAutomationId(AutomationIds.navOrderBook),
           label: l10n.navOrderBook,
         ),
         BottomNavigationBarItem(
@@ -61,12 +68,12 @@ class BottomNavBar extends ConsumerWidget {
             icon: Icons.bolt_outlined,
             count: tradesCount,
             color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ),
+          ).withAutomationId(AutomationIds.navTrades),
           activeIcon: _BadgeIcon(
             icon: Icons.bolt,
             count: tradesCount,
             color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ),
+          ).withAutomationId(AutomationIds.navTrades),
           label: l10n.navMyTrades,
         ),
         BottomNavigationBarItem(
@@ -74,12 +81,12 @@ class BottomNavBar extends ConsumerWidget {
             icon: Icons.chat_bubble_outline,
             count: chatCount,
             color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ),
+          ).withAutomationId(AutomationIds.navChat),
           activeIcon: _BadgeIcon(
             icon: Icons.chat_bubble,
             count: chatCount,
             color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ),
+          ).withAutomationId(AutomationIds.navChat),
           label: l10n.navChat,
         ),
       ],

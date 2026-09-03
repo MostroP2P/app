@@ -16,10 +16,8 @@
 ///   signed by the sender's trade key. Replaced the simplified NIP-59 gift
 ///   wrap, which allowed unattributable third-party flooding — issue #246.
 ///
-/// * `wrap` / `unwrap` — raw JSON content gift-wrapped (NIP-59, Kind 1059),
-///   still used for dispute admin messages only. Their payloads are not
-///   `mostro_core::Message` values, so they stay on the local helper — see
-///   issue #101, "Scope".
+/// There is no third entry point: this client does not speak protocol v1 in
+/// either direction, so nothing here reads or writes a gift wrap.
 use anyhow::{anyhow, Result};
 use mostro_core::message::Message;
 use mostro_core::nip59::{UnwrappedMessage, WrapOptions};
@@ -66,10 +64,9 @@ pub async fn wrap_mostro_message(
 
 /// Try to open an incoming Mostro event using `trade_keys`.
 ///
-/// Delegates to `mostro_core::transport::unwrap_incoming`, which dispatches by
-/// event kind: a Kind 14 event is opened on the protocol-v2 NIP-44 path, a
-/// Kind 1059 event on the legacy gift-wrap path. (This app subscribes only to
-/// Kind 14, but the dispatcher accepts both.)
+/// Delegates to `mostro_core::transport::unwrap_incoming`. This app speaks
+/// protocol v2 only: it subscribes to Kind 14 and never to the superseded
+/// gift-wrap transport, so the v1 arm of that dispatcher is unreachable here.
 ///
 /// Returns `Ok(None)` only when the NIP-44 content cannot be decrypted with
 /// the given key — the canonical "not addressed to me" signal, used by the
@@ -311,73 +308,6 @@ pub fn mostro_unwrap(
     }
 
     Ok(inner)
-}
-
-// ── NIP-59 gift wrap (dispute admin messages only) ───────────────────────────
-//
-// These wrap arbitrary JSON content in a Kind 14 rumor. Kept as local glue
-// for the admin/dispute channel; the P2P chat moved to `mostro_wrap` above.
-
-/// Wrap a plaintext JSON payload as a NIP-59 Gift Wrap event addressed to
-/// `recipient_pubkey`, signed by `sender_keys`.
-///
-/// When the connected Mostro requires NIP-13 Proof of Work the difficulty
-/// is applied to the **gift wrap** (the outer Kind 1059 event).
-///
-/// Returns the serialised `Event` JSON ready for publication.
-pub async fn wrap(
-    sender_keys: &Keys,
-    recipient_pubkey: &PublicKey,
-    content: &str,
-    kind: Kind,
-) -> Result<String> {
-    let rumor = EventBuilder::new(kind, content).build(sender_keys.public_key());
-
-    let seal = EventBuilder::seal(sender_keys, recipient_pubkey, rumor)
-        .await
-        .map_err(|e| anyhow!("NIP-59 seal failed: {e}"))?
-        .sign_with_keys(sender_keys)
-        .map_err(|e| anyhow!("seal sign failed: {e}"))?;
-
-    let pow = crate::mostro::pow::get_pow();
-    let gift_wrap = if pow > 0 {
-        // Build the gift wrap manually so we can inject .pow() — the SDK's
-        // gift_wrap_from_seal helper doesn't support NIP-13.
-        let ephemeral_keys = Keys::generate();
-        let encrypted = nip44::encrypt(
-            ephemeral_keys.secret_key(),
-            recipient_pubkey,
-            seal.as_json(),
-            nip44::Version::default(),
-        )
-        .map_err(|e| anyhow!("NIP-44 encrypt failed: {e}"))?;
-
-        EventBuilder::new(Kind::GiftWrap, encrypted)
-            .tag(Tag::public_key(*recipient_pubkey))
-            .custom_created_at(Timestamp::tweaked(nip59::RANGE_RANDOM_TIMESTAMP_TWEAK))
-            .pow(pow)
-            .sign_with_keys(&ephemeral_keys)
-            .map_err(|e| anyhow!("gift wrap sign+pow failed: {e}"))?
-    } else {
-        EventBuilder::gift_wrap_from_seal(recipient_pubkey, &seal, [])
-            .map_err(|e| anyhow!("NIP-59 gift_wrap failed: {e}"))?
-    };
-
-    Ok(gift_wrap.as_json())
-}
-
-/// Unwrap a NIP-59 Gift Wrap event using `recipient_keys`.
-///
-/// Returns the inner rumor as a serialised `UnsignedEvent` JSON string.
-pub async fn unwrap(recipient_keys: &Keys, gift_wrap_json: &str) -> Result<String> {
-    let event = Event::from_json(gift_wrap_json)
-        .map_err(|e| anyhow!("invalid gift wrap JSON: {e}"))?;
-
-    let unwrapped = nip59::extract_rumor(recipient_keys, &event)
-        .await
-        .map_err(|e| anyhow!("NIP-59 unwrap failed: {e}"))?;
-
-    Ok(unwrapped.rumor.as_json())
 }
 
 #[cfg(test)]

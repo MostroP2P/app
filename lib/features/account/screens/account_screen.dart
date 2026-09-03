@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,13 +7,17 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/account/widgets/backup_trigger_sheet.dart';
+import 'package:mostro/features/account/widgets/public_key_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/providers/session_provider.dart';
+import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 /// Account screen — Route `/key_management`.
@@ -31,6 +37,27 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   bool _showBackupCheckbox = false;
   List<String>? _words;
   bool _loadingWords = false;
+
+  /// Public key of the stored identity, or null while it loads (or when
+  /// secure storage holds none). Shown so a user can tell which account is
+  /// active without revealing the secret words.
+  String? _publicKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPublicKey();
+  }
+
+  Future<void> _loadPublicKey() async {
+    try {
+      final info = await identity_api.getIdentity();
+      if (!mounted) return;
+      setState(() => _publicKey = info?.publicKey);
+    } catch (e) {
+      debugPrint('[account] public key unavailable: $e');
+    }
+  }
 
   /// All 12 words are hidden until the user explicitly taps "Show".
   String _fullyMaskedPhrase() => List.filled(12, '•••').join(' ');
@@ -116,7 +143,14 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final backupDone = ref.watch(backupCompletedProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.accountScreenTitle)),
+      appBar: AppBar(
+        title: Text(l10n.accountScreenTitle),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(AppRoute.home),
+        ).withAutomationId(AutomationIds.appBarBack),
+      ),
       body: ListView(
         // #267: bottom system-bar inset so the Import/Refresh row and last
         // item clear the gesture / 3-button navigation bar.
@@ -216,7 +250,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                                     _wordsVisible ? l10n.hideButtonLabel : l10n.showButtonLabel,
                                     style: TextStyle(color: green),
                                   ),
-                                ),
+                                ).withAutomationId(AutomationIds.keysSeedReveal),
                       ),
                       // Backup confirmation checkbox — appears when words are
                       // visible and backup has not yet been confirmed.
@@ -237,6 +271,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               ],
             ),
           ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // ── Public key ─────────────────────────────────────────────────
+          PublicKeyCard(publicKey: _publicKey),
           const SizedBox(height: AppSpacing.lg),
 
           // ── Privacy Card ───────────────────────────────────────────────
@@ -306,7 +344,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 borderRadius: BorderRadius.circular(AppRadius.button),
               ),
             ),
-          ),
+          ).withAutomationId(AutomationIds.keysGenerate),
           const SizedBox(height: AppSpacing.md),
 
           // ── Import + Refresh buttons ───────────────────────────────────
@@ -325,7 +363,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                ),
+                ).withAutomationId(AutomationIds.keysImport),
               ),
               const SizedBox(width: AppSpacing.sm),
               OutlinedButton(
@@ -377,7 +415,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
                 child: Text(l10n.cancel),
-              ),
+              ).withAutomationId(AutomationIds.keysGenerateCancel),
               FilledButton(
                 onPressed: () async {
                   Navigator.pop(dialogContext);
@@ -403,7 +441,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                       _wordsVisible = false;
                       _showBackupCheckbox = false;
                       _words = null;
+                      _publicKey = null;
                     });
+                    unawaited(_loadPublicKey());
                     context.go(AppRoute.home);
                   } catch (e) {
                     debugPrint('[account] generateNewUser error: $e');
@@ -420,7 +460,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   }
                 },
                 child: Text(l10n.continueButtonLabel),
-              ),
+              ).withAutomationId(AutomationIds.keysGenerateConfirm),
             ],
           ),
     );
@@ -448,7 +488,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         _wordsVisible = false;
         _showBackupCheckbox = false;
         _words = null;
+        _publicKey = null;
       });
+      unawaited(_loadPublicKey());
       context.go(AppRoute.home);
     } catch (e) {
       debugPrint('[account] importIdentity error: $e');

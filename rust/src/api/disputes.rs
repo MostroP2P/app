@@ -1,7 +1,7 @@
 /// Disputes API — open, track, and resolve trade disputes.
 ///
-/// Dispute initiation sends a `Dispute` action to the Mostro daemon via NIP-59
-/// Gift Wrap.  Incoming admin actions (`adminTookDispute`, `adminSettled`,
+/// Dispute initiation sends a `Dispute` action to the Mostro daemon over
+/// transport v2 (NIP-44, signed kind 14).  Incoming admin actions (`adminTookDispute`, `adminSettled`,
 /// `adminCanceled`) update the local `Dispute` record and — for
 /// `adminTookDispute` — trigger ECDH admin shared key derivation via the
 /// session manager.
@@ -85,16 +85,21 @@ impl DisputeStore {
                 // InReview, not ours, no reason, solver known. Claim it
                 // instead of failing: keep the solver and the InReview status
                 // it already learned, restore our initiator metadata.
+                //
+                // The id is part of that metadata (PR #275 review). The
+                // placeholder was minted locally because the peer path never
+                // sees the daemon's id, while an accepted open carries it; the
+                // window this race lives in is now the whole reply wait, so
+                // keeping the placeholder's id would routinely discard the
+                // daemon's.
                 Some(existing)
-                    if existing.status == DisputeStatus::InReview
-                        && !existing.initiated_by_me
-                        && existing.reason.is_none()
-                        && existing.admin_pubkey.is_some()
+                    if is_peer_placeholder(existing)
                         && pending_opens()
                             .lock()
                             .map(|set| set.contains(&dispute.trade_id))
                             .unwrap_or(false) =>
                 {
+                    existing.id = dispute.id;
                     existing.initiated_by_me = true;
                     existing.reason = dispute.reason;
                     existing.clone()
@@ -177,6 +182,21 @@ fn dispute_store() -> &'static DisputeStore {
     DISPUTE_STORE.get_or_init(DisputeStore::new)
 }
 
+/// Whether `dispute` is the record `handle_admin_took_dispute` writes when it
+/// is the first thing this side hears about the dispute: InReview, not ours,
+/// no reason, solver known, and an id minted locally because the peer path
+/// never sees the daemon's.
+///
+/// Both paths that learn a dispute is in fact ours — the post-acceptance
+/// insert and the late-acceptance reconciliation — test for exactly this shape
+/// before claiming it, so the predicate lives in one place.
+fn is_peer_placeholder(dispute: &Dispute) -> bool {
+    dispute.status == DisputeStatus::InReview
+        && !dispute.initiated_by_me
+        && dispute.reason.is_none()
+        && dispute.admin_pubkey.is_some()
+}
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 use crate::rt::unix_now;
@@ -197,13 +217,18 @@ fn status_allows_dispute(status: &crate::api::types::OrderStatus) -> bool {
 
 /// Initiate a dispute on an active trade.
 ///
-/// Sends a `Dispute` action to the Mostro daemon via NIP-59 Gift Wrap and
-/// creates a local `Dispute` record.
+/// Sends a `Dispute` action to the Mostro daemon over transport v2, waits for
+/// its reply, and creates the local `Dispute` record **only** once the daemon
+/// has accepted it. A publish is not an acceptance: the daemon rejects a
+/// dispute the trade is not eligible for with `CantDo`, and persisting on
+/// publish left that rejection unreconciled — the dispute stayed locally Open
+/// forever (#202).
 ///
 /// **Preconditions**: Trade MUST be disputable (funds in escrow). No existing
 /// open dispute for this trade.
 ///
-/// **Errors**: `TradeNotDisputable`, `DisputeAlreadyOpen`, `ProtocolError`.
+/// **Errors**: `TradeNotDisputable`, `DisputeAlreadyOpen`, `ProtocolError`,
+/// `NoDaemonResponse`, plus daemon `CantDo` reasons passed through.
 pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Dispute> {
     if trade_id.trim().is_empty() {
         bail!("TradeNotDisputable: trade_id must not be empty");
@@ -227,20 +252,37 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
     // Mark this process's concrete in-flight open attempt: only while the
     // marker is held may the post-publish insert claim an admin-took
     // placeholder as ours. Dropped on every exit path.
-    pending_opens()
+    //
+    // Claiming it is also what makes the open single-flight (PR #275 review).
+    // The entry check above cannot see a concurrent attempt — neither has
+    // persisted anything yet — and both would derive the same trade key, so
+    // the second registration would replace the first one's pending record and
+    // strand its waiter on a NoDaemonResponse the daemon never caused.
+    let fresh = pending_opens()
         .lock()
         .expect("pending_opens poisoned")
         .insert(trade_id.clone());
+    if !fresh {
+        bail!("DisputeAlreadyOpen: an open_dispute for trade {trade_id} is already in flight");
+    }
     let _pending = PendingOpenGuard(trade_id.clone());
 
     // Dispatch Action::Dispute to Mostro BEFORE creating the local record so
-    // that a failed publish does not leave an un-retryable "open" slot in the
-    // dispute store.  Only on a successful publish do we persist the dispute.
+    // that a request the daemon never accepted does not leave an un-retryable
+    // "open" slot in the dispute store.
     let trade_index = crate::api::orders::trade_key_for_order(&trade_id)
         .await
         .ok_or_else(|| anyhow!("TradeNotDisputable: no trade key for trade {trade_id}"))?;
 
-    let event_json: String = async {
+    // Correlation nonce for this request. The daemon echoes it in its reply —
+    // DisputeInitiatedByYou on acceptance, CantDo on rejection — and only a
+    // reply carrying it may resolve the wait below.
+    let request_id: u64 = {
+        use rand::RngCore;
+        rand::rngs::OsRng.next_u64().max(1) // 0 is indistinguishable from "unset"
+    };
+
+    let (trade_pk_hex, event_json) = async {
         let sender_keys =
             crate::api::identity::get_active_trade_keys(trade_index).await?;
         let identity_keys =
@@ -248,27 +290,77 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         let mostro_pubkey =
             nostr_sdk::PublicKey::from_hex(&crate::config::active_mostro_pubkey())
                 .map_err(|e| anyhow!("invalid mostro pubkey: {e}"))?;
-        crate::mostro::actions::dispute(
+        let event_json = crate::mostro::actions::dispute(
             &identity_keys,
             &sender_keys,
             &mostro_pubkey,
             &trade_id,
             trade_index,
+            request_id,
         )
-        .await
+        .await?;
+        Ok::<_, anyhow::Error>((sender_keys.public_key().to_hex(), event_json))
     }
     .await
     .map_err(|e| anyhow!("ProtocolError: could not build Dispute message: {e}"))?;
 
-    crate::api::orders::publish_event(&event_json)
-        .await
-        .map_err(|e| anyhow!("ProtocolError: publish failed: {e}"))?;
+    // Register the pending record BEFORE publishing so the reply cannot race
+    // the bookkeeping. The trade key is already subscribed — the trade is
+    // active — so no new subscription is needed here.
+    let reply_rx = crate::mostro::pending::register_dispute_request(
+        trade_pk_hex.clone(),
+        request_id,
+        trade_index,
+    );
 
-    log::info!("[disputes] Dispute dispatched for trade={trade_id}");
+    if let Err(e) = crate::api::orders::publish_event(&event_json).await {
+        // Roll back only this attempt: if it is a retry, the timed-out attempt
+        // it took the key from is still answerable and must stay so.
+        crate::mostro::pending::roll_back_dispute_request(&trade_pk_hex, request_id);
+        return Err(anyhow!("ProtocolError: publish failed: {e}"));
+    }
 
-    // Publish succeeded — persist the dispute record.
+    log::info!("[disputes] Dispute dispatched for trade={trade_id} — waiting for daemon");
+
+    // Timeout detaches only the waiter: the record survives so a genuine late
+    // reply is still recognized as this attempt's, and a stale replay still is
+    // not.
+    let reply = crate::rt::time::timeout(std::time::Duration::from_secs(10), reply_rx).await;
+    if !matches!(reply, Ok(Ok(_))) {
+        crate::mostro::pending::detach_request_waiter(&trade_pk_hex, request_id);
+    }
+
+    use crate::mostro::pending::{DaemonReply, Wake};
+    let dispute_id = match reply {
+        Ok(Ok(Wake { reply: DaemonReply::DisputeAccepted { dispute_id }, .. })) => dispute_id,
+        Ok(Ok(Wake { reply: DaemonReply::Rejected { reason, message }, .. })) => {
+            log::warn!("[disputes] open_dispute rejected for trade={trade_id}: {reason}");
+            bail!("{message}");
+        }
+        Ok(Ok(_)) => bail!("ProtocolError: unexpected daemon reply to Dispute"),
+        // The daemon answers a rejected dispute with CantDo, but only for
+        // MostroCantDo causes: a duplicate dispute or a DB failure is an
+        // internal error it merely logs (mostro src/app.rs, manage_errors),
+        // so silence is a real outcome here and not only a lost event.
+        _ => {
+            log::warn!("[disputes] open_dispute: no daemon response within 10s for trade={trade_id}");
+            bail!("NoDaemonResponse");
+        }
+    };
+
+    // The daemon accepted it — persist the dispute under the id it assigned,
+    // which is what the solver and the daemon's Kind 38386 dispute event refer
+    // to. An acceptance without that id is malformed and fails closed (PR #275
+    // review): `Dispute.id` is contractually the daemon's, and a locally minted
+    // one would be indistinguishable from it while being wrong. A conforming
+    // daemon always sends it (mostro src/app/dispute.rs,
+    // notify_dispute_to_users).
+    let Some(dispute_id) = dispute_id else {
+        bail!("ProtocolError: daemon accepted the dispute without a dispute id");
+    };
+
     let dispute = Dispute {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: dispute_id,
         trade_id: trade_id.clone(),
         status: DisputeStatus::Open,
         initiated_by_me: true,
@@ -330,40 +422,6 @@ pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
     let ctx = crate::api::messages::admin_chat_context(trade_index, &admin_pubkey).await?;
     let inner = crate::api::messages::publish_chat_payload_for(&ctx, &text).await?;
 
-    // Interop dual-write (PR #254 review): the current solver client
-    // (mostrix) still reads only NIP-59 gift wrap — its envelope migration is
-    // tracked in mostrix#102. Until the deprecation date the evidence also
-    // goes out in the pre-migration shape it understands, gift-wrapped
-    // straight to the solver. Best-effort: the envelope copy above is the
-    // durable one, and this copy disappears with the dual-read window.
-    if crate::rt::unix_now() < crate::api::messages::LEGACY_CHAT_DEPRECATION_TS {
-        let legacy_send: Result<()> = async {
-            let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
-            let payload = serde_json::json!({
-                "type": "evidence",
-                "trade_id": trade_id,
-                "text": text,
-            })
-            .to_string();
-            let event_json = crate::nostr::gift_wrap::wrap(
-                &sender_keys,
-                &admin_pubkey,
-                &payload,
-                nostr_sdk::Kind::from(14u16),
-            )
-            .await
-            .map_err(|e| anyhow!("legacy wrap failed: {e}"))?;
-            crate::api::orders::publish_event(&event_json)
-                .await
-                .map_err(|e| anyhow!("legacy publish failed: {e}"))?;
-            Ok(())
-        }
-        .await;
-        if let Err(e) = legacy_send {
-            log::warn!("[disputes] legacy evidence copy not sent trade={trade_id}: {e}");
-        }
-    }
-
     // Record it locally so the dispute conversation has history, exactly as a
     // peer message does. Keyed by the inner event id, so our own echo arriving
     // from a relay dedups against this record instead of duplicating it.
@@ -371,6 +429,76 @@ pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
 
     log::info!("[disputes] evidence submitted for trade={trade_id}");
     Ok(())
+}
+
+/// Record a dispute the daemon accepted after `open_dispute` had already
+/// stopped waiting for the reply.
+///
+/// The acceptance is genuine — the daemon opened the dispute, told the
+/// counterparty, and published its Kind 38386 event — so the reply's status
+/// update moves the trade to `Dispute` either way. Dropping the record while
+/// letting that through would leave a disputed trade with no dispute to open
+/// and no way to reach the solver, which is the same split state this whole
+/// change set exists to remove (PR #275 review). The caller saw
+/// `NoDaemonResponse`, so the record lands unread.
+///
+/// The dispute's reason went with the timed-out call and is not recoverable
+/// here.
+///
+/// A solver can be assigned inside the same window, so the record may already
+/// exist as the peer-style placeholder — and then it is ours after all
+/// (PR #275 review): it is claimed exactly as the post-acceptance insert
+/// claims it, keeping the solver and InReview it learned while taking the
+/// daemon's id and the initiator flag. The claim needs no in-flight marker
+/// here the way that path does; a `DisputeInitiatedByYou` correlated to our
+/// own nonce is itself the proof the dispute is ours. Any other existing
+/// record — a retry that succeeded, a resolved dispute — is left untouched.
+///
+/// Fails closed on an acceptance carrying no dispute id, for the same reason
+/// `open_dispute` does: the record would claim a daemon id it does not have.
+pub(crate) async fn record_late_acceptance(trade_id: &str, dispute_id: Option<String>) {
+    let Some(id) = dispute_id else {
+        log::warn!(
+            "[disputes] late acceptance for trade={trade_id} carried no dispute id — not recorded"
+        );
+        return;
+    };
+    let trade_id_for_new = trade_id.to_string();
+    let id_for_claim = id.clone();
+
+    let result = dispute_store()
+        .upsert_or_update(
+            trade_id,
+            || Dispute {
+                id,
+                trade_id: trade_id_for_new,
+                status: DisputeStatus::Open,
+                initiated_by_me: true,
+                reason: None,
+                admin_pubkey: None,
+                resolution: None,
+                opened_at: unix_now(),
+                resolved_at: None,
+                is_read: false,
+            },
+            move |existing| {
+                if is_peer_placeholder(existing) {
+                    existing.id = id_for_claim;
+                    existing.initiated_by_me = true;
+                }
+                Ok(())
+            },
+        )
+        .await;
+
+    match result {
+        Ok(()) => log::info!(
+            "[disputes] reconciled late daemon acceptance for trade={trade_id}"
+        ),
+        Err(e) => log::warn!(
+            "[disputes] could not reconcile late acceptance for trade={trade_id}: {e}"
+        ),
+    }
 }
 
 /// Get dispute details for a trade.
@@ -628,6 +756,23 @@ mod tests {
         }
     }
 
+    /// PR #275 review: a second open for the same trade while the first is
+    /// still awaiting the daemon must be refused. Both would derive the same
+    /// trade key, so letting it through would replace the first attempt's
+    /// pending record and strand its waiter.
+    #[tokio::test]
+    async fn a_second_open_is_refused_while_one_is_in_flight() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        pending_opens().lock().unwrap().insert(trade_id.clone());
+        let _pending = PendingOpenGuard(trade_id.clone());
+
+        let err = open_dispute(trade_id, None).await.unwrap_err();
+        assert!(
+            err.to_string().contains("already in flight"),
+            "expected the in-flight guard to reject it, got: {err}"
+        );
+    }
+
     #[tokio::test]
     async fn open_dispute_requires_trade_key() {
         // open_dispute now dispatches to Mostro before persisting; without a
@@ -728,9 +873,11 @@ mod tests {
         pending_opens().lock().unwrap().insert(trade_id.clone());
         let _pending = PendingOpenGuard(trade_id.clone());
 
-        // Exactly what open_dispute persists after a successful publish.
+        // Exactly what open_dispute persists after the daemon accepts: the id
+        // is the daemon's, the placeholder's was minted locally.
+        let daemon_dispute_id = uuid::Uuid::new_v4().to_string();
         let own = Dispute {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: daemon_dispute_id.clone(),
             trade_id: trade_id.clone(),
             status: DisputeStatus::Open,
             initiated_by_me: true,
@@ -754,6 +901,89 @@ mod tests {
             "the solver assignment must survive the claim"
         );
         assert_eq!(stored.admin_pubkey.as_deref(), Some(admin_pk));
+        // PR #275 review: the claim must not discard the daemon's id.
+        assert_eq!(
+            stored.id, daemon_dispute_id,
+            "the claimed placeholder must adopt the daemon's dispute id"
+        );
+    }
+
+    /// PR #275 review: the daemon's acceptance can land after `open_dispute`
+    /// gave up. The status arm that follows moves the trade to Dispute either
+    /// way, so the record must exist — otherwise the trade shows as disputed
+    /// with no dispute to open and no solver to reach.
+    #[tokio::test]
+    async fn a_late_acceptance_is_reconciled_into_a_record() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let daemon_dispute_id = uuid::Uuid::new_v4().to_string();
+
+        assert!(get_dispute(trade_id.clone()).await.unwrap().is_none());
+
+        record_late_acceptance(&trade_id, Some(daemon_dispute_id.clone())).await;
+
+        let d = get_dispute(trade_id).await.unwrap().expect("record created");
+        assert_eq!(d.id, daemon_dispute_id, "the daemon's id must be adopted");
+        assert_eq!(d.status, DisputeStatus::Open);
+        assert!(d.initiated_by_me, "we did open it, late reply or not");
+        assert!(!d.is_read, "the caller was told it failed — this is news");
+    }
+
+    /// PR #275 review: `Dispute.id` is contractually the daemon's, so an
+    /// acceptance that carries no dispute id is malformed and must persist
+    /// nothing rather than mint a local id indistinguishable from a real one.
+    #[tokio::test]
+    async fn a_late_acceptance_without_a_daemon_id_records_nothing() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+
+        record_late_acceptance(&trade_id, None).await;
+
+        assert!(
+            get_dispute(trade_id).await.unwrap().is_none(),
+            "a malformed acceptance must not create a record"
+        );
+    }
+
+    /// PR #275 review round 2: `open_dispute` times out, a solver is assigned
+    /// inside the same window — writing the peer-style placeholder — and only
+    /// then does the correlated acceptance arrive. The placeholder is ours
+    /// after all, so the reconciliation must claim it: the daemon's id and the
+    /// initiator flag replace the locally minted ones, and the solver and
+    /// InReview it already learned survive.
+    #[tokio::test]
+    async fn a_late_acceptance_claims_the_admin_took_placeholder() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let admin_pk = "000000000000000000000000000000000000000000000000000000000000000a";
+        let daemon_dispute_id = uuid::Uuid::new_v4().to_string();
+
+        handle_admin_took_dispute(trade_id.clone(), admin_pk.to_string())
+            .await
+            .unwrap();
+        let placeholder_id = get_dispute(trade_id.clone()).await.unwrap().unwrap().id;
+
+        record_late_acceptance(&trade_id, Some(daemon_dispute_id.clone())).await;
+
+        let d = get_dispute(trade_id).await.unwrap().unwrap();
+        assert_ne!(d.id, placeholder_id, "the local id must not survive");
+        assert_eq!(d.id, daemon_dispute_id, "the daemon's id must be adopted");
+        assert!(d.initiated_by_me, "the acceptance proves the dispute is ours");
+        assert_eq!(d.status, DisputeStatus::InReview, "the assignment survives");
+        assert_eq!(d.admin_pubkey.as_deref(), Some(admin_pk));
+    }
+
+    /// Only the placeholder shape is claimable. A record that is already ours
+    /// — a retry that succeeded while the first attempt's reply was still in
+    /// flight — must survive the late reply untouched.
+    #[tokio::test]
+    async fn a_late_acceptance_leaves_a_successful_retry_alone() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let before = seed_dispute(&trade_id, Some("no payment".to_string())).await;
+
+        record_late_acceptance(&trade_id, Some(uuid::Uuid::new_v4().to_string())).await;
+
+        let after = get_dispute(trade_id).await.unwrap().unwrap();
+        assert_eq!(after.id, before.id, "the retry's record owns the trade");
+        assert_eq!(after.reason.as_deref(), Some("no payment"));
+        assert_eq!(after.status, DisputeStatus::Open);
     }
 
     /// PR #253 race, direction 2: the initiator's record already exists when

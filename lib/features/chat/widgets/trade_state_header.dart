@@ -31,8 +31,7 @@ final chatTradeOrderProvider =
   // Re-resolve when the polled status changes (e.g. active → fiatSent).
   ref.watch(tradeStatusProvider(orderId));
 
-  final book = ref.watch(orderBookProvider).valueOrNull;
-  final fromBook = book?.where((o) => o.id == orderId).firstOrNull;
+  final fromBook = ref.watch(orderByIdProvider(orderId));
   if (fromBook != null) return fromBook;
 
   try {

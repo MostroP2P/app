@@ -2,9 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/mostro_defaults.dart';
+import 'package:mostro/core/test_environment.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// The one spelling of a relay URL the app compares and keys rows by.
+///
+/// `AutomationIds.settingsRelayItem` normalizes the same way, so a relay is
+/// one row with one identifier however its URL was typed.
+String canonicalRelayUrl(String url) =>
+    url.trim().replaceAll(RegExp(r'/+$'), '');
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +138,8 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
               title: Text(l10n.addRelayDialogTitle),
               content: TextField(
                 controller: controller,
+                autocorrect: false,
+                enableSuggestions: false,
                 decoration: InputDecoration(
                   hintText: l10n.relayHintText,
                   errorText: errorText,
@@ -135,16 +149,26 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                     setDialogState(() => errorText = null);
                   }
                 },
-              ),
+              ).withAutomationId(AutomationIds.settingsRelaysAddUrl),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
                   child: Text(l10n.cancel),
-                ),
+                ).withAutomationId(AutomationIds.settingsRelaysAddCancel),
                 TextButton(
                   onPressed: () {
-                    final url = controller.text.trim();
-                    if (!url.startsWith('wss://')) {
+                    // Canonicalized before anything else looks at it: a relay
+                    // written with and without a trailing slash is the same
+                    // relay, and two rows for it would share one automation
+                    // identifier, which no driver could then tell apart.
+                    final url = canonicalRelayUrl(controller.text);
+                    // A Mortsom run points the app at a local relay, which is
+                    // plain ws:// on a private address. Outside the test
+                    // environment the wss:// requirement is unchanged.
+                    final schemeOk = url.startsWith('wss://') ||
+                        (TestEnvironment.allowInsecureRelays &&
+                            url.startsWith('ws://'));
+                    if (!schemeOk) {
                       setDialogState(
                         () => errorText = l10n.relayErrorMustStartWithWss,
                       );
@@ -154,7 +178,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                       setDialogState(() => errorText = l10n.relayErrorUrlTooShort);
                       return;
                     }
-                    if (_relays.any((r) => r.url == url)) {
+                    if (_relays.any((r) => canonicalRelayUrl(r.url) == url)) {
                       setDialogState(
                         () => errorText = l10n.relayErrorDuplicate,
                       );
@@ -183,7 +207,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                     });
                   },
                   child: Text(l10n.addButtonLabel),
-                ),
+                ).withAutomationId(AutomationIds.settingsRelaysAddConfirm),
               ],
             );
           },
@@ -207,6 +231,8 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
           final (index, relay) = record;
           final dotColor = relay.isActive ? colors.mostroGreen : colors.textDisabled;
 
+          // The row holds a toggle and, for user-added relays, a delete
+          // button, so merge: false keeps those addressable on their own.
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
             child: Row(
@@ -248,9 +274,15 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
                     icon: Icon(Icons.delete_outline, color: colors.destructiveRed),
                     onPressed: () => _removeRelay(index),
                     tooltip: l10n.removeRelayTooltip,
+                  ).withAutomationId(
+                    AutomationIds.settingsRelayDelete(relay.url),
                   ),
               ],
             ),
+          ).withAutomationId(
+            AutomationIds.settingsRelayItem(relay.url),
+            merge: false,
+            label: relay.url,
           );
         }),
         const SizedBox(height: AppSpacing.sm),
@@ -261,7 +293,7 @@ class _RelayManagementCardState extends ConsumerState<RelayManagementCard> {
             l10n.addRelayDialogTitle,
             style: TextStyle(color: colors.mostroGreen),
           ),
-        ),
+        ).withAutomationId(AutomationIds.settingsRelaysAdd),
       ],
     );
   }

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -93,6 +95,8 @@ class OrderListItem extends StatelessWidget {
     // Material shapes clip shadows; the border rides the Material shape so
     // InkWell clips to it. With bgCard == bg the shadow is what separates
     // the card from the page.
+    // The card wraps exactly one tap target, so merging is what keeps the tap
+    // action on the node that carries the identifier.
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -268,7 +272,7 @@ class OrderListItem extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ).withAutomationId(AutomationIds.orderBookItem(order.id));
   }
 
   /// Mock renders raw ratings (4.9, 4.95): up to 2 decimals, no trailing

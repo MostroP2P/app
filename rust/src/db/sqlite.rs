@@ -1,6 +1,9 @@
 /// SQLite storage backend — native platforms only.
 use anyhow::Result;
-use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
+    SqliteConnection, SqlitePool,
+};
 
 use crate::api::types::{
     ChatMessage, IdentityInfo, OrderInfo, QueuedMessageStatus, RelayInfo, TradeInfo,
@@ -8,17 +11,54 @@ use crate::api::types::{
 use crate::db::{schema::SQLITE_INIT_SQL, settings_keys, Storage};
 use crate::queue::outbox::QueuedMessage;
 
+/// Size of the connection pool.
+const MAX_CONNECTIONS: u32 = 4;
+
 pub struct SqliteStorage {
     pool: SqlitePool,
 }
 
 impl SqliteStorage {
     pub async fn open(path: &str) -> Result<Self> {
+        // Every pragma here is applied per connection as the pool opens it.
+        // `foreign_keys` in particular is connection-scoped, so setting it
+        // through a query on the pool only configures whichever single
+        // connection served that query.
+        //
+        // `synchronous = NORMAL` is the documented companion to WAL: durable
+        // across process crashes, and it drops the fsync that every write
+        // otherwise pays on mobile flash.
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
+            .foreign_keys(true);
+
         let pool = SqlitePoolOptions::new()
-            .max_connections(4)
-            .connect(&format!("sqlite://{}?mode=rwc", path))
+            .max_connections(MAX_CONNECTIONS)
+            .connect_with(options)
             .await?;
-        Self::migrate(&pool).await?;
+
+        // Migrations drop legacy tables, and with `foreign_keys` now enabled
+        // from the moment a connection opens, SQLite runs an implicit
+        // `DELETE FROM` before each `DROP TABLE`. On a schema-v1 database the
+        // surviving `messages` rows still reference `trades(id)`, so that
+        // delete fails with "FOREIGN KEY constraint failed" and aborts
+        // `open()` before the migration that would have removed those rows.
+        // Pin one connection, disable enforcement on it for the migrations
+        // only, and restore it before the connection returns to the pool.
+        let mut conn = pool.acquire().await?;
+        sqlx::query("PRAGMA foreign_keys = OFF")
+            .execute(&mut *conn)
+            .await?;
+        let migrated = Self::migrate(&mut conn).await;
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&mut *conn)
+            .await?;
+        drop(conn);
+        migrated?;
+
         sqlx::query(SQLITE_INIT_SQL).execute(&pool).await?;
         Ok(Self { pool })
     }
@@ -30,21 +70,24 @@ impl SqliteStorage {
     /// user-critical data (e.g. cached order/trade state that is rebuilt from
     /// the network), but the migration logs a warning so it is visible in debug
     /// output.
-    async fn migrate(pool: &SqlitePool) -> Result<()> {
+    ///
+    /// Runs on a single pinned connection with `foreign_keys` disabled — see
+    /// the call site in `open()`.
+    async fn migrate(conn: &mut SqliteConnection) -> Result<()> {
         // Migration 1 → 2: trades table changed from individual columns to a
         // single JSON `data` blob.  Detect the old schema by checking for the
         // `order_id` column which does not exist in the new schema.
         let old_trades: bool = sqlx::query_scalar(
             "SELECT COUNT(*) > 0 FROM pragma_table_info('trades') WHERE name = 'order_id'",
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .unwrap_or(false);
 
         if old_trades {
             log::warn!("[db] migrating trades table from schema v1 to v2 (dropping old rows)");
             sqlx::query("DROP TABLE IF EXISTS trades")
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
 
@@ -61,7 +104,7 @@ impl SqliteStorage {
         let trades_exists: bool = sqlx::query_scalar(
             "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'trades'",
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .unwrap_or(false);
         if trades_exists {
@@ -74,7 +117,7 @@ impl SqliteStorage {
                  ) \
                  WHERE json_type(data, '$.order.amount_sats') = 'text'",
             )
-            .execute(pool)
+            .execute(&mut *conn)
             .await
             .map(|r| r.rows_affected());
             match repaired {
@@ -99,13 +142,13 @@ impl SqliteStorage {
         let messages_exists: bool = sqlx::query_scalar(
             "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'messages'",
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .unwrap_or(false);
         let messages_has_data: bool = sqlx::query_scalar(
             "SELECT COUNT(*) > 0 FROM pragma_table_info('messages') WHERE name = 'data'",
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .unwrap_or(false);
         if messages_exists && !messages_has_data {
@@ -113,7 +156,7 @@ impl SqliteStorage {
                 "[db] migrating messages table from schema v1 (dropping unreadable rows)"
             );
             sqlx::query("DROP TABLE IF EXISTS messages")
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
 
@@ -128,13 +171,13 @@ impl SqliteStorage {
         let messages_has_fk: bool = sqlx::query_scalar(
             "SELECT COUNT(*) > 0 FROM pragma_foreign_key_list('messages')",
         )
-        .fetch_one(pool)
+        .fetch_one(&mut *conn)
         .await
         .unwrap_or(false);
         if messages_has_fk && messages_has_data {
             log::warn!("[db] migrating messages table from schema v2 to v3 (dropping FK)");
             sqlx::query(crate::db::schema::SQLITE_DROP_MESSAGES_FK_SQL)
-                .execute(pool)
+                .execute(&mut *conn)
                 .await?;
         }
 
@@ -611,6 +654,47 @@ impl Storage for SqliteStorage {
         query.execute(&self.pool).await?;
         Ok(())
     }
+
+    async fn update_trade_peer_reputation(
+        &self,
+        order_id: &str,
+        rating: f64,
+        reviews: u32,
+        days: u32,
+    ) -> Result<()> {
+        // Layer the three scalars with json_set in one statement. Bind rating
+        // via json(?) so SQLite stores it as a JSON number, not a string — a
+        // string would fail to deserialize back into `Option<f64>`. reviews and
+        // days go through json(?) for the same reason (they map to Option<u32>).
+        let sql = "UPDATE trades SET data = json_set(\
+             data, \
+             '$.peer_rating', json(?), \
+             '$.peer_reviews', json(?), \
+             '$.peer_days', json(?)) \
+             WHERE json_extract(data, '$.order.id') = ?";
+        sqlx::query(sql)
+            .bind(rating.to_string())
+            .bind(reviews.to_string())
+            .bind(days.to_string())
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
+        // Bind via json(?) so SQLite stores the timestamp as a JSON number, not
+        // a string — a string would fail to deserialize back into Option<i64>.
+        let sql = "UPDATE trades SET data = json_set(\
+             data, '$.rated_at', json(?)) \
+             WHERE json_extract(data, '$.order.id') = ?";
+        sqlx::query(sql)
+            .bind(rated_at.to_string())
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -623,6 +707,82 @@ mod tests {
         static COUNTER: AtomicU32 = AtomicU32::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!("mostro_test_{}_{n}.db", std::process::id()))
+    }
+
+    /// `foreign_keys` is a per-connection pragma, so running it once through
+    /// the pool leaves the other connections with enforcement off — whichever
+    /// one a given write lands on decides whether constraints apply.
+    #[tokio::test]
+    async fn every_pooled_connection_gets_the_pragmas() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        // Hold every connection at once so the pool must hand out distinct ones.
+        let mut conns = Vec::new();
+        for _ in 0..MAX_CONNECTIONS {
+            conns.push(storage.pool.acquire().await.unwrap());
+        }
+
+        for (i, conn) in conns.iter_mut().enumerate() {
+            let fk: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+                .fetch_one(&mut **conn)
+                .await
+                .unwrap();
+            assert_eq!(fk, 1, "foreign_keys off on connection {i}");
+
+            let sync: i64 = sqlx::query_scalar("PRAGMA synchronous")
+                .fetch_one(&mut **conn)
+                .await
+                .unwrap();
+            assert_eq!(sync, 1, "synchronous should be NORMAL(1) on connection {i}");
+
+            let journal: String = sqlx::query_scalar("PRAGMA journal_mode")
+                .fetch_one(&mut **conn)
+                .await
+                .unwrap();
+            assert_eq!(journal, "wal", "journal_mode not WAL on connection {i}");
+        }
+
+        drop(conns);
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// `EXPLAIN QUERY PLAN` rows, joined into one string for assertion.
+    async fn query_plan(storage: &SqliteStorage, sql: &str) -> String {
+        let rows: Vec<(i64, i64, i64, String)> =
+            sqlx::query_as(&format!("EXPLAIN QUERY PLAN {sql}"))
+                .bind("order-plan-1")
+                .fetch_all(&storage.pool)
+                .await
+                .unwrap();
+        rows.into_iter()
+            .map(|(_, _, _, detail)| detail)
+            .collect::<Vec<_>>()
+            .join(" | ")
+    }
+
+    /// The six trade lookups all filter on the same json_extract expression.
+    /// Without a matching expression index SQLite full-scans `trades` and
+    /// re-parses every JSON blob — once per non-pending order event.
+    #[tokio::test]
+    async fn trade_lookup_by_order_id_uses_an_index() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let plan = query_plan(
+            &storage,
+            "SELECT data FROM trades WHERE json_extract(data, '$.order.id') = ? LIMIT 1",
+        )
+        .await;
+
+        assert!(
+            plan.contains("idx_trades_order_id"),
+            "expected the order-id expression index, got: {plan}"
+        );
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]
@@ -703,6 +863,10 @@ mod tests {
             started_at: 1,
             completed_at: None,
             outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
         };
         storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
         storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
@@ -721,6 +885,180 @@ mod tests {
         // Unknown order id: no-op, not an error.
         storage.delete_trade_by_order_id("order-missing").await.unwrap();
         assert_eq!(storage.list_trades().await.unwrap().len(), 1);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The taker reputation snapshot (issue #305) round-trips through the
+    /// nested-JSON update: written by order id, read back as numbers on
+    /// `TradeInfo`, and stored on a row whose `trades.id` differs from the
+    /// order id (taker-shaped), so the update must go through `$.order.id`.
+    #[tokio::test]
+    async fn update_trade_peer_reputation_round_trips_by_order_id() {
+        use crate::api::types::*;
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let trade = |row_id: &str, order_id: &str| TradeInfo {
+            id: row_id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Sell,
+                status: OrderStatus::WaitingBuyerInvoice,
+                amount_sats: None,
+                fiat_amount: Some(100.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "maker".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        };
+        storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
+        storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
+
+        // The reproduction's numbers: rating 4.375, 4 reviews, 64 days.
+        storage
+            .update_trade_peer_reputation("order-a", 4.375, 4, 64)
+            .await
+            .unwrap();
+
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.peer_rating, Some(4.375));
+        assert_eq!(a.peer_reviews, Some(4));
+        assert_eq!(a.peer_days, Some(64));
+
+        // The sibling row is untouched — the update is scoped by order id.
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.peer_rating, None);
+        assert_eq!(b.peer_reviews, None);
+        assert_eq!(b.peer_days, None);
+
+        // A brand-new taker persists as all-zeros, not as absent — the UI
+        // shows the raw numbers rather than guessing "new user".
+        storage
+            .update_trade_peer_reputation("order-b", 0.0, 0, 0)
+            .await
+            .unwrap();
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.peer_rating, Some(0.0));
+        assert_eq!(b.peer_reviews, Some(0));
+        assert_eq!(b.peer_days, Some(0));
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The durable rated marker (issue #339) round-trips as a JSON number, is
+    /// scoped to a single order id, and is absent until written.
+    #[tokio::test]
+    async fn mark_trade_rated_round_trips_by_order_id() {
+        use crate::api::types::*;
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let trade = |row_id: &str, order_id: &str| TradeInfo {
+            id: row_id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Sell,
+                status: OrderStatus::WaitingBuyerInvoice,
+                amount_sats: None,
+                fiat_amount: Some(100.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "maker".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        };
+        storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
+        storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
+
+        // Absent until written.
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.rated_at, None);
+
+        storage.mark_trade_rated("order-a", 1_700_000_000).await.unwrap();
+
+        // Stored as a JSON number that deserializes back into Option<i64>.
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.rated_at, Some(1_700_000_000));
+
+        // The sibling row is untouched — the update is scoped by order id.
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.rated_at, None);
 
         drop(storage);
         let _ = std::fs::remove_file(&path);
@@ -884,6 +1222,70 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(storage.list_messages("order-1").await.unwrap().len(), 1);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A schema-v1 database carries BOTH the old `trades` table (one column per
+    /// field, with `order_id`) and a `messages` table whose rows reference it.
+    /// `migrate()` drops `trades` first, and with foreign keys enforced SQLite
+    /// runs an implicit `DELETE FROM trades` for that drop — which the surviving
+    /// child rows reject with "FOREIGN KEY constraint failed". The error aborts
+    /// `open()` before the messages migration is ever reached, so the whole
+    /// database fails to open. Migrations therefore run with enforcement off.
+    #[tokio::test]
+    async fn v1_trades_drop_is_not_blocked_by_legacy_message_rows() {
+        let path = temp_db_path();
+        let url = format!("sqlite://{}?mode=rwc", path.to_str().unwrap());
+
+        {
+            let pool = SqlitePoolOptions::new().connect(&url).await.unwrap();
+            sqlx::query(
+                "CREATE TABLE trades (
+                     id TEXT PRIMARY KEY, order_id TEXT NOT NULL, status TEXT NOT NULL,
+                     started_at INTEGER NOT NULL, completed_at INTEGER);
+                 CREATE TABLE messages (
+                     id                TEXT NOT NULL PRIMARY KEY,
+                     trade_id          TEXT NOT NULL REFERENCES trades(id),
+                     sender_pubkey     TEXT NOT NULL,
+                     content_encrypted BLOB NOT NULL,
+                     message_type      TEXT NOT NULL,
+                     is_mine           INTEGER NOT NULL DEFAULT 0,
+                     is_read           INTEGER NOT NULL DEFAULT 0,
+                     attachment_id     TEXT,
+                     created_at        INTEGER NOT NULL);
+                 INSERT INTO trades VALUES ('t1', 'order-1', 'Active', 1, NULL);
+                 INSERT INTO messages VALUES
+                     ('m0', 't1', 'p', x'00', 'Peer', 0, 0, NULL, 1);",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            pool.close().await;
+        }
+
+        // Used to fail with "FOREIGN KEY constraint failed" on the trades drop.
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        // Both legacy tables were rebuilt to the current schema.
+        let trade_cols: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM pragma_table_info('trades')")
+                .fetch_all(&storage.pool)
+                .await
+                .unwrap();
+        let trade_cols: Vec<String> = trade_cols.into_iter().map(|(c,)| c).collect();
+        assert!(
+            !trade_cols.contains(&"order_id".to_string()),
+            "legacy trades column survived: {trade_cols:?}"
+        );
+
+        // And enforcement is back on for normal pool use.
+        let fk: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+            .fetch_one(&storage.pool)
+            .await
+            .unwrap();
+        assert_eq!(fk, 1, "foreign_keys left disabled after migrations");
 
         drop(storage);
         let _ = std::fs::remove_file(&path);

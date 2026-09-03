@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
 /// Shows the open-dispute confirmation dialog.
@@ -79,7 +81,7 @@ class _DisputeConfirmationDialog extends StatelessWidget {
                       ),
                     ),
                     child: Text(l10n.yesButtonLabel),
-                  ),
+                  ).withAutomationId(AutomationIds.tradeDisputeConfirm),
                 ),
               ],
             ),

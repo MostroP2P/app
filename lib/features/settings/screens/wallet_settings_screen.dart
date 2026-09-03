@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
@@ -31,7 +33,7 @@ class WalletSettingsScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
               context.canPop() ? context.pop() : context.go(AppRoute.settings),
-        ),
+        ).withAutomationId(AutomationIds.appBarBack),
       ),
       body: Padding(
         // #267: bottom system-bar inset so the Disconnect/Connect button clears
@@ -137,6 +139,11 @@ class _ConnectedView extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    // The visible badge is localized; the readout is the
+                    // machine value automation asserts on.
+                  ).withAutomationId(
+                    AutomationIds.walletConnection,
+                    label: AutomationIds.walletConnected,
                   ),
                 ],
               ),
@@ -198,7 +205,7 @@ class _ConnectedView extends StatelessWidget {
             l10n.disconnectButtonLabel,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-        ),
+        ).withAutomationId(AutomationIds.walletSettingsDisconnect),
 
         const SizedBox(height: AppSpacing.lg),
       ],
@@ -257,6 +264,9 @@ class _DisconnectedView extends StatelessWidget {
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: colors?.textSecondary,
                 ),
+              ).withAutomationId(
+                AutomationIds.walletConnection,
+                label: AutomationIds.walletDisconnected,
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
@@ -286,7 +296,7 @@ class _DisconnectedView extends StatelessWidget {
             l10n.connectWalletTitle,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-        ),
+        ).withAutomationId(AutomationIds.walletSettingsConnect),
 
         const SizedBox(height: AppSpacing.lg),
       ],

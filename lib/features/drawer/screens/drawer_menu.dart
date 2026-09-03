@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show orderBookNotificationCountProvider;
 import 'package:mostro/l10n/app_localizations.dart';
@@ -133,6 +134,7 @@ class _SidebarContent extends StatelessWidget {
             // ── Primary navigation (desktop persistent sidebar only) ─────
             if (persistent) ...[
               _NavItem(
+                automationId: AutomationIds.navOrderBook,
                 icon: Icons.list_alt_outlined,
                 activeIcon: Icons.list_alt,
                 label: l10n.navOrderBook,
@@ -143,6 +145,7 @@ class _SidebarContent extends StatelessWidget {
                 onTap: () => context.go(AppRoute.home),
               ),
               _NavItem(
+                automationId: AutomationIds.navTrades,
                 icon: Icons.bolt_outlined,
                 activeIcon: Icons.bolt,
                 label: l10n.navMyTrades,
@@ -152,6 +155,7 @@ class _SidebarContent extends StatelessWidget {
                 onTap: () => context.go(AppRoute.orderBook),
               ),
               _NavItem(
+                automationId: AutomationIds.navChat,
                 icon: Icons.chat_bubble_outline,
                 activeIcon: Icons.chat_bubble,
                 label: l10n.navChat,
@@ -169,6 +173,7 @@ class _SidebarContent extends StatelessWidget {
 
             // ── Account / settings items ─────────────────────────────────
             _MenuItem(
+              automationId: AutomationIds.drawerAccount,
               icon: Icons.key_outlined,
               label: l10n.drawerAccountMenuItem,
               onTap: () {
@@ -178,6 +183,7 @@ class _SidebarContent extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             _MenuItem(
+              automationId: AutomationIds.drawerSettings,
               icon: Icons.settings_outlined,
               label: l10n.drawerSettingsMenuItem,
               onTap: () {
@@ -187,6 +193,7 @@ class _SidebarContent extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             _MenuItem(
+              automationId: AutomationIds.drawerAbout,
               icon: Icons.info_outline,
               label: l10n.drawerAboutMenuItem,
               onTap: () {
@@ -205,6 +212,7 @@ class _SidebarContent extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
+    required this.automationId,
     required this.icon,
     required this.activeIcon,
     required this.label,
@@ -213,6 +221,9 @@ class _NavItem extends StatelessWidget {
     required this.green,
     required this.onTap,
   });
+
+  /// Stable identifier for UI automation; see `AutomationIds`.
+  final String automationId;
 
   final IconData icon;
   final IconData activeIcon;
@@ -233,6 +244,7 @@ class _NavItem extends StatelessWidget {
         isActive ? FontWeight.w600 : FontWeight.w500;
 
     return Semantics(
+      identifier: automationId,
       button: true,
       label: label,
       selected: isActive,
@@ -292,10 +304,14 @@ class _NavItem extends StatelessWidget {
 
 class _MenuItem extends StatelessWidget {
   const _MenuItem({
+    required this.automationId,
     required this.icon,
     required this.label,
     required this.onTap,
   });
+
+  /// Stable identifier for UI automation; see `AutomationIds`.
+  final String automationId;
 
   final IconData icon;
   final String label;
@@ -304,6 +320,7 @@ class _MenuItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      identifier: automationId,
       button: true,
       label: label,
       child: Material(

@@ -38,11 +38,13 @@ PRAGMA foreign_keys = ON;
 /// SQLite DDL executed unconditionally on every `SqliteStorage::open()` call.
 /// Safe to run repeatedly because every statement uses `CREATE TABLE IF NOT
 /// EXISTS` / `CREATE INDEX IF NOT EXISTS`.
+///
+/// Connection pragmas deliberately live in `SqliteStorage::open`'s connect
+/// options instead of here: this SQL runs on one pooled connection, and
+/// `foreign_keys` is connection-scoped, so setting it here left the rest of
+/// the pool with enforcement off.
 #[cfg(not(target_arch = "wasm32"))]
 pub const SQLITE_INIT_SQL: &str = r#"
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE IF NOT EXISTS orders (
     id              TEXT PRIMARY KEY,
     data            TEXT NOT NULL,   -- JSON-serialised OrderInfo
@@ -59,6 +61,14 @@ CREATE TABLE IF NOT EXISTS trades (
     started_at      INTEGER NOT NULL,
     completed_at    INTEGER
 );
+
+-- `trades.id` is a fresh UUID for takers, so every lookup by order id has to
+-- reach inside the JSON blob. The expression here must stay byte-identical to
+-- the one in the six `WHERE json_extract(data, '$.order.id') = ?` queries in
+-- sqlite.rs, or SQLite silently falls back to a full scan that re-parses every
+-- row — on the ingest path that runs once per non-pending order event.
+CREATE INDEX IF NOT EXISTS idx_trades_order_id
+    ON trades(json_extract(data, '$.order.id'));
 
 -- Chat history + durable replay dedup (issue #246). `trade_id` here is the
 -- **order id** — the identity chat keys are derived from — which for taken

@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
@@ -14,6 +17,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart' show ReputationStat;
 import 'package:mostro/features/trades/providers/trades_providers.dart' show refreshTrades;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
@@ -204,8 +208,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final orders = ref.watch(orderBookProvider).valueOrNull ?? [];
-    final order = orders.where((o) => o.id == widget.orderId).firstOrNull;
+    final order = ref.watch(orderByIdProvider(widget.orderId));
     final theme = Theme.of(context);
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
@@ -284,9 +287,19 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                 Icon(Icons.payment_outlined, size: 18, color: textSec),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: Text(
-                    order.paymentMethod,
-                    style: theme.textTheme.bodyMedium,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.paymentMethodLabel,
+                        style: TextStyle(color: textSec, fontSize: 12),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        order.paymentMethod,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -301,9 +314,21 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
               children: [
                 Icon(Icons.calendar_today_outlined, size: 18, color: textSec),
                 const SizedBox(width: AppSpacing.sm),
-                Text(
-                  _formatDate(order.createdAt),
-                  style: theme.textTheme.bodyMedium,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.createdOnLabel,
+                        style: TextStyle(color: textSec, fontSize: 12),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        _formatDate(context, order.createdAt),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -316,12 +341,25 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    order.id,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      fontFamily: 'monospace',
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.orderIdLabel,
+                        style: TextStyle(color: textSec, fontSize: 12),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        order.id,
+                        style: theme.textTheme.bodySmall!.copyWith(
+                          fontFamily: 'monospace',
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ).withAutomationId(
+                        AutomationIds.orderId,
+                        label: order.id,
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -361,7 +399,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: order.rating.toStringAsFixed(1),
                           label: l10n.ratingStatLabel,
                           icon: Icons.star,
@@ -369,13 +407,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.tradeCount}',
                           label: l10n.tradesStatLabel,
                         ),
                       ),
                       Expanded(
-                        child: _ReputationStat(
+                        child: ReputationStat(
                           value: '${order.daysActive}',
                           label: l10n.daysActiveStatLabel,
                         ),
@@ -392,80 +430,54 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
           if (_remaining > Duration.zero) ...[
             _InfoCard(
               color: cardBg,
-              child: Row(
+              child: Column(
                 children: [
                   SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          width: 72,
-                          height: 72,
-                          child: CircularProgressIndicator(
-                            value: () {
-                              if (order.expiresAt == null) return 0.0;
-                              final lifetime = order.expiresAt!
-                                  .difference(order.createdAt)
-                                  .inSeconds;
-                              if (lifetime <= 0) return 0.0;
-                              return (_remaining.inSeconds / lifetime)
-                                  .clamp(0.0, 1.0);
-                            }(),
-                            strokeWidth: 5,
-                            color: green,
-                            backgroundColor: colors?.backgroundInput ??
-                                const Color(0xFF252A3A),
-                          ),
-                        ),
-                        Text(
-                          _formatDuration(_remaining),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ],
+                    width: 96,
+                    height: 96,
+                    child: CircularProgressIndicator(
+                      value: () {
+                        if (order.expiresAt == null) return 0.0;
+                        final lifetime = order.expiresAt!
+                            .difference(order.createdAt)
+                            .inSeconds;
+                        if (lifetime <= 0) return 0.0;
+                        return (_remaining.inSeconds / lifetime)
+                            .clamp(0.0, 1.0);
+                      }(),
+                      strokeWidth: 6,
+                      color: green,
+                      backgroundColor: colors?.backgroundInput ??
+                          const Color(0xFF252A3A),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    l10n.timeRemainingLabel(_formatDuration(_remaining)),
+                    style: theme.textTheme.bodyMedium!.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text.rich(
+                    TextSpan(
+                      text: l10n.orderExpiryRemovedNote,
+                      style: TextStyle(
+                        color: textSec,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
                       children: [
-                        Text(
-                          l10n.timeToTakeOrder,
+                        TextSpan(
+                          text: l10n.orderExpiryNoReputationNote,
                           style: TextStyle(
                             color: green,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text.rich(
-                          TextSpan(
-                            text: l10n.orderExpiryRemovedNote,
-                            style: TextStyle(
-                              color: textSec,
-                              fontSize: 12,
-                              height: 1.4,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: l10n.orderExpiryNoReputationNote,
-                                style: TextStyle(
-                                  color: green,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -496,11 +508,10 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                     ),
                   ),
                   child: Text(l10n.closeRatingButton),
-                ),
+                ).withAutomationId(AutomationIds.orderTakeClose),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                flex: 2,
                 child: FilledButton(
                   onPressed: _submitting ? null : _onTakeOrder,
                   style: FilledButton.styleFrom(
@@ -518,7 +529,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Text(actionLabel),
-                ),
+                ).withAutomationId(AutomationIds.orderTakeConfirm),
               ),
             ],
           ),
@@ -527,51 +538,9 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     );
   }
 
-  String _formatDate(DateTime dt) {
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
-        '${dt.day.toString().padLeft(2, '0')} '
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
-  }
-}
-
-/// One column of the 3-column creator-reputation block.
-class _ReputationStat extends StatelessWidget {
-  const _ReputationStat({
-    required this.value,
-    required this.label,
-    this.icon,
-    this.iconColor,
-  });
-
-  final String value;
-  final String label;
-  final IconData? icon;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: iconColor),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            Text(
-              value,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(color: textSec, fontSize: 11)),
-      ],
-    );
+  String _formatDate(BuildContext context, DateTime dt) {
+    final locale = Localizations.localeOf(context).toString();
+    return DateFormat.yMMMd(locale).add_Hm().format(dt);
   }
 }
 
