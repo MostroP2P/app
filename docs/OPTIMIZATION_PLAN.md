@@ -28,7 +28,8 @@ regression protection.
 
 Independent one-to-few-line fixes. Land in any order.
 
-> **Status: implemented.** PRs #349, #350, #351, #352, #353, #355, #356, #357, #358.
+> **Status: in progress.** Merged: #349, #350, #351, #352, #353, #358. Still open: #355,
+> #356, #357.
 > **#354 (PR 1.6) was opened and then closed** after review showed the bound it added could
 > silently truncate the order book while protecting against nothing — see the entry below.
 > Two items were withdrawn after measurement rather than implemented — PR 1.10 entirely, and
@@ -174,7 +175,7 @@ Independent one-to-few-line fixes. Land in any order.
 
 Each PR stands alone; none requires Phase 3's redesign.
 
-> **Status: implemented.** PRs #360–#369. All independent of each other except
+> **Status: in progress.** #360 merged; #361–#369 open. All independent of each other except
 > **PR 2.2 (#361), which is stacked on PR 2.1 (#360)** — it builds on the deferred-upsert
 > primitive introduced there, so the "fully independent" claim below is not quite true for
 > that pair. Two sub-items were withdrawn after inspection (2.3's `local_trade_status`
@@ -302,6 +303,8 @@ Each PR stands alone; none requires Phase 3's redesign.
 ## Phase 3 — Structural: delta pipeline & push-based state (the big lever)
 
 Ordered; 3.2 depends on 3.1, 3.3 on 3.2. Requires PR 1.7 (lag visibility) first.
+PR 3.8 is conditional (gated on the PR 5.2 measurements) and does not count towards M4:
+"Phase 3 done" means 3.1–3.7.
 
 ### PR 3.1 — `feat(core): HashMap order book + delta broadcast type`
 - **Evidence:** `Vec` + full-snapshot `broadcast::Sender<Vec<OrderInfo>>`
@@ -392,6 +395,60 @@ Ordered; 3.2 depends on 3.1, 3.3 on 3.2. Requires PR 1.7 (lag visibility) first.
 - **Fix:** first frame after `RustLib.init()` + prefs; relay init, identity and DB rehydrate
   move behind a post-first-frame loading state.
 - **Verify:** cold-start trace: first frame well under the 2 s budget on a mid-range device.
+
+### PR 3.8 — `perf(bridge): windowed order queries` — **CONDITIONAL, measure first**
+- **Why this entry exists:** "infinite scroll" — fetch a page, show a skeleton, fetch the next
+  page as the user scrolls — keeps being proposed for the order book, from the same static
+  reading each time. Recorded here so the reasoning is not redone.
+- **The list is already lazy.** Home renders through `ListView.separated` with an
+  `itemBuilder` (`lib/features/home/screens/home_screen.dart:83`): Flutter builds only the
+  visible cards plus `cacheExtent` of look-ahead, which is exactly the "prefetch a bit more
+  than the viewport" behaviour. The initial skeleton exists too (`home_screen.dart:256`).
+  Ten thousand orders in memory do not slow the scroll itself.
+- **The network cannot be paged.** The book is one relay subscription on kind 38383 filtered
+  by author — `all_orders_filter` (`rust/src/nostr/order_events.rs:217`), subscribed under the
+  stable `mostro-orders` id by `subscribe_node_filters` (`rust/src/api/orders.rs:2858`).
+  Nostr has no offset or cursor; `.limit()` is a hint that truncates the market silently
+  (PR 1.6, withdrawn); `since`/`until` windows do not work either because the UI filters by
+  currency, payment method and side, and filtering needs the whole set. The payload is small
+  anyway — a thousand events is roughly 650 KB (50 live kind 38383 events from
+  `relay.mostro.network` averaged 653 B, max 905 B).
+- **What actually hurts at 1k orders** is the root cause at the top of this document: full
+  `Vec` clones and full-snapshot bridge emissions per mutation, O(N²) bulk ingest, and Dart
+  re-mapping, re-filtering and re-sorting the entire book per emission. PR 2.1/2.2 make that
+  O(N) and Phase 3 makes it O(1) per event. Paging the list would fix none of it.
+- **The one variant that can pay off is paging the bridge, not the relay:** filter and sort
+  in Rust, and have Dart hold a window instead of the whole book. That bounds Dart memory
+  and per-emission work once the book is tens of thousands of entries. It depends on the
+  `HashMap` book (3.1) and the delta stream (3.2), and its natural first step is the
+  decision PR 3.3 already forces: the Rust `OrderFilters` path is dead code today — wiring
+  it up (rather than deleting it) is what makes a windowed query possible later.
+- **The window must be revision-consistent, not positional.** A naive
+  `get_orders(filters, offset, limit)` over the live sorted book is wrong: an order arriving,
+  expiring or changing rank *before* the offset shifts the boundary, and the next request
+  skips or repeats entries. The contract, if this is ever built:
+  - `get_orders_window(filters, cursor, limit) -> { revision, items, next_cursor }`. The
+    cursor is a **keyset** (sort key + order id of the last item), never an offset, so
+    mutations before the window cannot move it. `revision` is the book revision PR 3.1
+    already introduces.
+  - Dart keeps `(filters, revision, items)` and applies only deltas with a newer revision,
+    the same rule as the snapshot/delta resync in 3.1. Per delta: *before* the window — no
+    membership change (keyset cursor); *inside* — upsert in place, or evict when the order no
+    longer matches the filters or its sort key leaves the window; *after* — ignore until the
+    next page is requested. A `Removed` for an unknown id is a no-op.
+  - When evictions shrink the window below `limit`, refill by requesting from the current
+    `next_cursor`; on a lagged stream, refetch the window from its first cursor and rebase
+    on the returned `revision`.
+- **Trigger:** implement only if the PR 5.2 large-book widget tests show Dart-side cost
+  (memory or per-delta work) at 10k orders after Phase 3 lands. If they do not, this stays
+  unimplemented, like 1.6 and 1.10.
+- **Verify (if triggered):** Rust tests that a window over the filtered/sorted book matches
+  a full filter+sort, and that an insertion, removal and rank change landing *before*,
+  *inside* and *after* the window between two page requests yield neither a skipped nor a
+  duplicated order across the concatenated pages; Dart tests that scrolling past the window
+  requests the next one from `next_cursor`, that a delta inside the window updates in place
+  or evicts, that an eviction below `limit` triggers a refill, and that a stale-revision
+  delta is dropped.
 
 ---
 
