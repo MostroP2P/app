@@ -106,6 +106,41 @@ MostroNodeInfo {
 
 ---
 
+### fetch_exchange_rate(mostro_pubkey_hex: String, fiat_code: String) → f64?
+Price of one BTC in `fiat_code`, as published by that node in its Kind 30078
+(NIP-33, `d` tag `mostro-rates`) event.
+
+Exists so a market-price order can be checked against the node's sats limits
+before it is submitted (#337): the daemon prices such an order as
+`fiat_amount / price * 1E8` from the very aggregate it publishes here, so this
+is the number its range check will use. The node's own event is the source, not
+a third-party API — any other quote would be a different price, and asking for
+one would disclose which currency the user is about to trade.
+
+**Returns**: the rate, or `null` whenever the node has no usable one to give:
+it publishes no rates event (publishing is optional for an operator), the event
+served by the relay has expired per its NIP-40 `expiration` tag, its payload is
+unusable, or it quotes no such currency. Callers MUST treat `null` as "not
+checkable" — see `create_order` in `orders.md`.
+
+**Authenticity**: An event is only used once its Schnorr signature verifies
+against the node's pubkey, and only the newest event that does is considered.
+The kind, author and `d` tag checks say nothing on their own — a relay is free
+to answer with events the filter never asked for, and `nostr-sdk` does not
+guarantee that a fetched event was verified before it reaches the caller
+(GHSA-f96q-5f6p-v7cj) — so an unverified event would let a relay set the price
+the whole range check is measured against.
+
+**Caching**: The rate table is cached per node — never served back to a
+different one — and bounded by the event's own expiration, clamped to one hour.
+The amount fields of a range order therefore cost a single relay query.
+
+**Errors**: `NotInitialized`, `InvalidPublicKey`, or a failed relay query. A
+failed query is an error rather than `null`, but callers act on both the same
+way.
+
+---
+
 ### get_known_mostro_nodes() → Vec<MostroNodeInfo>
 Return the list of hardcoded default Mostro nodes bundled with the app.
 Used by the node selector screen (FR-056). To switch the active node,

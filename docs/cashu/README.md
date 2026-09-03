@@ -342,7 +342,7 @@ Every phase, without exception, carries these standing requirements:
 *Stacked under: nothing. Parallel with C1, C2. Blocks C4, C5.*
 
 - Bump `rust/Cargo.toml` `mostro-core = "0.14"`; fix any compile breakage in
-  `rust/src/mostro/actions.rs`, `rust/src/api/orders.rs`, `rust/src/nostr/gift_wrap.rs`.
+  `rust/src/mostro/actions.rs`, `rust/src/api/orders.rs`, `rust/src/nostr/transport.rs`.
 - **Verify and document the exact serde wire form** of `Action::AddCashuEscrow`,
   `Payload::CashuLockProof`, `Payload::CashuSignatures`, and the new `CantDoReason`
   variants (update §2 of this doc if the JSON example differs).
@@ -519,15 +519,22 @@ actions and screens; C5 established all shared plumbing.
 
 - **Seller release:** on confirm (existing release UI), FRB `release_cashu(order_id)`:
   sign escrow proofs with `P_S` (C4 `sign_proofs`) → send `Payload::CashuSignatures`
-  **directly to the buyer's trade pubkey via NIP-59 gift wrap** (`wrap`/`unwrap` in
-  `rust/src/nostr/gift_wrap.rs` — peer-to-peer path, same channel as peer chat, *not*
-  the Kind-14 daemon transport) → then send `Action::Release` to mostrod (state update
-  only, per upstream Track B).
-- **Buyer redemption:** new arm in the gift-wrap handler
-  (`handle_global_gift_wrap` / peer message path): on receiving `CashuSignatures` for
-  an active order, **persist signatures first**, then `combine_and_redeem` (C4) into
-  the wallet; mark trade success; handle late arrival (buyer offline — signatures wait
-  in the NIP-59 inbox; redeem on next startup scan of unredeemed trades).
+  **directly to the buyer over the peer chat envelope** (`mostro_wrap`/`mostro_unwrap`
+  in `rust/src/nostr/transport.rs` — same channel as peer chat, *not* the Kind-14
+  daemon transport) → then send `Action::Release` to mostrod (state update only, per
+  upstream Track B).
+
+  This deliberately does **not** use NIP-59 gift wrap. The raw `wrap`/`unwrap`
+  helpers this section originally named were removed along with every other
+  protocol-v1 path: an ephemeral-authored 1059 carrying spendable signatures is
+  exactly the unattributable-injection shape the envelope was adopted to close
+  (#246). The envelope pins the author to the conversation key, so the buyer can
+  tell a real signature payload from a stranger's.
+- **Buyer redemption:** new arm in the peer-chat receive path: on receiving
+  `CashuSignatures` for an active order, **persist signatures first**, then
+  `combine_and_redeem` (C4) into the wallet; mark trade success; handle late arrival
+  (buyer offline — signatures wait on the relay within the chat subscription's
+  cursor window; redeem on next startup scan of unredeemed trades).
 - **Locktime margin guard (upstream Track B obligation):** before letting the buyer
   send `fiat-sent`, warn/block when remaining locktime < `cashu_settlement_margin_days`
   (from C1 tags), matching the daemon's rejection.

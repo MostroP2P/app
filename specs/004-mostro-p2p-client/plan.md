@@ -114,7 +114,7 @@ rust/                         # Rust core
 │   │   ├── sqlite.rs         # Native SQLite backend (sqlx)
 │   │   └── indexeddb.rs      # Web IndexedDB backend (wasm only)
 │   ├── nostr/                # Nostr event construction + parsing
-│   │   ├── gift_wrap.rs      # Transport: NIP-44 direct (Kind 14, v2) + NIP-59 gift wrap (Kind 1059, peer chat)
+│   │   ├── transport.rs      # Transport: NIP-44 direct (Kind 14, v2) for daemon + chat envelope (Kind 14) for peer/dispute chat
 │   │   ├── order_events.rs   # Kind 38383 event parsing
 │   │   └── relay_pool.rs     # Multi-relay connection manager
 │   ├── crypto/               # Key derivation + encryption

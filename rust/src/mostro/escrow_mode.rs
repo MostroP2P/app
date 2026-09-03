@@ -408,6 +408,26 @@ pub fn is_cashu_mode() -> bool {
     get_resolved().is_cashu_usable()
 }
 
+/// Serialize every test that writes the process-wide escrow globals, and reset
+/// them so each test starts from a freshly-launched app's state: nothing
+/// fetched, no override.
+///
+/// The lock lives with the state it guards, not with one of its callers. Two
+/// test modules touch these globals — this one and `crate::api::escrow` — and
+/// each used to keep its own private mutex, which serialized a module against
+/// itself while leaving it racing the other. That produced intermittent
+/// failures where one module's `set_from_tags` was erased by the other's
+/// `clear()` mid-test: issue #309.
+#[cfg(test)]
+pub(crate) fn lock_globals_for_test() -> std::sync::MutexGuard<'static, ()> {
+    static GLOBAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // Recover from poisoning so one failing test does not cascade into the rest.
+    let guard = GLOBAL.lock().unwrap_or_else(|e| e.into_inner());
+    clear();
+    set_overrides(EscrowOverrides::default());
+    guard
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,18 +436,11 @@ mod tests {
         vec![name.to_string(), value.to_string()]
     }
 
-    /// Tests that touch the globals run in the same process and would otherwise
-    /// race each other. A poisoned lock is recovered from so one failing test
-    /// does not cascade into the others.
-    static GLOBAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    /// Take the globals and reset them, so each test starts from the state a
-    /// freshly-launched app has: nothing fetched, no override.
+    /// Take the globals and reset them. Shared with `crate::api::escrow`'s
+    /// tests through [`super::lock_globals_for_test`] — one lock for one piece
+    /// of global state (#309).
     fn own_the_global() -> std::sync::MutexGuard<'static, ()> {
-        let guard = GLOBAL.lock().unwrap_or_else(|e| e.into_inner());
-        clear();
-        set_overrides(EscrowOverrides::default());
-        guard
+        super::lock_globals_for_test()
     }
 
     #[test]

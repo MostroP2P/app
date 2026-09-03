@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
@@ -143,7 +145,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                 icon: const Icon(Icons.close),
                 tooltip: l10n.closeButtonLabel,
                 onPressed: () => Navigator.of(context).pop(),
-              ),
+              ).withAutomationId(AutomationIds.nodeCustomCancel),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -224,7 +226,7 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
             onChanged: (_) {
               if (_errorText != null) setState(() => _errorText = null);
             },
-          ),
+          ).withAutomationId(AutomationIds.nodeCustomPubkey),
           const SizedBox(height: AppSpacing.lg),
           Row(
             children: [
@@ -232,14 +234,14 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                 child: OutlinedButton(
                   onPressed: _useDefault,
                   child: Text(l10n.useDefaultButtonLabel),
-                ),
+                ).withAutomationId(AutomationIds.nodeUseDefault),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: FilledButton(
                   onPressed: _confirm,
                   child: Text(l10n.confirmButtonLabel),
-                ),
+                ).withAutomationId(AutomationIds.nodeCustomConfirm),
               ),
             ],
           ),

@@ -11,11 +11,17 @@ TradeInfo fakeTrade({
   String paymentMethod = 'Wire',
   bool isMine = false,
   int startedAt = 1000,
+  BigInt? amountSats,
+  String? holdInvoice,
+  double? peerRating,
+  int? peerReviews,
+  int? peerDays,
 }) {
   final order = OrderInfo(
     id: 'order-$id',
     kind: OrderKind.sell,
     status: status,
+    amountSats: amountSats,
     fiatAmount: 100,
     fiatCode: fiatCode,
     paymentMethod: paymentMethod,
@@ -36,5 +42,9 @@ TradeInfo fakeTrade({
     currentStep: const TradeStep.disputed(),
     tradeKeyIndex: 0,
     startedAt: startedAt,
+    holdInvoice: holdInvoice,
+    peerRating: peerRating,
+    peerReviews: peerReviews,
+    peerDays: peerDays,
   );
 }

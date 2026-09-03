@@ -5,6 +5,8 @@ import 'package:introduction_screen/introduction_screen.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/utils/highlight_config.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -50,19 +52,21 @@ class WalkthroughScreen extends ConsumerWidget {
       onSkip: () => _onIntroEnd(context, ref),
       showSkipButton: true,
       showBackButton: true,
-      back: const Icon(Icons.arrow_back, color: Colors.white),
-      next: const Icon(Icons.arrow_forward, color: Colors.white),
+      back: const Icon(Icons.arrow_back, color: Colors.white)
+          .withAutomationId(AutomationIds.walkthroughBack),
+      next: const Icon(Icons.arrow_forward, color: Colors.white)
+          .withAutomationId(AutomationIds.walkthroughNext),
       skip: Text(
         l10n.skip,
         style: theme.textTheme.labelLarge!.copyWith(color: Colors.white),
-      ),
+      ).withAutomationId(AutomationIds.walkthroughSkip),
       done: Text(
         l10n.done,
         style: theme.textTheme.labelLarge!.copyWith(
           color: green,
           fontWeight: FontWeight.bold,
         ),
-      ),
+      ).withAutomationId(AutomationIds.walkthroughDone),
       dotsDecorator: DotsDecorator(
         activeColor: theme.primaryColor,
         color: theme.cardColor,

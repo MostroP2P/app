@@ -53,6 +53,28 @@ void main() {
     );
   });
 
+  /// PR #275 review (Catrya): both `DisputeAlreadyOpen` refusals — the record
+  /// that already exists and the single-flight guard this PR adds — reach the
+  /// UI as the same marker and must not fall through to the generic failure.
+  test('maps both DisputeAlreadyOpen refusals', () {
+    expect(
+      localizedDaemonError(
+        l10n,
+        'DisputeAlreadyOpen: dispute already exists for trade abc',
+        fallback: 'x',
+      ),
+      l10n.disputeAlreadyOpen,
+    );
+    expect(
+      localizedDaemonError(
+        l10n,
+        'DisputeAlreadyOpen: an open_dispute for trade abc is already in flight',
+        fallback: 'x',
+      ),
+      l10n.disputeAlreadyOpen,
+    );
+  });
+
   test('maps timeout and storage markers, and falls back otherwise', () {
     expect(
       localizedDaemonError(l10n, 'NoDaemonResponse', fallback: 'x'),

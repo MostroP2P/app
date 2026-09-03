@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/trades_list_item.dart';
@@ -135,7 +137,7 @@ class _TradesScreenState extends ConsumerState<TradesScreen> {
           icon: const Icon(Icons.menu),
           onPressed: () => setState(() => _drawerOpen = true),
           tooltip: l10n.menuTooltip,
-        ),
+        ).withAutomationId(AutomationIds.appBarDrawer),
         title: Image.asset(
           'assets/images/mostro_logo.webp',
           height: 32,

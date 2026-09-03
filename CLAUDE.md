@@ -95,17 +95,32 @@ bridged by flutter_rust_bridge.
   a mismatched CLI yields bindings that fail to compile, with an error that never mentions
   versions (see issue #205). `--check` verifies without generating.
 - FRB scans only `crate::api` → changes in `nostr/`, `crypto/`, `mostro/`, etc. need no regen.
+- **Regenerate after pulling, too — not just after your own edits.** `lib/src/rust/` and
+  `lib/l10n/app_localizations*.dart` are gitignored, so a `git pull` that brings in someone
+  else's `rust/src/api/` field or `.arb` key leaves your copies stale. CI regenerates both
+  before it analyses (`ci.yml` → `frb-generate.sh`, `flutter gen-l10n`), so green CI proves
+  nothing about your checkout. The failure is loud but misdirected — the analyzer blames
+  whatever *uses* the missing field, so a stale `TradeInfo` reads as a broken test helper
+  rather than as out-of-date bindings. If `flutter analyze` reports a field or l10n getter
+  that plainly exists in `rust/src/api/types.rs` or `lib/l10n/*.arb`, regenerate before
+  believing it.
 
 ## Transport (protocol v2)
 - **Daemon messages** (new-order, take, release, cancel, dispute, rate, invoice, restore):
   **NIP-44 / signed Kind 14** (transport v2), via `wrap_mostro_message`/`unwrap_mostro_message`.
 - **Peer chat**: **chat envelope** (kind 14 signed with `K_sign`, NIP-44 inner kind 1
   signed by the trade key — <https://mostro.network/protocol/chat.html>), via
-  `mostro_wrap`/`mostro_unwrap` + `crypto/chat_keys.rs`. Outbound NIP-59 is gone from
-  this channel (gift-wrap flood attack, issue #246); inbound 1059 is still accepted
-  from pre-migration peers until the dual-read deadline (`LEGACY_CHAT_DEPRECATION_TS`).
-- **Dispute admin chat**: still **NIP-59 gift wrap / Kind 1059**, via `wrap`/`unwrap`.
-- All live in `rust/src/nostr/gift_wrap.rs` (rename to `transport.rs` pending).
+  `mostro_wrap`/`mostro_unwrap` + `crypto/chat_keys.rs`. NIP-59 is gone from this
+  channel in **both** directions (gift-wrap flood attack, issue #246).
+- **Dispute admin chat**: the **same chat envelope**, keyed to the solver's pubkey
+  (<https://mostro.network/protocol/dispute_chat.html> — "no gift wrap and no
+  ephemeral key"). The interop dual-path for gift-wrap-only solvers is gone too;
+  until mostrix#102 ships, such a solver is not reachable from here.
+- **This client speaks protocol v2 only** — nothing reads or writes kind 1059.
+- All live in `rust/src/nostr/transport.rs`. Daemon traffic is subscribed by
+  `orders.rs::subscribe_daemon_messages` (per trade) and `handle_global_daemon_message`
+  (global). Nothing in the v2 paths is named "gift wrap" any more — where that term
+  still appears it refers to the superseded v1 transport on purpose.
 - Wire status strings are **kebab-case** (`waiting-buyer-invoice`, `fiat-sent`).
 
 ## Translations

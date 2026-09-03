@@ -402,13 +402,19 @@ const _light = AppColors(
 
 // ── ThemeData factories ────────────────────────────────────────────────────────
 
-ThemeData buildDarkTheme() => _buildTheme(
+// Built once and shared. ThemeData is immutable, and `MaterialApp.router` asks
+// for both themes on every rebuild — which includes every locale change,
+// theme-mode change and route change.
+ThemeData? _darkTheme;
+ThemeData? _lightTheme;
+
+ThemeData buildDarkTheme() => _darkTheme ??= _buildTheme(
   brightness: Brightness.dark,
   colors: _dark,
   scaffold: const Color(0xFF1B1E28),
 );
 
-ThemeData buildLightTheme() => _buildTheme(
+ThemeData buildLightTheme() => _lightTheme ??= _buildTheme(
   brightness: Brightness.light,
   colors: _light,
   scaffold: const Color(0xFFFFFFFF),

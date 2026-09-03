@@ -8,13 +8,30 @@ Mostro daemon via Kind 38383 Nostr events and cached locally.
 ### Daemon confirmation & request correlation
 
 Every request that expects a daemon reply (`create_order`, `take_order`,
-`send_invoice`) carries a random u64 `request_id` nonce. The daemon echoes
+`send_invoice`, and `open_dispute` from the [disputes](disputes.md) API)
+carries a random u64 `request_id` nonce. The daemon echoes
 it in its reply (success or `CantDo`), and **only a reply echoing the exact
 nonce may resolve or consume the pending request** — stale events replayed
 by relays carry a different (or no) `request_id` and touch nothing. Each
 call waits up to 10 s; on timeout it returns `NoDaemonResponse` and nothing
-is persisted. A genuine late reply is still reconciled where meaningful
-(create), or logged and dropped (take / add-invoice).
+is persisted.
+
+What happens to a genuine reply that arrives **after** that timeout depends on
+the request. The pending record survives the timeout in every case — only its
+waiter detaches — so the late reply is still recognized as ours rather than as
+a stale replay:
+
+- **create**: reconciled — the daemon UUID is bound to the attempt's trade
+  index, and the Kind 38383 fingerprint path restores maker ownership.
+- **take / add-invoice**: logged and dropped; the reply's own status update is
+  processed by the per-action arms as usual.
+- **dispute**: reconciled — `record_late_acceptance` persists the accepted
+  dispute under the daemon-assigned id (unread, and without the reason, which
+  went with the timed-out call). So a `NoDaemonResponse` from `open_dispute` is
+  **not** proof that no dispute can appear for that trade later. Retrying after
+  the timeout does not break this: the retry takes the trade key over but
+  carries every superseded attempt's nonce forward, so a reply to any of them
+  is still correlated. See [disputes.md](disputes.md) for the full behavior.
 
 ## Functions
 
@@ -63,6 +80,21 @@ NewOrderParams {
 - If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`
 - `fiat_code` MUST be valid ISO 4217
 - `payment_method` MUST not be empty
+- The amount is checked against the node's advertised `min_order_amount` /
+  `max_order_amount` before anything is sent: directly for a fixed
+  `amount_sats` (#282), and for a market-price order by converting every fiat
+  amount the daemon will price — both ends of a range order — at the rate the
+  node publishes (`fetch_exchange_rate` in `nostr.md`), truncating as the
+  daemon does (#337). The fiat amount is first normalised to the whole unit the
+  wire carries (`new_order` casts it to `i64`), so the check judges the amount
+  the daemon actually receives rather than the decimal the user typed
+
+**Fail-open**: that range check blocks nothing it cannot judge — no rate, no
+advertised bounds, an amount that is not yet a finite positive number. The
+order is submitted and the daemon stays the authority, answering
+`OutOfRangeSatsAmount` if it disagrees. Blocking instead would make
+market-price orders unusable against every node that leaves rate publishing
+off, which the protocol allows.
 
 **Side effects**: Sends the new-order message to the Mostro daemon and waits for its confirmation. The order is created only once the daemon confirms it; the public order book is populated exclusively from the daemon's Kind 38383 event (the order is **not** inserted optimistically). On no confirmation within the timeout the order is treated as not created — nothing is persisted to My Trades and nothing is added to the book.
 
@@ -88,6 +120,8 @@ or a direct progression message. Only on a correlated reply is the trade
 created: the TradeInfo is built from the reply's real data (status,
 calculated `amount_sats`, `hold_invoice`), persisted to My Trades, the
 order book entry is synced, and the trade session/subscriptions start.
+That persistence half runs under the per-order lock (see *Per-order
+serialization*), acquired after the reply and never around the wait for it.
 On rejection or timeout **nothing is persisted** — no phantom trade.
 
 **Errors**: `OrderNotFound`, `CannotTakeOwnOrder`, `OrderAlreadyTaken`,
@@ -316,6 +350,60 @@ Every arm above that syncs a status also emits a `TradeUpdate` (see
 persistence attempt — DB failures are logged, never suppress the
 emission, and leave the row behind the book. `Canceled` included, which
 emits whether it wiped the row or kept it as history.
+
+### Per-order serialization
+
+`dispatch_mostro_message` and `take_order`'s persistence block both check
+local state and mutate the order book, the trade row and the session
+several `await`s later. Those two halves are **one operation per
+`order_id`**, held under a per-order mutex (#259).
+
+Without it, a delivery that passed its check can be overtaken by a retake
+of the same order while it is suspended: the retake persists its own
+state, then the suspended handler resumes and writes the previous
+generation's outcome over it. The `Canceled` arm is the reachable case —
+it has mutated book and DB with no generation check of its own.
+
+Invariants:
+
+- **The lock is keyed by `order_id`, never global.** One stalled handler
+  must not stop every other trade.
+- **`dispatch_mostro_message` takes it once the message kind is parsed**,
+  covering the local→daemon id reconcile, the waiter interception and
+  every per-action arm. A message carrying no order id owns no order state
+  and takes no lock.
+- **No caller may hold it while waiting for a daemon reply.** That reply is
+  delivered by `dispatch_mostro_message`, which takes the same lock, so
+  `take_order` acquires it only *after* its wait resolves — around the
+  persistence block alone. Holding it across the wait deadlocks the take
+  until its 10 s timeout.
+- **The take reply hands the guard off.** The dispatcher that resolves a
+  waiting `take_order` sends its own guard through the waiter channel
+  (`Wake.order_guard`), so consumed-reply → persistence is one critical
+  section: released instead, a second daemon message already queued on the
+  FIFO mutex would beat the woken task and run its arm against a trade row
+  and session that do not exist yet. The guard rides *inside* the channel
+  value, so every losing path releases it by dropping — a timed-out
+  waiter's failed send, a receiver dropped with the reply unread. Only the
+  take reply carries a guard: an add-invoice's effects are persisted by
+  the dispatch arms themselves (still holding it), and a create's gap is
+  owned by the reconcile block and the Kind 38383 fingerprint path.
+- **The registry tracks live work, not history**: entries no handler holds
+  any more are dropped on the next acquisition, so it does not grow with
+  every order ever dispatched.
+- **A generation gate backs the lock**, read under it so it cannot
+  interleave with a retake's rebind: a message addressed to a trade key
+  *older* than the one currently bound to its order (`trade_keys` binding)
+  belongs to a superseded attempt and is dropped whole — the lock
+  serializes concurrent handlers, the gate rejects the late ones.
+  Strictly-older only: a retake's first reply arrives on the NEW key while
+  the binding still holds the old index (`take_order` rebinds only after
+  that reply resolves its waiter), and the identity counter only grows, so
+  newer-than-bound is always legitimate. No binding fails open (a create's
+  confirmation precedes any binding for the daemon id). `BondSlashed` is
+  exempt: it never writes order state, and a trailing slash notice
+  addressed to the slashed (superseded) generation is by-design delivery
+  (#197).
 
 ### Daemon cancellation semantics
 

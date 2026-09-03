@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/order/providers/payment_methods_provider.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -113,7 +115,8 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
         ),
         const SizedBox(height: AppSpacing.sm),
 
-        // Custom method text field
+        // Custom method text field. This is the free-text entry, so it is the
+        // one an automated driver can fill with an arbitrary method.
         TextField(
           controller: _customController,
           decoration: InputDecoration(
@@ -128,7 +131,7 @@ class _PaymentMethodSectionState extends ConsumerState<PaymentMethodSection> {
           style: theme.textTheme.bodyMedium,
           onChanged: (v) =>
               ref.read(customPaymentMethodProvider.notifier).state = v,
-        ),
+        ).withAutomationId(AutomationIds.orderCreatePaymentMethod),
 
         if (custom.isNotEmpty)
           Padding(
