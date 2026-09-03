@@ -12,6 +12,7 @@ use nostr_sdk::prelude::*;
 // The SDK re-exports its own `RelayStatus` via the prelude. Alias it to avoid
 // conflicting with our internal `RelayStatus` from `crate::api::types`.
 use nostr_sdk::RelayStatus as SdkRelayStatus;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, RwLock};
@@ -21,12 +22,25 @@ use crate::api::types::{ConnectionState, RelayInfo, RelaySource, RelayStatus};
 /// How often the background task polls each relay's SDK status (seconds).
 const STATUS_POLL_INTERVAL_SECS: u64 = 2;
 
+/// How often the silence watchdog checks for a dead-but-Connected socket.
+const WATCHDOG_POLL_INTERVAL_SECS: u64 = 30;
+/// Silence longer than this (while Online) triggers a forced reconnect. Above
+/// the ~60s Android relay-drop cycle, well under the 22-min failure window.
+const SILENCE_TIMEOUT_SECS: u64 = 210;
+
 /// Shared relay pool state.
 pub struct RelayPool {
     client: Arc<Client>,
     relays: Arc<RwLock<Vec<RelayInfo>>>,
     conn_tx: broadcast::Sender<ConnectionState>,
     relay_tx: broadcast::Sender<RelayInfo>,
+    /// Per-relay unix-seconds timestamp of the last event or message received
+    /// from that relay (keyed by relay URL). Bumped by `spawn_liveness_observer`
+    /// and read by `spawn_silence_watchdog` to detect a single socket that
+    /// reports Connected but has gone silent while other relays stay live
+    /// (#291 / #324 review): pool-wide liveness would miss a dead relay whenever
+    /// any other relay keeps delivering.
+    last_event_at: Arc<RwLock<HashMap<String, u64>>>,
 }
 
 impl RelayPool {
@@ -43,6 +57,7 @@ impl RelayPool {
             relays: Arc::new(RwLock::new(Vec::new())),
             conn_tx,
             relay_tx,
+            last_event_at: Arc::new(RwLock::new(HashMap::new())),
         });
 
         for url in relay_urls {
@@ -50,6 +65,24 @@ impl RelayPool {
         }
 
         client.connect().await;
+        // Seed each relay's liveness baseline at connect time so a socket that is
+        // silent from the very first moment (never delivers an initial event) is
+        // still measured against SILENCE_TIMEOUT_SECS per relay rather than being
+        // ignored (#291 / #324 review).
+        {
+            let now = unix_now() as u64;
+            let urls: Vec<String> = pool
+                .relays
+                .read()
+                .await
+                .iter()
+                .map(|r| r.url.clone())
+                .collect();
+            let mut map = pool.last_event_at.write().await;
+            for url in urls {
+                map.insert(url, now);
+            }
+        }
 
         // Give the SDK a moment to initiate WebSocket handshakes before the
         // first status poll.  Without this the initial broadcast is always
@@ -60,6 +93,8 @@ impl RelayPool {
         pool.broadcast_connection_state().await;
 
         pool.spawn_status_monitor();
+        pool.spawn_liveness_observer();
+        pool.spawn_silence_watchdog();
         Ok(pool)
     }
 
@@ -215,6 +250,106 @@ impl RelayPool {
             }
         });
     }
+
+    /// Bump `last_event_at` on every event or message from any relay.
+    ///
+    /// This is the liveness signal for the silence watchdog: a socket that the
+    /// SDK still reports as Connected but which has silently stopped delivering
+    /// (issue #291) is exactly one where this timestamp stops advancing. We
+    /// listen on a single pool-owned `notifications()` receiver rather than
+    /// instrumenting each transient consumer, so the signal survives any one
+    /// subscription being dropped and rebuilt. `Message` fires on every relay
+    /// message (not just novel events), giving the broadest "traffic flowing"
+    /// signal.
+    fn spawn_liveness_observer(self: &Arc<Self>) {
+        let client = self.client.clone();
+        let last_event_at = self.last_event_at.clone();
+        crate::rt::spawn(async move {
+            let mut rx = client.notifications();
+            loop {
+                match rx.recv().await {
+                    // Attribute liveness to the specific relay the event/message
+                    // arrived on, so one dead relay is not masked by another
+                    // relay's traffic (#324 review).
+                    Ok(RelayPoolNotification::Event { relay_url, .. })
+                    | Ok(RelayPoolNotification::Message { relay_url, .. }) => {
+                        last_event_at
+                            .write()
+                            .await
+                            .insert(relay_url.to_string(), unix_now() as u64);
+                    }
+                    Ok(RelayPoolNotification::Shutdown) => break,
+                    Err(broadcast::error::RecvError::Lagged(_)) => {
+                        // A lag means traffic we could not read individually; it
+                        // is still proof of life, so refresh every known relay.
+                        let now = unix_now() as u64;
+                        let mut map = last_event_at.write().await;
+                        for ts in map.values_mut() {
+                            *ts = now;
+                        }
+                        continue;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
+    /// Every WATCHDOG_POLL_INTERVAL_SECS, if the pool is Online yet no traffic
+    /// has arrived for longer than SILENCE_TIMEOUT_SECS, force a reconnect.
+    /// This catches the #291 failure where the SDK still reports Connected but
+    /// the socket has silently died. The forced disconnect/connect drives the
+    /// existing Online→resubscribe path in `api::nostr`, which rebuilds the
+    /// order and chat subscriptions.
+    fn spawn_silence_watchdog(self: &Arc<Self>) {
+        let this = self.clone();
+        crate::rt::spawn(async move {
+            loop {
+                crate::rt::time::sleep(Duration::from_secs(WATCHDOG_POLL_INTERVAL_SECS)).await;
+                let now = unix_now() as u64;
+                let relay_urls: Vec<String> = this
+                    .relays
+                    .read()
+                    .await
+                    .iter()
+                    .map(|r| r.url.clone())
+                    .collect();
+                // Check each relay independently: a relay whose socket has gone
+                // silent while still reporting Connected is reconnected on its
+                // own, even if other relays are delivering traffic (#324 review).
+                for url in relay_urls {
+                    let Ok(sdk_relay) = this.client.relay(&url).await else {
+                        continue;
+                    };
+                    let status = map_sdk_status(sdk_relay.status());
+                    // Seed a baseline the first time this relay is seen, so it is
+                    // measured from now rather than being treated as silent since
+                    // epoch (which would force an immediate reconnect on startup).
+                    let last = {
+                        let mut map = this.last_event_at.write().await;
+                        *map.entry(url.clone()).or_insert(now)
+                    };
+                    if should_force_reconnect(status, last, now, SILENCE_TIMEOUT_SECS) {
+                        crate::api::logging::blog_info(
+                            "relay",
+                            format!(
+                                "silence watchdog: {} silent {}s while Connected — reconnecting it (#291)",
+                                crate::api::logging::display_relay(&url),
+                                now.saturating_sub(last)
+                            ),
+                        );
+                        let _ = this.client.disconnect_relay(&url).await;
+                        crate::rt::time::sleep(Duration::from_millis(200)).await;
+                        let _ = this.client.connect_relay(&url).await;
+                        // Rearm this relay's baseline so the next silence window is
+                        // measured from this reconnect, not the stale timestamp —
+                        // otherwise a still-silent socket reconnects every poll.
+                        this.last_event_at.write().await.insert(url.clone(), now);
+                    }
+                }
+            }
+        });
+    }
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
@@ -250,3 +385,147 @@ fn map_sdk_status(s: SdkRelayStatus) -> RelayStatus {
 }
 
 use crate::rt::unix_now;
+
+/// Decide whether the silence watchdog should force a reconnect.
+///
+/// Returns true only when the pool believes it is Online yet no event or
+/// message has arrived for longer than `threshold_secs`. A `last_event_at`
+/// of 0 (no traffic ever seen) is treated as "not yet a basis for judgement",
+/// so a freshly-started pool is never force-reconnected before its first
+/// event — that startup window is the SDK's own connect path to handle.
+fn should_force_reconnect(
+    status: RelayStatus,
+    last_event_at: u64,
+    now: u64,
+    threshold_secs: u64,
+) -> bool {
+    // Only a relay the SDK still believes is Connected can be silently dead;
+    // one that is already Disconnected/Connecting is being handled by the SDK's
+    // own reconnect. A zero baseline means we have not established a reference
+    // point for this relay yet, so there is nothing to measure against.
+    if !matches!(status, RelayStatus::Connected) {
+        return false;
+    }
+    if last_event_at == 0 {
+        return false;
+    }
+    now.saturating_sub(last_event_at) > threshold_secs
+}
+
+#[cfg(test)]
+mod watchdog_tests {
+    use super::*;
+
+    const T: u64 = 210; // threshold seconds
+
+    #[test]
+    fn silent_online_past_threshold_reconnects() {
+        assert!(should_force_reconnect(
+            RelayStatus::Connected,
+            1_000,
+            1_300,
+            T
+        ));
+    }
+
+    #[test]
+    fn recent_traffic_does_not_reconnect() {
+        assert!(!should_force_reconnect(
+            RelayStatus::Connected,
+            1_295,
+            1_300,
+            T
+        ));
+    }
+
+    #[test]
+    fn exactly_at_threshold_does_not_reconnect() {
+        assert!(!should_force_reconnect(
+            RelayStatus::Connected,
+            1_090,
+            1_300,
+            T
+        ));
+    }
+
+    #[test]
+    fn a_non_connected_relay_is_never_force_reconnected() {
+        // A relay the SDK reports as Disconnected or Connecting is already being
+        // handled by its own reconnect — the watchdog only acts on a relay that
+        // still claims to be Connected yet has gone silent.
+        assert!(!should_force_reconnect(
+            RelayStatus::Disconnected,
+            1_000,
+            2_000,
+            T
+        ));
+        assert!(!should_force_reconnect(
+            RelayStatus::Connecting,
+            1_000,
+            2_000,
+            T
+        ));
+    }
+
+    #[test]
+    fn zero_last_event_guards_pre_connect_window() {
+        // Before the constructor's first connect, last_event_at is 0. The guard
+        // prevents a spurious reconnect in that microsecond window. Once Online,
+        // Fix 1 guarantees a non-zero baseline, so this path is defensive only.
+        assert!(!should_force_reconnect(
+            RelayStatus::Connected,
+            0,
+            999_999,
+            T
+        ));
+    }
+
+    #[test]
+    fn baseline_set_at_connect_triggers_on_startup_silence() {
+        // Fix 1: the constructor seeds last_event_at at connect time, so a socket
+        // silent from startup is measured from then. Past threshold, still Online,
+        // no traffic → the watchdog fires (previously this was wrongly ignored).
+        assert!(should_force_reconnect(
+            RelayStatus::Connected,
+            1_000,
+            1_300,
+            T
+        ));
+    }
+
+    #[test]
+    fn fresh_baseline_after_reconnect_does_not_retrigger() {
+        // Fix 2: the watchdog rearms the baseline right after reconnecting, so the
+        // next 30s poll sees a recent baseline and waits the full interval instead
+        // of reconnecting again — no thrash loop.
+        assert!(!should_force_reconnect(
+            RelayStatus::Connected,
+            1_270,
+            1_300,
+            T
+        ));
+    }
+
+    #[test]
+    fn a_silent_relay_is_flagged_even_while_another_stays_live() {
+        // #324 review: pool-wide liveness would miss a dead relay whenever any
+        // other relay keeps delivering. Because the decision is per-relay, A's
+        // silence is judged on A's own timestamp, independent of B's traffic.
+        let now = 100_000;
+        // Relay A: Connected but silent 300s (> threshold) → must reconnect.
+        assert!(should_force_reconnect(
+            RelayStatus::Connected,
+            now - 300,
+            now,
+            T
+        ));
+        // Relay B: Connected with traffic 5s ago → must NOT reconnect.
+        assert!(!should_force_reconnect(
+            RelayStatus::Connected,
+            now - 5,
+            now,
+            T
+        ));
+        // On the same tick the two are independent: A recovers, B is left alone.
+    }
+}
