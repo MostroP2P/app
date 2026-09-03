@@ -8,8 +8,11 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/about/providers/mostro_node_provider.dart';
+import 'package:mostro/features/order/utils/waiting_countdown.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/status_chip.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
@@ -88,6 +91,25 @@ class TradeStateHeader extends ConsumerWidget {
     // Live status overrides the snapshot baked into the resolved order.
     final liveStatus = ref.watch(tradeStatusProvider(orderId)).valueOrNull;
     final statusFilter = orderStatusToFilter(liveStatus ?? order.status);
+    // #270: base the countdown on the waiting-state deadline (timeout_at or
+    // now + node expiration_seconds), not the 24 h pending expiry. Shared with
+    // the trade-detail screen so both surfaces show the same value.
+    final tradeInfo = ref.watch(tradeInfoProvider(orderId)).valueOrNull;
+    final expirationSeconds =
+        ref.watch(mostroNodeProvider).valueOrNull?.expirationSeconds;
+    final countdown = waitingCountdownDeadline(
+      // Fall back to the order snapshot's status while tradeStatusProvider
+      // resolves, mirroring the pill above — otherwise a known waiting/pending
+      // order shows no countdown during the provider's loading frame.
+      status: liveStatus ?? order.status,
+      pendingExpiresAt: order.expiresAt,
+      pendingCreatedAtEpoch:
+          order.createdAt.millisecondsSinceEpoch ~/ 1000,
+      timeoutAtEpoch: tradeInfo?.timeoutAt != null
+          ? platformInt64ToInt(tradeInfo!.timeoutAt!)
+          : null,
+      expirationSeconds: expirationSeconds,
+    );
     final (pillBg, pillFg) = _statusColors(statusFilter);
 
     // Buyer/seller role: in-memory map → persisted DB → derive from order.
@@ -170,9 +192,11 @@ class TradeStateHeader extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    if (order.expiresAt != null)
+                    if (countdown != null)
                       _CountdownChip(
-                        expiresAt: order.expiresAt!,
+                        expiresAt: DateTime.fromMillisecondsSinceEpoch(
+                          countdown.deadlineEpochSeconds * 1000,
+                        ),
                         color: amber,
                         separatorColor: secondary,
                         showSeparator: order.paymentMethod.isNotEmpty,
