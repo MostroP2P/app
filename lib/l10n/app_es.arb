@@ -1,6 +1,7 @@
 {
   "@@locale": "es",
   "@@last_modified": "2026-03-31",
+  "invalidFiatCode": "Esa moneda no es compatible. Elige otra antes de crear la orden.",
 
   "appName": "Mostro",
   "loading": "Cargando…",

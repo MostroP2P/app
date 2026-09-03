@@ -75,6 +75,24 @@ void main() {
     );
   });
 
+  /// PR #304 review (Catrya): the InvalidFiatCode preflight marker must map to
+  /// its localized string like every other daemon-error marker, both bare and
+  /// with the offending code as context.
+  test('maps the InvalidFiatCode preflight marker (#175)', () {
+    expect(
+      localizedDaemonError(l10n, 'InvalidFiatCode', fallback: 'x'),
+      l10n.invalidFiatCode,
+    );
+    expect(
+      localizedDaemonError(
+        l10n,
+        "InvalidFiatCode: 'XYZ' must be exactly 3 uppercase ASCII letters (ISO 4217)",
+        fallback: 'x',
+      ),
+      l10n.invalidFiatCode,
+    );
+  });
+
   test('maps timeout and storage markers, and falls back otherwise', () {
     expect(
       localizedDaemonError(l10n, 'NoDaemonResponse', fallback: 'x'),

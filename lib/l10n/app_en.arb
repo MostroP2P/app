@@ -1,6 +1,10 @@
 {
   "@@locale": "en",
   "@@last_modified": "2026-03-31",
+  "invalidFiatCode": "That currency isn't supported. Please pick another before creating the order.",
+  "@invalidFiatCode": {
+    "description": "Shown when a create-order fiat code fails the ISO 4217 preflight (stale/tampered saved default)"
+  },
 
   "appName": "Mostro",
   "@appName": {"description": "Application name"},
