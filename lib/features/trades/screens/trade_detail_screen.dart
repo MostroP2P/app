@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/src/rust/api/disputes.dart' as disputes_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -16,12 +18,14 @@ import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/dispute_confirmation_dialog.dart';
 import 'package:mostro/features/trades/widgets/release_confirmation_dialog.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
+import 'package:mostro/shared/widgets/peer_reputation_card.dart';
 
 /// Trade detail screen — Route `/trade_detail/:orderId`.
 ///
@@ -72,6 +76,25 @@ enum TradeStatus {
   const TradeStatus(this.label);
   final String label;
 }
+
+/// Stable, locale-independent name of a trade status.
+///
+/// This is what the `order.status` readout exposes, and it is a product
+/// contract: automation maps these names to protocol states and cannot use
+/// the localized pill copy. See `docs/automation-contract.md`.
+extension TradeStatusMachineName on TradeStatus {
+  /// `TradeStatus.waitingInvoice` → `waiting-invoice`.
+  String get machineName => name
+      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '-${m[0]!.toLowerCase()}');
+}
+
+/// Maps a protocol order status to the status this screen displays.
+///
+/// Public so [MyOrderScreen] exposes the same vocabulary from its own status
+/// card: a pending order the user created is opened there, not here, and the
+/// two must not disagree about what state it is in.
+TradeStatus tradeStatusFromOrderStatus(OrderStatus s) =>
+    _TradeDetailScreenState._mapOrderStatus(s);
 
 /// Localized display label for the trade status pill.
 extension TradeStatusL10n on TradeStatus {
@@ -188,7 +211,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(l10n.yesCancelButtonLabel),
-          ),
+          ).withAutomationId(AutomationIds.tradeCancelConfirm),
         ],
       ),
     );
@@ -489,13 +512,41 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // Use TradeStatus.loading while the provider hasn't resolved so the UI
     // doesn't flash the pending CTA before the real status is known.
     final tradeStatusAsync = ref.watch(tradeStatusProvider(widget.orderId));
-    final status = tradeStatusAsync.hasValue
+    final orderStatus = tradeStatusAsync.hasValue
         ? _mapOrderStatus(tradeStatusAsync.value!)
         : TradeStatus.loading;
 
+    // The protocol has no "rated" order status — a settled trade stays
+    // settled once the rating is sent — so `rated` is only reachable by
+    // overlaying the local rating on top of the mapping above (#327). The
+    // lookup only matters (and is only watched) once the trade settles, and
+    // while its first fetch is unresolved the screen holds `loading` for
+    // the same reason as above — never flash a CTA that may change on the
+    // next frame. A refresh keeps the previous value, so resolving a fresh
+    // rating does not bounce through the spinner.
+    final TradeStatus status;
+    if (orderStatus != TradeStatus.pendingRating) {
+      status = orderStatus;
+    } else {
+      final ratingAsync = ref.watch(tradeRatingProvider(widget.orderId));
+      if (ratingAsync.isLoading && !ratingAsync.hasValue) {
+        status = TradeStatus.loading;
+      } else if (ref.watch(ratedByMeProvider(widget.orderId))) {
+        status = TradeStatus.rated;
+      } else {
+        status = TradeStatus.pendingRating;
+      }
+    }
+
     // Look up order details from the live order book.
-    final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
-    final order = allOrders.where((o) => o.id == widget.orderId).firstOrNull;
+    final order = ref.watch(orderByIdProvider(widget.orderId));
+
+    // Counterpart (taker) reputation snapshot persisted from the daemon's
+    // follow-up Peer DM (#305). Read via tradeInfoProvider (not the polling
+    // stream): it refreshes on the TradeUpdate the Rust side emits after
+    // persisting the snapshot. Present only once someone took the order, and
+    // the taker's role is the opposite of the user's own.
+    final trade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
 
     final inFlight = const {
       TradeStatus.waitingInvoice,
@@ -513,7 +564,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
               context.canPop() ? context.pop() : context.go(AppRoute.home),
-        ),
+        ).withAutomationId(AutomationIds.appBarBack),
         actions: [_buildOverflowMenu()],
       ),
       body: ListView(
@@ -537,6 +588,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           _buildStateStrip(theme, colors, isBuyer, status, order),
           const SizedBox(height: AppSpacing.lg),
 
+          // Counterpart (taker) reputation — who took the order (#305).
+          if (trade?.peerRating != null) ...[
+            PeerReputationCard(
+              rating: trade!.peerRating!,
+              reviews: trade.peerReviews ?? 0,
+              days: trade.peerDays ?? 0,
+              counterpartIsBuyer: !isBuyer,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+
           // Single primary CTA for the current state.
           ..._buildPrimaryAction(status, isBuyer, green, colors),
 
@@ -558,6 +620,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             child: Row(
               children: [
                 Flexible(
+                  // The visible label is shortened for width; the readout
+                  // carries the whole order id.
                   child: Text(
                     l10n.tradeIdShortLabel(_shortId(widget.orderId)),
                     style: TextStyle(
@@ -566,6 +630,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                       fontFamily: 'monospace',
                     ),
                     overflow: TextOverflow.ellipsis,
+                  ).withAutomationId(
+                    AutomationIds.orderId,
+                    label: widget.orderId,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -658,6 +725,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final l10n = AppLocalizations.of(context);
 
     Widget destructiveButton({
+      required String automationId,
       required String label,
       required Future<void> Function() onPressed,
     }) =>
@@ -667,22 +735,25 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             label: label,
             variant: MostroButtonVariant.destructive,
             onPressed: onPressed,
-          ),
+          ).withAutomationId(automationId),
         );
 
     final buttons = [
       if (canRelease)
         destructiveButton(
+          automationId: AutomationIds.tradeRelease,
           label: l10n.releaseSatsButton,
           onPressed: _releaseOrder,
         ),
       if (canCancel)
         destructiveButton(
+          automationId: AutomationIds.tradeCancel,
           label: l10n.cancelTradeButton,
           onPressed: _cancelOrder,
         ),
       if (canDispute)
         destructiveButton(
+          automationId: AutomationIds.tradeDispute,
           label: l10n.openDisputeButton,
           onPressed: _openDispute,
         ),
@@ -741,10 +812,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                   foreground: textSec,
                 ),
               if (currentStep >= 0) const SizedBox(width: AppSpacing.sm),
+              // The pill's copy is localized; the readout carries the machine
+              // name, which is the state automation asserts on.
               _Pill(
                 label: status.localizedLabel(l10n),
                 background: pillBg,
                 foreground: pillFg,
+              ).withAutomationId(
+                AutomationIds.orderStatus,
+                label: status.machineName,
               ),
             ],
           ),
@@ -887,7 +963,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             icon: Icons.receipt_long_outlined,
             onPressed: () =>
                 context.push(AppRoute.addInvoicePath(widget.orderId)),
-          ),
+          ).withAutomationId(AutomationIds.tradeAddInvoice),
         ];
       case (TradeStatus.waitingPayment, false):
         return [
@@ -896,7 +972,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             icon: Icons.bolt,
             onPressed: () =>
                 context.push(AppRoute.payInvoicePath(widget.orderId)),
-          ),
+          ).withAutomationId(AutomationIds.tradePayInvoice),
         ];
       case (TradeStatus.active, true):
         return [
@@ -904,7 +980,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             label: l10n.markFiatSentButton,
             icon: Icons.check,
             onPressed: _markFiatSent,
-          ),
+          ).withAutomationId(AutomationIds.tradeFiatSent),
         ];
       case (TradeStatus.fiatSent, false):
         return [
@@ -912,7 +988,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             label: l10n.confirmReleaseSatsButton,
             icon: Icons.lock_open,
             onPressed: _releaseOrder,
-          ),
+          ).withAutomationId(AutomationIds.tradeRelease),
         ];
       case (TradeStatus.disputed, _):
         return [
@@ -951,7 +1027,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                 context.push(AppRoute.rateUserPath(widget.orderId));
               }
             },
-          ),
+          ).withAutomationId(AutomationIds.tradeRate),
         ];
       case (TradeStatus.rated, _) || (TradeStatus.cancelled, _):
         return [

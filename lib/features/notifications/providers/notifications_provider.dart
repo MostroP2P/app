@@ -22,7 +22,13 @@ class SembastNotificationsStore {
         _pathOverride = path;
 
   static const _dbName = 'notifications.db';
-  static const _storeName = 'notifications';
+  /// The int-keyed store this feature shipped with.
+  static const _legacyStoreName = 'notifications';
+
+  /// Records keyed by notification id. A separate store name, not a re-typed
+  /// view of the old one: the two must not share physical records, or
+  /// migrating out of the old shape would delete what it just wrote.
+  static const _storeName = 'notifications_v2';
 
   /// Test seam: when set, bypasses platform factory/path resolution (e.g. an
   /// in-memory Sembast factory for restart/replay tests).
@@ -31,7 +37,14 @@ class SembastNotificationsStore {
 
   Database? _db;
   Completer<Database>? _opening;
-  final _store = intMapStoreFactory.store(_storeName);
+  /// Keyed by notification id. Before this, the store used auto-incrementing
+  /// integer keys and every write looked its record up with a `Finder` — a
+  /// full-store scan per save, and O(n) scans for an O(n) bulk update.
+  final _store = StoreRef<String, Map<String, Object?>>(_storeName);
+
+  /// The int-keyed shape this store used to have. Only read, and only once
+  /// per database, by [_migrateLegacyRecords].
+  final _legacyStore = intMapStoreFactory.store(_legacyStoreName);
 
   /// Tombstone / processed-event ledger: ids of externally-sourced events that
   /// have already been handled. It survives deletion of the notification record,
@@ -54,6 +67,7 @@ class SembastNotificationsStore {
         final dir = await appDataDirPath();
         db = await databaseFactoryIo.openDatabase(p.join(dir, _dbName));
       }
+      await _migrateLegacyRecords(db);
       _db = db;
       _opening!.complete(db);
       return db;
@@ -62,6 +76,27 @@ class SembastNotificationsStore {
       _opening = null;
       rethrow;
     }
+  }
+
+  /// Re-key records written by the previous int-keyed store.
+  ///
+  /// Reading an int-keyed record through a `StoreRef<String, ...>` throws, so
+  /// without this an upgrade would either lose the user's notification history
+  /// or fail on open. Runs inside one transaction and clears the old records,
+  /// so it is a no-op from the second launch onwards.
+  Future<void> _migrateLegacyRecords(Database db) async {
+    final legacy = await _legacyStore.find(db);
+    if (legacy.isEmpty) return;
+    await db.transaction((txn) async {
+      for (final record in legacy) {
+        final value = Map<String, Object?>.from(record.value);
+        final id = value['id'];
+        if (id is String) {
+          await _store.record(id).put(txn, value);
+        }
+      }
+      await _legacyStore.delete(txn);
+    });
   }
 
   Future<List<NotificationModel>> loadAll() async {
@@ -77,16 +112,24 @@ class SembastNotificationsStore {
     await _upsert(await _open(), notification);
   }
 
+  /// Persist every notification in [notifications] in a single transaction.
+  ///
+  /// Bulk read-status updates used to fire one independent, un-awaited write
+  /// per notification, each committing separately.
+  Future<void> saveAll(List<NotificationModel> notifications) async {
+    if (notifications.isEmpty) return;
+    final db = await _open();
+    await db.transaction((txn) async {
+      for (final notification in notifications) {
+        await _upsert(txn, notification);
+      }
+    });
+  }
+
   Future<void> _upsert(DatabaseClient client, NotificationModel notification) async {
-    final json = Map<String, dynamic>.from(notification.toJson())
+    final json = Map<String, Object?>.from(notification.toJson())
       ..removeWhere((_, v) => v == null);
-    final finder = Finder(filter: Filter.equals('id', notification.id));
-    final existing = await _store.findFirst(client, finder: finder);
-    if (existing != null) {
-      await _store.update(client, json, finder: finder);
-    } else {
-      await _store.add(client, json);
-    }
+    await _store.record(notification.id).put(client, json);
   }
 
   /// Records [notification] and marks its source event processed in a single
@@ -109,7 +152,7 @@ class SembastNotificationsStore {
 
   Future<void> deleteRecord(String id) async {
     final db = await _open();
-    await _store.delete(db, finder: Finder(filter: Filter.equals('id', id)));
+    await _store.record(id).delete(db);
   }
 
   /// Clears the visible notification records but deliberately keeps the
@@ -241,13 +284,12 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
 
   void markAllAsRead() {
     state = [for (final n in state) n.copyWith(isRead: true)];
-    // Persist each updated record; fire-and-forget is acceptable for bulk
-    // read-status updates since ordering doesn't matter here.
-    for (final n in state) {
-      store?.save(n).catchError((Object e) {
-        debugPrint('NotificationsNotifier: failed to persist markAllAsRead: $e');
-      });
-    }
+    // One transaction for the batch, rather than one independent commit per
+    // notification. Still fire-and-forget: ordering does not matter here, and
+    // the in-memory state is already updated.
+    store?.saveAll(state).catchError((Object e) {
+      debugPrint('NotificationsNotifier: failed to persist markAllAsRead: \$e');
+    });
   }
 
   Future<void> delete(String id) async {

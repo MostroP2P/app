@@ -44,5 +44,10 @@ String localizedDaemonError(
   if (raw.contains('TradeNotDisputable')) {
     return l10n.tradeNotDisputable;
   }
+  // A dispute for this trade already exists, or one is still in flight: the
+  // open is a duplicate either way, and retrying it changes nothing.
+  if (raw.contains('DisputeAlreadyOpen')) {
+    return l10n.disputeAlreadyOpen;
+  }
   return fallback;
 }

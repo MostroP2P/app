@@ -108,6 +108,53 @@ class OrderItem {
     return v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
   }
 
+  /// Value equality, so a screen watching one order can tell whether *its*
+  /// order actually moved. Every book emission rebuilds every [OrderItem],
+  /// so identity comparison always reports a change and
+  /// [orderByIdProvider]'s `select` would never filter anything out.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OrderItem &&
+          other.id == id &&
+          other.kind == kind &&
+          other.fiatAmount == fiatAmount &&
+          other.fiatAmountMin == fiatAmountMin &&
+          other.fiatAmountMax == fiatAmountMax &&
+          other.fiatCode == fiatCode &&
+          other.paymentMethod == paymentMethod &&
+          other.premium == premium &&
+          other.creatorPubkey == creatorPubkey &&
+          other.createdAt == createdAt &&
+          other.expiresAt == expiresAt &&
+          other.rating == rating &&
+          other.tradeCount == tradeCount &&
+          other.daysActive == daysActive &&
+          other.status == status &&
+          other.amountSats == amountSats &&
+          other.isMine == isMine;
+
+  @override
+  int get hashCode => Object.hashAll([
+        id,
+        kind,
+        fiatAmount,
+        fiatAmountMin,
+        fiatAmountMax,
+        fiatCode,
+        paymentMethod,
+        premium,
+        creatorPubkey,
+        createdAt,
+        expiresAt,
+        rating,
+        tradeCount,
+        daysActive,
+        status,
+        amountSats,
+        isMine,
+      ]);
+
   /// Map a Rust-bridge [OrderInfo] to an [OrderItem] for display.
   factory OrderItem.fromInfo(OrderInfo info) => OrderItem(
         id: info.id,
@@ -160,6 +207,25 @@ final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) asyn
     if (orders == null) break;
     yield orders.map(OrderItem.fromInfo).toList();
   }
+});
+
+/// The live book indexed by order id, rebuilt once per emission.
+///
+/// Screens that care about a single order used to scan the whole list for it,
+/// on every rebuild — an O(orders) walk per screen per relay event.
+final orderBookIndexProvider = Provider.autoDispose<Map<String, OrderItem>>((ref) {
+  final orders = ref.watch(orderBookProvider).valueOrNull ?? const <OrderItem>[];
+  return {for (final order in orders) order.id: order};
+});
+
+/// One order from the live book, or null when it is not in it.
+///
+/// The `select` is what makes this worth having: a screen watching one order
+/// rebuilds only when *that* order changes, not on every book emission. It
+/// relies on [OrderItem]'s value equality.
+final orderByIdProvider =
+    Provider.autoDispose.family<OrderItem?, String>((ref, orderId) {
+  return ref.watch(orderBookIndexProvider.select((index) => index[orderId]));
 });
 
 /// Filtered orders based on active tab and all filter providers.

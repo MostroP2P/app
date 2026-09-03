@@ -4,13 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/services/identity_service.dart';
 
 void main() {
-  test('main() subscribes to the index stream before loading the identity', () {
+  test('bootstrap subscribes to the index stream before loading the identity',
+      () {
     // Loading the identity publishes the reconciled counter when the database
     // is ahead of secure storage, and the Tokio broadcast channel drops a
     // value with no receiver — so subscribing after identity init silently
     // loses exactly the catch-up this mechanism exists for. Nothing at runtime
     // fails when the order is wrong, hence this static guard.
-    final source = File('lib/main.dart').readAsStringSync();
+    //
+    // Startup lives in app_bootstrap.dart, which both entry points call, so
+    // the guard covers the production and the Mortsom test build alike.
+    final source = File('lib/core/app_bootstrap.dart').readAsStringSync();
 
     final subscribe = source.indexOf('onTradeKeyIndexChanged');
     final identityInit = source.indexOf('IdentityService.initialize');

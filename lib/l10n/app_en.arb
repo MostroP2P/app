@@ -177,8 +177,6 @@
 
   "orderDetailsTitle": "ORDER DETAILS",
   "@orderDetailsTitle": {"description": "Screen title for the order/trade details screen"},
-  "timeRemainingLabel": "Time remaining:",
-  "@timeRemainingLabel": {"description": "Label preceding the countdown timer in a trade"},
   "fiatSentButtonLabel": "FIAT SENT",
   "@fiatSentButtonLabel": {"description": "Button label for the buyer to confirm fiat was sent"},
   "disputeButtonLabel": "DISPUTE",
@@ -705,6 +703,8 @@
   "@openDisputeTitle": {"description": "Title of the open-dispute confirmation dialog"},
   "openDisputeConfirmation": "Are you sure you want to open a dispute? This escalates the trade to an admin and cannot be undone.",
   "@openDisputeConfirmation": {"description": "Body of the open-dispute confirmation dialog"},
+  "disputeAlreadyOpen": "A dispute for this trade is already open.",
+  "@disputeAlreadyOpen": {"description": "Snackbar shown when a dispute is opened for a trade that already has one, or while a previous attempt is still in flight"},
   "tradeNotDisputable": "A dispute can only be opened once the funds are locked for this trade.",
   "@tradeNotDisputable": {"description": "Snackbar shown when a dispute is attempted before the trade reaches a disputable state"},
   "tradeWaitingInvoiceBuyerInstruction": "Submit your Lightning invoice so the seller can lock the funds.",
@@ -1244,9 +1244,9 @@
   "@sellOrderDetailsTitle": {"description": "App bar title when taking a sell order"},
   "buyOrderDetailsTitle": "BUY ORDER DETAILS",
   "@buyOrderDetailsTitle": {"description": "App bar title when taking a buy order"},
-  "buyTheseSatsButton": "BUY THESE SATS",
+  "buyTheseSatsButton": "BUY",
   "@buyTheseSatsButton": {"description": "Primary button to buy sats"},
-  "sellSatsButton": "SELL SATS",
+  "sellSatsButton": "SELL",
   "@sellSatsButton": {"description": "Primary button to sell sats"},
   "someoneSellingSats": "Someone is selling sats",
   "@someoneSellingSats": {"description": "Headline when a counterpart is selling sats"},
@@ -1263,14 +1263,23 @@
   },
   "creatorReputation": "Creator reputation",
   "@creatorReputation": {"description": "Label for the creator reputation card"},
+  "buyerReputation": "Buyer reputation",
+  "@buyerReputation": {"description": "Title of the counterpart reputation card when the taker is the buyer"},
+  "sellerReputation": "Seller reputation",
+  "@sellerReputation": {"description": "Title of the counterpart reputation card when the taker is the seller"},
   "ratingStatLabel": "rating",
   "@ratingStatLabel": {"description": "Reputation stat label: rating"},
   "tradesStatLabel": "trades",
   "@tradesStatLabel": {"description": "Reputation stat label: trades"},
   "daysActiveStatLabel": "days active",
   "@daysActiveStatLabel": {"description": "Reputation stat label: days active"},
-  "timeToTakeOrder": "TIME TO TAKE THIS ORDER",
-  "@timeToTakeOrder": {"description": "Countdown label on the take order screen"},
+  "createdOnLabel": "Created on",
+  "@createdOnLabel": {"description": "Label above the order creation date"},
+  "timeRemainingLabel": "Time remaining: {time}",
+  "@timeRemainingLabel": {
+    "description": "Countdown label below the take-order timer",
+    "placeholders": {"time": {"type": "String"}}
+  },
   "orderExpiryRemovedNote": "If it expires, the order is removed from the book. ",
   "@orderExpiryRemovedNote": {"description": "Consequence note prefix if the order expires"},
   "orderExpiryNoReputationNote": "It won't affect your reputation.",
@@ -1279,6 +1288,23 @@
   "@minHint": {"description": "Hint for the minimum amount input"},
   "maxHint": "Max",
   "@maxHint": {"description": "Hint for the maximum amount input"},
+  "orderAmountOutOfRange": "Amount must be between {min} and {max} sats for this Mostro node",
+  "@orderAmountOutOfRange": {
+    "description": "Shown when a fixed-sats order amount is outside the node min/max order amount",
+    "placeholders": {
+      "min": {"type": "int"},
+      "max": {"type": "int"}
+    }
+  },
+  "orderAmountOutOfRangeFiat": "Amount must be between {min} and {max} {currency} for this Mostro node",
+  "@orderAmountOutOfRangeFiat": {
+    "description": "Shown when a market-price order amount converts outside the node min/max order amount, with the range expressed in the user's fiat currency",
+    "placeholders": {
+      "min": {"type": "int"},
+      "max": {"type": "int"},
+      "currency": {"type": "String"}
+    }
+  },
   "fiatAmountHint": "Fiat amount",
   "@fiatAmountHint": {"description": "Hint for the fiat amount input"},
   "enterAmountForPreview": "Enter an amount to see a live preview.",
@@ -1324,6 +1350,8 @@
   "@premiumSectionLabel": {"description": "Label of the premium slider section"},
   "amountInSatsHint": "Amount in sats",
   "@amountInSatsHint": {"description": "Hint for the fixed sats amount input"},
+  "fixedPriceRangeNotAvailable": "Fixed price isn't available for range orders. Turn off the range to use a fixed price.",
+  "@fixedPriceRangeNotAvailable": {"description": "Explains why the fixed-price toggle is disabled while a range order is being created"},
   "priceTypesDialogTitle": "Price Types",
   "@priceTypesDialogTitle": {"description": "Title of the price types info dialog"},
   "priceTypesDialogContent": "Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.",

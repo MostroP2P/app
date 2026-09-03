@@ -220,6 +220,128 @@ pub async fn fetch_mostro_instance_tags(
     }
 }
 
+/// Price of one BTC in `fiat_code`, as published by `mostro_pubkey_hex` in its
+/// Kind 30078 (`d` = `mostro-rates`) event.
+///
+/// Lets the client tell, before submitting, whether a market-price order will
+/// land inside the node's sats limits (#337): the daemon prices such an order
+/// as `fiat_amount / price * 1E8` from this same aggregate, so this is the
+/// number its `OutOfRangeSatsAmount` check will use.
+///
+/// Returns `None` — never an error — for every "no usable rate" case: the node
+/// publishes no rates event (publishing is optional), the one on the relay has
+/// expired, its payload is unusable, or it quotes no such currency. Callers
+/// must then submit unchecked and let the daemon decide, which is the
+/// fail-open behaviour PR #302 chose for fixed-sats amounts. `Err` is reserved
+/// for a client that is not initialised, a malformed pubkey, or a relay query
+/// that failed outright.
+///
+/// Answers from a per-node cache bounded by the event's own NIP-40 expiration,
+/// so the three amount fields of a range order cost one relay query, not three.
+pub async fn fetch_exchange_rate(
+    mostro_pubkey_hex: String,
+    fiat_code: String,
+) -> Result<Option<f64>> {
+    use crate::mostro::rates;
+    use nostr_sdk::prelude::*;
+    use std::time::Duration;
+
+    let now = crate::rt::unix_now();
+    if let Some(rate) = rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now) {
+        return Ok(Some(rate));
+    }
+
+    let client = pool()?.client();
+
+    let pubkey = nostr_sdk::PublicKey::from_hex(&mostro_pubkey_hex)
+        .map_err(|e| anyhow::anyhow!("invalid pubkey hex: {e}"))?;
+
+    let filter = Filter::new()
+        .kind(Kind::from(rates::RATES_KIND))
+        .author(pubkey)
+        .custom_tag(SingleLetterTag::lowercase(Alphabet::D), rates::RATES_D_TAG)
+        .limit(1);
+
+    let events = client
+        .fetch_events(filter, Duration::from_secs(10))
+        .await
+        .map_err(|e| anyhow::anyhow!("fetch_events failed: {e}"))?;
+
+    let Some(event) = select_rates_event(events, &pubkey) else {
+        log::warn!("[rates] node {mostro_pubkey_hex} published no usable kind 30078 event");
+        rates::clear();
+        return Ok(None);
+    };
+
+    let expires_at = rates::expires_at(
+        event.created_at.as_secs() as i64,
+        tag_value(&event, "expiration").and_then(|v| v.parse::<i64>().ok()),
+    );
+    if now >= expires_at {
+        // A relay that ignores NIP-40 must not let a zombie price through.
+        log::warn!("[rates] discarding expired kind 30078 event from {mostro_pubkey_hex}");
+        rates::clear();
+        return Ok(None);
+    }
+
+    let Some(parsed) = rates::parse_rates_content(&event.content) else {
+        log::warn!("[rates] unusable kind 30078 payload from {mostro_pubkey_hex}");
+        rates::clear();
+        return Ok(None);
+    };
+
+    rates::store(&mostro_pubkey_hex, parsed, expires_at);
+    Ok(rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now))
+}
+
+/// The newest authentic rates event among `events`, or `None`.
+///
+/// Defence in depth, as v1 does: a relay is free to answer with events the
+/// filter never asked for, and pricing an order off another kind, another
+/// d-tag or another author's event would be worse than not checking at all.
+///
+/// The signature check is what makes the author check mean anything. Up to
+/// 0.44.7 `nostr-sdk` does not guarantee that a fetched event was verified
+/// before it reaches the caller (GHSA-f96q-5f6p-v7cj), and this crate pins
+/// 0.44.1, so a relay can hand us an event carrying the node's pubkey that the
+/// node never signed. Every field below is attacker-chosen until `verify()`
+/// says otherwise, and a forged price would silently move the client's whole
+/// range check. Verification runs before the newest-first pick, so a forgery
+/// cannot shadow the genuine event by claiming a later `created_at` either.
+fn select_rates_event(
+    events: impl IntoIterator<Item = nostr_sdk::Event>,
+    pubkey: &nostr_sdk::PublicKey,
+) -> Option<nostr_sdk::Event> {
+    use crate::mostro::rates;
+    use nostr_sdk::prelude::*;
+
+    events
+        .into_iter()
+        .filter(|e| {
+            e.kind == Kind::from(rates::RATES_KIND)
+                && e.pubkey == *pubkey
+                && tag_value(e, "d").as_deref() == Some(rates::RATES_D_TAG)
+        })
+        .filter(|e| match e.verify() {
+            Ok(()) => true,
+            Err(err) => {
+                log::warn!("[rates] discarding unauthenticated kind 30078 event: {err}");
+                false
+            }
+        })
+        .max_by_key(|e| e.created_at)
+}
+
+/// First value of the single-letter or named tag `name` on `event`.
+fn tag_value(event: &nostr_sdk::Event, name: &str) -> Option<String> {
+    event
+        .tags
+        .iter()
+        .map(|t| t.as_slice())
+        .find(|t| t.first().map(String::as_str) == Some(name))
+        .and_then(|t| t.get(1).cloned())
+}
+
 /// Fetch everything the active Mostro node advertises about itself from its
 /// Kind 38385 event and store it globally: the PoW requirement, and (phase C1)
 /// the escrow mode plus its Cashu parameters.
@@ -292,4 +414,97 @@ fn default_relays() -> Vec<String> {
 #[allow(dead_code)]
 pub(crate) fn get_pool() -> Result<&'static Arc<RelayPool>> {
     pool()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mostro::rates;
+    use nostr_sdk::prelude::*;
+
+    const RATES: &str = r#"{"BTC":{"USD":50000.0}}"#;
+
+    fn rates_event(keys: &Keys, content: &str, created_at: u64) -> Event {
+        EventBuilder::new(Kind::from(rates::RATES_KIND), content)
+            .tag(Tag::parse(["d", rates::RATES_D_TAG]).unwrap())
+            .custom_created_at(Timestamp::from(created_at))
+            .sign_with_keys(keys)
+            .unwrap()
+    }
+
+    /// What a hostile relay can do without the node's key: take a real event
+    /// and rewrite the price. Everything the field checks look at survives —
+    /// kind, author, `d` tag — and only the signature gives it away.
+    fn forge_content(event: &Event, content: &str) -> Event {
+        let mut json: serde_json::Value = serde_json::from_str(&event.as_json()).unwrap();
+        json["content"] = serde_json::Value::String(content.to_string());
+        Event::from_json(json.to_string()).unwrap()
+    }
+
+    #[test]
+    fn selects_a_signed_rates_event() {
+        let node = Keys::generate();
+        let event = rates_event(&node, RATES, 1000);
+
+        let selected = select_rates_event([event.clone()], &node.public_key());
+
+        assert_eq!(selected.map(|e| e.id), Some(event.id));
+    }
+
+    #[test]
+    fn selects_the_newest_of_several() {
+        let node = Keys::generate();
+        let old = rates_event(&node, RATES, 1000);
+        let new = rates_event(&node, r#"{"BTC":{"USD":60000.0}}"#, 2000);
+
+        let selected = select_rates_event([old, new.clone()], &node.public_key());
+
+        assert_eq!(selected.map(|e| e.id), Some(new.id));
+    }
+
+    #[test]
+    fn rejects_a_forged_rates_event() {
+        let node = Keys::generate();
+        let genuine = rates_event(&node, RATES, 1000);
+        let forged = forge_content(&genuine, r#"{"BTC":{"USD":1.0}}"#);
+
+        assert_eq!(forged.pubkey, node.public_key());
+        assert!(forged.verify().is_err(), "the forgery must not authenticate");
+
+        assert!(select_rates_event([forged], &node.public_key()).is_none());
+    }
+
+    /// A forgery must not be able to bury the real price by claiming a later
+    /// `created_at`, which is why the signature check runs before the pick.
+    #[test]
+    fn a_newer_forgery_does_not_shadow_the_genuine_event() {
+        let node = Keys::generate();
+        let genuine = rates_event(&node, RATES, 1000);
+        let forged = forge_content(&rates_event(&node, RATES, 2000), r#"{"BTC":{"USD":1.0}}"#);
+
+        let selected = select_rates_event([forged, genuine.clone()], &node.public_key());
+
+        assert_eq!(selected.map(|e| e.id), Some(genuine.id));
+    }
+
+    #[test]
+    fn rejects_another_author_kind_or_d_tag() {
+        let node = Keys::generate();
+        let other = Keys::generate();
+
+        let wrong_author = rates_event(&other, RATES, 1000);
+        assert!(select_rates_event([wrong_author], &node.public_key()).is_none());
+
+        let wrong_kind = EventBuilder::new(Kind::TextNote, RATES)
+            .tag(Tag::parse(["d", rates::RATES_D_TAG]).unwrap())
+            .sign_with_keys(&node)
+            .unwrap();
+        assert!(select_rates_event([wrong_kind], &node.public_key()).is_none());
+
+        let wrong_d_tag = EventBuilder::new(Kind::from(rates::RATES_KIND), RATES)
+            .tag(Tag::parse(["d", "something-else"]).unwrap())
+            .sign_with_keys(&node)
+            .unwrap();
+        assert!(select_rates_event([wrong_d_tag], &node.public_key()).is_none());
+    }
 }
