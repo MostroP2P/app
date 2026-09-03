@@ -786,9 +786,7 @@ mod tests {
         ) -> Result<()> {
             unimplemented!()
         }
-        async fn list_queued_messages(
-            &self,
-        ) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
+        async fn list_queued_messages(&self) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
             unimplemented!()
         }
         async fn update_queued_message_status(
@@ -814,6 +812,12 @@ mod tests {
             unimplemented!()
         }
         async fn clear_trade_keys(&self) -> Result<()> {
+            unimplemented!()
+        }
+        async fn clear_trades(&self) -> Result<()> {
+            unimplemented!()
+        }
+        async fn clear_messages(&self) -> Result<()> {
             unimplemented!()
         }
         async fn get_setting(&self, _key: &str) -> Result<Option<String>> {
@@ -974,19 +978,28 @@ mod tests {
         // shares the single identity_lock lifecycle and can't race it. Uses the
         // `_with` core so publications land on this test's private channel.
         // Never lowers: a floor below current is a no-op — no write, no publish.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 22);
         assert!(
             published.rx.try_recv().is_err(),
             "a no-op resync must not publish",
         );
         // Raises to the recovered max, persists, and publishes to the mirror.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
         assert_eq!(published.next().await.unwrap(), 50);
-        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        assert_eq!(
+            db.get_identity().await.unwrap().unwrap().trade_key_index,
+            50
+        );
         // Idempotent: the same floor again changes nothing and publishes nothing.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
         assert!(
             published.rx.try_recv().is_err(),
@@ -996,11 +1009,10 @@ mod tests {
         // counter advanced. Counter is 50 here. Ask for a higher floor (60)
         // against a failing store: the call errors and the counter stays 50.
         let (fx, _frx) = private_channel();
-        let rollback_err =
-            ensure_trade_key_index_at_least_with(Some(&FailingStore), &fx, 60)
-                .await
-                .unwrap_err()
-                .to_string();
+        let rollback_err = ensure_trade_key_index_at_least_with(Some(&FailingStore), &fx, 60)
+            .await
+            .unwrap_err()
+            .to_string();
         assert!(
             rollback_err.contains("StorageError:"),
             "unexpected error: {rollback_err}"
@@ -1021,7 +1033,10 @@ mod tests {
             "retry against a working store must raise and persist",
         );
         assert_eq!(published.next().await.unwrap(), 60);
-        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 60);
+        assert_eq!(
+            db.get_identity().await.unwrap().unwrap().trade_key_index,
+            60
+        );
 
         // Regression (the bug #217 fixes): the next derived key is FRESH —
         // index 61, past every recovered trade — not a reused recovered index.
@@ -1078,6 +1093,20 @@ mod tests {
     impl crate::db::Storage for ClearTradesFailingStore {
         async fn clear_trades(&self) -> Result<()> {
             anyhow::bail!("injected clear_trades failure")
+        }
+        async fn update_trade_peer_reputation(
+            &self,
+            order_id: &str,
+            rating: f64,
+            reviews: u32,
+            days: u32,
+        ) -> Result<()> {
+            self.0
+                .update_trade_peer_reputation(order_id, rating, reviews, days)
+                .await
+        }
+        async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
+            self.0.mark_trade_rated(order_id, rated_at).await
         }
 
         async fn save_order(&self, order: &crate::api::types::OrderInfo) -> Result<()> {
