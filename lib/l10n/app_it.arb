@@ -1,7 +1,7 @@
 {
-  "invalidFiatCode": "Quella valuta non è supportata. Scegline un'altra prima di creare l'ordine.",
   "@@locale": "it",
   "@@last_modified": "2026-03-31",
+  "invalidFiatCode": "Quella valuta non è supportata. Scegline un'altra prima di creare l'ordine.",
 
   "appName": "Mostro",
   "loading": "Caricamento…",

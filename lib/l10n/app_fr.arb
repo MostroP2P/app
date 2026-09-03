@@ -1,7 +1,7 @@
 {
-  "invalidFiatCode": "Cette devise n'est pas prise en charge. Choisissez-en une autre avant de créer l'ordre.",
   "@@locale": "fr",
   "@@last_modified": "2026-03-31",
+  "invalidFiatCode": "Cette devise n'est pas prise en charge. Choisissez-en une autre avant de créer l'ordre.",
 
   "appName": "Mostro",
   "loading": "Chargement…",
