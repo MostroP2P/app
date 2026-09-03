@@ -1280,6 +1280,12 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
             log::warn!("[orders] failed to optimistically update cancel status for {order_id}: {e}");
         }
     }
+    // Push the optimistic Canceled to the trade-status stream: the order is
+    // gone from the book and the daemon's gift-wrap confirmation may arrive
+    // much later (or never, if the app closes), so a push-first listener needs
+    // this signal now — the old 2 s poll saw the DB write, the push channel
+    // must too.
+    emit_trade_update(&order_id, crate::api::types::OrderStatus::Canceled);
 
     crate::api::logging::blog_info(
         "orders",
@@ -5272,6 +5278,44 @@ mod tests {
         assert_eq!(update.order_id, "order-x");
         assert!(matches!(
             update.status,
+            crate::api::types::OrderStatus::Canceled
+        ));
+    }
+
+    /// #272: a client-initiated cancel emits an optimistic `Canceled` TradeUpdate
+    /// for the cancelled order. `cancel_order` itself needs trade keys, identity
+    /// and the relay (not available in a unit test), so this covers the emit
+    /// contract it relies on: the same `emit_trade_update` call cancel_order makes
+    /// after its optimistic book/DB update. The emit is independent of the DB
+    /// write, so it still fires when that write fails — here there is no DB at
+    /// all, mirroring that path.
+    ///
+    /// `on_trade_updated` is a process-wide broadcast, so a concurrent test may
+    /// interleave its own emits; the subscriber therefore filters for this
+    /// test's unique order id rather than assuming the first update is ours.
+    #[tokio::test]
+    async fn client_cancel_emits_canceled_update() {
+        let oid = "order-cancel-272-unique";
+        let mut stream = on_trade_updated().await.unwrap();
+        // The exact call cancel_order performs after its optimistic update.
+        emit_trade_update(oid, crate::api::types::OrderStatus::Canceled);
+
+        // Drain until our order's update arrives (skipping any interleaved emits
+        // from concurrently-running tests on the shared broadcast channel).
+        let deadline = std::time::Duration::from_secs(2);
+        let found = tokio::time::timeout(deadline, async {
+            loop {
+                let update = stream.next().await.expect("channel stays open");
+                if update.order_id == oid {
+                    return update;
+                }
+            }
+        })
+        .await
+        .expect("cancel must push a Canceled update for our order");
+
+        assert!(matches!(
+            found.status,
             crate::api::types::OrderStatus::Canceled
         ));
     }
