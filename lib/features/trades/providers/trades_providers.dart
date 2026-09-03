@@ -114,7 +114,10 @@ TradeStatusFilter orderStatusToFilter(rust_types.OrderStatus status) {
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /// Converts a [rust_types.TradeInfo] to a [TradeListItem].
-TradeListItem _tradeInfoToItem(rust_types.TradeInfo trade) {
+TradeListItem _tradeInfoToItem(
+  rust_types.TradeInfo trade, {
+  TradeStatusFilter? statusOverride,
+}) {
   final fiatDisplay = _formatFiat(
     trade.order.fiatAmount,
     trade.order.fiatAmountMin,
@@ -128,7 +131,7 @@ TradeListItem _tradeInfoToItem(rust_types.TradeInfo trade) {
     // TradeRole.buyer = the user is buying Bitcoin (took a sell order or
     // created a buy order). TradeRole.seller = selling Bitcoin.
     isSelling: trade.role == rust_types.TradeRole.seller,
-    status: orderStatusToFilter(trade.order.status),
+    status: statusOverride ?? orderStatusToFilter(trade.order.status),
     // order.isMine is true when the local user published this order (maker).
     role: trade.order.isMine ? TradeRole.creator : TradeRole.taker,
     fiatAmount: fiatDisplay,
@@ -197,7 +200,26 @@ final filteredTradesWithOrderStateProvider =
   final filter = ref.watch(selectedStatusFilterProvider);
   final trades = await ref.watch(rawTradesProvider.future);
 
-  final items = trades.map(_tradeInfoToItem).toList();
+  // Bucket each trade by the SAME live status its row chip shows, so the filter
+  // and the chip can never disagree (issue #269). The persisted snapshot in the
+  // DB can lag behind gift-wrap / 38383 updates (and, for own orders, is not
+  // always synced back to Pending), so tradeStatusProvider is the single source
+  // of truth. Until the live status has loaded we fall back to the snapshot
+  // bucket, so nothing briefly escapes the active filter.
+  final items = trades.map((trade) {
+    // Terminal trades cannot change further, so don't create a long-lived 2s
+    // poller for them — mirroring the guard in orderBookNotificationCountProvider
+    // (#299 review). Their snapshot status is authoritative here: order status
+    // only ever moves toward terminal, so a snapshot can lag but never run ahead,
+    // and falling back to it (live == null) buckets them by their real status.
+    final live = _terminalOrderStatuses.contains(trade.order.status)
+        ? null
+        : ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
+    return _tradeInfoToItem(
+      trade,
+      statusOverride: live == null ? null : orderStatusToFilter(live),
+    );
+  }).toList();
 
   final filtered = filter == TradeStatusFilter.all
       ? items
