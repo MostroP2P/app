@@ -27,7 +27,7 @@ TradeInfo fakeTrade({
     premium: 0,
     creatorPubkey: 'pubkey-$id',
     createdAt: startedAt,
-    amountSats: amountSats ?? BigInt.zero,
+    amountSats: amountSats,
     isMine: isMine,
     rating: 0,
     totalReviews: 0,
