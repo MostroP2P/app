@@ -499,6 +499,20 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn clear_trades(&self) -> Result<()> {
+        sqlx::query("DELETE FROM trades")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn clear_messages(&self) -> Result<()> {
+        sqlx::query("DELETE FROM messages")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn get_setting(&self, key: &str) -> Result<Option<String>> {
         let row: Option<(String,)> =
             sqlx::query_as("SELECT value FROM settings WHERE key = ?")
@@ -1462,6 +1476,57 @@ mod tests {
         // Deleting again on empty tables is a no-op, not an error.
         storage.delete_identity().await.unwrap();
         storage.clear_trade_keys().await.unwrap();
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn clear_trades_and_messages_empty_both_tables() {
+        // Identity deletion must wipe the previous user's trade history and
+        // chats (privacy, issue #273), not just the keys. Insert one trade and
+        // one message, clear both tables, and confirm nothing survives.
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        sqlx::query("INSERT INTO trades VALUES ('t1', '{}', 'Active', 1, NULL)")
+            .execute(&storage.pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO messages (id, trade_id, data, is_read, created_at) \
+             VALUES ('m1', 't1', '{}', 0, 1)",
+        )
+        .execute(&storage.pool)
+        .await
+        .unwrap();
+
+        // Precondition: one row in each table.
+        let trades: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM trades")
+            .fetch_one(&storage.pool)
+            .await
+            .unwrap();
+        assert_eq!(trades.0, 1);
+        assert!(storage.message_exists("m1").await.unwrap());
+
+        storage.clear_messages().await.unwrap();
+        storage.clear_trades().await.unwrap();
+
+        // Both tables are empty afterwards.
+        let trades: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM trades")
+            .fetch_one(&storage.pool)
+            .await
+            .unwrap();
+        let messages: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM messages")
+            .fetch_one(&storage.pool)
+            .await
+            .unwrap();
+        assert_eq!(trades.0, 0);
+        assert_eq!(messages.0, 0);
+        assert!(!storage.message_exists("m1").await.unwrap());
+
+        // Clearing again on empty tables is a no-op, not an error.
+        storage.clear_messages().await.unwrap();
+        storage.clear_trades().await.unwrap();
 
         drop(storage);
         let _ = std::fs::remove_file(&path);

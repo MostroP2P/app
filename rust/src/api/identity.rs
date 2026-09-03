@@ -253,8 +253,7 @@ pub async fn import_from_mnemonic(words: Vec<String>, recover: bool) -> Result<I
 /// Import identity from an nsec (bech32-encoded Nostr secret key).
 /// Note: nsec import produces a single key with no BIP-39 mnemonic backup.
 pub async fn import_from_nsec(nsec: String) -> Result<IdentityInfo> {
-    let keys =
-        Keys::parse(&nsec).map_err(|e| anyhow!("InvalidKey: {e}"))?;
+    let keys = Keys::parse(&nsec).map_err(|e| anyhow!("InvalidKey: {e}"))?;
     let public_key = keys.public_key().to_hex();
 
     let now = unix_now();
@@ -285,32 +284,65 @@ pub async fn get_identity() -> Result<Option<IdentityInfo>> {
 /// Delete the in-memory identity state. Flutter must also clear
 /// `flutter_secure_storage` after calling this.
 pub async fn delete_identity() -> Result<()> {
+    delete_identity_with(crate::db::app_db::db()).await
+}
+
+/// Store-injectable core of [`delete_identity`], so a test can supply a store
+/// whose `clear_trades` / `clear_messages` fails and assert the identity is left
+/// intact for a retry (ermeme's #298 review). The public entry point passes the
+/// process-wide `app_db` store.
+async fn delete_identity_with<S: Storage>(db: Option<&S>) -> Result<()> {
     let mut guard = identity_lock().write().await;
     if guard.is_none() {
         bail!("NoIdentity");
     }
-    *guard = None;
-    drop(guard);
 
-    // Clear the persisted trade key counter and per-order key mappings: both
-    // belong to the deleted identity's derivation tree, and a new mnemonic
-    // must start counting from zero instead of inheriting them. (If this
-    // cleanup fails, the pubkey guard in `reconcile_trade_key_index` still
-    // prevents the stale row from leaking into a different identity.)
-    if let Some(db) = crate::db::app_db::db() {
+    // Run the fallible persistent cleanup BEFORE dropping the in-memory identity.
+    // The trades and messages tables are NOT identity-scoped and have no guard,
+    // so if their cleanup fails the identity must stay in place: otherwise
+    // `*guard = None` reports NoIdentity, regenerate / importAndStore take the
+    // fresh-install path, and a new identity is created while the previous one's
+    // My Trades and chats survive in the DB — the exact privacy leak this closes
+    // (ermeme's #298 review). The write lock is held across the awaits so no
+    // replacement can slip in during the window.
+    //
+    // The persisted identity row and trade-key mappings belong to the deleted
+    // identity's derivation tree (a new mnemonic must start from zero). Their
+    // cleanup is best-effort — the `reconcile_trade_key_index` pubkey guard is a
+    // fallback — but the trades/messages cleanup below is load-bearing and
+    // propagates, so on failure the identity stays and the caller can retry.
+    if let Some(db) = db {
         if let Err(e) = db.delete_identity().await {
             log::warn!("[identity] failed to clear persisted identity: {e}");
         }
         if let Err(e) = db.clear_trade_keys().await {
             log::warn!("[identity] failed to clear trade key mappings: {e}");
         }
+        // Messages before trades: messages.trade_id is an FK onto trades(id).
+        db.clear_messages()
+            .await
+            .map_err(|e| anyhow!("failed to clear messages on identity deletion: {e}"))?;
+        db.clear_trades()
+            .await
+            .map_err(|e| anyhow!("failed to clear trades on identity deletion: {e}"))?;
     }
 
+    // All load-bearing cleanup committed — only now is it safe to drop the
+    // in-memory identity, so a failure above never leaves a fresh identity over
+    // the old rows.
+    *guard = None;
+    drop(guard);
+
+    // Empty the in-memory sessions too: they key decryption for the deleted
+    // identity's trades and must not carry into the new one.
+    let dropped = crate::mostro::session::session_manager().clear_all().await;
+    if dropped > 0 {
+        log::debug!("[identity] cleared {dropped} in-memory session(s) on identity deletion");
+    }
     // Last, so the cleanup warnings above are dropped too: buffered lines name
     // orders and counterparties of the identity being deleted, and the Logs
     // screen can still share them afterwards. The platform console keeps them.
     crate::api::logging::clear_logs();
-
     Ok(())
 }
 
@@ -495,7 +527,10 @@ pub async fn get_trade_key(index: u32) -> Result<TradeKeyInfo> {
     }
 
     if index > state.identity_info.trade_key_index {
-        bail!("InvalidIndex: {index} exceeds current trade_key_index {}", state.identity_info.trade_key_index);
+        bail!(
+            "InvalidIndex: {index} exceeds current trade_key_index {}",
+            state.identity_info.trade_key_index
+        );
     }
 
     let trade_keys = key_ops::derive_trade_key(&state.mnemonic_words, index)?;
@@ -569,11 +604,7 @@ pub async fn export_encrypted_backup(passphrase: String) -> Result<String> {
 /// means re-deriving already-consumed keys, which the daemon rejects with
 /// `InvalidTradeIndex`. A stored identity with a different public key is
 /// ignored: its counter belongs to another mnemonic.
-fn reconcile_trade_key_index(
-    passed: u32,
-    stored: Option<&IdentityInfo>,
-    public_key: &str,
-) -> u32 {
+fn reconcile_trade_key_index(passed: u32, stored: Option<&IdentityInfo>, public_key: &str) -> u32 {
     match stored {
         Some(info) if info.public_key == public_key => passed.max(info.trade_key_index),
         _ => passed,
@@ -650,8 +681,8 @@ mod tests {
 
     /// A throwaway SQLite store, named per test so parallel runs never collide.
     async fn temp_store(tag: &str) -> crate::db::sqlite::SqliteStorage {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_identity_{tag}_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_identity_{tag}_{}.db", std::process::id()));
         let _ = std::fs::remove_file(&path);
         crate::db::sqlite::SqliteStorage::open(path.to_str().unwrap())
             .await
@@ -755,9 +786,7 @@ mod tests {
         ) -> Result<()> {
             unimplemented!()
         }
-        async fn list_queued_messages(
-            &self,
-        ) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
+        async fn list_queued_messages(&self) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
             unimplemented!()
         }
         async fn update_queued_message_status(
@@ -783,6 +812,12 @@ mod tests {
             unimplemented!()
         }
         async fn clear_trade_keys(&self) -> Result<()> {
+            unimplemented!()
+        }
+        async fn clear_trades(&self) -> Result<()> {
+            unimplemented!()
+        }
+        async fn clear_messages(&self) -> Result<()> {
             unimplemented!()
         }
         async fn get_setting(&self, _key: &str) -> Result<Option<String>> {
@@ -870,7 +905,10 @@ mod tests {
         // Already in sync, and a counter belonging to another mnemonic: no
         // publication, so Dart never rewrites a value it already holds.
         assert_eq!(reconcile_and_publish_to(&tx, 22, Some(&stored), "abc"), 22);
-        assert_eq!(reconcile_and_publish_to(&tx, 30, Some(&stored), "other"), 30);
+        assert_eq!(
+            reconcile_and_publish_to(&tx, 30, Some(&stored), "other"),
+            30
+        );
         assert!(
             stream.rx.try_recv().is_err(),
             "nothing further should have been published"
@@ -940,19 +978,28 @@ mod tests {
         // shares the single identity_lock lifecycle and can't race it. Uses the
         // `_with` core so publications land on this test's private channel.
         // Never lowers: a floor below current is a no-op — no write, no publish.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 22);
         assert!(
             published.rx.try_recv().is_err(),
             "a no-op resync must not publish",
         );
         // Raises to the recovered max, persists, and publishes to the mirror.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
         assert_eq!(published.next().await.unwrap(), 50);
-        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        assert_eq!(
+            db.get_identity().await.unwrap().unwrap().trade_key_index,
+            50
+        );
         // Idempotent: the same floor again changes nothing and publishes nothing.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
         assert!(
             published.rx.try_recv().is_err(),
@@ -962,11 +1009,10 @@ mod tests {
         // counter advanced. Counter is 50 here. Ask for a higher floor (60)
         // against a failing store: the call errors and the counter stays 50.
         let (fx, _frx) = private_channel();
-        let rollback_err =
-            ensure_trade_key_index_at_least_with(Some(&FailingStore), &fx, 60)
-                .await
-                .unwrap_err()
-                .to_string();
+        let rollback_err = ensure_trade_key_index_at_least_with(Some(&FailingStore), &fx, 60)
+            .await
+            .unwrap_err()
+            .to_string();
         assert!(
             rollback_err.contains("StorageError:"),
             "unexpected error: {rollback_err}"
@@ -987,7 +1033,10 @@ mod tests {
             "retry against a working store must raise and persist",
         );
         assert_eq!(published.next().await.unwrap(), 60);
-        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 60);
+        assert_eq!(
+            db.get_identity().await.unwrap().unwrap().trade_key_index,
+            60
+        );
 
         // Regression (the bug #217 fixes): the next derived key is FRESH —
         // index 61, past every recovered trade — not a reused recovered index.
@@ -1007,5 +1056,193 @@ mod tests {
 
         // Deleting again fails: there is no identity left.
         assert!(delete_identity().await.is_err());
+
+        // ── #298 review: a cleanup failure must not strand a fresh identity ──
+        // Reload an identity, then delete against a store whose clear_trades
+        // fails. Because cleanup runs before the in-memory drop, the identity
+        // must survive the failure, and a retry against a working store must
+        // complete the deletion. Folded into this singleton-owning test so it
+        // cannot race other identity-lock tests.
+        let words2 = key_ops::generate_mnemonic().unwrap();
+        load_identity_from_mnemonic(words2, 0, false, None)
+            .await
+            .unwrap();
+        assert!(get_identity().await.unwrap().is_some());
+        let real2 = temp_store("delete_failure_retry").await;
+        let failing = ClearTradesFailingStore(real2);
+        let err = delete_identity_with(Some(&failing)).await.unwrap_err();
+        assert!(
+            err.to_string().contains("clear trades"),
+            "the propagated error must be the trades-cleanup failure, got: {err}"
+        );
+        assert!(
+            get_identity().await.unwrap().is_some(),
+            "a failed cleanup must leave the identity intact so a retry can complete",
+        );
+        let ClearTradesFailingStore(real2) = failing;
+        delete_identity_with(Some(&real2)).await.unwrap();
+        assert!(get_identity().await.unwrap().is_none());
+    }
+
+    /// A store that delegates every operation to a real inner store but fails
+    /// `clear_trades`, to exercise `delete_identity_with`'s failure path
+    /// (ermeme's #298 review). Wraps rather than reimplements so trait growth
+    /// doesn't silently break it.
+    struct ClearTradesFailingStore(crate::db::sqlite::SqliteStorage);
+
+    impl crate::db::Storage for ClearTradesFailingStore {
+        async fn clear_trades(&self) -> Result<()> {
+            anyhow::bail!("injected clear_trades failure")
+        }
+        async fn update_trade_peer_reputation(
+            &self,
+            order_id: &str,
+            rating: f64,
+            reviews: u32,
+            days: u32,
+        ) -> Result<()> {
+            self.0
+                .update_trade_peer_reputation(order_id, rating, reviews, days)
+                .await
+        }
+        async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
+            self.0.mark_trade_rated(order_id, rated_at).await
+        }
+
+        async fn save_order(&self, order: &crate::api::types::OrderInfo) -> Result<()> {
+            self.0.save_order(order).await
+        }
+        async fn get_order(&self, id: &str) -> Result<Option<crate::api::types::OrderInfo>> {
+            self.0.get_order(id).await
+        }
+        async fn delete_order(&self, id: &str) -> Result<()> {
+            self.0.delete_order(id).await
+        }
+        async fn list_orders(&self) -> Result<Vec<crate::api::types::OrderInfo>> {
+            self.0.list_orders().await
+        }
+        async fn save_trade(&self, trade: &crate::api::types::TradeInfo) -> Result<()> {
+            self.0.save_trade(trade).await
+        }
+        async fn get_trade(&self, id: &str) -> Result<Option<crate::api::types::TradeInfo>> {
+            self.0.get_trade(id).await
+        }
+        async fn list_trades(&self) -> Result<Vec<crate::api::types::TradeInfo>> {
+            self.0.list_trades().await
+        }
+        async fn save_message(&self, msg: &crate::api::types::ChatMessage) -> Result<()> {
+            self.0.save_message(msg).await
+        }
+        async fn list_messages(
+            &self,
+            trade_id: &str,
+        ) -> Result<Vec<crate::api::types::ChatMessage>> {
+            self.0.list_messages(trade_id).await
+        }
+        async fn mark_messages_read(&self, trade_id: &str) -> Result<()> {
+            self.0.mark_messages_read(trade_id).await
+        }
+        async fn message_exists(&self, id: &str) -> Result<bool> {
+            self.0.message_exists(id).await
+        }
+        async fn save_relay(&self, relay: &crate::api::types::RelayInfo) -> Result<()> {
+            self.0.save_relay(relay).await
+        }
+        async fn delete_relay(&self, url: &str) -> Result<()> {
+            self.0.delete_relay(url).await
+        }
+        async fn list_relays(&self) -> Result<Vec<crate::api::types::RelayInfo>> {
+            self.0.list_relays().await
+        }
+        async fn save_identity(&self, identity: &crate::api::types::IdentityInfo) -> Result<()> {
+            self.0.save_identity(identity).await
+        }
+        async fn get_identity(&self) -> Result<Option<crate::api::types::IdentityInfo>> {
+            self.0.get_identity().await
+        }
+        async fn delete_identity(&self) -> Result<()> {
+            self.0.delete_identity().await
+        }
+        async fn save_queued_message(
+            &self,
+            msg: &crate::queue::outbox::QueuedMessage,
+        ) -> Result<()> {
+            self.0.save_queued_message(msg).await
+        }
+        async fn list_queued_messages(&self) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
+            self.0.list_queued_messages().await
+        }
+        async fn update_queued_message_status(
+            &self,
+            id: &str,
+            status: crate::api::types::QueuedMessageStatus,
+        ) -> Result<()> {
+            self.0.update_queued_message_status(id, status).await
+        }
+        async fn delete_queued_message(&self, id: &str) -> Result<()> {
+            self.0.delete_queued_message(id).await
+        }
+        async fn save_trade_key(&self, order_id: &str, key_index: u32) -> Result<()> {
+            self.0.save_trade_key(order_id, key_index).await
+        }
+        async fn get_trade_key(&self, order_id: &str) -> Result<Option<u32>> {
+            self.0.get_trade_key(order_id).await
+        }
+        async fn get_order_id_by_trade_index(&self, key_index: u32) -> Result<Option<String>> {
+            self.0.get_order_id_by_trade_index(key_index).await
+        }
+        async fn delete_trade_key(&self, order_id: &str) -> Result<()> {
+            self.0.delete_trade_key(order_id).await
+        }
+        async fn clear_trade_keys(&self) -> Result<()> {
+            self.0.clear_trade_keys().await
+        }
+        async fn clear_messages(&self) -> Result<()> {
+            self.0.clear_messages().await
+        }
+        async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+            self.0.get_setting(key).await
+        }
+        async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+            self.0.set_setting(key, value).await
+        }
+        async fn delete_setting(&self, key: &str) -> Result<()> {
+            self.0.delete_setting(key).await
+        }
+        async fn save_active_mostro_pubkey(&self, pubkey: &str) -> Result<()> {
+            self.0.save_active_mostro_pubkey(pubkey).await
+        }
+        async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
+            self.0.get_active_mostro_pubkey().await
+        }
+        async fn get_trade_by_order_id(
+            &self,
+            order_id: &str,
+        ) -> Result<Option<crate::api::types::TradeInfo>> {
+            self.0.get_trade_by_order_id(order_id).await
+        }
+        async fn delete_trade_by_order_id(&self, order_id: &str) -> Result<()> {
+            self.0.delete_trade_by_order_id(order_id).await
+        }
+        async fn update_trade_order_id(
+            &self,
+            old_order_id: &str,
+            new_order_id: &str,
+        ) -> Result<()> {
+            self.0
+                .update_trade_order_id(old_order_id, new_order_id)
+                .await
+        }
+        async fn update_trade_fields(
+            &self,
+            order_id: &str,
+            status: Option<crate::api::types::OrderStatus>,
+            hold_invoice: Option<String>,
+            amount_sats: Option<u64>,
+        ) -> Result<()> {
+            self.0
+                .update_trade_fields(order_id, status, hold_invoice, amount_sats)
+                .await
+        }
     }
 }

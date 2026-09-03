@@ -11,6 +11,7 @@ import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/account/widgets/backup_trigger_sheet.dart';
 import 'package:mostro/features/account/widgets/public_key_card.dart';
@@ -424,6 +425,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     // where the user is left without a valid identity.
                     await IdentityService.regenerate();
                     ref.read(sessionProvider.notifier).clearSession();
+                    // The new identity starts with an empty trade DB (the Rust
+                    // side clears trades, messages and sessions on regenerate,
+                    // issue #273); drop the cached list so My Trades reflects
+                    // the clean slate immediately instead of showing the
+                    // previous identity's orders until the next refresh.
+                    ref.invalidate(rawTradesProvider);
                     await ref
                         .read(backupReminderProvider.notifier)
                         .showBackupReminder();

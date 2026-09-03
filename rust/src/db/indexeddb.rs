@@ -240,6 +240,25 @@ impl Storage for IndexedDbStorage {
         Ok(()) // IndexedDB not yet implemented (#233)
     }
 
+    async fn clear_trades(&self) -> Result<()> {
+        Ok(()) // No trades store on web yet (#233); nothing to clear.
+    }
+
+    async fn clear_messages(&self) -> Result<()> {
+        // Messages ARE persisted on web (save_message writes MESSAGES_STORE),
+        // so identity deletion must actually wipe them, not no-op (#273).
+        let db = self.open_db().await?;
+        let tx = db
+            .transaction_on_one_with_mode(MESSAGES_STORE, IdbTransactionMode::Readwrite)
+            .map_err(|e| js_err("tx open", e))?;
+        let store = tx
+            .object_store(MESSAGES_STORE)
+            .map_err(|e| js_err("store open", e))?;
+        store.clear().map_err(|e| js_err("clear", e))?;
+        tx.await.into_result().map_err(|e| js_err("tx commit", e))?;
+        Ok(())
+    }
+
     // ── Settings KV — fully implemented (chat cursor + preferences, #246) ───
 
     async fn get_setting(&self, key: &str) -> Result<Option<String>> {

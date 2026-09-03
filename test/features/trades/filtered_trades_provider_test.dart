@@ -95,4 +95,29 @@ void main() {
       });
     });
   });
+
+  group('rawTradesProvider invalidation (regenerate clean slate)', () {
+    test('invalidating after the DB is cleared yields an empty list', () async {
+      // The account screen calls ref.invalidate(rawTradesProvider) after
+      // IdentityService.regenerate(); the Rust side has cleared the trades DB
+      // by then (issue #273). Model that: a fetcher that first returns the old
+      // identity's trades, then — once "cleared" — returns nothing.
+      var trades = <TradeInfo>[
+        fakeTrade(id: 'old', status: OrderStatus.active),
+      ];
+      final container = createContainer(overrides: [
+        rawTradesProvider.overrideWith((ref) async => trades),
+      ]);
+
+      // Before regenerate: My Trades shows the previous identity's trades.
+      expect(await container.read(rawTradesProvider.future), isNotEmpty);
+
+      // delete_identity() cleared the DB; the account screen invalidates.
+      trades = <TradeInfo>[];
+      container.invalidate(rawTradesProvider);
+
+      // After: the cached list is dropped and the empty DB is reflected.
+      expect(await container.read(rawTradesProvider.future), isEmpty);
+    });
+  });
 }
