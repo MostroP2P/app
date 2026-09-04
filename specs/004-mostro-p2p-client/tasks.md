@@ -19,6 +19,26 @@
 - `[~]` — Partial: code exists but blocked on missing infrastructure (noted in description)
 - `[ ]` — Not started
 
+## Open work at a glance
+
+Most of what follows (T001–T145) is `[x]` — the phases read as a
+completed build log, not a live backlog. What's actually still open lives
+in three clusters of `[~]` partial tasks (code exists, but the backend or
+the UI wiring doesn't):
+
+- **IndexedDB / web storage** (Phase 1 — Setup): T010 — only messages,
+  settings and the active Mostro pubkey are implemented; orders, trades,
+  relays, identity, queued messages and trade keys return "IndexedDB not
+  yet implemented", so the web target cannot persist a trade (#233).
+- **File attachments** (Phase 10 — P2P Chat): T079, T080, T081 — Blossom
+  upload/download (T070) has no Dart caller yet.
+- **Dispute admin chat** (Phase 12 — Dispute System): T088, T090, T091,
+  T092, T093 — the Rust side (T085/T086) is ready; the screens are stubs
+  with no bridge subscription.
+
+Plus one task with no entry at all: **restore from mnemonic** — see T148
+below.
+
 ---
 
 ## Phase 1: Setup (Project Initialization)
@@ -45,12 +65,12 @@
 
 - [x] T008 Implement all shared types in `rust/src/api/types.rs`: all enums (`OrderKind`, `OrderStatus` with 15 states, `TradeRole`, `BuyerStep`, `SellerStep`, `TradeStep`, `TradeOutcome`, `MessageType`, `DisputeStatus`, `RelayStatus`, `ConnectionState`, `WalletStatus`, `ThemeMode`, `FileType`, `DownloadStatus`, `QueuedMessageStatus`, `CooperativeCancelState`) and all structs (`OrderInfo`, `TradeInfo`, `ChatMessage`, `AttachmentInfo`, `RelayInfo`, `IdentityInfo`, `NymIdentity`, `AppState`, `LogEntry`) per `contracts/types.md`. Mark `flutter_rust_bridge` annotations. Note: `PaymentFailed` is NOT a status — it is an Action notification only.
 - [x] T009 Implement storage trait in `rust/src/db/mod.rs` defining async CRUD interface for all entities (Identity, Order, Trade, Message, Relay, Dispute, Settings, MessageQueue, NwcWallet, FileAttachment, Rating). Implement SQLite backend in `rust/src/db/sqlite.rs` using `sqlx` with full schema migrations for all 11 entities per `data-model.md`.
-- [x] T010 [P] Implement IndexedDB storage backend in `rust/src/db/indexeddb.rs` using `indexed_db_futures`, feature-gated with `#[cfg(target_arch = "wasm32")]`. Must implement the same trait as `sqlite.rs` and support all 11 entities.
+- [~] T010 [P] Implement IndexedDB storage backend in `rust/src/db/indexeddb.rs` using `indexed_db_futures`, feature-gated with `#[cfg(target_arch = "wasm32")]`. Must implement the same trait as `sqlite.rs` and support all 11 entities. **Partial**: only messages (save/list/mark-read/exists), settings and the active Mostro pubkey are backed by real object stores; orders, trades, relays, identity, queued messages and trade keys still return `IndexedDB not yet implemented` — see #233.
 
 > **Transport v2 note**: T011/T012/T039/T040/T049/T066/T071/T085/T137 below describe the original NIP-59 gift-wrap (Kind 1059) transport implemented in 004. Messages to the Mostro daemon were later migrated to transport v2 (NIP-44, signed Kind 14), and peer/dispute chat followed in #246, moving to the Kind 14 chat envelope. Kind 1059 is gone from both directions, so these task descriptions are a record of what 004 built, not of what ships. These task records are kept as-is for history.
 
-- [x] T011 [P] Implement NIP-59 Gift Wrap encode/decode in `rust/src/nostr/gift_wrap.rs` using `nostr-sdk`: create unsigned rumor event, encrypt into Seal (Kind 13, NIP-44), wrap into Gift Wrap (Kind 1059, ephemeral key). Export `wrap_message(content, recipient_pubkey, sender_key)` and `unwrap_message(gift_wrap_event, recipient_key)`.
-- [x] T012 [P] Implement relay pool with Kind 1059 + Kind 38383 subscriptions in `rust/src/nostr/relay_pool.rs` using `nostr-sdk`. Multi-relay connection manager: connect, disconnect, add/remove relays, subscribe to order events (Kind 38383) and gift-wrap DMs (Kind 1059 targeting user's trade keys), emit events via channels.
+- [x] T011 [P] Implement NIP-59 Gift Wrap encode/decode in `rust/src/nostr/gift_wrap.rs` using `nostr-sdk`: create unsigned rumor event, encrypt into Seal (Kind 13, NIP-44), wrap into Gift Wrap (Kind 1059, ephemeral key). Export `wrap_message(content, recipient_pubkey, sender_key)` and `unwrap_message(gift_wrap_event, recipient_key)`. _(Superseded — see the Transport v2 note above.)_
+- [x] T012 [P] Implement relay pool with Kind 1059 + Kind 38383 subscriptions in `rust/src/nostr/relay_pool.rs` using `nostr-sdk`. Multi-relay connection manager: connect, disconnect, add/remove relays, subscribe to order events (Kind 38383) and gift-wrap DMs (Kind 1059 targeting user's trade keys), emit events via channels. _(Superseded — see the Transport v2 note above.)_
 - [x] T013 [P] Implement offline message queue in `rust/src/queue/outbox.rs`: persist queued Nostr events to DB (entity: `MessageQueue`), retry on reconnection up to 10 attempts, prune `Sent` items after 24 hours, expose `queue_message(event_json, target_relays)` and `flush_queue()`.
 - [x] T014 Implement app design system tokens in `lib/core/app_theme.dart`: colors (`mostroGreen #8CC63F`, `purpleButton #7856AF`, `sellRed #FF8A8A`, `errorRed #EF6A6A`, dark background, card background, text primary/secondary, input background), typography scale, spacing constants, component styles for buttons (filled/outline), cards, chips/badges. Dark and light theme variants. Matches `DESIGN_SYSTEM.md` exactly.
 - [x] T015 [P] Implement GoRouter route definitions scaffold in `lib/core/app_routes.dart` with all 23 routes: `/walkthrough`, `/`, `/add_order`, `/take_sell/:orderId`, `/take_buy/:orderId`, `/pay_invoice/:orderId`, `/add_invoice/:orderId`, `/trade_detail/:orderId`, `/order_book`, `/chat_list`, `/chat_room/:orderId`, `/key_management`, `/settings`, `/about`, `/notifications`, `/relays`, `/wallet_settings`, `/connect_wallet`, `/rate_user/:orderId`, `/dispute_details/:disputeId`, `/notification_settings`, `/logs`, `/dispute_chat/:disputeId`. All routes are stubs returning placeholder `Scaffold` at this stage; redirect logic added in US1 phase.
@@ -457,6 +477,26 @@ configuration.
 - [x] T147 Add `_BackupConfirmRow` stateful widget inside `lib/features/account/screens/account_screen.dart`: checkbox + label "I have written down my words and backed them up securely". Once checked, calls `onConfirm` callback and becomes disabled (checked state is final). Uses `AppSpacing.md` top padding, `InkWell` for tap area. Add l10n key `backupConfirmCheckbox` = "I have written down my words and backed them up securely" to all 5 ARB files (`app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb`) and update `_BackupConfirmRow` to use `AppLocalizations.of(context).backupConfirmCheckbox` instead of a hard-coded string.
 
 **Checkpoint**: Acceptance test from plan.md Phase 20 checklist: (a) fresh install → Show → all 12 `•••` before tap; (b) tap Show → 12 words visible + checkbox visible (not confirmed yet); (c) close and reopen Account → red dot still on bell; (d) tick checkbox → red dot gone + backup reminder gone from Notifications; (e) Generate New User → red dot reappears.
+
+---
+
+## Phase 21: Restore Sessions & Trades from Mnemonic
+
+**Purpose**: Track the recovery flow contract that already exists in
+`contracts/identity.md` (`import_from_mnemonic(recover: true)`) but has no
+implementation task in this file. Currently, reinstalling the app with an
+existing mnemonic loses all trades, sessions, and disputes — see epic #142
+and its sub-issues (#216, #218, #219, #220, #221, #222) for the current,
+actively maintained breakdown of this work.
+
+- [ ] T148 Implement the recovery flow per `contracts/identity.md`
+      `import_from_mnemonic(words, recover: true)`: send `Action.restore`
+      to the Mostro daemon via NIP-44 (Kind 14), receive order/dispute IDs,
+      request details for each, sync the trade key index, and reconstruct
+      the local DB from daemon responses. Recovery only applies outside
+      privacy mode. **This task is a pointer, not a plan** — see epic #142
+      for the up-to-date task breakdown; do not duplicate work already
+      scoped there.
 
 ---
 
