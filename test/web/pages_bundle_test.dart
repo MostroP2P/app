@@ -47,6 +47,25 @@ void main() {
       expect(bootstrapAt, greaterThanOrEqualTo(0));
       expect(shimAt, lessThan(bootstrapAt));
     });
+
+    test('loads the locale sanitizer between the shim and flutter_bootstrap.js',
+        () {
+      // Arrange
+      final html = indexHtml.readAsStringSync();
+
+      // Act
+      final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
+      final sanitizerAt = html.indexOf('<!-- locale-sanitizer');
+      final bootstrapAt = html.indexOf('flutter_bootstrap.js');
+
+      // Assert — the sanitizer must rewrite navigator.language(s) before the
+      // engine reads them during CanvasKit bootstrap, or an unparseable
+      // browser locale throws out of it and the page stays blank (#227). It
+      // still comes after the shim, which reloads the page to gain isolation.
+      expect(sanitizerAt, greaterThanOrEqualTo(0));
+      expect(shimAt, lessThan(sanitizerAt));
+      expect(sanitizerAt, lessThan(bootstrapAt));
+    });
   });
 
   group('vendored coi-serviceworker', () {

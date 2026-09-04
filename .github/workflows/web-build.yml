@@ -190,6 +190,67 @@ jobs:
           BUNDLE_DIR: ${{ github.workspace }}/build/web
         run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs
 
+      # Regression guard for issue #227: an unparseable browser locale (the
+      # POSIX "C" locale, an underscored "en_US", empty) crashed the Flutter
+      # web engine's own bootstrap before runApp, with no error path — an
+      # unrecoverable blank page. Fixed by the locale sanitizer in
+      # web/index.html, which runs before flutter_bootstrap.js and normalizes
+      # navigator.language(s). This reruns the same smoke test forcing an
+      # invalid locale so the fix can't silently regress.
+      #
+      # Only "C" is actually covered here: Playwright normalizes the locale it
+      # is given before the page sees it, so "en_US" reaches the browser as a
+      # valid "en-US" and "" falls back to the default. The sanitizer handles
+      # all three; CI can only exercise the first.
+      #
+      # The crash itself only exists on Flutter >= 3.38, where the engine's
+      # parseBrowserLanguages started building the locale through
+      # Intl.Locale (@JS binding) instead of a pure-Dart ui.Locale that
+      # validated nothing. If FLUTTER_VERSION ever moves back below that, or
+      # the engine stops using Intl, this step passes for the wrong reason —
+      # revalidate it against a build without the sanitizer before trusting it.
+      - name: Smoke test the release bundle under an invalid locale (#227)
+        working-directory: test/web/smoke
+        env:
+          BUNDLE_DIR: ${{ github.workspace }}/build/web
+          SMOKE_LOCALE: "C"
+        run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs
+
+      # Negative control for the step above. On its own that step can go green
+      # for the wrong reason — if the engine stops crashing on an invalid
+      # locale, it passes whether or not the sanitizer is still there or even
+      # still works. So run the same bundle with the sanitizer stripped out and
+      # require it to FAIL. Together the two steps assert what actually
+      # matters: the bundle survives locale "C", and it survives it *because of
+      # this fix*.
+      - name: Control — the same bundle without the sanitizer must fail (#227)
+        working-directory: test/web/smoke
+        env:
+          SMOKE_LOCALE: "C"
+        run: |
+          set -euo pipefail
+          control_dir="${RUNNER_TEMP}/web-no-sanitizer"
+          rm -rf "$control_dir"
+          cp -r "${GITHUB_WORKSPACE}/build/web" "$control_dir"
+          # Delete the marker comment through the end of the inline script it
+          # introduces. The script contains no literal </script>, so the first
+          # one after the marker closes it.
+          sed -i '/<!-- locale-sanitizer/,/<\/script>/d' "$control_dir/index.html"
+          # Never let a silent no-op turn this control into a rubber stamp.
+          if grep -q 'locale-sanitizer' "$control_dir/index.html"; then
+            echo "::error::failed to strip the sanitizer — the control proves nothing"
+            exit 1
+          fi
+          if BUNDLE_DIR="$control_dir" BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs; then
+            echo "::error::the bundle passed under locale C without the sanitizer —"
+            echo "::error::the guard above is no longer testing this bug (see #227)"
+            exit 1
+          fi
+          # The failing control leaves a screenshot behind; drop it so a later
+          # failure does not upload this expected one as its evidence.
+          rm -f smoke-failure.png
+          echo "control failed as expected — the locale guard is load-bearing"
+
       - name: Upload smoke test failure screenshot
         if: failure()
         uses: actions/upload-artifact@v4

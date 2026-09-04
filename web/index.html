@@ -52,6 +52,72 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- locale-sanitizer: must stay between the isolation shim and
+       flutter_bootstrap.js. test/web/pages_bundle_test.dart anchors on this
+       marker to assert that ordering statically — do not remove or rename it
+       without updating that test. -->
+  <script>
+    // Sanitize navigator.language(s) before Flutter's engine bootstrap reads it.
+    //
+    // The Flutter web engine builds a Locale from navigator.language(s) while
+    // CanvasKit is initializing, using JS's own Intl constructors. A tag that
+    // isn't valid BCP 47 (the POSIX "C" locale, an underscored "en_US", or an
+    // empty string — all things a container/CI/kiosk browser with no locale
+    // configured can report) throws an uncaught RangeError there, before
+    // runApp — an unrecoverable blank page with nothing logged. No mainstream
+    // browser reports a tag like this, so real users never hit it; CI and
+    // headless/embedded environments do. See issue #227.
+    //
+    // Note "POSIX", the other name of that same Unix locale, is NOT one of
+    // them: unlike "C" it is a structurally valid five-letter language subtag,
+    // so Intl accepts it and it passes through untouched — correctly, since it
+    // never crashed anything.
+    (function () {
+      function isValidBcp47(tag) {
+        try { new Intl.DateTimeFormat(tag); return true; }
+        catch (e) { return false; }
+      }
+      function sanitize(tag) {
+        if (typeof tag !== 'string' || !tag) return null;
+        var hyphenated = tag.replace(/_/g, '-');
+        return isValidBcp47(hyphenated) ? hyphenated : null;
+      }
+      var fallback = 'en-US';
+      var raw = (navigator.languages && navigator.languages.length)
+        ? navigator.languages
+        : [navigator.language];
+      var sanitized = raw.map(sanitize).filter(Boolean);
+      if (sanitized.length === 0) sanitized = [fallback];
+      if (sanitized.join(',') === raw.join(',')) return;
+      // Shadowing these is not guaranteed: a browser may expose them as
+      // non-configurable. Never let that throw — this script runs before the
+      // engine, in exactly the locked-down environments it exists to rescue,
+      // and an uncaught error here would be the blank page it is preventing.
+      //
+      // A try/catch is not a transaction: if the first defineProperty applies
+      // and the second throws, the first cannot be undone, and the engine
+      // reads navigator.languages only — so a partial shadow can both leave
+      // the two properties disagreeing and fail to fix the crash. Check that
+      // both are writable before touching either, and do nothing at all if
+      // one is locked. Normally neither is an own property (both live on
+      // Navigator.prototype), and defining an own accessor shadows them; an
+      // absent descriptor is therefore the writable case.
+      function isLockedDown(name) {
+        var d = Object.getOwnPropertyDescriptor(navigator, name);
+        return !!d && !d.configurable;
+      }
+      if (isLockedDown('language') || isLockedDown('languages')) {
+        console.warn('locale sanitizer: navigator.language(s) is not configurable, leaving it alone');
+        return;
+      }
+      try {
+        Object.defineProperty(navigator, 'language', { get: function () { return sanitized[0]; }, configurable: true });
+        Object.defineProperty(navigator, 'languages', { get: function () { return sanitized; }, configurable: true });
+      } catch (e) {
+        console.warn('locale sanitizer: could not override navigator.language(s)', e);
+      }
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
