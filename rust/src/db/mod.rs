@@ -18,6 +18,16 @@ pub mod settings_keys {
     /// [`super::Storage::save_active_mostro_pubkey`] accessor.
     pub const ACTIVE_MOSTRO_PUBKEY: &str = "active_mostro_pubkey";
 
+    /// User-added Mostro nodes, JSON array of `crate::api::nodes::CustomNode`.
+    /// The trusted registry is compiled in (`crate::config::TRUSTED_MOSTRO_NODES`);
+    /// only user additions are persisted.
+    pub const CUSTOM_MOSTRO_NODES: &str = "custom_mostro_nodes";
+
+    /// Cached kind 0 display metadata for known Mostro nodes, JSON map of
+    /// pubkey (hex) → `crate::api::nodes::NodeMetadata`. Refreshed opportunistically
+    /// by `refresh_mostro_node_metadata`; stale entries are acceptable.
+    pub const MOSTRO_NODE_METADATA: &str = "mostro_node_metadata";
+
     /// Developer escrow-mode override — `"auto"` or `"force_cashu"`.
     /// See [`crate::mostro::escrow_mode::EscrowModeOverride`].
     pub const ESCROW_MODE_OVERRIDE: &str = "escrow_mode_override";

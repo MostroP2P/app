@@ -94,7 +94,8 @@ the compiled-in `DEFAULT_MOSTRO_PUBKEY` when none has been selected.
 ### set_active_mostro_node(pubkey: String) → ()
 The single entry point for selecting / switching the active Mostro node.
 
-Validates `pubkey`, persists it as the active node's **identity**, updates the
+Normalizes `pubkey` to lowercase hex (the registry compares case-sensitively),
+validates it, persists it as the active node's **identity**, updates the
 in-memory override (so outgoing events target the new node immediately), and
 re-targets the live feeds to it: the order book is cleared, the Kind 38383
 (orders) and Kind 14 (Mostro replies) filters are re-subscribed — author-pinned
@@ -107,11 +108,55 @@ The switch is **purely local**: no Nostr message is sent to either node. Pass
 
 **Persistence**: only the pubkey is stored, under key `active_mostro_pubkey` in
 the generic `settings` key-value table. Node **metadata** (name, fees, accepted
-currencies, limits — the `MostroNodeInfo` model) is a separate concern deferred
-to the M5 node registry; it is NOT persisted as the active selection.
+currencies, limits — the `MostroNodeInfo` model) is NOT persisted as the active
+selection; display metadata lives in the node registry below.
 
 **Errors**: `InvalidPubkey` if `pubkey` is not a valid 64-char hex key;
 `StorageError` on a persistence failure.
+
+---
+
+## Node Registry (`api/nodes.rs`)
+
+The selector in Settings → Mostro Node lists `MostroNodeEntry` rows merged
+from three sources: the compiled-in trusted registry
+(`config::TRUSTED_MOSTRO_NODES`, mirrored from mostro.community and from v1's
+`communities.dart`), user-added custom nodes, and cached kind 0 display
+metadata (name, picture, about, website). Selection itself still goes through
+`set_active_mostro_node` — the registry only manages the list.
+
+### list_mostro_nodes() → Vec<MostroNodeEntry>
+Trusted nodes first (registry order), then custom nodes (insertion order),
+each flagged `is_active` against the current override. An active pubkey not
+present in the registry (selected before the registry existed) is
+auto-imported as a custom node so the selector always shows what the app is
+actually using. Custom entries whose pubkey has since joined the trusted
+registry are dropped (and the cleanup persisted) — otherwise a promotion
+would leave a duplicate row that `remove_custom_mostro_node` refuses to
+delete.
+
+### add_custom_mostro_node(input: String, name: Option<String>) → MostroNodeEntry
+Accepts a 64-char hex pubkey or `npub1…` (normalized to lowercase hex). A
+user-given `name` takes precedence over kind 0 metadata.
+**Errors** (stable markers, localized in Dart): `PrivateKeyNotAllowed` (nsec
+input), `InvalidPubkey`, `NodeAlreadyExists` (trusted or already added),
+`NotInitialized`.
+
+### remove_custom_mostro_node(pubkey: String) → ()
+Removes a user-added node; removing an absent one is a no-op.
+**Errors**: `CannotRemoveActiveNode`, `NodeIsTrusted`, `NotInitialized`.
+
+### refresh_mostro_node_metadata() → Vec<MostroNodeEntry>
+Fetches kind 0 profile events for all known nodes in one relay query (10s
+timeout), updates the persisted cache, and returns the refreshed registry.
+Best-effort with partial updates: whatever arrives within the window is
+cached, even when some authors never answered; only an outright query failure
+errors, leaving the cache untouched. `picture`/`website` are kept only when
+`https://` — a kind 0 event is attacker-controlled input.
+
+**Persistence**: `custom_mostro_nodes` (JSON array) and
+`mostro_node_metadata` (JSON map, pubkey → metadata) in the generic
+`settings` key-value table.
 
 ---
 
@@ -161,9 +206,10 @@ can be disabled.
 | `pubkey` | `82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390` |
 | `name` | `Mostro` |
 
-When no `active_mostro_pubkey` has been persisted (first launch, or after the
-user picks "Use Default"), this compiled-in pubkey is the active node. The user
-switches to another one from Settings → Mostro Node via `set_active_mostro_node`.
+When no `active_mostro_pubkey` has been persisted (first launch), this
+compiled-in pubkey is the active node. It is also part of the trusted node
+registry (region `🌐`), so returning to it is a normal selection in
+Settings → Mostro Node via `set_active_mostro_node`.
 
 ### Rust Constants (suggested location: `rust/src/config.rs`)
 

@@ -77,9 +77,17 @@ class AutomationIds {
 
   // Mostro node selector (bottom sheet)
   static const String nodeCustomPubkey = 'node.custom.pubkey';
-  static const String nodeUseDefault = 'node.use_default';
+  static const String nodeCustomName = 'node.custom.name';
   static const String nodeCustomConfirm = 'node.custom.confirm';
   static const String nodeCustomCancel = 'node.custom.cancel';
+  static const String nodeAddCustom = 'node.add_custom';
+  static const String nodeAddCustomCancel = 'node.add_custom.cancel';
+
+  /// Row of one node in the selector list.
+  static String nodeItem(String pubkey) => 'node.item.$pubkey';
+
+  /// Delete control of a user-added node.
+  static String nodeItemDelete(String pubkey) => 'node.item.$pubkey.delete';
 
   // Wallet / NWC
   static const String walletSettingsConnect = 'wallet.settings.connect';
@@ -104,7 +112,8 @@ class AutomationIds {
   static const String orderAddBuy = 'order.add.buy';
   static const String orderAddSell = 'order.add.sell';
   static const String orderCreateCurrency = 'order.create.currency';
-  static const String orderCreateCurrencySearch = 'order.create.currency.search';
+  static const String orderCreateCurrencySearch =
+      'order.create.currency.search';
   static const String orderCreateFiatAmount = 'order.create.fiat_amount';
   static const String orderCreatePaymentMethod = 'order.create.payment_method';
   static const String orderCreatePriceType = 'order.create.price_type';

@@ -8,6 +8,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/currency_selector_dialog.dart';
@@ -15,6 +16,7 @@ import 'package:mostro/features/settings/widgets/escrow_mode_dev_card.dart';
 import 'package:mostro/features/settings/widgets/language_selector.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/settings/widgets/relay_management_card.dart';
+import 'package:mostro/src/rust/api/types.dart' show MostroNodeEntry;
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +27,16 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _relaysExpanded = false;
+
+  String _mostroNodeSubtitle(WidgetRef ref, String mostroPubkey) {
+    final nodes = ref.watch(mostroNodesProvider).valueOrNull;
+    for (final node in nodes ?? const <MostroNodeEntry>[]) {
+      if (node.isActive && node.name != null && node.name!.isNotEmpty) {
+        return '${nodeDisplayName(node)} · ${truncatePubkey(mostroPubkey)}';
+      }
+    }
+    return truncatePubkey(mostroPubkey);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,8 +51,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         title: Text(AppLocalizations.of(context).settingsScreenTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(AppRoute.home),
+          onPressed:
+              () =>
+                  context.canPop() ? context.pop() : context.go(AppRoute.home),
         ).withAutomationId(AutomationIds.appBarBack),
       ),
       body: ListView(
@@ -79,7 +92,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             colors: colors,
             icon: Icons.monetization_on_outlined,
             title: AppLocalizations.of(context).defaultFiatCurrencyTitle,
-            subtitle: settings.defaultFiatCode ?? AppLocalizations.of(context).allCurrencies,
+            subtitle:
+                settings.defaultFiatCode ??
+                AppLocalizations.of(context).allCurrencies,
             onTap: () => showCurrencySelector(context),
           ),
 
@@ -89,7 +104,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             colors: colors,
             icon: Icons.bolt,
             title: AppLocalizations.of(context).lightningAddressSettingTitle,
-            subtitle: settings.defaultLightningAddress ?? AppLocalizations.of(context).tapToSetSubtitle,
+            subtitle:
+                settings.defaultLightningAddress ??
+                AppLocalizations.of(context).tapToSetSubtitle,
             onTap: () => _showLightningAddressDialog(context),
           ),
 
@@ -100,16 +117,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             automationId: AutomationIds.settingsWallet,
             icon: Icons.account_balance_wallet_outlined,
             title: AppLocalizations.of(context).nwcWalletSettingTitle,
-            subtitle: isWalletConnected
-                ? AppLocalizations.of(context).nwcConnectedBalance(
-                    wallet.balanceSats != null ? '${wallet.balanceSats} sats' : 'N/A',
-                  )
-                : AppLocalizations.of(context).nwcConnectPrompt,
-            onTap: () => context.push(
-              isWalletConnected
-                  ? AppRoute.walletSettings
-                  : AppRoute.connectWallet,
-            ),
+            subtitle:
+                isWalletConnected
+                    ? AppLocalizations.of(context).nwcConnectedBalance(
+                      wallet.balanceSats != null
+                          ? '${wallet.balanceSats} sats'
+                          : 'N/A',
+                    )
+                    : AppLocalizations.of(context).nwcConnectPrompt,
+            onTap:
+                () => context.push(
+                  isWalletConnected
+                      ? AppRoute.walletSettings
+                      : AppRoute.connectWallet,
+                ),
           ),
 
           // 6 — Relays
@@ -125,8 +146,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // `settings.relays` reveals the list the same way a user does.
                 InkWell(
                   borderRadius: BorderRadius.circular(AppRadius.card),
-                  onTap: () =>
-                      setState(() => _relaysExpanded = !_relaysExpanded),
+                  onTap:
+                      () => setState(() => _relaysExpanded = !_relaysExpanded),
                   child: Padding(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Row(
@@ -147,7 +168,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     ?.copyWith(fontWeight: FontWeight.w600),
                               ),
                               Text(
-                                AppLocalizations.of(context).manageRelayConnections,
+                                AppLocalizations.of(
+                                  context,
+                                ).manageRelayConnections,
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -183,7 +206,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             colors: colors,
             icon: Icons.notifications_outlined,
             title: AppLocalizations.of(context).pushNotificationsSettingTitle,
-            subtitle: AppLocalizations.of(context).manageNotificationPreferences,
+            subtitle:
+                AppLocalizations.of(context).manageNotificationPreferences,
             onTap: () => context.push(AppRoute.notificationSettings),
           ),
 
@@ -204,7 +228,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             automationId: AutomationIds.settingsMostroNode,
             icon: Icons.hub_outlined,
             title: AppLocalizations.of(context).mostroNodeSettingTitle,
-            subtitle: truncatePubkey(mostroPubkey),
+            subtitle: _mostroNodeSubtitle(ref, mostroPubkey),
             // The visible subtitle is truncated for width; the readout
             // carries the full key, which is what automation compares.
             subtitleAutomationId: AutomationIds.settingsMostroNodePubkey,
@@ -254,10 +278,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       _maybeNamed(
                         Text(
@@ -283,7 +306,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // merge: false keeps the readout its own node so its label can be read.
     return automationId == null
         ? card
-        : card.withAutomationId(automationId, merge: subtitleAutomationId == null);
+        : card.withAutomationId(
+          automationId,
+          merge: subtitleAutomationId == null,
+        );
   }
 
   /// Names [child] when an identifier was given; returns it untouched
@@ -306,19 +332,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final current = ref.read(settingsProvider).themeMode;
     await showDialog<void>(
       context: context,
-      builder: (ctx) => SimpleDialog(
-        title: Text(AppLocalizations.of(ctx).appearanceDialogTitle),
-        children: ThemeMode.values.map((mode) {
-          return ListTile(
-            title: Text(_themeLabel(ctx, mode)),
-            trailing: mode == current ? const Icon(Icons.check) : null,
-            onTap: () {
-              ref.read(settingsProvider.notifier).setThemeMode(mode);
-              Navigator.of(ctx).pop();
-            },
-          );
-        }).toList(),
-      ),
+      builder:
+          (ctx) => SimpleDialog(
+            title: Text(AppLocalizations.of(ctx).appearanceDialogTitle),
+            children:
+                ThemeMode.values.map((mode) {
+                  return ListTile(
+                    title: Text(_themeLabel(ctx, mode)),
+                    trailing: mode == current ? const Icon(Icons.check) : null,
+                    onTap: () {
+                      ref.read(settingsProvider.notifier).setThemeMode(mode);
+                      Navigator.of(ctx).pop();
+                    },
+                  );
+                }).toList(),
+          ),
     );
   }
 
