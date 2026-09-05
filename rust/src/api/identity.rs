@@ -141,6 +141,9 @@ pub async fn create_identity() -> Result<IdentityCreationResult> {
         privacy_mode: false,
         trade_key_index: 0,
         created_at: now,
+        // A freshly generated mnemonic is by definition not backed up yet, so
+        // the reminder starts armed (#141).
+        backup_confirmed: false,
     };
 
     *guard = Some(IdentityState {
@@ -211,6 +214,10 @@ pub async fn load_identity_from_mnemonic(
         privacy_mode,
         trade_key_index,
         created_at,
+        // Restore the persisted flag for THIS mnemonic; guarded on the public
+        // key inside restore_backup_confirmed so a blob from another mnemonic
+        // can't leak its state (#141).
+        backup_confirmed: restore_backup_confirmed(stored.as_ref(), &public_key),
     };
 
     let mut guard = identity_lock().write().await;
@@ -254,9 +261,89 @@ pub async fn import_from_mnemonic(words: Vec<String>, recover: bool) -> Result<I
 
 /// Import identity from an nsec (bech32-encoded Nostr secret key).
 /// Note: nsec import produces a single key with no BIP-39 mnemonic backup.
+/// Restore the persisted backup-confirmed flag for a loaded mnemonic. Guarded on
+/// the public key: a leftover identity blob from a *different* mnemonic must not
+/// leak its confirmed state onto this one, so a mismatch reads as unconfirmed
+/// (#141).
+fn restore_backup_confirmed(stored: Option<&IdentityInfo>, public_key: &str) -> bool {
+    match stored {
+        Some(info) if info.public_key == public_key => info.backup_confirmed,
+        _ => false,
+    }
+}
+
+/// Read the current identity's backup-confirmed flag. `false` when no identity
+/// is loaded (an unconfirmed backup keeps the reminder armed), so this never
+/// fails on a missing identity (#141).
+pub async fn get_backup_confirmed() -> Result<bool> {
+    let guard = identity_lock().read().await;
+    Ok(guard
+        .as_ref()
+        .map(|s| s.identity_info.backup_confirmed)
+        .unwrap_or(false))
+}
+
+/// Set the backup-confirmed flag and persist it to the identity record.
+///
+/// Persist-then-commit (the `trade_key_index` discipline, #217): build the
+/// updated record, save it, and only then commit in memory — so a save failure
+/// never reports a confirmed backup that didn't reach disk.
+///
+/// On native this REQUIRES durable storage (`require_durable_storage`), exactly
+/// as `derive_trade_key` does: a memory-only session (initDb failed) must not
+/// silently succeed, because Dart would then burn the one-time migration marker
+/// against a write that evaporates on restart, permanently losing the confirmed
+/// flag (#141 / review). Web has no store by design until #233 and is exempt —
+/// `require_durable_storage` is a no-op there.
+pub async fn set_backup_confirmed(confirmed: bool) -> Result<()> {
+    set_backup_confirmed_with(crate::db::app_db::db(), confirmed).await
+}
+
+/// [`set_backup_confirmed`] against an explicit store, so the persist-then-commit
+/// path is testable with an injected failing store without touching the global
+/// singleton (mirrors [`derive_trade_key_with`]).
+async fn set_backup_confirmed_with<S: Storage>(db: Option<&S>, confirmed: bool) -> Result<()> {
+    let mut guard = identity_lock().write().await;
+    let state = guard.as_mut().ok_or_else(|| anyhow!("NoIdentity"))?;
+    if state.identity_info.backup_confirmed == confirmed {
+        return Ok(());
+    }
+    // Require durable storage only when *confirming* (true). This is reached
+    // only on native (the Dart notifier routes web through SharedPreferences),
+    // so db == None means a native session whose initDb failed. Reporting Ok for
+    // a confirm then would let Dart burn the one-time migration marker against a
+    // write that evaporates on restart, permanently losing the flag (#141 review).
+    //
+    // Setting false (reset / re-arm the reminder) is the fail-safe direction — a
+    // non-durable write converges to the same unconfirmed state on the next
+    // restore — so it must NOT require durability, or the new-identity re-arm
+    // would fail on a memory-only native session.
+    if confirmed {
+        #[cfg(not(target_arch = "wasm32"))]
+        require_durable_storage(db)?;
+    }
+    let mut updated = state.identity_info.clone();
+    updated.backup_confirmed = confirmed;
+    if let Some(db) = db {
+        db.save_identity(&updated).await.map_err(|e| {
+            anyhow!("StorageError: failed to persist backup_confirmed={confirmed}: {e}")
+        })?;
+    }
+    state.identity_info = updated;
+    Ok(())
+}
+
+/// Clear the backup-confirmed flag, re-arming the reminder. Used when a new
+/// identity is generated (#141). A no-op when no identity is loaded.
+pub async fn reset_backup_confirmation() -> Result<()> {
+    if get_identity().await?.is_none() {
+        return Ok(());
+    }
+    set_backup_confirmed(false).await
+}
+
 pub async fn import_from_nsec(nsec: String) -> Result<IdentityInfo> {
-    let keys =
-        Keys::parse(&nsec).map_err(|e| anyhow!("InvalidKey: {e}"))?;
+    let keys = Keys::parse(&nsec).map_err(|e| anyhow!("InvalidKey: {e}"))?;
     let public_key = keys.public_key().to_hex();
 
     let now = unix_now();
@@ -266,6 +353,9 @@ pub async fn import_from_nsec(nsec: String) -> Result<IdentityInfo> {
         privacy_mode: false,
         trade_key_index: 0,
         created_at: now,
+        // Importing recovery words is not the in-app verification ritual, so an
+        // imported identity stays unconfirmed (#141).
+        backup_confirmed: false,
     };
 
     let mut guard = identity_lock().write().await;
@@ -528,7 +618,10 @@ pub async fn get_trade_key(index: u32) -> Result<TradeKeyInfo> {
     }
 
     if index > state.identity_info.trade_key_index {
-        bail!("InvalidIndex: {index} exceeds current trade_key_index {}", state.identity_info.trade_key_index);
+        bail!(
+            "InvalidIndex: {index} exceeds current trade_key_index {}",
+            state.identity_info.trade_key_index
+        );
     }
 
     let trade_keys = key_ops::derive_trade_key(&state.mnemonic_words, index)?;
@@ -602,11 +695,7 @@ pub async fn export_encrypted_backup(passphrase: String) -> Result<String> {
 /// means re-deriving already-consumed keys, which the daemon rejects with
 /// `InvalidTradeIndex`. A stored identity with a different public key is
 /// ignored: its counter belongs to another mnemonic.
-fn reconcile_trade_key_index(
-    passed: u32,
-    stored: Option<&IdentityInfo>,
-    public_key: &str,
-) -> u32 {
+fn reconcile_trade_key_index(passed: u32, stored: Option<&IdentityInfo>, public_key: &str) -> u32 {
     match stored {
         Some(info) if info.public_key == public_key => passed.max(info.trade_key_index),
         _ => passed,
@@ -683,8 +772,8 @@ mod tests {
 
     /// A throwaway SQLite store, named per test so parallel runs never collide.
     async fn temp_store(tag: &str) -> crate::db::sqlite::SqliteStorage {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_identity_{tag}_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_identity_{tag}_{}.db", std::process::id()));
         let _ = std::fs::remove_file(&path);
         crate::db::sqlite::SqliteStorage::open(path.to_str().unwrap())
             .await
@@ -698,6 +787,7 @@ mod tests {
             privacy_mode: false,
             trade_key_index,
             created_at: 1,
+            backup_confirmed: false,
         }
     }
 
@@ -713,6 +803,34 @@ mod tests {
     /// resync rollback path with an injected failure. The seam under test only
     /// calls `save_identity`, so every other method is `unimplemented!()` —
     /// reaching one would be a test bug, not silent success.
+    // ── backup_confirmed restore (#141) ───────────────────────────────────────
+    #[test]
+    fn restore_reads_the_persisted_backup_flag_for_the_same_identity() {
+        let mut stored = stored_identity("abc", 4);
+        stored.backup_confirmed = true;
+        assert!(restore_backup_confirmed(Some(&stored), "abc"));
+    }
+    #[test]
+    fn restore_defaults_to_unconfirmed_when_nothing_is_persisted() {
+        assert!(!restore_backup_confirmed(None, "abc"));
+    }
+    #[test]
+    fn restore_ignores_a_backup_flag_from_another_identity() {
+        // A leftover blob from a previous mnemonic must not mark the new
+        // identity as backed up (#141 cross-identity guard).
+        let mut stored = stored_identity("other-pubkey", 0);
+        stored.backup_confirmed = true;
+        assert!(!restore_backup_confirmed(Some(&stored), "abc"));
+    }
+    #[test]
+    fn an_identity_persisted_before_the_field_deserializes_as_unconfirmed() {
+        // Serde default: an identity blob written before backup_confirmed
+        // existed must load as `false` (reminder armed), not error.
+        let legacy = r#"{"public_key":"abc","display_name":null,"privacy_mode":false,"trade_key_index":3,"created_at":1}"#;
+        let info: IdentityInfo = serde_json::from_str(legacy).unwrap();
+        assert!(!info.backup_confirmed);
+    }
+
     struct FailingStore;
 
     impl Storage for FailingStore {
@@ -795,9 +913,7 @@ mod tests {
         ) -> Result<()> {
             unimplemented!()
         }
-        async fn list_queued_messages(
-            &self,
-        ) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
+        async fn list_queued_messages(&self) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
             unimplemented!()
         }
         async fn update_queued_message_status(
@@ -910,7 +1026,10 @@ mod tests {
         // Already in sync, and a counter belonging to another mnemonic: no
         // publication, so Dart never rewrites a value it already holds.
         assert_eq!(reconcile_and_publish_to(&tx, 22, Some(&stored), "abc"), 22);
-        assert_eq!(reconcile_and_publish_to(&tx, 30, Some(&stored), "other"), 30);
+        assert_eq!(
+            reconcile_and_publish_to(&tx, 30, Some(&stored), "other"),
+            30
+        );
         assert!(
             stream.rx.try_recv().is_err(),
             "nothing further should have been published"
@@ -976,23 +1095,80 @@ mod tests {
         let current = get_identity().await.unwrap().unwrap();
         assert_eq!(current.trade_key_index, 22);
 
+        // ── backup_confirmed: persist-then-commit + durable-storage gate (#141) ──
+        // Folded into this one identity_lock test on purpose: a separate
+        // #[tokio::test] touching the singleton would race it.
+        assert!(!current.backup_confirmed);
+        // B1 (#141 review): a confirm with NO durable store must be refused, not
+        // silently succeed — otherwise the Dart migration marker is burned
+        // against a write that evaporates on restart, permanently losing the flag.
+        assert!(
+            set_backup_confirmed_with(None::<&crate::db::sqlite::SqliteStorage>, true)
+                .await
+                .is_err(),
+            "a confirm with no durable store must fail, not silently succeed",
+        );
+        assert!(
+            !get_identity().await.unwrap().unwrap().backup_confirmed,
+            "the refused confirm must not flip the in-memory flag",
+        );
+        // A failing store errors with the StorageError marker and leaves the flag
+        // unchanged — the persist happens before the commit (pins the ordering).
+        let backup_err = set_backup_confirmed_with(Some(&FailingStore), true)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            backup_err.contains("StorageError:"),
+            "unexpected error: {backup_err}"
+        );
+        assert!(
+            !get_identity().await.unwrap().unwrap().backup_confirmed,
+            "a failed persist must not flip the in-memory backup flag",
+        );
+        // Retry against the working store writes: the short-circuit was not poisoned.
+        set_backup_confirmed_with(Some(&db), true).await.unwrap();
+        assert!(
+            get_identity().await.unwrap().unwrap().backup_confirmed,
+            "retry against a working store must persist the flag",
+        );
+        assert!(
+            db.get_identity().await.unwrap().unwrap().backup_confirmed,
+            "the working store must hold the confirmed flag durably",
+        );
+        // reset_backup_confirmation re-arms the reminder (delegates to set(false)).
+        reset_backup_confirmation().await.unwrap();
+        assert!(
+            !get_identity().await.unwrap().unwrap().backup_confirmed,
+            "reset must clear the in-memory flag",
+        );
+
         // #217 resync — asserted here (not a separate #[tokio::test]) so it
         // shares the single identity_lock lifecycle and can't race it. Uses the
         // `_with` core so publications land on this test's private channel.
         // Never lowers: a floor below current is a no-op — no write, no publish.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 22);
         assert!(
             published.rx.try_recv().is_err(),
             "a no-op resync must not publish",
         );
         // Raises to the recovered max, persists, and publishes to the mirror.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
         assert_eq!(published.next().await.unwrap(), 50);
-        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        assert_eq!(
+            db.get_identity().await.unwrap().unwrap().trade_key_index,
+            50
+        );
         // Idempotent: the same floor again changes nothing and publishes nothing.
-        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50)
+            .await
+            .unwrap();
         assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
         assert!(
             published.rx.try_recv().is_err(),
@@ -1002,11 +1178,10 @@ mod tests {
         // counter advanced. Counter is 50 here. Ask for a higher floor (60)
         // against a failing store: the call errors and the counter stays 50.
         let (fx, _frx) = private_channel();
-        let rollback_err =
-            ensure_trade_key_index_at_least_with(Some(&FailingStore), &fx, 60)
-                .await
-                .unwrap_err()
-                .to_string();
+        let rollback_err = ensure_trade_key_index_at_least_with(Some(&FailingStore), &fx, 60)
+            .await
+            .unwrap_err()
+            .to_string();
         assert!(
             rollback_err.contains("StorageError:"),
             "unexpected error: {rollback_err}"
@@ -1027,7 +1202,10 @@ mod tests {
             "retry against a working store must raise and persist",
         );
         assert_eq!(published.next().await.unwrap(), 60);
-        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 60);
+        assert_eq!(
+            db.get_identity().await.unwrap().unwrap().trade_key_index,
+            60
+        );
 
         // Regression (the bug #217 fixes): the next derived key is FRESH —
         // index 61, past every recovered trade — not a reused recovered index.

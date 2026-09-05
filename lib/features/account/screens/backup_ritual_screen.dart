@@ -213,8 +213,12 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
     if (!_allCorrect || _confirming) return;
     setState(() => _confirming = true);
     try {
-      await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
+      // Authoritative Rust write first; dismiss the reminder locally only once
+      // it succeeds. If markCompleted() throws, the catch below fires before the
+      // permanent local dismissal, so the reminder stays armed and consistent
+      // with backup_confirmed=false (#141 review).
       await ref.read(backupCompletedProvider.notifier).markCompleted();
+      await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
       if (mounted) setState(() => _step = 2);
     } catch (e) {
       debugPrint('[backup-ritual] confirm error: $e');
