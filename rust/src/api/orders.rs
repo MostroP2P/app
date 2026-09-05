@@ -1345,7 +1345,13 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
             )
             .await
         {
-            log::warn!("[orders] failed to optimistically update cancel status for {order_id}: {e}");
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "cancel status not persisted for order={}: {e}",
+                    crate::api::logging::short_id(&order_id),
+                ),
+            );
         }
     }
 
@@ -2036,7 +2042,13 @@ async fn dispatch_mostro_message(
                             )
                             .await
                         {
-                            log::warn!("[orders] failed to sync Canceled status for {oid}: {e}");
+                            crate::api::logging::blog_warn(
+                                "orders",
+                                format!(
+                                    "Canceled status not persisted for order={}: {e}",
+                                    crate::api::logging::short_id(&oid),
+                                ),
+                            );
                         }
                     }
                 }
@@ -2103,8 +2115,12 @@ async fn dispatch_mostro_message(
                         .update_trade_fields(&order_id, Some(new_status.clone()), None, None)
                         .await
                     {
-                        log::warn!(
-                            "[orders] failed to sync status for order={order_id}: {e}"
+                        crate::api::logging::blog_warn(
+                            "orders",
+                            format!(
+                                "status not persisted for order={}: {e}",
+                                crate::api::logging::short_id(&order_id),
+                            ),
                         );
                     }
                 }
@@ -2247,8 +2263,12 @@ async fn dispatch_mostro_message(
                     )
                     .await
                 {
-                    log::warn!(
-                        "[orders] failed to save hold invoice for order={order_id}: {e}"
+                    crate::api::logging::blog_warn(
+                        "orders",
+                        format!(
+                            "hold invoice and status not persisted for order={}: {e}",
+                            crate::api::logging::short_id(&order_id),
+                        ),
                     );
                 }
             }
@@ -2306,8 +2326,12 @@ async fn dispatch_mostro_message(
                         .update_trade_fields(&order_id, Some(status.clone()), None, None)
                         .await
                     {
-                        log::warn!(
-                            "[orders] failed to sync trade status for order={order_id}: {e}"
+                        crate::api::logging::blog_warn(
+                            "orders",
+                            format!(
+                                "status not persisted for order={}: {e}",
+                                crate::api::logging::short_id(&order_id),
+                            ),
                         );
                     }
                 }
@@ -2964,9 +2988,12 @@ async fn subscribe_single_order(order_id: &str) {
                                     )
                                     .await
                                 {
-                                    log::warn!(
-                                        "[orders] failed to sync d-tag trade status for order={}: {e}",
-                                        order.id
+                                    crate::api::logging::blog_warn(
+                                        "orders",
+                                        format!(
+                                            "d-tag status not persisted for order={}: {e}",
+                                            crate::api::logging::short_id(&order.id),
+                                        ),
                                     );
                                 }
                             }
@@ -3879,9 +3906,12 @@ async fn ingest_order_event_with(event: &nostr_sdk::prelude::Event, publish: Pub
                             )
                             .await
                         {
-                            log::warn!(
-                                "[orders] failed to sync trade status for order={}: {e}",
-                                info.id
+                            crate::api::logging::blog_warn(
+                                "orders",
+                                format!(
+                                    "status not persisted for order={}: {e}",
+                                    crate::api::logging::short_id(&info.id),
+                                ),
                             );
                         }
                     }
