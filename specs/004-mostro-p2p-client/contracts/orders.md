@@ -386,10 +386,18 @@ escrow-locked arm).
 
 **Ordering.** Each order carries a persisted high-water mark,
 `status_cursor:<order_id>` — the `created_at` of the newest daemon
-message whose status write was applied, clamped to the local clock so a
-node dating an event ahead cannot push the mark past everything that
-follows and freeze the order. A message **strictly older** than the mark
-is skipped. Strictly older: the daemon emits several messages for one
+message whose status write was applied, stored **raw, in the node's time
+domain**, which is the domain the comparison uses. It is deliberately not
+clamped to the local clock the way the chat cursor is: there the value is
+a subscription `since`, where a low one only asks for more than needed,
+while here it is an ordering comparator, and a local clock behind the
+node's would make a newest event store a smaller mark that the next older
+one then outranks. The mark is instead not advanced at all by an event
+dated beyond the clock-skew tolerance, so one malformed timestamp cannot
+silence an order for good; a node genuinely further ahead makes the rule
+inert for that order rather than wrong, and says so in the log. Ordering
+between the node's own events survives any uniform skew — they share one
+clock. A message **strictly older** than the mark is skipped. Strictly older: the daemon emits several messages for one
 order inside the same second (the `PayInvoice` reputation follow-up, for
 one) and those are genuine in-order traffic. Without this rule the oldest
 message of the backlog is applied last and wins — a disputed trade came

@@ -2531,25 +2531,52 @@ async fn load_status_cursor(order_id: &str) -> Option<i64> {
 /// Record that a daemon message dated `event_created_at` was allowed to write
 /// `order_id`'s status.
 ///
-/// Clamped to the local clock for the same reason the chat cursor is: a node
-/// dating an event in the future would otherwise push the mark past every
-/// message that follows and freeze the order's status for good.
+/// The mark is stored **raw**, in the node's own time domain, because that is
+/// the domain [`status_write_blocked`] compares against. Clamping it to the
+/// local clock — as the chat cursor does — is wrong here: there the cursor is a
+/// subscription `since`, where a low value only asks for more than needed, but
+/// here it is an ordering comparator. With a local clock behind the node's, a
+/// newest event at 3000 would store 1000 and a *later, older* event at 2000
+/// would then pass `2000 < 1000` and overwrite it — the very replay regression
+/// this guard exists to stop (PR #396 review).
+///
+/// The freedom that costs is bounded by a skew check instead: an event dated
+/// implausibly far ahead of the local clock does not move the mark, so one
+/// malformed timestamp cannot silence an order's status for good. Same
+/// tolerance the chat envelope already applies to node-adjacent events. A node
+/// whose clock is genuinely further ahead makes the guard inert for that order
+/// rather than wrong — logged, because that is a silent degradation otherwise.
+/// Ordering between the node's own events survives any uniform skew: they all
+/// carry the same clock.
 ///
 /// The read-modify-write is safe because every caller runs under this order's
-/// dispatch lock. The `>=` check is not redundant with [`status_write_blocked`]:
-/// the clamp can pull an accepted event *below* the current mark when the local
-/// clock runs behind the node's, and the mark must never move backwards.
+/// dispatch lock.
 ///
 /// Best-effort, like every other write here: losing it costs the durability of
 /// the guard, not its correctness within the session.
 async fn record_status_event(order_id: &str, event_created_at: i64) {
-    let accepted = event_created_at.min(crate::rt::unix_now());
-    if load_status_cursor(order_id).await.is_some_and(|c| c >= accepted) {
+    let horizon = crate::rt::unix_now()
+        .saturating_add(crate::nostr::transport::MAX_CLOCK_SKEW_SECS as i64);
+    if event_created_at > horizon {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "status cursor not advanced for order={}: event is {}s ahead of the local clock",
+                crate::api::logging::short_id(order_id),
+                event_created_at.saturating_sub(horizon),
+            ),
+        );
+        return;
+    }
+    if load_status_cursor(order_id)
+        .await
+        .is_some_and(|c| c >= event_created_at)
+    {
         return;
     }
     if let Some(db) = crate::db::app_db::db() {
         let key = crate::db::settings_keys::status_cursor(order_id);
-        if let Err(e) = db.set_setting(&key, &accepted.to_string()).await {
+        if let Err(e) = db.set_setting(&key, &event_created_at.to_string()).await {
             crate::api::logging::blog_warn(
                 "orders",
                 format!(
@@ -2577,6 +2604,18 @@ async fn record_status_event(order_id: &str, event_created_at: i64) {
 /// Strictly older is what is refused: the daemon emits several messages for one
 /// order within the same second (the `PayInvoice` reputation follow-up, for
 /// one), and those are genuine, in-order traffic.
+///
+/// That strictness is also why the callers record the mark *before* the writes
+/// they gate, rather than after a successful one (PR #396 review). The mark
+/// answers "which message have I decided to accept", not "which write
+/// succeeded" — every write here is best-effort, `record_status_event`
+/// included, and there is no transaction spanning the settings key and the
+/// trade row. Recording afterwards would leave the mark unmoved when a write
+/// fails, and then a *strictly older* message from the same backlog would be
+/// applied over the row that just failed to update — trading a fault that
+/// heals for one that corrupts. It heals because the failed message is not
+/// blocked on its next delivery: its timestamp equals the mark, and equal
+/// passes. The global feed carries no `since`, so the next start replays it.
 async fn status_write_blocked(
     order_id: &str,
     action: &mostro_core::message::Action,
@@ -6167,6 +6206,119 @@ mod tests {
             emitted,
             vec![crate::api::types::OrderStatus::Dispute],
             "a refused replay must not emit a TradeUpdate",
+        );
+    }
+
+    /// The ordering mark must live in the node's time domain, not the local
+    /// one. Clamping it to the local clock (as the chat cursor does, where it
+    /// is a subscription `since` and not a comparator) breaks the guard
+    /// whenever the local clock runs behind the node's: the newest event
+    /// stores a clamped, smaller value, and the next *older* event then
+    /// compares above it and wins — the replay regression, restored.
+    ///
+    /// Both events here are dated ahead of the local clock, replayed
+    /// newest-first, and inside the skew tolerance so the mark may move.
+    #[tokio::test]
+    async fn a_cursor_behind_the_local_clock_still_orders_future_dated_events() {
+        use mostro_core::message::{Action, Message};
+
+        let path = std::env::temp_dir()
+            .join(format!("mostro_status_skew_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let order_info = dummy_order_info(&order_id);
+        order_book().upsert_order(order_info.clone()).await;
+        db.save_trade(&crate::api::types::TradeInfo {
+            id: order_id.clone(),
+            order: order_info,
+            role: TradeRole::Seller,
+            counterparty_pubkey: String::new(),
+            current_step: crate::api::types::TradeStep::Seller(
+                crate::api::types::SellerStep::OrderPublished,
+            ),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        })
+        .await
+        .expect("save the trade row");
+
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        let now = crate::rt::unix_now() as u64;
+        let newest = now + 6;
+        let oldest = now + 3;
+
+        for (action, created_at) in [
+            (Action::DisputeInitiatedByYou, newest),
+            (Action::WaitingBuyerInvoice, oldest),
+        ] {
+            dispatch_mostro_message(
+                mostro_core::nip59::UnwrappedMessage {
+                    message: Message::new_order(Some(order_uuid), None, None, action, None),
+                    signature: None,
+                    sender,
+                    identity: sender,
+                    created_at: nostr_sdk::prelude::Timestamp::from(created_at),
+                },
+                &format!("test-skew-{created_at}"),
+                "ff00ff11",
+                1,
+            )
+            .await;
+        }
+
+        assert_eq!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("trade lookup")
+                .expect("trade row")
+                .order
+                .status,
+            crate::api::types::OrderStatus::Dispute,
+            "a future-dated newest event must still outrank an older one",
+        );
+        assert_eq!(
+            db.get_setting(&crate::db::settings_keys::status_cursor(&order_id))
+                .await
+                .unwrap()
+                .as_deref(),
+            Some(newest.to_string().as_str()),
+            "the mark must be stored raw, in the node's time domain",
+        );
+    }
+
+    /// One malformed timestamp must not be able to silence an order for good:
+    /// an event far beyond the skew tolerance is still applied, but it does not
+    /// move the mark, so the messages that follow it are not all refused.
+    #[tokio::test]
+    async fn an_absurdly_future_event_does_not_move_the_cursor() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_status_skew_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_id = format!("skew-{}", uuid::Uuid::new_v4());
+        record_status_event(&order_id, crate::rt::unix_now() + 365 * 24 * 3600).await;
+
+        assert_eq!(
+            db.get_setting(&crate::db::settings_keys::status_cursor(&order_id))
+                .await
+                .unwrap(),
+            None,
+            "an event a year ahead must not become the high-water mark",
         );
     }
 
