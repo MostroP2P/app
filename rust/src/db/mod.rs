@@ -62,6 +62,28 @@ pub mod settings_keys {
     pub fn dispute_mine(order_id: &str) -> String {
         format!("{DISPUTE_MINE_PREFIX}{order_id}")
     }
+
+    /// Per-order status replay cursor — the `created_at` (unix seconds,
+    /// decimal string) of the newest daemon message whose status write was
+    /// applied, clamped to the local clock. Full key is
+    /// `status_cursor:<order_id>`; build it with [`status_cursor`].
+    pub const STATUS_CURSOR_PREFIX: &str = "status_cursor:";
+
+    /// Build the settings key holding the status replay cursor for `order_id`.
+    ///
+    /// Same shape and purpose as [`chat_cursor`], for the other channel: the
+    /// global kind-14 subscription carries no `since`, so every start replays
+    /// the node's full history, and relays serve stored events newest-first.
+    /// Without a durable high-water mark the oldest message in that backlog is
+    /// applied last and wins, walking a trade's status back to where it began.
+    ///
+    /// Deliberately **not** cleared with the trade row: a cancel before the
+    /// trade went active wipes that row (`cancellation_wipes_history`), and the
+    /// cursor is precisely what still refuses the older messages afterwards.
+    /// One tiny row per order ever traded, like the chat cursor.
+    pub fn status_cursor(order_id: &str) -> String {
+        format!("{STATUS_CURSOR_PREFIX}{order_id}")
+    }
 }
 
 /// Storage trait — implemented by both SQLite (native) and IndexedDB (WASM).

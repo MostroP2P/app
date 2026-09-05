@@ -1634,7 +1634,8 @@ async fn dispatch_mostro_message(
     // that backlog back newest-first while the arms below apply each message as
     // if it had just arrived, so a large age marks writes that are about to
     // overwrite fresher state. Negative means the node's clock runs ahead.
-    let event_age_secs = crate::rt::unix_now().saturating_sub(event_created_at.as_secs() as i64);
+    let event_ts = event_created_at.as_secs() as i64;
+    let event_age_secs = crate::rt::unix_now().saturating_sub(event_ts);
     crate::api::logging::blog_info("daemon-msg", format!(
         "action={:?} order_id={:?} trade_index={:?} trade_pubkey={} age={}s payload={}",
         kind.action,
@@ -1972,9 +1973,10 @@ async fn dispatch_mostro_message(
                 // and completed — must not overwrite the terminal outcome.
                 // The wipe path below is unaffected: it starts from
                 // pending/waiting, which are not terminal.
-                if status_sync_blocked_by_terminal(&oid, &kind.action).await {
+                if status_write_blocked(&oid, &kind.action, event_ts).await {
                     return;
                 }
+                record_status_event(&oid, event_ts).await;
                 // Deliberately NOT removed from the order book. The book is
                 // fed only by the daemon's Kind 38383 events, and on a
                 // taker-responsible timeout mostrod republishes the order as
@@ -2061,9 +2063,10 @@ async fn dispatch_mostro_message(
             // own copy of this guard.) The legit re-take of a
             // timeout-canceled order is unaffected: its wiped row leaves the
             // book's `pending` as the local status, which passes.
-            if status_sync_blocked_by_terminal(&order_id, &kind.action).await {
+            if status_write_blocked(&order_id, &kind.action, event_ts).await {
                 return;
             }
+            record_status_event(&order_id, event_ts).await;
             let small_order = match &kind.payload {
                 Some(mostro_core::message::Payload::Order(o)) => o,
                 _ => {
@@ -2135,9 +2138,10 @@ async fn dispatch_mostro_message(
                 }
                 return;
             };
-            if status_sync_blocked_by_terminal(&order_id, &kind.action).await {
+            if status_write_blocked(&order_id, &kind.action, event_ts).await {
                 return;
             }
+            record_status_event(&order_id, event_ts).await;
             crate::api::logging::blog_info(
                 "orders",
                 format!(
@@ -2220,9 +2224,10 @@ async fn dispatch_mostro_message(
                 bolt11.len(),
                 amount
             );
-            if status_sync_blocked_by_terminal(&order_id, &kind.action).await {
+            if status_write_blocked(&order_id, &kind.action, event_ts).await {
                 return;
             }
+            record_status_event(&order_id, event_ts).await;
             // Save the hold invoice and update status to WaitingPayment.
             crate::api::logging::blog_info(
                 "orders",
@@ -2283,9 +2288,10 @@ async fn dispatch_mostro_message(
             // reply classification).
             let new_status = status_for_action(&kind.action);
             if let Some(status) = new_status {
-                if status_sync_blocked_by_terminal(&order_id, &kind.action).await {
+                if status_write_blocked(&order_id, &kind.action, event_ts).await {
                     return;
                 }
+                record_status_event(&order_id, event_ts).await;
                 crate::api::logging::blog_info(
                     "orders",
                     format!(
@@ -2480,6 +2486,93 @@ async fn status_sync_blocked_by_terminal(
             ),
         );
         return true;
+    }
+    false
+}
+
+/// Newest daemon-message timestamp already applied to `order_id`'s status.
+///
+/// `None` when nothing was ever recorded, or when there is no durable store
+/// (web, until #233) — both mean "no high-water mark", which fails open.
+async fn load_status_cursor(order_id: &str) -> Option<i64> {
+    let db = crate::db::app_db::db()?;
+    db.get_setting(&crate::db::settings_keys::status_cursor(order_id))
+        .await
+        .ok()
+        .flatten()?
+        .parse()
+        .ok()
+}
+
+/// Record that a daemon message dated `event_created_at` was allowed to write
+/// `order_id`'s status.
+///
+/// Clamped to the local clock for the same reason the chat cursor is: a node
+/// dating an event in the future would otherwise push the mark past every
+/// message that follows and freeze the order's status for good.
+///
+/// The read-modify-write is safe because every caller runs under this order's
+/// dispatch lock. The `>=` check is not redundant with [`status_write_blocked`]:
+/// the clamp can pull an accepted event *below* the current mark when the local
+/// clock runs behind the node's, and the mark must never move backwards.
+///
+/// Best-effort, like every other write here: losing it costs the durability of
+/// the guard, not its correctness within the session.
+async fn record_status_event(order_id: &str, event_created_at: i64) {
+    let accepted = event_created_at.min(crate::rt::unix_now());
+    if load_status_cursor(order_id).await.is_some_and(|c| c >= accepted) {
+        return;
+    }
+    if let Some(db) = crate::db::app_db::db() {
+        let key = crate::db::settings_keys::status_cursor(order_id);
+        if let Err(e) = db.set_setting(&key, &accepted.to_string()).await {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "status cursor persist failed order={}: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+        }
+    }
+}
+
+/// Whether a daemon message may write `order_id`'s status.
+///
+/// Two independent reasons to refuse, both about the same thing — the startup
+/// backlog:
+///
+/// * the trade already sits in a hard-terminal status
+///   ([`status_sync_blocked_by_terminal`]), and
+/// * the message is **older** than one whose write was already applied.
+///
+/// The second is the general rule and the first is defence in depth, kept
+/// because it is the only one that still works without a durable store (web),
+/// where it reads the in-memory book.
+///
+/// Strictly older is what is refused: the daemon emits several messages for one
+/// order within the same second (the `PayInvoice` reputation follow-up, for
+/// one), and those are genuine, in-order traffic.
+async fn status_write_blocked(
+    order_id: &str,
+    action: &mostro_core::message::Action,
+    event_created_at: i64,
+) -> bool {
+    if status_sync_blocked_by_terminal(order_id, action).await {
+        return true;
+    }
+    if let Some(cursor) = load_status_cursor(order_id).await {
+        if event_created_at < cursor {
+            crate::api::logging::blog_info(
+                "orders",
+                format!(
+                    "skip replayed {action:?} order={}: event is {}s older than the last applied",
+                    crate::api::logging::short_id(order_id),
+                    cursor.saturating_sub(event_created_at),
+                ),
+            );
+            return true;
+        }
     }
     false
 }
@@ -5929,6 +6022,122 @@ mod tests {
             }
         }
         assert!(!leaked, "stale Canceled must not emit a TradeUpdate");
+    }
+
+    /// The startup backlog must not walk a trade's status backwards.
+    ///
+    /// The global kind-14 subscription carries no `since`, so every start
+    /// replays the node's whole history for the order, and relays serve stored
+    /// events newest-first. Applied blindly, the *oldest* message lands last
+    /// and wins: a disputed trade came back as `waiting-buyer-invoice` on every
+    /// restart, with the intermediate states emitted to the UI on the way down.
+    ///
+    /// Replays in that exact order — newest first, none of them terminal, so
+    /// only the ordering rule can refuse them.
+    #[tokio::test]
+    async fn a_replayed_backlog_cannot_walk_the_status_backwards() {
+        use mostro_core::message::{Action, Message};
+
+        let path = std::env::temp_dir()
+            .join(format!("mostro_status_replay_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let order_info = dummy_order_info(&order_id);
+        order_book().upsert_order(order_info.clone()).await;
+        db.save_trade(&crate::api::types::TradeInfo {
+            id: order_id.clone(),
+            order: order_info,
+            role: TradeRole::Seller,
+            counterparty_pubkey: String::new(),
+            current_step: crate::api::types::TradeStep::Seller(
+                crate::api::types::SellerStep::OrderPublished,
+            ),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        })
+        .await
+        .expect("save the trade row");
+
+        let mut rx = trade_updates_tx().subscribe();
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+
+        // Newest first, exactly how the relay hands the backlog back.
+        for (action, created_at) in [
+            (Action::DisputeInitiatedByYou, 3_000u64),
+            (Action::FiatSentOk, 2_000),
+            (Action::WaitingBuyerInvoice, 1_000),
+        ] {
+            dispatch_mostro_message(
+                mostro_core::nip59::UnwrappedMessage {
+                    message: Message::new_order(Some(order_uuid), None, None, action, None),
+                    signature: None,
+                    sender,
+                    identity: sender,
+                    created_at: nostr_sdk::prelude::Timestamp::from(created_at),
+                },
+                &format!("test-backlog-{created_at}"),
+                "ff00ff10",
+                1,
+            )
+            .await;
+        }
+
+        // The newest message is the one that stuck, in both the book...
+        assert_eq!(
+            order_book()
+                .get_order(&order_id)
+                .await
+                .expect("order still cached")
+                .status,
+            crate::api::types::OrderStatus::Dispute,
+            "the newest replayed message must own the status",
+        );
+        // ...and the row My Trades reads.
+        assert_eq!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("trade lookup")
+                .expect("trade row")
+                .order
+                .status,
+            crate::api::types::OrderStatus::Dispute,
+            "the persisted status must not walk backwards across a restart",
+        );
+        // The cursor is the high-water mark that survives the restart.
+        assert_eq!(
+            db.get_setting(&crate::db::settings_keys::status_cursor(&order_id))
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("3000"),
+            "the applied event's timestamp must be recorded",
+        );
+        // Nothing older reached the UI on the way down: one update, not three.
+        let mut emitted = Vec::new();
+        while let Ok(update) = rx.try_recv() {
+            if update.order_id == order_id {
+                emitted.push(update.status);
+            }
+        }
+        assert_eq!(
+            emitted,
+            vec![crate::api::types::OrderStatus::Dispute],
+            "a refused replay must not emit a TradeUpdate",
+        );
     }
 
     /// #326: the fingerprint-restore path must NOT overwrite the authoritative
