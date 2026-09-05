@@ -1547,12 +1547,18 @@ async fn dispatch_mostro_message(
     //
     // A forger cannot sign a kind-14 event as the node, so `sender == mostro`
     // is the authoritative check.
+    //
+    // `created_at` is the kind-14 event's own timestamp, not an inner field
+    // (`unwrap_message_nip44` sets it from `event.created_at`) — the very key
+    // relays order their stored events by. It is the only thing that separates
+    // a live daemon reply from one being replayed out of a startup backlog,
+    // and until now it was dropped here.
     let mostro_core::nip59::UnwrappedMessage {
         message: msg,
         sender,
         identity: _,
         signature: _,
-        created_at: _,
+        created_at: event_created_at,
     } = unwrapped;
 
     // Daemon authentication: the kind-14 event author (`sender`) must be the
@@ -1622,9 +1628,21 @@ async fn dispatch_mostro_message(
         Some(other) => format!("{other:?}"),
         None => "None".to_string(),
     };
+    // `age` is the event's timestamp against the local clock. A live reply reads
+    // ~0; the global kind-14 feed carries no `since`, so on every start it
+    // replays the node's full history and those read hours or days. Relays hand
+    // that backlog back newest-first while the arms below apply each message as
+    // if it had just arrived, so a large age marks writes that are about to
+    // overwrite fresher state. Negative means the node's clock runs ahead.
+    let event_age_secs = crate::rt::unix_now().saturating_sub(event_created_at.as_secs() as i64);
     crate::api::logging::blog_info("daemon-msg", format!(
-        "action={:?} order_id={:?} trade_index={:?} trade_pubkey={} payload={}",
-        kind.action, kind.id, kind.trade_index, &trade_pubkey_hex[..8], payload_desc
+        "action={:?} order_id={:?} trade_index={:?} trade_pubkey={} age={}s payload={}",
+        kind.action,
+        kind.id,
+        kind.trade_index,
+        &trade_pubkey_hex[..8],
+        event_age_secs,
+        payload_desc
     ));
 
     // Everything below is serialized against other handlers of this order id:
