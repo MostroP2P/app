@@ -771,6 +771,33 @@ mod tests {
         );
     }
 
+    /// The companion to the no-row check: a *genuine* storage failure must
+    /// still reach the caller. Reading the result to count affected rows put a
+    /// binding between `execute` and the `?` that propagates the error — the
+    /// shape a later "simplification" turns into `.ok()`, which would restore
+    /// exactly the silence this stopped. A closed pool is a real, deterministic
+    /// failure, so it pins the propagation without corrupting anything.
+    #[tokio::test]
+    async fn a_trade_update_that_fails_is_not_reported_as_a_write() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        storage.pool.close().await;
+
+        let result = storage
+            .update_trade_fields(
+                "any-order",
+                Some(crate::api::types::OrderStatus::Dispute),
+                None,
+                None,
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "a failed write must surface as Err, never as Ok(())",
+        );
+    }
+
     /// `foreign_keys` is a per-connection pragma, so running it once through
     /// the pool leaves the other connections with enforcement off — whichever
     /// one a given write lands on decides whether constraints apply.
