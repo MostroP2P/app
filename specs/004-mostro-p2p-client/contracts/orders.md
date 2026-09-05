@@ -331,6 +331,14 @@ Coverage invariants:
 - The temporary 30-minute per-trade receivers (see #182) are an
   additional delivery path, not a substitute: they exist only for trades
   touched this session and mask coverage gaps while they run.
+- **The bulk filter is unbounded on purpose** — no `since`, no `limit`, so
+  after any downtime it replays the node's full stored history instead of a
+  window, and nothing is lost to a cutoff derived from an unreliable local
+  clock. The cost is that relays serve that backlog **newest-first**;
+  ordering is settled downstream, by the per-order `status_cursor:`
+  high-water mark described under the status-sync rules, not by narrowing
+  the filter. Only the ephemeral per-trade subscription carries a cutoff
+  (`limit(0)`, live-only).
 
 ### Inbound Kind 14 actions consumed by `dispatch_mostro_message`
 
@@ -368,18 +376,56 @@ what rebuilds sessions after one.
 | `AdminSettled` / `AdminCanceled`   | (status sync)                                       | `status → SettledByAdmin` / `CanceledByAdmin`                                    |
 | `Canceled`                         | (none)                                              | Never-active trade (pending/waiting): row + in-memory session **deleted**; otherwise `status → Canceled` (history kept). See below. |
 
-A sync that would move a trade out of a **hard-terminal** status
-(`Canceled` / `CanceledByAdmin` / `CooperativelyCanceled` / `Expired` /
-`Success` / `SettledByAdmin` / `CompletedByAdmin`) is skipped entirely —
-no book/DB write, no emission, and no session side effect either (the
-guard runs before the peer-key/chat setup of the escrow-locked arm). Relays deliver the startup backlog
-newest-first, so such a message is an out-of-order replay, not a real
-transition; mostrod never reopens a finished trade. `SettledHoldInvoice`
-and `Dispute` still progress and are deliberately not in the set.
-`Canceled` applies the same guard — a stale timeout-cancel replayed over
-an order that was later re-taken and completed must not overwrite the
-outcome; its wipe path is unaffected, since it starts from non-terminal
-waiting states.
+Two rules gate every status sync in the table, and both exist for the
+same reason: the global kind-14 subscription carries no `since`, so every
+start replays the node's whole history for an order, and relays serve
+stored events **newest-first**. A skipped sync is skipped entirely — no
+book write, no DB write, no `TradeUpdate`, and no session side effect
+either (both guards run before the peer-key/chat setup of the
+escrow-locked arm).
+
+**Ordering.** Each order carries a persisted high-water mark,
+`status_cursor:<order_id>` — the `created_at` of the newest daemon
+message whose status write was applied, stored **raw, in the node's time
+domain**, which is the domain the comparison uses. It is deliberately not
+clamped to the local clock the way the chat cursor is: there the value is
+a subscription `since`, where a low one only asks for more than needed,
+while here it is an ordering comparator, and a local clock behind the
+node's would make a newest event store a smaller mark that the next older
+one then outranks. The mark is instead not advanced at all by an event
+dated beyond the clock-skew tolerance, so one malformed timestamp cannot
+silence an order for good; a node genuinely further ahead makes the rule
+inert for that order rather than wrong, and says so in the log. Ordering
+between the node's own events survives any uniform skew — they share one
+clock. A message **strictly older** than the mark is skipped. Strictly older: the daemon emits several messages for one
+order inside the same second (the `PayInvoice` reputation follow-up, for
+one) and those are genuine in-order traffic. Without this rule the oldest
+message of the backlog is applied last and wins — a disputed trade came
+back as `waiting-buyer-invoice` on the next start, with every state in
+between emitted to the UI on the way down.
+
+The mark is deliberately **not** cleared with the trade row: a `Canceled`
+before the trade went active wipes that row, which is exactly where the
+terminal rule below goes blind, and the mark is what still refuses the
+replay afterwards. One settings row per order ever traded, the same shape
+and lifetime as the `chat_cursor:` that bounds the other channel.
+
+**Terminal status.** A sync that would move a trade out of a
+**hard-terminal** status (`Canceled` / `CanceledByAdmin` /
+`CooperativelyCanceled` / `Expired` / `Success` / `SettledByAdmin` /
+`CompletedByAdmin`) is skipped: mostrod never reopens a finished trade,
+so such a message is an out-of-order replay whatever its timestamp says.
+This is not redundant with the ordering rule — it reads the in-memory
+book, so it is the only one of the two that still holds where there is no
+durable store (web, #233). `Canceled` applies it too: a stale
+timeout-cancel replayed over an order that was later re-taken and
+completed must not overwrite the outcome; its wipe path is unaffected,
+since it starts from non-terminal waiting states.
+
+`SettledHoldInvoice` and `Dispute` are deliberately **not** in the
+terminal set — they still progress, to `Success` and to admin
+resolutions respectively — so it is the ordering rule, not this one, that
+keeps a replay from walking them backwards.
 
 Every arm above that syncs a status also emits a `TradeUpdate` (see
 `on_trade_updated`) after the in-memory book update and the DB

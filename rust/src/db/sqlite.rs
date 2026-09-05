@@ -637,7 +637,23 @@ impl Storage for SqliteStorage {
             query = query.bind(format!("{s:?}"));
         }
         query = query.bind(order_id);
-        query.execute(&self.pool).await?;
+        let result = query.execute(&self.pool).await?;
+
+        // Matching no row is not an error SQLite reports — the statement
+        // succeeds and updates nothing — but for every caller it is a silent
+        // loss: the status moved in the book and in the UI while the row My
+        // Trades reads kept the old value. Nothing here can repair it (the row
+        // is gone, or was never written), so the only useful thing to do is
+        // say so out loud instead of returning `Ok(())` like a real write.
+        if result.rows_affected() == 0 {
+            crate::api::logging::blog_warn(
+                "db",
+                format!(
+                    "update_trade_fields matched no row for order={}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+        }
         Ok(())
     }
 
@@ -717,6 +733,69 @@ mod tests {
         static COUNTER: AtomicU32 = AtomicU32::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!("mostro_test_{}_{n}.db", std::process::id()))
+    }
+
+    /// A status sync that matches no row used to be indistinguishable from one
+    /// that wrote: SQLite reports success for an `UPDATE` that touches nothing,
+    /// the result was discarded, and the caller's only failure report was a
+    /// `log::warn!` this app never emits. The write is unrecoverable either
+    /// way — the point is that it stops being silent.
+    #[tokio::test]
+    async fn a_trade_update_that_matches_no_row_is_reported() {
+        // The verbosity filter defaults to `Off`, so nothing reaches any sink
+        // until this runs — the same call `init_app` makes in the app.
+        crate::api::logging::install_log_bridge();
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let order_id = format!("ghost-{}", uuid::Uuid::new_v4());
+        storage
+            .update_trade_fields(
+                &order_id,
+                Some(crate::api::types::OrderStatus::Dispute),
+                None,
+                None,
+            )
+            .await
+            .expect("a no-op update is not an error, and never was");
+
+        let short = crate::api::logging::short_id(&order_id);
+        assert!(
+            crate::api::logging::recent_logs().iter().any(|e| {
+                e.tag == "db"
+                    && matches!(e.level, crate::api::types::LogLevel::Warning)
+                    && e.message.contains(&short)
+            }),
+            "a trade update matching no row must warn, not pass as a write",
+        );
+    }
+
+    /// The companion to the no-row check: a *genuine* storage failure must
+    /// still reach the caller. Reading the result to count affected rows put a
+    /// binding between `execute` and the `?` that propagates the error — the
+    /// shape a later "simplification" turns into `.ok()`, which would restore
+    /// exactly the silence this stopped. A closed pool is a real, deterministic
+    /// failure, so it pins the propagation without corrupting anything.
+    #[tokio::test]
+    async fn a_trade_update_that_fails_is_not_reported_as_a_write() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        storage.pool.close().await;
+
+        let result = storage
+            .update_trade_fields(
+                "any-order",
+                Some(crate::api::types::OrderStatus::Dispute),
+                None,
+                None,
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "a failed write must surface as Err, never as Ok(())",
+        );
     }
 
     /// `foreign_keys` is a per-connection pragma, so running it once through
