@@ -18,6 +18,8 @@ import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/about/providers/mostro_node_provider.dart';
+import 'package:mostro/features/order/utils/waiting_countdown.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/dispute_confirmation_dialog.dart';
@@ -42,7 +44,9 @@ class TradeDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<TradeDetailScreen> createState() => _TradeDetailScreenState();
 }
 
-/// Default trade countdown duration (matches Mostro daemon default).
+/// Last-resort waiting-state countdown fallback, used only when the node's
+/// instance event omits `expiration_seconds` (#270). The real window comes from
+/// `MostroInstance.expirationSeconds` and the real deadline from `timeoutAt`.
 const _kCountdownSeconds = 900; // 15 minutes
 
 /// Type-safe trade status for the detail screen.
@@ -125,7 +129,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadExpiresAt();
+    // #270: the deadline is fed reactively from build() once tradeInfoProvider
+    // (timeoutAt) and mostroNodeProvider (expiration_seconds) resolve.
     _startCountdown();
   }
 
@@ -135,26 +140,33 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     super.dispose();
   }
 
-  /// Fetches the real `expiresAt` from the order and resets [_remaining].
-  ///
-  /// Falls back to the default [_kCountdownSeconds] when the field is null or
-  /// the order is no longer available.
-  Future<void> _loadExpiresAt() async {
-    try {
-      final info = await orders_api.getOrder(orderId: widget.orderId);
-      final raw = info?.expiresAt;
-      if (raw == null || !mounted) return;
-      final expiresAtSeconds = platformInt64ToInt(raw);
-      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final diff = expiresAtSeconds - now;
-      if (!mounted) return;
-      setState(() {
-        _totalCountdownSeconds = diff > 0 ? diff : _kCountdownSeconds;
-        _remaining = diff > 0 ? Duration(seconds: diff) : Duration.zero;
-      });
-    } catch (_) {
-      // Keep the default remaining time on error.
-    }
+  /// Applies a resolved countdown deadline (unix seconds) to the ticking timer,
+  /// sizing the progress ring off [totalSeconds]. Only resets when the target
+  /// actually changes, so the per-second tick isn't clobbered on every rebuild.
+  int? _appliedDeadline;
+  void _applyDeadline(int deadlineEpochSeconds, int totalSeconds) {
+    if (_appliedDeadline == deadlineEpochSeconds) return;
+    _appliedDeadline = deadlineEpochSeconds;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final diff = deadlineEpochSeconds - now;
+    if (!mounted) return;
+    setState(() {
+      _totalCountdownSeconds =
+          totalSeconds > 0 ? totalSeconds : _kCountdownSeconds;
+      _remaining = diff > 0 ? Duration(seconds: diff) : Duration.zero;
+    });
+  }
+
+  /// Clears the countdown when the current state no longer has one (e.g. a
+  /// waiting order advanced to active / fiat-sent). Idempotent: does nothing if
+  /// no deadline is currently applied, so it won't setState on every rebuild.
+  void _clearDeadline() {
+    if (_appliedDeadline == null && _remaining == Duration.zero) return;
+    _appliedDeadline = null;
+    if (!mounted) return;
+    setState(() {
+      _remaining = Duration.zero;
+    });
   }
 
   void _startCountdown() {
@@ -541,12 +553,42 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // Look up order details from the live order book.
     final order = ref.watch(orderByIdProvider(widget.orderId));
 
+    // #270: drive the waiting-state countdown from the node's real
+    // expiration_seconds and the trade's timeout_at, not the 24 h pending
+    // expiry. _applyDeadline only resets the ticking timer when the target
+    // changes, so unrelated rebuilds don't disturb the per-second tick. UI
+    // only informs — the daemon stays the authority on expiry.
+    final tradeInfo = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
     // Counterpart (taker) reputation snapshot persisted from the daemon's
     // follow-up Peer DM (#305). Read via tradeInfoProvider (not the polling
     // stream): it refreshes on the TradeUpdate the Rust side emits after
     // persisting the snapshot. Present only once someone took the order, and
     // the taker's role is the opposite of the user's own.
-    final trade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
+    final trade = tradeInfo;
+    final expirationSeconds =
+        ref.watch(mostroNodeProvider).valueOrNull?.expirationSeconds;
+    final countdown = waitingCountdownDeadline(
+      status: tradeStatusAsync.valueOrNull,
+      pendingExpiresAt: order?.expiresAt,
+      pendingCreatedAtEpoch:
+          order != null ? order.createdAt.millisecondsSinceEpoch ~/ 1000 : null,
+      timeoutAtEpoch: tradeInfo?.timeoutAt != null
+          ? platformInt64ToInt(tradeInfo!.timeoutAt!)
+          : null,
+      expirationSeconds: expirationSeconds,
+    );
+    // When the resolved state has no countdown (active / fiat-sent / terminal),
+    // clear any timer left over from a prior waiting state so a stale countdown
+    // never lingers across the transition.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (countdown != null) {
+        _applyDeadline(
+            countdown.deadlineEpochSeconds, countdown.totalWindowSeconds);
+      } else {
+        _clearDeadline();
+      }
+    });
 
     final inFlight = const {
       TradeStatus.waitingInvoice,
