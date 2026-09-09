@@ -1636,6 +1636,7 @@ mod tests {
             privacy_mode: false,
             trade_key_index: 21,
             created_at: 1_700_000_000,
+            backup_confirmed: false,
         };
         storage.save_identity(&identity).await.unwrap();
         let loaded = storage.get_identity().await.unwrap().unwrap();
@@ -1664,6 +1665,7 @@ mod tests {
             privacy_mode: false,
             trade_key_index: 7,
             created_at: 1_700_000_000,
+            backup_confirmed: false,
         };
         storage.save_identity(&identity).await.unwrap();
         storage.save_trade_key("order-1", 5).await.unwrap();

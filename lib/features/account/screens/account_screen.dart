@@ -106,8 +106,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   Future<void> _confirmBackup() async {
     final l10n = AppLocalizations.of(context);
     try {
-      await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
+      // Authoritative Rust write first; dismiss the reminder locally only once
+      // it succeeds. If markCompleted() throws, the catch below fires before the
+      // permanent local dismissal, so the reminder stays armed and consistent
+      // with backup_confirmed=false (#141 review).
       await ref.read(backupCompletedProvider.notifier).markCompleted();
+      await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
       if (mounted) setState(() => _showBackupCheckbox = false);
     } catch (e) {
       debugPrint('[account] _confirmBackup error: $e');

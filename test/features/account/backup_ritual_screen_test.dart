@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/screens/backup_ritual_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
@@ -18,8 +19,22 @@ Future<void> _pumpRitual(WidgetTester tester) async {
   addTearDown(tester.view.resetDevicePixelRatio);
 
   await tester.pumpWidget(
-    const ProviderScope(
-      child: MaterialApp(
+    ProviderScope(
+      overrides: [
+        // The backup-completed flag persists through the Rust identity bridge
+        // (#141), which is unavailable under flutter_test — back it with an
+        // in-memory fake so tapping "confirm" doesn't hit the real bridge.
+        backupCompletedProvider.overrideWith((ref) {
+          var confirmed = false;
+          return BackupCompletedNotifier(
+            initialValue: false,
+            getConfirmed: () async => confirmed,
+            setConfirmed: (v) async => confirmed = v,
+            resetConfirmed: () async => confirmed = false,
+          );
+        }),
+      ],
+      child: const MaterialApp(
         locale: Locale('en'),
         localizationsDelegates: [
           AppLocalizations.delegate,
