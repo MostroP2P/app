@@ -14,10 +14,10 @@ use crate::db::Storage;
 use crate::mostro::actions;
 use crate::mostro::pending::{
     classify_take_reply, detach_request_waiter, may_reconcile_stored_id, order_content_key,
-    pending_local_uuid_for, pending_requests, purge_pending_request, remove_pending_request,
-    take_matching_add_invoice, take_matching_dispute, take_matching_request, take_matching_restore,
-    take_matching_take, take_pending_create_by_content_key, DaemonReply, DisputeMatch,
-    PendingRequest, PendingRequestKind, Wake,
+    pending_local_uuid_for, pending_requests, remove_pending_request, take_matching_add_invoice,
+    take_matching_dispute, take_matching_request, take_matching_restore, take_matching_take,
+    take_pending_create_by_content_key, DaemonReply, DisputeMatch, PendingRequest,
+    PendingRequestKind, Wake,
 };
 use crate::mostro::status::{
     add_invoice_sync, cancellation_wipes_history, is_hard_terminal, map_core_status,
@@ -1594,16 +1594,35 @@ pub(crate) async fn subscribe_daemon_messages(
     trade_index: u32,
 ) {
     // ── Synchronous setup: awaited by the caller ──
+    // Single-owner claim before anything else (#325): if a watcher already
+    // owns this trade key, this call is a lease refresh — the live
+    // subscription and its pending record stay untouched, and the owner
+    // outlives this caller's interest. Claiming first means every early
+    // return below must release.
+    let trade_pubkey_hex = trade_pubkey.to_hex();
+    if !crate::nostr::subscriptions::try_claim(&trade_pubkey_hex).await {
+        crate::api::logging::blog_info(
+            "orders",
+            format!(
+                "daemon-message watcher already live for trade={} — re-arm refreshed its lease",
+                &trade_pubkey_hex[..8]
+            ),
+        );
+        return;
+    }
+
     let recipient_keys = match crate::api::identity::get_active_trade_keys(trade_index).await {
         Ok(k) => k,
         Err(e) => {
             log::error!("[orders] subscribe_daemon_messages: no trade keys: {e}");
+            crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
             return;
         }
     };
 
     let Ok(pool) = crate::api::nostr::get_pool() else {
         log::warn!("[orders] subscribe_daemon_messages: relay pool not initialized");
+        crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
         return;
     };
     let client = pool.client();
@@ -1613,6 +1632,7 @@ pub(crate) async fn subscribe_daemon_messages(
             Ok(pk) => pk,
             Err(e) => {
                 log::error!("[orders] subscribe_daemon_messages: invalid mostro pubkey: {e}");
+                crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
                 return;
             }
         };
@@ -1643,10 +1663,10 @@ pub(crate) async fn subscribe_daemon_messages(
         .author(mostro_pubkey)
         .pubkey(trade_pubkey)
         .limit(0);
-    let trade_pubkey_hex = trade_pubkey.to_hex();
-    let sub_id = daemon_message_subscription_id(&trade_pubkey_hex);
-    if let Err(e) = client.subscribe(filter).with_id(sub_id.clone()).await {
+    let sub_id = crate::nostr::subscriptions::daemon_message_subscription_id(&trade_pubkey_hex);
+    if let Err(e) = client.subscribe(filter).with_id(sub_id).await {
         log::warn!("[orders] subscribe_daemon_messages subscribe failed: {e}");
+        crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
         return;
     }
 
@@ -1667,109 +1687,125 @@ pub(crate) async fn subscribe_daemon_messages(
         const IDLE_TIMEOUT_SECS: u64 = 30 * 60;
         let mut last_activity = crate::rt::time::Instant::now();
 
-        loop {
-            let remaining =
-                Duration::from_secs(IDLE_TIMEOUT_SECS).saturating_sub(last_activity.elapsed());
-            if remaining.is_zero() {
-                break;
-            }
+        // Two distinct exits (#325): an idle timeout consults the registry —
+        // a re-arm that bounced off this owner meanwhile refreshes the lease
+        // and the watcher resumes — while Shutdown/closed-channel exits tear
+        // down unconditionally, because `rx` is dead and resuming would spin
+        // on a closed channel.
+        enum Exit {
+            Idle,
+            Shutdown,
+        }
 
-            match timeout(remaining, rx.next()).await {
-                Ok(Some(ClientNotification::Event { event, .. })) => {
-                    if event.kind != nostr_sdk::prelude::Kind::PrivateDirectMessage {
-                        continue;
-                    }
-                    // Disambiguate Mostro replies from NIP-17 peer chat (also
-                    // kind 14): only the node may author a Mostro reply.
-                    if event.pubkey != mostro_pubkey {
-                        continue;
-                    }
-                    let is_for_us = event.tags.iter().any(|t| {
-                        let s = t.as_slice();
-                        s.first().map(|v| v.as_str()) == Some("p")
-                            && s.get(1).map(|v| v.as_str()) == Some(trade_pubkey_hex.as_str())
-                    });
-                    if !is_for_us {
-                        continue;
-                    }
+        'watch: loop {
+            let exit = loop {
+                let remaining =
+                    Duration::from_secs(IDLE_TIMEOUT_SECS).saturating_sub(last_activity.elapsed());
+                if remaining.is_zero() {
+                    break Exit::Idle;
+                }
 
-                    let eid = event.id.to_hex();
-                    if is_duplicate_daemon_message(&eid) {
-                        crate::api::logging::blog_debug(
-                            "daemon-msg",
-                            format!(
-                                "drop ev={} reason=duplicate",
-                                crate::api::logging::short_id(&eid)
-                            ),
-                        );
-                        continue;
-                    }
-                    crate::api::logging::blog_info(
-                        "daemon-msg",
-                        format!(
-                            "Kind 14 received (per-trade) for trade={} from={} event_id={}",
-                            &trade_pubkey_hex[..8],
-                            &event.pubkey.to_hex()[..8],
-                            &eid[..16],
-                        ),
-                    );
-                    match crate::nostr::transport::unwrap_mostro_message(&recipient_keys, &event)
-                        .await
-                    {
-                        Ok(Some(unwrapped)) => {
-                            dispatch_mostro_message(
-                                unwrapped,
-                                &eid,
-                                &trade_pubkey_hex,
-                                trade_index,
-                            )
-                            .await;
-                            last_activity = crate::rt::time::Instant::now();
+                match timeout(remaining, rx.next()).await {
+                    Ok(Some(ClientNotification::Event { event, .. })) => {
+                        if event.kind != nostr_sdk::prelude::Kind::PrivateDirectMessage {
+                            continue;
                         }
-                        Ok(None) => {
-                            // The per-trade filter already narrowed by p-tag, so this
-                            // only fires if a relay delivers a wrap whose outer NIP-44
-                            // layer doesn't decrypt under our key — not actionable, and
-                            // cheap for a hostile relay to spam. Keep it at debug.
+                        // Disambiguate Mostro replies from NIP-17 peer chat (also
+                        // kind 14): only the node may author a Mostro reply.
+                        if event.pubkey != mostro_pubkey {
+                            continue;
+                        }
+                        let is_for_us = event.tags.iter().any(|t| {
+                            let s = t.as_slice();
+                            s.first().map(|v| v.as_str()) == Some("p")
+                                && s.get(1).map(|v| v.as_str()) == Some(trade_pubkey_hex.as_str())
+                        });
+                        if !is_for_us {
+                            continue;
+                        }
+
+                        let eid = event.id.to_hex();
+                        if is_duplicate_daemon_message(&eid) {
                             crate::api::logging::blog_debug(
                                 "daemon-msg",
                                 format!(
-                                    "decrypt returned None for trade={}",
-                                    &trade_pubkey_hex[..8]
+                                    "drop ev={} reason=duplicate",
+                                    crate::api::logging::short_id(&eid)
                                 ),
                             );
+                            continue;
                         }
-                        Err(e) => crate::api::logging::blog_warn(
+                        crate::api::logging::blog_info(
                             "daemon-msg",
-                            format!("decrypt failed for trade={}: {e}", &trade_pubkey_hex[..8]),
-                        ),
+                            format!(
+                                "Kind 14 received (per-trade) for trade={} from={} event_id={}",
+                                &trade_pubkey_hex[..8],
+                                &event.pubkey.to_hex()[..8],
+                                &eid[..16],
+                            ),
+                        );
+                        match crate::nostr::transport::unwrap_mostro_message(
+                            &recipient_keys,
+                            &event,
+                        )
+                        .await
+                        {
+                            Ok(Some(unwrapped)) => {
+                                dispatch_mostro_message(
+                                    unwrapped,
+                                    &eid,
+                                    &trade_pubkey_hex,
+                                    trade_index,
+                                )
+                                .await;
+                                last_activity = crate::rt::time::Instant::now();
+                            }
+                            Ok(None) => {
+                                // The per-trade filter already narrowed by p-tag, so this
+                                // only fires if a relay delivers a wrap whose outer NIP-44
+                                // layer doesn't decrypt under our key — not actionable, and
+                                // cheap for a hostile relay to spam. Keep it at debug.
+                                crate::api::logging::blog_debug(
+                                    "daemon-msg",
+                                    format!(
+                                        "decrypt returned None for trade={}",
+                                        &trade_pubkey_hex[..8]
+                                    ),
+                                );
+                            }
+                            Err(e) => crate::api::logging::blog_warn(
+                                "daemon-msg",
+                                format!("decrypt failed for trade={}: {e}", &trade_pubkey_hex[..8]),
+                            ),
+                        }
+                    }
+                    Ok(Some(ClientNotification::Shutdown)) | Ok(None) => break Exit::Shutdown,
+                    Err(_) => break Exit::Idle,
+                    Ok(Some(_)) => continue,
+                }
+            };
+
+            // Teardown — the unsubscribe + pending purge — is the registry's
+            // job, executed under its lock so no concurrent claim can slot in
+            // between this owner's decision and the destruction (#325).
+            match exit {
+                Exit::Idle => {
+                    if crate::nostr::subscriptions::teardown_or_rearm(
+                        &unsub_client,
+                        &trade_pubkey_hex,
+                    )
+                    .await
+                    {
+                        last_activity = crate::rt::time::Instant::now();
+                        continue 'watch;
                     }
                 }
-                Ok(Some(ClientNotification::Shutdown)) | Ok(None) => break,
-                Err(_) => break, // idle timeout
-                Ok(Some(_)) => continue,
+                Exit::Shutdown => {
+                    crate::nostr::subscriptions::teardown(&unsub_client, &trade_pubkey_hex).await;
+                }
             }
+            break 'watch;
         }
-
-        // Drop the relay-side REQ. Without this the task exits but the
-        // subscription lives on: relays cap concurrent REQs, and once past the
-        // cap they answer CLOSED — which can take the order-book feed down
-        // with it.
-        if let Err(e) = unsub_client.unsubscribe(&sub_id).await {
-            crate::api::logging::blog_warn(
-                "orders",
-                format!(
-                    "daemon-message unsubscribe failed for trade={}: {e}",
-                    &trade_pubkey_hex[..8]
-                ),
-            );
-        }
-
-        // The subscription bounds the pending record's lifetime: once no
-        // reply can be delivered here anymore, a still-unconsumed record
-        // (request timed out and no genuine late reply ever arrived) is dead
-        // state — drop it, whatever attempt it belongs to.
-        purge_pending_request(&trade_pubkey_hex);
     });
 }
 
@@ -3884,21 +3920,6 @@ fn orders_subscription_id() -> nostr_sdk::prelude::SubscriptionId {
     nostr_sdk::prelude::SubscriptionId::new("mostro-orders")
 }
 
-/// Stable id for a trade's daemon-message subscription.
-///
-/// Stable so the task can drop the relay-side REQ when it exits. Keyed by
-/// trade pubkey, so unsubscribing one trade cannot close another's feed.
-///
-/// NIP-01 caps subscription ids at 64 characters and relays enforce it
-/// (`relay.mostro.network` answers CLOSED with "max length 64 chars"); the
-/// full 64-hex pubkey would push the id to 78. The first 32 hex characters
-/// (128 bits) keep it at 46 and rule out any realistic cross-trade collision.
-/// [`subscription_ids_fit_nip01`] pins the bound.
-fn daemon_message_subscription_id(trade_pubkey_hex: &str) -> nostr_sdk::prelude::SubscriptionId {
-    let key = trade_pubkey_hex.get(..32).unwrap_or(trade_pubkey_hex);
-    nostr_sdk::prelude::SubscriptionId::new(format!("mostro-daemon-{key}"))
-}
-
 /// Stable id for a single order's d-tag update subscription.
 fn single_order_subscription_id(order_id: &str) -> nostr_sdk::prelude::SubscriptionId {
     nostr_sdk::prelude::SubscriptionId::new(format!("mostro-order-{order_id}"))
@@ -5323,6 +5344,7 @@ mod tests {
     use crate::api::types::TradeRole;
     use crate::mostro::pending::register_dispute_request;
     use crate::mostro::session::session_manager;
+    use crate::nostr::subscriptions::daemon_message_subscription_id;
 
     /// Unsubscribing is only safe if each id addresses exactly one feed: a
     /// collision would have one trade's exit close another's subscription, or
@@ -5537,6 +5559,40 @@ mod tests {
             daemon_message_subscription_id(&a),
             daemon_message_subscription_id(&b)
         );
+    }
+
+    /// #325 criterion 2 at the real entry point: re-arming a trade key that
+    /// already has a live watcher must be a no-op. The single-owner claim is
+    /// the first thing `subscribe_daemon_messages` does, so the bounce
+    /// returns before the pending record, the live subscription, or even the
+    /// relay pool are touched — the restore apply (#218) can call it twice
+    /// without stranding the first watcher's waiting caller.
+    #[tokio::test]
+    async fn rearming_a_covered_trade_key_leaves_its_pending_request_alone() {
+        let keys = nostr_sdk::prelude::Keys::generate();
+        let trade_pubkey = keys.public_key();
+        let hex = trade_pubkey.to_hex();
+
+        assert!(crate::nostr::subscriptions::try_claim(&hex).await);
+        pending_requests().lock().unwrap().insert(
+            hex.clone(),
+            PendingRequest {
+                request_id: 5,
+                trade_index: 9,
+                kind: PendingRequestKind::Take,
+                tx: None,
+            },
+        );
+
+        subscribe_daemon_messages(trade_pubkey, 9).await;
+
+        assert!(
+            pending_requests().lock().unwrap().contains_key(&hex),
+            "a bounced re-arm must not purge the live watcher's pending request"
+        );
+
+        pending_requests().lock().unwrap().remove(&hex);
+        crate::nostr::subscriptions::release(&hex).await;
     }
 
     /// Nothing ever displays a stranger's finished order — the book filters to
