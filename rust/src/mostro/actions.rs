@@ -145,16 +145,10 @@ pub async fn fiat_sent(
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    next_trade: Option<(String, u32)>,
 ) -> Result<String> {
-    simple_action(
-        identity_keys,
-        trade_keys,
-        mostro_pubkey,
-        order_id,
-        trade_index,
-        Action::FiatSent,
-    )
-    .await
+    let msg = action_message(order_id, trade_index, Action::FiatSent, next_trade)?;
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap a Release MostroMessage.
@@ -178,13 +172,24 @@ pub(crate) fn release_message(
     trade_index: u32,
     next_trade: Option<(String, u32)>,
 ) -> Result<Message> {
+    action_message(order_id, trade_index, Action::Release, next_trade)
+}
+
+/// An order action that may name the trade key for a range remainder: the
+/// seller's Release, or the buyer's FiatSent when the buyer made the range.
+pub(crate) fn action_message(
+    order_id: &str,
+    trade_index: u32,
+    action: Action,
+    next_trade: Option<(String, u32)>,
+) -> Result<Message> {
     let id = Uuid::parse_str(order_id)?;
     let payload = next_trade.map(|(pubkey, index)| Payload::NextTrade(pubkey, index));
     Ok(Message::new_order(
         Some(id),
         None,
         Some(trade_index as i64),
-        Action::Release,
+        action,
         payload,
     ))
 }
@@ -491,6 +496,15 @@ mod tests {
             kind.get_next_trade_key().unwrap(),
             Some(("ab".repeat(32), 4))
         );
+
+        // The buyer who made a range names the key in fiat-sent instead.
+        let fiat = action_message(&id, 3, Action::FiatSent, Some(("cd".repeat(32), 5))).unwrap();
+        let kind = fiat.get_inner_message_kind();
+        assert_eq!(kind.action, Action::FiatSent);
+        assert_eq!(
+            kind.get_next_trade_key().unwrap(),
+            Some(("cd".repeat(32), 5))
+        );
     }
 
     /// The NIP-13 target difficulty the event was mined at, read from its
@@ -601,6 +615,7 @@ mod tests {
                 &mostro_pubkey,
                 "94486ae3-4083-4dfe-b543-53fe761025e9",
                 5,
+                None,
             ),
         )
         .await
