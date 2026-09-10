@@ -201,4 +201,91 @@ void main() {
       expect(find.text('Bond amount'), findsNothing);
     });
   });
+
+  group('AboutScreen — settlement backend section', () {
+    /// Every string that would betray Cashu to a user whose node does not run
+    /// it. None may appear unless the node itself advertised Cashu.
+    const cashuStrings = [
+      'Cashu escrow',
+      'Mint',
+      'Escrow locktime',
+      'Settlement margin',
+      'https://mint.example.com',
+    ];
+
+    const lndTags = {
+      'lnd_version': '0.18.0',
+      'lnd_node_alias': 'test-node',
+    };
+
+    const cashuTags = {
+      'escrow_mode': 'cashu',
+      'cashu_mint_url': 'https://mint.example.com',
+      'cashu_escrow_locktime_days': '15',
+      'cashu_settlement_margin_days': '3',
+    };
+
+    testWidgets('a legacy node shows Lightning and no trace of Cashu',
+        (tester) async {
+      // Arrange — no escrow tags at all: every daemon in the wild today.
+      await _pumpWithNode(tester, MostroInstance.fromTags(_tags(lndTags)));
+
+      // Assert — unchanged from before this feature existed.
+      expect(find.text('Lightning Network'), findsOneWidget);
+      expect(find.text('0.18.0'), findsOneWidget);
+      for (final s in cashuStrings) {
+        expect(find.text(s), findsNothing, reason: '$s must not be shown');
+      }
+    });
+
+    testWidgets('a Lightning node shows no trace of Cashu either',
+        (tester) async {
+      // Arrange — explicitly Lightning, and carrying stale cashu tags the
+      // parser must gate away.
+      await _pumpWithNode(
+        tester,
+        MostroInstance.fromTags(
+          _tags({...lndTags, ...cashuTags, 'escrow_mode': 'lightning'}),
+        ),
+      );
+
+      // Assert
+      expect(find.text('Lightning Network'), findsOneWidget);
+      for (final s in cashuStrings) {
+        expect(find.text(s), findsNothing, reason: '$s must not be shown');
+      }
+    });
+
+    testWidgets('a Cashu node shows its parameters and no Lightning section',
+        (tester) async {
+      // Arrange — About reports what this node runs, so the two backends are
+      // mutually exclusive on screen.
+      await _pumpWithNode(
+        tester,
+        MostroInstance.fromTags(_tags({...lndTags, ...cashuTags})),
+      );
+
+      // Assert
+      expect(find.text('Cashu escrow'), findsOneWidget);
+      expect(find.text('https://mint.example.com'), findsOneWidget);
+      expect(find.text('15 days'), findsOneWidget);
+      expect(find.text('3 days'), findsOneWidget);
+      expect(find.text('Lightning Network'), findsNothing);
+      expect(find.text('0.18.0'), findsNothing);
+    });
+
+    testWidgets('a Cashu node with no mint says so rather than showing nothing',
+        (tester) async {
+      // Arrange — a misconfigured node: it claims Cashu but published no mint,
+      // so no trade can run against it.
+      await _pumpWithNode(
+        tester,
+        MostroInstance.fromTags(_tags({'escrow_mode': 'cashu'})),
+      );
+
+      // Assert
+      expect(find.text('Cashu escrow'), findsOneWidget);
+      expect(find.text('Not advertised'), findsOneWidget);
+    });
+  });
 }

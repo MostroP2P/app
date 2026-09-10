@@ -5,8 +5,8 @@
 /// any active [`SettingsStream`] so the UI can react without polling.
 use anyhow::{bail, Result};
 use std::sync::OnceLock;
-use tokio::sync::{broadcast, RwLock};
 use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{AppSettings, ThemeMode};
 use crate::db::Storage;
@@ -114,9 +114,7 @@ fn validate_lightning_address(address: &str) -> Result<()> {
             && labels.iter().all(|label| {
                 !label.is_empty()
                     && label.len() <= 63
-                    && label
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+                    && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
                     && !label.starts_with('-')
                     && !label.ends_with('-')
             });
@@ -182,6 +180,18 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
 }
 
 /// Return the currently active Mostro node pubkey (override or default).
+/// Mortsom test environment only: every order this client creates asks
+/// the daemon to expire it `secs` after creation (`MORTSOM_ORDER_EXPIRY_SECS`),
+/// so a scenario about the daemon's pending-order clock does not wait out
+/// the daemon's hour-granular default. `None` restores that default. The
+/// daemon caps the value by its `max_expiration_days`.
+pub fn set_test_order_expiry(secs: Option<u64>) {
+    // Bounded so `now + secs` stays a valid unix time: a value past
+    // `i64::MAX` would wrap the requested expiry into the past.
+    let bounded = secs.filter(|s| *s > 0 && i64::try_from(*s).is_ok());
+    crate::config::set_order_expiry_override(bounded);
+}
+
 pub fn get_mostro_pubkey() -> String {
     crate::config::active_mostro_pubkey()
 }
@@ -197,7 +207,7 @@ pub fn get_mostro_pubkey() -> String {
 ///
 /// **Errors**: `InvalidPubkey` if `pubkey` is not a valid 64-char hex key.
 pub async fn set_active_mostro_node(pubkey: String) -> Result<()> {
-    nostr_sdk::PublicKey::from_hex(&pubkey)
+    nostr_sdk::prelude::PublicKey::from_hex(&pubkey)
         .map_err(|e| anyhow::anyhow!("InvalidPubkey: {e}"))?;
 
     if let Some(db) = crate::db::app_db::db() {
@@ -225,12 +235,18 @@ pub async fn rehydrate_active_mostro_node() -> Result<()> {
 
 /// Toggle the in-memory logging flag (not persisted to disk).
 ///
-/// When a Tokio runtime is available the update is dispatched asynchronously
-/// and the broadcast notification is sent.  When there is no runtime (e.g.
-/// during synchronous tests) we fall back to a blocking write; the broadcast
-/// notification is skipped in that path but the flag is always set.
+/// Applies the global log filter synchronously, so the change takes effect on
+/// the next record rather than when the async store update lands.
+///
+/// When a Tokio runtime is available the store update is dispatched
+/// asynchronously and the broadcast notification is sent.  When there is no
+/// runtime (e.g. during synchronous tests) we fall back to a blocking write;
+/// the broadcast notification is skipped in that path but the flag is always
+/// set.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn set_logging_enabled(enabled: bool) {
+    crate::api::logging::set_verbose_logging(enabled);
+
     // Note: the async path is fire-and-forget (spawn); callers that call
     // get_settings() immediately after may not yet see the updated flag
     // (eventually consistent).  The sync fallback applies the change inline.
@@ -253,6 +269,7 @@ pub fn set_logging_enabled(enabled: bool) {
 // present, so dispatch onto it directly.
 #[cfg(target_arch = "wasm32")]
 pub fn set_logging_enabled(enabled: bool) {
+    crate::api::logging::set_verbose_logging(enabled);
     crate::rt::spawn(async move {
         let snapshot = store().write_with(|s| s.logging_enabled = enabled).await;
         store().notify(snapshot);
@@ -331,7 +348,9 @@ mod tests {
     #[tokio::test]
     async fn set_default_fiat_code_valid() {
         let _g = settings_lock().lock().unwrap();
-        set_default_fiat_code(Some("USD".to_string())).await.unwrap();
+        set_default_fiat_code(Some("USD".to_string()))
+            .await
+            .unwrap();
         let s = get_settings().await.unwrap();
         assert_eq!(s.default_fiat_code.as_deref(), Some("USD"));
         set_default_fiat_code(None).await.unwrap();
@@ -348,7 +367,9 @@ mod tests {
     #[tokio::test]
     async fn set_default_fiat_code_none_clears() {
         let _g = settings_lock().lock().unwrap();
-        set_default_fiat_code(Some("EUR".to_string())).await.unwrap();
+        set_default_fiat_code(Some("EUR".to_string()))
+            .await
+            .unwrap();
         set_default_fiat_code(None).await.unwrap();
         let s = get_settings().await.unwrap();
         assert!(s.default_fiat_code.is_none());

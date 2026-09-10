@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
@@ -48,7 +50,7 @@ class CurrencySection extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ).withAutomationId(AutomationIds.orderCreateCurrency);
   }
 
   void _showCurrencyDialog(BuildContext context, WidgetRef ref) {
@@ -109,12 +111,14 @@ class _CurrencyPickerDialogState extends State<_CurrencyPickerDialog> {
             padding: const EdgeInsets.all(AppSpacing.md),
             child: TextField(
               autofocus: true,
+              autocorrect: false,
+              enableSuggestions: false,
               decoration: InputDecoration(
                 hintText: AppLocalizations.of(context).searchCurrenciesHint,
                 prefixIcon: const Icon(Icons.search),
               ),
               onChanged: (v) => setState(() => _query = v),
-            ),
+            ).withAutomationId(AutomationIds.orderCreateCurrencySearch),
           ),
           SizedBox(
             height: 300,
@@ -133,6 +137,8 @@ class _CurrencyPickerDialogState extends State<_CurrencyPickerDialog> {
                   selected: isSelected,
                   selectedColor: colors?.mostroGreen,
                   onTap: () => widget.onSelect(c.code),
+                ).withAutomationId(
+                  AutomationIds.orderCreateCurrencyOption(c.code),
                 );
               },
             ),

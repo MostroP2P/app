@@ -1,13 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/currency_selector_dialog.dart';
+import 'package:mostro/features/settings/widgets/escrow_mode_dev_card.dart';
 import 'package:mostro/features/settings/widgets/language_selector.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/settings/widgets/relay_management_card.dart';
@@ -37,10 +41,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () =>
               context.canPop() ? context.pop() : context.go(AppRoute.home),
-        ),
+        ).withAutomationId(AutomationIds.appBarBack),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        // #267: add the bottom system-bar inset so the last item isn't hidden
+        // behind the gesture / 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+        ),
         children: [
           // 1 — Language
           _settingsCard(
@@ -86,6 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _settingsCard(
             context: context,
             colors: colors,
+            automationId: AutomationIds.settingsWallet,
             icon: Icons.account_balance_wallet_outlined,
             title: AppLocalizations.of(context).nwcWalletSettingTitle,
             subtitle: isWalletConnected
@@ -109,6 +121,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             child: Column(
               children: [
+                // Relays are an expandable card here, not a route: tapping
+                // `settings.relays` reveals the list the same way a user does.
                 InkWell(
                   borderRadius: BorderRadius.circular(AppRadius.card),
                   onTap: () =>
@@ -148,7 +162,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ],
                     ),
                   ),
-                ),
+                ).withAutomationId(AutomationIds.settingsRelays),
                 if (_relaysExpanded)
                   const Padding(
                     padding: EdgeInsets.fromLTRB(
@@ -187,11 +201,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _settingsCard(
             context: context,
             colors: colors,
+            automationId: AutomationIds.settingsMostroNode,
             icon: Icons.hub_outlined,
             title: AppLocalizations.of(context).mostroNodeSettingTitle,
             subtitle: truncatePubkey(mostroPubkey),
+            // The visible subtitle is truncated for width; the readout
+            // carries the full key, which is what automation compares.
+            subtitleAutomationId: AutomationIds.settingsMostroNodePubkey,
+            subtitleAutomationLabel: mostroPubkey,
             onTap: () => showMostroNodeSelector(context),
           ),
+
+          // 9 — Escrow backend override. Debug builds only: forcing a backend
+          // the node does not run is a testing affordance, never a user
+          // setting. See docs/cashu/README.md §4.3.
+          if (kDebugMode) const EscrowModeDevCard(),
         ],
       ),
     );
@@ -206,8 +230,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    String? automationId,
+    String? subtitleAutomationId,
+    String? subtitleAutomationLabel,
   }) {
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Material(
         color: colors.backgroundCard,
@@ -232,11 +259,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             .bodyLarge
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      _maybeNamed(
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitleAutomationId,
+                        subtitleAutomationLabel,
                       ),
                     ],
                   ),
@@ -248,7 +279,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     );
+    // The card holds one tap target plus, on the node card, a state readout;
+    // merge: false keeps the readout its own node so its label can be read.
+    return automationId == null
+        ? card
+        : card.withAutomationId(automationId, merge: subtitleAutomationId == null);
   }
+
+  /// Names [child] when an identifier was given; returns it untouched
+  /// otherwise, so cards without a readout keep their exact widget tree.
+  static Widget _maybeNamed(Widget child, String? id, String? label) =>
+      id == null ? child : child.withAutomationId(id, label: label);
 
   // ── Theme helpers ─────────────────────────────────────────────────────────────
 

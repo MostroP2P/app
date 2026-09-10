@@ -156,13 +156,21 @@ async function main() {
   let browser;
   try {
     browser = await chromium.launch();
-    // Pin the locale. A CI container usually has none configured, so Chromium
-    // reports something Dart's intl rejects outright — `RangeError: Incorrect
-    // locale information provided` thrown from main(), before runApp, leaving
-    // the engine bootstrapped but no view mounted. Real browsers always report
-    // a locale, so leaving it unset tests a situation no user is ever in while
-    // hiding every failure that comes after it.
-    const page = await browser.newPage({ locale: 'en-US' });
+    // Pin the locale, overridable via SMOKE_LOCALE. A CI container usually has
+    // none configured, so Chromium reports something Dart's intl rejects
+    // outright — `RangeError: Incorrect locale information provided` thrown
+    // before runApp, leaving the engine bootstrapped but no view mounted. Real
+    // browsers always report a valid locale, so leaving it unset tests a
+    // situation no user is ever in while hiding every failure that comes
+    // after it — hence the 'en-US' default. web-build.yml also runs this
+    // script once with SMOKE_LOCALE=C: a regression guard for issue #227,
+    // fixed by the locale sanitizer in web/index.html. The pin stays for
+    // determinism; it is no longer load-bearing for that bug.
+    //
+    // `??`, not `||`: the empty string is one of the broken tags this guards
+    // against, and `||` would silently turn SMOKE_LOCALE='' into 'en-US' —
+    // the one case the knob exists for, passing green without testing it.
+    const page = await browser.newPage({ locale: process.env.SMOKE_LOCALE ?? 'en-US' });
 
     const record = (origin, text) => {
       (isIgnorable(text) ? ignored : errors).push(`[${origin}] ${text}`);

@@ -94,6 +94,66 @@ impl SessionManager {
         if sessions.contains_key(&order_id) {
             return Err(anyhow!("SessionAlreadyExists: {}", order_id));
         }
+        crate::api::logging::blog_info(
+            "session",
+            format!(
+                "created order={} idx={} role={:?}",
+                crate::api::logging::short_id(&order_id),
+                session.trade_key_index,
+                session.role,
+            ),
+        );
+        sessions.insert(order_id, session.clone());
+        Ok(session)
+    }
+
+    /// Create a session already bound to its peer: inserted **fully
+    /// populated under the write lock**, so no concurrent reader can ever
+    /// observe a keyless intermediate (a `create_session` + `update_session`
+    /// pair leaves one visible between the two locks, and `send_message`
+    /// reads it as "peer not yet known" — silent local-only, #381 review).
+    /// Same duplicate semantics as [`Self::create_session`].
+    pub async fn create_session_with_peer(
+        &self,
+        order_id: String,
+        role: TradeRole,
+        trade_key_index: u32,
+        order: OrderInfo,
+        peer_pubkey: String,
+        shared_key: [u8; 32],
+    ) -> Result<Session> {
+        if order_id != order.id {
+            return Err(anyhow!(
+                "order_id mismatch: param='{}' vs order.id='{}'",
+                order_id,
+                order.id
+            ));
+        }
+
+        let session = Session {
+            order_id: order_id.clone(),
+            role,
+            trade_key_index,
+            shared_key: Some(shared_key),
+            admin_shared_key: None,
+            peer_pubkey: Some(peer_pubkey),
+            order,
+            created_at: crate::rt::unix_now(),
+        };
+
+        let mut sessions = self.sessions.write().await;
+        if sessions.contains_key(&order_id) {
+            return Err(anyhow!("SessionAlreadyExists: {}", order_id));
+        }
+        crate::api::logging::blog_info(
+            "session",
+            format!(
+                "created-with-peer order={} idx={} role={:?}",
+                crate::api::logging::short_id(&order_id),
+                session.trade_key_index,
+                session.role,
+            ),
+        );
         sessions.insert(order_id, session.clone());
         Ok(session)
     }
@@ -122,7 +182,12 @@ impl SessionManager {
 
     /// Remove a session (on completion, cancellation, or timeout).
     pub async fn remove_session(&self, order_id: &str) {
-        self.sessions.write().await.remove(order_id);
+        if self.sessions.write().await.remove(order_id).is_some() {
+            crate::api::logging::blog_info(
+                "session",
+                format!("removed order={}", crate::api::logging::short_id(order_id)),
+            );
+        }
     }
 
     /// Store the ECDH admin shared key derived from `adminTookDispute`.
@@ -144,14 +209,16 @@ impl SessionManager {
     }
 
     /// Remove sessions older than `timeout_secs` that have no shared key
-    /// (i.e., the take action was never acknowledged by Mostro).
-    pub async fn cleanup_stale_sessions(&self, timeout_secs: i64) {
+    /// (i.e., the trade never went active). Returns how many were dropped.
+    pub async fn cleanup_stale_sessions(&self, timeout_secs: i64) -> usize {
         let now = crate::rt::unix_now();
 
         let mut sessions = self.sessions.write().await;
+        let before = sessions.len();
         sessions.retain(|_, s| {
             s.shared_key.is_some() || (now - s.created_at) < timeout_secs
         });
+        before - sessions.len()
     }
 }
 

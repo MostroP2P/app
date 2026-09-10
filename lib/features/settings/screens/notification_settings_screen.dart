@@ -71,7 +71,14 @@ class _NotificationSettingsScreenState
         title: Text(l10n.pushNotificationsSettingTitle),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        // #267: add the bottom system-bar inset so the last item isn't hidden
+        // behind the gesture / 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+        ),
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),

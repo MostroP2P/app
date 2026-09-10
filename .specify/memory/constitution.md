@@ -1,19 +1,37 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 1.0.0 → 1.1.0
-  Modified principles: N/A
-  Added sections:
-    - Core Principles (7 principles) — added VII. V1 User Experience
-    - Technical Boundaries
-    - Quality Standards
-    - Governance
-  Removed sections: None
-  Templates requiring updates:
-    - .specify/templates/plan-template.md ✅ no conflicts
-    - .specify/templates/spec-template.md ✅ no conflicts
-    - .specify/templates/tasks-template.md ✅ no conflicts
+  Version change: 1.1.0 → 1.1.1 (PATCH — clarification, no principle added,
+  removed or redefined)
+  Modified principles:
+    - II. Privacy by Design — the chat transport it prescribed (NIP-59 gift
+      wrap, Kind 1059) was replaced by the Kind 14 chat envelope in issue #246,
+      in both the peer and the dispute-solver direction. The principle itself
+      (everything end-to-end encrypted) is unchanged; only the mechanism it
+      names is corrected to what the code actually speaks.
+  Modified sections:
+    - Technical Boundaries → Must Use — same correction, plus nostr-sdk 0.44+
+      → 0.45+ (PR #376).
+  Added/Removed sections: None
+  Templates requiring updates: None — no template references the chat transport.
+  Downstream docs synced with this amendment (they still required kind 1059 for
+  chat, which would have left two mutually exclusive requirements in the repo):
+    - CONTRIBUTING.md "Protocol / Transport Changes"
+    - .specify/PROTOCOL.md, .specify/ARCHITECTURE.md, .specify/README.md
+    - specs/004: plan.md, data-model.md, contracts/orders.md, and the
+      superseding banners on research.md and tasks.md
+    - specs/005: a scope note on spec.md (User Story 2, FR-004), plan.md,
+      tasks.md and research.md — 005 deliberately migrated the daemon channel
+      only, so its chat carve-out is marked as a record of that scope rather
+      than rewritten
+  The live chat contract is specs/004-mostro-p2p-client/contracts/messages.md.
+  .specify/v1-reference/ is untouched on purpose: it is descriptive of v1, which
+  did use gift wrap.
   Follow-up TODOs: None
+
+  Earlier: 1.0.0 → 1.1.0 added the Core Principles (7, incl. VII. V1 User
+  Experience), Technical Boundaries, Quality Standards and Governance
+  sections; the three .specify/templates/*.md were checked, no conflicts.
 -->
 
 # Mostro Mobile v2 Constitution
@@ -32,7 +50,7 @@
 
 ### II. Privacy by Design
 
-- All Mostro communication MUST be end-to-end encrypted: NIP-44 (signed Kind 14, transport v2) for messages to the Mostro daemon, and NIP-59 gift wrap (Kind 1059) for peer/dispute chat. (Daemon transport was previously NIP-59 gift wrap for everything; it migrated to NIP-44 in transport v2 — peer/dispute chat stayed on gift wrap.)
+- All Mostro communication MUST be end-to-end encrypted, and this client speaks protocol v2 only: NIP-44 (signed Kind 14) for messages to the Mostro daemon, and the chat envelope (Kind 14 signed with `K_sign`, carrying a NIP-44-encrypted inner Kind 1 signed by the trade key) for peer and dispute chat. (Everything was NIP-59 gift wrap before transport v2; the daemon channel migrated first, and peer/dispute chat followed in issue #246 to close a gift-wrap flood attack. Nothing in this client reads or writes Kind 1059 any more.)
 - No analytics, telemetry, or tracking of any kind.
 - Cryptographic keys MUST never leave the device unencrypted.
 - Ephemeral trade data MUST be cleared after trade completion.
@@ -100,8 +118,8 @@
 - **App Bundle ID:** `foundation.mostro.app` (iOS, Android, web, desktop)
 - **Flutter** — UI framework, multi-platform rendering
 - **Rust via flutter_rust_bridge** — all core logic
-- **nostr-sdk 0.44+** — Nostr protocol implementation
-- **NIP-44 / NIP-59** — daemon messages use NIP-44 (Kind 14); peer/dispute chat uses NIP-59 gift wrap (Kind 1059). Was all-NIP-59 before transport v2.
+- **nostr-sdk 0.45+** — Nostr protocol implementation
+- **NIP-44** — daemon messages use NIP-44 (Kind 14); peer/dispute chat uses the Kind 14 chat envelope. Was all-NIP-59 gift wrap before transport v2 and issue #246; Kind 1059 is gone from both directions.
 - **SQLite or equivalent** — local persistence
 - **Platform-aware components** — camera/QR with web fallback
 - **Responsive layout system** — mobile, tablet, desktop
@@ -147,4 +165,4 @@ These are explicitly out of scope for the initial release:
 - Complexity beyond what these principles allow MUST be explicitly
   justified and documented.
 
-**Version**: 1.1.0 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-03-29
+**Version**: 1.1.1 | **Ratified**: 2026-03-22 | **Last Amended**: 2026-09-03

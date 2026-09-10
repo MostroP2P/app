@@ -38,7 +38,7 @@ Every change must respect the layering:
 
 Changes that affect Nostr event kinds, tags, or the transport layer are **protocol changes** and deserve extra care:
 
-- **Transport v2** — daemon messages (new-order, take, release, cancel, dispute, rate, invoice, restore) use NIP-44 / signed Kind 14; peer and dispute chat use NIP-59 gift wrap (Kind 1059). Keep changes to these paths focused and well-described.
+- **Transport v2** — daemon messages (new-order, take, release, cancel, dispute, rate, invoice, restore) use NIP-44 / signed Kind 14. Peer and dispute chat use the **chat envelope**: a Kind 14 outer event signed with `K_sign`, carrying a NIP-44-encrypted inner Kind 1 signed by the trade key (`specs/004-mostro-p2p-client/contracts/messages.md`). This client speaks protocol v2 only — nothing reads or writes Kind 1059, in either direction, since #246. Keep changes to these paths focused and well-described.
 - **Wire compatibility** — wire status strings are kebab-case (e.g. `waiting-buyer-invoice`, `fiat-sent`). Any change to event formats must state its impact on external consumers (the Mostro daemon, other clients, relays).
 - **Keep the spec in sync** — specs under `specs/` and `.specify/` are a living artifact. Update the matching spec/contract as part of any behavior or contract change.
 

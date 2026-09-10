@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Post-merge hook: regenerate gitignored generated code after `git pull` / `git merge`.
+# Install: git config core.hooksPath .githooks
+exec "$(dirname "$0")/regen-if-needed.sh" ORIG_HEAD HEAD

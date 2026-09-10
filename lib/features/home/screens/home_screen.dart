@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
+import 'package:mostro/features/home/widgets/order_book_list.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
@@ -16,7 +19,10 @@ import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
 import 'package:mostro/shared/widgets/order_list_skeleton.dart';
 
-/// Home screen — public order book with BUY/SELL tabs, filter, and drawer.
+/// Home screen — public order book, pixel-exact port of the "Mostro UX
+/// Redesign" mock (screen #3 · Order book with reasons to pick).
+///
+/// BUY/SELL tabs, FILTER pill + sort caption, offer cards, and drawer.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -27,7 +33,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
   bool _drawerOpen = false;
-  bool _showHappyFace = false;
 
   late final TabController _tabController;
 
@@ -51,19 +56,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _toggleDrawer() => setState(() => _drawerOpen = !_drawerOpen);
 
-  void _triggerHappyFace() {
-    if (_showHappyFace) return;
-    setState(() => _showHappyFace = true);
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) setState(() => _showHappyFace = false);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final pal = OrderBookPalette.of(context);
+    final l10n = AppLocalizations.of(context);
     final filteredOrders = ref.watch(filteredOrdersProvider);
     // "Reason to pick" badges computed once per visible list (not per card).
     final orderReasons = ref.watch(orderReasonsProvider);
@@ -72,58 +69,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final isDesktop = screenWidth >= AppBreakpoints.desktop;
 
     // ── Order list: responsive column count ──────────────────────────────────
-    final columns = screenWidth >= AppBreakpoints.desktop
-        ? 3
-        : screenWidth >= AppBreakpoints.tablet
+    final columns =
+        screenWidth >= AppBreakpoints.desktop
+            ? 3
+            : screenWidth >= AppBreakpoints.tablet
             ? 2
             : 1;
 
     Widget orderContent(void Function(String orderId, OrderType type) onTap) {
       if (filteredOrders.isEmpty) return const OrderListEmpty();
-      if (columns == 1) {
-        return ListView.separated(
-          padding: const EdgeInsets.only(
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            top: AppSpacing.xs,
-            bottom: 100,
-          ),
-          itemCount: filteredOrders.length,
-          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, index) {
-            final order = filteredOrders[index];
-            return OrderListItem(
-              order: order,
-              currencyFlags: flags,
-              reason: orderReasons[order.id],
-              onTap: () => onTap(order.id, ref.read(homeOrderTypeProvider)),
-            );
-          },
-        );
-      }
-      return GridView.builder(
-        padding: const EdgeInsets.only(
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
-          top: AppSpacing.xs,
-          bottom: 100,
-        ),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          crossAxisSpacing: AppSpacing.sm,
-          mainAxisSpacing: AppSpacing.sm,
-          childAspectRatio: 1.1,
-        ),
-        itemCount: filteredOrders.length,
-        itemBuilder: (context, index) {
-          final order = filteredOrders[index];
-          return OrderListItem(
-            order: order,
-            currencyFlags: flags,
-            reason: orderReasons[order.id],
-            onTap: () => onTap(order.id, ref.read(homeOrderTypeProvider)),
-          );
-        },
+      return OrderBookList(
+        orders: filteredOrders,
+        currencyFlags: flags,
+        reasons: orderReasons,
+        columns: columns,
+        onOrderTap: (id) => onTap(id, ref.read(homeOrderTypeProvider)),
       );
     }
 
@@ -146,103 +106,146 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         SafeArea(
           bottom: false,
           child: _MostroAppBar(
-            green: green,
-            showHappyFace: _showHappyFace,
+            palette: pal,
             onMenuTap: isDesktop ? null : _toggleDrawer,
-            onLogoTap: _triggerHappyFace,
           ),
         ),
 
-        // Tabs
+        // Tabs — active: green 2px underline; inactive: disabled over 1px rule.
         Container(
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
+            border: Border(bottom: BorderSide(color: pal.border)),
           ),
           child: TabBar(
             controller: _tabController,
-            indicatorColor: green,
-            labelColor: colors?.textPrimary,
-            unselectedLabelColor: colors?.textSecondary,
+            indicatorColor: pal.green,
+            indicatorWeight: 2,
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
+            labelColor: pal.green,
+            unselectedLabelColor: pal.tabInactive,
+            labelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+            // Named by the visible tab, not by what it filters: the Buy BTC
+            // tab lists sell orders, so deriving the id from the filtered
+            // OrderType would swap the two.
             tabs: [
-              Tab(text: AppLocalizations.of(context).tabBuyBtc),
-              Tab(text: AppLocalizations.of(context).tabSellBtc),
+              Tab(
+                child: Text(l10n.tabBuyBtc)
+                    .withAutomationId(AutomationIds.orderBookTabBuy),
+              ),
+              Tab(
+                child: Text(l10n.tabSellBtc)
+                    .withAutomationId(AutomationIds.orderBookTabSell),
+              ),
             ],
           ),
         ),
 
-        // Filter pill
+        // Filter row: FILTER pill + offer count · sort caption
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.sm,
-          ),
-          child: GestureDetector(
-            onTap: () => showOrderFilterDialog(context),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: colors?.backgroundInput,
-                borderRadius: BorderRadius.circular(AppRadius.button),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.filter_alt_outlined,
-                    size: 16,
-                    color: colors?.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    AppLocalizations.of(context).filterButtonLabel,
-                    style: TextStyle(
-                      color: colors?.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+          child: Row(
+            children: [
+              // Flexible + ellipsis so long localized labels (de/fr) fit
+              // 320px-wide screens without a RenderFlex overflow.
+              Flexible(
+                child: Material(
+                  // bgElevated, not bgCard: with the v1 recipe bgCard equals
+                  // the page tone, which would make the pill invisible (v1's
+                  // filter uses its lighter input tone for the same reason).
+                  color: pal.bgElevated,
+                  shape: StadiumBorder(side: BorderSide(color: pal.border)),
+                  child: InkWell(
+                    customBorder: const StadiumBorder(),
+                    onTap: () => showOrderFilterDialog(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.filter_alt_outlined,
+                            size: 16,
+                            color: pal.textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            l10n.filterButtonLabel,
+                            style: TextStyle(
+                              color: pal.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              '· ${l10n.offersCount(filteredOrders.length)}',
+                              style: TextStyle(
+                                color: pal.textTertiary,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    AppLocalizations.of(context).offersCount(filteredOrders.length),
-                    style: TextStyle(
-                      color: colors?.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  l10n.sortNewest,
+                  style: TextStyle(fontSize: 11, color: pal.textTertiary),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
           ),
         ),
 
         // Order list — shimmer while loading, error state, or live data.
+        // The well is one step lighter than the chrome (v1's `dark1`
+        // container): the cards share the chrome's tone, so this inverted
+        // contrast is what makes them read as panels.
         Expanded(
-          child: ref.watch(orderBookProvider).when(
-            loading: () => const OrderListSkeleton(),
-            error: (e, _) => Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    AppLocalizations.of(context).errorLoadingOrders,
-                    style: TextStyle(color: colors?.textSecondary),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextButton(
-                    onPressed: () => ref.invalidate(orderBookProvider),
-                    child: Text(AppLocalizations.of(context).retry),
-                  ),
-                ],
-              ),
-            ),
-            data: (_) => orderContent(onOrderTap),
+          child: ColoredBox(
+            color: pal.bgWell,
+            child: ref
+                .watch(orderBookProvider)
+                .when(
+                  loading: () => const OrderListSkeleton(),
+                  error:
+                      (e, _) => Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              l10n.errorLoadingOrders,
+                              style: TextStyle(color: pal.textSecondary),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            TextButton(
+                              onPressed:
+                                  () => ref.invalidate(orderBookProvider),
+                              child: Text(l10n.retry),
+                            ),
+                          ],
+                        ),
+                      ),
+                  data: (_) => orderContent(onOrderTap),
+                ),
           ),
         ),
       ],
@@ -251,87 +254,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // ── Scaffold layout ───────────────────────────────────────────────────────
     // Desktop: persistent sidebar + main content in a Row (no overlay drawer).
     // Mobile/tablet: Stack with optional overlay drawer.
-    final body = isDesktop
-        ? Row(
-            children: [
-              const DrawerMenu(persistent: true),
-              const VerticalDivider(width: 1),
-              Expanded(child: mainContent),
-            ],
-          )
-        : Stack(
-            children: [
-              mainContent,
-              if (_drawerOpen)
-                DrawerMenu(
-                  onClose: () => setState(() => _drawerOpen = false),
-                ),
-            ],
-          );
+    final body =
+        isDesktop
+            ? Row(
+              children: [
+                const DrawerMenu(persistent: true),
+                const VerticalDivider(width: 1),
+                Expanded(child: mainContent),
+              ],
+            )
+            : Stack(
+              children: [
+                mainContent,
+                if (_drawerOpen)
+                  DrawerMenu(
+                    onClose: () => setState(() => _drawerOpen = false),
+                  ),
+              ],
+            );
 
-    return Scaffold(
-      body: body,
-      floatingActionButton: const AddOrderButton(),
-      bottomNavigationBar: const BottomNavBar(),
+    // The scaffold background is overridden at the theme level so shared
+    // chrome that reads scaffoldBackgroundColor (bottom nav) matches the
+    // mock's phone background with no seam.
+    return Theme(
+      data: theme.copyWith(scaffoldBackgroundColor: pal.bg),
+      child: Scaffold(
+        backgroundColor: pal.bg,
+        body: body,
+        floatingActionButton: const AddOrderButton(),
+        bottomNavigationBar: const BottomNavBar(),
+      ),
     );
   }
 }
 
-/// Custom app bar: hamburger, Mostro logo (tappable), notification bell.
+/// Custom app bar per the mock: hamburger left, Mostro logo centered,
+/// notification bell right, 52px tall over a 1px hairline.
 class _MostroAppBar extends StatelessWidget {
-  const _MostroAppBar({
-    required this.green,
-    required this.showHappyFace,
-    required this.onMenuTap,
-    required this.onLogoTap,
-  });
+  const _MostroAppBar({required this.palette, required this.onMenuTap});
 
-  final Color green;
-  final bool showHappyFace;
+  final OrderBookPalette palette;
+
   /// Null on desktop where the persistent sidebar replaces the overlay drawer.
   final VoidCallback? onMenuTap;
-  final VoidCallback onLogoTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      child: Row(
-        children: [
-          if (onMenuTap != null)
-            IconButton(
-              onPressed: onMenuTap,
-              icon: const Icon(Icons.menu, size: 24),
-              tooltip: AppLocalizations.of(context).menuTooltip,
-            ),
-          const Spacer(),
-          GestureDetector(
-            onTap: onLogoTap,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: showHappyFace
-                  ? Icon(
-                      Icons.sentiment_very_satisfied,
-                      key: const ValueKey('happy'),
-                      size: 28,
-                      color: green,
-                    )
-                  : Icon(
-                      Icons.psychology,
-                      key: const ValueKey('skull'),
-                      size: 28,
-                      color: green,
-                    ),
+    return Column(
+      children: [
+        SizedBox(
+          height: 52,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Image.asset('assets/images/mostro_logo.webp', height: 32),
+                Row(
+                  children: [
+                    if (onMenuTap != null)
+                      IconButton(
+                        onPressed: onMenuTap,
+                        iconSize: 22,
+                        icon: Icon(Icons.menu, color: palette.textPrimary),
+                        tooltip: AppLocalizations.of(context).menuTooltip,
+                      ).withAutomationId(AutomationIds.appBarDrawer),
+                    const Spacer(),
+                    const NotificationBell(),
+                  ],
+                ),
+              ],
             ),
           ),
-          const Spacer(),
-          const NotificationBell(),
-          const SizedBox(width: AppSpacing.sm),
-        ],
-      ),
+        ),
+        Container(height: 1, color: palette.border),
+      ],
     );
   }
 }

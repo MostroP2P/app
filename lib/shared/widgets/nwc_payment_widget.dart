@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 
@@ -57,6 +59,13 @@ class _NwcPaymentWidgetState extends State<NwcPaymentWidget> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // The hold invoice is never rendered on this path (the wallet pays it
+        // directly), so the readout is what lets a driver correlate the
+        // payment it is about to observe.
+        const SizedBox.shrink().withAutomationId(
+          AutomationIds.payInvoiceText,
+          label: widget.bolt11,
+        ),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
@@ -79,7 +88,7 @@ class _NwcPaymentWidgetState extends State<NwcPaymentWidget> {
                 borderRadius: BorderRadius.circular(AppRadius.button),
               ),
             ),
-          ),
+          ).withAutomationId(AutomationIds.payNwc),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(

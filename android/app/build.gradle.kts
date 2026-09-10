@@ -12,7 +12,7 @@ android {
     namespace = "foundation.mostro.app"
     compileSdk = flutter.compileSdkVersion
     // Pin NDK version for reproducible Rust cross-compilation builds
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

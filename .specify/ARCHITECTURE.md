@@ -19,10 +19,10 @@
 | Responsibility | Rationale |
 |----------------|-----------|
 | **Nostr protocol** | nostr-sdk is the most complete, audited implementation |
-| **Cryptography** | NIP-44, NIP-59, signatures — security-critical, must be in one place |
+| **Cryptography** | NIP-44, signatures — security-critical, must be in one place |
 | **Key management** | BIP-32/39 derivation, seed storage — zero room for error |
 | **Relay connections** | WebSocket management, subscription handling, reconnection logic |
-| **Message serialization** | Mostro protocol messages, NIP-44 (daemon) / NIP-59 gift wrap (peer chat) encryption — daemon was gift wrap before transport v2 |
+| **Message serialization** | Mostro protocol messages, NIP-44 encryption throughout: signed Kind 14 to the daemon, the Kind 14 chat envelope for peer/dispute chat — both were NIP-59 gift wrap before transport v2 and #246 |
 | **Order state machine** | Business logic that must be consistent across platforms |
 | **Local storage encryption** | SQLite with encrypted fields, ChaCha20-Poly1305 |
 
@@ -214,7 +214,7 @@ FirebaseMessaging.onMessage.listen((message) {
 ```toml
 [dependencies]
 flutter_rust_bridge = "2.x"
-nostr-sdk = "0.44"
+nostr-sdk = "0.45"
 mostro-core = { git = "..." }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 sqlx = { version = "0.8", features = ["sqlite"] }

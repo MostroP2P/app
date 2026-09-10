@@ -4,10 +4,12 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
 use cdk::amount::SplitTarget;
+use cdk::nuts::nut10::SpendingConditions;
 use cdk::nuts::{CurrencyUnit, Proof, Token};
 use cdk::wallet::{ReceiveOptions, SendMemo, SendOptions, Wallet};
 use cdk::Amount;
 use cdk_sqlite::WalletSqliteDatabase;
+use std::str::FromStr;
 
 /// Everything the escrow flow needs a mint to support.
 ///
@@ -189,13 +191,37 @@ impl CashuWallet {
     /// Swap an encoded token into this wallet, returning the amount received.
     ///
     /// `cdk` swaps the incoming proofs for fresh ones at the mint, so a token
-    /// that was also copied elsewhere cannot be spent twice against us, and it
-    /// verifies the mint's DLEQ proofs on the way in (NUT-12, required at
-    /// connect). A token from another mint is rejected rather than ignored.
+    /// that was also copied elsewhere cannot be spent twice against us, and a
+    /// token from another mint is rejected rather than ignored.
+    ///
+    /// DLEQ (NUT-12) is verified **here**, before the swap, rather than left to
+    /// `cdk`: its receive path verifies a proof only `if proof.dleq.is_some()`
+    /// (`wallet/receive/saga/mod.rs`, cdk 0.17.3), so a token whose proofs carry
+    /// none is accepted on trust. That is the softer guarantee NUT-12 is a hard
+    /// connect requirement to avoid — [`Wallet::verify_token_dleq`] rejects the
+    /// missing proof instead of skipping it.
+    ///
+    /// **Errors** (stable markers): `CashuTokenUnverified` when the token
+    /// carries no usable DLEQ proof, `CashuReceiveFailed` for everything else
+    /// (malformed, wrong mint, already spent).
     pub async fn receive_token(&self, encoded: &str) -> Result<u64> {
+        let normalized = normalize_token(encoded);
+        let token = Token::from_str(&normalized).map_err(|e| anyhow!("CashuReceiveFailed: {e}"))?;
+
+        if let Err(e) = self.inner.verify_token_dleq(&token).await {
+            // A token minted elsewhere is a plain user mistake, not a failed
+            // proof — same rejection, different thing to tell the user.
+            return match e {
+                cdk::Error::IncorrectWallet(detail) => {
+                    Err(anyhow!("CashuReceiveFailed: {detail}"))
+                }
+                other => Err(anyhow!("CashuTokenUnverified: {other}")),
+            };
+        }
+
         let amount = self
             .inner
-            .receive(&normalize_token(encoded), ReceiveOptions::default())
+            .receive(&normalized, ReceiveOptions::default())
             .await
             .map_err(|e| anyhow!("CashuReceiveFailed: {e}"))?;
         log::info!("[cashu] received {amount} sat");
@@ -205,9 +231,36 @@ impl CashuWallet {
     /// Export `amount_sats` as an encoded token.
     ///
     /// The proofs are reserved before the token is handed out and only settle
-    /// once the recipient redeems them, so an abandoned token can be reclaimed
-    /// by [`Self::check_proofs_state`] instead of being lost.
+    /// once the recipient redeems them. A token that is never redeemed leaves
+    /// its proofs reserved: reclaiming *that* is `revoke_send`, which arrives
+    /// with the rest of reconciliation in phase C10 —
+    /// [`Self::sweep_spent_proofs`] does not do it and does not claim to. The
+    /// one case handled here is the send that fails on the way out, in
+    /// [`Self::send_with_conditions`].
+    ///
+    /// **Errors** (stable markers): `CashuAmountZero`, `CashuSendFailed` (the
+    /// send failed and the proofs are back), `CashuSendUnresolved` (the send
+    /// failed and the proofs could *not* be confirmed back).
     pub async fn create_token(&self, amount_sats: u64) -> Result<String> {
+        self.send_with_conditions(amount_sats, None).await
+    }
+
+    /// Swap `amount_sats` of wallet proofs into a token, optionally locked to
+    /// `conditions` (NUT-11). `None` is a plain send; the escrow primitives in
+    /// [`super::escrow`] pass the 2-of-3.
+    ///
+    /// One implementation for both because the failure path is the subtle
+    /// part and must not drift: a `confirm` that fails after `prepare_send`
+    /// leaves the whole amount reserved and invisible unless it is revoked
+    /// here, and for an escrow that amount is the whole trade.
+    ///
+    /// **Errors** (stable markers): `CashuAmountZero`, `CashuSendFailed`,
+    /// `CashuSendUnresolved` — see [`Self::create_token`].
+    pub(crate) async fn send_with_conditions(
+        &self,
+        amount_sats: u64,
+        conditions: Option<SpendingConditions>,
+    ) -> Result<String> {
         if amount_sats == 0 {
             bail!("CashuAmountZero");
         }
@@ -217,6 +270,7 @@ impl CashuWallet {
             .prepare_send(
                 Amount::from(amount_sats),
                 SendOptions {
+                    conditions,
                     amount_split_target: SplitTarget::default(),
                     ..Default::default()
                 },
@@ -224,27 +278,38 @@ impl CashuWallet {
             .await
             .map_err(|e| anyhow!("CashuSendFailed: {e}"))?;
 
+        // Kept before `confirm` consumes the handle: it is the only way back to
+        // the proofs this send reserved.
+        let operation_id = prepared.operation_id();
+
         let token = match prepared.confirm(None::<SendMemo>).await {
             Ok(token) => token,
             Err(e) => {
-                // `prepare_send` reserved the proofs and `confirm` consumed the
-                // handle, so they are now reserved with no owner. Left alone,
-                // the balance silently drops by the send amount until the user
-                // happens to run a proof-state check. Reclaim here instead.
+                // `prepare_send` reserved the proofs against `operation_id`;
+                // `confirm` consumed the handle, so `cancel()` is gone. cdk
+                // rolls the reservation back itself only for a *definitive*
+                // failure (`wallet/send/saga/mod.rs`) — an ordinary mint
+                // timeout is not one, and leaves the proofs reserved, which the
+                // UI would show as the balance simply dropping.
                 //
-                // A failed reclaim is reported as such rather than as zero:
-                // "reclaimed 0" would tell the user their funds are accounted
-                // for when in fact nobody knows, which is the same
-                // unknown-versus-known-zero trap this module fixed for the
-                // balance.
-                match self.check_proofs_state().await {
-                    Ok(reclaimed) => {
-                        bail!("CashuSendFailed: {e} (reclaimed {reclaimed} sat)")
+                // `revoke_send` is the way back once the saga reached
+                // `TokenCreated`. It is not a reclaim of the *send* — the token
+                // may exist — which is exactly why it is only ever called on
+                // this failure path, never as routine recovery (that is C10).
+                return match self.inner.revoke_send(operation_id).await {
+                    Ok(reclaimed) => Err(anyhow!("CashuSendFailed: {e} (reclaimed {reclaimed} sat)")),
+                    Err(revoke_err) => {
+                        // Either cdk already rolled the send back (then nothing
+                        // is stuck) or the proofs are still reserved (then they
+                        // need C10's reconciliation). This code cannot tell the
+                        // two apart, so it claims neither: no "reclaimed 0 sat",
+                        // which would read as "your funds are accounted for".
+                        log::error!(
+                            "[cashu] send {operation_id} failed ({e}) and could not be revoked: {revoke_err}"
+                        );
+                        Err(anyhow!("CashuSendUnresolved: {e}"))
                     }
-                    Err(reclaim_err) => bail!(
-                        "CashuSendFailed: {e} (reclaim also failed: {reclaim_err} —                          run the proof-state check when the mint is reachable)"
-                    ),
-                }
+                };
             }
         };
 
@@ -282,22 +347,34 @@ impl CashuWallet {
         Ok(proofs.iter().map(|p| u64::from(p.amount)).sum())
     }
 
-    /// Reconcile pending proofs with the mint (NUT-07), returning the amount
-    /// reclaimed as spendable.
+    /// Ask the mint about proofs this wallet still holds as pending and forget
+    /// the ones it reports spent (NUT-07).
     ///
-    /// Run after any interrupted send: proofs reserved for a token that was
-    /// never redeemed stay reserved otherwise, and the balance would understate
-    /// what the user actually has.
-    pub async fn check_proofs_state(&self) -> Result<u64> {
-        let reclaimed = self
+    /// **Housekeeping, not recovery — nothing comes back from this call.** Two
+    /// facts about `cdk`'s `check_all_pending_proofs` (`wallet/proofs.rs`,
+    /// cdk 0.17.3) decide that:
+    ///
+    /// * it looks only at proofs no operation owns
+    ///   (`p.used_by_operation.is_none()`), and `prepare_send` reserves
+    ///   *against* an operation id (`wallet/send/saga/mod.rs`) — so it skips, by
+    ///   construction, every proof a send of ours reserved;
+    /// * the proofs the mint still calls live are left exactly as they are; only
+    ///   the spent ones are dropped from the store.
+    ///
+    /// Which is why this returns nothing rather than a number that would read as
+    /// "reclaimed". A token of ours that nobody redeemed is reclaimed with
+    /// `revoke_send` over `get_pending_sends`, and doing that safely — deciding
+    /// a token is abandoned — is reconciliation, phase C10.
+    pub async fn sweep_spent_proofs(&self) -> Result<()> {
+        // The return value is the *unresolved* remainder among orphaned proofs,
+        // not a reclaim. Logged, because it is a diagnostic and nothing more.
+        let unresolved = self
             .inner
             .check_all_pending_proofs()
             .await
             .map_err(|e| anyhow!("CashuStateCheckFailed: {e}"))?;
-        if u64::from(reclaimed) > 0 {
-            log::info!("[cashu] reclaimed {reclaimed} sat from unredeemed proofs");
-        }
-        Ok(u64::from(reclaimed))
+        log::info!("[cashu] swept spent proofs ({unresolved} sat still unresolved)");
+        Ok(())
     }
 }
 
@@ -522,6 +599,100 @@ mod tests {
 
         let _ = std::fs::remove_file(&sender_path);
         let _ = std::fs::remove_file(&receiver_path);
+    }
+
+    /// The guarantee C2 promises on receive, exercised the only way that proves
+    /// anything: take a genuine token, strip its DLEQ proofs, and hand it back.
+    /// cdk's own receive path would accept this one — it verifies a proof only
+    /// when the proof is there — so a pass here is the explicit check working,
+    /// not cdk's.
+    #[tokio::test]
+    #[ignore = "requires a local nutshell mint (MOSTRO_TEST_MINT_URL)"]
+    async fn a_token_stripped_of_its_dleq_proofs_is_refused() {
+        // Arrange — a real token from a funded wallet.
+        let path = temp_db_path();
+        let receiver_path = temp_db_path();
+        let mint = test_mint_url();
+
+        let sender = CashuWallet::connect(&mint, unique_seed(), path.to_str().unwrap())
+            .await
+            .unwrap();
+        let receiver = CashuWallet::connect(&mint, unique_seed(), receiver_path.to_str().unwrap())
+            .await
+            .unwrap();
+        sender.mint_for_test(64).await.expect("mint must fund the wallet");
+
+        let encoded = sender.create_token(8).await.unwrap();
+        let token = Token::from_str(&encoded).unwrap();
+
+        // Act — the same token, minus the evidence that the mint issued it.
+        let keysets = receiver.inner.load_mint_keysets().await.unwrap();
+        let stripped: Vec<_> = token
+            .proofs(&keysets)
+            .unwrap()
+            .into_iter()
+            .map(|mut p| {
+                p.dleq = None;
+                p
+            })
+            .collect();
+        let no_dleq = Token::new(
+            token.mint_url().unwrap(),
+            stripped,
+            None,
+            CurrencyUnit::Sat,
+        );
+
+        let err = receiver
+            .receive_token(&no_dleq.to_string())
+            .await
+            .unwrap_err();
+
+        // Assert — refused, and with the marker that says *why*, not the
+        // generic receive failure a user would read as "bad token".
+        assert!(
+            err.to_string().contains("CashuTokenUnverified"),
+            "got {err}"
+        );
+        // And the genuine one still goes through, so the check is not simply
+        // refusing everything.
+        assert!(receiver.receive_token(&encoded).await.unwrap() > 0);
+
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(&receiver_path);
+    }
+
+    /// Pins the honest half of [`CashuWallet::sweep_spent_proofs`]: a token this
+    /// wallet created and nobody redeemed is **not** recovered by it, because
+    /// cdk's state check skips proofs an operation reserved. The test exists so
+    /// that a future "the sweep should bring it back" reading of the name gets
+    /// a failing test instead of a wrong balance — reclaiming is C10.
+    #[tokio::test]
+    #[ignore = "requires a local nutshell mint (MOSTRO_TEST_MINT_URL)"]
+    async fn an_unredeemed_token_is_not_recovered_by_the_sweep() {
+        // Arrange
+        let path = temp_db_path();
+        let wallet = CashuWallet::connect(&test_mint_url(), unique_seed(), path.to_str().unwrap())
+            .await
+            .unwrap();
+        wallet.mint_for_test(64).await.expect("mint must fund the wallet");
+        let funded = wallet.balance().await.unwrap();
+
+        // Act — export a token and abandon it.
+        let _abandoned = wallet.create_token(8).await.unwrap();
+        let after_send = wallet.balance().await.unwrap();
+        wallet.sweep_spent_proofs().await.unwrap();
+
+        // Assert — the sats are still out of reach, and the sweep said nothing
+        // to the contrary.
+        assert_eq!(after_send, funded - 8, "the send should have left the balance");
+        assert_eq!(
+            wallet.balance().await.unwrap(),
+            after_send,
+            "the sweep must not be mistaken for a reclaim"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]

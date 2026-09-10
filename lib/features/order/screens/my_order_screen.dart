@@ -6,9 +6,14 @@ import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/features/trades/screens/trade_detail_screen.dart'
+    show TradeStatusMachineName, tradeStatusFromOrderStatus;
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -50,7 +55,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
               child: Text(dl10n.yesCancelButtonLabel),
-            ),
+            ).withAutomationId(AutomationIds.tradeCancelConfirm),
           ],
         );
       },
@@ -63,15 +68,19 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
       // Force the trades list to reload from DB so the Canceled status shows.
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.orderCancelledSuccess)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.orderCancelledSuccess)));
       context.go(AppRoute.home);
     } catch (e, stackTrace) {
       debugPrint('[MyOrderScreen] cancel failed: $e\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.cancelOrderFailed)),
+        SnackBar(
+          content: Text(
+            localizedDaemonError(l10n, e, fallback: l10n.cancelOrderFailed),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _cancelling = false);
@@ -87,8 +96,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     final liveStatus =
         ref.watch(tradeStatusProvider(widget.orderId)).valueOrNull;
 
-    final orders = ref.watch(orderBookProvider).valueOrNull ?? [];
-    var order = orders.where((o) => o.id == widget.orderId).firstOrNull;
+    var order = ref.watch(orderByIdProvider(widget.orderId));
     // Fallback to the persisted trade DB when the order is no longer in the
     // in-memory order book (e.g. it was taken and moved out of pending).
     if (order == null) {
@@ -123,21 +131,30 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     // from Pending.
     final isSelling = resolvedOrder.kind == 'sell';
 
-    debugPrint('[MyOrderScreen] build: orderId=${widget.orderId} '
-        'isSelling=$isSelling liveStatus=$liveStatus '
-        'lastHandledStatus=$_lastHandledStatus orderStatus=${resolvedOrder.status}');
+    debugPrint(
+      '[MyOrderScreen] build: orderId=${widget.orderId} '
+      'isSelling=$isSelling liveStatus=$liveStatus '
+      'lastHandledStatus=$_lastHandledStatus orderStatus=${resolvedOrder.status}',
+    );
 
-    if (liveStatus != null && liveStatus != OrderStatus.pending && liveStatus != _lastHandledStatus) {
-      // For sellers: skip intermediate WaitingBuyerInvoice but still track it
-      // so we don't re-process it. Navigate to the appropriate screen when
-      // status reaches WaitingPayment or beyond.
+    if (liveStatus != null &&
+        liveStatus != OrderStatus.pending &&
+        liveStatus != _lastHandledStatus) {
+      // Invoice requests are not navigated from here: the app-wide
+      // TradeActionListener pushes the add/pay-invoice screen for the
+      // actionable role no matter which screen is open — including this
+      // one. The counterparty's copy of those statuses is informational
+      // (e.g. waiting-seller-to-pay persists WaitingPayment on the buyer
+      // side) and must not navigate either. Track them so they are not
+      // re-processed, and navigate to the trade detail from Active on.
       final shouldNavigate = switch (liveStatus) {
-        OrderStatus.waitingBuyerInvoice when isSelling => false, // skip — intermediate state
-        OrderStatus.waitingPayment when !isSelling => false,    // skip — buyer doesn't see this
+        OrderStatus.waitingBuyerInvoice || OrderStatus.waitingPayment => false,
         _ => true,
       };
 
-      debugPrint('[MyOrderScreen] non-pending status detected: $liveStatus shouldNavigate=$shouldNavigate');
+      debugPrint(
+        '[MyOrderScreen] non-pending status detected: $liveStatus shouldNavigate=$shouldNavigate',
+      );
 
       if (shouldNavigate) {
         final intendedStatus = liveStatus;
@@ -148,25 +165,17 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
           // the provider may have emitted a newer value, in which case the
           // intended navigation is stale and we should let the next build
           // handle the new state instead of going to the wrong screen.
-          final latest = ref
-              .read(tradeStatusProvider(widget.orderId))
-              .valueOrNull;
+          final latest =
+              ref.read(tradeStatusProvider(widget.orderId)).valueOrNull;
           if (latest != null && latest != intendedStatus) {
             debugPrint(
-                '[MyOrderScreen] status changed before post-frame: '
-                'intended=$intendedStatus latest=$latest — skipping');
+              '[MyOrderScreen] status changed before post-frame: '
+              'intended=$intendedStatus latest=$latest — skipping',
+            );
             _lastHandledStatus = null;
             return;
           }
-          if (intendedStatus == OrderStatus.waitingPayment && isSelling) {
-            debugPrint('[MyOrderScreen] navigating to PayLightningInvoiceScreen');
-            context.go(AppRoute.payInvoicePath(widget.orderId));
-          } else if (intendedStatus == OrderStatus.waitingBuyerInvoice &&
-              !isSelling) {
-            context.go(AppRoute.addInvoicePath(widget.orderId));
-          } else {
-            context.go(AppRoute.tradeDetailPath(widget.orderId));
-          }
+          context.go(AppRoute.tradeDetailPath(widget.orderId));
         });
       } else {
         // Mark this status as handled so we don't re-process it on next build.
@@ -179,7 +188,8 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     final title = isSelling ? l10n.myOrderSellTitle : l10n.myOrderBuyTitle;
     final premiumPositive = resolvedOrder.premium >= 0;
     final premiumValue = (NumberFormat.decimalPattern(
-            Localizations.localeOf(context).toLanguageTag())
+            Localizations.localeOf(context).toLanguageTag(),
+          )
           ..minimumFractionDigits = 1
           ..maximumFractionDigits = 1)
         .format(resolvedOrder.premium);
@@ -189,10 +199,10 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
         title: Text(title),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop()
-              ? context.pop()
-              : context.go(AppRoute.home),
-        ),
+          onPressed:
+              () =>
+                  context.canPop() ? context.pop() : context.go(AppRoute.home),
+        ).withAutomationId(AutomationIds.appBarBack),
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -210,7 +220,8 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   AppLocalizations.of(context).marketPricePremiumLabel(
-                      '${premiumPositive ? '+' : ''}$premiumValue'),
+                    '${premiumPositive ? '+' : ''}$premiumValue',
+                  ),
                   style: TextStyle(
                     color: premiumPositive ? green : sellColor,
                     fontSize: 13,
@@ -247,7 +258,10 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 Icon(Icons.calendar_today_outlined, size: 18, color: textSec),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
-                  _formatDate(resolvedOrder.createdAt, Localizations.localeOf(context).toString()),
+                  _formatDate(
+                    resolvedOrder.createdAt,
+                    Localizations.localeOf(context).toString(),
+                  ),
                   style: theme.textTheme.bodyMedium,
                 ),
               ],
@@ -267,6 +281,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                       fontFamily: 'monospace',
                     ),
                     overflow: TextOverflow.ellipsis,
+                  ).withAutomationId(
+                    AutomationIds.orderId,
+                    label: resolvedOrder.id,
                   ),
                 ),
                 IconButton(
@@ -289,23 +306,31 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // Status indicator
+          // Status indicator. A pending order the user created opens here
+          // rather than on the trade detail, so it exposes the same
+          // `order.status` readout, in the same machine vocabulary.
           _InfoCard(
             color: cardBg,
-            child: Builder(builder: (ctx) {
-              final status = _statusInfo(ctx, resolvedOrder.status);
-              return Row(
-                children: [
-                  Icon(status.icon, size: 18, color: status.color),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    status.label,
-                    style: theme.textTheme.bodyMedium!
-                        .copyWith(color: status.color),
-                  ),
-                ],
-              );
-            }),
+            child: Builder(
+              builder: (ctx) {
+                final status = _statusInfo(ctx, resolvedOrder.status);
+                return Row(
+                  children: [
+                    Icon(status.icon, size: 18, color: status.color),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      status.label,
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: status.color,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ).withAutomationId(
+            AutomationIds.orderStatus,
+            label: tradeStatusFromOrderStatus(resolvedOrder.status).machineName,
           ),
         ],
       ),
@@ -321,9 +346,11 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => context.canPop()
-                      ? context.pop()
-                      : context.go(AppRoute.home),
+                  onPressed:
+                      () =>
+                          context.canPop()
+                              ? context.pop()
+                              : context.go(AppRoute.home),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: green,
                     side: BorderSide(color: green),
@@ -333,7 +360,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                     ),
                   ),
                   child: Text(l10n.closeButtonLabel),
-                ),
+                  // Creating an order lands here; this is the way back to the
+                  // order book, which is where a driver continues from.
+                ).withAutomationId(AutomationIds.orderConfirmHome),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -348,17 +377,18 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                       borderRadius: BorderRadius.circular(AppRadius.button),
                     ),
                   ),
-                  child: _cancelling
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(l10n.cancelOrderButton),
-                ),
+                  child:
+                      _cancelling
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : Text(l10n.cancelOrderButton),
+                ).withAutomationId(AutomationIds.tradeCancel),
               ),
             ],
           ),
@@ -379,54 +409,57 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
 
     return switch (status) {
       OrderStatus.pending => (
-          label: l10n.orderStatusWaitingForTaker,
-          icon: Icons.pending_outlined,
-          color: green,
-        ),
+        label: l10n.orderStatusWaitingForTaker,
+        icon: Icons.pending_outlined,
+        color: green,
+      ),
       OrderStatus.waitingBuyerInvoice => (
-          label: l10n.orderStatusWaitingBuyerInvoice,
-          icon: Icons.receipt_outlined,
-          color: green,
-        ),
+        label: l10n.orderStatusWaitingBuyerInvoice,
+        icon: Icons.receipt_outlined,
+        color: green,
+      ),
       OrderStatus.waitingPayment => (
-          label: l10n.orderStatusWaitingPayment,
-          icon: Icons.hourglass_empty_outlined,
-          color: green,
-        ),
+        label: l10n.orderStatusWaitingPayment,
+        icon: Icons.hourglass_empty_outlined,
+        color: green,
+      ),
       OrderStatus.inProgress || OrderStatus.active => (
-          label: l10n.orderStatusInProgress,
-          icon: Icons.sync_outlined,
-          color: green,
-        ),
+        label: l10n.orderStatusInProgress,
+        icon: Icons.sync_outlined,
+        color: green,
+      ),
       OrderStatus.expired => (
-          label: l10n.orderStatusExpired,
-          icon: Icons.timer_off_outlined,
-          color: sellColor,
-        ),
-      OrderStatus.canceled ||
-      OrderStatus.canceledByAdmin => (
-          label: l10n.tradeStatusCancelled,
-          icon: Icons.cancel_outlined,
-          color: sellColor,
-        ),
+        label: l10n.orderStatusExpired,
+        icon: Icons.timer_off_outlined,
+        color: sellColor,
+      ),
+      OrderStatus.canceled || OrderStatus.canceledByAdmin => (
+        label: l10n.tradeStatusCancelled,
+        icon: Icons.cancel_outlined,
+        color: sellColor,
+      ),
+      OrderStatus.settledHoldInvoice => (
+        label: l10n.tradeStatusPayoutPending,
+        icon: Icons.hourglass_empty_outlined,
+        color: textSec,
+      ),
       OrderStatus.success ||
-      OrderStatus.settledHoldInvoice ||
       OrderStatus.settledByAdmin ||
       OrderStatus.completedByAdmin => (
-          label: l10n.tradeStatusCompleted,
-          icon: Icons.check_circle_outline,
-          color: green,
-        ),
+        label: l10n.tradeStatusCompleted,
+        icon: Icons.check_circle_outline,
+        color: green,
+      ),
       OrderStatus.dispute => (
-          label: l10n.tradeStatusDisputed,
-          icon: Icons.gavel_outlined,
-          color: sellColor,
-        ),
+        label: l10n.tradeStatusDisputed,
+        icon: Icons.gavel_outlined,
+        color: sellColor,
+      ),
       _ => (
-          label: l10n.orderStatusInProgress,
-          icon: Icons.info_outline,
-          color: textSec,
-        ),
+        label: l10n.orderStatusInProgress,
+        icon: Icons.info_outline,
+        color: textSec,
+      ),
     };
   }
 

@@ -5,7 +5,7 @@
 /// Both parties derive the same conversation key independently.
 use anyhow::{anyhow, Result};
 use nostr_sdk::prelude::*;
-use nostr_sdk::nips::nip44;
+use nostr_sdk::prelude::nip44;
 
 /// Derive a 32-byte shared secret using NIP-04 semantics:
 ///   `SHA-256(x-coordinate of ECDH(privA, pubB))`

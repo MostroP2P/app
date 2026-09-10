@@ -13,13 +13,12 @@ mod native {
 
     use anyhow::{anyhow, bail, Result};
     use nostr_sdk::prelude::*;
-    use nostr_sdk::nips::nip04;
-    use nostr_sdk::nips::nip47::{
+    use nostr_sdk::prelude::nip47::{
         GetBalanceResponse, MakeInvoiceRequest,
-        MakeInvoiceResponse, NostrWalletConnectURI, PayInvoiceRequest,
-        PayInvoiceResponse, Request,
+        MakeInvoiceResponse, Nip47Ciphers, Nip47Tag, NostrWalletConnectUri,
+        PayInvoiceRequest, PayInvoiceResponse, Request,
     };
-    use nostr_sdk::Client;
+    use nostr_sdk::prelude::Client;
 
     use crate::api::types::{NwcWalletInfo, PaymentResult, WalletStatus};
 
@@ -52,12 +51,20 @@ mod native {
     }
 
     /// Decrypt a Kind 23195 event and parse it leniently.
+    ///
+    /// A response that carries its own `encryption` tag is decrypted with
+    /// that cipher; otherwise with the one negotiated at connect time.
     fn parse_nip47_response(
-        uri: &NostrWalletConnectURI,
+        uri: &NostrWalletConnectUri,
         event: &Event,
+        negotiated: Nip47Ciphers,
     ) -> Result<Nip47Response> {
-        let json = nip04::decrypt(&uri.secret, &event.pubkey, &event.content)
-            .map_err(|e| anyhow!("NIP-04 decrypt failed: {e}"))?;
+        let cipher = advertised_ciphers(event)
+            .map(|c| c.latest())
+            .unwrap_or(negotiated);
+        let json = cipher
+            .decrypt(&uri.secret, &event.pubkey, &event.content)
+            .map_err(|e| anyhow!("NIP-47 decrypt ({cipher}) failed: {e}"))?;
 
         #[derive(serde::Deserialize)]
         struct RawResponse {
@@ -79,11 +86,61 @@ mod native {
     /// Timeout for NIP-47 request → response round-trips.
     const NWC_TIMEOUT: Duration = Duration::from_secs(30);
 
+    /// Ciphers named in an event's `encryption` tag — the wallet's kind 13194
+    /// info event advertises them, and a response may echo the one it used.
+    /// `None` when the tag is absent or names no cipher this build knows.
+    pub(super) fn advertised_ciphers(event: &Event) -> Option<Nip47Ciphers> {
+        event.tags.iter().find_map(|tag| match Nip47Tag::parse(tag.clone()) {
+            Ok(Nip47Tag::Encryption(ciphers)) => Some(ciphers),
+            Err(_) => None,
+        })
+    }
+
+    /// NIP-47 encryption negotiation: `nip44_v2` when the wallet lists it,
+    /// otherwise NIP-04. No tag at all is the legacy case — wallets that
+    /// predate negotiation only speak NIP-04 — and so is a tag that lists
+    /// only ciphers this build does not know.
+    pub(super) fn negotiate_cipher(advertised: Option<Nip47Ciphers>) -> Nip47Ciphers {
+        match advertised {
+            Some(ciphers) if ciphers.has(Nip47Ciphers::NIP44V2) => Nip47Ciphers::NIP44V2,
+            _ => Nip47Ciphers::NIP04,
+        }
+    }
+
+    /// Read the wallet's kind 13194 info event for its `encryption` tag.
+    /// Not finding one is the legacy case, not an error.
+    async fn fetch_advertised_ciphers(
+        client: &Client,
+        uri: &NostrWalletConnectUri,
+    ) -> Option<Nip47Ciphers> {
+        let filter = Filter::new()
+            .kind(Kind::WalletConnectInfo)
+            .author(uri.public_key)
+            .limit(1);
+        match client
+            .fetch_events(filter)
+            .timeout(Duration::from_secs(10))
+            .await
+        {
+            Ok(events) => events.iter().find_map(advertised_ciphers),
+            Err(e) => {
+                crate::api::logging::blog_warn(
+                    "nwc",
+                    format!("wallet info event fetch failed, assuming legacy NIP-04: {e}"),
+                );
+                None
+            }
+        }
+    }
+
     /// Real NWC client backed by a nostr-sdk `Client` connected to the
     /// wallet's relay.
     pub struct NwcClient {
         client: Client,
-        uri: NostrWalletConnectURI,
+        uri: NostrWalletConnectUri,
+        /// Cipher negotiated from the wallet's info event at connect time,
+        /// used for every request and as the default for responses.
+        cipher: Nip47Ciphers,
         pub info: NwcWalletInfo,
     }
 
@@ -91,11 +148,12 @@ mod native {
         /// Parse a NWC URI, build a nostr-sdk `Client` with the NWC secret
         /// key, add the relay, and connect.
         pub async fn new(uri_str: &str) -> Result<Self> {
-            let uri = NostrWalletConnectURI::parse(uri_str)
+            let uri = NostrWalletConnectUri::parse(uri_str)
                 .map_err(|e| anyhow!("InvalidNwcUri: {e}"))?;
 
-            let keys = Keys::new(uri.secret.clone());
-            let client = Client::new(keys);
+            // The NWC secret signs the request events themselves
+            // (`Request::to_event`); the client needs no signer of its own.
+            let client = Client::new();
 
             // Add all relays from the URI.
             for relay_url in &uri.relays {
@@ -105,19 +163,34 @@ mod native {
                     .map_err(|e| anyhow!("Failed to add relay {relay_url}: {e}"))?;
             }
 
-            client.connect().await;
+            // Wait for at least one relay to be actually connected before
+            // returning, bounded so a dead wallet relay cannot hang setup.
+            client.connect().and_wait(Duration::from_secs(10)).await;
 
-            // connect() only spawns background tasks — wait for at least
-            // one relay to be actually connected before returning.
-            client
-                .wait_for_connection(Duration::from_secs(10))
-                .await;
+            // NIP-47 encryption negotiation happens before the first request:
+            // a NIP-44-only wallet answers a NIP-04 `get_info` with
+            // UNSUPPORTED_ENCRYPTION, or with a reply we could not read.
+            let cipher = negotiate_cipher(fetch_advertised_ciphers(&client, &uri).await);
 
             let relay_urls: Vec<String> =
                 uri.relays.iter().map(|r| r.to_string()).collect();
 
+            // Host-only display: NWC relay URLs are the likeliest of all to
+            // carry tokens, and the URI itself (secret!) never enters a log.
+            crate::api::logging::blog_info(
+                "nwc",
+                format!(
+                    "client ready relays-configured={} wallet-relay={} cipher={cipher}",
+                    relay_urls.len(),
+                    relay_urls
+                        .first()
+                        .map_or_else(|| "-".to_string(), |u| crate::api::logging::display_relay(u)),
+                ),
+            );
+
             Ok(Self {
                 client,
+                cipher,
                 info: NwcWalletInfo {
                     wallet_pubkey: uri.public_key.to_hex(),
                     wallet_name: None,
@@ -136,8 +209,11 @@ mod native {
         /// BEFORE publishing the request so the response is never missed,
         /// even if the wallet replies before EOSE.
         async fn send_request(&self, request: Request) -> Result<Nip47Response> {
+            // Method name only — params (invoices, amounts) never enter a log.
+            let method = request.method.to_string();
+            crate::api::logging::blog_info("nwc", format!("→ {method}"));
             let event = request
-                .to_event(&self.uri)
+                .to_event(&self.uri, self.cipher)
                 .map_err(|e| anyhow!("Failed to build NIP-47 request event: {e}"))?;
 
             // 1. Start listening for Kind 23195 responses from the wallet
@@ -150,10 +226,10 @@ mod native {
                 .since(event.created_at);
 
             let sub_output = self.client
-                .subscribe(filter, None)
+                .subscribe(filter)
                 .await
                 .map_err(|e| anyhow!("Failed to subscribe for NIP-47 response: {e}"))?;
-            let sub_id = sub_output.val;
+            let sub_id = sub_output.value;
 
             // 2. Send the request event.
             let result: Result<Nip47Response> = async {
@@ -170,19 +246,19 @@ mod native {
                         bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
                     }
 
-                    match crate::rt::time::timeout(remaining, notifications.recv()).await {
-                        Ok(Ok(RelayPoolNotification::Event {
+                    match crate::rt::time::timeout(remaining, notifications.next()).await {
+                        Ok(Some(ClientNotification::Event {
                             event: resp_event, ..
                         })) => {
                             if resp_event.kind == Kind::WalletConnectResponse {
-                                match parse_nip47_response(&self.uri, &resp_event) {
+                                match parse_nip47_response(&self.uri, &resp_event, self.cipher) {
                                     Ok(resp) => return Ok(resp),
                                     Err(_) => continue,
                                 }
                             }
                         }
-                        Ok(Ok(_)) => continue, // other notification types
-                        Ok(Err(_)) => continue, // lagged, retry
+                        Ok(Some(_)) => continue, // other notification types
+                        Ok(None) => bail!("NWC notification stream closed before a response"),
                         Err(_) => {
                             bail!("NWC timeout: no response received from wallet within {NWC_TIMEOUT:?}");
                         }
@@ -191,7 +267,40 @@ mod native {
             }.await;
 
             // Always clean up the subscription, even on timeout/error.
-            self.client.unsubscribe(&sub_id).await;
+            if let Err(e) = self.client.unsubscribe(&sub_id).await {
+                log::debug!("[nwc] unsubscribe after round-trip failed: {e}");
+            }
+
+            // One outcome line per round-trip; wallet/transport error text is
+            // remote-controlled, so it passes through sanitize_relay_text.
+            match &result {
+                Ok(resp) => match &resp.error {
+                    Some(err) => crate::api::logging::blog_warn(
+                        "nwc",
+                        format!(
+                            "← {method} ERROR: {}",
+                            crate::api::logging::sanitize_relay_text(&err.to_string()),
+                        ),
+                    ),
+                    None if resp.result.is_some() => {
+                        crate::api::logging::blog_info("nwc", format!("← {method} OK"))
+                    }
+                    // Neither error nor result: the wallet answered with an
+                    // incomplete payload — callers will fail to parse it, so
+                    // the log must not claim success.
+                    None => crate::api::logging::blog_warn(
+                        "nwc",
+                        format!("← {method} EMPTY_RESPONSE"),
+                    ),
+                },
+                Err(e) => crate::api::logging::blog_warn(
+                    "nwc",
+                    format!(
+                        "← {method} FAILED: {}",
+                        crate::api::logging::sanitize_relay_text(&e.to_string()),
+                    ),
+                ),
+            }
 
             result
         }
@@ -343,6 +452,7 @@ mod native {
         /// Disconnect the nostr-sdk client from all relays.
         pub async fn disconnect(&self) {
             self.client.disconnect().await;
+            crate::api::logging::blog_info("nwc", "disconnected".to_string());
         }
     }
 
@@ -417,7 +527,49 @@ mod tests {
         assert_eq!(999_u64 / 1000, 0);
     }
 
-    /// URI parsing is delegated to nostr-sdk's `NostrWalletConnectURI::parse`.
+    /// NIP-47 encryption negotiation (CodeRabbit, PR #376): a wallet that
+    /// lists `nip44_v2` gets NIP-44; one that lists only `nip04`, or nothing
+    /// at all (legacy wallets predate the tag), gets NIP-04.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn negotiation_prefers_nip44_and_falls_back_to_nip04() {
+        use nostr_sdk::prelude::*;
+        use super::native::negotiate_cipher;
+
+        assert_eq!(negotiate_cipher(None), Nip47Ciphers::NIP04);
+        assert_eq!(negotiate_cipher(Some(Nip47Ciphers::NIP04)), Nip47Ciphers::NIP04);
+        assert_eq!(negotiate_cipher(Some(Nip47Ciphers::NIP44V2)), Nip47Ciphers::NIP44V2);
+        assert_eq!(
+            negotiate_cipher(Some(Nip47Ciphers::NIP44V2.add(Nip47Ciphers::NIP04))),
+            Nip47Ciphers::NIP44V2,
+            "when both are offered the newer cipher wins"
+        );
+    }
+
+    /// The `encryption` tag is read off the wallet's kind 13194 info event;
+    /// an info event without it is the legacy case and yields `None`.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn advertised_ciphers_are_read_from_the_info_event() {
+        use nostr_sdk::prelude::*;
+        use super::native::advertised_ciphers;
+
+        let wallet = Keys::generate();
+        let modern = EventBuilder::new(Kind::WalletConnectInfo, "pay_invoice get_info")
+            .tag(Tag::parse(["encryption", "nip44_v2 nip04"]).unwrap())
+            .finalize(&wallet)
+            .unwrap();
+        let legacy = EventBuilder::new(Kind::WalletConnectInfo, "pay_invoice get_info")
+            .finalize(&wallet)
+            .unwrap();
+
+        let advertised = advertised_ciphers(&modern).expect("tag present");
+        assert!(advertised.has(Nip47Ciphers::NIP44V2));
+        assert!(advertised.has(Nip47Ciphers::NIP04));
+        assert!(advertised_ciphers(&legacy).is_none());
+    }
+
+    /// URI parsing is delegated to nostr-sdk's `NostrWalletConnectUri::parse`.
     #[tokio::test]
     async fn parse_rejects_invalid_uri() {
         let err = NwcClient::new("not-a-valid-uri")

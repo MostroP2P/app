@@ -26,27 +26,26 @@ import 'package:mostro/src/rust/api/types.dart' as rust_types;
 ///
 /// Returns `null` when no data is found so the header can hide itself.
 /// Re-resolves whenever the live trade status changes.
-final chatTradeOrderProvider =
-    FutureProvider.family.autoDispose<OrderItem?, String>((ref, orderId) async {
-  // Re-resolve when the polled status changes (e.g. active → fiatSent).
-  ref.watch(tradeStatusProvider(orderId));
+final chatTradeOrderProvider = FutureProvider.family
+    .autoDispose<OrderItem?, String>((ref, orderId) async {
+      // Re-resolve when the polled status changes (e.g. active → fiatSent).
+      ref.watch(tradeStatusProvider(orderId));
 
-  final book = ref.watch(orderBookProvider).valueOrNull;
-  final fromBook = book?.where((o) => o.id == orderId).firstOrNull;
-  if (fromBook != null) return fromBook;
+      final fromBook = ref.watch(orderByIdProvider(orderId));
+      if (fromBook != null) return fromBook;
 
-  try {
-    final info = await orders_api.getOrder(orderId: orderId);
-    if (info != null) return _toOrderItem(info);
+      try {
+        final info = await orders_api.getOrder(orderId: orderId);
+        if (info != null) return _toOrderItem(info);
 
-    final trades = await orders_api.listTrades();
-    final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
-    if (trade != null) return _toOrderItem(trade.order);
-  } catch (e) {
-    debugPrint('[TradeStateHeader] order lookup failed: $e');
-  }
-  return null;
-});
+        final trades = await orders_api.listTrades();
+        final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
+        if (trade != null) return _toOrderItem(trade.order);
+      } catch (e) {
+        debugPrint('[TradeStateHeader] order lookup failed: $e');
+      }
+      return null;
+    });
 
 OrderItem? _toOrderItem(rust_types.OrderInfo info) {
   try {
@@ -92,17 +91,22 @@ class TradeStateHeader extends ConsumerWidget {
     final (pillBg, pillFg) = _statusColors(statusFilter);
 
     // Buyer/seller role: in-memory map → persisted DB → derive from order.
-    final isBuyer = ref.watch(tradeRoleProvider)[orderId] ??
+    final isBuyer =
+        ref.watch(tradeRoleProvider)[orderId] ??
         ref.watch(tradeRoleFromDbProvider(orderId)).valueOrNull ??
         _deriveIsBuyer(order);
 
-    final amountLabel = order.amountSats != null
-        ? (isBuyer
-            ? l10n.buyingSatsAmount(_fmtSats(order.amountSats!))
-            : l10n.sellingSatsAmount(_fmtSats(order.amountSats!)))
-        : (isBuyer ? l10n.buyingBitcoin : l10n.sellingBitcoin);
+    final amountLabel =
+        order.amountSats != null
+            ? (isBuyer
+                ? l10n.buyingSatsAmount(_fmtSats(order.amountSats!))
+                : l10n.sellingSatsAmount(_fmtSats(order.amountSats!)))
+            : (isBuyer ? l10n.buyingBitcoin : l10n.sellingBitcoin);
 
-    final dot = Text('·', style: textTheme.bodySmall?.copyWith(color: secondary));
+    final dot = Text(
+      '·',
+      style: textTheme.bodySmall?.copyWith(color: secondary),
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -210,6 +214,7 @@ class TradeStateHeader extends ConsumerWidget {
       TradeStatusFilter.waitingPayment => AppColors.statusWaiting,
       TradeStatusFilter.active => AppColors.statusActive,
       TradeStatusFilter.fiatSent => AppColors.statusActive,
+      TradeStatusFilter.payoutPending => AppColors.statusWaiting,
       TradeStatusFilter.success => AppColors.statusSuccess,
       TradeStatusFilter.canceled => AppColors.statusInactive,
       TradeStatusFilter.dispute => AppColors.statusDispute,

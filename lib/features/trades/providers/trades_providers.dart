@@ -18,6 +18,7 @@ enum TradeStatusFilter {
   waitingPayment('Waiting Payment'),
   active('Active'),
   fiatSent('Fiat Sent'),
+  payoutPending('Payout pending'),
   success('Success'),
   canceled('Canceled'),
   dispute('Dispute');
@@ -29,16 +30,17 @@ enum TradeStatusFilter {
 /// Localized display label for the status filter dropdown.
 extension TradeStatusFilterL10n on TradeStatusFilter {
   String localizedLabel(AppLocalizations l10n) => switch (this) {
-        TradeStatusFilter.all => l10n.tradeFilterAll,
-        TradeStatusFilter.pending => l10n.tradeFilterPending,
-        TradeStatusFilter.waitingInvoice => l10n.tradeFilterWaitingInvoice,
-        TradeStatusFilter.waitingPayment => l10n.tradeFilterWaitingPayment,
-        TradeStatusFilter.active => l10n.tradeFilterActive,
-        TradeStatusFilter.fiatSent => l10n.tradeFilterFiatSent,
-        TradeStatusFilter.success => l10n.tradeFilterSuccess,
-        TradeStatusFilter.canceled => l10n.tradeFilterCanceled,
-        TradeStatusFilter.dispute => l10n.tradeFilterDispute,
-      };
+    TradeStatusFilter.all => l10n.tradeFilterAll,
+    TradeStatusFilter.pending => l10n.tradeFilterPending,
+    TradeStatusFilter.waitingInvoice => l10n.tradeFilterWaitingInvoice,
+    TradeStatusFilter.waitingPayment => l10n.tradeFilterWaitingPayment,
+    TradeStatusFilter.active => l10n.tradeFilterActive,
+    TradeStatusFilter.fiatSent => l10n.tradeFilterFiatSent,
+    TradeStatusFilter.payoutPending => l10n.tradeStatusPayoutPending,
+    TradeStatusFilter.success => l10n.tradeFilterSuccess,
+    TradeStatusFilter.canceled => l10n.tradeFilterCanceled,
+    TradeStatusFilter.dispute => l10n.tradeFilterDispute,
+  };
 }
 
 // ── TradeRole ─────────────────────────────────────────────────────────────────
@@ -94,12 +96,14 @@ class TradeListItem {
 TradeStatusFilter orderStatusToFilter(rust_types.OrderStatus status) {
   return switch (status) {
     rust_types.OrderStatus.pending => TradeStatusFilter.pending,
-    rust_types.OrderStatus.waitingBuyerInvoice => TradeStatusFilter.waitingInvoice,
+    rust_types.OrderStatus.waitingBuyerInvoice =>
+      TradeStatusFilter.waitingInvoice,
     rust_types.OrderStatus.waitingPayment => TradeStatusFilter.waitingPayment,
     rust_types.OrderStatus.active => TradeStatusFilter.active,
     rust_types.OrderStatus.inProgress => TradeStatusFilter.active,
     rust_types.OrderStatus.fiatSent => TradeStatusFilter.fiatSent,
-    rust_types.OrderStatus.settledHoldInvoice => TradeStatusFilter.success,
+    rust_types.OrderStatus.settledHoldInvoice =>
+      TradeStatusFilter.payoutPending,
     rust_types.OrderStatus.success => TradeStatusFilter.success,
     rust_types.OrderStatus.settledByAdmin => TradeStatusFilter.success,
     rust_types.OrderStatus.completedByAdmin => TradeStatusFilter.success,
@@ -133,9 +137,10 @@ TradeListItem _tradeInfoToItem(rust_types.TradeInfo trade) {
     role: trade.order.isMine ? TradeRole.creator : TradeRole.taker,
     fiatAmount: fiatDisplay,
     fiatCurrency: trade.order.fiatCode,
-    paymentMethod: trade.order.paymentMethod.isEmpty
-        ? 'Bank Transfer'
-        : trade.order.paymentMethod,
+    paymentMethod:
+        trade.order.paymentMethod.isEmpty
+            ? 'Bank Transfer'
+            : trade.order.paymentMethod,
     createdAt: createdAt,
   );
 }
@@ -156,6 +161,11 @@ String _formatFiat(double? amount, double? min, double? max) {
 /// Exposed so callers (e.g. [refreshTrades]) can invalidate it when new trades
 /// are added. Per-row live status comes from [tradeStatusProvider].
 final rawTradesProvider = FutureProvider<List<rust_types.TradeInfo>>((ref) {
+  // Refetch whenever Rust pushes a trade lifecycle change: a daemon cancel
+  // wipes the row (it must leave My Trades no matter which screen is open)
+  // and a sweep resync rewrites its status — pull-to-refresh must not be
+  // the only way to observe either.
+  ref.listen(tradeUpdatesProvider, (_, __) => ref.invalidateSelf());
   return orders_api.listTrades();
 });
 
@@ -163,13 +173,11 @@ final rawTradesProvider = FutureProvider<List<rust_types.TradeInfo>>((ref) {
 ///
 /// Used by screens that need trade-level fields (e.g. [holdInvoice], [timeoutAt])
 /// that are not present on the order-book [OrderInfo].
-final tradeInfoProvider =
-    FutureProvider.autoDispose.family<rust_types.TradeInfo?, String>(
-  (ref, orderId) async {
-    final trades = await ref.watch(rawTradesProvider.future);
-    return trades.where((t) => t.order.id == orderId).firstOrNull;
-  },
-);
+final tradeInfoProvider = FutureProvider.autoDispose
+    .family<rust_types.TradeInfo?, String>((ref, orderId) async {
+      final trades = await ref.watch(rawTradesProvider.future);
+      return trades.where((t) => t.order.id == orderId).firstOrNull;
+    });
 
 /// Invalidates the raw trades cache, forcing a fresh DB fetch on next read.
 ///
@@ -179,8 +187,9 @@ void refreshTrades(WidgetRef ref) => ref.invalidate(rawTradesProvider);
 // ── Providers ─────────────────────────────────────────────────────────────────
 
 /// Currently selected status filter for the My Trades dropdown.
-final selectedStatusFilterProvider =
-    StateProvider<TradeStatusFilter>((_) => TradeStatusFilter.all);
+final selectedStatusFilterProvider = StateProvider<TradeStatusFilter>(
+  (_) => TradeStatusFilter.all,
+);
 
 /// Filtered and sorted list of the user's trades.
 ///
@@ -189,20 +198,21 @@ final selectedStatusFilterProvider =
 /// update independently via [tradeStatusProvider] inside [TradesListItem].
 final filteredTradesWithOrderStateProvider =
     FutureProvider<List<TradeListItem>>((ref) async {
-  final filter = ref.watch(selectedStatusFilterProvider);
-  final trades = await ref.watch(rawTradesProvider.future);
+      final filter = ref.watch(selectedStatusFilterProvider);
+      final trades = await ref.watch(rawTradesProvider.future);
 
-  final items = trades.map(_tradeInfoToItem).toList();
+      final items = trades.map(_tradeInfoToItem).toList();
 
-  final filtered = filter == TradeStatusFilter.all
-      ? items
-      : items.where((t) => t.status == filter).toList();
+      final filtered =
+          filter == TradeStatusFilter.all
+              ? items
+              : items.where((t) => t.status == filter).toList();
 
-  // already sorted newest-first by list_trades() in Rust; re-sort after
-  // filter to preserve order if filter removes some items.
-  filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  return filtered;
-});
+      // already sorted newest-first by list_trades() in Rust; re-sort after
+      // filter to preserve order if filter removes some items.
+      filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return filtered;
+    });
 
 // ── Badge notification count ──────────────────────────────────────────────────
 
@@ -215,7 +225,6 @@ final _lastSeenStatusesProvider =
 // so there is no need to create a polling watcher for them.
 const _terminalOrderStatuses = {
   rust_types.OrderStatus.success,
-  rust_types.OrderStatus.settledHoldInvoice,
   rust_types.OrderStatus.settledByAdmin,
   rust_types.OrderStatus.completedByAdmin,
   rust_types.OrderStatus.canceled,
@@ -243,8 +252,7 @@ final orderBookNotificationCountProvider = Provider<int>((ref) {
       for (final trade in trades) {
         // Skip terminal trades — they have no further status changes to show.
         if (_terminalOrderStatuses.contains(trade.order.status)) continue;
-        final live =
-            ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
+        final live = ref.watch(tradeStatusProvider(trade.order.id)).valueOrNull;
         if (live == null) continue;
         final seen = lastSeen[trade.order.id];
         // Only count as unseen when status changed from a known prior state.
@@ -266,8 +274,7 @@ void resetTradeNotifications(WidgetRef ref) {
   tradesAsync.whenData((trades) {
     final snapshot = <String, rust_types.OrderStatus>{};
     for (final trade in trades) {
-      final live =
-          ref.read(tradeStatusProvider(trade.order.id)).valueOrNull;
+      final live = ref.read(tradeStatusProvider(trade.order.id)).valueOrNull;
       if (live != null) snapshot[trade.order.id] = live;
     }
     ref.read(_lastSeenStatusesProvider.notifier).state = snapshot;

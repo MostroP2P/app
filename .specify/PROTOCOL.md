@@ -10,7 +10,7 @@
 This repository contains the complete specification for:
 - Message formats and actions
 - Order lifecycle and state machine
-- Message transport encryption (NIP-44 direct + NIP-59 gift wrap)
+- Message transport encryption (NIP-44 throughout: signed kind 14 to the daemon + the kind 14 chat envelope for peer/dispute chat)
 - Event kinds and tags
 - Error handling
 
@@ -102,9 +102,13 @@ must comply with this specification. When implementing features:
 
 ## Message transport
 
-> **Changed in transport v2**: messages to the Mostro daemon previously used
-> NIP-59 gift wrap (kind 1059); they now use NIP-44 direct (signed kind 14).
-> Peer/dispute chat still uses NIP-59 gift wrap (kind 1059).
+> **Changed in transport v2, then in #246**: everything used NIP-59 gift wrap
+> (kind 1059) originally. Daemon messages moved to NIP-44 direct (signed kind
+> 14) in transport v2, and peer/dispute chat followed in #246 — not to the same
+> form, but to the **chat envelope** below — to close a gift-wrap flood attack.
+> This client speaks protocol v2 only: nothing reads or writes kind 1059 in
+> either direction. Contract:
+> `specs/004-mostro-p2p-client/contracts/messages.md`.
 
 Daemon messages (transport v2 — NIP-44 direct):
 
@@ -117,16 +121,21 @@ Daemon messages (transport v2 — NIP-44 direct):
 └──────────────────────────────────────────────────┘
 ```
 
-Peer/dispute chat (NIP-59 gift wrap):
+Peer/dispute chat (the chat envelope — <https://mostro.network/protocol/chat.html>):
+
+The conversation keys come from an HKDF split of the trade-key ECDH secret:
+`K_conv` encrypts, `K_sign` authors the outer event. Neither party's trade key
+appears anywhere on the wire; `pub(K_sign)` is what relays and clients filter
+on. Dispute-admin chat uses the same envelope, keyed to the solver's pubkey.
 
 ```text
 ┌──────────────────────────────────────────────────┐
-│ Gift Wrap (kind 1059)                            │
+│ Kind 14 outer event (signed with K_sign)         │
+│ - one p tag = pub(K_conv)                        │
+│ - NIP-44 content, self-encrypted to K_conv       │
 │ ┌──────────────────────────────────────────────┐ │
-│ │ Seal (kind 13)                               │ │
-│ │ ┌──────────────────────────────────────────┐ │ │
-│ │ │ Rumor — chat message payload             │ │ │
-│ │ └──────────────────────────────────────────┘ │ │
+│ │ Inner kind 1 — signed by the trade key,      │ │
+│ │ which authenticates the sender               │ │
 │ └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
 ```
@@ -136,7 +145,7 @@ Peer/dispute chat (NIP-59 gift wrap):
 ### Rust Core
 All protocol handling should be in the Rust core:
 - Message serialization/deserialization
-- NIP-44 (daemon) / NIP-59 gift wrap (peer chat) wrapping/unwrapping (via nostr-sdk)
+- NIP-44 wrapping/unwrapping throughout — signed kind 14 to the daemon, the kind 14 chat envelope for peer/dispute chat (via nostr-sdk)
 - Action validation
 - State machine enforcement
 

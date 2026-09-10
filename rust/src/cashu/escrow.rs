@@ -27,12 +27,10 @@
 //!   upstream spec, not a preference.
 
 use anyhow::{anyhow, bail, Result};
-use cdk::amount::SplitTarget;
 use cdk::nuts::nut10::{Conditions, SpendingConditions};
 use cdk::nuts::nut11::SigFlag;
 use cdk::nuts::{Proof, PublicKey, SecretKey, Token, Witness};
-use cdk::wallet::{ReceiveOptions, SendMemo, SendOptions};
-use cdk::Amount;
+use cdk::wallet::ReceiveOptions;
 
 use super::CashuWallet;
 
@@ -213,6 +211,10 @@ impl CashuWallet {
     ///
     /// The proofs leave the spendable balance the moment this returns: they are
     /// locked to a condition this wallet alone cannot satisfy.
+    ///
+    /// **Errors** (stable markers): `CashuAmountZero`, `CashuSendFailed`,
+    /// `CashuSendUnresolved` — the same set as [`CashuWallet::create_token`],
+    /// because it is the same send.
     pub async fn build_escrow_token(
         &self,
         amount_sats: u64,
@@ -229,41 +231,18 @@ impl CashuWallet {
             .await
     }
 
+    /// One send path for both tokens: the reserve-then-revoke failure handling
+    /// lives in [`CashuWallet::send_with_conditions`] and is not repeated here.
+    /// For an escrow the reserved amount is the whole trade, so a `confirm`
+    /// that failed without a revoke would leave C5 reporting the wallet short
+    /// by exactly what it just tried to lock.
     async fn build_locked_token(
         &self,
         amount_sats: u64,
         conditions: SpendingConditions,
     ) -> Result<String> {
-        if amount_sats == 0 {
-            bail!("CashuAmountZero");
-        }
-
-        let prepared = self
-            .inner()
-            .prepare_send(
-                Amount::from(amount_sats),
-                SendOptions {
-                    conditions: Some(conditions),
-                    amount_split_target: SplitTarget::default(),
-                    ..Default::default()
-                },
-            )
+        self.send_with_conditions(amount_sats, Some(conditions))
             .await
-            .map_err(|e| anyhow!("CashuLockFailed: {e}"))?;
-
-        let token = match prepared.confirm(None::<SendMemo>).await {
-            Ok(token) => token,
-            Err(e) => {
-                // The whole escrow amount is reserved at this point and
-                // `confirm` consumed the handle, so nothing else can release
-                // it. C5 would then report the wallet as short by exactly the
-                // amount it just tried to lock.
-                let reclaimed = self.check_proofs_state().await.unwrap_or(0);
-                bail!("CashuLockFailed: {e} (reclaimed {reclaimed} sat)");
-            }
-        };
-
-        Ok(token.to_string())
     }
 
     /// Verify an escrow token someone else built: right mint, right amount, and

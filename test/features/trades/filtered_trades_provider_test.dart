@@ -7,9 +7,9 @@ import '../../support/fake_trades.dart';
 import '../../support/provider_harness.dart';
 
 ProviderContainer _tradesWith(List<TradeInfo> trades) {
-  return createContainer(overrides: [
-    rawTradesProvider.overrideWith((ref) async => trades),
-  ]);
+  return createContainer(
+    overrides: [rawTradesProvider.overrideWith((ref) async => trades)],
+  );
 }
 
 Future<List<String>> _orderIds(
@@ -17,7 +17,9 @@ Future<List<String>> _orderIds(
   TradeStatusFilter filter = TradeStatusFilter.all,
 }) async {
   container.read(selectedStatusFilterProvider.notifier).state = filter;
-  final items = await container.read(filteredTradesWithOrderStateProvider.future);
+  final items = await container.read(
+    filteredTradesWithOrderStateProvider.future,
+  );
   return items.map((t) => t.orderId).toList();
 }
 
@@ -29,7 +31,10 @@ void main() {
         fakeTrade(id: 'b', status: OrderStatus.pending),
       ]);
 
-      expect(await _orderIds(container), unorderedEquals(['order-a', 'order-b']));
+      expect(
+        await _orderIds(container),
+        unorderedEquals(['order-a', 'order-b']),
+      );
     });
 
     test('status filter keeps only matching trades', () async {
@@ -38,25 +43,30 @@ void main() {
         fakeTrade(id: 'pending', status: OrderStatus.pending),
       ]);
 
-      expect(
-        await _orderIds(container, filter: TradeStatusFilter.pending),
-        ['order-pending'],
-      );
-    });
-
-    test('terminal protocol statuses collapse into the success filter',
-        () async {
-      final container = _tradesWith([
-        fakeTrade(id: 'success', status: OrderStatus.success),
-        fakeTrade(id: 'settled', status: OrderStatus.settledByAdmin),
-        fakeTrade(id: 'canceled', status: OrderStatus.canceled),
+      expect(await _orderIds(container, filter: TradeStatusFilter.pending), [
+        'order-pending',
       ]);
-
-      expect(
-        await _orderIds(container, filter: TradeStatusFilter.success),
-        unorderedEquals(['order-success', 'order-settled']),
-      );
     });
+
+    test(
+      'terminal protocol statuses collapse into the success filter',
+      () async {
+        final container = _tradesWith([
+          fakeTrade(id: 'success', status: OrderStatus.success),
+          fakeTrade(id: 'settled', status: OrderStatus.settledByAdmin),
+          fakeTrade(id: 'canceled', status: OrderStatus.canceled),
+          fakeTrade(
+            id: 'payout-pending',
+            status: OrderStatus.settledHoldInvoice,
+          ),
+        ]);
+
+        expect(
+          await _orderIds(container, filter: TradeStatusFilter.success),
+          unorderedEquals(['order-success', 'order-settled']),
+        );
+      },
+    );
 
     test('results are sorted newest-first by startedAt', () async {
       final container = _tradesWith([
@@ -77,7 +87,7 @@ void main() {
         OrderStatus.active: TradeStatusFilter.active,
         OrderStatus.inProgress: TradeStatusFilter.active,
         OrderStatus.fiatSent: TradeStatusFilter.fiatSent,
-        OrderStatus.settledHoldInvoice: TradeStatusFilter.success,
+        OrderStatus.settledHoldInvoice: TradeStatusFilter.payoutPending,
         OrderStatus.success: TradeStatusFilter.success,
         OrderStatus.settledByAdmin: TradeStatusFilter.success,
         OrderStatus.completedByAdmin: TradeStatusFilter.success,
