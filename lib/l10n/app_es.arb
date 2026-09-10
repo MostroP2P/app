@@ -759,6 +759,11 @@
   "cashuLastTokenPending": "Exportaste un token. Es dinero hasta que alguien lo canjee: guardalo hasta estar seguro de que lleg\u00f3.",
   "cashuShowLastToken": "Mostrarlo de nuevo",
   "cashuLastTokenDone": "Ya lo envi\u00e9",
+  "cashuTokenTooLargeForQr": "Este token es demasiado grande para un código QR. Copialo en su lugar.",
+  "cashuErrorMintChanged": "El nodo activo cambió y esta billetera está ligada a otro mint. Volvé atrás y abrí la billetera de nuevo.",
+  "cashuErrorNoMnemonic": "Esta cuenta se importó desde un nsec, así que no hay frase de recuperación de la que derivar la billetera. La billetera Cashu necesita una cuenta creada a partir de una frase de recuperación.",
+  "cashuErrorTokenUnverified": "No se pudo verificar este token: no trae prueba de la firma del mint, así que no se aceptó.",
+  "cashuErrorSendUnresolved": "El envío falló y la billetera no pudo confirmar que los fondos volvieron. Sincronizá con el mint antes de intentar de nuevo.",
   "tradeStatusPayoutPending": "Pago pendiente",
   "tradeHeadlinePayoutPending": "Esperando el pago al comprador",
   "tradeInstructionPayoutPending": "El vendedor liberó los fondos en custodia. Esperando que se complete el pago Lightning al comprador."

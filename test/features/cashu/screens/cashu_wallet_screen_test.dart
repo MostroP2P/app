@@ -15,9 +15,15 @@ import '../../../support/provider_harness.dart';
 /// overridden — an un-overridden one would call into Rust and hang the test
 /// rather than fail it.
 class _FakeController extends CashuWalletController {
-  const _FakeController({this.connectError});
+  const _FakeController({
+    this.connectError,
+    this.createTokenError,
+    this.token = 'cashuBtesttoken',
+  });
 
   final Object? connectError;
+  final Object? createTokenError;
+  final String token;
 
   @override
   Future<CashuWalletStatus> connect() async {
@@ -29,7 +35,10 @@ class _FakeController extends CashuWalletController {
   Future<BigInt> receiveToken(String encoded) async => BigInt.zero;
 
   @override
-  Future<String> createToken(BigInt amountSats) async => 'cashuBtesttoken';
+  Future<String> createToken(BigInt amountSats) async {
+    if (createTokenError != null) throw createTokenError!;
+    return token;
+  }
 
   @override
   Future<void> sweepSpentProofs() async {}
@@ -141,6 +150,61 @@ void main() {
       await tester.tap(find.text('Show it again'));
       await tester.pumpAndSettle();
       expect(find.text('cashuBtesttoken'), findsOneWidget);
+    });
+
+    testWidgets('a token too large for a QR is shown as text, never as an error',
+        (tester) async {
+      // A cdk token from many small proofs runs to tens of KB; a QR holds
+      // ~2.9 KB. The dialog must degrade to the copyable text, not paint
+      // qr_flutter's exception on the one dialog showing the user's money.
+      final huge = 'cashuB${'A' * 4096}';
+      await _pump(
+        tester,
+        status: _status(connected: true, balance: 100),
+        controller: _FakeController(token: huge),
+      );
+
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '10');
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('This token is too large for a QR code. Copy it instead.'),
+        findsOneWidget,
+      );
+      expect(find.text(huge), findsOneWidget);
+      expect(find.textContaining('QrInputTooLong'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a send that could not confirm its proofs back says so',
+        (tester) async {
+      // "Try again" is the wrong advice here: the wallet must sync first.
+      // The marker is one main grew after this screen was written, so it
+      // pins that the mapper kept up.
+      await _pump(
+        tester,
+        status: _status(connected: true, balance: 100),
+        controller: const _FakeController(
+          createTokenError: 'CashuSendUnresolved: revoke failed',
+        ),
+      );
+
+      await tester.tap(find.text('Send'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '10');
+      await tester.tap(find.text('Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Sync with the mint before trying again'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('CashuSendUnresolved'), findsNothing);
+      // Nothing was exported, so there is no token to keep retrievable.
+      expect(find.text('Show it again'), findsNothing);
     });
 
     testWidgets('sending is disabled with an empty wallet', (tester) async {

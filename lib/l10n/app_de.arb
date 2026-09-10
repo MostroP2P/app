@@ -759,6 +759,11 @@
   "cashuLastTokenPending": "Du hast ein Token exportiert. Es ist Geld, bis jemand es einl\u00f6st \u2014 behalte es, bis du sicher bist, dass es angekommen ist.",
   "cashuShowLastToken": "Erneut anzeigen",
   "cashuLastTokenDone": "Ich habe es gesendet",
+  "cashuTokenTooLargeForQr": "Dieses Token ist zu groß für einen QR-Code. Kopiere es stattdessen.",
+  "cashuErrorMintChanged": "Der aktive Node hat gewechselt und diese Wallet ist an eine andere Mint gebunden. Geh zurück und öffne die Wallet erneut.",
+  "cashuErrorNoMnemonic": "Dieses Konto wurde aus einem nsec importiert, daher gibt es keine Wiederherstellungsphrase, aus der die Wallet abgeleitet werden kann. Die Cashu-Wallet braucht ein Konto, das aus einer Wiederherstellungsphrase erstellt wurde.",
+  "cashuErrorTokenUnverified": "Dieses Token konnte nicht überprüft werden: Es enthält keinen Nachweis der Mint-Signatur und wurde daher nicht angenommen.",
+  "cashuErrorSendUnresolved": "Das Senden ist fehlgeschlagen und die Wallet konnte nicht bestätigen, dass das Guthaben zurück ist. Synchronisiere mit der Mint, bevor du es erneut versuchst.",
   "tradeStatusPayoutPending": "Auszahlung ausstehend",
   "tradeHeadlinePayoutPending": "Warten auf die Auszahlung an den Käufer",
   "tradeInstructionPayoutPending": "Der Verkäufer hat die Treuhandmittel freigegeben. Die Lightning-Zahlung an den Käufer steht noch aus."

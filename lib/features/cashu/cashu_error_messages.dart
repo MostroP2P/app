@@ -24,11 +24,23 @@ String cashuErrorMessage(Object error, AppLocalizations l10n) {
 final Map<String, String Function(AppLocalizations)> _messages = {
   'CashuNotEnabled': (l) => l.cashuErrorNotEnabled,
   'CashuNotConnected': (l) => l.cashuErrorNotConnected,
+  // The wallet is bound to the previous node's mint: a node switch happened
+  // while this screen was open. Reconnecting is the fix, not retrying.
+  'CashuMintChanged': (l) => l.cashuErrorMintChanged,
   'CashuMintUnreachable': (l) => l.cashuErrorMintUnreachable,
   'CashuMintUnusable': (l) => l.cashuErrorMintUnusable,
   'CashuUnsupportedOnWeb': (l) => l.cashuErrorUnsupportedOnWeb,
   'CashuAmountZero': (l) => l.cashuErrorAmountZero,
+  // Distinct from ReceiveFailed: the token parsed and belongs to this mint,
+  // but carries no DLEQ proof, so "wrong mint or spent" would misdiagnose it.
+  'CashuTokenUnverified': (l) => l.cashuErrorTokenUnverified,
   'CashuReceiveFailed': (l) => l.cashuErrorReceiveFailed,
+  // The send failed *and* the proofs could not be confirmed back. "Try
+  // again" — the generic advice — is the wrong move; the user must sync.
+  'CashuSendUnresolved': (l) => l.cashuErrorSendUnresolved,
   'CashuSendFailed': (l) => l.cashuErrorSendFailed,
+  // Permanent for an nsec-imported identity: there is no seed to derive the
+  // wallet from, and "no identity" would send the user to log in again.
+  'CashuNoMnemonic': (l) => l.cashuErrorNoMnemonic,
   'NoIdentity': (l) => l.cashuErrorNoIdentity,
 };

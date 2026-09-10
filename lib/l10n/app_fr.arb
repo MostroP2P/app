@@ -759,6 +759,11 @@
   "cashuLastTokenPending": "Vous avez export\u00e9 un token. C'est de l'argent jusqu'\u00e0 ce que quelqu'un l'encaisse \u2014 gardez-le jusqu'\u00e0 confirmation.",
   "cashuShowLastToken": "Le r\u00e9afficher",
   "cashuLastTokenDone": "Je l'ai envoy\u00e9",
+  "cashuTokenTooLargeForQr": "Ce token est trop volumineux pour un code QR. Copiez-le à la place.",
+  "cashuErrorMintChanged": "Le nœud actif a changé et ce portefeuille est lié à une autre mint. Revenez en arrière et rouvrez le portefeuille.",
+  "cashuErrorNoMnemonic": "Ce compte a été importé depuis un nsec, il n'y a donc pas de phrase de récupération pour en dériver le portefeuille. Le portefeuille Cashu nécessite un compte créé à partir d'une phrase de récupération.",
+  "cashuErrorTokenUnverified": "Ce token n'a pas pu être vérifié : il ne contient aucune preuve de la signature de la mint, il n'a donc pas été accepté.",
+  "cashuErrorSendUnresolved": "L'envoi a échoué et le portefeuille n'a pas pu confirmer le retour des fonds. Synchronisez avec la mint avant de réessayer.",
   "tradeStatusPayoutPending": "Paiement en attente",
   "tradeHeadlinePayoutPending": "En attente du paiement à l’acheteur",
   "tradeInstructionPayoutPending": "Le vendeur a libéré les fonds en séquestre. En attente de la réussite du paiement Lightning à l’acheteur."

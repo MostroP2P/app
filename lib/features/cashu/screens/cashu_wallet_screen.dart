@@ -83,22 +83,36 @@ class _CashuWalletScreenState extends ConsumerState<CashuWalletScreen> {
     }
   }
 
+  /// Runs [prompt] while holding the busy flag, so a fast double tap cannot
+  /// stack two sheets or dialogs, then releases it — [_run] takes it again
+  /// for the Rust call that follows.
+  Future<T?> _prompt<T>(Future<T?> Function() prompt) async {
+    if (_busy) return null;
+    setState(() => _busy = true);
+    try {
+      return await prompt();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _receive() async {
-    if (_busy) return;
     final l10n = AppLocalizations.of(context);
-    final token = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder:
-          (sheetContext) => Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+    final token = await _prompt(
+      () => showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        builder:
+            (sheetContext) => Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+              ),
+              child: PlatformAwareQrScanner(
+                hint: l10n.cashuReceiveHint,
+                onDetected: (value) => Navigator.of(sheetContext).pop(value),
+              ),
             ),
-            child: PlatformAwareQrScanner(
-              hint: l10n.cashuReceiveHint,
-              onDetected: (value) => Navigator.of(sheetContext).pop(value),
-            ),
-          ),
+      ),
     );
 
     if (token == null || token.trim().isEmpty || !mounted) return;
@@ -112,10 +126,11 @@ class _CashuWalletScreenState extends ConsumerState<CashuWalletScreen> {
   }
 
   Future<void> _send(int balanceSats) async {
-    if (_busy) return;
-    final amount = await showDialog<int>(
-      context: context,
-      builder: (_) => _AmountDialog(maxSats: balanceSats),
+    final amount = await _prompt(
+      () => showDialog<int>(
+        context: context,
+        builder: (_) => _AmountDialog(maxSats: balanceSats),
+      ),
     );
     if (amount == null || !mounted) return;
 
@@ -134,9 +149,11 @@ class _CashuWalletScreenState extends ConsumerState<CashuWalletScreen> {
     return showDialog<void>(
       context: context,
       // Not dismissible: closing this by tapping outside used to be the fastest
-      // way to lose an exported token.
+      // way to lose an exported token. `barrierDismissible` covers the tap;
+      // `PopScope` covers the Android back gesture, which it does not.
       barrierDismissible: false,
-      builder: (_) => _TokenDialog(token: token),
+      builder:
+          (_) => PopScope(canPop: false, child: _TokenDialog(token: token)),
     );
   }
 
@@ -302,15 +319,17 @@ class _BalanceCard extends StatelessWidget {
             ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: AppSpacing.md),
-          if (connected)
-            Text(
-              l10n.cashuMintLabel(status!.mintUrl ?? ''),
-              style: TextStyle(color: colors.textSubtle, fontSize: 13),
-            )
-          else
+          if (!connected)
             Text(
               l10n.cashuNotConnected,
               style: TextStyle(color: colors.destructiveRed, fontSize: 13),
+            )
+          // Rust always names the mint when connected; guarded anyway so a
+          // future status without one renders nothing rather than "Mint: ".
+          else if (status?.mintUrl case final mintUrl?)
+            Text(
+              l10n.cashuMintLabel(mintUrl),
+              style: TextStyle(color: colors.textSubtle, fontSize: 13),
             ),
         ],
       ),
@@ -380,6 +399,19 @@ class _AmountDialogState extends State<_AmountDialog> {
   }
 }
 
+/// Whether [data] fits a QR at all. Runs the same encode `QrPainter` would,
+/// because that is the only place the size limit is enforced.
+bool _fitsInQr(String data) {
+  try {
+    QrImage(
+      QrCode.fromData(data: data, errorCorrectLevel: QrErrorCorrectLevel.L),
+    );
+    return true;
+  } on InputTooLongException {
+    return false;
+  }
+}
+
 /// The exported token, as a QR and as copyable text.
 ///
 /// The token is bearer money: whoever redeems it first keeps it. The warning is
@@ -404,15 +436,30 @@ class _TokenDialog extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                color: Colors.white,
-                child: QrImageView(
-                  data: token,
-                  size: 200,
-                  backgroundColor: Colors.white,
+              // A cdk token carries a signature and DLEQ proof per proof, so
+              // a wallet funded from many small proofs exports tens of KB —
+              // far past the ~2.9 KB a version-40 QR holds. Checked *here*
+              // rather than through `errorStateBuilder`: `QrCode.fromData`
+              // silently caps at version 40 and only `make()` throws, inside
+              // the painter, where the builder never sees it — so without
+              // this qr_flutter paints its exception on the one dialog that
+              // is showing the user their money.
+              if (_fitsInQr(token))
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  color: Colors.white,
+                  child: QrImageView(
+                    data: token,
+                    size: 200,
+                    backgroundColor: Colors.white,
+                  ),
+                )
+              else
+                Text(
+                  l10n.cashuTokenTooLargeForQr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13),
                 ),
-              ),
               const SizedBox(height: AppSpacing.md),
               SelectableText(token, style: const TextStyle(fontSize: 11)),
               const SizedBox(height: AppSpacing.md),

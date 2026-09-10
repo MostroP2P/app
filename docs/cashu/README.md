@@ -1,6 +1,6 @@
 # Cashu Escrow — Client Implementation Spec & Phased Plan
 
-**Status:** In progress — C0 merged (`mostro-core` 0.14 + wire form pinned); C1a in review
+**Status:** In progress — C0, C1a, C1b, C2 and C4 merged (`mostro-core` 0.14 + wire form pinned; escrow-mode detection and overrides; embedded wallet over cdk; 2-of-3 escrow primitives); C3 (wallet UI) in review
 **Goal:** ship Cashu as a user-selectable settlement backend alongside Lightning — see §1.1
 **Audience:** contributors implementing Cashu support in this client (appv2)
 **Upstream reference:** [`MostroP2P/mostro` — Cashu escrow spec series](https://github.com/MostroP2P/mostro/tree/main/docs/cashu)
