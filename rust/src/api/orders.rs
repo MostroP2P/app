@@ -2004,6 +2004,9 @@ async fn dispatch_mostro_message(
                              local={local_uuid} daemon={daemon_id}"
                         ));
                     }
+                } else if resync_republished_maker_order(&daemon_id, kind, event_ts).await {
+                    // The taker walked away (cancel or timeout) and the daemon
+                    // put the order back on the book under the same id.
                 } else {
                     // Cold start / reconnect (no record — in-memory state is
                     // empty after a restart), or an uncorrelated event that
@@ -2572,6 +2575,71 @@ async fn dispatch_mostro_message(
 
 /// Current locally known status for a trade: the DB row when present
 /// (authoritative across restarts), else the in-memory book entry.
+/// The daemon also sends `new-order` to the maker of a taken order it put
+/// back on the book: the taker cancelled, or let the waiting window lapse,
+/// and the order is pending again under the same id (mostrod's cancel path
+/// republishes and then notifies the maker with the order payload).
+///
+/// A trade this client still holds in a waiting state is synced back to
+/// `Pending` right away — the stale sweep would do the same, but only after
+/// its 30-minute cadence and 15-minute minimum age, so until then My Trades
+/// and the trade detail kept showing a take that no longer exists. A trade
+/// this client never held, one already past the waiting states, or a stale
+/// replay is left alone. Returns whether the trade was resynced.
+async fn resync_republished_maker_order(
+    order_id: &str,
+    kind: &mostro_core::message::MessageKind,
+    event_ts: i64,
+) -> bool {
+    let republished_pending = matches!(
+        &kind.payload,
+        Some(mostro_core::message::Payload::Order(order))
+            if order.status == Some(mostro_core::order::Status::Pending)
+    );
+    if !republished_pending {
+        return false;
+    }
+    let Some(local) = current_local_status(order_id).await else {
+        return false;
+    };
+    if !matches!(
+        local,
+        OrderStatus::WaitingPayment | OrderStatus::WaitingBuyerInvoice | OrderStatus::InProgress
+    ) {
+        return false;
+    }
+    if status_write_blocked(order_id, &kind.action, event_ts).await {
+        return false;
+    }
+    record_status_event(order_id, event_ts).await;
+    crate::api::logging::blog_info(
+        "orders",
+        format!(
+            "status order={} {local:?}→Pending src=kind14/NewOrder (taker walked away, order republished)",
+            crate::api::logging::short_id(order_id),
+        ),
+    );
+    order_book()
+        .update_order_status(order_id, OrderStatus::Pending)
+        .await;
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db
+            .update_trade_fields(order_id, Some(OrderStatus::Pending), None, None)
+            .await
+        {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "republished status not persisted for order={}: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+        }
+    }
+    emit_trade_update(order_id, OrderStatus::Pending);
+    true
+}
+
 async fn current_local_status(order_id: &str) -> Option<OrderStatus> {
     if let Some(db) = crate::db::app_db::db() {
         if let Ok(Some(trade)) = db.get_trade_by_order_id(order_id).await {
@@ -6728,6 +6796,103 @@ mod tests {
             Some(16),
             "fingerprint restore must not overwrite the create-time trade index",
         );
+    }
+
+    /// A taken order whose taker walks away comes back to the maker as a
+    /// `new-order` carrying the order in `pending`, under the same id and
+    /// with no create waiting for it. The trade the maker holds at
+    /// `waiting-payment` must follow the book back to pending right away,
+    /// not half an hour later when the stale sweep gets to it.
+    #[tokio::test]
+    async fn a_republished_maker_order_returns_to_pending_on_new_order() {
+        use mostro_core::message::{Action, Message, Payload};
+
+        let path = std::env::temp_dir()
+            .join(format!("mostro_republished_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut order_info = dummy_order_info(&order_id);
+        order_info.kind = crate::api::types::OrderKind::Sell;
+        order_info.status = crate::api::types::OrderStatus::WaitingPayment;
+        order_info.is_mine = true;
+        order_book().upsert_order(order_info.clone()).await;
+        db.save_trade(&crate::api::types::TradeInfo {
+            id: order_id.clone(),
+            order: order_info,
+            role: TradeRole::Seller,
+            counterparty_pubkey: String::new(),
+            current_step: crate::api::types::TradeStep::Seller(
+                crate::api::types::SellerStep::OrderPublished,
+            ),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 7,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        })
+        .await
+        .expect("save the trade row");
+        let mut rx = trade_updates_tx().subscribe();
+
+        let republished = mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Pending),
+            1000,
+            "ARS".to_string(),
+            None,
+            None,
+            1000,
+            "cash".to_string(),
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        let unwrapped = mostro_core::nip59::UnwrappedMessage {
+            message: Message::new_order(
+                Some(order_uuid),
+                None,
+                None,
+                Action::NewOrder,
+                Some(Payload::Order(republished)),
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::now(),
+        };
+        dispatch_mostro_message(unwrapped, "test-republish", "ff00ff07", 7).await;
+
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row kept");
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Pending);
+        let mut emitted = false;
+        while let Ok(update) = rx.try_recv() {
+            if update.order_id == order_id
+                && update.status == crate::api::types::OrderStatus::Pending
+            {
+                emitted = true;
+            }
+        }
+        assert!(emitted, "the UI must learn the order is pending again");
     }
 
     /// The flip side of #326: with no prior mapping (genuine cold start, where
