@@ -1351,6 +1351,11 @@ async fn next_trade_for_range_remainder(order_id: &str) -> Result<Option<(String
     let next = crate::api::identity::derive_trade_key().await?;
     let next_keys = crate::api::identity::get_active_trade_keys(next.index).await?;
     ensure_global_dm_coverage(&next_keys, next.index).await;
+    // The remainder's `new-order` follows the release within a second. The
+    // bulk filter refresh above is not confirmed by the relay before the
+    // release goes out, so the key also gets the per-trade subscription a
+    // create relies on, which is awaited before returning.
+    subscribe_daemon_messages(next_keys.public_key(), next.index).await;
     Ok(Some((next.public_key, next.index)))
 }
 
