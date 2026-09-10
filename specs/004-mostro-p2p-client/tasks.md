@@ -258,7 +258,7 @@ configuration.
 
 **V1 ref**: Sections 19–20 (`P2P_CHAT_SYSTEM.md`)
 
-**Goal**: Per-trade encrypted chat with text + encrypted file attachments. Unread badges on Chat tab. Trade info + user info panels (the shared key is not displayed — it is shared with the solver from the dispute chat, #415).
+**Goal**: Per-trade encrypted chat with text + encrypted file attachments. Unread badges on Chat tab. Trade info + user info panels (the shared key is not displayed; one-tap sharing with the solver from the dispute chat is future scope, tracked in #415).
 
 **Independent Test**: Open CONTACT on active trade → chat room with peer handle + avatar. Send text → appears immediately (optimistic). Attach image → uploads encrypted → appears as image preview. Chat tab badge increments on new message, clears on open.
 
