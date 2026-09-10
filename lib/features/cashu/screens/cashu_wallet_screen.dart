@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:mostro/core/app_routes.dart';
@@ -270,12 +271,23 @@ class _CashuWalletScreenState extends ConsumerState<CashuWalletScreen> {
   }
 }
 
-/// Group digits so a six-figure balance is readable, matching the About screen.
-String _fmtSats(BigInt sats) {
+/// Group digits so a six-figure balance is readable, with the separator the
+/// reader's locale uses — a comma is wrong in four of the five languages this
+/// app ships, where `1.234.567` or `1 234 567` is the number and `1,234,567`
+/// reads as something else entirely.
+///
+/// The digits still come from a `BigInt` walk rather than `NumberFormat.format`,
+/// which takes a `num`: a `u64` balance can exceed what `int` and `double` hold
+/// exactly, and bearer money must never be shown rounded. intl supplies only
+/// the separator. That is enough here because all five shipped locales group in
+/// plain threes; a locale that groups otherwise (Indian digits, say) would need
+/// the full formatter and a BigInt-safe path with it.
+String _fmtSats(BigInt sats, String locale) {
+  final separator = NumberFormat.decimalPattern(locale).symbols.GROUP_SEP;
   final digits = sats.toString();
   final buffer = StringBuffer();
   for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(separator);
     buffer.write(digits[i]);
   }
   return buffer.toString();
@@ -313,7 +325,7 @@ class _BalanceCard extends StatelessWidget {
             // wallet must not do.
             status?.balanceSats == null
                 ? '—'
-                : '${_fmtSats(status!.balanceSats!)} ${l10n.aboutSatoshisSuffix}',
+                : '${_fmtSats(status!.balanceSats!, Localizations.localeOf(context).toString())} ${l10n.aboutSatoshisSuffix}',
             style: Theme.of(
               context,
             ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),

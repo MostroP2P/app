@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mostro/core/app_theme.dart';
@@ -59,6 +60,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required CashuWalletStatus status,
   CashuWalletController controller = const _FakeController(),
+  Locale locale = const Locale('en'),
 }) async {
   final container = createContainer(overrides: [
     cashuWalletProvider.overrideWith((ref) => Stream.value(status)),
@@ -70,7 +72,7 @@ Future<void> _pump(
       container: container,
       child: MaterialApp(
         theme: buildDarkTheme(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -96,6 +98,40 @@ void main() {
       expect(find.text('1,234 Satoshis'), findsOneWidget);
       expect(find.text('Mint: https://mint.example.com'), findsOneWidget);
       expect(find.text('Not connected to a mint'), findsNothing);
+    });
+
+    testWidgets('the balance groups digits the way the reader\'s locale does',
+        (tester) async {
+      // Arrange / Act — German groups with a period. A hard-coded comma turns
+      // 1.234.567 sats into a number a German reader parses as 1.234567.
+      await _pump(
+        tester,
+        status: _status(connected: true, balance: 1234567),
+        locale: const Locale('de'),
+      );
+
+      // Assert
+      expect(find.textContaining('1.234.567'), findsOneWidget);
+      expect(find.textContaining('1,234,567'), findsNothing);
+    });
+
+    testWidgets('a balance beyond double precision is shown exactly',
+        (tester) async {
+      // Arrange — 2^53 + 1, the first integer a double cannot represent.
+      // Formatting through `num` would render this rounded, and a bearer-money
+      // balance must never be approximate.
+      final status = CashuWalletStatus(
+        connected: true,
+        mintUrl: 'https://mint.example.com',
+        balanceSats: BigInt.parse('9007199254740993'),
+        missingCapabilities: const [],
+      );
+
+      // Act
+      await _pump(tester, status: status);
+
+      // Assert
+      expect(find.textContaining('9,007,199,254,740,993'), findsOneWidget);
     });
 
     testWidgets('a wallet that could not bind says so', (tester) async {
@@ -270,6 +306,34 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('SomeFutureMarker'), findsNothing);
+    });
+
+    testWidgets('a marker is found inside the exception the bridge really throws',
+        (tester) async {
+      // Arrange — the other marker tests pass a bare String, whose toString()
+      // starts with the marker. Production never does: the bridge throws an
+      // `AnyhowException`, and its toString() wraps the message, so the marker
+      // sits after `AnyhowException(` rather than at the start.
+      //
+      // This pins that shape. Narrowing the lookup to a leading token — a
+      // tempting "fix" for the tail-matching the mapper does — would send every
+      // marker to the generic message in the app while the String-based tests
+      // above stayed green.
+      await _pump(
+        tester,
+        status: _status(connected: false, balance: 0),
+        controller: _FakeController(
+          connectError: AnyhowException('CashuNotEnabled: whatever Rust appended'),
+        ),
+      );
+      await tester.pump();
+
+      // Assert
+      expect(
+        find.text('This Mostro node does not settle trades with Cashu.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('AnyhowException'), findsNothing);
     });
   });
 }
