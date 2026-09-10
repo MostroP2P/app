@@ -1280,20 +1280,23 @@ pub async fn send_fiat_sent(order_id: String) -> Result<()> {
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let identity_keys = crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())?;
+    let next_trade = next_trade_for_range_remainder(&order_id, TradeRole::Buyer).await?;
     let event_json = actions::fiat_sent(
         &identity_keys,
         &sender_keys,
         &mostro_pubkey,
         &order_id,
         trade_index,
+        next_trade.clone(),
     )
     .await?;
     publish_event_json(&event_json).await?;
     crate::api::logging::blog_info(
         "orders",
         format!(
-            "fiat_sent published for order={} trade_index={trade_index}",
+            "fiat_sent published for order={} trade_index={trade_index} next_trade_index={:?}",
             crate::api::logging::short_id(&order_id),
+            next_trade.map(|(_, index)| index),
         ),
     );
     Ok(())
@@ -1310,7 +1313,7 @@ pub async fn release_order(order_id: String) -> Result<()> {
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let identity_keys = crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())?;
-    let next_trade = next_trade_for_range_remainder(&order_id).await?;
+    let next_trade = next_trade_for_range_remainder(&order_id, TradeRole::Seller).await?;
     let event_json = actions::release(
         &identity_keys,
         &sender_keys,
@@ -1333,13 +1336,18 @@ pub async fn release_order(order_id: String) -> Result<()> {
 }
 
 /// The trade key the daemon should hand the remainder of a range order to,
-/// when the releasing seller is its maker: a fresh key, already covered by
-/// the bulk daemon-message subscription so the child's `new-order` reaches
-/// this client. `None` only once the trade row says the release leaves
-/// nothing behind: a fixed order, or a taker's. A store or row that cannot
-/// be read is an error, never `None`: a release sent without the key on a
-/// range order settles the trade and loses the remainder for good.
-async fn next_trade_for_range_remainder(order_id: &str) -> Result<Option<(String, u32)>> {
+/// when this client made the range and acts as `maker_role` on it: the
+/// seller names it in the release, the buyer in fiat-sent. A fresh key,
+/// already covered by the daemon-message subscriptions so the child's
+/// `new-order` reaches this client. `None` only once the trade row says the
+/// step leaves nothing behind: a fixed order, a taker's trade, or the other
+/// role. A store or row that cannot be read is an error, never `None`: a
+/// step sent without the key on a range order settles the trade and loses
+/// the remainder for good.
+async fn next_trade_for_range_remainder(
+    order_id: &str,
+    maker_role: TradeRole,
+) -> Result<Option<(String, u32)>> {
     let db = crate::db::app_db::db().ok_or_else(|| {
         anyhow::anyhow!("no trade store: cannot tell whether order {order_id} leaves a remainder")
     })?;
@@ -1349,7 +1357,7 @@ async fn next_trade_for_range_remainder(order_id: &str) -> Result<Option<(String
         )
     })?;
     let is_range = trade.order.fiat_amount_min.is_some() && trade.order.fiat_amount_max.is_some();
-    if !is_range || !trade.order.is_mine || trade.role != TradeRole::Seller {
+    if !is_range || !trade.order.is_mine || trade.role != maker_role {
         return Ok(None);
     }
     let next = crate::api::identity::derive_trade_key().await?;
@@ -7049,7 +7057,9 @@ mod tests {
         let db = crate::db::app_db::db().expect("store initialised");
 
         let unknown = uuid::Uuid::new_v4().to_string();
-        assert!(next_trade_for_range_remainder(&unknown).await.is_err());
+        assert!(next_trade_for_range_remainder(&unknown, TradeRole::Seller)
+            .await
+            .is_err());
 
         let fixed_id = uuid::Uuid::new_v4().to_string();
         let mut fixed = dummy_order_info(&fixed_id);
@@ -7082,7 +7092,9 @@ mod tests {
             .await
             .expect("save");
         assert_eq!(
-            next_trade_for_range_remainder(&fixed_id).await.unwrap(),
+            next_trade_for_range_remainder(&fixed_id, TradeRole::Seller)
+                .await
+                .unwrap(),
             None,
             "a fixed order leaves nothing behind"
         );
@@ -7097,7 +7109,9 @@ mod tests {
             .await
             .expect("save");
         assert_eq!(
-            next_trade_for_range_remainder(&taken_id).await.unwrap(),
+            next_trade_for_range_remainder(&taken_id, TradeRole::Seller)
+                .await
+                .unwrap(),
             None,
             "a taker's release leaves nothing behind"
         );
