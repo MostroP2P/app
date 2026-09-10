@@ -1344,7 +1344,9 @@ async fn next_trade_for_range_remainder(order_id: &str) -> Result<Option<(String
         anyhow::anyhow!("no trade store: cannot tell whether order {order_id} leaves a remainder")
     })?;
     let trade = db.get_trade_by_order_id(order_id).await?.ok_or_else(|| {
-        anyhow::anyhow!("no trade row for order {order_id}: cannot tell whether it leaves a remainder")
+        anyhow::anyhow!(
+            "no trade row for order {order_id}: cannot tell whether it leaves a remainder"
+        )
     })?;
     let is_range = trade.order.fiat_amount_min.is_some() && trade.order.fiat_amount_max.is_some();
     if !is_range || !trade.order.is_mine || trade.role != TradeRole::Seller {
@@ -6948,8 +6950,8 @@ mod tests {
     async fn a_republished_maker_order_returns_to_pending_on_new_order() {
         use mostro_core::message::{Action, Message, Payload};
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_republished_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_republished_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -7041,8 +7043,8 @@ mod tests {
     /// a range order this client sold names a key.
     #[tokio::test]
     async fn the_next_trade_key_fails_closed_without_a_trade_row() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_next_trade_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_next_trade_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -7109,8 +7111,7 @@ mod tests {
     async fn a_range_remainder_addressed_to_the_next_trade_key_is_adopted() {
         use mostro_core::message::{Action, Message, Payload};
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_remainder_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!("mostro_remainder_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let mut rx = trade_updates_tx().subscribe();
