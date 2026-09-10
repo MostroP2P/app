@@ -146,6 +146,8 @@
   "@rangeOrderLabel": {"description": "Label for a range-amount order toggle"},
   "payLightningInvoiceTitle": "Pay Lightning Invoice",
   "@payLightningInvoiceTitle": {"description": "Screen title for the pay Lightning invoice step"},
+  "invoiceRejected": "The node rejected this invoice. Check its amount and expiry and add a new one.",
+  "@invoiceRejected": {"description": "Inline error on the add-invoice screen after the Mostro daemon refused the submitted invoice (CantDo InvalidInvoice)"},
   "invoiceCopied": "Invoice copied",
   "@invoiceCopied": {"description": "Snackbar shown after copying a Lightning invoice to clipboard"},
   "addInvoiceTitle": "Add Invoice",
