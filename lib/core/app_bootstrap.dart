@@ -119,6 +119,13 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
     // capability fetch already resolves against them. Nothing can have written
     // them in a release build (docs/cashu/README.md §4.3).
     await escrow_api.rehydrateEscrowOverrides();
+    // A Mortsom build may ask the daemon for a short order expiry; set
+    // before any order can be created.
+    final orderExpiry = TestEnvironment.orderExpirySecs;
+    if (orderExpiry != null) {
+      settings_api.setTestOrderExpiry(secs: BigInt.from(orderExpiry));
+      debugPrint('[main] Mortsom build: orders expire after ${orderExpiry}s');
+    }
     markBridgeReady();
   } catch (e) {
     debugPrint('[main] rehydrate active Mostro node failed: $e');

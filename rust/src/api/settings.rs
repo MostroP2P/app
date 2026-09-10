@@ -182,6 +182,15 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
 }
 
 /// Return the currently active Mostro node pubkey (override or default).
+/// Mortsom test environment only: every order this client creates asks
+/// the daemon to expire it `secs` after creation (`MORTSOM_ORDER_EXPIRY_SECS`),
+/// so a scenario about the daemon's pending-order clock does not wait out
+/// the daemon's hour-granular default. `None` restores that default. The
+/// daemon caps the value by its `max_expiration_days`.
+pub fn set_test_order_expiry(secs: Option<u64>) {
+    crate::config::set_order_expiry_override(secs.filter(|s| *s > 0));
+}
+
 pub fn get_mostro_pubkey() -> String {
     crate::config::active_mostro_pubkey()
 }
