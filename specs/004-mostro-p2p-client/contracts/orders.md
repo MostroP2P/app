@@ -22,9 +22,13 @@ waiter detaches — so the late reply is still recognized as ours rather than as
 a stale replay:
 
 - **create**: reconciled — the daemon UUID is bound to the attempt's trade
-  index, and the Kind 38383 fingerprint path restores maker ownership.
+  index, and the maker row is persisted from the echoed order itself (#394;
+  the payload is the published order, min/max included).
 - **take / add-invoice**: logged and dropped; the reply's own status update is
-  processed by the per-action arms as usual.
+  processed by the per-action arms as usual — and if the take's row was never
+  persisted, the replayed message rebuilds it (#394: role from the payload's
+  trade pubkeys, or AddInvoice ⇒ buyer / PayInvoice ⇒ seller where mostrod
+  omits them; never guessed).
 - **dispute**: reconciled — `record_late_acceptance` persists the accepted
   dispute under the daemon-assigned id (unread, and without the reason, which
   went with the timed-out call). So a `NoDaemonResponse` from `open_dispute` is
@@ -470,7 +474,9 @@ Invariants:
   waiter's failed send, a receiver dropped with the reply unread. Only the
   take reply carries a guard: an add-invoice's effects are persisted by
   the dispatch arms themselves (still holding it), and a create's gap is
-  owned by the reconcile block and the Kind 38383 fingerprint path.
+  owned by the reconcile block and the late-confirmation persistence
+  (#394 — the Kind 38383 feed is the order book only, never a source of
+  ownership or keys).
 - **The registry tracks live work, not history**: entries no handler holds
   any more are dropped on the next acquisition, so it does not grow with
   every order ever dispatched.

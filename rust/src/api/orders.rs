@@ -13,11 +13,10 @@ use crate::config::active_mostro_pubkey;
 use crate::db::Storage;
 use crate::mostro::actions;
 use crate::mostro::pending::{
-    classify_take_reply, detach_request_waiter, may_reconcile_stored_id, order_content_key,
-    pending_local_uuid_for, pending_requests, purge_pending_request, remove_pending_request,
-    take_matching_add_invoice, take_matching_dispute, take_matching_request, take_matching_restore,
-    take_matching_take, take_pending_create_by_content_key, DaemonReply, DisputeMatch,
-    PendingRequest, PendingRequestKind, Wake,
+    classify_take_reply, detach_request_waiter, may_reconcile_stored_id, pending_local_uuid_for,
+    pending_requests, purge_pending_request, remove_pending_request, take_matching_add_invoice,
+    take_matching_dispute, take_matching_request, take_matching_restore, take_matching_take,
+    DaemonReply, DisputeMatch, PendingRequest, PendingRequestKind, Wake,
 };
 use crate::mostro::status::{
     add_invoice_sync, cancellation_wipes_history, is_hard_terminal, map_core_status,
@@ -40,9 +39,10 @@ fn trade_key_map() -> &'static std::sync::RwLock<HashMap<String, u32>> {
 
 /// Ids the DB has already been asked about and did not have.
 ///
-/// The ingest path looks up a content fingerprint for every Kind 38383 event,
-/// and for every order belonging to somebody else that lookup misses — one
-/// storage round trip per event, which on web is an IndexedDB transaction.
+/// The ingest path looks up a trade-key binding for every Kind 38383 event
+/// (the `is_mine` cold-start restore), and for every order belonging to
+/// somebody else that lookup misses — one storage round trip per event,
+/// which on web is an IndexedDB transaction.
 ///
 /// Safe to cache only because absence is stable: `store_trade_key_index` is
 /// the sole path from absent to present, and it clears the entry.
@@ -629,10 +629,9 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
 
     // Compatibility preflight (PR #252 review): refuse an unsupported node
     // BEFORE deriving or persisting anything. The wrap re-checks as a defense,
-    // but by that point the trade-key index and the content fingerprint below
-    // are already stored — durably — and a bail there would leave orphaned
-    // maker-ownership records that any later public order with the same
-    // kind/currency/amount/payment-method fingerprint would match as "mine".
+    // but by that point the trade-key binding below is already stored —
+    // durably — and a bail there would leave an orphaned maker-ownership
+    // record behind.
     crate::mostro::protocol_version::ensure_supported(&active_mostro_pubkey()).await?;
 
     // Derive a fresh trade key — each order must use a unique derived key index
@@ -645,24 +644,10 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // receiver (PR #253 review).
     ensure_global_dm_coverage(&sender_keys, trade_index).await;
 
-    // Build the content fingerprint key BEFORE publishing so the subscription
-    // loop never races against an empty TRADE_KEY_MAP when the daemon replies
-    // faster than our post-publish bookkeeping runs.
-    let ck = order_content_key(
-        &params_for_dispatch.kind,
-        &params_for_dispatch.fiat_code,
-        params_for_dispatch.fiat_amount,
-        params_for_dispatch.fiat_amount_min,
-        params_for_dispatch.fiat_amount_max,
-        &params_for_dispatch.payment_method,
-    );
-
-    // Register the trade-key mappings before publishing the event.
-    // The daemon can respond with a Kind 38383 event within milliseconds; if
-    // we stored these after publish the subscription loop could arrive before
-    // the keys are written and miss the fingerprint match entirely.
-    store_trade_key_index(&order.id, trade_index).await; // local UUID fallback
-    store_trade_key_index(&ck, trade_index).await; // content fingerprint
+    // Register the local-UUID → index binding before publishing the event,
+    // so anything racing the confirmation (a cancel by local id, the
+    // generation gate) can already resolve the key.
+    store_trade_key_index(&order.id, trade_index).await;
     let trade_pk_hex = sender_keys.public_key().to_hex();
 
     // DO NOT add to order book or DB yet — wait for daemon confirmation first.
@@ -703,7 +688,6 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
                 trade_index,
                 kind: PendingRequestKind::Create {
                     local_uuid: order.id.clone(),
-                    content_key: ck.clone(),
                 },
                 tx: Some(conf_tx),
             },
@@ -719,7 +703,6 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         // Rollback all in-memory bookkeeping on publish failure.
         if let Ok(mut m) = trade_key_map().write() {
             m.remove(&order.id);
-            m.remove(&ck);
         }
         remove_pending_request(&trade_pk_hex, request_id);
         return Err(e);
@@ -2161,8 +2144,9 @@ async fn dispatch_mostro_message(
     // a mnemonic re-import) would rebind a confirmed order's id — daemon →
     // daemon — corrupting the order book, the trade row, and the trade-key
     // mapping in one stroke. Cold start loses nothing: the pending map is
-    // empty after a restart, and the Kind 38383 fingerprint path owns maker
-    // recovery there.
+    // empty after a restart, and maker recovery there is DM-driven — the
+    // late create confirmation persists the row, the durable binding plus
+    // that row restore `is_mine` on the 38383 ingest (#394).
     if let Some(daemon_id) = &kind.id {
         let did = daemon_id.to_string();
         if order_book().get_order(&did).await.is_none() {
@@ -2442,8 +2426,9 @@ async fn dispatch_mostro_message(
                 } else {
                     // Cold start / reconnect (no record — in-memory state is
                     // empty after a restart), or an uncorrelated event that
-                    // must not consume anything. The Kind 38383 fingerprint
-                    // path owns maker-order recovery in both cases.
+                    // must not consume anything. Recovery is DM-driven: the
+                    // trade row either exists (nothing to do) or is rebuilt
+                    // from a message that proves it (#394).
                     crate::api::logging::blog_info("daemon-msg", format!(
                         "NewOrder: daemon order={daemon_id} with no matching \
                          pending create — leaving state untouched"
@@ -4743,26 +4728,6 @@ fn admin_pubkey_from_payload(payload: Option<&mostro_core::message::Payload>) ->
     }
 }
 
-/// Bind the daemon UUID to the trade-key index recovered from the content
-/// fingerprint on cold start — but ONLY when no authoritative mapping exists
-/// yet.
-///
-/// The request_id-correlated create/confirm path (see the `NewOrder` handler)
-/// is the source of truth for `daemon_id → index`. The content fingerprint is
-/// ambiguous — a taken range order is re-published on the wire as a plain
-/// fixed-amount order, and two identical open orders share one fingerprint
-/// slot — so it must never overwrite an existing binding, or a subsequent
-/// release/cancel/rate gets signed with the wrong trade key and the daemon
-/// rejects it (`InvalidPeer`, #326). This mirrors the v1 client, which keys the
-/// trade index by daemon UUID and never by order content.
-async fn bridge_fingerprint_trade_index(order_id: &str, trade_idx: u32) {
-    // "No binding yet" is the case this function exists to handle, so the
-    // warning variant would fire on the normal path.
-    if lookup_trade_key_index(order_id).await.is_none() {
-        store_trade_key_index(order_id, trade_idx).await;
-    }
-}
-
 /// The daemon's dispute UUID out of a `Dispute` payload.
 fn dispute_id_from_payload(payload: Option<&mostro_core::message::Payload>) -> Option<String> {
     use mostro_core::message::Payload;
@@ -4806,60 +4771,23 @@ async fn ingest_order_event_with(event: &nostr_sdk::prelude::Event, publish: Pub
                 info.kind,
                 info.status
             );
-            // Restore is_mine=true for maker orders on cold start by
-            // comparing against the content fingerprint stored at creation time.
-            if !info.is_mine {
-                let ck = order_content_key(
-                    &info.kind,
-                    &info.fiat_code,
-                    info.fiat_amount,
-                    info.fiat_amount_min,
-                    info.fiat_amount_max,
-                    &info.payment_method,
-                );
-                log::debug!("[orders] fingerprint check order={} ck={ck}", info.id);
-                // A miss is the expected case here: every order from another
-                // user fails this lookup, so the warning variant would fire
-                // once per ingested event.
-                if let Some(trade_idx) = lookup_trade_key_index(&ck).await {
-                    info.is_mine = true;
-                    // Bridge content fingerprint → daemon UUID so subsequent
-                    // actions (cancel) can look up the trade key by real order ID.
-                    bridge_fingerprint_trade_index(&info.id, trade_idx).await;
-                    // The maker order is no longer inserted into the
-                    // book optimistically (see `create_order`), so there
-                    // is nothing to remove here — just bridge the local
-                    // UUID → daemon UUID in the DB so tradeStatusProvider
-                    // polls with the real order ID. Only records without a
-                    // live waiter are taken: an in-flight create_order owns
-                    // its own reconciliation via the kind-14 acknowledgement.
-                    if let Some(PendingRequest {
-                        kind:
-                            PendingRequestKind::Create {
-                                local_uuid: local_id,
-                                ..
-                            },
-                        ..
-                    }) = take_pending_create_by_content_key(&ck)
-                    {
-                        if let Some(db) = crate::db::app_db::db() {
-                            if let Err(e) = db.update_trade_order_id(&local_id, &info.id).await {
-                                log::warn!(
-                                    "[orders] failed to update trade order_id \
-                                     {local_id} → {}: {e}",
-                                    info.id
-                                );
-                            }
-                        }
-                        log::info!(
-                            "[orders] reconciled local order={local_id} → daemon order={}",
-                            info.id
-                        );
-                    } else {
-                        log::info!(
-                            "[orders] own order={} detected via content match trade_index={trade_idx}",
-                            info.id
-                        );
+            // Restore `is_mine` — "I am the maker" — on cold start from the
+            // durable trade-key binding plus the trade row it points at,
+            // keyed by the daemon UUID and never by order content (#394
+            // step 3): a content fingerprint also matches a stranger's
+            // identical order, and a taken range order republishes as a
+            // plain fixed order — index 21 bound where 16 belonged, and
+            // release/cancel/rate signed with the wrong key (#326). Every
+            // reference client keys ownership by daemon UUID. The binding
+            // miss is the common case (every stranger's order), answered by
+            // the in-memory map or the negative cache; the row read only
+            // runs on a hit. A maker row recovered by DM rebuild carries
+            // `is_mine = false` on purpose — maker-ness is not provable from
+            // a mid-trade message — so this restore leaves it false too.
+            if !info.is_mine && lookup_trade_key_index(&info.id).await.is_some() {
+                if let Some(db) = crate::db::app_db::db() {
+                    if let Ok(Some(trade)) = db.get_trade_by_order_id(&info.id).await {
+                        info.is_mine = trade.order.is_mine;
                     }
                 }
             }
@@ -4906,8 +4834,8 @@ async fn ingest_order_event_with(event: &nostr_sdk::prelude::Event, publish: Pub
             }
             // Whether this order is *ours*, which is not what `is_mine`
             // answers: that flag means "I am the maker". `parse_order_event`
-            // hardcodes it to false, and the fingerprint restoration above only
-            // recovers maker orders, so an order we *took* arrives with
+            // hardcodes it to false, and the binding+row restore above only
+            // raises it for maker rows, so an order we *took* arrives with
             // `is_mine == false` and is indistinguishable from a stranger's at
             // this layer. What both roles do have is a trade-key binding for
             // the order id, so that is the question asked.
@@ -5871,7 +5799,7 @@ mod tests {
 
     /// The regression this PR was one predicate away from shipping: an order we
     /// **took** arrives with `is_mine == false` — `parse_order_event` hardcodes
-    /// it and the fingerprint restoration only recovers *maker* orders — so a
+    /// it and the cold-start restore only raises it for *maker* rows — so a
     /// prune keyed on `is_mine` alone drops it the moment the trade succeeds,
     /// and the trade-detail screen the app navigates to right afterwards loses
     /// the amount, the currency and the created-at line it reads from the book.
@@ -6396,7 +6324,6 @@ mod tests {
                 trade_index: 3,
                 kind: PendingRequestKind::Create {
                     local_uuid: format!("local-{key}"),
-                    content_key: format!("content:{key}"),
                 },
                 tx: Some(tx),
             },
@@ -7074,26 +7001,66 @@ mod tests {
         assert!(!may_reconcile_stored_id("local-1", "daemon-1", None));
     }
 
-    /// The Kind 38383 path matches by content fingerprint, but must leave
-    /// records with a live waiter alone — the in-flight create_order call owns
-    /// that reconciliation.
+    /// #394 step 3: with the content fingerprint gone, `is_mine` on cold
+    /// start comes from the durable trade-key binding plus the trade row it
+    /// points at — keyed by daemon UUID, immune to the content collisions of
+    /// #326. A binding alone is not maker-ness: a taker row keeps
+    /// `is_mine = false`, and a stranger's order restores nothing.
     #[tokio::test]
-    async fn content_key_lookup_skips_live_waiters() {
-        let key = "test-content-key-pubkey";
-        let ck = format!("content:{key}");
-        let _rx = insert_pending_create(key, 31);
+    async fn cold_start_restores_is_mine_from_binding_and_row() {
+        let path = std::env::temp_dir().join(format!("mostro_ismine_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
 
-        // Live waiter attached: the 38383 path must not consume the record.
-        assert!(take_pending_create_by_content_key(&ck).is_none());
+        // A maker row + binding, as create/confirm leave them.
+        let maker_id = uuid::Uuid::new_v4().to_string();
+        db.save_trade(&seam_trade_row(
+            &maker_id,
+            crate::api::types::OrderStatus::Pending,
+        ))
+        .await
+        .expect("save maker row");
+        store_trade_key_index(&maker_id, 42).await;
+        ingest_order_event_with(&book_event(&maker_id, "pending"), Publish::WhenBatchEnds).await;
+        assert!(
+            order_book()
+                .get_order(&maker_id)
+                .await
+                .expect("book entry")
+                .is_mine,
+            "binding + maker row must restore is_mine on cold start",
+        );
 
-        // After the timeout detaches the waiter, the fingerprint match takes it.
-        detach_request_waiter(key, 31);
-        let pending = take_pending_create_by_content_key(&ck).expect("must match");
-        assert_eq!(local_uuid_of(&pending), format!("local-{key}"));
-        assert!(!pending_requests().lock().unwrap().contains_key(key));
+        // A stranger's order: no binding, nothing restored.
+        let stranger_id = uuid::Uuid::new_v4().to_string();
+        ingest_order_event_with(&book_event(&stranger_id, "pending"), Publish::WhenBatchEnds).await;
+        assert!(
+            !order_book()
+                .get_order(&stranger_id)
+                .await
+                .expect("book entry")
+                .is_mine,
+        );
 
-        // Unknown fingerprints never match anything.
-        assert!(take_pending_create_by_content_key("content:unknown").is_none());
+        // A taker row: binding exists, but the row says we are not the maker.
+        let taken_id = uuid::Uuid::new_v4().to_string();
+        let mut taken = seam_trade_row(&taken_id, crate::api::types::OrderStatus::Active);
+        taken.order.is_mine = false;
+        db.save_trade(&taken).await.expect("save taker row");
+        store_trade_key_index(&taken_id, 43).await;
+        ingest_order_event_with(
+            &book_event(&taken_id, "in-progress"),
+            Publish::WhenBatchEnds,
+        )
+        .await;
+        assert!(
+            !order_book()
+                .get_order(&taken_id)
+                .await
+                .expect("book entry")
+                .is_mine,
+            "a binding alone must never claim maker-ness",
+        );
     }
 
     /// PR #253 review round 2 (ermeme): a key derived after the global
@@ -7419,29 +7386,6 @@ mod tests {
         );
     }
 
-    /// #326: the fingerprint-restore path must NOT overwrite the authoritative
-    /// `daemon_id → index` mapping written at create/confirm time. A taken range
-    /// order is re-published on the wire as a plain fixed-amount order, so its
-    /// fingerprint can collide with an unrelated fixed order and yield the wrong
-    /// index (here 21 instead of 16). Before the guard, that clobbered the trade
-    /// key and release/cancel/rate were signed with the wrong key (`InvalidPeer`).
-    #[tokio::test]
-    async fn fingerprint_never_overwrites_authoritative_trade_index() {
-        let daemon_id = uuid::Uuid::new_v4().to_string();
-
-        // Authoritative binding from the request_id-correlated NewOrder reply.
-        store_trade_key_index(&daemon_id, 16).await;
-
-        // Fingerprint restore recovers a colliding index from another order.
-        bridge_fingerprint_trade_index(&daemon_id, 21).await;
-
-        assert_eq!(
-            get_trade_key_index(&daemon_id).await,
-            Some(16),
-            "fingerprint restore must not overwrite the create-time trade index",
-        );
-    }
-
     /// A taken order whose taker walks away comes back to the maker as a
     /// `new-order` carrying the order in `pending`, under the same id and
     /// with no create waiting for it. The trade the maker holds at
@@ -7714,22 +7658,6 @@ mod tests {
             .is_none());
     }
 
-    /// The flip side of #326: with no prior mapping (genuine cold start, where
-    /// the create/confirm binding was never persisted), the fingerprint path is
-    /// still allowed to ESTABLISH the mapping so the maker keeps ownership.
-    #[tokio::test]
-    async fn fingerprint_establishes_trade_index_on_cold_start() {
-        let daemon_id = uuid::Uuid::new_v4().to_string();
-
-        bridge_fingerprint_trade_index(&daemon_id, 21).await;
-
-        assert_eq!(
-            get_trade_key_index(&daemon_id).await,
-            Some(21),
-            "fingerprint restore must establish a mapping when none exists yet",
-        );
-    }
-
     /// A stale BuyerTookOrder replayed over a finished trade must be skipped
     /// BEFORE its side effects: no peer-key/session/chat setup, no status
     /// write, no TradeUpdate. (The status assertions are the counterfactual:
@@ -7827,10 +7755,11 @@ mod tests {
     }
 
     /// PR #252 review (ermeme P1): a create rejected for an unsupported node
-    /// protocol must fail BEFORE any maker-ownership record is persisted. The
-    /// content fingerprint is durable — were it stored, any later public order
-    /// with the same kind/currency/amount/payment-method would be marked
-    /// `is_mine` and bound to the unused trade key, including after restart.
+    /// protocol must fail BEFORE deriving or persisting anything. The exact
+    /// error string pins the ordering: had the preflight run after key
+    /// derivation, this identity-less test environment would fail with a
+    /// different error first — and a rejected create would burn a durable
+    /// trade-key index per attempt.
     #[tokio::test]
     async fn an_unsupported_create_persists_no_maker_ownership() {
         let _guard = crate::mostro::pow::test_support::lock_pow();
@@ -7849,24 +7778,8 @@ mod tests {
             premium: 0.0,
             amount_sats: None,
         };
-        let ck = order_content_key(
-            &params.kind,
-            &params.fiat_code,
-            params.fiat_amount,
-            params.fiat_amount_min,
-            params.fiat_amount_max,
-            &params.payment_method,
-        );
-
         let err = create_order(params).await.unwrap_err();
         assert_eq!(err.to_string(), "UnsupportedNodeProtocol:1");
-
-        // Neither the fingerprint nor anything else may have been stored —
-        // the preflight must run before derivation and persistence.
-        assert!(
-            trade_key_for_order(&ck).await.is_none(),
-            "a rejected create must leave no fingerprint mapping behind"
-        );
     }
 
     /// A subscriber created before the emit receives the update; emitting
@@ -9077,7 +8990,6 @@ mod tests {
                     trade_index: 14,
                     kind: PendingRequestKind::Create {
                         local_uuid: "local-uuid-late".to_string(),
-                        content_key: "content:late-test".to_string(),
                     },
                     tx: None,
                 },
@@ -9810,8 +9722,8 @@ mod restore_e2e_tests {
             premium: 0.0,
             amount_sats: None,
         };
-        // Distinct fiat amounts so the two orders never share a content
-        // fingerprint slot (see bridge_fingerprint_trade_index).
+        // Distinct fiat amounts keep the two orders visibly distinct in
+        // logs and on the regtest book.
         println!("[test] creating order A (index 1)...");
         let order_a = create_order(params(100.0)).await.expect("create order A");
         println!("[test] order A id={}", order_a.id);
