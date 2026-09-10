@@ -120,6 +120,14 @@ or a direct progression message. Only on a correlated reply is the trade
 created: the TradeInfo is built from the reply's real data (status,
 calculated `amount_sats`, `hold_invoice`), persisted to My Trades, the
 order book entry is synced, and the trade session/subscriptions start.
+A confirmed take **installs** that session. A session may already exist for
+two unrelated reasons, told apart by its `trade_key_index`: a prior failed or
+timed-out attempt left a stale one (different index — replaced, since each
+attempt derives a fresh trade key and keeping the earlier session would leave
+chat key lookups reading a superseded index, #335), or the peer reveal already
+created this take's own session with `peer_pubkey` and `shared_key` set (same
+index — kept, since replacing it would drop the chat keys that path exists to
+establish, #334).
 That persistence half runs under the per-order lock (see *Per-order
 serialization*), acquired after the reply and never around the wait for it.
 On rejection or timeout **nothing is persisted** — no phantom trade.
@@ -483,7 +491,12 @@ Invariants:
   the binding still holds the old index (`take_order` rebinds only after
   that reply resolves its waiter), and the identity counter only grows, so
   newer-than-bound is always legitimate. No binding fails open (a create's
-  confirmation precedes any binding for the daemon id). `BondSlashed` is
+  confirmation precedes any binding for the daemon id). The gate compares
+  against the persisted `trade_keys` binding — written by `take_order` on
+  every attempt (`store_trade_key_index`) — not against
+  `Session.trade_key_index`, which a retake could leave stale until #335.
+  That is why a superseded reply was already dropped even while the session
+  held the previous take's index. `BondSlashed` is
   exempt: it never writes order state, and a trailing slash notice
   addressed to the slashed (superseded) generation is by-design delivery
   (#197).

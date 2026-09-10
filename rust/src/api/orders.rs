@@ -1124,20 +1124,31 @@ pub async fn take_order(
     // success / canceled at the end); the fine-grained states only ever arrive
     // as daemon messages.
     subscribe_single_order(&order_id).await;
-    // Create a session so the chat API can look up keys immediately. May
-    // already exist: when the take's first reply carried both trade pubkeys,
-    // `maybe_capture_peer_reveal` created it (with peer + shared key set)
-    // before this task was woken — the duplicate-create error is expected.
-    let _ = crate::mostro::session::session_manager()
-        .create_session(
+    // Create (or replace, on a retake) the session so the chat API can look
+    // up keys immediately. A confirmed take always wins over whatever a prior
+    // failed/timed-out attempt left behind (#335).
+    //
+    // A session may already exist for two different reasons, and they must not
+    // be treated alike: a prior failed take left a *stale* one (different
+    // trade_key_index — replace it), or `maybe_capture_peer_reveal` created
+    // this take's own session with peer + shared key already set (same index —
+    // keep it, #334/#345). `install_session` distinguishes them by index.
+    //
+    // The only error it can return is the `order_id != order.id` mismatch,
+    // i.e. a programming error here — log it rather than swallow it.
+    if let Err(e) = crate::mostro::session::session_manager()
+        .install_session(
             order_id.clone(),
             trade.role.clone(),
             trade_index,
             trade.order.clone(),
         )
-        .await;
-    // In that same case the reveal ran before the trade row existed, so its
-    // durable write was a no-op — replay it from the session now that the
+        .await
+    {
+        log::warn!("[orders] take_order: install_session failed: {e}");
+    }
+    // In the peer-reveal case the reveal ran before the trade row existed, so
+    // its durable write was a no-op — replay it from the session now that the
     // row is persisted (#334). Mirror it on the returned struct too:
     // `TradeInfo.counterparty_pubkey` is what `tradeInfoToChatRoom` gates
     // the chat room on, so the value handed across the bridge must agree
@@ -7558,6 +7569,158 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("SessionAlreadyExists"));
+    }
+
+    /// #335 part 1, the replacement semantics `take_order` depends on: a
+    /// second `install_session` for an order that already has one wins,
+    /// carrying the retake's fresh `trade_key_index`. A retake derives a new
+    /// trade key, so keeping the earlier session would leave chat key lookups
+    /// reading a superseded index.
+    ///
+    /// Scope: this pins `install_session` itself, not the `take_order` call
+    /// site — reaching that needs a daemon. The seam is covered by the manual
+    /// regtest run recorded in the PR description.
+    #[tokio::test]
+    async fn retake_replaces_stale_session_trade_key_index() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let order = dummy_order_info(&order_id);
+        let mgr = session_manager();
+
+        // First take: derives trade key index 0, session gets created.
+        mgr.install_session(order_id.clone(), TradeRole::Buyer, 0, order.clone())
+            .await
+            .expect("first install must succeed");
+
+        // Retake (first attempt timed out / was rejected by the daemon):
+        // derives a fresh trade key index 1. `take_order` calls
+        // `install_session` the same way.
+        mgr.install_session(order_id.clone(), TradeRole::Buyer, 1, order)
+            .await
+            .expect("retake install must succeed");
+
+        let session = mgr
+            .get_session(&order_id)
+            .await
+            .expect("session must exist");
+        assert_eq!(
+            session.trade_key_index, 1,
+            "the confirmed retake's trade_key_index must win, not the stale one"
+        );
+    }
+
+    /// The replacement is total: a retake also clears the peer material the
+    /// previous attempt accumulated. That is what makes it correct rather than
+    /// merely last-write-wins — the old `shared_key` was derived from the old
+    /// trade key, so carrying it forward would leave chat keys that no longer
+    /// decrypt anything. It is also the reason `install_session` is documented
+    /// as only for a confirmed take.
+    #[tokio::test]
+    async fn install_session_discards_previous_peer_material() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let order = dummy_order_info(&order_id);
+        let mgr = session_manager();
+
+        mgr.install_session(order_id.clone(), TradeRole::Buyer, 0, order.clone())
+            .await
+            .expect("first install must succeed");
+
+        // Give the first attempt's session peer material, as a reveal would.
+        let mut with_peer = mgr
+            .get_session(&order_id)
+            .await
+            .expect("session must exist");
+        with_peer.peer_pubkey = Some("aabbccdd".to_string());
+        with_peer.shared_key = Some([7u8; 32]);
+        with_peer.admin_shared_key = Some([9u8; 32]);
+        mgr.update_session(&order_id, with_peer)
+            .await
+            .expect("planting peer material must succeed");
+
+        // The retake must still win, and must not inherit that material.
+        mgr.install_session(order_id.clone(), TradeRole::Buyer, 1, order)
+            .await
+            .expect("retake install must succeed");
+
+        let session = mgr
+            .get_session(&order_id)
+            .await
+            .expect("session must exist");
+        assert_eq!(
+            session.trade_key_index, 1,
+            "the retake must win even over a session holding peer material"
+        );
+        assert!(
+            session.peer_pubkey.is_none(),
+            "peer_pubkey from the superseded take must not survive"
+        );
+        assert!(
+            session.shared_key.is_none(),
+            "shared_key derived from the old trade key must not survive"
+        );
+        assert!(
+            session.admin_shared_key.is_none(),
+            "admin_shared_key from the superseded take must not survive"
+        );
+    }
+
+    /// The mirror case, and the one #345/#347 made reachable: the session
+    /// `take_order` finds already belongs to *this* take, because
+    /// `apply_peer_reveal` created it when the daemon's first reply carried
+    /// both trade pubkeys. Same `trade_key_index`, but with peer material the
+    /// call site cannot rebuild — replacing it would silently drop the chat
+    /// keys the peer-reveal path exists to establish (#334).
+    ///
+    /// The index is what tells the two cases apart: a stale session from a
+    /// failed attempt always carries an older index, because every take
+    /// derives a fresh trade key.
+    #[tokio::test]
+    async fn install_session_keeps_this_takes_own_session_with_peer_material() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let order = dummy_order_info(&order_id);
+        let mgr = session_manager();
+
+        // The peer reveal got there first, with the shared key already derived.
+        mgr.install_session(order_id.clone(), TradeRole::Buyer, 4, order.clone())
+            .await
+            .expect("peer-reveal install must succeed");
+        let mut revealed = mgr
+            .get_session(&order_id)
+            .await
+            .expect("session must exist");
+        revealed.peer_pubkey = Some("aabbccdd".to_string());
+        revealed.shared_key = Some([7u8; 32]);
+        mgr.update_session(&order_id, revealed)
+            .await
+            .expect("planting peer material must succeed");
+
+        // `take_order` now runs for the same take: same trade_key_index.
+        let returned = mgr
+            .install_session(order_id.clone(), TradeRole::Buyer, 4, order)
+            .await
+            .expect("install for the same index must succeed");
+
+        let session = mgr
+            .get_session(&order_id)
+            .await
+            .expect("session must exist");
+        assert_eq!(
+            session.trade_key_index, 4,
+            "the index must be unchanged — same take"
+        );
+        assert_eq!(
+            session.peer_pubkey.as_deref(),
+            Some("aabbccdd"),
+            "peer_pubkey established by the reveal must survive take_order"
+        );
+        assert_eq!(
+            session.shared_key,
+            Some([7u8; 32]),
+            "shared_key established by the reveal must survive take_order"
+        );
+        assert_eq!(
+            returned.peer_pubkey, session.peer_pubkey,
+            "the returned session must be the kept one, not a fresh empty one"
+        );
     }
 
     /// After create_session the session has no peer pubkey or shared key yet.
