@@ -1517,29 +1517,7 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     .await?;
     publish_event_json(&event_json).await?;
 
-    // Optimistic update: mark the trade as Canceled in the local DB immediately
-    // so the UI reflects the change without waiting for the daemon's
-    // response. Also remove the order from the in-memory order book.
-    order_book().remove_order(&order_id).await;
-    if let Some(db) = crate::db::app_db::db() {
-        if let Err(e) = db
-            .update_trade_fields(
-                &order_id,
-                Some(crate::api::types::OrderStatus::Canceled),
-                None,
-                None,
-            )
-            .await
-        {
-            crate::api::logging::blog_warn(
-                "orders",
-                format!(
-                    "cancel status not persisted for order={}: {e}",
-                    crate::api::logging::short_id(&order_id),
-                ),
-            );
-        }
-    }
+    apply_local_cancel(&order_id).await;
 
     crate::api::logging::blog_info(
         "orders",
@@ -1549,6 +1527,73 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
         ),
     );
     Ok(())
+}
+
+/// The local side of a cancel request, applied once it is published.
+///
+/// The order leaves the in-memory book either way. The trade row depends on
+/// how far the trade got:
+///
+/// * **Never active** (`pending` / `waiting-*`, see
+///   [`cancellation_wipes_history`]): left untouched. The daemon answers with
+///   `Canceled`, and that arm wipes such a row together with its session —
+///   the same path a waiting timeout takes, and what every reference client
+///   does (none of them writes anything before the daemon replies). Marking
+///   the row `Canceled` here first made that arm skip it as "already
+///   Canceled", so the row and the session outlived the trade, and the row's
+///   terminal status then refused the daemon's `pending` republish: the
+///   ex-taker never saw the order in the book again. A cancel the daemon
+///   refuses now also leaves a live trade looking live.
+/// * **Anything further along**: marked `Canceled` straight away, as before,
+///   so the UI reflects it without waiting for the daemon.
+async fn apply_local_cancel(order_id: &str) {
+    order_book().remove_order(order_id).await;
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    let status = match db.get_trade_by_order_id(order_id).await {
+        Ok(Some(trade)) => trade.order.status,
+        // No row: nothing to mark. A failed lookup is not guessed at — the
+        // daemon's Canceled still settles the row either way.
+        Ok(None) => return,
+        Err(e) => {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "cancel: trade lookup failed for order={}: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+            return;
+        }
+    };
+    if cancellation_wipes_history(&status) {
+        crate::api::logging::blog_info(
+            "orders",
+            format!(
+                "cancel order={} status={status:?}: never active — left for the daemon's Canceled",
+                crate::api::logging::short_id(order_id),
+            ),
+        );
+        return;
+    }
+    if let Err(e) = db
+        .update_trade_fields(
+            order_id,
+            Some(crate::api::types::OrderStatus::Canceled),
+            None,
+            None,
+        )
+        .await
+    {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "cancel status not persisted for order={}: {e}",
+                crate::api::logging::short_id(order_id),
+            ),
+        );
+    }
 }
 
 // ── Mostro reply (Kind 14, protocol v2) subscription ─────────────────────────
@@ -6715,6 +6760,139 @@ mod tests {
             }
         }
         assert!(!leaked, "stale Canceled must not emit a TradeUpdate");
+    }
+
+    /// A taker's trade row for the cancel tests, at `order.status`.
+    fn cancel_test_row(order: crate::api::types::OrderInfo) -> crate::api::types::TradeInfo {
+        crate::api::types::TradeInfo {
+            id: uuid::Uuid::new_v4().to_string(),
+            order,
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: crate::api::types::TradeStep::Buyer(
+                crate::api::types::BuyerStep::OrderTaken,
+            ),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        }
+    }
+
+    /// A cancel of a trade that never went active must leave the row for the
+    /// daemon's `Canceled`, which wipes it together with its session. Marking
+    /// it `Canceled` locally first made that arm skip it as "already
+    /// Canceled", so the row and the session outlived the trade — and the
+    /// row's terminal status then refused the daemon's `pending` republish,
+    /// hiding the order from the ex-taker's book for good.
+    ///
+    /// Goes through the real `Canceled` arm: restoring the optimistic write
+    /// fails the first assertion, and the wipe after it is only reachable
+    /// because the row was left alone.
+    #[tokio::test]
+    async fn cancel_of_a_never_active_take_is_left_for_the_daemons_canceled() {
+        use mostro_core::message::{Action, Message};
+
+        let path = std::env::temp_dir()
+            .join(format!("mostro_cancel_never_active_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut order_info = dummy_order_info(&order_id);
+        order_info.status = crate::api::types::OrderStatus::WaitingBuyerInvoice;
+        order_book().upsert_order(order_info.clone()).await;
+        db.save_trade(&cancel_test_row(order_info.clone()))
+            .await
+            .expect("save the trade row");
+        session_manager()
+            .install_session(order_id.clone(), TradeRole::Buyer, 1, order_info)
+            .await
+            .expect("install the take's session");
+
+        apply_local_cancel(&order_id).await;
+
+        assert!(
+            order_book().get_order(&order_id).await.is_none(),
+            "the cancel still takes the order out of the in-memory book"
+        );
+        assert_eq!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("trade lookup")
+                .expect("the row must still be there")
+                .order
+                .status,
+            crate::api::types::OrderStatus::WaitingBuyerInvoice,
+            "a never-active row must be left for the daemon's Canceled"
+        );
+
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        dispatch_mostro_message(
+            mostro_core::nip59::UnwrappedMessage {
+                message: Message::new_order(Some(order_uuid), None, None, Action::Canceled, None),
+                signature: None,
+                sender,
+                identity: sender,
+                created_at: nostr_sdk::prelude::Timestamp::from(1_000u64),
+            },
+            "test-cancel-never-active",
+            "ff00ff20",
+            1,
+        )
+        .await;
+
+        assert!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("trade lookup")
+                .is_none(),
+            "the daemon's Canceled must wipe the never-active row"
+        );
+        assert!(
+            session_manager().get_session(&order_id).await.is_none(),
+            "the daemon's Canceled must remove the take's session"
+        );
+    }
+
+    /// Past `waiting-*` nothing changes: the cancel of an active trade still
+    /// marks its row `Canceled` straight away.
+    #[tokio::test]
+    async fn cancel_of_an_active_trade_still_marks_it_canceled() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_cancel_active_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let mut order_info = dummy_order_info(&order_id);
+        order_info.status = crate::api::types::OrderStatus::Active;
+        db.save_trade(&cancel_test_row(order_info))
+            .await
+            .expect("save the trade row");
+
+        apply_local_cancel(&order_id).await;
+
+        assert_eq!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("trade lookup")
+                .expect("the row must still be there")
+                .order
+                .status,
+            crate::api::types::OrderStatus::Canceled,
+            "an active trade's row is still marked Canceled optimistically"
+        );
     }
 
     /// The startup backlog must not walk a trade's status backwards.

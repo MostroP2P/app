@@ -65,7 +65,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     setState(() => _cancelling = true);
     try {
       await orders_api.cancelOrder(orderId: widget.orderId);
-      // Force the trades list to reload from DB so the Canceled status shows.
+      // Reload the trades list now. A pending order never went active, so
+      // the row is not marked Canceled locally: the daemon's Canceled wipes
+      // it, and the TradeUpdate that follows reloads the list again.
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(
