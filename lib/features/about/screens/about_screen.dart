@@ -22,35 +22,45 @@ const _gitCommit =
 
 // ── External links ────────────────────────────────────────────────────────────
 
-const _githubUrl =
-    'https://github.com/MostroP2P/mostro-mobile';
+/// This app's own source. AGPL section 13 asks a program that interacts with
+/// users over a network to offer them the Corresponding Source, and this link
+/// is that offer — it pointed at `MostroP2P/mostro-mobile`, a repository that
+/// does not exist, so the offer was a 404. `MostroP2P/mobile` is v1; this app
+/// is `MostroP2P/app`.
+const _githubUrl = 'https://github.com/MostroP2P/app';
 const _docsEnUrl = 'https://mostro.network/docs-english/';
 const _docsEsUrl = 'https://mostro.network/docs-spanish/';
 const _docsTechUrl = 'https://mostro.network/protocol/';
 
-// ── MIT License text ──────────────────────────────────────────────────────────
+// ── License notice ───────────────────────────────────────────────────────────
 
-const _mitLicenseText = '''MIT License
+/// The AGPLv3 notice the FSF recommends programs display, kept verbatim and
+/// **not** localized: a translated licence has no legal force
+/// (<https://www.gnu.org/licenses/translations.html>), so every locale shows
+/// the English original and only the dialog's title is translated.
+///
+/// The project is `AGPL-3.0-only`, so the notice names version 3 and omits the
+/// "or (at your option) any later version" clause the FSF boilerplate carries.
+/// The full 661-line text ships in the repository's `LICENSE` file and at the
+/// URL below rather than in the app bundle.
+///
+/// AGPL section 13 asks a program that interacts with users over a network to
+/// offer them its source. This screen's repository link is that offer, which
+/// is why it must keep pointing at this app's own source.
+const _agplLicenseNotice = '''Mostro
+Copyright (C) 2024 Mostro
 
-Copyright (c) 2024 Mostro
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, version 3.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.''';
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.''';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -245,7 +255,7 @@ class AboutScreen extends ConsumerWidget {
           height: 320,
           child: SingleChildScrollView(
             child: Text(
-              _mitLicenseText,
+              _agplLicenseNotice,
               style: TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 12,
