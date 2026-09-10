@@ -258,7 +258,7 @@ configuration.
 
 **V1 ref**: Sections 19–20 (`P2P_CHAT_SYSTEM.md`)
 
-**Goal**: Per-trade encrypted chat with text + encrypted file attachments. Unread badges on Chat tab. Trade info + user info panels with copyable shared key.
+**Goal**: Per-trade encrypted chat with text + encrypted file attachments. Unread badges on Chat tab. Trade info + user info panels (the shared key is not displayed — it is shared with the solver from the dispute chat, #415).
 
 **Independent Test**: Open CONTACT on active trade → chat room with peer handle + avatar. Send text → appears immediately (optimistic). Attach image → uploads encrypted → appears as image preview. Chat tab badge increments on new message, clears on open.
 
@@ -272,7 +272,7 @@ configuration.
 - [x] T076 Implement chat room screen in `lib/features/chat/screens/chat_room_screen.dart`: AppBar (← + `NymAvatar` + peer handle + subtitle). Two info toggle buttons. Message list with optimistic send. `MessageInput` at bottom. Error scaffold for invalid orderId. Route: `/chat_room/:orderId`. Wired in app_routes.dart.
 - [x] T077 [P] Implement message bubble widget in `lib/features/chat/widgets/message_bubble.dart`: own messages (right-aligned, purple `#7856AF`), peer messages (left-aligned, dark shade of `colorHue`), system messages (centered italic). Timestamp below bubble. Long-press → copy to clipboard.
 - [x] T078 [P] Implement message input widget in `lib/features/chat/widgets/message_input.dart`: paperclip attach icon (spinner when attaching), text input "Write a message..." pill, green send button. Clears field after send.
-- [~] T079 [P] Implement trade info panel in `lib/features/chat/widgets/info_panels.dart`: `TradeInformationTab` (order ID copyable, placeholder fields). `UserInformationTab` (peer avatar + handle + copyable peer pubkey + shared key placeholder). **Partial**: still placeholder dashes — the trade-detail fields and the ECDH shared-key display are not yet wired to the bridge.
+- [~] T079 [P] Implement trade info panel in `lib/features/chat/widgets/info_panels.dart`: `TradeInformationTab` (order ID copyable, placeholder fields). `UserInformationTab` (peer avatar + handle + copyable peer pubkey). **Partial**: still placeholder dashes — the trade-detail fields are not yet wired to the bridge. The ECDH shared-key display is dropped from scope: the key never leaves Rust; it is sent to the solver by a one-tap button in the dispute chat (#415).
 - [~] T080 Implement encrypted image message widget in `lib/features/chat/widgets/encrypted_image_message.dart`: placeholder image container with tap hint. **Partial**: still a tap-to-stub SnackBar — the `download_attachment()` + `decrypt_file()` bridge calls are not yet wired. This is the UI consumer for Blossom (T070).
 - [~] T081 [P] Implement encrypted file message widget in `lib/features/chat/widgets/encrypted_file_message.dart`: file card with type icon, name, size, download button + simulated progress bar. **Partial**: still a stub with simulated progress — the `download_attachment()` bridge call is not yet wired. UI consumer for Blossom (T070).
 
