@@ -602,6 +602,11 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // after the NIP-59 message is published and acknowledged.
     let now = crate::rt::unix_now();
 
+    // One absolute expiry for both the local row and the daemon's request,
+    // so a second boundary between the two cannot make them disagree.
+    let requested_expiry = crate::config::order_expiry_override()
+        .and_then(|secs| i64::try_from(secs).ok())
+        .map(|secs| now.saturating_add(secs));
     // Clone params before the struct takes ownership of its fields.
     let params_for_dispatch = params.clone();
 
@@ -621,10 +626,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         // The test environment may ask the daemon for a short expiry; the
         // daemon's own default is an hour, shown here as the day-long
         // ceiling the app has always assumed until the book event says.
-        expires_at: Some(
-            crate::config::order_expiry_override()
-                .map_or(now + 24 * 3600, |secs| now.saturating_add(secs as i64)),
-        ),
+        expires_at: Some(requested_expiry.unwrap_or(now + 24 * 3600)),
         is_mine: true,
         // Own new order: the daemon's Kind 38383 confirmation carries the
         // real reputation snapshot; until then there is none to show.
@@ -685,8 +687,6 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         rand::rngs::OsRng.next_u64().max(1) // 0 is indistinguishable from "unset"
     };
 
-    let requested_expiry = crate::config::order_expiry_override()
-        .map(|secs| crate::rt::unix_now().saturating_add(secs as i64));
     let event_json = actions::new_order(
         &identity_keys,
         &sender_keys,

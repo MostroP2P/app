@@ -123,7 +123,7 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
     // before any order can be created.
     final orderExpiry = TestEnvironment.orderExpirySecs;
     if (orderExpiry != null) {
-      settings_api.setTestOrderExpiry(secs: BigInt.from(orderExpiry));
+      await settings_api.setTestOrderExpiry(secs: BigInt.from(orderExpiry));
       debugPrint('[main] Mortsom build: orders expire after ${orderExpiry}s');
     }
     markBridgeReady();
