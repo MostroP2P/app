@@ -1362,10 +1362,12 @@ async fn next_trade_for_range_remainder(order_id: &str) -> Result<Option<(String
 /// Adopts the remainder of a range order this client made. The daemon
 /// publishes what is left of the range as a new pending order under the
 /// next trade key the release named, and tells that key with a `new-order`
-/// carrying the order — one no create is waiting for, whose seller (or
-/// buyer) trade key is exactly the key it arrived on. It becomes a maker
-/// trade of this client's, listed and cancellable like the parent was.
-/// Returns whether an order was adopted.
+/// carrying the order — one no create is waiting for. The payload names
+/// no trade keys (a create's confirmation does not either); ownership is
+/// the message itself: decrypted with the key it arrived on, and carrying
+/// that key's trade index, which the daemon echoes from the release. It
+/// becomes a maker trade of this client's, listed and cancellable like the
+/// parent was. Returns whether an order was adopted.
 async fn adopt_range_remainder(
     order_id: &str,
     kind: &mostro_core::message::MessageKind,
@@ -1375,21 +1377,15 @@ async fn adopt_range_remainder(
     let Some(mostro_core::message::Payload::Order(order)) = &kind.payload else {
         return false;
     };
-    if order.status != Some(mostro_core::order::Status::Pending) {
+    if order.status != Some(mostro_core::order::Status::Pending)
+        || kind.trade_index != Some(i64::from(trade_index))
+    {
         return false;
     }
     let (order_kind, role) = match order.kind {
-        Some(mostro_core::order::Kind::Sell)
-            if order.seller_trade_pubkey.as_deref() == Some(trade_pubkey_hex) =>
-        {
-            (OrderKind::Sell, TradeRole::Seller)
-        }
-        Some(mostro_core::order::Kind::Buy)
-            if order.buyer_trade_pubkey.as_deref() == Some(trade_pubkey_hex) =>
-        {
-            (OrderKind::Buy, TradeRole::Buyer)
-        }
-        _ => return false,
+        Some(mostro_core::order::Kind::Sell) => (OrderKind::Sell, TradeRole::Seller),
+        Some(mostro_core::order::Kind::Buy) => (OrderKind::Buy, TradeRole::Buyer),
+        None => return false,
     };
     let Some(db) = crate::db::app_db::db() else {
         return false;
@@ -7039,8 +7035,9 @@ mod tests {
     }
 
     /// The remainder of a range order arrives at the next trade key as a
-    /// `new-order` no create is waiting for, naming that key as the seller:
-    /// it is this client's own pending order, listed and bound to the key.
+    /// `new-order` no create is waiting for, carrying that key's trade
+    /// index: it is this client's own pending order, listed and bound to
+    /// the key.
     #[tokio::test]
     async fn a_range_remainder_addressed_to_the_next_trade_key_is_adopted() {
         use mostro_core::message::{Action, Message, Payload};
@@ -7077,7 +7074,7 @@ mod tests {
             message: Message::new_order(
                 Some(child_uuid),
                 None,
-                None,
+                Some(9),
                 Action::NewOrder,
                 Some(Payload::Order(remainder)),
             ),
@@ -7101,8 +7098,8 @@ mod tests {
         assert_eq!(get_trade_key_index(&child_id).await, Some(9));
         assert!(rx.try_recv().is_ok(), "the UI learns about the new trade");
 
-        // A new-order for a key that is not the seller's is somebody else's
-        // order: nothing is adopted.
+        // A new-order whose trade index is not this key's is not an order
+        // the daemon assigned to it: nothing is adopted.
         let other_uuid = uuid::Uuid::new_v4();
         let foreign = mostro_core::order::SmallOrder::new(
             Some(other_uuid),
@@ -7125,7 +7122,7 @@ mod tests {
             message: Message::new_order(
                 Some(other_uuid),
                 None,
-                None,
+                Some(3),
                 Action::NewOrder,
                 Some(Payload::Order(foreign)),
             ),
