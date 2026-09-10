@@ -1335,15 +1335,17 @@ pub async fn release_order(order_id: String) -> Result<()> {
 /// The trade key the daemon should hand the remainder of a range order to,
 /// when the releasing seller is its maker: a fresh key, already covered by
 /// the bulk daemon-message subscription so the child's `new-order` reaches
-/// this client. `None` for a fixed order, or for a taker, whose release
-/// leaves nothing behind.
+/// this client. `None` only once the trade row says the release leaves
+/// nothing behind: a fixed order, or a taker's. A store or row that cannot
+/// be read is an error, never `None`: a release sent without the key on a
+/// range order settles the trade and loses the remainder for good.
 async fn next_trade_for_range_remainder(order_id: &str) -> Result<Option<(String, u32)>> {
-    let Some(db) = crate::db::app_db::db() else {
-        return Ok(None);
-    };
-    let Some(trade) = db.get_trade_by_order_id(order_id).await? else {
-        return Ok(None);
-    };
+    let db = crate::db::app_db::db().ok_or_else(|| {
+        anyhow::anyhow!("no trade store: cannot tell whether order {order_id} leaves a remainder")
+    })?;
+    let trade = db.get_trade_by_order_id(order_id).await?.ok_or_else(|| {
+        anyhow::anyhow!("no trade row for order {order_id}: cannot tell whether it leaves a remainder")
+    })?;
     let is_range = trade.order.fiat_amount_min.is_some() && trade.order.fiat_amount_max.is_some();
     if !is_range || !trade.order.is_mine || trade.role != TradeRole::Seller {
         return Ok(None);
@@ -7032,6 +7034,71 @@ mod tests {
             }
         }
         assert!(emitted, "the UI must learn the order is pending again");
+    }
+
+    /// A release must know whether it leaves a remainder: a missing trade
+    /// row is an error, a fixed order or a taker's trade is `None`, and only
+    /// a range order this client sold names a key.
+    #[tokio::test]
+    async fn the_next_trade_key_fails_closed_without_a_trade_row() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_next_trade_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let unknown = uuid::Uuid::new_v4().to_string();
+        assert!(next_trade_for_range_remainder(&unknown).await.is_err());
+
+        let fixed_id = uuid::Uuid::new_v4().to_string();
+        let mut fixed = dummy_order_info(&fixed_id);
+        fixed.kind = crate::api::types::OrderKind::Sell;
+        fixed.is_mine = true;
+        let row = |id: &str, order: crate::api::types::OrderInfo, role: TradeRole| {
+            crate::api::types::TradeInfo {
+                id: id.to_string(),
+                order,
+                role,
+                counterparty_pubkey: String::new(),
+                current_step: crate::api::types::TradeStep::Seller(
+                    crate::api::types::SellerStep::OrderPublished,
+                ),
+                hold_invoice: None,
+                buyer_invoice: None,
+                trade_key_index: 1,
+                cooperative_cancel_state: None,
+                timeout_at: None,
+                started_at: 1,
+                completed_at: None,
+                outcome: None,
+                peer_rating: None,
+                peer_reviews: None,
+                peer_days: None,
+                rated_at: None,
+            }
+        };
+        db.save_trade(&row(&fixed_id, fixed, TradeRole::Seller))
+            .await
+            .expect("save");
+        assert_eq!(
+            next_trade_for_range_remainder(&fixed_id).await.unwrap(),
+            None,
+            "a fixed order leaves nothing behind"
+        );
+
+        let taken_id = uuid::Uuid::new_v4().to_string();
+        let mut taken_range = dummy_order_info(&taken_id);
+        taken_range.kind = crate::api::types::OrderKind::Buy;
+        taken_range.fiat_amount_min = Some(10.0);
+        taken_range.fiat_amount_max = Some(30.0);
+        taken_range.is_mine = false;
+        db.save_trade(&row(&taken_id, taken_range, TradeRole::Seller))
+            .await
+            .expect("save");
+        assert_eq!(
+            next_trade_for_range_remainder(&taken_id).await.unwrap(),
+            None,
+            "a taker's release leaves nothing behind"
+        );
     }
 
     /// The remainder of a range order arrives at the next trade key as a
