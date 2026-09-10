@@ -17,6 +17,19 @@ echo "▶ cargo check (wasm32)..."
 (cd rust && cargo check --target wasm32-unknown-unknown 2>&1)
 
 echo "▶ flutter analyze..."
-flutter analyze 2>&1
+# `env -u GIT_*`: git exports GIT_DIR and friends to its hooks, and the flutter
+# tool shells out to git to read its own SDK version. With those set it reads
+# THIS repository instead, decides its version is `0.0.0-unknown`, and writes
+# that to `bin/cache/flutter.version.json` — after which `pub get` rejects every
+# SDK-constrained package until the file is deleted, in every project on the
+# machine. Only visible when pub actually has to resolve, so a warm worktree
+# hides it.
+#
+# `--no-fatal-infos`: errors and warnings still block a commit; lints at info
+# level do not. Otherwise a deprecation introduced by an SDK upgrade — nothing
+# to do with the change being committed — makes the tree uncommittable for
+# whoever upgraded first.
+env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_PREFIX \
+  flutter analyze --no-fatal-infos 2>&1
 
 echo "✓ All checks passed"
