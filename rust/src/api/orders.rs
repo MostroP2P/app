@@ -525,10 +525,29 @@ impl OrderBook {
             Some(order) => Some(order.status.clone()),
             None => self.get_order(order_id).await.map(|o| o.status),
         };
+        let short = crate::api::logging::short_id(order_id);
         match (noted, public_status) {
-            (Some(order), Some(OrderStatus::Pending)) => self.upsert_order(order).await,
-            (None, Some(OrderStatus::Pending)) => {}
-            _ => self.remove_order(order_id).await,
+            (Some(order), Some(OrderStatus::Pending)) => {
+                self.upsert_order(order).await;
+                crate::api::logging::blog_info(
+                    "orders",
+                    format!("lost take order={short}: book entry restored to public pending"),
+                );
+            }
+            (None, Some(OrderStatus::Pending)) => crate::api::logging::blog_info(
+                "orders",
+                format!("lost take order={short}: book entry already public pending"),
+            ),
+            (_, public) => {
+                self.remove_order(order_id).await;
+                crate::api::logging::blog_info(
+                    "orders",
+                    format!(
+                        "lost take order={short}: book entry dropped (latest public view \
+                         {public:?}) — the next Kind 38383 event applies as is"
+                    ),
+                );
+            }
         }
     }
 }
