@@ -1175,11 +1175,7 @@ pub async fn take_order(
             order_book().upsert_order(info).await;
         }
     }
-    if let Some(db) = crate::db::app_db::db() {
-        if let Err(e) = db.save_trade(&trade).await {
-            log::warn!("[orders] failed to persist trade: {e}");
-        }
-    }
+    persist_confirmed_take(&trade).await;
     // Subscribe to d-tag K38383 updates for this specific order so we still
     // see the public buckets the daemon does publish (in-progress once taken,
     // success / canceled at the end); the fine-grained states only ever arrive
@@ -1206,7 +1202,10 @@ pub async fn take_order(
         )
         .await
     {
-        log::warn!("[orders] take_order: install_session failed: {e}");
+        crate::api::logging::blog_warn(
+            "orders",
+            format!("take_order: install_session failed: {e}"),
+        );
     }
     // In the peer-reveal case the reveal ran before the trade row existed, so
     // its durable write was a no-op — replay it from the session now that the
@@ -1229,6 +1228,41 @@ pub async fn take_order(
     }
 
     Ok(trade)
+}
+
+/// Persist a confirmed take as its order's only trade row.
+///
+/// Rows are keyed by a fresh `TradeInfo.id` per take, so a plain save next to
+/// a row an earlier take of the same order left behind — its `Canceled` never
+/// reached this client, or it predates the wipe on a taker's own cancel —
+/// makes two. Every lookup by order id then picks one of them
+/// (`get_trade_by_order_id` is `LIMIT 1`, unordered), and the dead one's
+/// status feeds the guards that gate the new trade's daemon messages while its
+/// `trade_key_index` is what the chat-session rebuild derives keys from (the
+/// durable twin of #335). One row per order id, the way every reference client
+/// keys its trades.
+async fn persist_confirmed_take(trade: &crate::api::types::TradeInfo) {
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    if let Err(e) = db.delete_trade_by_order_id(&trade.order.id).await {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "take_order: earlier rows for order={} not removed: {e}",
+                crate::api::logging::short_id(&trade.order.id),
+            ),
+        );
+    }
+    if let Err(e) = db.save_trade(trade).await {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "take_order: trade not persisted for order={}: {e}",
+                crate::api::logging::short_id(&trade.order.id),
+            ),
+        );
+    }
 }
 
 /// Submit buyer's Lightning invoice for a trade.
@@ -7111,6 +7145,37 @@ mod tests {
         );
     }
 
+    /// A confirmed take is its order's only row. A row an earlier take of the
+    /// same order left behind (its `Canceled` lost, or written before takers'
+    /// cancels were wiped) used to stay next to the new one, and lookups by
+    /// order id could return the dead take — its status and its trade key.
+    #[tokio::test]
+    async fn a_confirmed_take_replaces_the_orders_earlier_row() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_one_row_per_order_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let earlier = cancel_test_row(wire_order(&order_id, OrderStatus::Canceled));
+        db.save_trade(&earlier).await.expect("save the earlier take");
+        let mut retake = cancel_test_row(wire_order(&order_id, OrderStatus::WaitingBuyerInvoice));
+        retake.trade_key_index = 2;
+
+        persist_confirmed_take(&retake).await;
+
+        let rows: Vec<_> = db
+            .list_trades()
+            .await
+            .expect("list trades")
+            .into_iter()
+            .filter(|t| t.order.id == order_id)
+            .collect();
+        assert_eq!(rows.len(), 1, "one row per order after a retake");
+        assert_eq!(rows[0].id, retake.id, "the row left is the retake's");
+        assert_eq!(rows[0].trade_key_index, 2, "carrying the retake's trade key");
+    }
+
     /// Only a *take* is handed back. A maker's own order dies with the
     /// cancel: even with an earlier `pending` view noted, its entry is left to
     /// the daemon's Kind 38383 `canceled`, never restored to `pending`.
@@ -9062,5 +9127,140 @@ mod restore_e2e_tests {
             idx_after, 3,
             "the post-restore order should consume index 3"
         );
+    }
+
+    /// Poll the in-memory book until `order_id` shows `status`.
+    async fn wait_for_book_status(order_id: &str, status: OrderStatus, secs: u64) -> bool {
+        for _ in 0..secs * 2 {
+            if order_book()
+                .get_order(order_id)
+                .await
+                .is_some_and(|o| o.status == status)
+            {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+        false
+    }
+
+    /// Retake E2E, phase 1 of 2: a maker publishes a sell order and prints its
+    /// id for phase 2, which must run in its own process — the identity and
+    /// `app_db` are process-wide, and the taker needs a different identity.
+    ///
+    ///   cargo test --lib retake_e2e_maker -- --ignored --nocapture
+    ///
+    /// The order is real and public on the daemon's relays; it stays `pending`
+    /// until the node's `expiration_hours`.
+    #[tokio::test]
+    #[ignore = "requires live regtest stack — set MOSTRO_REGTEST_PUBKEY (relay defaults to ws://localhost:7000)"]
+    async fn retake_e2e_maker_creates_order() {
+        init_regtest().await;
+        let id = crate::api::identity::create_identity()
+            .await
+            .expect("create identity");
+        println!("[test] maker identity pubkey={}", id.public_key);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let order = create_order(crate::api::types::NewOrderParams {
+            kind: crate::api::types::OrderKind::Sell,
+            fiat_amount: Some(100.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "USD".to_string(),
+            payment_method: "cash".to_string(),
+            premium: 0.0,
+            amount_sats: None,
+        })
+        .await
+        .expect("create_order");
+        println!("[test] RETAKE_ORDER_ID={}", order.id);
+    }
+
+    /// Retake E2E, phase 2 of 2: a taker loses a take by cancelling it, sees
+    /// the order back in its book, and takes it again — through the real
+    /// `take_order` / `cancel_order` against a live daemon.
+    ///
+    ///   RETAKE_ORDER_ID=<id from phase 1> \
+    ///     cargo test --lib retake_e2e_taker -- --ignored --nocapture
+    ///
+    /// Before the retake it plants the first take's row again, standing in for
+    /// one this flow no longer leaves (a `Canceled` never received, or a row
+    /// written before takers' cancels were wiped), so the one-row-per-order
+    /// rule of `take_order` is exercised too. It ends by cancelling the
+    /// retake, which returns the order to `pending` for the next run.
+    #[tokio::test]
+    #[ignore = "requires live regtest stack and phase 1 — set MOSTRO_REGTEST_PUBKEY and RETAKE_ORDER_ID"]
+    async fn retake_e2e_taker_cancels_and_retakes() {
+        let order_id = std::env::var("RETAKE_ORDER_ID")
+            .expect("RETAKE_ORDER_ID env var required (printed by retake_e2e_maker_creates_order)");
+        init_regtest().await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let id = crate::api::identity::create_identity()
+            .await
+            .expect("create identity");
+        println!("[test] taker identity pubkey={}", id.public_key);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        subscribe_orders().await;
+        assert!(
+            wait_for_book_status(&order_id, OrderStatus::Pending, 40).await,
+            "the order must be in the book as pending"
+        );
+
+        let first = take_order(order_id.clone(), TradeRole::Buyer, None)
+            .await
+            .expect("first take");
+        println!("[test] first take idx={}", first.trade_key_index);
+        cancel_order(order_id.clone()).await.expect("cancel the first take");
+
+        assert!(
+            wait_for_book_status(&order_id, OrderStatus::Pending, 40).await,
+            "a lost take's order must come back to the ex-taker's book"
+        );
+        assert!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("trade lookup")
+                .is_none(),
+            "the daemon's Canceled must wipe the never-active row"
+        );
+        assert!(
+            crate::mostro::session::session_manager()
+                .get_session(&order_id)
+                .await
+                .is_none(),
+            "the daemon's Canceled must remove the take's session"
+        );
+
+        db.save_trade(&first).await.expect("plant the first take's row");
+        let second = take_order(order_id.clone(), TradeRole::Buyer, None)
+            .await
+            .expect("the retake must be accepted");
+        println!("[test] retake idx={}", second.trade_key_index);
+        assert_ne!(second.trade_key_index, first.trade_key_index);
+
+        let rows: Vec<_> = db
+            .list_trades()
+            .await
+            .expect("list trades")
+            .into_iter()
+            .filter(|t| t.order.id == order_id)
+            .collect();
+        assert_eq!(rows.len(), 1, "one row per order after the retake");
+        assert_eq!(rows[0].trade_key_index, second.trade_key_index);
+        assert_eq!(
+            crate::mostro::session::session_manager()
+                .get_session(&order_id)
+                .await
+                .map(|s| s.trade_key_index),
+            Some(second.trade_key_index),
+            "the session must carry the retake's trade key"
+        );
+
+        cancel_order(order_id.clone()).await.expect("cancel the retake");
+        assert!(
+            wait_for_book_status(&order_id, OrderStatus::Pending, 40).await,
+            "the order must be pending again for the next run"
+        );
+        println!("[test] ✓ retake round-trip OK");
     }
 }
