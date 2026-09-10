@@ -26,12 +26,16 @@
 //!   order, never the identity key. That is a privacy requirement of the
 //!   upstream spec, not a preference.
 
+use std::collections::HashMap;
+
 use anyhow::{anyhow, bail, Result};
+use cdk::nuts::nut07::State;
 use cdk::nuts::nut10::{Conditions, SpendingConditions};
 use cdk::nuts::nut11::SigFlag;
-use cdk::nuts::{Proof, PublicKey, SecretKey, Token, Witness};
+use cdk::nuts::{CurrencyUnit, Proof, PublicKey, SecretKey, Token, Witness};
 use cdk::wallet::ReceiveOptions;
 
+use super::wallet::normalize_token;
 use super::CashuWallet;
 
 /// The three keys an escrow is locked to, already in Cashu (compressed) form.
@@ -245,12 +249,36 @@ impl CashuWallet {
             .await
     }
 
-    /// Verify an escrow token someone else built: right mint, right amount, and
-    /// the right 2-of-3 condition on **every** proof.
+    /// Verify an escrow token someone else built, before anything is paid or
+    /// signed against it.
     ///
-    /// Per-proof rather than per-token on purpose — a token whose first proof is
-    /// correct and whose second is locked to the builder alone would pass a spot
-    /// check and walk away with the difference.
+    /// Four things, in this order, and `Ok` means all four:
+    ///
+    /// 1. **Shape** — right mint, `sat`, the expected total, and the 2-of-3
+    ///    condition of §2 on **every** proof. Per-proof rather than per-token
+    ///    on purpose: a token whose first proof is correct and whose second is
+    ///    locked to the builder alone would pass a spot check and walk away
+    ///    with the difference.
+    /// 2. **Mint-issued** — every proof carries a DLEQ proof (NUT-12) that
+    ///    verifies against the mint's key for that amount. Same reasoning as
+    ///    [`CashuWallet::receive_token`]: `cdk` skips a proof with no DLEQ
+    ///    rather than rejecting it, and a forged proof would otherwise only be
+    ///    caught at redemption, after the fiat leg.
+    /// 3. **Unspent** — the mint reports every proof `Unspent` (NUT-07). A
+    ///    structurally perfect token whose proofs were swapped away an hour
+    ///    ago is worth nothing, and the buyer is the party who would find out
+    ///    last.
+    ///
+    /// This mirrors the daemon's composite check (§3 of the doc: condition,
+    /// amount, DLEQ, NUT-07). It is a point-in-time statement: the proofs can
+    /// still be spent by the seller *after* this returns if they hold two of
+    /// the three keys, which is exactly what the 2-of-3 and the distinctness
+    /// check exist to make impossible.
+    ///
+    /// **Errors** (stable markers): `InvalidEscrowToken` for a shape failure,
+    /// `CashuTokenUnverified` for a DLEQ failure, `CashuEscrowSpent` /
+    /// `CashuEscrowPending` when the mint no longer calls a proof unspent,
+    /// `CashuMintUnreachable` when the mint could not be asked.
     pub async fn verify_escrow_token(
         &self,
         encoded: &str,
@@ -258,10 +286,7 @@ impl CashuWallet {
         expected_amount: u64,
         min_locktime: u64,
     ) -> Result<()> {
-        let token: Token = encoded
-            .trim()
-            .parse()
-            .map_err(|e| anyhow!("InvalidEscrowToken: unparseable ({e})"))?;
+        let token = parse_token(encoded)?;
 
         let token_mint = token
             .mint_url()
@@ -275,7 +300,7 @@ impl CashuWallet {
         // denomination, so a token in another unit with the right numeric total
         // would pass the amount check unnoticed.
         match token.unit() {
-            Some(cdk::nuts::CurrencyUnit::Sat) => {}
+            Some(CurrencyUnit::Sat) => {}
             other => bail!("InvalidEscrowToken: expected sat, got {other:?}"),
         }
 
@@ -288,11 +313,35 @@ impl CashuWallet {
             bail!("InvalidEscrowToken: expected {expected_amount} sat, got {value}");
         }
 
-        for proof in self.proofs_of(&token).await? {
+        let proofs = self.proofs_of(&token).await?;
+        for proof in &proofs {
             let conditions: SpendingConditions = (&proof.secret)
                 .try_into()
                 .map_err(|e| anyhow!("InvalidEscrowToken: unreadable secret ({e})"))?;
             verify_conditions(&conditions, parties, min_locktime)?;
+        }
+
+        // Shape first, then provenance: a DLEQ failure on a token that is not
+        // even the right escrow would send the user chasing the wrong problem.
+        self.inner()
+            .verify_token_dleq(&token)
+            .await
+            .map_err(|e| anyhow!("CashuTokenUnverified: {e}"))?;
+
+        // Last because it is the one that costs a round trip to the mint.
+        let states = self
+            .inner()
+            .check_proofs_spent(proofs)
+            .await
+            .map_err(|e| anyhow!("CashuMintUnreachable: state check failed ({e})"))?;
+        for state in &states {
+            match state.state {
+                State::Unspent => {}
+                State::Spent => bail!("CashuEscrowSpent: the mint reports a proof as spent"),
+                // In flight elsewhere: a swap that may or may not land. Not
+                // "spent", but not an escrow anyone should pay against either.
+                other => bail!("CashuEscrowPending: the mint reports a proof as {other:?}"),
+            }
         }
 
         Ok(())
@@ -304,11 +353,38 @@ impl CashuWallet {
     /// This is the seller's release signature and the buyer's cooperative-cancel
     /// signature: each party signs alone and hands the signatures over, and only
     /// the combination of two satisfies the 2-of-3.
-    pub async fn sign_proofs(&self, encoded: &str, key: SecretKey) -> Result<Vec<ProofSignature>> {
-        let token: Token = encoded
-            .trim()
-            .parse()
-            .map_err(|e| anyhow!("InvalidEscrowToken: unparseable ({e})"))?;
+    ///
+    /// **The token is verified against `parties`, `expected_amount` and
+    /// `min_locktime` before a single signature is produced**, and there is no
+    /// form of this function that skips it. Under `SIG_INPUTS` a signature
+    /// commits to the proof's *secret* and nothing else — not the amount, the
+    /// keyset, `C`, or the token it arrived in (`Proof::sign_p2pk` signs
+    /// `secret.to_bytes()`). So a signature harvested over a decoy that reuses
+    /// the escrow's secrets with the amounts rewritten to 1 sat is valid for
+    /// the real escrow, and the counterparty is exactly who hands this
+    /// function its token. Requiring the escrow's own parameters closes that:
+    /// the decoy fails the amount check before anything is signed. There is no
+    /// legitimate non-escrow caller — the fee token is redeemed by the node
+    /// with its own key, not signed through here.
+    ///
+    /// What the check cannot do: distinguish two tokens that *are* the same
+    /// escrow (same parties, amount, locktime, differing only in memo). That is
+    /// consent to release this escrow, which is what the caller asked for. It
+    /// also means a release signature and a cooperative-cancel signature over
+    /// the same escrow authorise the same thing — spending the proofs, not
+    /// where the value goes. C6/C7 must ensure no party ever signs for both;
+    /// the constraint belongs in `docs/cashu/README.md` §2, not here.
+    pub async fn sign_proofs(
+        &self,
+        encoded: &str,
+        key: SecretKey,
+        parties: &EscrowParties,
+        expected_amount: u64,
+        min_locktime: u64,
+    ) -> Result<Vec<ProofSignature>> {
+        self.verify_escrow_token(encoded, parties, expected_amount, min_locktime)
+            .await?;
+        let token = parse_token(encoded)?;
 
         self.proofs_of(&token)
             .await?
@@ -340,21 +416,15 @@ impl CashuWallet {
         own_key: SecretKey,
         peer_signatures: &[ProofSignature],
     ) -> Result<u64> {
-        let token: Token = encoded
-            .trim()
-            .parse()
-            .map_err(|e| anyhow!("InvalidEscrowToken: unparseable ({e})"))?;
+        // Before the mint is contacted: a peer list that names one secret twice
+        // is malformed, and `collect()` into a map would silently keep the
+        // *last* entry — a wrong signature that only surfaces as an opaque
+        // mint error at swap time.
+        let by_secret = index_signatures(peer_signatures)?;
 
+        let token = parse_token(encoded)?;
         let proofs = self.proofs_of(&token).await?;
         let mut signed = Vec::with_capacity(proofs.len());
-
-        // Indexed once rather than scanned per proof: linear in the number of
-        // signatures instead of quadratic, and it makes a duplicate secret in
-        // the peer's list a visible collision rather than a silent first-wins.
-        let by_secret: std::collections::HashMap<&str, &ProofSignature> = peer_signatures
-            .iter()
-            .map(|s| (s.secret.as_str(), s))
-            .collect();
 
         for mut proof in proofs {
             let secret = proof.secret.to_string();
@@ -393,11 +463,7 @@ impl CashuWallet {
         encoded: &str,
         seller_key: SecretKey,
     ) -> Result<u64> {
-        let token: Token = encoded
-            .trim()
-            .parse()
-            .map_err(|e| anyhow!("InvalidEscrowToken: unparseable ({e})"))?;
-
+        let token = parse_token(encoded)?;
         let proofs = self.proofs_of(&token).await?;
         let mut signed = Vec::with_capacity(proofs.len());
 
@@ -435,6 +501,35 @@ impl CashuWallet {
 
         Ok(u64::from(amount))
     }
+}
+
+/// Parse an encoded token the way the wallet's receive path does.
+///
+/// Same `cashu:` / `cashu://` strip as [`normalize_token`]: a token the wallet
+/// accepts on receive must not fail escrow verification as "unparseable",
+/// which is the wrong explanation for a missing prefix strip.
+fn parse_token(encoded: &str) -> Result<Token> {
+    normalize_token(encoded)
+        .parse()
+        .map_err(|e| anyhow!("InvalidEscrowToken: unparseable ({e})"))
+}
+
+/// Peer signatures keyed by secret, rejecting a secret that appears twice.
+///
+/// Linear in the number of signatures rather than a scan per proof, and a
+/// duplicate is an error here rather than a silent last-wins that the mint
+/// would report as a bad witness with no hint of why.
+fn index_signatures(signatures: &[ProofSignature]) -> Result<HashMap<&str, &ProofSignature>> {
+    let mut by_secret = HashMap::with_capacity(signatures.len());
+    for sig in signatures {
+        if by_secret.insert(sig.secret.as_str(), sig).is_some() {
+            bail!(
+                "DuplicatePeerSignature: secret {} appears more than once",
+                sig.secret
+            );
+        }
+    }
+    Ok(by_secret)
 }
 
 /// Seconds since the unix epoch, or 0 if the clock is before it — in which
@@ -813,7 +908,10 @@ mod tests {
         );
 
         // Act — seller signs (release), buyer combines and redeems.
-        let seller_sigs = seller.sign_proofs(&token, seller_sk).await.unwrap();
+        let seller_sigs = seller
+            .sign_proofs(&token, seller_sk, &parties, 16, locktime)
+            .await
+            .unwrap();
         let received = buyer
             .combine_and_redeem(&token, buyer_sk, &seller_sigs)
             .await
@@ -894,13 +992,17 @@ mod tests {
         let (_mostro_sk, mostro_pk) = party();
         let (impostor_sk, _) = party();
         let parties = EscrowParties::from_xonly_hex(&buyer_pk, &seller_pk, &mostro_pk).unwrap();
+        let locktime = future_locktime();
         let token = seller
-            .build_escrow_token(8, &parties, future_locktime())
+            .build_escrow_token(8, &parties, locktime)
             .await
             .unwrap();
 
         // Act — buyer combines their own valid signature with an impostor's.
-        let impostor_sigs = seller.sign_proofs(&token, impostor_sk).await.unwrap();
+        let impostor_sigs = seller
+            .sign_proofs(&token, impostor_sk, &parties, 8, locktime)
+            .await
+            .unwrap();
         let err = buyer
             .combine_and_redeem(&token, buyer_sk, &impostor_sigs)
             .await
@@ -948,6 +1050,54 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&seller_db);
+    }
+
+    #[test]
+    fn a_token_uri_parses_like_the_wallets_receive_path() {
+        // Arrange — the same prefixes `normalize_token` accepts. The body is
+        // not a real token, so the failure must come from the token codec,
+        // never from the prefix.
+        for input in ["cashu:cashuBnope", "cashu://cashuBnope", "  cashuBnope\n"] {
+            // Act
+            let err = parse_token(input).unwrap_err().to_string();
+
+            // Assert — the error is about the token body, and the marker is
+            // the escrow one, so a scanned URI never reads as "not an escrow".
+            assert!(err.starts_with("InvalidEscrowToken: unparseable"), "{input:?}: {err}");
+        }
+    }
+
+    #[test]
+    fn a_peer_signature_list_is_indexed_by_secret() {
+        // Arrange
+        let sigs = vec![
+            ProofSignature { secret: "a".into(), signature: "sa".into() },
+            ProofSignature { secret: "b".into(), signature: "sb".into() },
+        ];
+
+        // Act
+        let index = index_signatures(&sigs).unwrap();
+
+        // Assert
+        assert_eq!(index.len(), 2);
+        assert_eq!(index["a"].signature, "sa");
+        assert_eq!(index["b"].signature, "sb");
+    }
+
+    #[test]
+    fn a_duplicate_peer_signature_is_rejected_not_last_wins() {
+        // Arrange — the same secret twice with different signatures. A map
+        // built with `collect()` would keep the second and say nothing.
+        let sigs = vec![
+            ProofSignature { secret: "a".into(), signature: "first".into() },
+            ProofSignature { secret: "a".into(), signature: "second".into() },
+        ];
+
+        // Act
+        let err = index_signatures(&sigs).unwrap_err();
+
+        // Assert
+        assert!(err.to_string().contains("DuplicatePeerSignature"), "got {err}");
     }
 
     #[test]
@@ -1022,5 +1172,120 @@ mod tests {
             err.to_string().contains("buyer or Mostro key missing"),
             "got {err}"
         );
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a local nutshell mint (MOSTRO_TEST_MINT_URL)"]
+    async fn signing_refuses_a_decoy_that_reuses_the_escrows_secrets() {
+        // Arrange — the signing-oracle attack: under SIG_INPUTS a signature
+        // commits to the secret alone, so a signature over a decoy carrying the
+        // escrow's secrets with the amounts rewritten is valid for the real
+        // escrow. The seller must refuse to sign the decoy.
+        let mint = test_mint_url();
+        let seller_db = temp_db_path();
+        let buyer_db = temp_db_path();
+        let seller = CashuWallet::connect(&mint, unique_seed(), seller_db.to_str().unwrap())
+            .await
+            .unwrap();
+        let buyer = CashuWallet::connect(&mint, unique_seed(), buyer_db.to_str().unwrap())
+            .await
+            .unwrap();
+        seller.mint_for_test(64).await.expect("mint must fund the wallet");
+
+        let (seller_sk, seller_pk) = party();
+        let (buyer_sk, buyer_pk) = party();
+        let (_mostro_sk, mostro_pk) = party();
+        let parties = EscrowParties::from_xonly_hex(&buyer_pk, &seller_pk, &mostro_pk).unwrap();
+        let locktime = future_locktime();
+        let escrow = seller
+            .build_escrow_token(16, &parties, locktime)
+            .await
+            .unwrap();
+
+        // The buyer's decoy: same secrets and keyset, every amount 1 sat,
+        // witnesses stripped, a friendly memo.
+        let real = parse_token(&escrow).unwrap();
+        let decoy_proofs: Vec<Proof> = seller
+            .proofs_of(&real)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|p| Proof::new(cdk::Amount::from(1), p.keyset_id, p.secret, p.c))
+            .collect();
+        let decoy = Token::new(
+            real.mint_url().unwrap(),
+            decoy_proofs,
+            Some("trivial refund, please sign".into()),
+            CurrencyUnit::Sat,
+        )
+        .to_string();
+
+        // Act — the seller is asked to sign the decoy for the escrow they know.
+        let err = seller
+            .sign_proofs(&decoy, seller_sk, &parties, 16, locktime)
+            .await
+            .unwrap_err();
+
+        // Assert — refused before any signature exists, on the amount.
+        assert!(err.to_string().contains("expected 16 sat, got"), "got {err}");
+
+        // And the escrow is still whole: the buyer alone cannot redeem it.
+        let err = buyer
+            .combine_and_redeem(&escrow, buyer_sk, &[])
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("MissingPeerSignature"), "got {err}");
+
+        let _ = std::fs::remove_file(&seller_db);
+        let _ = std::fs::remove_file(&buyer_db);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a local nutshell mint (MOSTRO_TEST_MINT_URL)"]
+    async fn a_spent_escrow_fails_verification() {
+        // Arrange — a structurally perfect token whose proofs are gone: the
+        // seller locks, the trade settles, and the same token is presented
+        // again.
+        let mint = test_mint_url();
+        let seller_db = temp_db_path();
+        let buyer_db = temp_db_path();
+        let seller = CashuWallet::connect(&mint, unique_seed(), seller_db.to_str().unwrap())
+            .await
+            .unwrap();
+        let buyer = CashuWallet::connect(&mint, unique_seed(), buyer_db.to_str().unwrap())
+            .await
+            .unwrap();
+        seller.mint_for_test(64).await.expect("mint must fund the wallet");
+
+        let (seller_sk, seller_pk) = party();
+        let (buyer_sk, buyer_pk) = party();
+        let (_mostro_sk, mostro_pk) = party();
+        let parties = EscrowParties::from_xonly_hex(&buyer_pk, &seller_pk, &mostro_pk).unwrap();
+        let locktime = future_locktime();
+        let token = seller
+            .build_escrow_token(8, &parties, locktime)
+            .await
+            .unwrap();
+        buyer
+            .verify_escrow_token(&token, &parties, 8, locktime)
+            .await
+            .expect("fresh escrow verifies");
+        let sigs = seller
+            .sign_proofs(&token, seller_sk, &parties, 8, locktime)
+            .await
+            .unwrap();
+        buyer.combine_and_redeem(&token, buyer_sk, &sigs).await.unwrap();
+
+        // Act — the same token, presented after it was redeemed.
+        let err = buyer
+            .verify_escrow_token(&token, &parties, 8, locktime)
+            .await
+            .unwrap_err();
+
+        // Assert — the shape is still right; the mint's word is what fails it.
+        assert!(err.to_string().contains("CashuEscrowSpent"), "got {err}");
+
+        let _ = std::fs::remove_file(&seller_db);
+        let _ = std::fs::remove_file(&buyer_db);
     }
 }
