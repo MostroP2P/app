@@ -72,6 +72,21 @@ service on the device can read it, and no scenario needs it.
 the taker is buying. A driver that wants a side picks the tab that lists it.
 This matches the classic app.
 
+**The order form starts on market price, and a range locks it there.**
+`order.create.price_type` toggles between market and fixed; the sats field
+(`order.create.sats_amount`) exists only on fixed. `order.create.range` swaps
+the single `order.create.fiat_amount` for `order.create.fiat_min` and
+`order.create.fiat_max`, and disables the price toggle: the protocol prices a
+range at market only. Taking a range order asks its amount in a dialog
+(`order.take.amount`, `order.take.amount.confirm`) right after
+`order.take.confirm`; a fixed order never shows the dialog.
+
+**Rating is one star and a submit.** After a successful trade the detail
+offers `trade.rate`; the rating screen carries `trade.rate.star.<n>` for each
+of its five stars, `trade.rate.submit` (enabled once a star is chosen) and
+`trade.rate.close`. Submitting returns to the same trade, whose `order.status`
+then reads `rated`.
+
 **A pending order you created opens on `/my_order`, not `/trade_detail`.**
 Both screens therefore expose `order.status` and `order.id`, in the same
 vocabulary.

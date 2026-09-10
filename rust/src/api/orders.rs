@@ -1310,23 +1310,161 @@ pub async fn release_order(order_id: String) -> Result<()> {
     let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
     let identity_keys = crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
     let mostro_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())?;
+    let next_trade = next_trade_for_range_remainder(&order_id).await?;
     let event_json = actions::release(
         &identity_keys,
         &sender_keys,
         &mostro_pubkey,
         &order_id,
         trade_index,
+        next_trade.clone(),
     )
     .await?;
     publish_event_json(&event_json).await?;
     crate::api::logging::blog_info(
         "orders",
         format!(
-            "release published for order={} trade_index={trade_index}",
+            "release published for order={} trade_index={trade_index} next_trade_index={:?}",
             crate::api::logging::short_id(&order_id),
+            next_trade.map(|(_, index)| index),
         ),
     );
     Ok(())
+}
+
+/// The trade key the daemon should hand the remainder of a range order to,
+/// when the releasing seller is its maker: a fresh key, already covered by
+/// the bulk daemon-message subscription so the child's `new-order` reaches
+/// this client. `None` only once the trade row says the release leaves
+/// nothing behind: a fixed order, or a taker's. A store or row that cannot
+/// be read is an error, never `None`: a release sent without the key on a
+/// range order settles the trade and loses the remainder for good.
+async fn next_trade_for_range_remainder(order_id: &str) -> Result<Option<(String, u32)>> {
+    let db = crate::db::app_db::db().ok_or_else(|| {
+        anyhow::anyhow!("no trade store: cannot tell whether order {order_id} leaves a remainder")
+    })?;
+    let trade = db.get_trade_by_order_id(order_id).await?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "no trade row for order {order_id}: cannot tell whether it leaves a remainder"
+        )
+    })?;
+    let is_range = trade.order.fiat_amount_min.is_some() && trade.order.fiat_amount_max.is_some();
+    if !is_range || !trade.order.is_mine || trade.role != TradeRole::Seller {
+        return Ok(None);
+    }
+    let next = crate::api::identity::derive_trade_key().await?;
+    let next_keys = crate::api::identity::get_active_trade_keys(next.index).await?;
+    ensure_global_dm_coverage(&next_keys, next.index).await;
+    // The remainder's `new-order` follows the release within a second. The
+    // bulk filter refresh above is not confirmed by the relay before the
+    // release goes out, so the key also gets the per-trade subscription a
+    // create relies on, which is awaited before returning.
+    subscribe_daemon_messages(next_keys.public_key(), next.index).await;
+    Ok(Some((next.public_key, next.index)))
+}
+
+/// Adopts the remainder of a range order this client made. The daemon
+/// publishes what is left of the range as a new pending order under the
+/// next trade key the release named, and tells that key with a `new-order`
+/// carrying the order — one no create is waiting for. The payload names
+/// no trade keys (a create's confirmation does not either); ownership is
+/// the message itself: decrypted with the key it arrived on, and carrying
+/// that key's trade index, which the daemon echoes from the release. It
+/// becomes a maker trade of this client's, listed and cancellable like the
+/// parent was. Returns whether an order was adopted.
+async fn adopt_range_remainder(
+    order_id: &str,
+    kind: &mostro_core::message::MessageKind,
+    trade_pubkey_hex: &str,
+    trade_index: u32,
+) -> bool {
+    let Some(mostro_core::message::Payload::Order(order)) = &kind.payload else {
+        return false;
+    };
+    if order.status != Some(mostro_core::order::Status::Pending)
+        || kind.trade_index != Some(i64::from(trade_index))
+    {
+        return false;
+    }
+    let (order_kind, role) = match order.kind {
+        Some(mostro_core::order::Kind::Sell) => (OrderKind::Sell, TradeRole::Seller),
+        Some(mostro_core::order::Kind::Buy) => (OrderKind::Buy, TradeRole::Buyer),
+        None => return false,
+    };
+    let Some(db) = crate::db::app_db::db() else {
+        return false;
+    };
+    if matches!(db.get_trade_by_order_id(order_id).await, Ok(Some(_))) {
+        return false;
+    }
+    let is_range = order.min_amount.is_some() && order.max_amount.is_some();
+    let now = crate::rt::unix_now();
+    let info = OrderInfo {
+        id: order_id.to_string(),
+        kind: order_kind,
+        status: OrderStatus::Pending,
+        amount_sats: (order.amount > 0).then_some(order.amount as u64),
+        fiat_amount: (!is_range).then_some(order.fiat_amount as f64),
+        fiat_amount_min: order.min_amount.map(|v| v as f64),
+        fiat_amount_max: order.max_amount.map(|v| v as f64),
+        fiat_code: order.fiat_code.clone(),
+        payment_method: order.payment_method.clone(),
+        premium: order.premium as f64,
+        creator_pubkey: trade_pubkey_hex.to_string(),
+        created_at: order.created_at.unwrap_or(now),
+        expires_at: order.expires_at,
+        is_mine: true,
+        rating: 0.0,
+        total_reviews: 0,
+        days_active: 0,
+    };
+    let step = match role {
+        TradeRole::Seller => {
+            crate::api::types::TradeStep::Seller(crate::api::types::SellerStep::OrderPublished)
+        }
+        TradeRole::Buyer => {
+            crate::api::types::TradeStep::Buyer(crate::api::types::BuyerStep::OrderTaken)
+        }
+    };
+    let trade = crate::api::types::TradeInfo {
+        id: order_id.to_string(),
+        order: info,
+        role,
+        counterparty_pubkey: String::new(),
+        current_step: step,
+        hold_invoice: None,
+        buyer_invoice: None,
+        trade_key_index: trade_index,
+        cooperative_cancel_state: None,
+        timeout_at: None,
+        started_at: now,
+        completed_at: None,
+        outcome: None,
+        peer_rating: None,
+        peer_reviews: None,
+        peer_days: None,
+        rated_at: None,
+    };
+    store_trade_key_index(order_id, trade_index).await;
+    if let Err(e) = db.save_trade(&trade).await {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "range remainder order={} not persisted: {e}",
+                crate::api::logging::short_id(order_id),
+            ),
+        );
+        return false;
+    }
+    crate::api::logging::blog_info(
+        "orders",
+        format!(
+            "adopted range remainder order={} trade_index={trade_index} src=kind14/NewOrder",
+            crate::api::logging::short_id(order_id),
+        ),
+    );
+    emit_trade_update(order_id, OrderStatus::Pending);
+    true
 }
 
 /// Cancel an active trade cooperatively.
@@ -2004,6 +2142,14 @@ async fn dispatch_mostro_message(
                              local={local_uuid} daemon={daemon_id}"
                         ));
                     }
+                } else if adopt_range_remainder(&daemon_id, kind, trade_pubkey_hex, trade_index)
+                    .await
+                {
+                    // What was left of a range this client sold, now its own
+                    // pending order under the next trade key.
+                } else if resync_republished_maker_order(&daemon_id, kind, event_ts).await {
+                    // The taker walked away (cancel or timeout) and the daemon
+                    // put the order back on the book under the same id.
                 } else {
                     // Cold start / reconnect (no record — in-memory state is
                     // empty after a restart), or an uncorrelated event that
@@ -2572,6 +2718,71 @@ async fn dispatch_mostro_message(
 
 /// Current locally known status for a trade: the DB row when present
 /// (authoritative across restarts), else the in-memory book entry.
+/// The daemon also sends `new-order` to the maker of a taken order it put
+/// back on the book: the taker cancelled, or let the waiting window lapse,
+/// and the order is pending again under the same id (mostrod's cancel path
+/// republishes and then notifies the maker with the order payload).
+///
+/// A trade this client still holds in a waiting state is synced back to
+/// `Pending` right away — the stale sweep would do the same, but only after
+/// its 30-minute cadence and 15-minute minimum age, so until then My Trades
+/// and the trade detail kept showing a take that no longer exists. A trade
+/// this client never held, one already past the waiting states, or a stale
+/// replay is left alone. Returns whether the trade was resynced.
+async fn resync_republished_maker_order(
+    order_id: &str,
+    kind: &mostro_core::message::MessageKind,
+    event_ts: i64,
+) -> bool {
+    let republished_pending = matches!(
+        &kind.payload,
+        Some(mostro_core::message::Payload::Order(order))
+            if order.status == Some(mostro_core::order::Status::Pending)
+    );
+    if !republished_pending {
+        return false;
+    }
+    let Some(local) = current_local_status(order_id).await else {
+        return false;
+    };
+    if !matches!(
+        local,
+        OrderStatus::WaitingPayment | OrderStatus::WaitingBuyerInvoice | OrderStatus::InProgress
+    ) {
+        return false;
+    }
+    if status_write_blocked(order_id, &kind.action, event_ts).await {
+        return false;
+    }
+    record_status_event(order_id, event_ts).await;
+    crate::api::logging::blog_info(
+        "orders",
+        format!(
+            "status order={} {local:?}→Pending src=kind14/NewOrder (taker walked away, order republished)",
+            crate::api::logging::short_id(order_id),
+        ),
+    );
+    order_book()
+        .update_order_status(order_id, OrderStatus::Pending)
+        .await;
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db
+            .update_trade_fields(order_id, Some(OrderStatus::Pending), None, None)
+            .await
+        {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "republished status not persisted for order={}: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+        }
+    }
+    emit_trade_update(order_id, OrderStatus::Pending);
+    true
+}
+
 async fn current_local_status(order_id: &str) -> Option<OrderStatus> {
     if let Some(db) = crate::db::app_db::db() {
         if let Ok(Some(trade)) = db.get_trade_by_order_id(order_id).await {
@@ -6728,6 +6939,272 @@ mod tests {
             Some(16),
             "fingerprint restore must not overwrite the create-time trade index",
         );
+    }
+
+    /// A taken order whose taker walks away comes back to the maker as a
+    /// `new-order` carrying the order in `pending`, under the same id and
+    /// with no create waiting for it. The trade the maker holds at
+    /// `waiting-payment` must follow the book back to pending right away,
+    /// not half an hour later when the stale sweep gets to it.
+    #[tokio::test]
+    async fn a_republished_maker_order_returns_to_pending_on_new_order() {
+        use mostro_core::message::{Action, Message, Payload};
+
+        let path =
+            std::env::temp_dir().join(format!("mostro_republished_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut order_info = dummy_order_info(&order_id);
+        order_info.kind = crate::api::types::OrderKind::Sell;
+        order_info.status = crate::api::types::OrderStatus::WaitingPayment;
+        order_info.is_mine = true;
+        order_book().upsert_order(order_info.clone()).await;
+        db.save_trade(&crate::api::types::TradeInfo {
+            id: order_id.clone(),
+            order: order_info,
+            role: TradeRole::Seller,
+            counterparty_pubkey: String::new(),
+            current_step: crate::api::types::TradeStep::Seller(
+                crate::api::types::SellerStep::OrderPublished,
+            ),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 7,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        })
+        .await
+        .expect("save the trade row");
+        let mut rx = trade_updates_tx().subscribe();
+
+        let republished = mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Pending),
+            1000,
+            "ARS".to_string(),
+            None,
+            None,
+            1000,
+            "cash".to_string(),
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        let unwrapped = mostro_core::nip59::UnwrappedMessage {
+            message: Message::new_order(
+                Some(order_uuid),
+                None,
+                None,
+                Action::NewOrder,
+                Some(Payload::Order(republished)),
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::now(),
+        };
+        dispatch_mostro_message(unwrapped, "test-republish", "ff00ff07", 7).await;
+
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row kept");
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Pending);
+        let mut emitted = false;
+        while let Ok(update) = rx.try_recv() {
+            if update.order_id == order_id
+                && update.status == crate::api::types::OrderStatus::Pending
+            {
+                emitted = true;
+            }
+        }
+        assert!(emitted, "the UI must learn the order is pending again");
+    }
+
+    /// A release must know whether it leaves a remainder: a missing trade
+    /// row is an error, a fixed order or a taker's trade is `None`, and only
+    /// a range order this client sold names a key.
+    #[tokio::test]
+    async fn the_next_trade_key_fails_closed_without_a_trade_row() {
+        let path =
+            std::env::temp_dir().join(format!("mostro_next_trade_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let unknown = uuid::Uuid::new_v4().to_string();
+        assert!(next_trade_for_range_remainder(&unknown).await.is_err());
+
+        let fixed_id = uuid::Uuid::new_v4().to_string();
+        let mut fixed = dummy_order_info(&fixed_id);
+        fixed.kind = crate::api::types::OrderKind::Sell;
+        fixed.is_mine = true;
+        let row = |id: &str, order: crate::api::types::OrderInfo, role: TradeRole| {
+            crate::api::types::TradeInfo {
+                id: id.to_string(),
+                order,
+                role,
+                counterparty_pubkey: String::new(),
+                current_step: crate::api::types::TradeStep::Seller(
+                    crate::api::types::SellerStep::OrderPublished,
+                ),
+                hold_invoice: None,
+                buyer_invoice: None,
+                trade_key_index: 1,
+                cooperative_cancel_state: None,
+                timeout_at: None,
+                started_at: 1,
+                completed_at: None,
+                outcome: None,
+                peer_rating: None,
+                peer_reviews: None,
+                peer_days: None,
+                rated_at: None,
+            }
+        };
+        db.save_trade(&row(&fixed_id, fixed, TradeRole::Seller))
+            .await
+            .expect("save");
+        assert_eq!(
+            next_trade_for_range_remainder(&fixed_id).await.unwrap(),
+            None,
+            "a fixed order leaves nothing behind"
+        );
+
+        let taken_id = uuid::Uuid::new_v4().to_string();
+        let mut taken_range = dummy_order_info(&taken_id);
+        taken_range.kind = crate::api::types::OrderKind::Buy;
+        taken_range.fiat_amount_min = Some(10.0);
+        taken_range.fiat_amount_max = Some(30.0);
+        taken_range.is_mine = false;
+        db.save_trade(&row(&taken_id, taken_range, TradeRole::Seller))
+            .await
+            .expect("save");
+        assert_eq!(
+            next_trade_for_range_remainder(&taken_id).await.unwrap(),
+            None,
+            "a taker's release leaves nothing behind"
+        );
+    }
+
+    /// The remainder of a range order arrives at the next trade key as a
+    /// `new-order` no create is waiting for, carrying that key's trade
+    /// index: it is this client's own pending order, listed and bound to
+    /// the key.
+    #[tokio::test]
+    async fn a_range_remainder_addressed_to_the_next_trade_key_is_adopted() {
+        use mostro_core::message::{Action, Message, Payload};
+
+        let path = std::env::temp_dir().join(format!("mostro_remainder_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let mut rx = trade_updates_tx().subscribe();
+
+        let child_uuid = uuid::Uuid::new_v4();
+        let child_id = child_uuid.to_string();
+        let next_key = "ab".repeat(32);
+        let remainder = mostro_core::order::SmallOrder::new(
+            Some(child_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Pending),
+            0,
+            "ARS".to_string(),
+            None,
+            None,
+            1000,
+            "cash".to_string(),
+            0,
+            None,
+            Some(next_key.clone()),
+            None,
+            Some(1_700_000_000),
+            Some(1_700_003_600),
+        );
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        let unwrapped = mostro_core::nip59::UnwrappedMessage {
+            message: Message::new_order(
+                Some(child_uuid),
+                None,
+                Some(9),
+                Action::NewOrder,
+                Some(Payload::Order(remainder)),
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::now(),
+        };
+        dispatch_mostro_message(unwrapped, "test-remainder", &next_key, 9).await;
+
+        let row = db
+            .get_trade_by_order_id(&child_id)
+            .await
+            .expect("lookup")
+            .expect("the remainder is a trade of ours");
+        assert_eq!(row.role, TradeRole::Seller);
+        assert_eq!(row.trade_key_index, 9);
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Pending);
+        assert!(row.order.is_mine);
+        assert_eq!(row.order.fiat_amount, Some(1000.0));
+        assert_eq!(get_trade_key_index(&child_id).await, Some(9));
+        assert!(rx.try_recv().is_ok(), "the UI learns about the new trade");
+
+        // A new-order whose trade index is not this key's is not an order
+        // the daemon assigned to it: nothing is adopted.
+        let other_uuid = uuid::Uuid::new_v4();
+        let foreign = mostro_core::order::SmallOrder::new(
+            Some(other_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Pending),
+            0,
+            "ARS".to_string(),
+            None,
+            None,
+            1000,
+            "cash".to_string(),
+            0,
+            None,
+            Some("cd".repeat(32)),
+            None,
+            None,
+            None,
+        );
+        let unwrapped = mostro_core::nip59::UnwrappedMessage {
+            message: Message::new_order(
+                Some(other_uuid),
+                None,
+                Some(3),
+                Action::NewOrder,
+                Some(Payload::Order(foreign)),
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::now(),
+        };
+        dispatch_mostro_message(unwrapped, "test-foreign", &next_key, 9).await;
+        assert!(db
+            .get_trade_by_order_id(&other_uuid.to_string())
+            .await
+            .expect("lookup")
+            .is_none());
     }
 
     /// The flip side of #326: with no prior mapping (genuine cold start, where

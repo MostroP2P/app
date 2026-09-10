@@ -164,16 +164,29 @@ pub async fn release(
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    next_trade: Option<(String, u32)>,
 ) -> Result<String> {
-    simple_action(
-        identity_keys,
-        trade_keys,
-        mostro_pubkey,
-        order_id,
-        trade_index,
+    let msg = release_message(order_id, trade_index, next_trade)?;
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
+/// The Release message. A range order's seller names the trade key the
+/// daemon must hand the remainder to (`NextTrade`): without it the daemon
+/// settles the trade but never publishes what is left of the range.
+pub(crate) fn release_message(
+    order_id: &str,
+    trade_index: u32,
+    next_trade: Option<(String, u32)>,
+) -> Result<Message> {
+    let id = Uuid::parse_str(order_id)?;
+    let payload = next_trade.map(|(pubkey, index)| Payload::NextTrade(pubkey, index));
+    Ok(Message::new_order(
+        Some(id),
+        None,
+        Some(trade_index as i64),
         Action::Release,
-    )
-    .await
+        payload,
+    ))
 }
 
 /// Build and wrap a Cancel MostroMessage.
@@ -462,6 +475,23 @@ pub async fn last_trade_index(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The seller of a range order releases with the key the daemon must
+    /// assign the remainder to; an ordinary release carries no payload.
+    #[test]
+    fn release_names_the_next_trade_key_only_for_a_range_remainder() {
+        let id = Uuid::new_v4().to_string();
+        let plain = release_message(&id, 3, None).unwrap();
+        assert_eq!(plain.get_inner_message_kind().get_next_trade_key().unwrap(), None);
+
+        let with_next = release_message(&id, 3, Some(("ab".repeat(32), 4))).unwrap();
+        let kind = with_next.get_inner_message_kind();
+        assert_eq!(kind.action, Action::Release);
+        assert_eq!(
+            kind.get_next_trade_key().unwrap(),
+            Some(("ab".repeat(32), 4))
+        );
+    }
 
     /// The NIP-13 target difficulty the event was mined at, read from its
     /// nonce tag (`["nonce", "<nonce>", "<target>"]`), or `None` when the
