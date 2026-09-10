@@ -535,7 +535,7 @@
   "@aboutCommitHashLabel": {"description": "About screen — Commit Hash row label"},
   "aboutLicenseLabel": "License",
   "@aboutLicenseLabel": {"description": "About screen — License row label"},
-  "aboutLicenseName": "AGPLv3",
+  "aboutLicenseName": "AGPLv3+",
   "@aboutLicenseName": {"description": "About screen — License name value"},
   "aboutGithubRepoName": "MostroP2P/app",
   "@aboutGithubRepoName": {"description": "About screen — GitHub repository display name"},

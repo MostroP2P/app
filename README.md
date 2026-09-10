@@ -633,7 +633,7 @@ We aim to acknowledge reports within 72 hours and provide a fix within 30 days f
 
 ## License
 
-GNU Affero General Public License v3.0
+GNU Affero General Public License v3.0 or later
 
 See [LICENSE](LICENSE) for the full text.
 

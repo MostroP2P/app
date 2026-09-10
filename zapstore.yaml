@@ -25,7 +25,7 @@ tags:
     - nostr
     - cryptography
     - freedom-tech
-license: AGPL-3.0-only
+license: AGPL-3.0-or-later
 website: https://mostro.network
 # TODO: assets/images/wt-*.png are 817-byte placeholder PNGs, not real
 # screenshots. Populate with real store screenshots before publishing.

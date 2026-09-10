@@ -19,7 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// `web/coi-serviceworker.LICENSE` are vendored third-party MIT code and keep
 /// their own licence, as do the dependencies nested in the npm lockfile.
 void main() {
-  const spdx = 'AGPL-3.0-only';
+  const spdx = 'AGPL-3.0-or-later';
 
   group('repository licence', () {
     test('LICENSE holds the AGPLv3 text, not GPLv3 or MIT', () {
@@ -94,7 +94,7 @@ void main() {
       final section = readme.substring(readme.indexOf('## License'));
 
       // Act / Assert
-      expect(section, contains('GNU Affero General Public License v3'));
+      expect(section, contains('GNU Affero General Public License v3.0 or later'));
       expect(section, isNot(contains('MIT License')));
     });
 
@@ -111,14 +111,16 @@ void main() {
         source.indexOf("''';", start),
       );
 
-      // Act / Assert — `AGPL-3.0-only` means the notice must name the Affero
-      // licence and must not offer the upgrade path to later versions.
+      // Act / Assert — `AGPL-3.0-or-later` means the notice must name the
+      // Affero licence and must keep the upgrade path open. Dropping the
+      // clause would quietly narrow the grant to version 3 alone while every
+      // manifest still advertised or-later.
       expect(notice, contains('GNU Affero General Public License'));
       expect(notice, isNot(contains('Permission is hereby granted')));
-      expect(notice, isNot(contains('any later version')));
+      expect(notice, contains('any later version'));
     });
 
-    test('every locale labels the licence AGPLv3', () {
+    test('every locale labels the licence AGPLv3+', () {
       // Arrange
       final locales = ['en', 'es', 'fr', 'de', 'it'];
 
@@ -129,7 +131,7 @@ void main() {
 
         // Act / Assert — a locale left behind shows the wrong licence to
         // exactly the users who cannot read the English README.
-        expect(arb['aboutLicenseName'], 'AGPLv3', reason: 'locale $locale');
+        expect(arb['aboutLicenseName'], 'AGPLv3+', reason: 'locale $locale');
         expect(
           arb['aboutLicenseDialogTitle'] as String,
           contains('Affero'),

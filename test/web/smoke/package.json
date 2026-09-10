@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Headless-Chrome smoke test for the release web bundle (issue #154).",
-  "license": "AGPL-3.0-only",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "smoke": "node smoke.mjs"

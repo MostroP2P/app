@@ -39,10 +39,11 @@ const _docsTechUrl = 'https://mostro.network/protocol/';
 /// (<https://www.gnu.org/licenses/translations.html>), so every locale shows
 /// the English original and only the dialog's title is translated.
 ///
-/// The project is `AGPL-3.0-only`, so the notice names version 3 and omits the
-/// "or (at your option) any later version" clause the FSF boilerplate carries.
-/// The full 661-line text ships in the repository's `LICENSE` file and at the
-/// URL below rather than in the app bundle.
+/// The project is `AGPL-3.0-or-later`, so the notice keeps the FSF's "or (at
+/// your option) any later version" clause: the project can adopt a future
+/// version of the licence without collecting every contributor's consent, and
+/// `LICENSE` still ships version 3 as the terms in force today. The full
+/// 661-line text lives there and at the URL below, not in the app bundle.
 ///
 /// AGPL section 13 asks a program that interacts with users over a network to
 /// offer them its source. This screen's repository link is that offer, which
@@ -52,7 +53,8 @@ Copyright (C) 2024 Mostro
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, version 3.
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
