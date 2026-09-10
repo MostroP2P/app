@@ -117,6 +117,7 @@ What the test environment changes:
 | Marker | A red `TEST ENVIRONMENT · Mortsom` banner is shown on every screen, carrying `env.marker`. The harness refuses to run against a build without it. |
 | Node | `MOSTRO_PUB_KEY` selects the daemon under test, applied before the relay pool starts and only when no node was ever chosen — so a restart keeps whatever the run picked through the UI. Without it the first subscriptions would target the production node, which cannot decrypt them, and the app would look silently idle. A malformed key is ignored rather than passed to the bridge. |
 | Startup | Missing `MORTSOM_RELAYS` fails at startup naming the define, instead of starting against the public relays and passing a test that never reached the daemon under test. |
+| Order expiry | `MORTSOM_ORDER_EXPIRY_SECS` (optional) makes every order this build creates ask the daemon to expire it that many seconds after creation, the way the protocol lets any maker do; the daemon caps it by its `max_expiration_days`. Without it the daemon's own default applies (an hour), which is what a scenario about the daemon's pending-order clock cannot wait out. Ignored outside the test environment. |
 
 Both entry points go through `bootstrapAndRun` in `lib/core/app_bootstrap.dart`,
 so a test build and a production build differ only in what they pass, never in

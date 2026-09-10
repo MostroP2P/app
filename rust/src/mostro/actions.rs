@@ -37,7 +37,20 @@ pub async fn new_order(
     params: &NewOrderParams,
     trade_index: u32,
     request_id: u64,
+    expires_at: Option<i64>,
 ) -> Result<String> {
+    let msg = new_order_message(params, trade_index, request_id, expires_at);
+    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
+/// The NewOrder message. `expires_at` is the unix time the maker asks the
+/// daemon to expire the untaken order at; `None` leaves it to the daemon.
+pub(crate) fn new_order_message(
+    params: &NewOrderParams,
+    trade_index: u32,
+    request_id: u64,
+    expires_at: Option<i64>,
+) -> Message {
     use mostro_core::order::{Kind, SmallOrder, Status};
 
     let kind = match params.kind {
@@ -65,18 +78,17 @@ pub async fn new_order(
         None,
         None,
         None,
-        None,
+        expires_at,
     );
 
     let payload = Some(Payload::Order(small_order));
-    let msg = Message::new_order(
+    Message::new_order(
         None,
         Some(request_id),
         Some(trade_index as i64),
         Action::NewOrder,
         payload,
-    );
-    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+    )
 }
 
 /// Build and wrap a TakeBuy MostroMessage.
@@ -481,6 +493,31 @@ pub async fn last_trade_index(
 mod tests {
     use super::*;
 
+    /// A new order carries the expiry the maker asks for, and none when the
+    /// daemon's default is wanted.
+    #[test]
+    fn a_new_order_carries_the_requested_expiry_only_when_given() {
+        let params = NewOrderParams {
+            kind: OrderKind::Sell,
+            fiat_amount: Some(10.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "USD".into(),
+            payment_method: "cash".into(),
+            premium: 0.0,
+            amount_sats: Some(1000),
+        };
+        let expiry_of = |msg: Message| match msg.get_inner_message_kind().payload.clone() {
+            Some(Payload::Order(order)) => order.expires_at,
+            other => panic!("not an order payload: {other:?}"),
+        };
+        assert_eq!(expiry_of(new_order_message(&params, 1, 7, None)), None);
+        assert_eq!(
+            expiry_of(new_order_message(&params, 1, 7, Some(1_800_000_600))),
+            Some(1_800_000_600)
+        );
+    }
+
     /// The seller of a range order releases with the key the daemon must
     /// assign the remainder to; an ordinary release carries no payload.
     #[test]
@@ -561,6 +598,7 @@ mod tests {
                 &sample_params(),
                 3,
                 42,
+                None,
             )
             .await
             .unwrap();
@@ -666,6 +704,7 @@ mod tests {
             &params,
             3,
             42,
+            None,
         )
         .await
         .unwrap();

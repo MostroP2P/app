@@ -5,8 +5,8 @@
 /// any active [`SettingsStream`] so the UI can react without polling.
 use anyhow::{bail, Result};
 use std::sync::OnceLock;
-use tokio::sync::{broadcast, RwLock};
 use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{AppSettings, ThemeMode};
 use crate::db::Storage;
@@ -114,9 +114,7 @@ fn validate_lightning_address(address: &str) -> Result<()> {
             && labels.iter().all(|label| {
                 !label.is_empty()
                     && label.len() <= 63
-                    && label
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+                    && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
                     && !label.starts_with('-')
                     && !label.ends_with('-')
             });
@@ -182,6 +180,18 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
 }
 
 /// Return the currently active Mostro node pubkey (override or default).
+/// Mortsom test environment only: every order this client creates asks
+/// the daemon to expire it `secs` after creation (`MORTSOM_ORDER_EXPIRY_SECS`),
+/// so a scenario about the daemon's pending-order clock does not wait out
+/// the daemon's hour-granular default. `None` restores that default. The
+/// daemon caps the value by its `max_expiration_days`.
+pub fn set_test_order_expiry(secs: Option<u64>) {
+    // Bounded so `now + secs` stays a valid unix time: a value past
+    // `i64::MAX` would wrap the requested expiry into the past.
+    let bounded = secs.filter(|s| *s > 0 && i64::try_from(*s).is_ok());
+    crate::config::set_order_expiry_override(bounded);
+}
+
 pub fn get_mostro_pubkey() -> String {
     crate::config::active_mostro_pubkey()
 }
@@ -338,7 +348,9 @@ mod tests {
     #[tokio::test]
     async fn set_default_fiat_code_valid() {
         let _g = settings_lock().lock().unwrap();
-        set_default_fiat_code(Some("USD".to_string())).await.unwrap();
+        set_default_fiat_code(Some("USD".to_string()))
+            .await
+            .unwrap();
         let s = get_settings().await.unwrap();
         assert_eq!(s.default_fiat_code.as_deref(), Some("USD"));
         set_default_fiat_code(None).await.unwrap();
@@ -355,7 +367,9 @@ mod tests {
     #[tokio::test]
     async fn set_default_fiat_code_none_clears() {
         let _g = settings_lock().lock().unwrap();
-        set_default_fiat_code(Some("EUR".to_string())).await.unwrap();
+        set_default_fiat_code(Some("EUR".to_string()))
+            .await
+            .unwrap();
         set_default_fiat_code(None).await.unwrap();
         let s = get_settings().await.unwrap();
         assert!(s.default_fiat_code.is_none());
