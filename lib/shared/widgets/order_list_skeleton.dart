@@ -6,23 +6,23 @@ import 'package:mostro/l10n/app_localizations.dart';
 
 /// Shimmer skeleton shown while the order book is loading.
 ///
-/// Renders 5 placeholder cards per DESIGN_SYSTEM.md §9.1.
-/// Colors: baseColor #1E2230, highlightColor #2A2D35.
+/// Renders 5 placeholder cards matching the redesigned order card's
+/// [OrderBookPalette] surfaces, radius, and list spacing in both themes.
 class OrderListSkeleton extends StatelessWidget {
   const OrderListSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final pal = OrderBookPalette.of(context);
     return Semantics(
       label: AppLocalizations.of(context).loadingOrders,
       child: Shimmer.fromColors(
-        baseColor: const Color(0xFF1E2230),
-        highlightColor: const Color(0xFF2A2D35),
+        // Card tone over the lighter list well, pulsing toward the inner
+        // panel tone — matches how a loaded card sits on [bgWell].
+        baseColor: pal.bgCard,
+        highlightColor: pal.bgElevated,
         child: ListView.builder(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.sm,
-          ),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
           itemCount: 5,
           itemBuilder: (_, __) => const _SkeletonCard(),
         ),
@@ -34,16 +34,17 @@ class OrderListSkeleton extends StatelessWidget {
 class _SkeletonCard extends StatelessWidget {
   const _SkeletonCard();
 
-  static const double _height = 100;
+  /// Approximate height of a rendered order card.
+  static const double _height = 172;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: _height,
-      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs + 2),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(20),
       ),
     );
   }

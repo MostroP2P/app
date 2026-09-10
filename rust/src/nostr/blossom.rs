@@ -153,7 +153,7 @@ async fn try_upload(
                     .tag(Tag::parse(["t", "upload"])?)
                     .tag(Tag::parse(["x", sha256])?)
                     .tag(Tag::parse(["expiration", &expiration.to_string()])?)
-                    .sign_with_keys(&keys)?;
+                    .finalize(&keys)?;
 
                     let event_json = event.as_json();
                     Some(format!("Nostr {}", STANDARD.encode(event_json)))

@@ -342,7 +342,7 @@ Every phase, without exception, carries these standing requirements:
 *Stacked under: nothing. Parallel with C1, C2. Blocks C4, C5.*
 
 - Bump `rust/Cargo.toml` `mostro-core = "0.14"`; fix any compile breakage in
-  `rust/src/mostro/actions.rs`, `rust/src/api/orders.rs`, `rust/src/nostr/gift_wrap.rs`.
+  `rust/src/mostro/actions.rs`, `rust/src/api/orders.rs`, `rust/src/nostr/transport.rs`.
 - **Verify and document the exact serde wire form** of `Action::AddCashuEscrow`,
   `Payload::CashuLockProof`, `Payload::CashuSignatures`, and the new `CantDoReason`
   variants (update §2 of this doc if the JSON example differs).
@@ -398,12 +398,22 @@ hard prerequisite, not a nice-to-have.
 - `rust/src/cashu/mod.rs` — `CashuWallet`:
   - `connect(mint_url)` — reachability + **required NUTs 07/11/12** + `sat` keyset
     (mirror of daemon `CashuClient::connect`);
-  - `balance()`, `receive_token(encoded)` (swap-in, DLEQ-verified),
-    `create_token(amount)` (send/export), `check_proofs_state()` (NUT-07);
+  - `balance()`, `receive_token(encoded)` (swap-in; DLEQ verified **before** the
+    swap — cdk's own receive path skips a proof that carries none),
+    `create_token(amount)` (send/export), `sweep_spent_proofs()` (NUT-07);
+  - the sweep is housekeeping, **not** recovery: cdk's state check ignores proofs
+    an operation reserved, so an unredeemed token of ours is not reclaimed by it.
+    Reclaiming one (`get_pending_sends` + `revoke_send`) is C10 — the single
+    exception here is a send whose `confirm` fails, which revokes its own
+    operation rather than leaving the proofs stranded;
   - proof storage via `cdk-sqlite` in the app data dir (own DB file; never mixes with
     the app's sqlite schema).
-- `rust/src/api/cashu.rs` — FRB: `cashu_connect_status`, `cashu_get_balance`,
-  `cashu_receive_token`, `cashu_create_token`, `on_cashu_wallet_changed` stream.
+- `rust/src/api/cashu.rs` — FRB: `cashu_connect`, `cashu_status`,
+  `cashu_disconnect`, `cashu_get_balance`, `cashu_receive_token`,
+  `cashu_create_token`, `cashu_sweep_spent_proofs`, `on_cashu_wallet_changed`
+  stream. Every operating call checks that the wallet is still bound to the mint
+  the *active* node resolves to (`CashuMintChanged`), not merely that the node
+  speaks Cashu.
 - Wallet initializes **lazily and only when** resolved mode == Cashu (from C1 when
   merged; behind a plain function parameter until then — no hard dependency).
 - Unit tests against a mocked/local mint where feasible; integration test target
@@ -446,9 +456,17 @@ The cryptographic heart, kept UI-free so review can focus on correctness:
     `n_sigs_refund=1`);
   - `build_fee_token(fee_amount, p_m)` — P2PK 1-of-1 to `P_M`, value `2 * order.fee`;
   - `verify_escrow_token(token, p_b, p_s, p_m, amount, min_locktime)` — client-side
-    mirror of the daemon's composite check (defense in depth before submitting);
-  - `sign_proofs(token, trade_secret_key) -> Vec<CashuProofSignature>` — BIP-340
-    signatures over each proof secret (seller release / buyer coop-cancel);
+    mirror of the daemon's composite check (defense in depth before submitting):
+    the 2-of-3 condition on **every** proof, mint, unit, amount, DLEQ (NUT-12) and
+    NUT-07 unspent — a point-in-time statement, not a guarantee the proofs stay so;
+  - `sign_proofs(token, trade_secret_key, p_b, p_s, p_m, amount, min_locktime) ->
+    Vec<CashuProofSignature>` — BIP-340 signatures over each proof secret (seller
+    release / buyer coop-cancel). **Always verifies the token first, with no
+    unchecked form**: under `SIG_INPUTS` a signature commits to the secret alone,
+    so signing a counterparty-supplied decoy that reuses the escrow's secrets
+    would release the real escrow. Corollary for C6/C7: a release signature and a
+    coop-cancel signature over the same escrow authorise the same spend, so no
+    party may ever produce both for one escrow;
   - `combine_and_redeem(token, own_key, peer_signatures)` — attach both signatures,
     swap at the mint into fresh unconditional proofs (buyer release / seller reclaim);
   - `reclaim_after_locktime(token, seller_key)` — refund path spend.
@@ -521,15 +539,22 @@ actions and screens; C5 established all shared plumbing.
 
 - **Seller release:** on confirm (existing release UI), FRB `release_cashu(order_id)`:
   sign escrow proofs with `P_S` (C4 `sign_proofs`) → send `Payload::CashuSignatures`
-  **directly to the buyer's trade pubkey via NIP-59 gift wrap** (`wrap`/`unwrap` in
-  `rust/src/nostr/gift_wrap.rs` — peer-to-peer path, same channel as peer chat, *not*
-  the Kind-14 daemon transport) → then send `Action::Release` to mostrod (state update
-  only, per upstream Track B).
-- **Buyer redemption:** new arm in the gift-wrap handler
-  (`handle_global_gift_wrap` / peer message path): on receiving `CashuSignatures` for
-  an active order, **persist signatures first**, then `combine_and_redeem` (C4) into
-  the wallet; mark trade success; handle late arrival (buyer offline — signatures wait
-  in the NIP-59 inbox; redeem on next startup scan of unredeemed trades).
+  **directly to the buyer over the peer chat envelope** (`mostro_wrap`/`mostro_unwrap`
+  in `rust/src/nostr/transport.rs` — same channel as peer chat, *not* the Kind-14
+  daemon transport) → then send `Action::Release` to mostrod (state update only, per
+  upstream Track B).
+
+  This deliberately does **not** use NIP-59 gift wrap. The raw `wrap`/`unwrap`
+  helpers this section originally named were removed along with every other
+  protocol-v1 path: an ephemeral-authored 1059 carrying spendable signatures is
+  exactly the unattributable-injection shape the envelope was adopted to close
+  (#246). The envelope pins the author to the conversation key, so the buyer can
+  tell a real signature payload from a stranger's.
+- **Buyer redemption:** new arm in the peer-chat receive path: on receiving
+  `CashuSignatures` for an active order, **persist signatures first**, then
+  `combine_and_redeem` (C4) into the wallet; mark trade success; handle late arrival
+  (buyer offline — signatures wait on the relay within the chat subscription's
+  cursor window; redeem on next startup scan of unredeemed trades).
 - **Locktime margin guard (upstream Track B obligation):** before letting the buyer
   send `fiat-sent`, warn/block when remaining locktime < `cashu_settlement_margin_days`
   (from C1 tags), matching the daemon's rejection.

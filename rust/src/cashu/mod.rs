@@ -93,7 +93,7 @@ impl CashuWallet {
         anyhow::bail!("CashuUnsupportedOnWeb")
     }
 
-    pub async fn check_proofs_state(&self) -> anyhow::Result<u64> {
+    pub async fn sweep_spent_proofs(&self) -> anyhow::Result<()> {
         anyhow::bail!("CashuUnsupportedOnWeb")
     }
 }

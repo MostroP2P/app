@@ -207,7 +207,12 @@ Future<ChatRoomState?> tradeInfoToChatRoom(
   // Fetch persisted messages to populate last-message preview.
   List<rust_types.ChatMessage> msgs;
   try {
-    msgs = await messages_api.getMessages(tradeId: trade.order.id);
+    // Peer messages only: the room preview and unread badge describe the
+    // buyer<->seller conversation, not the dispute channel that shares the
+    // order key (PR #254 review).
+    msgs = (await messages_api.getMessages(tradeId: trade.order.id))
+        .where((m) => m.messageType == rust_types.MessageType.peer)
+        .toList();
   } catch (_) {
     msgs = const [];
   }
@@ -273,5 +278,8 @@ final incomingMessageProvider =
 /// updates via [incomingMessageProvider].
 final messageHistoryProvider =
     FutureProvider.autoDispose.family<List<rust_types.ChatMessage>, String>(
-  (ref, tradeId) => messages_api.getMessages(tradeId: tradeId),
+  // Peer messages only — this feeds the peer chat room (PR #254 review).
+  (ref, tradeId) async => (await messages_api.getMessages(tradeId: tradeId))
+      .where((m) => m.messageType == rust_types.MessageType.peer)
+      .toList(),
 );

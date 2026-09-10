@@ -28,6 +28,9 @@ class PushNotificationService {
   FirebaseMessaging get _fcm => _fcmInstance ??= FirebaseMessaging.instance;
   String? _token;
   bool _initialized = false;
+
+  /// Guards [initialize] against a second run attaching duplicate listeners.
+  bool _initStarted = false;
   SharedPreferences? _cachedPrefs;
   final Set<String> _registeredTradePubkeys = {};
 
@@ -36,6 +39,13 @@ class PushNotificationService {
 
   Future<void> initialize({ProviderContainer? container}) async {
     if (!_isSupported) return;
+    // Steps 4, 5 and 7 below attach stream listeners that are never
+    // cancelled, so a second run would double every foreground notification
+    // and every token re-registration. This is a separate flag from
+    // `_initialized`, which means "there is a token to delete" and must stay
+    // false on the paths that bail out below.
+    if (_initStarted) return;
+    _initStarted = true;
 
     // Bail out if Firebase hasn't been initialized (placeholder firebase_options).
     try {

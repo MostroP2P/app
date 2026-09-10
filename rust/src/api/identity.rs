@@ -14,6 +14,8 @@
 use anyhow::{anyhow, bail, Result};
 use nostr_sdk::prelude::*;
 use std::sync::OnceLock;
+use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::RwLock;
 
 use crate::api::types::{IdentityInfo, NymIdentity};
@@ -31,6 +33,62 @@ struct IdentityState {
 fn identity_lock() -> &'static RwLock<Option<IdentityState>> {
     static IDENTITY: OnceLock<RwLock<Option<IdentityState>>> = OnceLock::new();
     IDENTITY.get_or_init(|| RwLock::new(None))
+}
+
+// ── Trade-key counter publication ────────────────────────────────────────────
+
+/// Derivations are rare and Dart consumes them immediately; a small buffer is
+/// ample. `Lagged` is skipped rather than fatal, and the counter is monotonic,
+/// so a skipped value is superseded by the next one.
+const TRADE_KEY_INDEX_CHANNEL_CAPACITY: usize = 16;
+
+fn trade_key_index_tx() -> &'static broadcast::Sender<u32> {
+    static TX: OnceLock<broadcast::Sender<u32>> = OnceLock::new();
+    TX.get_or_init(|| broadcast::channel(TRADE_KEY_INDEX_CHANNEL_CAPACITY).0)
+}
+
+/// Publishes a consumed trade-key index so Flutter can mirror it into secure
+/// storage — the one store that survives loss of `mostro.db` (issue #249).
+/// Send failures mean nobody is listening yet, which is not an error: the DB
+/// row remains the primary record and load-time reconciliation catches up.
+///
+/// The channel is a parameter rather than the global so tests can assert on
+/// their own, giving each one a stream nothing else publishes to.
+fn publish_index(tx: &broadcast::Sender<u32>, index: u32) {
+    let _ = tx.send(index);
+}
+
+/// A stream of consumed trade-key indices for the Dart layer to persist.
+pub struct TradeKeyIndexStream {
+    rx: broadcast::Receiver<u32>,
+}
+
+impl TradeKeyIndexStream {
+    /// Poll for the next consumed index.
+    ///
+    /// `RecvError::Lagged` is skipped: the counter only moves forward, so the
+    /// next value received is at least as high as the one missed.
+    pub async fn next(&mut self) -> Result<u32> {
+        loop {
+            match self.rx.recv().await {
+                Ok(index) => return Ok(index),
+                Err(RecvError::Lagged(n)) => {
+                    log::warn!("[identity] trade-key index stream lagged {n} value(s)");
+                }
+                Err(RecvError::Closed) => {
+                    bail!("TradeKeyIndexStream closed: sender dropped")
+                }
+            }
+        }
+    }
+}
+
+/// Subscribe to consumed trade-key indices. Flutter calls this once at startup
+/// and writes every value it receives to secure storage.
+pub fn on_trade_key_index_changed() -> TradeKeyIndexStream {
+    TradeKeyIndexStream {
+        rx: trade_key_index_tx().subscribe(),
+    }
 }
 
 // ── Return types ──────────────────────────────────────────────────────────────
@@ -109,7 +167,9 @@ pub async fn load_identity_from_mnemonic(
     privacy_mode: bool,
     created_at: Option<i64>,
 ) -> Result<IdentityInfo> {
-    key_ops::validate_mnemonic(&words)?;
+    // Deriving is the validation: it parses the phrase and fails on a bad word
+    // or checksum with the same `invalid mnemonic` error the explicit check
+    // used to produce.
     let keys = key_ops::derive_master_key(&words)?;
     let public_key = keys.public_key().to_hex();
 
@@ -134,8 +194,12 @@ pub async fn load_identity_from_mnemonic(
         },
         None => None,
     };
-    let trade_key_index =
-        reconcile_trade_key_index(trade_key_index, stored.as_ref(), &public_key);
+    let trade_key_index = reconcile_and_publish_to(
+        trade_key_index_tx(),
+        trade_key_index,
+        stored.as_ref(),
+        &public_key,
+    );
 
     let created_at = match created_at {
         Some(ts) if ts > 0 => ts,
@@ -164,8 +228,28 @@ pub async fn load_identity_from_mnemonic(
 /// When `recover = true`, the daemon recovery flow is triggered (Phase 7).
 /// Currently this validates and loads the mnemonic; recovery contacts are
 /// initiated separately via the daemon API.
-pub async fn import_from_mnemonic(words: Vec<String>, _recover: bool) -> Result<IdentityInfo> {
-    load_identity_from_mnemonic(words, 0, false, None).await
+pub async fn import_from_mnemonic(words: Vec<String>, recover: bool) -> Result<IdentityInfo> {
+    // Source the authoritative privacy mode up front. Recovery is only possible
+    // in Reputation mode; Full-Privacy trades are anonymous by design and can't
+    // be replayed by the daemon.
+    let privacy_mode = crate::api::reputation::get_privacy_mode();
+    // Reject privacy-mode recovery BEFORE loading — otherwise the identity is
+    // already swapped when we bail, leaving the user in a mutated state, and it
+    // violates the "reject before any network traffic" contract for restore.
+    if recover && privacy_mode {
+        bail!("PrivacyModeRecoveryUnavailable");
+    }
+    let info = load_identity_from_mnemonic(words, 0, privacy_mode, None).await?;
+    if recover {
+        // NOTE: recovery is best-effort relative to the import, but this `?`
+        // propagates a restore failure AFTER the identity has already been
+        // swapped — so a slow/unreachable daemon makes the caller see "import
+        // failed" when the import itself succeeded and only recovery didn't.
+        // Not reachable today (identity_service.dart passes recover: false).
+        // #219 restructures the waiting; revisit this propagation when it lands.
+        crate::api::orders::restore_session().await?;
+    }
+    Ok(info)
 }
 
 /// Import identity from an nsec (bech32-encoded Nostr secret key).
@@ -200,23 +284,35 @@ pub async fn get_identity() -> Result<Option<IdentityInfo>> {
     Ok(guard.as_ref().map(|s| s.identity_info.clone()))
 }
 
-/// The BIP-39 seed of the loaded identity, or `None` when none is loaded.
+/// The BIP-39 seed of the loaded identity.
 ///
 /// Crate-internal on purpose — it is *not* part of the bridge surface, and FRB
 /// skips it because it is not `pub`. The Cashu wallet (phase C2) needs a
 /// 64-byte seed to derive its blinding secrets, and reusing this one is what
 /// makes the ecash recoverable from the words the user already backed up.
-pub(crate) async fn current_bip39_seed() -> Option<zeroize::Zeroizing<[u8; 64]>> {
+///
+/// **Errors** (stable markers): `NoIdentity` when none is loaded,
+/// `CashuNoMnemonic` for an nsec-imported identity, `CashuSeedUnavailable` when
+/// derivation fails.
+pub(crate) async fn current_bip39_seed() -> Result<zeroize::Zeroizing<[u8; 64]>> {
     let guard = identity_lock().read().await;
-    let state = guard.as_ref()?;
-    match key_ops::derive_bip39_seed(&state.mnemonic_words) {
-        Ok(seed) => Some(seed),
-        Err(e) => {
-            // Unreachable in practice: the mnemonic was validated on the way in.
-            log::error!("[identity] seed derivation failed for a loaded identity: {e}");
-            None
-        }
+    let state = guard.as_ref().ok_or_else(|| anyhow!("NoIdentity"))?;
+
+    // An nsec import stores no mnemonic (see `import_from_nsec`), so there is
+    // no seed to derive — and no recoverable ecash to be had either. Its own
+    // marker, because "no identity" would send the user to log in again, which
+    // is not the problem and would not fix it. The other mnemonic-only paths in
+    // this file refuse the same way.
+    if state.mnemonic_words.is_empty() {
+        bail!("CashuNoMnemonic");
     }
+
+    key_ops::derive_bip39_seed(&state.mnemonic_words).map_err(|e| {
+        // The mnemonic was validated on the way in, so this is a bug rather
+        // than a user state — the cause goes to the log, the marker to Dart.
+        log::error!("[identity] seed derivation failed for a loaded identity: {e}");
+        anyhow!("CashuSeedUnavailable")
+    })
 }
 
 /// Delete the in-memory identity state. Flutter must also clear
@@ -242,12 +338,65 @@ pub async fn delete_identity() -> Result<()> {
             log::warn!("[identity] failed to clear trade key mappings: {e}");
         }
     }
+
+    // Last, so the cleanup warnings above are dropped too: buffered lines name
+    // orders and counterparties of the identity being deleted, and the Logs
+    // screen can still share them afterwards. The platform console keeps them.
+    crate::api::logging::clear_logs();
+
     Ok(())
 }
 
 /// Derive a new trade key, auto-incrementing the index.
 /// Returns the new key's info and updates the stored `trade_key_index`.
 pub async fn derive_trade_key() -> Result<TradeKeyInfo> {
+    let db = crate::db::app_db::db();
+
+    // Precondition, checked before any identity work because it depends on
+    // nothing else: without durable storage a derived index is consumed with
+    // no record of it, so the next session re-derives the same key and the
+    // daemon answers CantDo(InvalidTradeIndex). Memory-only mode therefore
+    // cannot create or take orders — refusing here is what makes that
+    // explicit instead of silently corrupting the counter (issue #249).
+    #[cfg(not(target_arch = "wasm32"))]
+    require_durable_storage(db)?;
+
+    // Web is exempt: `init_db` is never called there (main.dart guards it with
+    // `!kIsWeb`) and the IndexedDB backend does not implement `save_identity`
+    // yet, so requiring a store would break every create/take on web. The
+    // published index still reaches Flutter, which persists it — that mirror
+    // is web's durable record until IndexedDB identity support lands (#233).
+    #[cfg(target_arch = "wasm32")]
+    if db.is_none() {
+        log::warn!(
+            "[identity] no local store on web — the trade-key counter is durable \
+             only through the Flutter mirror"
+        );
+    }
+
+    derive_trade_key_with(db, trade_key_index_tx()).await
+}
+
+/// Fails when no durable store is available, with the marker Dart localizes.
+///
+/// Split out so the refusal is testable as a pure decision: asserting it
+/// through `derive_trade_key` would depend on the process-wide `APP_DB` being
+/// uninitialised, which any other test may change first.
+#[cfg(not(target_arch = "wasm32"))]
+fn require_durable_storage<S>(db: Option<&S>) -> Result<()> {
+    if db.is_none() {
+        bail!("StorageUnavailable: deriving a trade key requires durable storage");
+    }
+    Ok(())
+}
+
+/// [`derive_trade_key`] against an explicit store and publication channel, so
+/// the increment / persist / publish sequence is testable without touching the
+/// global singleton or the process-wide channel other tests share.
+async fn derive_trade_key_with<S: Storage>(
+    db: Option<&S>,
+    tx: &broadcast::Sender<u32>,
+) -> Result<TradeKeyInfo> {
     let mut guard = identity_lock().write().await;
     let state = guard.as_mut().ok_or_else(|| anyhow!("NoIdentity"))?;
 
@@ -267,18 +416,98 @@ pub async fn derive_trade_key() -> Result<TradeKeyInfo> {
     // consumption is not durably recorded reopens the counter-regression
     // window this exists to close. The in-memory increment is kept, so a
     // retry moves on to the next index — never back.
-    if let Some(db) = crate::db::app_db::db() {
+    if let Some(db) = db {
         db.save_identity(&state.identity_info).await.map_err(|e| {
-            anyhow!(
-                "StorageError: failed to persist trade_key_index {candidate_index}: {e}"
-            )
+            anyhow!("StorageError: failed to persist trade_key_index {candidate_index}: {e}")
         })?;
     }
+
+    // Only after the primary record is durable: Flutter mirrors this into
+    // secure storage, which outlives the database file itself.
+    publish_index(tx, candidate_index);
 
     Ok(TradeKeyInfo {
         index: candidate_index,
         public_key: trade_keys.public_key().to_hex(),
     })
+}
+
+/// Raise `trade_key_index` to at least `floor`, never lowering it (#217).
+///
+/// A restore recovers trades that already occupy trade-key indexes; without
+/// this, the next `derive_trade_key()` would hand out an index a recovered
+/// trade already owns — reusing a key the daemon has bound. The bump is
+/// monotonic: a stale or partial `RestoreData`, or one that arrives after the
+/// counter has already advanced, must never rewind it. Idempotent — applying
+/// the same recovered set twice changes nothing.
+///
+/// Persisted under the same discipline as `derive_trade_key`: if the counter
+/// moves, the write must succeed or the call fails, so the advance is durable
+/// (a bumped-but-unpersisted counter would regress on the next restart).
+pub(crate) async fn ensure_trade_key_index_at_least(floor: u32) -> Result<()> {
+    let db = crate::db::app_db::db();
+    // Same durable-storage precondition as derive_trade_key: on native, refuse
+    // to advance the counter when there is no store, because the _with core
+    // would otherwise bump and publish the raised index WITHOUT persisting it
+    // (the `if let Some(db)` save is skipped) — and publication is best-effort,
+    // so a session loss would reload a stale pre-resync index and reopen the
+    // key-reuse bug this closes (#249).
+    #[cfg(not(target_arch = "wasm32"))]
+    require_durable_storage(db)?;
+    // Web is exempt for the same reason derive_trade_key is: `init_db` is never
+    // called there and IndexedDB has no save_identity yet, so the published
+    // index is web's durable record via the Flutter mirror until #233 lands.
+    #[cfg(target_arch = "wasm32")]
+    if db.is_none() {
+        log::warn!(
+            "[identity] no local store on web — the resynced trade-key counter is \
+             durable only through the Flutter mirror"
+        );
+    }
+    ensure_trade_key_index_at_least_with(db, trade_key_index_tx(), floor).await
+}
+
+/// Testable core of [`ensure_trade_key_index_at_least`]: takes an explicit store
+/// and publish channel so tests can inject a failing store and a private channel,
+/// mirroring `derive_trade_key` / `derive_trade_key_with`.
+async fn ensure_trade_key_index_at_least_with<S: Storage>(
+    db: Option<&S>,
+    tx: &broadcast::Sender<u32>,
+    floor: u32,
+) -> Result<()> {
+    let mut guard = identity_lock().write().await;
+    let state = guard.as_mut().ok_or_else(|| anyhow!("NoIdentity"))?;
+    let current = state.identity_info.trade_key_index;
+    let raised = current.max(floor);
+    if raised == current {
+        // Already ahead of (or level with) the recovered set — no-op, no write.
+        return Ok(());
+    }
+    state.identity_info.trade_key_index = raised;
+    if let Some(db) = db {
+        if let Err(e) = db.save_identity(&state.identity_info).await {
+            // Roll back the in-memory bump on a failed persist. Without this, a
+            // retried restore with the same floor would see `raised == current`,
+            // take the no-op short-circuit above, and return Ok(()) WITHOUT ever
+            // re-attempting the write — silently leaving the durable counter
+            // un-raised and reopening the key-reuse bug this closes. (Unlike
+            // derive_trade_key_with, which safely keeps its forward mutation
+            // because it has no idempotency short-circuit to defeat.)
+            state.identity_info.trade_key_index = current;
+            return Err(anyhow!(
+                "StorageError: failed to persist resynced trade_key_index {raised}: {e}"
+            ));
+        }
+    }
+    // Only after the primary record is durable: mirror to secure storage the
+    // same way derive_trade_key_with does, so a later loss of mostro.db still
+    // reloads the resynced counter rather than a stale pre-restore index (#249).
+    publish_index(tx, raised);
+    crate::api::logging::blog_info(
+        "restore",
+        format!("trade_key_index resynced {current} -> {raised} from recovered trades"),
+    );
+    Ok(())
 }
 
 /// Re-derive an existing trade key by index.
@@ -384,9 +613,27 @@ fn reconcile_trade_key_index(
     }
 }
 
+/// [`reconcile_trade_key_index`], publishing the result when the database knew
+/// a higher counter than the value Flutter passed in. That is exactly the case
+/// where secure storage is behind — an installation from before it was kept in
+/// sync — so this is what lets it catch up without a derivation happening
+/// first (issue #249).
+fn reconcile_and_publish_to(
+    tx: &broadcast::Sender<u32>,
+    passed: u32,
+    stored: Option<&IdentityInfo>,
+    public_key: &str,
+) -> u32 {
+    let reconciled = reconcile_trade_key_index(passed, stored, public_key);
+    if reconciled > passed {
+        publish_index(tx, reconciled);
+    }
+    reconciled
+}
+
 use crate::rt::unix_now;
 
-/// Expose the in-memory `Keys` for other Rust modules (relay pool, gift wrap).
+/// Expose the in-memory `Keys` for other Rust modules (relay pool, transport).
 /// Returns `Err("NoIdentity")` if no identity is loaded.
 pub(crate) async fn get_active_keys() -> Result<Keys> {
     let guard = identity_lock().read().await;
@@ -434,6 +681,16 @@ pub(crate) async fn get_transport_identity_keys(trade_keys: &Keys) -> Result<Key
 mod tests {
     use super::*;
 
+    /// A throwaway SQLite store, named per test so parallel runs never collide.
+    async fn temp_store(tag: &str) -> crate::db::sqlite::SqliteStorage {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_identity_{tag}_{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::sqlite::SqliteStorage::open(path.to_str().unwrap())
+            .await
+            .unwrap()
+    }
+
     fn stored_identity(public_key: &str, trade_key_index: u32) -> IdentityInfo {
         IdentityInfo {
             public_key: public_key.to_string(),
@@ -442,6 +699,222 @@ mod tests {
             trade_key_index,
             created_at: 1,
         }
+    }
+
+    /// A channel of this test's own. The process-wide one is shared with every
+    /// other test in the binary, so asserting on it makes the value received
+    /// depend on what else happens to publish concurrently.
+    fn private_channel() -> (broadcast::Sender<u32>, TradeKeyIndexStream) {
+        let (tx, rx) = broadcast::channel(TRADE_KEY_INDEX_CHANNEL_CAPACITY);
+        (tx, TradeKeyIndexStream { rx })
+    }
+
+    /// A `Storage` whose `save_identity` always fails, for exercising the
+    /// resync rollback path with an injected failure. The seam under test only
+    /// calls `save_identity`, so every other method is `unimplemented!()` —
+    /// reaching one would be a test bug, not silent success.
+    struct FailingStore;
+
+    impl Storage for FailingStore {
+        async fn save_identity(&self, _identity: &IdentityInfo) -> Result<()> {
+            anyhow::bail!("injected save failure")
+        }
+        async fn save_order(&self, _order: &crate::api::types::OrderInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_order(&self, _id: &str) -> Result<Option<crate::api::types::OrderInfo>> {
+            unimplemented!()
+        }
+        async fn delete_order(&self, _id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_orders(&self) -> Result<Vec<crate::api::types::OrderInfo>> {
+            unimplemented!()
+        }
+        async fn save_trade(&self, _trade: &crate::api::types::TradeInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_trade(&self, _id: &str) -> Result<Option<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn list_trades(&self) -> Result<Vec<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn save_message(&self, _msg: &crate::api::types::ChatMessage) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_messages(
+            &self,
+            _trade_id: &str,
+        ) -> Result<Vec<crate::api::types::ChatMessage>> {
+            unimplemented!()
+        }
+        async fn mark_messages_read(&self, _trade_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn message_exists(&self, _id: &str) -> Result<bool> {
+            unimplemented!()
+        }
+        async fn save_relay(&self, _relay: &crate::api::types::RelayInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_relay(&self, _url: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_relays(&self) -> Result<Vec<crate::api::types::RelayInfo>> {
+            unimplemented!()
+        }
+        async fn get_identity(&self) -> Result<Option<IdentityInfo>> {
+            unimplemented!()
+        }
+        async fn delete_identity(&self) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_peer_reputation(
+            &self,
+            _order_id: &str,
+            _rating: f64,
+            _reviews: u32,
+            _days: u32,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_counterparty(
+            &self,
+            _order_id: &str,
+            _counterparty_pubkey: &str,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_queued_message(
+            &self,
+            _msg: &crate::queue::outbox::QueuedMessage,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_queued_messages(
+            &self,
+        ) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
+            unimplemented!()
+        }
+        async fn update_queued_message_status(
+            &self,
+            _id: &str,
+            _status: crate::api::types::QueuedMessageStatus,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_queued_message(&self, _id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_trade_key(&self, _order_id: &str, _key_index: u32) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_trade_key(&self, _order_id: &str) -> Result<Option<u32>> {
+            unimplemented!()
+        }
+        async fn get_order_id_by_trade_index(&self, _key_index: u32) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn delete_trade_key(&self, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn clear_trade_keys(&self) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_setting(&self, _key: &str) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn set_setting(&self, _key: &str, _value: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_setting(&self, _key: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_active_mostro_pubkey(&self, _pubkey: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn get_trade_by_order_id(
+            &self,
+            _order_id: &str,
+        ) -> Result<Option<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn delete_trade_by_order_id(&self, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_order_id(
+            &self,
+            _old_order_id: &str,
+            _new_order_id: &str,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_fields(
+            &self,
+            _order_id: &str,
+            _status: Option<crate::api::types::OrderStatus>,
+            _hold_invoice: Option<String>,
+            _amount_sats: Option<u64>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn deriving_without_durable_storage_is_refused() {
+        // Asserted as a pure decision, not through `derive_trade_key`: that
+        // would depend on the process-wide APP_DB still being uninitialised,
+        // and other tests in this binary initialise it.
+        let err = require_durable_storage::<crate::db::sqlite::SqliteStorage>(None)
+            .unwrap_err()
+            .to_string();
+
+        assert!(
+            err.starts_with("StorageUnavailable:"),
+            "expected a StorageUnavailable marker, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_store_being_present_satisfies_the_precondition() {
+        let db = temp_store("precondition").await;
+
+        assert!(require_durable_storage(Some(&db)).is_ok());
+    }
+
+    #[tokio::test]
+    async fn a_consumed_index_reaches_the_stream() {
+        let (tx, mut stream) = private_channel();
+
+        publish_index(&tx, 7);
+
+        assert_eq!(stream.next().await.unwrap(), 7);
+    }
+
+    #[tokio::test]
+    async fn reconciliation_publishes_only_when_the_database_is_ahead() {
+        let stored = stored_identity("abc", 22);
+        let (tx, mut stream) = private_channel();
+
+        // Secure storage behind the database: Dart must learn the real value.
+        assert_eq!(reconcile_and_publish_to(&tx, 20, Some(&stored), "abc"), 22);
+        assert_eq!(stream.next().await.unwrap(), 22);
+
+        // Already in sync, and a counter belonging to another mnemonic: no
+        // publication, so Dart never rewrites a value it already holds.
+        assert_eq!(reconcile_and_publish_to(&tx, 22, Some(&stored), "abc"), 22);
+        assert_eq!(reconcile_and_publish_to(&tx, 30, Some(&stored), "other"), 30);
+        assert!(
+            stream.rx.try_recv().is_err(),
+            "nothing further should have been published"
+        );
     }
 
     #[test]
@@ -480,17 +953,97 @@ mod tests {
             .unwrap();
         assert_eq!(info.trade_key_index, 20);
 
-        let first = derive_trade_key().await.unwrap();
-        let second = derive_trade_key().await.unwrap();
+        // A real store, but a throwaway one, and a channel of this test's own:
+        // neither the global singleton nor the shared channel is touched, so
+        // this cannot make other tests in the binary flaky (or be made flaky
+        // by them).
+        let db = temp_store("lifecycle").await;
+        let (tx, mut published) = private_channel();
+
+        let first = derive_trade_key_with(Some(&db), &tx).await.unwrap();
+        let second = derive_trade_key_with(Some(&db), &tx).await.unwrap();
         assert_eq!(first.index, 21);
         assert_eq!(second.index, 22);
         assert_ne!(first.public_key, second.public_key);
 
+        // Every consumed index is published for Flutter to mirror into secure
+        // storage, and only after it is durable in the store.
+        assert_eq!(published.next().await.unwrap(), 21);
+        assert_eq!(published.next().await.unwrap(), 22);
+        let persisted = db.get_identity().await.unwrap().unwrap();
+        assert_eq!(persisted.trade_key_index, 22);
+
         let current = get_identity().await.unwrap().unwrap();
         assert_eq!(current.trade_key_index, 22);
 
+        // #217 resync — asserted here (not a separate #[tokio::test]) so it
+        // shares the single identity_lock lifecycle and can't race it. Uses the
+        // `_with` core so publications land on this test's private channel.
+        // Never lowers: a floor below current is a no-op — no write, no publish.
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 10).await.unwrap();
+        assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 22);
+        assert!(
+            published.rx.try_recv().is_err(),
+            "a no-op resync must not publish",
+        );
+        // Raises to the recovered max, persists, and publishes to the mirror.
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        assert_eq!(published.next().await.unwrap(), 50);
+        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        // Idempotent: the same floor again changes nothing and publishes nothing.
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 50).await.unwrap();
+        assert_eq!(get_identity().await.unwrap().unwrap().trade_key_index, 50);
+        assert!(
+            published.rx.try_recv().is_err(),
+            "an idempotent resync must not publish again",
+        );
+        // #217 rollback (grunch review): a failed persist must NOT leave the
+        // counter advanced. Counter is 50 here. Ask for a higher floor (60)
+        // against a failing store: the call errors and the counter stays 50.
+        let (fx, _frx) = private_channel();
+        let rollback_err =
+            ensure_trade_key_index_at_least_with(Some(&FailingStore), &fx, 60)
+                .await
+                .unwrap_err()
+                .to_string();
+        assert!(
+            rollback_err.contains("StorageError:"),
+            "unexpected error: {rollback_err}"
+        );
+        assert_eq!(
+            get_identity().await.unwrap().unwrap().trade_key_index,
+            50,
+            "a failed persist must roll the counter back, not leave it advanced",
+        );
+        // Retry the same floor against the WORKING store: it now writes — the
+        // idempotency short-circuit was not poisoned by the half-applied bump.
+        ensure_trade_key_index_at_least_with(Some(&db), &tx, 60)
+            .await
+            .unwrap();
+        assert_eq!(
+            get_identity().await.unwrap().unwrap().trade_key_index,
+            60,
+            "retry against a working store must raise and persist",
+        );
+        assert_eq!(published.next().await.unwrap(), 60);
+        assert_eq!(db.get_identity().await.unwrap().unwrap().trade_key_index, 60);
+
+        // Regression (the bug #217 fixes): the next derived key is FRESH —
+        // index 61, past every recovered trade — not a reused recovered index.
+        let after = derive_trade_key_with(Some(&db), &tx).await.unwrap();
+        assert_eq!(after.index, 61);
+
+        crate::api::logging::forward_log(log::Level::Info, "identity_probe", "before delete");
+
         delete_identity().await.unwrap();
         assert!(get_identity().await.unwrap().is_none());
+        assert!(
+            !crate::api::logging::recent_logs()
+                .iter()
+                .any(|e| e.tag == "identity_probe"),
+            "delete_identity must drop the buffered log history",
+        );
 
         // Deleting again fails: there is no identity left.
         assert!(delete_identity().await.is_err());

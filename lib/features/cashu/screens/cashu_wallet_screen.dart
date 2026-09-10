@@ -140,18 +140,14 @@ class _CashuWalletScreenState extends ConsumerState<CashuWalletScreen> {
     );
   }
 
-  Future<void> _checkProofs() async {
+  /// Housekeeping against the mint. It refreshes the balance by forgetting
+  /// spent proofs; it does not — and must not claim to — recover an exported
+  /// token nobody redeemed (phase C10).
+  Future<void> _sync() async {
     final l10n = AppLocalizations.of(context);
     await _run(() async {
-      final reclaimed =
-          await ref.read(cashuWalletControllerProvider).checkProofsState();
-      if (mounted) {
-        _showMessage(
-          reclaimed > BigInt.zero
-              ? l10n.cashuReclaimed(reclaimed.toInt())
-              : l10n.cashuNothingToReclaim,
-        );
-      }
+      await ref.read(cashuWalletControllerProvider).sweepSpentProofs();
+      if (mounted) _showMessage(l10n.cashuSynced);
     });
   }
 
@@ -242,9 +238,9 @@ class _CashuWalletScreenState extends ConsumerState<CashuWalletScreen> {
           ],
           const SizedBox(height: AppSpacing.lg),
           TextButton.icon(
-            onPressed: _busy ? null : _checkProofs,
+            onPressed: _busy ? null : _sync,
             icon: const Icon(Icons.refresh),
-            label: Text(l10n.cashuCheckProofsButton),
+            label: Text(l10n.cashuSyncButton),
           ),
           const SizedBox(height: AppSpacing.md),
           Text(

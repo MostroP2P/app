@@ -1,6 +1,6 @@
 [package]
 name = "rust"
-version = "0.1.0"
+version = "2.0.0"
 edition = "2021"
 
 [lib]
@@ -15,10 +15,16 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 flutter_rust_bridge = "=2.11.1"
 
 # Nostr & Mostro protocol
-nostr-sdk = { version = "0.44", default-features = false, features = ["nip44", "nip47", "nip59"] }
-# 0.14.1, not 0.14: the wire form pinned by `mostro/cashu_wire.rs` and documented
-# in docs/cashu/README.md §2 was confirmed against 0.14.1.
-mostro-core = "0.14.1"
+nostr-sdk = { version = "0.45", default-features = false }
+# nostr-sdk 0.45 no longer carries the NIP feature flags: they live on `nostr`
+# itself and none are on by default, so the NIPs this crate calls directly are
+# enabled here (feature unification applies them to nostr-sdk's copy too).
+nostr = { version = "0.45", default-features = false, features = ["std", "nip04", "nip44", "nip47"] }
+# 0.14.6 adds `CantDoReason::MaintenanceMode` (and an `Unknown` catch-all) and
+# requires nostr 0.45. The Cashu wire form pinned by `mostro/cashu_wire.rs` and
+# documented in docs/cashu/README.md §2 was confirmed against 0.14.1 and is
+# unchanged since.
+mostro-core = "0.14.6"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -34,6 +40,11 @@ hex = "0.4"
 
 # Logging
 log = "0.4"
+# Not called directly: declaring it with the `log` feature makes cargo apply
+# that feature to the copy nostr-sdk and sqlx use, so their `tracing` events
+# become `log` records that api::logging captures. Drop it and every
+# dependency's log line disappears silently.
+tracing = { version = "0.1", features = ["log"] }
 
 # Base64 encoding (Blossom auth events)
 base64 = "0.22"
@@ -47,7 +58,8 @@ sha2 = "0.10"
 
 # Wipes key material on drop. The BIP-39 seed is copied out of the identity
 # state to seed the Cashu wallet; without this it lingers in freed memory.
-zeroize = { version = "1", features = ["zeroize_derive"] }
+# `Zeroizing` is all this needs — no `zeroize_derive`, nothing here derives it.
+zeroize = "1"
 
 # secp256k1 scalar math (ECDH shared-key derivation for P2P chat)
 k256 = { version = "0.13", features = ["ecdh", "arithmetic"] }
@@ -71,7 +83,9 @@ cdk = { version = "=0.17.3", default-features = false, features = ["wallet"] }
 # gets a typed stub instead — see rust/src/cashu/mod.rs.
 cdk-sqlite = { version = "=0.17.3", default-features = false, features = ["wallet"] }
 
-# Android logging backend
+# Android logging backend. api::logging delegates to an `AndroidLogger`
+# instance rather than calling `init_once()`, which would install a competing
+# global logger and lock the Flutter log stream out.
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.14"
 
@@ -84,3 +98,16 @@ reqwest = { version = "0.12", default-features = false, features = ["json"] }
 tokio = { version = "1", default-features = false, features = ["sync"] }
 # tokio::time replacement for wasm (sleep/timeout/Instant backed by the browser).
 wasmtimer = "0.4"
+# Browser console — the wasm target has no stderr (see api::logging).
+web-sys = { version = "0.3", features = ["console"] }
+# bip32/k256/chacha20poly1305 still sit on getrandom 0.2, which refuses to
+# build for wasm32-unknown-unknown unless its `js` backend is enabled. nostr
+# 0.44 used to switch it on for us; nostr 0.45 dropped that dependency.
+getrandom = { version = "0.2", features = ["js"] }
+# Same for the getrandom 0.4 that nostr's `rand` 0.10 uses: on wasm it has no
+# default backend and must be told to use the JS one.
+getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+# nostr 0.45 reads the clock through universal-time, which on
+# wasm32-unknown-unknown refuses to *link* until the final crate names a time
+# provider (see `rt::browser_clock`). Not caught by `cargo check`.
+universal-time = { version = "0.3", default-features = false }

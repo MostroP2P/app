@@ -65,15 +65,40 @@ Emits when any individual relay's status changes.
 
 ## Auto-Sync Functions
 
-### enable_relay_auto_sync(mostro_pubkey: String) → ()
-Subscribe to Mostro daemon's kind 10002 relay list events. When the
-daemon publishes updated relays, auto-add them locally (additive only —
-never disconnects existing relays during sync).
+### Relay auto-sync from the node's kind 10002 list (implicit)
+There is no separate `enable_relay_auto_sync` call: the kind 10002 (NIP-65)
+relay list of the **active** Mostro node is subscribed together with the
+order-book and Mostro-reply filters (stable subscription id
+`mostro-relay-list`), on pool start-up and again on every node switch, so
+an operator adding a relay reaches running clients live.
 
-**Side effects**: Creates Nostr subscription for kind 10002 from the
-specified pubkey.
+Every `r` tag is taken regardless of its read/write marker (the daemon
+writes where we read and reads where we write). URLs are normalised
+(scheme/host lower-cased, trailing slash stripped; only `ws://`/`wss://`).
 
-**Errors**: `NotConnected`.
+Applying a list is **additive only**: relays already configured (whatever
+their source) are left alone, nothing is ever disconnected, and a relay the
+node stops announcing is not removed. Only the newest generation per node is
+applied (older/replayed events from other relays are ignored); a generation is
+`(created_at, event id)` and is ordered the way NIP-01 orders revisions of a
+replaceable event — newer `created_at` wins, and on a same-second tie the lower
+event id does. Added relays get `RelaySource::MostroDiscovered` and are
+persisted.
+
+Removing a `MostroDiscovered` relay through `remove_relay` **blacklists**
+it (persisted as `is_blacklisted = true`, `is_active = false`), so neither a
+later list nor the next start brings it back; `add_relay` of the same URL
+lifts the blacklist. Removing a default or user-added relay does not
+blacklist it.
+
+`initialize(None)` restores the persisted relay set (active, non-blacklisted
+rows) and the blacklist; only a store with no rows falls back to the
+compiled-in defaults, which are then seeded.
+
+Persistence here is the **native** (SQLite) story. On web the IndexedDB relay
+store is still a stub (#233): discovery and the blacklist work for the life of
+the session, every write is logged and ignored, and a reload starts from the
+compiled-in defaults again.
 
 ---
 
@@ -103,6 +128,41 @@ MostroNodeInfo {
 > The client MUST treat missing values as `24` and `900` respectively so that callers
 > always receive concrete `u32` values. Deserialization/constructor MUST apply these
 > defaults (e.g. `#[serde(default = "default_expiration_hours")]`).
+
+---
+
+### fetch_exchange_rate(mostro_pubkey_hex: String, fiat_code: String) → f64?
+Price of one BTC in `fiat_code`, as published by that node in its Kind 30078
+(NIP-33, `d` tag `mostro-rates`) event.
+
+Exists so a market-price order can be checked against the node's sats limits
+before it is submitted (#337): the daemon prices such an order as
+`fiat_amount / price * 1E8` from the very aggregate it publishes here, so this
+is the number its range check will use. The node's own event is the source, not
+a third-party API — any other quote would be a different price, and asking for
+one would disclose which currency the user is about to trade.
+
+**Returns**: the rate, or `null` whenever the node has no usable one to give:
+it publishes no rates event (publishing is optional for an operator), the event
+served by the relay has expired per its NIP-40 `expiration` tag, its payload is
+unusable, or it quotes no such currency. Callers MUST treat `null` as "not
+checkable" — see `create_order` in `orders.md`.
+
+**Authenticity**: An event is only used once its Schnorr signature verifies
+against the node's pubkey, and only the newest event that does is considered.
+The kind, author and `d` tag checks say nothing on their own — a relay is free
+to answer with events the filter never asked for, and `nostr-sdk` does not
+guarantee that a fetched event was verified before it reaches the caller
+(GHSA-f96q-5f6p-v7cj) — so an unverified event would let a relay set the price
+the whole range check is measured against.
+
+**Caching**: The rate table is cached per node — never served back to a
+different one — and bounded by the event's own expiration, clamped to one hour.
+The amount fields of a range order therefore cost a single relay query.
+
+**Errors**: `NotInitialized`, `InvalidPublicKey`, or a failed relay query. A
+failed query is an error rather than `null`, but callers act on both the same
+way.
 
 ---
 
@@ -158,4 +218,5 @@ is transmitted.
 
 ### on_relay_auto_synced() → Stream<Vec<String>>
 Emits when new relays are auto-synced from daemon's kind 10002 events.
-Payload is the list of newly added relay URLs.
+Payload is the list of newly added relay URLs, in announcement order. Lists
+that add nothing new do not emit.

@@ -4,7 +4,7 @@ Auto-generated from all feature plans. Last updated: 2026-06-26
 
 ## Active Technologies
 - Rust stable 1.94+ (core); Dart 3.x / Flutter 3.x (UI shell) (004-mostro-p2p-client)
-- nostr-sdk 0.44+, mostro-core 0.13.1, flutter_rust_bridge 2.11.1, Riverpod (state),
+- nostr-sdk 0.45+, mostro-core 0.14.6, flutter_rust_bridge 2.11.1, Riverpod (state),
   go_router (navigation), sqlx (SQLite, native) / indexed_db_futures (IndexedDB, web),
   sembast (Dart UI-layer state), bip32/bip39 (keys), chacha20poly1305 (file encryption)
 - Sembast (Dart, all platforms) for UI-layer state; SQLite via `sqlx` (Rust, native) /
@@ -49,6 +49,11 @@ flutter gen-l10n                            # after editing lib/l10n/*.arb
   (`--base-href` for the sub-path, `--pwa-strategy=none` so Flutter's service worker does not
   take the isolation shim's scope). Every one of these, when wrong, yields a **blank page** —
   `test/web/pages_bundle_test.dart` guards them statically.
+- `cargo check --target wasm32-unknown-unknown` is **not** a substitute for `build-web.sh`: two
+  wasm-only requirements fail later than type-checking. `getrandom` (0.2 via bip32/k256, 0.4 via
+  nostr's `rand`) needs its JS backend feature enabled in `rust/Cargo.toml`, and nostr 0.45's
+  `universal-time` refuses to **link** until the final crate defines a time provider
+  (`rt::browser_clock`). Both used to come for free from nostr 0.44 and vanished with 0.45.
 - The build itself lives in the reusable **`.github/workflows/web-build.yml`**, called by both
   `ci.yml` (every PR) and `deploy-pages.yml` — edit it there, never in a caller, or the bundle
   CI validates drifts from the one that ships.
@@ -95,12 +100,35 @@ bridged by flutter_rust_bridge.
   a mismatched CLI yields bindings that fail to compile, with an error that never mentions
   versions (see issue #205). `--check` verifies without generating.
 - FRB scans only `crate::api` → changes in `nostr/`, `crypto/`, `mostro/`, etc. need no regen.
+- **Regenerate after pulling, too — not just after your own edits.** `lib/src/rust/` and
+  `lib/l10n/app_localizations*.dart` are gitignored, so a `git pull` that brings in someone
+  else's `rust/src/api/` field or `.arb` key leaves your copies stale. CI regenerates both
+  before it analyses (`ci.yml` → `frb-generate.sh`, `flutter gen-l10n`), so green CI proves
+  nothing about your checkout. The failure is loud but misdirected — the analyzer blames
+  whatever *uses* the missing field, so a stale `TradeInfo` reads as a broken test helper
+  rather than as out-of-date bindings. If `flutter analyze` reports a field or l10n getter
+  that plainly exists in `rust/src/api/types.rs` or `lib/l10n/*.arb`, regenerate before
+  believing it. **Automate it:** `git config core.hooksPath .githooks` installs
+  `post-merge`/`post-checkout`/`post-rewrite` hooks that regenerate both whenever the pull,
+  branch switch, or rebase touched `rust/src/api/`, `pubspec.yaml`, or an `.arb` (no-op
+  otherwise).
 
 ## Transport (protocol v2)
 - **Daemon messages** (new-order, take, release, cancel, dispute, rate, invoice, restore):
   **NIP-44 / signed Kind 14** (transport v2), via `wrap_mostro_message`/`unwrap_mostro_message`.
-- **Peer & dispute chat**: **NIP-59 gift wrap / Kind 1059**, via `wrap`/`unwrap`.
-- Both live in `rust/src/nostr/gift_wrap.rs` (rename to `transport.rs` pending).
+- **Peer chat**: **chat envelope** (kind 14 signed with `K_sign`, NIP-44 inner kind 1
+  signed by the trade key — <https://mostro.network/protocol/chat.html>), via
+  `mostro_wrap`/`mostro_unwrap` + `crypto/chat_keys.rs`. NIP-59 is gone from this
+  channel in **both** directions (gift-wrap flood attack, issue #246).
+- **Dispute admin chat**: the **same chat envelope**, keyed to the solver's pubkey
+  (<https://mostro.network/protocol/dispute_chat.html> — "no gift wrap and no
+  ephemeral key"). The interop dual-path for gift-wrap-only solvers is gone too;
+  until mostrix#102 ships, such a solver is not reachable from here.
+- **This client speaks protocol v2 only** — nothing reads or writes kind 1059.
+- All live in `rust/src/nostr/transport.rs`. Daemon traffic is subscribed by
+  `orders.rs::subscribe_daemon_messages` (per trade) and `handle_global_daemon_message`
+  (global). Nothing in the v2 paths is named "gift wrap" any more — where that term
+  still appears it refers to the superseded v1 transport on purpose.
 - Wire status strings are **kebab-case** (`waiting-buyer-invoice`, `fiat-sent`).
 
 ## Translations
@@ -133,8 +161,20 @@ bridged by flutter_rust_bridge.
 ## Domain gotchas (durable)
 - **Reputation/ratings come from Kind 38383 event tags, not a DB.** In-memory
   `RATING_STORE`/`DISPUTE_STORE` are correct by design — don't invent "persist to DB" tasks.
-  The only real persistence gap is **chat history**.
+  Chat history persists to the `messages` table since #246 (web still memory-only, #233).
+- **On native, relays persist in the `relays` table and grow from the node's kind 10002 list.**
+  `initialize(None)` restores the persisted set (or seeds the defaults on a fresh install); the
+  active node's NIP-65 list is subscribed live and applied **additively** (never disconnects).
+  Removing a `MostroDiscovered` relay blacklists it, re-adding it lifts the blacklist. On **web**
+  the IndexedDB relay store is still a stub (#233), so none of that survives a reload: discovery
+  works in-session only and every persistence failure is logged and ignored.
 - **Order book is sourced only from daemon Kind 38383 events.** `create_order` waits for daemon
   confirmation; on timeout it returns an error and **persists nothing** (no phantom order).
+- **The Kind 38383 `s` tag is never a trade's status.** It is NIP-69's four-bucket public view
+  (`pending`, `in-progress`, `success`, `canceled`), and the daemon stops publishing once the
+  trade turns private — `active`/`fiat-sent`/`dispute` never reach the wire. So `InProgress`
+  means "taken, real state unknown", and a trade's status comes from daemon messages only
+  (`wire_status_applies` guards both ingest paths). Treating it as `Active` offers actions the
+  daemon rejects with `CantDo` (#203).
 
 <!-- MANUAL ADDITIONS END -->

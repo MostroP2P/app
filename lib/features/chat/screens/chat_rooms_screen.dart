@@ -59,7 +59,6 @@ class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final textTheme = Theme.of(context).textTheme;
-    final green = colors.mostroGreen;
 
     final isDesktop =
         MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
@@ -70,7 +69,6 @@ class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
           SafeArea(
             bottom: false,
             child: _ChatAppBar(
-              green: green,
               onMenuTap: () => setState(() => _drawerOpen = true),
             ),
           ),
@@ -125,9 +123,8 @@ class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
 // ── Mobile app bar ─────────────────────────────────────────────────────────────
 
 class _ChatAppBar extends StatelessWidget {
-  const _ChatAppBar({required this.green, required this.onMenuTap});
+  const _ChatAppBar({required this.onMenuTap});
 
-  final Color green;
   final VoidCallback onMenuTap;
 
   @override
@@ -145,7 +142,7 @@ class _ChatAppBar extends StatelessWidget {
             tooltip: AppLocalizations.of(context).menuTooltip,
           ),
           const Spacer(),
-          Icon(Icons.psychology, size: 28, color: green),
+          Image.asset('assets/images/mostro_logo.webp', height: 32),
           const Spacer(),
           const NotificationBell(),
           const SizedBox(width: AppSpacing.sm),

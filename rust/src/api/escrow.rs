@@ -49,7 +49,7 @@ fn snapshot() -> EscrowModeInfo {
 fn validate_mint_url(url: &str) -> Result<()> {
     // `Url` comes from nostr-sdk's re-export of the `url` crate — no new
     // dependency for one validation.
-    let parsed = nostr_sdk::Url::parse(url)
+    let parsed = nostr_sdk::prelude::Url::parse(url)
         .map_err(|e| anyhow::anyhow!("InvalidMintUrl: '{url}' is not a URL ({e})"))?;
 
     if !matches!(parsed.scheme(), "http" | "https") {
@@ -201,12 +201,12 @@ mod tests {
 
     /// The escrow globals are process-wide; serialize the tests that write them
     /// and start each one from a freshly-launched app's state.
+    ///
+    /// The lock itself lives in `mostro::escrow_mode`, next to the state it
+    /// guards, and is shared with that module's own tests. A private lock here
+    /// only serialized this module and raced the other one (#309).
     fn escrow_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        escrow_mode::clear();
-        escrow_mode::set_overrides(EscrowOverrides::default());
-        guard
+        escrow_mode::lock_globals_for_test()
     }
 
     #[tokio::test]

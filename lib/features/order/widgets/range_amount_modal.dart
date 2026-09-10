@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
 /// Shows a modal dialog for entering an amount within a range.
@@ -111,7 +113,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
                 ),
               ),
               onChanged: (_) => _validate(),
-            ),
+            ).withAutomationId(AutomationIds.orderTakeAmount),
             const SizedBox(height: AppSpacing.sm),
 
             Text(
@@ -156,7 +158,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
                       ),
                     ),
                     child: Text(l10n.submitButton),
-                  ),
+                  ).withAutomationId(AutomationIds.orderTakeAmountConfirm),
                 ),
               ],
             ),

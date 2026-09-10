@@ -32,7 +32,7 @@ class _FakeController extends CashuWalletController {
   Future<String> createToken(BigInt amountSats) async => 'cashuBtesttoken';
 
   @override
-  Future<BigInt> checkProofsState() async => BigInt.zero;
+  Future<void> sweepSpentProofs() async {}
 }
 
 /// `balance: null` models an unreadable balance, which the screen must not

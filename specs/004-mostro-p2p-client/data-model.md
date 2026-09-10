@@ -51,12 +51,16 @@ A buy or sell offer on the Mostro network.
 | nostr_event_id | String? | Kind 38383 event ID on relay |
 | is_mine | bool | Whether current user created this order |
 | cached_at | Timestamp | When this order was last fetched/updated locally |
+| rating | f64 | Maker reputation from the Kind 38383 `rating` tag (`total_rating`, 0–5; 0.0 = no reputation: full privacy (`none`), missing tag, or malformed/invalid data) |
+| total_reviews | u32 | Number of reviews behind `rating` (`total_reviews`) |
+| days_active | u32 | Days the maker has been active on the node (`days`) |
 
 **Validation rules**:
 - `fiat_code` MUST be a valid ISO 4217 code.
 - Either `fiat_amount` OR both `fiat_amount_min` and `fiat_amount_max` MUST be provided, but NOT both. If `fiat_amount` is present, `fiat_amount_min` and `fiat_amount_max` MUST be absent; if `fiat_amount_min`/`fiat_amount_max` are present, `fiat_amount` MUST be absent.
 - If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`.
 - `premium` is a signed float (negative = discount).
+- `rating` MUST be within 0–5. Each reputation field (`rating`, `total_reviews`, `days_active`) is validated independently: an out-of-range, non-integer, or malformed value degrades that field alone to 0, and the order is never rejected because of its `rating` tag.
 
 **State machine** (15 mostro-core states):
 ```text
@@ -83,6 +87,12 @@ Pending
 SettledHoldInvoice, Success, Canceled, CooperativelyCanceled, Dispute, InProgress,
 SettledByAdmin, CanceledByAdmin, CompletedByAdmin, Expired.
 
+This is the protocol state machine, which only daemon messages expose in full.
+The public Kind 38383 event carries NIP-69's four-bucket view instead, so an
+`InProgress` reaching this client stands for "taken, real state unknown" rather
+than for the admin-took-dispute transition above. See "Public status vs. trade
+status" in `contracts/orders.md`.
+
 ---
 
 ### Trade
@@ -102,10 +112,17 @@ trade at a time (v2.0 scope constraint).
 | trade_key_index | u32 | BIP-32 key index for this trade |
 | shared_key | String? | ECDH-derived key for P2P chat (hex) |
 | cooperative_cancel_state | Enum? | `RequestedByMe`, `RequestedByPeer`, `Accepted`, null |
-| timeout_at | Timestamp? | When current state times out |
+| timeout_at | Timestamp? | When current state times out (set on take: `now + 900`; used by the stale-state sweep as its age gate) |
 | started_at | Timestamp | When trade began |
 | completed_at | Timestamp? | When trade finished (null if active) |
 | outcome | Enum? | `Success`, `Canceled`, `Expired`, `DisputeWon`, `DisputeLost` |
+| rated_at | Timestamp? | When the local user rated the counterparty; durable marker written by `db.mark_trade_rated` after `submit_rating` publishes (issue #339). "Did I rate this trade" is local knowledge nothing on the wire can rebuild, so the in-memory `RATING_STORE` rehydrates from this on restart — the store stays the cache, this is authoritative on load. The score itself is not persisted (the rated UI shows only a label) |
+
+Trade rows are history: they are updated in place (`status`,
+`hold_invoice`, `amount_sats` — see `update_trade_fields`) but never
+deleted, with one exception: a trade canceled by the daemon while still
+in pending/waiting states (never active) is **deleted** rather than kept
+(see `contracts/orders.md` — Daemon cancellation semantics).
 
 **Buyer progress steps**: `OrderTaken`, `PayInvoice`, `PaymentLocked`,
 `FiatSent`, `AwaitingRelease`, `Complete`
@@ -138,7 +155,7 @@ disputes. Persisted locally after decryption.
 | is_read | bool | Whether user has seen this message |
 | created_at | Timestamp | When message was sent |
 | received_at | Timestamp | When message was received locally |
-| nostr_event_id | String? | Incoming event ID for dedup (Kind 14 from daemon / Kind 1059 from peer chat) |
+| nostr_event_id | String? | Incoming event ID for dedup (Kind 14 — from the daemon, or a peer-chat envelope) |
 
 **Validation rules**:
 - `content` MUST not be empty.
@@ -175,7 +192,7 @@ An exception flow on an active trade.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| id | UUID | Primary key |
+| id | UUID | Primary key — the daemon's dispute id when we opened it (see below) |
 | trade_id | UUID | FK → Trade |
 | initiated_by | Enum | `Me` or `Counterparty` |
 | reason | String? | Optional reason text |
@@ -188,6 +205,13 @@ An exception flow on an active trade.
 - A dispute can only be opened on a trade with `current_step` between
   `PaymentLocked` and `AwaitingRelease`/`AwaitingFiat`.
 - Only one open dispute per trade.
+
+**On `id`**: for a dispute we opened, this is the UUID the daemon assigned and
+returned in its acceptance — the same id its Kind 38386 dispute event and the
+solver use. A record created for a **peer-opened** dispute (built from
+`admin-took-dispute`, which is the first the counterparty hears of it) still
+gets a locally minted UUID, so the two sides currently know the same dispute
+under different ids.
 
 ---
 
@@ -205,7 +229,9 @@ User preferences stored locally.
 `pin_enabled` (bool), `biometric_enabled` (bool),
 `default_fiat_currency` (ISO code), `notification_enabled` (bool),
 `privacy_mode` (bool — global toggle, applies to future trades),
-`logging_enabled` (bool — diagnostic logging, runtime-only: not persisted to storage; startup code unconditionally sets this to `false` on process start regardless of any prior value).
+`logging_enabled` (bool — verbose diagnostic logging, runtime-only in the Rust
+store: the Flutter layer persists it and re-applies it on launch, so the user's
+choice survives a restart).
 
 ---
 
@@ -216,7 +242,7 @@ Outgoing messages queued when offline.
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
-| event_json | String | Serialized outbound Nostr event (Kind 14 NIP-44 for daemon actions; Kind 1059 gift wrap for peer chat) |
+| event_json | String | Serialized outbound Nostr event (Kind 14 NIP-44 throughout: daemon actions, and the chat envelope for peer chat) |
 | target_relays | String | JSON array of relay URLs to publish to |
 | created_at | Timestamp | When queued |
 | retry_count | u32 | Number of send attempts |

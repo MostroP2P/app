@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Mostro uses the camera to scan QR codes when you connect a Lightning wallet.</string>
 </dict>
 </plist>

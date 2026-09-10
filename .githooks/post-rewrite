@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Post-rewrite hook: regenerate gitignored generated code after a rebase.
+#
+# `git rebase` (so `git pull --rebase`) checks out the upstream tip FIRST and
+# only then replays the local commits. post-checkout therefore fires against a
+# tree that does not contain them yet — if one of those commits touches
+# rust/src/api/, the bindings it regenerates there are already stale by the time
+# the rebase finishes. This hook runs once at the end, on the final tree.
+#
+# Install: git config core.hooksPath .githooks
+[[ "${1-}" == "rebase" ]] || exit 0
+
+# stdin carries one "<old-sha> <new-sha>" line per rewritten commit, in replay
+# order. The first new commit's parent is where the replayed range starts.
+first=""
+while read -r _ new _; do
+  [[ -n "$first" ]] || first="$new"
+done
+[[ -n "$first" ]] || exit 0
+git rev-parse --verify --quiet "$first^" >/dev/null || exit 0
+
+exec "$(dirname "$0")/regen-if-needed.sh" "$first^" HEAD

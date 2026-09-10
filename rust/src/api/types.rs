@@ -210,6 +210,21 @@ pub struct OrderInfo {
     pub created_at: i64,
     pub expires_at: Option<i64>,
     pub is_mine: bool,
+    /// Maker reputation from the Kind 38383 `rating` tag (`total_rating`
+    /// aggregate, 0–5). `0.0` when the maker has no reputation yet or
+    /// publishes in full-privacy mode (`rating` = `"none"`).
+    ///
+    /// `serde(default)` on these three fields keeps rows persisted before
+    /// they existed (orders table, `OrderInfo` nested in trades JSON)
+    /// deserializable after an app upgrade.
+    #[serde(default)]
+    pub rating: f64,
+    /// Number of reviews behind [`Self::rating`] (`total_reviews`).
+    #[serde(default)]
+    pub total_reviews: u32,
+    /// Days the maker has been active on this Mostro node (`days`).
+    #[serde(default)]
+    pub days_active: u32,
 }
 
 /// Parameters for creating a new order via the Mostro protocol.
@@ -247,6 +262,43 @@ pub struct TradeInfo {
     pub started_at: i64,
     pub completed_at: Option<i64>,
     pub outcome: Option<TradeOutcome>,
+    /// Counterparty (taker) reputation snapshot from the daemon's follow-up
+    /// Peer DM (issue #305). All-zeros is ambiguous on the wire — a brand-new
+    /// user and a full-privacy taker are indistinguishable — so the UI shows
+    /// the raw numbers rather than guessing. `#[serde(default)]` keeps trade
+    /// rows written before this field existed deserializable.
+    #[serde(default)]
+    pub peer_rating: Option<f64>,
+    #[serde(default)]
+    pub peer_reviews: Option<u32>,
+    #[serde(default)]
+    pub peer_days: Option<u32>,
+    /// Durable "the local user rated this trade" marker (unix seconds), set
+    /// after `submit_rating` publishes (issue #339).
+    ///
+    /// Whether we rated a counterparty is local knowledge: the daemon's kind
+    /// 38383 tag carries the peer's *aggregate* reputation, and its one-shot
+    /// `rate-received` is not re-sent on reconnect — so nothing on the wire can
+    /// rebuild it. Persisting the timestamp here lets the rated state survive a
+    /// restart and keeps the duplicate-rating guard armed. The score itself is
+    /// deliberately not stored — the rated UI shows only a label, not the note.
+    /// `#[serde(default)]` keeps trade rows written before this field existed
+    /// deserializable.
+    #[serde(default)]
+    pub rated_at: Option<i64>,
+}
+
+/// A trade lifecycle change pushed from Rust so the UI does not have to poll
+/// for it. Emitted on every daemon-driven status sync — cancellations
+/// (including the wipe of a never-active trade, whose DB row no longer
+/// exists by the time this arrives, so polling could never observe the
+/// transition) as well as progression statuses like `WaitingBuyerInvoice`
+/// and `WaitingPayment`, which screens use to react to the daemon's
+/// add-invoice / pay-invoice requests.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TradeUpdate {
+    pub order_id: String,
+    pub status: OrderStatus,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -430,7 +482,7 @@ pub enum SlashCause {
 /// status and amount are deliberately left untouched.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BondSlashedEvent {
-    /// Stable identity of the source gift-wrap event. The daemon replays stored
+    /// Stable identity of the source daemon event. The daemon replays stored
     /// history on reconnect/restart, so consumers key the notification on this
     /// id to persist exactly one record per slash.
     pub event_id: String,

@@ -71,10 +71,14 @@ Dart shims that use JS interop (`dart:js_interop`) on web instead of
 `mostro-core` crate, using Kind 38383 for public orders and Kind 1059
 (NIP-59 Gift Wrap) for all private communication.
 
-> **Superseded by transport v2**: daemon messages later moved to NIP-44
-> direct (signed Kind 14); peer chat (NIP-17) remains NIP-59 gift wrap
-> (Kind 1059). The NIP-59 flow described below still applies to peer chat;
-> for daemon messages read "Kind 14 / NIP-44" instead of "Kind 1059 / Gift Wrap".
+> **Superseded by transport v2, then by #246**: daemon messages moved to
+> NIP-44 direct (signed Kind 14), and peer/dispute chat followed in #246 —
+> to the **chat envelope** (a Kind 14 outer event signed with `K_sign`,
+> carrying a NIP-44-encrypted inner Kind 1 signed by the trade key), to close
+> a gift-wrap flood attack. Nothing in this client reads or writes Kind 1059
+> any more, in either direction, so the NIP-59 flow described below is
+> **historical throughout** — it is what 004 originally built, not what ships.
+> Current contract: `contracts/messages.md`.
 
 **Rationale**: The Mostro protocol is well-documented with a reference
 daemon, core types library, and CLI client. Using `mostro-core` as a

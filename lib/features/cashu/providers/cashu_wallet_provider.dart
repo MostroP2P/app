@@ -45,9 +45,13 @@ class CashuWalletController {
   Future<String> createToken(BigInt amountSats) =>
       cashu_api.cashuCreateToken(amountSats: amountSats);
 
-  /// Reconcile proofs left reserved by an interrupted send, returning the
-  /// amount reclaimed.
-  Future<BigInt> checkProofsState() => cashu_api.cashuCheckProofsState();
+  /// Drop the proofs the mint reports as spent and refresh the balance.
+  ///
+  /// Housekeeping, not recovery: cdk's state check skips the proofs a send of
+  /// ours reserved, so an unredeemed token is *not* reclaimed here — that is
+  /// phase C10. The Rust side returns nothing for exactly that reason, and the
+  /// UI must not claim a "reclaimed N sat" it cannot know.
+  Future<void> sweepSpentProofs() => cashu_api.cashuSweepSpentProofs();
 }
 
 final cashuWalletControllerProvider = Provider<CashuWalletController>(

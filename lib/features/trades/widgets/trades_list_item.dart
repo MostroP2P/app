@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -27,34 +29,34 @@ import 'package:mostro/shared/widgets/status_chip.dart';
 /// - `/add_invoice/:orderId` for creator orders in WaitingInvoice (buyer)
 /// - `/trade_detail/:orderId` otherwise (active creators and all takers).
 class TradesListItem extends ConsumerWidget {
-  const TradesListItem({
-    super.key,
-    required this.trade,
-  });
+  const TradesListItem({super.key, required this.trade});
 
   final TradeListItem trade;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
+    if (colors == null) {
+      throw StateError('AppColors theme extension must be registered');
+    }
     final textTheme = Theme.of(context).textTheme;
     final l10n = AppLocalizations.of(context);
 
     // Live status from the polling provider; falls back to the DB snapshot.
     final liveStatusAsync = ref.watch(tradeStatusProvider(trade.orderId));
-    final effectiveStatus = liveStatusAsync.whenOrNull(
-          data: orderStatusToFilter,
-        ) ??
-        trade.status;
+    final effectiveStatus =
+        liveStatusAsync.whenOrNull(data: orderStatusToFilter) ?? trade.status;
 
-    final titleText = trade.isSelling ? l10n.sellingBitcoin : l10n.buyingBitcoin;
+    final titleText =
+        trade.isSelling ? l10n.sellingBitcoin : l10n.buyingBitcoin;
     final (statusBg, statusFg) = _statusColors(effectiveStatus);
     final statusLabel = effectiveStatus.localizedLabel(l10n);
     final roleLabel =
         trade.role == TradeRole.creator ? l10n.createdByYou : l10n.takenByYou;
     final timeAgo = _timeAgo(trade.createdAt, l10n);
 
+    // The row wraps exactly one tap target, so merging keeps the tap action
+    // on the node that carries the identifier.
     return Card(
       margin: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
@@ -73,9 +75,13 @@ class TradesListItem extends ConsumerWidget {
           final isCreator = trade.role == TradeRole.creator;
           final isPending = effectiveStatus == TradeStatusFilter.pending;
           final isWaitingPaymentSeller =
-              isCreator && effectiveStatus == TradeStatusFilter.waitingPayment && trade.isSelling;
+              isCreator &&
+              effectiveStatus == TradeStatusFilter.waitingPayment &&
+              trade.isSelling;
           final isWaitingInvoiceBuyer =
-              isCreator && effectiveStatus == TradeStatusFilter.waitingInvoice && !trade.isSelling;
+              isCreator &&
+              effectiveStatus == TradeStatusFilter.waitingInvoice &&
+              !trade.isSelling;
 
           if (isPending && isCreator) {
             context.push(AppRoute.myOrderPath(trade.orderId));
@@ -160,15 +166,12 @@ class TradesListItem extends ConsumerWidget {
               ),
 
               // ── Chevron ────────────────────────────────────────
-              Icon(
-                Icons.chevron_right,
-                color: colors.textSubtle,
-              ),
+              Icon(Icons.chevron_right, color: colors.textSubtle),
             ],
           ),
         ),
       ),
-    );
+    ).withAutomationId(AutomationIds.tradesItem(trade.orderId));
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -181,6 +184,7 @@ class TradesListItem extends ConsumerWidget {
       TradeStatusFilter.waitingPayment => AppColors.statusWaiting,
       TradeStatusFilter.active => AppColors.statusActive,
       TradeStatusFilter.fiatSent => AppColors.statusActive,
+      TradeStatusFilter.payoutPending => AppColors.statusWaiting,
       TradeStatusFilter.success => AppColors.statusSuccess,
       TradeStatusFilter.canceled => AppColors.statusInactive,
       TradeStatusFilter.dispute => AppColors.statusDispute,

@@ -19,6 +19,26 @@
 - `[~]` — Partial: code exists but blocked on missing infrastructure (noted in description)
 - `[ ]` — Not started
 
+## Open work at a glance
+
+Most of what follows (T001–T145) is `[x]` — the phases read as a
+completed build log, not a live backlog. What's actually still open lives
+in three clusters of `[~]` partial tasks (code exists, but the backend or
+the UI wiring doesn't):
+
+- **IndexedDB / web storage** (Phase 1 — Setup): T010 — only messages,
+  settings and the active Mostro pubkey are implemented; orders, trades,
+  relays, identity, queued messages and trade keys return "IndexedDB not
+  yet implemented", so the web target cannot persist a trade (#233).
+- **File attachments** (Phase 10 — P2P Chat): T079, T080, T081 — Blossom
+  upload/download (T070) has no Dart caller yet.
+- **Dispute admin chat** (Phase 12 — Dispute System): T088, T090, T091,
+  T092, T093 — the Rust side (T085/T086) is ready; the screens are stubs
+  with no bridge subscription.
+
+Plus one task with no entry at all: **restore from mnemonic** — see T148
+below.
+
 ---
 
 ## Phase 1: Setup (Project Initialization)
@@ -31,7 +51,7 @@
 - [x] T004 Configure `rust/build.rs` to invoke `flutter_rust_bridge_codegen generate` and set up `rust_builder/` scaffolding for wasm-pack web builds
 - [x] T005 [P] Add Rust WASM target and document in `quickstart.md`: `rustup target add wasm32-unknown-unknown`; add `wasm-pack` and `flutter_rust_bridge_codegen` to prerequisites
 - [x] T006 [P] Configure linting: `.clippy.toml` (Rust, deny warnings), `analysis_options.yaml` (Flutter, strict), pre-commit hooks running `cargo clippy -- -D warnings` and `flutter analyze`
-- [x] T007 [P] Populate `assets/data/fiat.json` with full fiat currency list (ISO 4217 code, name, country flag emoji); create placeholder walkthrough images `assets/images/wt-1.png` through `wt-6.png`; create skeleton ARB files `assets/l10n/app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb`
+- [x] T007 [P] Populate `assets/data/fiat.json` with full fiat currency list (ISO 4217 code, name, country flag emoji); create placeholder walkthrough images `assets/images/wt-1.png` through `wt-6.png`; create skeleton ARB files `assets/l10n/app_en.arb`, `app_es.arb`, `app_it.arb`, `app_fr.arb`, `app_de.arb` (historical: those PNG placeholders were replaced by the real `wt-1.webp` … `wt-6.webp` illustrations in #264)
 
 **Checkpoint**: `flutter pub get`, `cd rust && cargo build`, `flutter analyze` all pass.
 
@@ -45,12 +65,12 @@
 
 - [x] T008 Implement all shared types in `rust/src/api/types.rs`: all enums (`OrderKind`, `OrderStatus` with 15 states, `TradeRole`, `BuyerStep`, `SellerStep`, `TradeStep`, `TradeOutcome`, `MessageType`, `DisputeStatus`, `RelayStatus`, `ConnectionState`, `WalletStatus`, `ThemeMode`, `FileType`, `DownloadStatus`, `QueuedMessageStatus`, `CooperativeCancelState`) and all structs (`OrderInfo`, `TradeInfo`, `ChatMessage`, `AttachmentInfo`, `RelayInfo`, `IdentityInfo`, `NymIdentity`, `AppState`, `LogEntry`) per `contracts/types.md`. Mark `flutter_rust_bridge` annotations. Note: `PaymentFailed` is NOT a status — it is an Action notification only.
 - [x] T009 Implement storage trait in `rust/src/db/mod.rs` defining async CRUD interface for all entities (Identity, Order, Trade, Message, Relay, Dispute, Settings, MessageQueue, NwcWallet, FileAttachment, Rating). Implement SQLite backend in `rust/src/db/sqlite.rs` using `sqlx` with full schema migrations for all 11 entities per `data-model.md`.
-- [x] T010 [P] Implement IndexedDB storage backend in `rust/src/db/indexeddb.rs` using `indexed_db_futures`, feature-gated with `#[cfg(target_arch = "wasm32")]`. Must implement the same trait as `sqlite.rs` and support all 11 entities.
+- [~] T010 [P] Implement IndexedDB storage backend in `rust/src/db/indexeddb.rs` using `indexed_db_futures`, feature-gated with `#[cfg(target_arch = "wasm32")]`. Must implement the same trait as `sqlite.rs` and support all 11 entities. **Partial**: only messages (save/list/mark-read/exists), settings and the active Mostro pubkey are backed by real object stores; orders, trades, relays, identity, queued messages and trade keys still return `IndexedDB not yet implemented` — see #233.
 
-> **Transport v2 note**: T011/T012/T039/T040/T049/T066/T085/T137 below describe the original NIP-59 gift-wrap (Kind 1059) transport implemented in 004. Messages to the Mostro daemon were later migrated to transport v2 (NIP-44, signed Kind 14); peer chat (NIP-17) stays on NIP-59 gift wrap (Kind 1059). These task records are kept as-is for history.
+> **Transport v2 note**: T011/T012/T039/T040/T049/T066/T071/T085/T137 below describe the original NIP-59 gift-wrap (Kind 1059) transport implemented in 004. Messages to the Mostro daemon were later migrated to transport v2 (NIP-44, signed Kind 14), and peer/dispute chat followed in #246, moving to the Kind 14 chat envelope. Kind 1059 is gone from both directions, so these task descriptions are a record of what 004 built, not of what ships. These task records are kept as-is for history.
 
-- [x] T011 [P] Implement NIP-59 Gift Wrap encode/decode in `rust/src/nostr/gift_wrap.rs` using `nostr-sdk`: create unsigned rumor event, encrypt into Seal (Kind 13, NIP-44), wrap into Gift Wrap (Kind 1059, ephemeral key). Export `wrap_message(content, recipient_pubkey, sender_key)` and `unwrap_message(gift_wrap_event, recipient_key)`.
-- [x] T012 [P] Implement relay pool with Kind 1059 + Kind 38383 subscriptions in `rust/src/nostr/relay_pool.rs` using `nostr-sdk`. Multi-relay connection manager: connect, disconnect, add/remove relays, subscribe to order events (Kind 38383) and gift-wrap DMs (Kind 1059 targeting user's trade keys), emit events via channels.
+- [x] T011 [P] Implement NIP-59 Gift Wrap encode/decode in `rust/src/nostr/gift_wrap.rs` using `nostr-sdk`: create unsigned rumor event, encrypt into Seal (Kind 13, NIP-44), wrap into Gift Wrap (Kind 1059, ephemeral key). Export `wrap_message(content, recipient_pubkey, sender_key)` and `unwrap_message(gift_wrap_event, recipient_key)`. _(Superseded — see the Transport v2 note above.)_
+- [x] T012 [P] Implement relay pool with Kind 1059 + Kind 38383 subscriptions in `rust/src/nostr/relay_pool.rs` using `nostr-sdk`. Multi-relay connection manager: connect, disconnect, add/remove relays, subscribe to order events (Kind 38383) and gift-wrap DMs (Kind 1059 targeting user's trade keys), emit events via channels. _(Superseded — see the Transport v2 note above.)_
 - [x] T013 [P] Implement offline message queue in `rust/src/queue/outbox.rs`: persist queued Nostr events to DB (entity: `MessageQueue`), retry on reconnection up to 10 attempts, prune `Sent` items after 24 hours, expose `queue_message(event_json, target_relays)` and `flush_queue()`.
 - [x] T014 Implement app design system tokens in `lib/core/app_theme.dart`: colors (`mostroGreen #8CC63F`, `purpleButton #7856AF`, `sellRed #FF8A8A`, `errorRed #EF6A6A`, dark background, card background, text primary/secondary, input background), typography scale, spacing constants, component styles for buttons (filled/outline), cards, chips/badges. Dark and light theme variants. Matches `DESIGN_SYSTEM.md` exactly.
 - [x] T015 [P] Implement GoRouter route definitions scaffold in `lib/core/app_routes.dart` with all 23 routes: `/walkthrough`, `/`, `/add_order`, `/take_sell/:orderId`, `/take_buy/:orderId`, `/pay_invoice/:orderId`, `/add_invoice/:orderId`, `/trade_detail/:orderId`, `/order_book`, `/chat_list`, `/chat_room/:orderId`, `/key_management`, `/settings`, `/about`, `/notifications`, `/relays`, `/wallet_settings`, `/connect_wallet`, `/rate_user/:orderId`, `/dispute_details/:disputeId`, `/notification_settings`, `/logs`, `/dispute_chat/:disputeId`. All routes are stubs returning placeholder `Scaffold` at this stage; redirect logic added in US1 phase.
@@ -70,7 +90,9 @@ configuration.
 **Blocks**: T012 (relay pool initialization), T029 (Nostr relay API)
 
 - [x] T012b Create `rust/src/config.rs` with hardcoded seed constants:
-  - `DEFAULT_RELAYS: &[&str]` = `["wss://relay.mostro.network", "wss://nos.lol"]`
+  - `DEFAULT_RELAYS: &[&str]` = `["wss://relay.mostro.network", "wss://nos.lol",
+    "wss://mostro-p2p.tech", "wss://relay.shadowbip.com"]` — the default node's
+    own kind 10002 relay list; see `contracts/settings.md` → Default Relays
   - `DEFAULT_MOSTRO_PUBKEY: &str` = `"82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390"`
   - `DEFAULT_MOSTRO_NAME: &str` = `"Mostro"`
   - Export from `lib.rs`
@@ -236,7 +258,7 @@ configuration.
 
 **V1 ref**: Sections 19–20 (`P2P_CHAT_SYSTEM.md`)
 
-**Goal**: Per-trade encrypted chat with text + encrypted file attachments. Unread badges on Chat tab. Trade info + user info panels with copyable shared key.
+**Goal**: Per-trade encrypted chat with text + encrypted file attachments. Unread badges on Chat tab. Trade info + user info panels (the shared key is not displayed; one-tap sharing with the solver from the dispute chat is future scope, tracked in #415).
 
 **Independent Test**: Open CONTACT on active trade → chat room with peer handle + avatar. Send text → appears immediately (optimistic). Attach image → uploads encrypted → appears as image preview. Chat tab badge increments on new message, clears on open.
 
@@ -250,7 +272,7 @@ configuration.
 - [x] T076 Implement chat room screen in `lib/features/chat/screens/chat_room_screen.dart`: AppBar (← + `NymAvatar` + peer handle + subtitle). Two info toggle buttons. Message list with optimistic send. `MessageInput` at bottom. Error scaffold for invalid orderId. Route: `/chat_room/:orderId`. Wired in app_routes.dart.
 - [x] T077 [P] Implement message bubble widget in `lib/features/chat/widgets/message_bubble.dart`: own messages (right-aligned, purple `#7856AF`), peer messages (left-aligned, dark shade of `colorHue`), system messages (centered italic). Timestamp below bubble. Long-press → copy to clipboard.
 - [x] T078 [P] Implement message input widget in `lib/features/chat/widgets/message_input.dart`: paperclip attach icon (spinner when attaching), text input "Write a message..." pill, green send button. Clears field after send.
-- [~] T079 [P] Implement trade info panel in `lib/features/chat/widgets/info_panels.dart`: `TradeInformationTab` (order ID copyable, placeholder fields). `UserInformationTab` (peer avatar + handle + copyable peer pubkey + shared key placeholder). **Partial**: still placeholder dashes — the trade-detail fields and the ECDH shared-key display are not yet wired to the bridge.
+- [~] T079 [P] Implement trade info panel in `lib/features/chat/widgets/info_panels.dart`: `TradeInformationTab` (order ID copyable, placeholder fields). `UserInformationTab` (peer avatar + handle + copyable peer pubkey). **Partial**: still placeholder dashes — the trade-detail fields are not yet wired to the bridge. The ECDH shared-key display is dropped from scope: the key is never exposed to Dart/UI; Rust sends it to the solver over the dispute chat behind an explicit confirmation (one-tap delivery and the `contracts/disputes.md` update are deferred to #415).
 - [~] T080 Implement encrypted image message widget in `lib/features/chat/widgets/encrypted_image_message.dart`: placeholder image container with tap hint. **Partial**: still a tap-to-stub SnackBar — the `download_attachment()` + `decrypt_file()` bridge calls are not yet wired. This is the UI consumer for Blossom (T070).
 - [~] T081 [P] Implement encrypted file message widget in `lib/features/chat/widgets/encrypted_file_message.dart`: file card with type icon, name, size, download button + simulated progress bar. **Partial**: still a stub with simulated progress — the `download_attachment()` bridge call is not yet wired. UI consumer for Blossom (T070).
 
@@ -305,10 +327,10 @@ configuration.
 
 **Goal**: After trade completes both parties are prompted to rate (1–5 stars). Rating optional. Ratings appear on order book cards.
 
-**Independent Test**: Seller releases sats → Rate button appears. Tap → rate screen with 5 stars. Select 4 → Submit enabled → tap Submit → screen closes. Counterparty's reputation score updated on their order cards.
+**Independent Test**: `PurchaseCompleted` moves the trade to `Success` → Rate button appears for both parties. Tap → rate screen with 5 stars. Select 4 → Submit enabled → tap Submit → screen closes. Counterparty's reputation score updated on their order cards.
 
 - [x] T094 Implement reputation API in `rust/src/api/reputation.rs` per `contracts/reputation.md`: `submit_rating(trade_id, score)` — validates 1–5, sends `RateUser` `MostroMessage`. `get_privacy_mode()`, `set_privacy_mode(enabled)`. `get_rating_for_trade(trade_id)`. Errors: `TradeNotComplete`, `PrivacyModeEnabled`, `AlreadyRated`.
-- [x] T095 Implement rate counterpart screen in `lib/features/rate/screens/rate_counterpart_screen.dart`: header "RATE" (uppercase gray). Success indicator: green double-lightning-bolt + "Successful order" text. 5-star `StarRating` widget. "X / 5" display below stars. Submit button (green filled, disabled until `_rating > 0`) + Close button (green outline, skips rating). Route: `/rate_user/:orderId`. Seller prompted at `SettledHoldInvoice`; buyer prompted at `Success`.
+- [x] T095 Implement rate counterpart screen in `lib/features/rate/screens/rate_counterpart_screen.dart`: header "RATE" (uppercase gray). Success indicator: green double-lightning-bolt + "Successful order" text. 5-star `StarRating` widget. "X / 5" display below stars. Submit button (green filled, disabled until `_rating > 0`) + Close button (green outline, skips rating). Route: `/rate_user/:orderId`. Both parties prompted at `Success` (the buyer payout completed, `PurchaseCompleted`); `SettledHoldInvoice` is shown as payout pending and offers no rating yet.
 - [x] T096 [P] Implement star rating widget in `lib/features/rate/widgets/star_rating.dart`: 5 tappable stars. Filled = `AppTheme.mostroGreen #8CC63F`. Empty = dark gray outline. Tap sets rating to star index + 1. Rating "X / 5" display.
 - [x] T097 Wire rate button in trade detail screen: when `OrderState.action` is `Action.rate`/`Action.rateUser`/`Action.rateReceived` → show Rate button in `_buildActionButtons()` → navigates to `/rate_user/:orderId`. After `rateReceived` → no further actions shown.
 
@@ -458,6 +480,26 @@ configuration.
 
 ---
 
+## Phase 21: Restore Sessions & Trades from Mnemonic
+
+**Purpose**: Track the recovery flow contract that already exists in
+`contracts/identity.md` (`import_from_mnemonic(recover: true)`) but has no
+implementation task in this file. Currently, reinstalling the app with an
+existing mnemonic loses all trades, sessions, and disputes — see epic #142
+and its sub-issues (#216, #218, #219, #220, #221, #222) for the current,
+actively maintained breakdown of this work.
+
+- [ ] T148 Implement the recovery flow per `contracts/identity.md`
+      `import_from_mnemonic(words, recover: true)`: send `Action.restore`
+      to the Mostro daemon via NIP-44 (Kind 14), receive order/dispute IDs,
+      request details for each, sync the trade key index, and reconstruct
+      the local DB from daemon responses. Recovery only applies outside
+      privacy mode. **This task is a pointer, not a plan** — see epic #142
+      for the up-to-date task breakdown; do not duplicate work already
+      scoped there.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -577,5 +619,5 @@ With 3+ developers after Phase 2 completes:
 - `CooperativelyCanceled` is a **client-side UI state only** — protocol sends action notifications
 - Nym avatar icons MUST always render in **white** regardless of `color_hue` (v1 bug fix, see `contracts/types.md`)
 - `privacy_mode` single write path is `reputation.set_privacy_mode()` — never write `Settings.privacy_mode` directly
-- `logging_enabled` is runtime-only — always `false` at startup regardless of stored value
+- `logging_enabled` is runtime-only in Rust — Flutter persists it and re-applies it on launch
 - Commit after each task or logical group; stop at any checkpoint to validate independently

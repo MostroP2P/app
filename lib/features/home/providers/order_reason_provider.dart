@@ -70,7 +70,11 @@ Map<String, OrderReason> computeOrderReasons(
 }
 
 /// Reason badges for the currently displayed (filtered) order list.
-final orderReasonsProvider = Provider<Map<String, OrderReason>>((ref) {
+///
+/// autoDispose for the same reason as [filteredOrdersProvider]: watching it
+/// from a provider that never disposes would keep the whole order-book
+/// pipeline alive well after the list leaves the screen.
+final orderReasonsProvider = Provider.autoDispose<Map<String, OrderReason>>((ref) {
   final orders = ref.watch(filteredOrdersProvider);
   return computeOrderReasons(orders);
 });

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 
 // ── Preference keys ────────────────────────────────────────────────────────────
 
@@ -103,9 +104,12 @@ class SettingsNotifier extends StateNotifier<AppSettingsState> {
     }
   }
 
+  /// Turns verbose (`Debug`) logging on or off. The Rust core owns the global
+  /// log filter, so the flag has to reach it or the toggle does nothing.
   void setLoggingEnabled(bool enabled) {
     state = state.copyWith(loggingEnabled: enabled);
     _prefs?.setBool(_kLoggingEnabled, enabled);
+    settings_api.setLoggingEnabled(enabled: enabled);
   }
 
   void setThemeMode(ThemeMode mode) {

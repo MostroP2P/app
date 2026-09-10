@@ -62,21 +62,37 @@ void main() {
       expect(field.controller?.text, 'http://localhost:3338');
     });
 
-    testWidgets('the newest override wins over an earlier one', (tester) async {
-      // Guards the seeding path against applying a stale value: the seed is
-      // read when the post-frame callback runs, not captured during the build
-      // that scheduled it.
-      final controller = StreamController<EscrowModeInfo>();
+    testWidgets('a newer override arriving mid-frame is not overwritten',
+        (tester) async {
+      // The race the seeding path has to survive: the widget schedules its seed
+      // callback during build, and a newer override lands before that callback
+      // runs. Capturing the value at build time would restore the stale one.
+      //
+      // Reproducing it needs two things: a *synchronous* controller, so the
+      // listener fires inside the frame rather than in a later microtask; and a
+      // post-frame callback registered *before* the widget's, so the newer
+      // value is emitted while the widget's callback is still queued behind it.
+      final controller = StreamController<EscrowModeInfo>.broadcast(sync: true);
       addTearDown(controller.close);
 
       await _pump(tester, controller.stream);
       controller.add(_info(mintOverride: 'http://old.example'));
-      await tester.pumpAndSettle();
-      controller.add(_info(mintOverride: 'http://new.example'));
-      await tester.pumpAndSettle();
+
+      // Runs ahead of the seed callback the next build will schedule.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.add(_info(mintOverride: 'http://new.example'));
+      });
+
+      await tester.pump();
+      await tester.pump();
 
       final field = tester.widget<TextField>(find.byType(TextField));
-      expect(field.controller?.text, 'http://new.example');
+      expect(
+        field.controller?.text,
+        'http://new.example',
+        reason: 'the seed callback must read the current value, not a copy '
+            'captured during build',
+      );
     });
 
     testWidgets('typing survives an event that did not change the override',

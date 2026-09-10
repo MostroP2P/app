@@ -108,6 +108,53 @@ class OrderItem {
     return v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
   }
 
+  /// Value equality, so a screen watching one order can tell whether *its*
+  /// order actually moved. Every book emission rebuilds every [OrderItem],
+  /// so identity comparison always reports a change and
+  /// [orderByIdProvider]'s `select` would never filter anything out.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OrderItem &&
+          other.id == id &&
+          other.kind == kind &&
+          other.fiatAmount == fiatAmount &&
+          other.fiatAmountMin == fiatAmountMin &&
+          other.fiatAmountMax == fiatAmountMax &&
+          other.fiatCode == fiatCode &&
+          other.paymentMethod == paymentMethod &&
+          other.premium == premium &&
+          other.creatorPubkey == creatorPubkey &&
+          other.createdAt == createdAt &&
+          other.expiresAt == expiresAt &&
+          other.rating == rating &&
+          other.tradeCount == tradeCount &&
+          other.daysActive == daysActive &&
+          other.status == status &&
+          other.amountSats == amountSats &&
+          other.isMine == isMine;
+
+  @override
+  int get hashCode => Object.hashAll([
+        id,
+        kind,
+        fiatAmount,
+        fiatAmountMin,
+        fiatAmountMax,
+        fiatCode,
+        paymentMethod,
+        premium,
+        creatorPubkey,
+        createdAt,
+        expiresAt,
+        rating,
+        tradeCount,
+        daysActive,
+        status,
+        amountSats,
+        isMine,
+      ]);
+
   /// Map a Rust-bridge [OrderInfo] to an [OrderItem] for display.
   factory OrderItem.fromInfo(OrderInfo info) => OrderItem(
         id: info.id,
@@ -130,6 +177,9 @@ class OrderItem {
         status: info.status,
         amountSats: info.amountSats,
         isMine: info.isMine,
+        rating: info.rating,
+        tradeCount: info.totalReviews,
+        daysActive: info.daysActive,
       );
 }
 
@@ -159,11 +209,39 @@ final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) asyn
   }
 });
 
+/// The live book indexed by order id, rebuilt once per emission.
+///
+/// Screens that care about a single order used to scan the whole list for it,
+/// on every rebuild — an O(orders) walk per screen per relay event.
+final orderBookIndexProvider = Provider.autoDispose<Map<String, OrderItem>>((ref) {
+  final orders = ref.watch(orderBookProvider).valueOrNull ?? const <OrderItem>[];
+  return {for (final order in orders) order.id: order};
+});
+
+/// One order from the live book, or null when it is not in it.
+///
+/// The `select` is what makes this worth having: a screen watching one order
+/// rebuilds only when *that* order changes, not on every book emission. It
+/// relies on [OrderItem]'s value equality.
+final orderByIdProvider =
+    Provider.autoDispose.family<OrderItem?, String>((ref, orderId) {
+  return ref.watch(orderBookIndexProvider.select((index) => index[orderId]));
+});
+
 /// Filtered orders based on active tab and all filter providers.
 ///
 /// Unwraps the `AsyncValue` from [orderBookProvider]; returns `[]` while
 /// loading or on error so that filter/tab logic is always well-typed.
-final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
+///
+/// `autoDispose` is load-bearing, not hygiene: [orderBookProvider] is itself
+/// autoDispose, so a non-disposing watcher here would keep it — and this
+/// filter and sort over the whole book — running on every relay event for the
+/// rest of the session, including while the user is in Chat or Trades.
+///
+/// This only ends the pipeline when Home is actually unmounted: the bottom
+/// nav replaces it (`context.go`), but Settings, About and key management are
+/// pushed over it, so Home — and the book — stay alive underneath those.
+final filteredOrdersProvider = Provider.autoDispose<List<OrderItem>>((ref) {
   final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
   final orderType = ref.watch(homeOrderTypeProvider);
   final selectedCurrencies = ref.watch(currencyFilterProvider);
@@ -177,8 +255,11 @@ final filteredOrdersProvider = Provider<List<OrderItem>>((ref) {
   return allOrders.where((o) {
     // Order book shows only pending orders.
     if (o.status != OrderStatus.pending) return false;
-    // Own orders are always shown regardless of which tab is active.
-    if (!o.isMine && o.kind != targetKind) return false;
+    // Own orders follow the same tab split as everyone else's — a sell
+    // order lives in BUY BTC, a buy order in SELL BTC — distinguished only
+    // by the "you are selling/buying" pill (issue #290). Managing them has
+    // its own place (My Trades / MyOrderScreen on tap).
+    if (o.kind != targetKind) return false;
 
     if (selectedCurrencies.isNotEmpty &&
         !selectedCurrencies.contains(o.fiatCode)) {

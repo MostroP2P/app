@@ -27,6 +27,12 @@ Pending | WaitingBuyerInvoice | WaitingPayment | Active | FiatSent
 > `CooperativelyCanceled` is a **client-side UI state only** — the protocol
 > does not change order status for cooperative cancellation.
 
+> Note: `InProgress` reaches this client as NIP-69's public bucket for "the
+> order left the book", not as the mostro-core FSM state that follows an admin
+> taking a dispute. It carries no claim about the escrow, so it MUST NOT be
+> mapped onto `Active` in the UI. See "Public status vs. trade status" in
+> `contracts/orders.md`.
+
 ### TradeRole
 ```text
 Buyer | Seller
@@ -155,6 +161,17 @@ started_at: i64
 completed_at: i64?
 outcome: TradeOutcome?
 ```
+
+`counterparty_pubkey` is the **peer's trade pubkey**, never the Mostro
+node's (`order.creator_pubkey` on a book order is the node — the 38383
+event author). It starts **empty** for both roles and is populated when a
+daemon message names both trade pubkeys (the peer-reveal capture, #334 —
+see `orders.md`). On backends with a trades store the trade row is the
+**durable** peer record and the in-memory session only a cache of it; web
+has no trades store yet (#233), so there the write is a stub, the session
+is the only holder, and a restart recovers the peer only through a
+replayed reveal. Once set it never changes for a trade, and it is what
+the chat UI gates the room on.
 
 ### ChatMessage
 ```text
