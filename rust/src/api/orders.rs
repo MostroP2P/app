@@ -1182,12 +1182,14 @@ pub async fn take_order(
     // as daemon messages.
     subscribe_single_order(&order_id).await;
     // Create (or replace, on a retake) the session so the chat API can look
-    // up keys immediately. A confirmed take always wins over whatever a prior
-    // failed/timed-out attempt left behind (#335).
+    // up keys immediately. A confirmed take always wins over a session an
+    // earlier confirmed take of this order left behind (#335) — a failed or
+    // timed-out take returns above and leaves none.
     //
     // A session may already exist for two different reasons, and they must not
-    // be treated alike: a prior failed take left a *stale* one (different
-    // trade_key_index — replace it), or `maybe_capture_peer_reveal` created
+    // be treated alike: an earlier take whose `Canceled` never reached us left
+    // a *stale* one (different trade_key_index — replace it), or
+    // `maybe_capture_peer_reveal` created
     // this take's own session with peer + shared key already set (same index —
     // keep it, #334/#345). `install_session` distinguishes them by index.
     //
@@ -2499,8 +2501,9 @@ async fn dispatch_mostro_message(
             // finished trade must not resurrect its status. (Peer capture
             // already ran in `maybe_capture_peer_reveal`, which carries its
             // own copy of this guard.) The legit re-take of a
-            // timeout-canceled order is unaffected: its wiped row leaves the
-            // book's `pending` as the local status, which passes.
+            // timeout-canceled order is unaffected: the wipe of its row hands
+            // the book entry back to the public view — `pending`, or no entry
+            // at all — so the local status it reads passes.
             if status_write_blocked(&order_id, &kind.action, event_ts).await {
                 return;
             }
@@ -8108,8 +8111,9 @@ mod tests {
     /// reading a superseded index.
     ///
     /// Scope: this pins `install_session` itself, not the `take_order` call
-    /// site — reaching that needs a daemon. The seam is covered by the manual
-    /// regtest run recorded in the PR description.
+    /// site — reaching that needs a daemon. `retake_e2e_taker_cancels_and_retakes`
+    /// (`#[ignore]`, live daemon) drives it, with the first take's session
+    /// planted so the retake meets a stale one.
     #[tokio::test]
     async fn retake_replaces_stale_session_trade_key_index() {
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -8121,9 +8125,9 @@ mod tests {
             .await
             .expect("first install must succeed");
 
-        // Retake (first attempt timed out / was rejected by the daemon):
-        // derives a fresh trade key index 1. `take_order` calls
-        // `install_session` the same way.
+        // Retake (the first take's `Canceled` never arrived, so its session
+        // is still here): derives a fresh trade key index 1. `take_order`
+        // calls `install_session` the same way.
         mgr.install_session(order_id.clone(), TradeRole::Buyer, 1, order)
             .await
             .expect("retake install must succeed");
@@ -9183,11 +9187,12 @@ mod restore_e2e_tests {
     ///   RETAKE_ORDER_ID=<id from phase 1> \
     ///     cargo test --lib retake_e2e_taker -- --ignored --nocapture
     ///
-    /// Before the retake it plants the first take's row again, standing in for
-    /// one this flow no longer leaves (a `Canceled` never received, or a row
-    /// written before takers' cancels were wiped), so the one-row-per-order
-    /// rule of `take_order` is exercised too. It ends by cancelling the
-    /// retake, which returns the order to `pending` for the next run.
+    /// Before the retake it plants the first take's row and session again,
+    /// standing in for what this flow no longer leaves (a `Canceled` never
+    /// received, or a row written before takers' cancels were wiped), so
+    /// `take_order`'s one-row-per-order rule and its replacement of a stale
+    /// session (#335) are exercised too. It ends by cancelling the retake,
+    /// which returns the order to `pending` for the next run.
     #[tokio::test]
     #[ignore = "requires live regtest stack and phase 1 — set MOSTRO_REGTEST_PUBKEY and RETAKE_ORDER_ID"]
     async fn retake_e2e_taker_cancels_and_retakes() {
@@ -9232,6 +9237,15 @@ mod restore_e2e_tests {
         );
 
         db.save_trade(&first).await.expect("plant the first take's row");
+        crate::mostro::session::session_manager()
+            .install_session(
+                order_id.clone(),
+                TradeRole::Buyer,
+                first.trade_key_index,
+                first.order.clone(),
+            )
+            .await
+            .expect("plant the first take's session");
         let second = take_order(order_id.clone(), TradeRole::Buyer, None)
             .await
             .expect("the retake must be accepted");
