@@ -9,6 +9,7 @@ import 'package:mostro/core/storage/db_location.dart';
 import 'package:mostro/core/storage/app_data_dir.dart'
     if (dart.library.html) 'package:mostro/core/storage/app_data_dir_web.dart';
 import 'package:mostro/core/app.dart';
+import 'package:mostro/core/font_licenses.dart';
 import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/core/test_environment.dart';
@@ -45,6 +46,7 @@ import 'package:mostro/features/notifications/providers/notifications_provider.d
 /// silently succeeding against a public one.
 Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerFontLicenses();
 
   // Initialize Firebase (no-op if firebase_options.dart is the placeholder).
   try {

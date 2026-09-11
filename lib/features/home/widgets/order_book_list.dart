@@ -20,16 +20,18 @@ class OrderBookList extends StatelessWidget {
     required this.onOrderTap,
   });
 
-  /// Already filtered and sorted — newest first, which is what makes an
-  /// arriving order shift every row below it.
+  /// Already filtered and sorted — newest first by default, which is what
+  /// makes an arriving order shift every row below it.
   final List<OrderItem> orders;
   final Map<String, String> currencyFlags;
   final Map<String, OrderReason> reasons;
   final int columns;
   final void Function(String orderId) onOrderTap;
 
-  /// Mock list: 8px top, 16px sides, 90px bottom clearance, 12px card gap.
-  static const _listPadding = EdgeInsets.fromLTRB(16, 8, 16, 90);
+  /// Handoff 4b: 18 at the sides, cards straight under the filter row, and
+  /// enough bottom clearance for the last card to scroll out from under the
+  /// create-order button. Shared with the loading skeleton.
+  static const listPadding = EdgeInsets.fromLTRB(18, 0, 18, 96);
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +58,7 @@ class OrderBookList extends StatelessWidget {
 
     if (columns == 1) {
       return ListView.separated(
-        padding: _listPadding,
+        padding: listPadding,
         itemCount: orders.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         // `separated` builds one child per item *and* one per separator, so a
@@ -77,7 +79,7 @@ class OrderBookList extends StatelessWidget {
     }
 
     return GridView.builder(
-      padding: _listPadding,
+      padding: listPadding,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         crossAxisSpacing: 12,

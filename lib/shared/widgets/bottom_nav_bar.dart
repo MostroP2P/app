@@ -14,7 +14,12 @@ import 'package:mostro/shared/providers/nav_providers.dart';
 /// Badge count for the Chat tab. Will be wired to Rust bridge.
 final chatNotificationCountProvider = StateProvider<int>((_) => 0);
 
+const double _barHeight = 68;
+
 /// Bottom navigation bar with 3 tabs: Order Book, My Trades, Chat.
+///
+/// Order-book handoff 4b: 68 tall on the navigation surface under a hairline,
+/// each destination a 20-dp icon over a 10-dp label, lime when active.
 class BottomNavBar extends ConsumerWidget {
   const BottomNavBar({super.key});
 
@@ -26,106 +31,152 @@ class BottomNavBar extends ConsumerWidget {
     }
 
     final currentIndex = ref.watch(bottomNavIndexProvider);
-    final colors = Theme.of(context).extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final disabledColor = colors?.textDisabled ?? const Color(0xFF6C757D);
+    final palette = OrderBookPalette.of(context);
     final tradesCount = ref.watch(orderBookNotificationCountProvider);
     final chatCount = ref.watch(chatNotificationCountProvider);
     final l10n = AppLocalizations.of(context);
 
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      selectedItemColor: green,
-      unselectedItemColor: disabledColor,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      elevation: 0,
-      onTap: (index) {
-        ref.read(bottomNavIndexProvider.notifier).state = index;
-        switch (index) {
-          case 0:
-            context.go(AppRoute.home);
-          case 1:
-            context.go(AppRoute.orderBook);
-          case 2:
-            context.go(AppRoute.chatList);
-          default:
-            assert(false, 'Unexpected bottom nav index: $index');
-        }
-      },
-      // The identifier rides the item's icon: BottomNavigationBar builds the
-      // item's own semantics node, so this is the innermost widget the tab
-      // owns, and its bounds are inside the tab's tap target.
-      items: [
-        BottomNavigationBarItem(
-          icon: const Icon(Icons.list_alt_outlined)
-              .withAutomationId(AutomationIds.navOrderBook),
-          activeIcon: const Icon(Icons.list_alt)
-              .withAutomationId(AutomationIds.navOrderBook),
-          label: l10n.navOrderBook,
+    void select(int index) {
+      ref.read(bottomNavIndexProvider.notifier).state = index;
+      switch (index) {
+        case 0:
+          context.go(AppRoute.home);
+        case 1:
+          context.go(AppRoute.orderBook);
+        case 2:
+          context.go(AppRoute.chatList);
+        default:
+          assert(false, 'Unexpected bottom nav index: $index');
+      }
+    }
+
+    final destinations = [
+      (
+        id: AutomationIds.navOrderBook,
+        icon: Icons.list_alt_outlined,
+        activeIcon: Icons.list_alt,
+        label: l10n.bottomNavBook,
+        badge: 0,
+      ),
+      (
+        id: AutomationIds.navTrades,
+        icon: Icons.bolt_outlined,
+        activeIcon: Icons.bolt,
+        label: l10n.bottomNavTrades,
+        badge: tradesCount,
+      ),
+      (
+        id: AutomationIds.navChat,
+        icon: Icons.chat_bubble_outline,
+        activeIcon: Icons.chat_bubble,
+        label: l10n.navChat,
+        badge: chatCount,
+      ),
+    ];
+
+    // Material (not a coloured box) so the items' ink splashes paint on it.
+    return Material(
+      color: palette.surfaceNav,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: palette.navBorder)),
         ),
-        BottomNavigationBarItem(
-          icon: _BadgeIcon(
-            icon: Icons.bolt_outlined,
-            count: tradesCount,
-            color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ).withAutomationId(AutomationIds.navTrades),
-          activeIcon: _BadgeIcon(
-            icon: Icons.bolt,
-            count: tradesCount,
-            color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ).withAutomationId(AutomationIds.navTrades),
-          label: l10n.navMyTrades,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+          child: SizedBox(
+            height: _barHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+              child: Row(
+                children: [
+                  for (final (index, destination) in destinations.indexed)
+                    Expanded(
+                      // The identifier names the whole destination, so the
+                      // tap action and selected state travel with it.
+                      child: _NavItem(
+                        icon:
+                            index == currentIndex
+                                ? destination.activeIcon
+                                : destination.icon,
+                        label: destination.label,
+                        badgeCount: destination.badge,
+                        isActive: index == currentIndex,
+                        palette: palette,
+                        onTap: () => select(index),
+                      ).withAutomationId(destination.id),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ),
-        BottomNavigationBarItem(
-          icon: _BadgeIcon(
-            icon: Icons.chat_bubble_outline,
-            count: chatCount,
-            color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ).withAutomationId(AutomationIds.navChat),
-          activeIcon: _BadgeIcon(
-            icon: Icons.chat_bubble,
-            count: chatCount,
-            color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
-          ).withAutomationId(AutomationIds.navChat),
-          label: l10n.navChat,
-        ),
-      ],
+      ),
     );
   }
 }
 
-/// Icon with an optional red dot badge.
-class _BadgeIcon extends StatelessWidget {
-  const _BadgeIcon({
+class _NavItem extends StatelessWidget {
+  const _NavItem({
     required this.icon,
-    required this.count,
-    required this.color,
+    required this.label,
+    required this.badgeCount,
+    required this.isActive,
+    required this.palette,
+    required this.onTap,
   });
 
   final IconData icon;
-  final int count;
-  final Color color;
+  final String label;
+  final int badgeCount;
+  final bool isActive;
+  final OrderBookPalette palette;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Icon(icon),
-        if (count > 0)
-          Positioned(
-            top: -2,
-            right: -4,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
+    final color = isActive ? palette.limeText : palette.textTertiary;
+
+    return Semantics(
+      selected: isActive,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, size: 20, color: color),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -2,
+                    right: -4,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: palette.notif,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
                 color: color,
-                shape: BoxShape.circle,
               ),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }

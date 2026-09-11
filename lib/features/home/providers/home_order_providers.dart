@@ -37,6 +37,67 @@ final ratingFilterProvider =
 final premiumRangeFilterProvider =
     StateProvider<({double min, double max})>((_) => defaultPremiumRange);
 
+/// Whether any filter currently narrows the order book.
+final hasActiveOrderFiltersProvider = Provider<bool>((ref) {
+  return ref.watch(currencyFilterProvider).isNotEmpty ||
+      ref.watch(paymentMethodFilterProvider).isNotEmpty ||
+      ref.watch(ratingFilterProvider) != defaultRatingRange ||
+      ref.watch(premiumRangeFilterProvider) != defaultPremiumRange;
+});
+
+/// Resets every order-book filter to its default.
+void clearOrderFilters(WidgetRef ref) {
+  ref.read(currencyFilterProvider.notifier).state = const [];
+  ref.read(paymentMethodFilterProvider.notifier).state = const [];
+  ref.read(ratingFilterProvider.notifier).state = defaultRatingRange;
+  ref.read(premiumRangeFilterProvider.notifier).state = defaultPremiumRange;
+}
+
+// ── Sort ──────────────────────────────────────────────────────────────────────
+
+/// Criteria the order book can be sorted by.
+enum OrderSort {
+  /// Most recently published first.
+  newest,
+
+  /// The premium most in the taker's favour first — see
+  /// [OrderItemTakerView.takerPremiumAdvantage].
+  bestPremium,
+
+  /// Highest maker rating first, then most trades.
+  bestReputation,
+}
+
+/// Selected order-book sort. Newest first by default.
+final orderSortProvider = StateProvider<OrderSort>((_) => OrderSort.newest);
+
+/// Orders [OrderItem]s by [sort]. Every criterion falls back to newest first,
+/// so orders with equal keys keep a meaningful order — `List.sort` is not
+/// stable.
+Comparator<OrderItem> orderComparator(OrderSort sort) {
+  int newestFirst(OrderItem a, OrderItem b) =>
+      b.createdAt.compareTo(a.createdAt);
+  int thenNewest(int byKey, OrderItem a, OrderItem b) =>
+      byKey != 0 ? byKey : newestFirst(a, b);
+
+  return switch (sort) {
+    OrderSort.newest => newestFirst,
+    OrderSort.bestPremium => (a, b) => thenNewest(
+      b.takerPremiumAdvantage.compareTo(a.takerPremiumAdvantage),
+      a,
+      b,
+    ),
+    OrderSort.bestReputation => (a, b) {
+      final byRating = b.rating.compareTo(a.rating);
+      return thenNewest(
+        byRating != 0 ? byRating : b.tradeCount.compareTo(a.tradeCount),
+        a,
+        b,
+      );
+    },
+  };
+}
+
 // ── Order model ───────────────────────────────────────────────────────────────
 
 /// Lightweight Dart-side order model for the UI layer.
@@ -90,7 +151,9 @@ class OrderItem {
   final int daysActive;
   /// Current order status from the Mostro protocol.
   final OrderStatus status;
-  /// Sats amount resolved by Mostro (non-null once Mostro accepts the take).
+  /// Sats amount. On a published order it is the Kind 38383 `amt` tag: `0`
+  /// when the order is priced at market when taken, the fixed amount
+  /// otherwise. Once Mostro accepts a take it carries the resolved amount.
   final BigInt? amountSats;
   /// True when this order was created by the current user.
   final bool isMine;
@@ -183,6 +246,21 @@ class OrderItem {
       );
 }
 
+/// How an order reads from the side of whoever takes it.
+extension OrderItemTakerView on OrderItem {
+  /// Premium points in the taker's favour — higher is always better.
+  ///
+  /// Taking a sell order means buying BTC, where a lower premium is cheaper;
+  /// taking a buy order means selling it, where a higher premium pays more.
+  /// (`0 - premium` rather than `-premium` so a zero premium stays `0.0`:
+  /// `-0.0` sorts below `0.0`.)
+  double get takerPremiumAdvantage => kind == 'sell' ? 0 - premium : premium;
+
+  /// Whether the maker fixed the sats amount (`amt` > 0), as opposed to an
+  /// order priced at market when it is taken.
+  bool get hasFixedSats => (amountSats ?? BigInt.zero) > BigInt.zero;
+}
+
 /// Live order book backed by the Rust bridge Kind 38383 subscription.
 ///
 /// Immediately yields the current cached snapshot (empty on first run) so the
@@ -228,7 +306,8 @@ final orderByIdProvider =
   return ref.watch(orderBookIndexProvider.select((index) => index[orderId]));
 });
 
-/// Filtered orders based on active tab and all filter providers.
+/// Filtered orders based on active tab, all filter providers and the selected
+/// [OrderSort].
 ///
 /// Unwraps the `AsyncValue` from [orderBookProvider]; returns `[]` while
 /// loading or on error so that filter/tab logic is always well-typed.
@@ -248,6 +327,7 @@ final filteredOrdersProvider = Provider.autoDispose<List<OrderItem>>((ref) {
   final selectedPaymentMethods = ref.watch(paymentMethodFilterProvider);
   final ratingRange = ref.watch(ratingFilterProvider);
   final premiumRange = ref.watch(premiumRangeFilterProvider);
+  final sort = ref.watch(orderSortProvider);
 
   // "BUY BTC" tab shows sell orders (taker buys); "SELL BTC" shows buy orders.
   final targetKind = orderType == OrderType.buy ? 'sell' : 'buy';
@@ -290,5 +370,5 @@ final filteredOrdersProvider = Provider.autoDispose<List<OrderItem>>((ref) {
 
     return true;
   }).toList()
-    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    ..sort(orderComparator(sort));
 });
