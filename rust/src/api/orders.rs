@@ -3916,13 +3916,57 @@ fn relay_list_subscription_id() -> nostr_sdk::prelude::SubscriptionId {
     nostr_sdk::prelude::SubscriptionId::new("mostro-relay-list")
 }
 
+/// Point the long-lived subscription `id` at `filter`, replacing whatever it
+/// carried before.
+///
+/// nostr-sdk 0.45 refuses a subscribe whose id already exists and keeps the
+/// old filters, so the id is closed first (a no-op when it was never open).
+/// The brief gap between CLOSE and REQ loses nothing: a node switch refetches
+/// the book right after, and the Kind-14 feed has no `since`, so its REQ
+/// replays history.
+///
+/// The SDK reports per-relay failures inside an `Ok` output, which is how a
+/// rejected re-subscribe used to pass for a live one. No relay accepting it is
+/// an error here; a partial failure is logged.
+async fn replace_subscription(
+    client: &nostr_sdk::prelude::Client,
+    id: nostr_sdk::prelude::SubscriptionId,
+    filter: nostr_sdk::prelude::Filter,
+) -> Result<()> {
+    if let Err(e) = client.unsubscribe(&id).await {
+        log::warn!("[orders] closing {id} before re-subscribing failed: {e}");
+    }
+    let output = client
+        .subscribe(filter)
+        .with_id(id.clone())
+        .await
+        .map_err(|e| anyhow::anyhow!("subscribe {id} failed: {e}"))?;
+    if output.success.is_empty() {
+        return Err(anyhow::anyhow!(
+            "subscribe {id} rejected by every relay: {:?}",
+            output.failed
+        ));
+    }
+    for (url, err) in &output.failed {
+        crate::api::logging::blog_warn(
+            "relay",
+            format!(
+                "sub {id} failed relay={} err={}",
+                crate::api::logging::display_relay(&url.to_string()),
+                crate::api::logging::sanitize_relay_text(err),
+            ),
+        );
+    }
+    Ok(())
+}
+
 /// (Re)subscribe the order-book (Kind 38383) and Mostro-reply (Kind 14)
 /// filters, author-pinned to `mostro_pubkey`.
 ///
 /// Uses **stable** subscription IDs so that calling this again for a different
-/// node REPLACES the existing author-pinned filters in place (the relay pool
-/// overwrites the subscription for a known ID) instead of leaking a second
-/// subscription that keeps the old node's events flowing.
+/// node replaces the existing author-pinned filters (see
+/// [`replace_subscription`]) instead of leaking a second subscription that
+/// keeps the old node's events flowing.
 async fn subscribe_node_filters(
     client: &nostr_sdk::prelude::Client,
     mostro_pubkey: nostr_sdk::prelude::PublicKey,
@@ -3933,16 +3977,8 @@ async fn subscribe_node_filters(
     // limit is given), so a bare `kind+author` filter comes back with the
     // node's dead history and none of the live book. See `pending_orders_filter`.
     let (pending_filter, recent_filter) = order_book_filters(&mostro_pubkey);
-    client
-        .subscribe(pending_filter)
-        .with_id(orders_subscription_id())
-        .await
-        .map_err(|e| anyhow::anyhow!("order subscribe failed: {e}"))?;
-    client
-        .subscribe(recent_filter)
-        .with_id(recent_orders_subscription_id())
-        .await
-        .map_err(|e| anyhow::anyhow!("recent-orders subscribe failed: {e}"))?;
+    replace_subscription(client, orders_subscription_id(), pending_filter).await?;
+    replace_subscription(client, recent_orders_subscription_id(), recent_filter).await?;
     crate::api::logging::blog_info(
         "relay",
         format!(
@@ -3956,11 +3992,12 @@ async fn subscribe_node_filters(
 
     // The node's NIP-65 relay list, kept live so an operator adding a relay
     // reaches running clients; applied additively by apply_relay_list_event.
-    client
-        .subscribe(crate::nostr::relay_list::relay_list_filter(&mostro_pubkey))
-        .with_id(relay_list_subscription_id())
-        .await
-        .map_err(|e| anyhow::anyhow!("relay-list subscribe failed: {e}"))?;
+    replace_subscription(
+        client,
+        relay_list_subscription_id(),
+        crate::nostr::relay_list::relay_list_filter(&mostro_pubkey),
+    )
+    .await?;
     crate::api::logging::blog_info(
         "relay",
         format!(
@@ -3982,11 +4019,7 @@ async fn subscribe_node_filters(
             .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
             .author(mostro_pubkey)
             .pubkeys(trade_pubkeys);
-        client
-            .subscribe(dm_filter)
-            .with_id(mostro_dm_subscription_id())
-            .await
-            .map_err(|e| anyhow::anyhow!("dm subscribe failed: {e}"))?;
+        replace_subscription(client, mostro_dm_subscription_id(), dm_filter).await?;
         crate::api::logging::blog_info(
             "relay",
             format!(
@@ -4123,11 +4156,8 @@ async fn resubscribe_global_dm_filter() {
         .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
         .author(mostro_pubkey)
         .pubkeys(trade_pubkeys);
-    if let Err(e) = pool
-        .client()
-        .subscribe(dm_filter)
-        .with_id(mostro_dm_subscription_id())
-        .await
+    if let Err(e) =
+        replace_subscription(&pool.client(), mostro_dm_subscription_id(), dm_filter).await
     {
         log::warn!("[orders] bulk DM filter refresh failed: {e}");
     } else {
@@ -5323,6 +5353,75 @@ mod tests {
                 "subscription id {id} is {len} chars; NIP-01 relays reject anything over 64"
             );
         }
+    }
+
+    /// A node switch re-runs `subscribe_node_filters` under the same stable
+    /// ids. nostr-sdk 0.45 refuses a subscribe whose id already exists and
+    /// keeps the old filters — reporting it per relay, not as an error — so
+    /// every live feed stayed pinned to the previous node until a restart.
+    #[tokio::test]
+    async fn a_node_switch_retargets_every_live_subscription() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::{Client, Keys};
+
+        let relay = MockRelay::run().await.expect("mock relay");
+        let url = relay.url().await;
+        let client = Client::new();
+        client.add_relay(&url).await.expect("add relay");
+        client
+            .try_connect_relay(url, std::time::Duration::from_secs(3))
+            .await
+            .expect("connect");
+        let trade = Keys::generate().public_key();
+        let previous = Keys::generate().public_key();
+        let next = Keys::generate().public_key();
+
+        subscribe_node_filters(&client, previous, vec![trade])
+            .await
+            .expect("first subscribe");
+        subscribe_node_filters(&client, next, vec![trade])
+            .await
+            .expect("node switch");
+
+        for id in [
+            orders_subscription_id(),
+            recent_orders_subscription_id(),
+            relay_list_subscription_id(),
+            mostro_dm_subscription_id(),
+        ] {
+            let per_relay = client.subscription(&id).await;
+            assert!(!per_relay.is_empty(), "{id} has no live subscription");
+            for filter in per_relay.values().flatten() {
+                assert_eq!(
+                    filter.authors,
+                    Some(std::collections::BTreeSet::from([next])),
+                    "{id} is still pinned to the previous node"
+                );
+            }
+        }
+    }
+
+    /// The SDK reports a subscribe that failed on every relay as an `Ok`
+    /// output. Accepting that meant a feed with no REQ anywhere was logged
+    /// as created; a relay that was never connected must make it an error.
+    #[tokio::test]
+    async fn a_subscription_no_relay_accepts_is_an_error() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::{Client, Keys};
+
+        let relay = MockRelay::run().await.expect("mock relay");
+        let client = Client::new();
+        client
+            .add_relay(relay.url().await)
+            .await
+            .expect("add relay");
+
+        let result = subscribe_node_filters(&client, Keys::generate().public_key(), vec![]).await;
+
+        assert!(
+            result.is_err(),
+            "a subscription no relay accepted must not pass for a live one"
+        );
     }
 
     /// The truncation that keeps the daemon id under the cap must not merge

@@ -332,7 +332,9 @@ Coverage invariants:
   a create/take in flight must survive the seed.
 - **Mid-session keys join incrementally**: every derive path calls
   `ensure_global_dm_coverage`, which inserts the key and re-issues the
-  relay filter under the same stable subscription id.
+  relay filter under the same stable subscription id — closing that id
+  first, since nostr-sdk 0.45 rejects a duplicate id and keeps the stale
+  filter (`replace_subscription`).
 - **The relay filter is always rebuilt from the full map** — never from
   session-local state. A rebuild from a subset silently unsubscribes the
   missing trades at the relay.

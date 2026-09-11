@@ -99,9 +99,11 @@ validates it, persists it as the active node's **identity**, updates the
 in-memory override (so outgoing events target the new node immediately), and
 re-targets the live feeds to it: the order book is cleared, the Kind 38383
 (orders) and Kind 14 (Mostro replies) filters are re-subscribed — author-pinned
-to the new node via stable subscription IDs so the old filters are replaced in
-place — the node's current orders are refetched, and its PoW requirement is
-refreshed.
+to the new node under the same stable subscription IDs, each closed before it is
+re-issued, because nostr-sdk 0.45 rejects a subscribe whose ID already exists and
+keeps the old filters — the node's current orders are refetched, and its PoW
+requirement is refreshed. A re-subscribe that no relay accepts is an error, not
+a silent success.
 
 The switch is **purely local**: no Nostr message is sent to either node. Pass
 `DEFAULT_MOSTRO_PUBKEY` to return to the default node.
