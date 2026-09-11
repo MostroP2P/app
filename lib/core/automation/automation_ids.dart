@@ -173,6 +173,10 @@ class AutomationIds {
   static const String invoiceOrderId = 'invoice.order_id';
   static const String invoiceText = 'invoice.text';
   static const String invoiceSubmit = 'invoice.submit';
+
+  /// Readout: the daemon's reason for refusing the last submitted invoice.
+  /// Present only after a rejection, until the next submission.
+  static const String invoiceError = 'invoice.error';
   static const String invoiceCancel = 'invoice.cancel';
   static const String payInvoiceText = 'pay.invoice.text';
   static const String payOrderId = 'pay.order_id';

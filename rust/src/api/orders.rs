@@ -2551,6 +2551,7 @@ async fn dispatch_mostro_message(
         | Action::DisputeInitiatedByPeer
         | Action::AdminSettled
         | Action::AdminCanceled
+        | Action::InvoiceUpdated
         // Rate/RateReceived/PaymentFailed do not change order status but are
         // handled explicitly so they don't fall through to the catch-all.
         | Action::Rate

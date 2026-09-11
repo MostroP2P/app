@@ -27,6 +27,7 @@ class AddLightningInvoiceScreen extends ConsumerStatefulWidget {
     required this.orderId,
     this.amountSats,
     this.generateInvoice,
+    this.submitInvoice,
   });
 
   final String orderId;
@@ -38,6 +39,12 @@ class AddLightningInvoiceScreen extends ConsumerStatefulWidget {
   /// the widget generates the invoice over NWC. See [NwcInvoiceWidget].
   @visibleForTesting
   final Future<String> Function(int amountSats)? generateInvoice;
+
+  /// Test seam for the submission itself; production sends the invoice to
+  /// the daemon through the bridge and waits for its verdict.
+  @visibleForTesting
+  final Future<void> Function(String orderId, String invoice, BigInt sats)?
+  submitInvoice;
 
   @override
   ConsumerState<AddLightningInvoiceScreen> createState() =>
@@ -57,6 +64,11 @@ class _AddLightningInvoiceScreenState
 
   /// One-shot guard so we don't navigate twice as further updates stream in.
   bool _navigated = false;
+
+  /// The daemon's verdict on the last submission when it was a rejection.
+  /// Kept on screen (a snackbar alone is gone in seconds) until the next
+  /// submission, so the user can see why the invoice was refused and fix it.
+  String? _lastError;
 
   @override
   void dispose() {
@@ -148,14 +160,14 @@ class _AddLightningInvoiceScreenState
       return;
     }
     final sats = resolvedSats ?? BigInt.one;
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _lastError = null;
+    });
 
     try {
-      await orders_api.sendInvoice(
-        orderId: widget.orderId,
-        invoiceOrAddress: _invoiceController.text.trim(),
-        amountSats: sats,
-      );
+      final submit = widget.submitInvoice ?? _bridgeSubmit;
+      await submit(widget.orderId, _invoiceController.text.trim(), sats);
 
       if (!mounted) return;
       context.go(AppRoute.tradeDetailPath(widget.orderId));
@@ -174,6 +186,7 @@ class _AddLightningInvoiceScreenState
         msg,
         fallback: msg,
       );
+      setState(() => _lastError = display);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(display)));
@@ -181,6 +194,33 @@ class _AddLightningInvoiceScreenState
       if (mounted) setState(() => _submitting = false);
     }
   }
+
+  /// The daemon's verdict on the last refused submission, as a readout
+  /// (`invoice.error`) that stays until the next submission; nothing when
+  /// there is none.
+  List<Widget> _errorReadout(AppColors? colors) {
+    final error = _lastError;
+    if (error == null) return const [];
+    return [
+      const SizedBox(height: AppSpacing.md),
+      Text(
+        error,
+        style: TextStyle(
+          color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
+        ),
+      ).withAutomationId(AutomationIds.invoiceError, label: error),
+    ];
+  }
+
+  static Future<void> _bridgeSubmit(
+    String orderId,
+    String invoice,
+    BigInt sats,
+  ) => orders_api.sendInvoice(
+    orderId: orderId,
+    invoiceOrAddress: invoice,
+    amountSats: sats,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -300,6 +340,20 @@ class _AddLightningInvoiceScreenState
                   ),
                 ),
               ),
+              // A generated invoice the daemon refuses needs the same
+              // persistent reason as a typed one.
+              ..._errorReadout(colors),
+              // The readout tells the buyer to add a new invoice, but this
+              // branch has no form — its only other way out is leaving and
+              // reopening the screen, which regenerates and resubmits the
+              // wallet's (equally refused) invoice. Offer manual entry.
+              if (_lastError != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextButton(
+                  onPressed: () => setState(() => _manualMode = true),
+                  child: Text(l10n.enterInvoiceManually),
+                ).withAutomationId(AutomationIds.invoiceManual),
+              ],
             ],
           ),
         ),
@@ -400,6 +454,7 @@ class _AddLightningInvoiceScreenState
                         .copyWith(fontFamily: 'monospace'),
                     onChanged: (_) => setState(() {}),
                   ).withAutomationId(AutomationIds.invoiceText),
+                  ..._errorReadout(colors),
                 ],
               ),
             ),

@@ -33,6 +33,13 @@ String localizedDaemonError(
   if (raw.contains('MaintenanceMode')) {
     return l10n.mostroMaintenanceMode;
   }
+  // The daemon refused the buyer invoice: wrong amount, too short an expiry
+  // for its payout window, or not an invoice at all. The Rust core words the
+  // CantDo as "invalid Lightning invoice"; the marker is matched either way.
+  if (raw.contains('InvalidInvoice') ||
+      raw.contains('invalid Lightning invoice')) {
+    return l10n.invoiceRejected;
+  }
   // The daemon never answered within the reply window.
   if (raw.contains('NoDaemonResponse')) {
     return l10n.sessionTimeoutMessage;

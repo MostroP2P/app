@@ -37,6 +37,10 @@ pub(crate) fn status_for_action(action: &mostro_core::message::Action) -> Option
         Action::HoldInvoicePaymentSettled | Action::Released => {
             Some(OrderStatus::SettledHoldInvoice)
         }
+        // The daemon accepted a replacement payout invoice after a failed
+        // payout: the escrow is still settled and the payout is pending
+        // again on the new invoice.
+        Action::InvoiceUpdated => Some(OrderStatus::SettledHoldInvoice),
         Action::PurchaseCompleted => Some(OrderStatus::Success),
         Action::HoldInvoicePaymentCanceled => Some(OrderStatus::Canceled),
         Action::CooperativeCancelAccepted => Some(OrderStatus::CooperativelyCanceled),
@@ -148,10 +152,17 @@ pub(crate) fn add_invoice_sync(
 ) -> Option<(OrderStatus, Option<u64>)> {
     match payload {
         Some(mostro_core::message::Payload::Order(so)) => {
-            let status = so
-                .status
-                .and_then(map_core_status)
-                .unwrap_or(OrderStatus::WaitingBuyerInvoice);
+            let status = match so.status.and_then(map_core_status) {
+                // After exhausting its payout retries the daemon asks the
+                // buyer for a new invoice while the order itself still reads
+                // `settled-hold-invoice` (mostro `check_failure_retries`). The
+                // message is a request for action, so the trade must show
+                // the buyer that an invoice is wanted, exactly as a first
+                // `add-invoice` does; keeping the settled status would hide
+                // the request and strand the payout.
+                Some(OrderStatus::SettledHoldInvoice) | None => OrderStatus::WaitingBuyerInvoice,
+                Some(status) => status,
+            };
             let amount = if so.amount > 0 {
                 Some(so.amount as u64)
             } else {
@@ -209,6 +220,37 @@ mod tests {
             );
         }
         assert_eq!(status_for_action(&Action::PaymentFailed), None);
+    }
+
+    /// A replacement payout invoice the daemon accepted puts the trade back
+    /// where it was before the failed payout: escrow settled, payout
+    /// pending. Anything else would leave the buyer looking at
+    /// `waiting-invoice` after the daemon already took the invoice.
+    #[test]
+    fn an_accepted_replacement_invoice_returns_the_trade_to_payout_pending() {
+        use mostro_core::message::Action;
+        assert_eq!(
+            status_for_action(&Action::InvoiceUpdated),
+            Some(OrderStatus::SettledHoldInvoice)
+        );
+    }
+
+    /// After its payout retries are exhausted the daemon asks the buyer for
+    /// a new invoice with an `add-invoice` whose order still reads
+    /// `settled-hold-invoice`. That message is a request for action: it must
+    /// move the trade to `WaitingBuyerInvoice`, which is what routes the buyer
+    /// to the add-invoice screen. Keeping `SettledHoldInvoice` would make the
+    /// request invisible and strand the payout.
+    #[test]
+    fn an_add_invoice_on_a_settled_escrow_asks_the_buyer_for_a_new_invoice() {
+        use mostro_core::message::Payload;
+        use mostro_core::order::Status;
+
+        let so = small_order_with(Status::SettledHoldInvoice, 990);
+        let (status, amount) =
+            add_invoice_sync(&Some(Payload::Order(so))).expect("Order payload must sync");
+        assert_eq!(status, crate::api::types::OrderStatus::WaitingBuyerInvoice);
+        assert_eq!(amount, Some(990));
     }
 
     /// `SettledHoldInvoice` is terminal for status-sync purposes but not

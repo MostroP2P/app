@@ -66,6 +66,7 @@
   "youWantToSellBitcoin": "Du möchtest Bitcoin verkaufen",
   "rangeOrderLabel": "Bereichsbestellung",
   "payLightningInvoiceTitle": "Lightning-Rechnung bezahlen",
+  "invoiceRejected": "Der Node hat diese Rechnung abgelehnt. Prüfe Betrag und Ablauf und füge eine neue hinzu.",
   "invoiceCopied": "Rechnung kopiert",
   "addInvoiceTitle": "Rechnung hinzufügen",
   "submitButtonLabel": "Absenden",

@@ -66,6 +66,7 @@
   "youWantToSellBitcoin": "Vuoi vendere Bitcoin",
   "rangeOrderLabel": "Ordine a intervallo",
   "payLightningInvoiceTitle": "Paga Fattura Lightning",
+  "invoiceRejected": "Il nodo ha rifiutato questa fattura. Controlla importo e scadenza e aggiungine una nuova.",
   "invoiceCopied": "Fattura copiata",
   "addInvoiceTitle": "Aggiungi Fattura",
   "submitButtonLabel": "Invia",
