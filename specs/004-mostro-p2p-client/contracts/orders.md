@@ -575,6 +575,11 @@ Invariants:
     the republish);
   - no view and the entry already `pending` → left alone.
 
+  Only that settle reads a note back, so a note is forgotten once nothing
+  can: when the order's public view turns hard-terminal (after that event's
+  own wipe decision, which settles from it), and when a daemon message ends
+  the trade without a wipe. The notes tolerate a poisoned lock.
+
   A **maker's** own order dies with the cancel; its entry is left to the
   daemon's Kind 38383 `canceled`. Every reference client (mobile, mostrix,
   mostro-cli) builds its book from Kind 38383 alone, so an ex-taker there

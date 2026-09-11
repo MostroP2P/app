@@ -240,7 +240,8 @@ pub struct OrderBook {
     publish_scheduled: Arc<AtomicBool>,
     /// The daemon's latest public (Kind 38383) view of an order whose book
     /// entry carries a local trade status instead — see
-    /// [`Self::note_wire_order`].
+    /// [`Self::note_wire_order`]. Forgotten once that view is final
+    /// ([`Self::forget_wire_order`]).
     wire_orders: Arc<std::sync::Mutex<HashMap<String, OrderInfo>>>,
 }
 
@@ -488,19 +489,42 @@ impl OrderBook {
     /// sees the order again. The wipe restores from this note
     /// ([`Self::settle_after_lost_take`]).
     pub(crate) fn note_wire_order(&self, order: &OrderInfo) {
-        if let Ok(mut notes) = self.wire_orders.lock() {
-            notes.insert(order.id.clone(), order.clone());
-        }
+        self.wire_notes().insert(order.id.clone(), order.clone());
     }
 
     /// Keep an existing note current. A no-op for orders never noted, so the
     /// relay firehose pays one map lookup per event.
     pub(crate) fn refresh_wire_order(&self, order: &OrderInfo) {
-        if let Ok(mut notes) = self.wire_orders.lock() {
-            if let Some(noted) = notes.get_mut(&order.id) {
-                *noted = order.clone();
-            }
+        if let Some(noted) = self.wire_notes().get_mut(&order.id) {
+            *noted = order.clone();
         }
+    }
+
+    /// Drop the note of an order whose public view is final (hard-terminal).
+    ///
+    /// Only a wiped take reads its note back, and
+    /// [`Self::settle_after_lost_take`] consumes it then. Every other take —
+    /// one that went active, then ended in `success` or `canceled` — would
+    /// otherwise leave its note here for the life of the process. Callers
+    /// forget *after* the event's own wipe decision, so a never-active take
+    /// ended by that event still settles from its final view.
+    pub(crate) fn forget_wire_order(&self, order_id: &str) {
+        self.wire_notes().remove(order_id);
+    }
+
+    /// The notes, even when a thread panicked while holding them. Every
+    /// critical section is one map operation, so nothing is ever left
+    /// half-applied — and a poisoned lock would otherwise switch the lost-take
+    /// restore off for the rest of the session without a trace.
+    fn wire_notes(&self) -> std::sync::MutexGuard<'_, HashMap<String, OrderInfo>> {
+        self.wire_orders
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    #[cfg(test)]
+    fn has_wire_note(&self, order_id: &str) -> bool {
+        self.wire_notes().contains_key(order_id)
     }
 
     /// Hand the order back to the public book once the take behind its entry
@@ -516,11 +540,7 @@ impl OrderBook {
     ///   `Canceled` that overtook the republish on the way here.
     /// * No view, entry already `pending`: already public, left alone.
     pub(crate) async fn settle_after_lost_take(&self, order_id: &str) {
-        let noted = self
-            .wire_orders
-            .lock()
-            .ok()
-            .and_then(|mut notes| notes.remove(order_id));
+        let noted = self.wire_notes().remove(order_id);
         let public_status = match &noted {
             Some(order) => Some(order.status.clone()),
             None => self.get_order(order_id).await.map(|o| o.status),
@@ -2554,6 +2574,9 @@ async fn dispatch_mostro_message(
                             ),
                         ),
                         _ => {
+                            // The trade is over and no wipe is coming: its
+                            // public-view note has no reader left.
+                            order_book().forget_wire_order(&oid);
                             // Sync the Canceled status into the trade DB so My
                             // Trades reflects the cancellation immediately.
                             crate::api::logging::blog_info(
@@ -2866,6 +2889,10 @@ async fn dispatch_mostro_message(
                             ),
                         );
                     }
+                }
+                if is_hard_terminal(&status) {
+                    // Finished without a wipe: the note has no reader left.
+                    order_book().forget_wire_order(&order_id);
                 }
                 let settled = status == crate::api::types::OrderStatus::SettledHoldInvoice;
                 emit_trade_update(&order_id, status);
@@ -3550,13 +3577,17 @@ async fn apply_peer_reveal(
 /// `wire_status_applies` allows it; otherwise the entry keeps the local trade
 /// status. The wire's view is noted either way, so a take that is wiped later
 /// can hand the order back to the public book
-/// ([`OrderBook::settle_after_lost_take`]). A `canceled` that ends a trade
-/// before it went active wipes it instead ([`wipe_on_public_cancel`]), and
-/// the wipe has already settled the entry.
+/// ([`OrderBook::settle_after_lost_take`]); a final view is forgotten once
+/// that decision is made. A `canceled` that ends a trade before it went
+/// active wipes it instead ([`wipe_on_public_cancel`]), and the wipe has
+/// already settled the entry.
 async fn apply_single_order_update(mut order: OrderInfo) {
     order_book().note_wire_order(&order);
     if wipe_on_public_cancel(&order.id, &order.status).await {
         return;
+    }
+    if is_hard_terminal(&order.status) {
+        order_book().forget_wire_order(&order.id);
     }
     let local = local_trade_status(&order.id).await;
     let applies = wire_status_applies(local.as_ref(), &order.status);
@@ -4696,6 +4727,7 @@ async fn ingest_order_event_with(event: &nostr_sdk::prelude::Event, publish: Pub
             // other view ends in dropping the entry, note or not. For orders
             // never noted this is a single map lookup.
             order_book().refresh_wire_order(&info);
+            let final_view = is_hard_terminal(&info.status);
             // Sync trade status in DB for own orders so My Trades
             // reflects status changes even without daemon-message delivery.
             // A `canceled` that ends a trade of ours before it went active —
@@ -4743,6 +4775,11 @@ async fn ingest_order_event_with(event: &nostr_sdk::prelude::Event, publish: Pub
                         info.status = local;
                     }
                 }
+            }
+            // After the wipe decision above, which settles a never-active take
+            // from this very view.
+            if final_view {
+                order_book().forget_wire_order(&info.id);
             }
             // Whether this order is *ours*, which is not what `is_mine`
             // answers: that flag means "I am the maker". `parse_order_event`
@@ -7524,6 +7561,162 @@ mod tests {
                 .status,
             OrderStatus::Canceled,
             "the active trade is kept as a Canceled history row"
+        );
+    }
+
+    /// Dispatch an action-only daemon message for `order_uuid`, as the relay
+    /// feed would deliver it.
+    async fn dispatch_daemon_action(
+        order_uuid: uuid::Uuid,
+        action: mostro_core::message::Action,
+        event_id: &str,
+    ) {
+        use mostro_core::message::Message;
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        dispatch_mostro_message(
+            mostro_core::nip59::UnwrappedMessage {
+                message: Message::new_order(Some(order_uuid), None, None, action, None),
+                signature: None,
+                sender,
+                identity: sender,
+                created_at: nostr_sdk::prelude::Timestamp::from(1_000u64),
+            },
+            event_id,
+            "ff00ff22",
+            1,
+        )
+        .await;
+    }
+
+    /// An active take, its public `in-progress` noted by the d-tag path.
+    async fn noted_active_take() -> (uuid::Uuid, String) {
+        let db = crate::db::app_db::db().expect("store initialised");
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        db.save_trade(&cancel_test_row(wire_order(&order_id, OrderStatus::Active)))
+            .await
+            .expect("save the trade row");
+        apply_single_order_update(wire_order(&order_id, OrderStatus::InProgress)).await;
+        assert!(
+            order_book().has_wire_note(&order_id),
+            "precondition: the take's public view is noted"
+        );
+        (order_uuid, order_id)
+    }
+
+    /// A take whose public view is final leaves no note behind. Only a wipe
+    /// reads the note back, and none follows a trade that went active, so
+    /// every way such a trade ends must forget it: a final view on either
+    /// ingest path (the d-tag subscription, and the book feed that outlives
+    /// it), and the kind-14 arms that end a trade without a wipe.
+    #[tokio::test]
+    async fn a_finished_take_leaves_no_wire_note_behind() {
+        use mostro_core::message::Action;
+
+        let path = std::env::temp_dir()
+            .join(format!("mostro_finished_take_note_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+
+        let (_, order_id) = noted_active_take().await;
+        apply_single_order_update(wire_order(&order_id, OrderStatus::Success)).await;
+        assert!(
+            !order_book().has_wire_note(&order_id),
+            "a final view on the d-tag path must forget the note"
+        );
+
+        let (_, order_id) = noted_active_take().await;
+        ingest_order_event_with(&book_event(&order_id, "success"), Publish::WhenBatchEnds).await;
+        assert!(
+            !order_book().has_wire_note(&order_id),
+            "a final view on the book feed must forget the note"
+        );
+
+        let (order_uuid, order_id) = noted_active_take().await;
+        dispatch_daemon_canceled(order_uuid, &format!("test-note-canceled-{order_id}")).await;
+        assert!(
+            !order_book().has_wire_note(&order_id),
+            "a Canceled that keeps the row as history must forget the note"
+        );
+
+        let (order_uuid, order_id) = noted_active_take().await;
+        dispatch_daemon_action(
+            order_uuid,
+            Action::PurchaseCompleted,
+            &format!("test-note-completed-{order_id}"),
+        )
+        .await;
+        assert!(
+            !order_book().has_wire_note(&order_id),
+            "a daemon message that finishes the trade must forget the note"
+        );
+    }
+
+    /// The final view is forgotten only after the event's own wipe decision,
+    /// because a never-active take ended by that `canceled` settles from it.
+    /// Here the book feed had already written a `pending` republish into the
+    /// entry (it never gates `pending`) when the order was cancelled for
+    /// good: forgetting first would leave the settle nothing but that stale
+    /// `pending`, and the dead order would stay takeable in the ex-taker's
+    /// book.
+    #[tokio::test]
+    async fn a_cancelled_take_settles_before_its_note_is_forgotten() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_settle_before_forget_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let taken = wire_order(&order_id, OrderStatus::WaitingBuyerInvoice);
+        order_book().upsert_order(taken.clone()).await;
+        db.save_trade(&cancel_test_row(taken))
+            .await
+            .expect("save the trade row");
+        ingest_order_event_with(&book_event(&order_id, "pending"), Publish::WhenBatchEnds).await;
+        assert_eq!(
+            book_status(&order_id).await,
+            Some(OrderStatus::Pending),
+            "precondition: the book feed wrote the republish into the entry"
+        );
+
+        apply_single_order_update(wire_order(&order_id, OrderStatus::Canceled)).await;
+
+        assert!(trade_row_gone(&order_id).await, "the never-active take is wiped");
+        assert_eq!(
+            book_status(&order_id).await,
+            None,
+            "a cancelled order must not stay pending in the ex-taker's book"
+        );
+        assert!(
+            !order_book().has_wire_note(&order_id),
+            "the settle consumed the note"
+        );
+    }
+
+    /// A panic while the notes were locked must not switch the lost-take
+    /// restore off for the rest of the session: the lock is poisoned, but
+    /// no note operation is ever left half-applied, so they carry on.
+    #[test]
+    fn a_poisoned_note_lock_still_notes_and_forgets() {
+        let book = OrderBook::new();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _held = book.wire_orders.lock().unwrap();
+            panic!("poison the notes");
+        }));
+        assert!(
+            book.wire_orders.is_poisoned(),
+            "precondition: the lock is poisoned"
+        );
+
+        book.note_wire_order(&wire_order("poisoned-notes", OrderStatus::InProgress));
+        assert!(
+            book.has_wire_note("poisoned-notes"),
+            "a poisoned lock must still take a note"
+        );
+        book.forget_wire_order("poisoned-notes");
+        assert!(
+            !book.has_wire_note("poisoned-notes"),
+            "a poisoned lock must still forget a note"
         );
     }
 
