@@ -8,6 +8,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
@@ -20,6 +21,7 @@ import 'package:mostro/shared/widgets/add_order_button.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
+import 'package:mostro/shared/widgets/pill_segmented.dart';
 import 'package:mostro/features/home/widgets/order_list_skeleton.dart';
 
 /// Side margin of every row on the screen (handoff 4b).
@@ -270,6 +272,7 @@ class _SideTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final create = CreateOrderPalette.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _sideInset),
@@ -287,6 +290,11 @@ class _SideTabs extends StatelessWidget {
                   label: l10n.tabBuyBtc,
                   isSelected: selected == OrderType.buy,
                   palette: palette,
+                  activeStyle: PillActiveStyle(
+                    fill: palette.tabActiveFill,
+                    border: palette.tabActiveBorder,
+                    ink: palette.limeInk,
+                  ),
                   onTap: () => onSelected(OrderType.buy),
                 ).withAutomationId(AutomationIds.orderBookTabBuy),
               ),
@@ -296,6 +304,12 @@ class _SideTabs extends StatelessWidget {
                   label: l10n.tabSellBtc,
                   isSelected: selected == OrderType.sell,
                   palette: palette,
+                  // Coral, like the Sell tab of create order (5a/5b).
+                  activeStyle: PillActiveStyle(
+                    fill: create.sellActiveBg,
+                    border: create.sellActiveBorder,
+                    ink: create.sellInk,
+                  ),
                   onTap: () => onSelected(OrderType.sell),
                 ).withAutomationId(AutomationIds.orderBookTabSell),
               ),
@@ -312,12 +326,14 @@ class _SideTab extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.palette,
+    required this.activeStyle,
     required this.onTap,
   });
 
   final String label;
   final bool isSelected;
   final OrderBookPalette palette;
+  final PillActiveStyle activeStyle;
   final VoidCallback onTap;
 
   @override
@@ -334,10 +350,10 @@ class _SideTab extends StatelessWidget {
         // Both halves carry the 1px border (transparent when inactive) so
         // switching does not shift their height.
         decoration: BoxDecoration(
-          color: isSelected ? palette.tabActiveFill : Colors.transparent,
+          color: isSelected ? activeStyle.fill : Colors.transparent,
           borderRadius: radius,
           border: Border.all(
-            color: isSelected ? palette.tabActiveBorder : Colors.transparent,
+            color: isSelected ? activeStyle.border : Colors.transparent,
           ),
         ),
         child: Material(
@@ -353,7 +369,7 @@ class _SideTab extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? palette.limeInk : palette.textSecondary,
+                  color: isSelected ? activeStyle.ink : palette.textSecondary,
                 ),
               ),
             ),
