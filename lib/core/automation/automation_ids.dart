@@ -186,6 +186,8 @@ class AutomationIds {
   static const String tradeRate = 'trade.rate';
   static const String tradeRateSubmit = 'trade.rate.submit';
   static const String tradeRateClose = 'trade.rate.close';
+  static const String tradeViewDispute = 'trade.dispute.view';
+  static const String tradeClose = 'trade.close';
 
   /// Star [score] (1-5) on the rating screen.
   static String tradeRateStar(int score) => 'trade.rate.star.$score';

@@ -51,7 +51,7 @@ fails the build when an identifier is declared and attached to nothing.
 
 | Identifier | Value |
 |---|---|
-| `order.status` | The kebab-case name of `TradeStatus`: `loading`, `pending`, `waiting-invoice`, `waiting-payment`, `in-progress`, `active`, `fiat-sent`, `payout-pending`, `completed`, `cancelled`, `disputed`, `pending-rating`, `rated`. Never the localized pill copy. |
+| `order.status` | The kebab-case name of `TradeStatus`: `loading`, `pending`, `waiting-invoice`, `waiting-payment`, `in-progress`, `active`, `fiat-sent`, `payout-pending`, `completed`, `cancelled`, `disputed`, `pending-rating`, `rated`. Never the localized chip copy. |
 | `order.id` | The full order id, where the visible text is shortened. |
 | `keys.public_key` | The identity's full public key. |
 | `settings.mostro_node.pubkey` | The active daemon's full public key, where the visible subtitle is truncated. |
@@ -108,11 +108,14 @@ navigates away on its own. Taking a range order asks its amount in a dialog
 is `trade.cancel.confirm`; the button is absent once the order is expired,
 cancelled or completed.
 
-**Rating is one star and a submit.** After a successful trade the detail
-offers `trade.rate`; the rating screen carries `trade.rate.star.<n>` for each
-of its five stars, `trade.rate.submit` (enabled once a star is chosen) and
-`trade.rate.close`. Submitting returns to the same trade, whose `order.status`
-then reads `rated`.
+**Rating is one star and a submit, on the trade itself.** After a successful
+trade the completed card of the trade detail carries `trade.rate.star.<n>` for
+each of its five stars, `trade.rate.submit` (enabled once a star is chosen) and
+`trade.rate.close`. Submitting stays on the same trade, whose `order.status`
+then reads `rated`; `trade.rate.close` then closes it. The standalone rating
+screen (`/rate_user/:orderId`, reached from a notification) keeps the same
+identifiers. A disputed trade offers `trade.dispute.view`; a cancelled one
+`trade.close`.
 
 **A pending order you created opens on `/my_order`, not `/trade_detail`.**
 Both screens therefore expose `order.status` and `order.id`, in the same
