@@ -69,7 +69,7 @@ void main() {
       // accessibility bridge exposes as a `resource-id`.
       expect(
         tester.getSemantics(find.byType(ElevatedButton)),
-        containsSemantics(
+        isSemantics(
           identifier: AutomationIds.orderCreateSubmit,
           label: 'Submit',
           isButton: true,
@@ -96,7 +96,7 @@ void main() {
       // which changes with the locale.
       expect(
         tester.getSemantics(find.text('Esperando pago…')),
-        containsSemantics(
+        isSemantics(
           identifier: AutomationIds.orderStatus,
           label: 'waiting-payment',
         ),
@@ -130,7 +130,7 @@ void main() {
       // automation could no longer choose which relay to remove.
       expect(
         tester.getSemantics(find.byType(IconButton)),
-        containsSemantics(
+        isSemantics(
           identifier:
               AutomationIds.settingsRelayDelete('ws://10.0.2.2:7000'),
           hasTapAction: true,
