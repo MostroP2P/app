@@ -41,6 +41,30 @@ final tradeStatusLookupProvider =
       },
     );
 
+/// Reads the local user's role in a trade through the bridge; injectable so
+/// screens that must know whether they already participate can be tested
+/// without the Rust side.
+final tradeRoleLookupProvider = Provider<Future<TradeRole?> Function(String)>(
+  (ref) => (orderId) => orders_api.getTradeRole(orderId: orderId),
+);
+
+/// Takes an order through the bridge; injectable so the take screen's
+/// outcomes (loading, already taken, rejected) can be tested without Rust.
+final takeOrderActionProvider = Provider<
+  Future<TradeInfo> Function({
+    required String orderId,
+    required TradeRole role,
+    double? fiatAmount,
+  })
+>(
+  (ref) =>
+      ({required orderId, required role, fiatAmount}) => orders_api.takeOrder(
+        orderId: orderId,
+        role: role,
+        fiatAmount: fiatAmount,
+      ),
+);
+
 /// Publishes the seller release command; publication is not payout completion.
 final releaseOrderActionProvider = Provider<Future<void> Function(String)>(
   (ref) => (orderId) => orders_api.releaseOrder(orderId: orderId),

@@ -170,7 +170,6 @@ class AutomationIds {
   static const String orderTakeAmount = 'order.take.amount';
   static const String orderTakeAmountConfirm = 'order.take.amount.confirm';
   static const String orderTakeConfirm = 'order.take.confirm';
-  static const String orderTakeClose = 'order.take.close';
 
   // Trade detail
   static const String orderId = 'order.id';
