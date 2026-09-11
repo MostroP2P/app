@@ -9,20 +9,26 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
+import 'package:mostro/core/order_detail_palette.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/home/widgets/order_list_item.dart'
+    show OrderCardFormats;
+import 'package:mostro/features/order/models/create_order_rules.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/order/widgets/my_order_status_block.dart';
+import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
-import 'package:mostro/features/trades/screens/trade_detail_screen.dart'
-    show TradeStatusMachineName, tradeStatusFromOrderStatus;
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
-/// Detail screen for an order created by the current user.
+/// Detail screen for an order created by the current user (handoff 6a/6b).
 ///
-/// Shows the same order information as [TakeOrderScreen] but replaces the
-/// Buy/Sell action with a Cancel button that sends a cancel message to the
-/// Mostro node.
+/// Three blocks with a hierarchy — the amount, the status (the only coloured
+/// block, with the countdown), the fixed data — over `Close` / `Cancel`.
+/// The screen is a view of the order already in the store plus the status
+/// block's own timer; nothing here polls beyond what the trade status
+/// provider already does.
 ///
 /// Route: `/my_order/:orderId`
 class MyOrderScreen extends ConsumerStatefulWidget {
@@ -38,28 +44,12 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
   bool _cancelling = false;
   OrderStatus? _lastHandledStatus;
 
+  /// The countdown reached zero under a status the daemon has not yet
+  /// updated: the order is treated as expired without waiting for the relay.
+  bool _ranOut = false;
+
   Future<void> _onCancel() async {
-    final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final dl10n = AppLocalizations.of(ctx);
-        return AlertDialog(
-          title: Text(dl10n.cancelOrderDialogTitle),
-          content: Text(dl10n.cancelOrderDialogContent),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(dl10n.noButtonLabel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(dl10n.yesCancelButtonLabel),
-            ).withAutomationId(AutomationIds.tradeCancelConfirm),
-          ],
-        );
-      },
-    );
+    final confirmed = await _confirmCancel(context);
     if (confirmed != true || !mounted) return;
 
     setState(() => _cancelling = true);
@@ -68,23 +58,64 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
       // Force the trades list to reload from DB so the Canceled status shows.
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      showOrderDetailSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(l10n.orderCancelledSuccess)));
+        AppLocalizations.of(context).orderCancelledSuccess,
+      );
       context.go(AppRoute.home);
     } catch (e, stackTrace) {
       debugPrint('[MyOrderScreen] cancel failed: $e\n$stackTrace');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            localizedDaemonError(l10n, e, fallback: l10n.cancelOrderFailed),
-          ),
-        ),
+      final l10n = AppLocalizations.of(context);
+      showOrderDetailSnackBar(
+        context,
+        localizedDaemonError(l10n, e, fallback: l10n.cancelOrderFailed),
       );
     } finally {
       if (mounted) setState(() => _cancelling = false);
     }
+  }
+
+  void _close() =>
+      context.canPop() ? context.pop() : context.go(AppRoute.home);
+
+  /// Navigates to the trade once the order becomes one. Invoice requests
+  /// are not navigated from here: the app-wide TradeActionListener pushes
+  /// the add/pay-invoice screen for the actionable role no matter which
+  /// screen is open, and the counterparty's copy of those statuses is
+  /// informational. An order that expired or was cancelled before anyone
+  /// took it never became a trade: it stays here, in its final state, with
+  /// `Close` as the only way out (handoff 6b).
+  void _followStatus(OrderStatus? liveStatus) {
+    if (liveStatus == null ||
+        liveStatus == OrderStatus.pending ||
+        liveStatus == _lastHandledStatus) {
+      return;
+    }
+    final shouldNavigate = switch (liveStatus) {
+      OrderStatus.waitingBuyerInvoice ||
+      OrderStatus.waitingPayment ||
+      OrderStatus.expired ||
+      OrderStatus.canceled ||
+      OrderStatus.canceledByAdmin ||
+      OrderStatus.cooperativelyCanceled => false,
+      _ => true,
+    };
+    _lastHandledStatus = liveStatus;
+    if (!shouldNavigate) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Re-read the latest status; between build() and this callback the
+      // provider may have emitted a newer value, in which case the intended
+      // navigation is stale and the next build handles the new state.
+      final latest = ref.read(tradeStatusProvider(widget.orderId)).valueOrNull;
+      if (latest != null && latest != liveStatus) {
+        _lastHandledStatus = null;
+        return;
+      }
+      context.go(AppRoute.tradeDetailPath(widget.orderId));
+    });
   }
 
   @override
@@ -95,6 +126,15 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
     // orders, removing taken ones).
     final liveStatus =
         ref.watch(tradeStatusProvider(widget.orderId)).valueOrNull;
+    // A relay event that moves the order is the one thing on this screen
+    // that changes on its own: a nudge, and the status block cross-fades.
+    ref.listen(tradeStatusProvider(widget.orderId), (previous, next) {
+      final before = previous?.valueOrNull;
+      final after = next.valueOrNull;
+      if (before != null && after != null && before != after) {
+        HapticFeedback.mediumImpact();
+      }
+    });
 
     var order = ref.watch(orderByIdProvider(widget.orderId));
     // Fallback to the persisted trade DB when the order is no longer in the
@@ -110,380 +150,349 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
         );
       }
     }
-    final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    final sellColor = colors?.sellColor ?? const Color(0xFFFF8A8A);
+    final l10n = AppLocalizations.of(context);
+    if (order == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.orderNotFoundTitle)),
+        body: Center(child: Text(l10n.orderNotFoundMessage)),
+      );
+    }
+
+    _followStatus(liveStatus);
+
+    final book = OrderBookPalette.of(context);
+    final resolved = liveStatus ?? order.status;
+    final status =
+        _ranOut && resolved == OrderStatus.pending
+            ? OrderStatus.expired
+            : resolved;
+    final isSelling = order.kind == 'sell';
     final flags = ref.watch(currencyFlagsProvider);
 
-    if (order == null) {
-      final l10nNull = AppLocalizations.of(context);
-      return Scaffold(
-        appBar: AppBar(title: Text(l10nNull.orderNotFoundTitle)),
-        body: Center(child: Text(l10nNull.orderNotFoundMessage)),
-      );
-    }
-    final resolvedOrder = order;
-
-    // Auto-navigate when the order is taken and status transitions away
-    // from Pending.
-    final isSelling = resolvedOrder.kind == 'sell';
-
-    debugPrint(
-      '[MyOrderScreen] build: orderId=${widget.orderId} '
-      'isSelling=$isSelling liveStatus=$liveStatus '
-      'lastHandledStatus=$_lastHandledStatus orderStatus=${resolvedOrder.status}',
-    );
-
-    if (liveStatus != null &&
-        liveStatus != OrderStatus.pending &&
-        liveStatus != _lastHandledStatus) {
-      // Invoice requests are not navigated from here: the app-wide
-      // TradeActionListener pushes the add/pay-invoice screen for the
-      // actionable role no matter which screen is open — including this
-      // one. The counterparty's copy of those statuses is informational
-      // (e.g. waiting-seller-to-pay persists WaitingPayment on the buyer
-      // side) and must not navigate either. Track them so they are not
-      // re-processed, and navigate to the trade detail from Active on.
-      final shouldNavigate = switch (liveStatus) {
-        OrderStatus.waitingBuyerInvoice || OrderStatus.waitingPayment => false,
-        _ => true,
-      };
-
-      debugPrint(
-        '[MyOrderScreen] non-pending status detected: $liveStatus shouldNavigate=$shouldNavigate',
-      );
-
-      if (shouldNavigate) {
-        final intendedStatus = liveStatus;
-        _lastHandledStatus = intendedStatus;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          // Re-read the latest status; between build() and this callback
-          // the provider may have emitted a newer value, in which case the
-          // intended navigation is stale and we should let the next build
-          // handle the new state instead of going to the wrong screen.
-          final latest =
-              ref.read(tradeStatusProvider(widget.orderId)).valueOrNull;
-          if (latest != null && latest != intendedStatus) {
-            debugPrint(
-              '[MyOrderScreen] status changed before post-frame: '
-              'intended=$intendedStatus latest=$latest — skipping',
-            );
-            _lastHandledStatus = null;
-            return;
-          }
-          context.go(AppRoute.tradeDetailPath(widget.orderId));
-        });
-      } else {
-        // Mark this status as handled so we don't re-process it on next build.
-        _lastHandledStatus = liveStatus;
-      }
-    }
-
-    final l10n = AppLocalizations.of(context);
-    final flag = flags[resolvedOrder.fiatCode] ?? '';
-    final title = isSelling ? l10n.myOrderSellTitle : l10n.myOrderBuyTitle;
-    final premiumPositive = resolvedOrder.premium >= 0;
-    final premiumValue = (NumberFormat.decimalPattern(
-            Localizations.localeOf(context).toLanguageTag(),
-          )
-          ..minimumFractionDigits = 1
-          ..maximumFractionDigits = 1)
-        .format(resolvedOrder.premium);
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed:
-              () =>
-                  context.canPop() ? context.pop() : context.go(AppRoute.home),
-        ).withAutomationId(AutomationIds.appBarBack),
+      backgroundColor: book.bg,
+      appBar: orderDetailAppBar(
+        context,
+        title: isSelling ? l10n.myOrderSellTitle : l10n.myOrderBuyTitle,
+        onBack: _close,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.fromLTRB(
+          orderDetailSidePadding,
+          0,
+          orderDetailSidePadding,
+          24,
+        ),
         children: [
-          // Card 1: Amount + currency + premium
-          _InfoCard(
-            color: cardBg,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${resolvedOrder.displayAmount} ${resolvedOrder.fiatCode} $flag',
-                  style: theme.textTheme.headlineMedium,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  AppLocalizations.of(context).marketPricePremiumLabel(
-                    '${premiumPositive ? '+' : ''}$premiumValue',
-                  ),
-                  style: TextStyle(
-                    color: premiumPositive ? green : sellColor,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
+          _AmountBlock(order: order, flag: flags[order.fiatCode] ?? ''),
+          const SizedBox(height: orderDetailBlockGap),
+          MyOrderStatusBlock(
+            order: order,
+            status: status,
+            onRanOut: () => setState(() => _ranOut = true),
           ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Card 2: Payment method
-          _InfoCard(
-            color: cardBg,
-            child: Row(
-              children: [
-                Icon(Icons.payment_outlined, size: 18, color: textSec),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    resolvedOrder.paymentMethod,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Card 3: Creation date
-          _InfoCard(
-            color: cardBg,
-            child: Row(
-              children: [
-                Icon(Icons.calendar_today_outlined, size: 18, color: textSec),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  _formatDate(
-                    resolvedOrder.createdAt,
-                    Localizations.localeOf(context).toString(),
-                  ),
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Card 4: Order ID with copy
-          _InfoCard(
-            color: cardBg,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    resolvedOrder.id,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      fontFamily: 'monospace',
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ).withAutomationId(
-                    AutomationIds.orderId,
-                    label: resolvedOrder.id,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: resolvedOrder.id));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(l10n.orderIdCopied),
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.copy, size: 18),
-                  tooltip: l10n.copyOrderIdTooltip,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-
-          // Status indicator. A pending order the user created opens here
-          // rather than on the trade detail, so it exposes the same
-          // `order.status` readout, in the same machine vocabulary.
-          _InfoCard(
-            color: cardBg,
-            child: Builder(
-              builder: (ctx) {
-                final status = _statusInfo(ctx, resolvedOrder.status);
-                return Row(
-                  children: [
-                    Icon(status.icon, size: 18, color: status.color),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      status.label,
-                      style: theme.textTheme.bodyMedium!.copyWith(
-                        color: status.color,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ).withAutomationId(
-            AutomationIds.orderStatus,
-            label: tradeStatusFromOrderStatus(resolvedOrder.status).machineName,
+          const SizedBox(height: orderDetailBlockGap),
+          OrderDataCard(
+            rows: [
+              OrderPaymentMethodsRow(
+                label: l10n.paymentMethodLabel,
+                paymentMethod: order.paymentMethod,
+              ),
+              OrderDataRow(
+                icon: Icons.calendar_today_outlined,
+                label: l10n.orderDetailCreatedLabel,
+                value: OrderDataValue(_formatDate(context, order.createdAt)),
+              ),
+              OrderIdRow(orderId: order.id),
+            ],
           ),
         ],
       ),
-
-      // Bottom bar: Close + Cancel
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
-          child: Row(
-            children: [
+      bottomNavigationBar: OrderDetailActionBar(
+        child: Row(
+          children: [
+            Expanded(
+              flex: 14,
+              // Creating an order lands here; this is the way back to the
+              // order book, which is where a driver continues from.
+              child: OrderPrimaryButton(
+                label: l10n.closeButtonLabel,
+                onPressed: _close,
+              ).withAutomationId(AutomationIds.orderConfirmHome),
+            ),
+            if (!isTerminalOrderStatus(status)) ...[
+              const SizedBox(width: 10),
               Expanded(
-                child: OutlinedButton(
-                  onPressed:
-                      () =>
-                          context.canPop()
-                              ? context.pop()
-                              : context.go(AppRoute.home),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: green,
-                    side: BorderSide(color: green),
-                    minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                    ),
-                  ),
-                  child: Text(l10n.closeButtonLabel),
-                  // Creating an order lands here; this is the way back to the
-                  // order book, which is where a driver continues from.
-                ).withAutomationId(AutomationIds.orderConfirmHome),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: FilledButton(
+                flex: 10,
+                child: _CancelButton(
+                  busy: _cancelling,
                   onPressed: _cancelling ? null : _onCancel,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: sellColor,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: sellColor.withValues(alpha: 0.3),
-                    minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                    ),
-                  ),
-                  child:
-                      _cancelling
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                          : Text(l10n.cancelOrderButton),
-                ).withAutomationId(AutomationIds.tradeCancel),
+                ),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  ({String label, IconData icon, Color color}) _statusInfo(
-    BuildContext ctx,
-    OrderStatus status,
-  ) {
-    final l10n = AppLocalizations.of(ctx);
-    final colors = Theme.of(ctx).extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final sellColor = colors?.sellColor ?? const Color(0xFFFF8A8A);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-
-    return switch (status) {
-      OrderStatus.pending => (
-        label: l10n.orderStatusWaitingForTaker,
-        icon: Icons.pending_outlined,
-        color: green,
-      ),
-      OrderStatus.waitingBuyerInvoice => (
-        label: l10n.orderStatusWaitingBuyerInvoice,
-        icon: Icons.receipt_outlined,
-        color: green,
-      ),
-      OrderStatus.waitingPayment => (
-        label: l10n.orderStatusWaitingPayment,
-        icon: Icons.hourglass_empty_outlined,
-        color: green,
-      ),
-      OrderStatus.inProgress || OrderStatus.active => (
-        label: l10n.orderStatusInProgress,
-        icon: Icons.sync_outlined,
-        color: green,
-      ),
-      OrderStatus.expired => (
-        label: l10n.orderStatusExpired,
-        icon: Icons.timer_off_outlined,
-        color: sellColor,
-      ),
-      OrderStatus.canceled || OrderStatus.canceledByAdmin => (
-        label: l10n.tradeStatusCancelled,
-        icon: Icons.cancel_outlined,
-        color: sellColor,
-      ),
-      OrderStatus.settledHoldInvoice => (
-        label: l10n.tradeStatusPayoutPending,
-        icon: Icons.hourglass_empty_outlined,
-        color: textSec,
-      ),
-      OrderStatus.success ||
-      OrderStatus.settledByAdmin ||
-      OrderStatus.completedByAdmin => (
-        label: l10n.tradeStatusCompleted,
-        icon: Icons.check_circle_outline,
-        color: green,
-      ),
-      OrderStatus.dispute => (
-        label: l10n.tradeStatusDisputed,
-        icon: Icons.gavel_outlined,
-        color: sellColor,
-      ),
-      _ => (
-        label: l10n.orderStatusInProgress,
-        icon: Icons.info_outline,
-        color: textSec,
-      ),
-    };
-  }
-
-  String _formatDate(DateTime dt, String locale) {
-    return DateFormat.yMd(locale).add_jm().format(dt);
+  /// `11 Sep 2026, 17:41` in the locale's own order.
+  String _formatDate(BuildContext context, DateTime dt) {
+    final locale = Localizations.localeOf(context).toString();
+    return DateFormat.yMMMd(locale).add_Hm().format(dt);
   }
 }
 
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.color, required this.child});
+// ── Amount block ──────────────────────────────────────────────────────────────
 
+/// Side chip and currency chip over the amount, then the price line. The
+/// currency lives in the chip and is not repeated beside the figure.
+class _AmountBlock extends StatelessWidget {
+  const _AmountBlock({required this.order, required this.flag});
+
+  final OrderItem order;
+  final String flag;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = OrderDetailPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    final formats = OrderCardFormats.of(
+      Localizations.localeOf(context).toString(),
+    );
+    final isSelling = order.kind == 'sell';
+
+    return OrderDetailCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _SideChip(
+                label:
+                    isSelling ? l10n.orderSideChipSell : l10n.orderSideChipBuy,
+                color: isSelling ? pal.sellInk : pal.buyInk,
+                fill: isSelling ? pal.sellChipBg : pal.buyChipBg,
+                border: isSelling ? pal.sellChipBorder : pal.buyChipBorder,
+              ),
+              const Spacer(),
+              OrderCurrencyChip(flag: flag, code: order.fiatCode),
+            ],
+          ),
+          const SizedBox(height: 10),
+          OrderAmountFigure(text: formats.amount(order)),
+          const SizedBox(height: 10),
+          _priceLine(l10n, formats, book),
+        ],
+      ),
+    );
+  }
+
+  /// `Market price · +2.0% premium`, the figure coloured by whom it favours
+  /// from the maker's side (the same rule as the create-order form), or
+  /// `Fixed amount · for 4,000 sats`.
+  Widget _priceLine(
+    AppLocalizations l10n,
+    OrderCardFormats formats,
+    OrderBookPalette book,
+  ) {
+    final style = TextStyle(fontSize: 12, color: book.textTertiary);
+    final String sentence;
+    final String figure;
+    final Color figureColor;
+    if (order.hasFixedSats) {
+      figure = l10n.satsAmount(formats.decimal.format(order.amountSats!.toInt()));
+      sentence = l10n.orderFixedAmount(figure);
+      figureColor = book.limeInk;
+    } else {
+      figure = formats.premiumPercent(order.premium);
+      sentence = l10n.orderDetailMarketPremium(figure);
+      final side = order.kind == 'sell' ? OrderType.sell : OrderType.buy;
+      figureColor = switch (premiumFavour(side, order.premium)) {
+        PremiumFavour.good => book.limeText,
+        PremiumFavour.bad => book.yellowInk,
+        PremiumFavour.zero => book.textBody,
+      };
+    }
+    return Text.rich(
+      TextSpan(
+        children: figureSpans(
+          sentence,
+          figure,
+          TextStyle(
+            fontFamily: AppFonts.figures,
+            fontWeight: FontWeight.w600,
+            color: figureColor,
+          ),
+        ),
+      ),
+      style: style,
+    );
+  }
+}
+
+/// `SELLING BTC` / `BUYING BTC` capsule.
+class _SideChip extends StatelessWidget {
+  const _SideChip({
+    required this.label,
+    required this.color,
+    required this.fill,
+    required this.border,
+  });
+
+  final String label;
   final Color color;
-  final Widget child;
+  final Color fill;
+  final Color border;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        color: fill,
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: child,
+      child: Text(
+        label.toUpperCase(),
+        semanticsLabel: label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
+          color: color,
+        ),
+      ),
     );
   }
+}
+
+// ── Cancel ────────────────────────────────────────────────────────────────────
+
+/// Outlined coral `Cancel`; a spinner while the relay confirms.
+class _CancelButton extends StatelessWidget {
+  const _CancelButton({required this.busy, required this.onPressed});
+
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = OrderDetailPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: pal.danger,
+        disabledForegroundColor: pal.danger,
+        side: BorderSide(color: pal.dangerBorder),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(
+          fontFamily: AppFonts.ui,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      child:
+          busy
+              ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: pal.danger,
+                ),
+              )
+              : Text(l10n.cancel),
+    ).withAutomationId(AutomationIds.tradeCancel);
+  }
+}
+
+/// The confirmation sheet: never cancel in a single tap.
+Future<bool?> _confirmCancel(BuildContext context) {
+  final book = OrderBookPalette.of(context);
+  final pal = OrderDetailPalette.of(context);
+  return showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: book.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) {
+      final l10n = AppLocalizations.of(ctx);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: pal.sheetHandle,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                l10n.cancelOrderSheetTitle,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: book.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.cancelOrderSheetBody,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: book.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: book.sell,
+                  foregroundColor: book.onSell,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  textStyle: const TextStyle(
+                    fontFamily: AppFonts.ui,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: Text(l10n.yesCancelButtonLabel),
+              ).withAutomationId(AutomationIds.tradeCancelConfirm),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                style: TextButton.styleFrom(
+                  foregroundColor: book.textSecondary,
+                  textStyle: const TextStyle(
+                    fontFamily: AppFonts.ui,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                child: Text(l10n.goBackButtonLabel),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }

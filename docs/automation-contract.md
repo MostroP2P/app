@@ -95,9 +95,18 @@ and the free-text field `order.create.payment_method` plus
 `order.create.payment_method.custom_add` turn an arbitrary method into a chip.
 Going back keeps every choice; the form shows them as chips.
 
-Taking a range order asks its amount in a dialog
+**The take-order screen has one action.** `order.take.confirm` is `Take order`;
+there is no close button — `appbar.back` returns to the book. Once the order
+is taken by someone else or expires while the screen is open, the same node
+stays but reads as disabled (`No longer available`); the screen never
+navigates away on its own. Taking a range order asks its amount in a dialog
 (`order.take.amount`, `order.take.amount.confirm`) right after
 `order.take.confirm`; a fixed order never shows the dialog.
+
+**The maker's own order ends on `order.confirm.home` (`Close`) and
+`trade.cancel`.** `trade.cancel` opens a confirmation sheet whose affirmative
+is `trade.cancel.confirm`; the button is absent once the order is expired,
+cancelled or completed.
 
 **Rating is one star and a submit.** After a successful trade the detail
 offers `trade.rate`; the rating screen carries `trade.rate.star.<n>` for each
