@@ -9618,6 +9618,30 @@ mod restore_e2e_tests {
         false
     }
 
+    /// Poll until the trade row of `order_id` and its session are both gone,
+    /// or `secs` run out; the caller asserts each half. The wipe deletes the
+    /// row and then removes the session, in the task handling the daemon's
+    /// `Canceled`, so neither can be read the moment another signal shows.
+    async fn wait_for_take_wiped(order_id: &str, secs: u64) {
+        let db = crate::db::app_db::db().expect("store initialised");
+        for _ in 0..secs * 2 {
+            let row_gone = db
+                .get_trade_by_order_id(order_id)
+                .await
+                .expect("trade lookup")
+                .is_none();
+            if row_gone
+                && crate::mostro::session::session_manager()
+                    .get_session(order_id)
+                    .await
+                    .is_none()
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    }
+
     /// Retake E2E, phase 1 of 2: a maker publishes a sell order and prints its
     /// id for phase 2, which must run in its own process — the identity and
     /// `app_db` are process-wide, and the taker needs a different identity.
@@ -9687,10 +9711,11 @@ mod restore_e2e_tests {
         println!("[test] first take idx={}", first.trade_key_index);
         cancel_order(order_id.clone()).await.expect("cancel the first take");
 
-        assert!(
-            wait_for_book_status(&order_id, OrderStatus::Pending, 40).await,
-            "a lost take's order must come back to the ex-taker's book"
-        );
+        // The wipe first: the book is no signal for it. mostrod publishes the
+        // `pending` republish before it sends the `Canceled`, and the book
+        // feed writes a `pending` straight into the entry, so the book can
+        // read `pending` while the row and the session still stand.
+        wait_for_take_wiped(&order_id, 40).await;
         assert!(
             db.get_trade_by_order_id(&order_id)
                 .await
@@ -9704,6 +9729,10 @@ mod restore_e2e_tests {
                 .await
                 .is_none(),
             "the daemon's Canceled must remove the take's session"
+        );
+        assert!(
+            wait_for_book_status(&order_id, OrderStatus::Pending, 40).await,
+            "a lost take's order must come back to the ex-taker's book"
         );
 
         db.save_trade(&first).await.expect("plant the first take's row");
