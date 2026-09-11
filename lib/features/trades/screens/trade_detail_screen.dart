@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
@@ -756,18 +757,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ? id
           : '${id.substring(0, 5)}…${id.substring(id.length - 4)}';
 
+  /// `created today 17:41`, or `created 11 Sep 2026, 17:41` in the locale's
+  /// own order — the same format as the own-order screen.
   String _createdLabel(AppLocalizations l10n, DateTime dt) {
+    final locale = Localizations.localeOf(context).toString();
     final now = DateTime.now();
-    final time =
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
     if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-      return l10n.tradeCreatedTodayLabel(time);
+      return l10n.tradeCreatedTodayLabel(DateFormat.Hm(locale).format(dt));
     }
-    final date =
-        '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
-        '${dt.day.toString().padLeft(2, '0')}';
-    return l10n.tradeCreatedAtLabel('$date $time');
+    return l10n.tradeCreatedAtLabel(
+      DateFormat.yMMMd(locale).add_Hm().format(dt),
+    );
   }
 
   // ── Action bar ───────────────────────────────────────────────────────────

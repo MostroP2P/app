@@ -37,11 +37,12 @@ CountdownTier countdownTier(Duration remaining) {
   return CountdownTier.calm;
 }
 
-/// How long until the displayed value changes: every second under an hour,
-/// otherwise at the next whole minute (so an hour-scale clock repaints once
-/// a minute, and lands exactly on the `59:59` switch to mm:ss).
+/// How long until the displayed value changes: every second from an hour
+/// down (at exactly `1:00` the next value is `59:59`, one second later),
+/// otherwise at the next whole minute, so an hour-scale clock repaints once
+/// a minute and lands exactly on the hour.
 Duration nextCountdownTick(Duration remaining) {
-  if (remaining < _hour) return const Duration(seconds: 1);
+  if (remaining <= _hour) return const Duration(seconds: 1);
   final intoMinute = remaining.inSeconds % 60;
   return Duration(seconds: intoMinute == 0 ? 60 : intoMinute);
 }

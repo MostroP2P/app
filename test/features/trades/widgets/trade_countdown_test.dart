@@ -83,12 +83,18 @@ void main() {
         formatTradeCountdown(remaining - nextCountdownTick(remaining)),
         '1:00',
       );
+      // At exactly one hour the clock is about to switch to mm:ss, so the
+      // next repaint is one second away, not a minute.
+      expect(
+        nextCountdownTick(const Duration(hours: 1)),
+        const Duration(seconds: 1),
+      );
       expect(
         formatTradeCountdown(
           const Duration(hours: 1) -
               nextCountdownTick(const Duration(hours: 1)),
         ),
-        '59:00',
+        '59:59',
       );
     });
   });
