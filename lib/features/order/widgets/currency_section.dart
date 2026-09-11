@@ -4,73 +4,133 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 /// Provider for the currently selected fiat code in the create-order form.
 final selectedFiatCodeProvider = StateProvider<String>((_) => 'USD');
 
-/// Tappable currency selector — shows selected code + flag, opens picker.
-class CurrencySection extends ConsumerWidget {
-  const CurrencySection({super.key});
+/// The selected currency's catalogue entry, or null while the asset loads or
+/// for a code the catalogue does not know.
+final selectedFiatCurrencyProvider = Provider<FiatCurrency?>((ref) {
+  final code = ref.watch(selectedFiatCodeProvider);
+  final currencies = ref.watch(fiatCurrenciesProvider).valueOrNull;
+  if (currencies == null) return null;
+  for (final currency in currencies) {
+    if (currency.code == code) return currency;
+  }
+  return null;
+});
+
+/// Opens the searchable currency picker and writes the choice to
+/// [selectedFiatCodeProvider].
+void showCurrencyPicker(BuildContext context, WidgetRef ref) {
+  final currencies = ref.read(fiatCurrenciesProvider).valueOrNull ??
+      const <FiatCurrency>[];
+
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => _CurrencyPickerDialog(
+      currencies: currencies,
+      selected: ref.read(selectedFiatCodeProvider),
+      onSelect: (code) {
+        ref.read(selectedFiatCodeProvider.notifier).state = code;
+        Navigator.pop(dialogContext);
+      },
+    ),
+  );
+}
+
+/// Flag + code + chevron, sitting inline at the right of the single-amount
+/// field (5b). Shares the field's underline.
+class CurrencyInlineSelector extends ConsumerWidget {
+  const CurrencyInlineSelector({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedCode = ref.watch(selectedFiatCodeProvider);
-    final flags = ref.watch(currencyFlagsProvider);
-    final flag = flags[selectedCode] ?? '';
-    final colors = Theme.of(context).extension<AppColors>();
-    final inputBg = colors?.backgroundInput ?? const Color(0xFF252A3A);
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final code = ref.watch(selectedFiatCodeProvider);
+    final flag = ref.watch(currencyFlagsProvider)[code] ?? '';
+    final palette = OrderBookPalette.of(context);
 
-    return GestureDetector(
-      onTap: () => _showCurrencyDialog(context, ref),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.md,
-        ),
-        decoration: BoxDecoration(
-          color: inputBg,
-          borderRadius: BorderRadius.circular(AppRadius.input),
-        ),
+    return InkWell(
+      onTap: () => showCurrencyPicker(context, ref),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Text(flag, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
             Text(
-              '$flag $selectedCode',
+              code,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: green,
+                color: palette.limeInk,
               ),
             ),
-            const Spacer(),
-            Icon(Icons.arrow_drop_down, color: colors?.textSecondary),
+            const SizedBox(width: 4),
+            Icon(Icons.expand_more, size: 13, color: palette.sortLabel),
           ],
         ),
       ),
     ).withAutomationId(AutomationIds.orderCreateCurrency);
   }
+}
 
-  void _showCurrencyDialog(BuildContext context, WidgetRef ref) {
-    final currencies = ref.read(fiatCurrenciesProvider);
-    final list = currencies.maybeWhen(
-      data: (d) => d,
-      orElse: () => <FiatCurrency>[],
-    );
+/// Flag + code + currency name + chevron on its own inset row (5a).
+class CurrencyRowSelector extends ConsumerWidget {
+  const CurrencyRowSelector({super.key});
 
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _CurrencyPickerDialog(
-        currencies: list,
-        selected: ref.read(selectedFiatCodeProvider),
-        onSelect: (code) {
-          ref.read(selectedFiatCodeProvider.notifier).state = code;
-          Navigator.pop(dialogContext);
-        },
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final code = ref.watch(selectedFiatCodeProvider);
+    final currency = ref.watch(selectedFiatCurrencyProvider);
+    final palette = OrderBookPalette.of(context);
+    final create = CreateOrderPalette.of(context);
+
+    return Material(
+      color: create.inset,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => showCurrencyPicker(context, ref),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Text(currency?.flag ?? '', style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 8),
+              Text(
+                code,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: palette.limeInk,
+                ),
+              ),
+              if (currency != null) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    currency.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: palette.textTertiary,
+                    ),
+                  ),
+                ),
+              ] else
+                const Spacer(),
+              Icon(Icons.expand_more, size: 13, color: palette.sortLabel),
+            ],
+          ),
+        ),
       ),
-    );
+    ).withAutomationId(AutomationIds.orderCreateCurrency);
   }
 }
 

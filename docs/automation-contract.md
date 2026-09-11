@@ -74,11 +74,28 @@ the taker is buying. A driver that wants a side picks the tab that lists it.
 This matches the classic app.
 
 **The order form starts on market price, and a range locks it there.**
-`order.create.price_type` toggles between market and fixed; the sats field
-(`order.create.sats_amount`) exists only on fixed. `order.create.range` swaps
-the single `order.create.fiat_amount` for `order.create.fiat_min` and
-`order.create.fiat_max`, and disables the price toggle: the protocol prices a
-range at market only. Taking a range order asks its amount in a dialog
+The form's switches are segmented controls with both options always visible.
+`order.create.price_type` names the `Market | Fixed` control as a whole; its
+segments are `order.create.price.market` and `order.create.price.fixed`, and a
+driver taps a segment, not the control. The sats field
+(`order.create.sats_amount`) exists only on fixed. Likewise
+`order.create.range` names the `Single | Range` control, with segments
+`order.create.amount.single` and `order.create.amount.range`; range swaps the
+single `order.create.fiat_amount` for `order.create.fiat_min` and
+`order.create.fiat_max`, and disables the fixed segment: the protocol prices a
+range at market only. The side can be switched on the form too
+(`order.create.side.buy`, `order.create.side.sell`); it starts on the side the
+order-book button was tapped with. The premium figure
+(`order.create.premium`) opens a numeric field in place when tapped.
+
+**Payment methods are chosen on their own screen.** `order.create.payment_method.add`
+on the form opens it. There, `order.create.payment_method.search` narrows the
+per-currency list, `order.create.payment_method.<method>` toggles one method,
+and the free-text field `order.create.payment_method` plus
+`order.create.payment_method.custom_add` turn an arbitrary method into a chip.
+Going back keeps every choice; the form shows them as chips.
+
+Taking a range order asks its amount in a dialog
 (`order.take.amount`, `order.take.amount.confirm`) right after
 `order.take.confirm`; a fixed order never shows the dialog.
 
@@ -188,5 +205,4 @@ subsequent state assertions read its normal status. Both invoice screens expose 
 ordinary BackButton when navigation can pop; this action never invokes the order-cancellation control.
 
 The release action stays on trade detail while payment finalizes. An early rating notification or direct
-rating route also waits for final success. The historical order-preset selector still categorizes settled
-escrow as a successful preset; auditing that unrelated history surface is a follow-up.
+rating route also waits for final success.
