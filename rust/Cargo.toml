@@ -112,3 +112,8 @@ getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] 
 # wasm32-unknown-unknown refuses to *link* until the final crate names a time
 # provider (see `rt::browser_clock`). Not caught by `cargo check`.
 universal-time = { version = "0.3", default-features = false }
+
+# Tests only: `MockRelay` (an in-process relay) is behind nostr-sdk's
+# `local-relay` feature. Native only — it pulls in `tokio/net`.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+nostr-sdk = { version = "0.45", default-features = false, features = ["local-relay"] }
