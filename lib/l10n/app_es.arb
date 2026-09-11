@@ -685,7 +685,7 @@
   "sortBestReputation": "Mejor reputación",
   "sortSheetTitle": "Ordenar por",
   "orderCardPremiumCaption": "prima",
-  "orderFixedAmountPrefix": "Monto fijo · por ",
+  "orderFixedAmount": "Monto fijo · por {sats}",
   "satsAmount": "{amount} sats",
   "reputationNew": "Nuevo",
   "reputationNoTrades": "sin operaciones",

@@ -685,7 +685,7 @@
   "sortBestReputation": "Miglior reputazione",
   "sortSheetTitle": "Ordina per",
   "orderCardPremiumCaption": "premio",
-  "orderFixedAmountPrefix": "Importo fisso · per ",
+  "orderFixedAmount": "Importo fisso · per {sats}",
   "satsAmount": "{amount} sats",
   "reputationNew": "Nuovo",
   "reputationNoTrades": "nessuna operazione",

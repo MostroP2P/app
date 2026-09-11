@@ -7,8 +7,9 @@ import 'package:mostro/l10n/app_localizations.dart';
 
 /// Empty order book: the faded mascot, a title, and one line that says why.
 ///
-/// When filters hide every order it says so and offers to clear them; with no
-/// filter active there is nothing to clear, so the action is not shown.
+/// It blames the filters — and offers to clear them — only when they are
+/// what hides the orders: when the tab has none at all, clearing the filters
+/// would change nothing, so it says the generic line instead.
 class OrderListEmpty extends ConsumerWidget {
   const OrderListEmpty({super.key});
 
@@ -17,6 +18,8 @@ class OrderListEmpty extends ConsumerWidget {
     final pal = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
     final isFiltered = ref.watch(hasActiveOrderFiltersProvider);
+    final tabHasOrders = ref.watch(tabHasOrdersProvider);
+    final hiddenByFilters = isFiltered && tabHasOrders;
 
     return Center(
       child: SingleChildScrollView(
@@ -42,11 +45,13 @@ class OrderListEmpty extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              isFiltered ? l10n.ordersEmptyFilteredHint : l10n.ordersEmptyHint,
+              hiddenByFilters
+                  ? l10n.ordersEmptyFilteredHint
+                  : l10n.ordersEmptyHint,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: pal.textSecondary),
             ),
-            if (isFiltered) ...[
+            if (hiddenByFilters) ...[
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => clearOrderFilters(ref),

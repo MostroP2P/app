@@ -101,6 +101,20 @@ void main() {
     expect(_scrim, findsNothing);
   });
 
+  testWidgets('closes when the screen changes size while open', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    tester.view.physicalSize = const Size(1000, 700);
+    addTearDown(tester.view.reset);
+    await tester.pumpAndSettle();
+
+    expect(_scrim, findsNothing);
+    expect(find.text('Buy BTC'), findsNothing);
+    expect(find.byIcon(Icons.add), findsOneWidget);
+  });
+
   testWidgets('hides what is behind the scrim from screen readers', (
     tester,
   ) async {

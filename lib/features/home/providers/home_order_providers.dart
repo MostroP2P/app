@@ -30,12 +30,14 @@ final currencyFilterProvider = StateProvider<List<String>>((_) => []);
 final paymentMethodFilterProvider = StateProvider<List<String>>((_) => []);
 
 /// Rating range filter. Default = full range.
-final ratingFilterProvider =
-    StateProvider<({double min, double max})>((_) => defaultRatingRange);
+final ratingFilterProvider = StateProvider<({double min, double max})>(
+  (_) => defaultRatingRange,
+);
 
 /// Premium range filter. Default = full range.
-final premiumRangeFilterProvider =
-    StateProvider<({double min, double max})>((_) => defaultPremiumRange);
+final premiumRangeFilterProvider = StateProvider<({double min, double max})>(
+  (_) => defaultPremiumRange,
+);
 
 /// Whether any filter currently narrows the order book.
 final hasActiveOrderFiltersProvider = Provider<bool>((ref) {
@@ -82,11 +84,12 @@ Comparator<OrderItem> orderComparator(OrderSort sort) {
 
   return switch (sort) {
     OrderSort.newest => newestFirst,
-    OrderSort.bestPremium => (a, b) => thenNewest(
-      b.takerPremiumAdvantage.compareTo(a.takerPremiumAdvantage),
-      a,
-      b,
-    ),
+    OrderSort.bestPremium =>
+      (a, b) => thenNewest(
+        b.takerPremiumAdvantage.compareTo(a.takerPremiumAdvantage),
+        a,
+        b,
+      ),
     OrderSort.bestReputation => (a, b) {
       final byRating = b.rating.compareTo(a.rating);
       return thenNewest(
@@ -121,12 +124,10 @@ class OrderItem {
     this.amountSats,
     this.isMine = false,
   }) {
-    final isFixed = fiatAmount != null &&
-        fiatAmountMin == null &&
-        fiatAmountMax == null;
-    final isRange = fiatAmount == null &&
-        fiatAmountMin != null &&
-        fiatAmountMax != null;
+    final isFixed =
+        fiatAmount != null && fiatAmountMin == null && fiatAmountMax == null;
+    final isRange =
+        fiatAmount == null && fiatAmountMin != null && fiatAmountMax != null;
     if (!isFixed && !isRange) {
       throw ArgumentError(
         'OrderItem requires exactly one shape: '
@@ -149,12 +150,15 @@ class OrderItem {
   final double rating;
   final int tradeCount;
   final int daysActive;
+
   /// Current order status from the Mostro protocol.
   final OrderStatus status;
+
   /// Sats amount. On a published order it is the Kind 38383 `amt` tag: `0`
   /// when the order is priced at market when taken, the fixed amount
   /// otherwise. Once Mostro accepts a take it carries the resolved amount.
   final BigInt? amountSats;
+
   /// True when this order was created by the current user.
   final bool isMine;
 
@@ -199,51 +203,52 @@ class OrderItem {
 
   @override
   int get hashCode => Object.hashAll([
-        id,
-        kind,
-        fiatAmount,
-        fiatAmountMin,
-        fiatAmountMax,
-        fiatCode,
-        paymentMethod,
-        premium,
-        creatorPubkey,
-        createdAt,
-        expiresAt,
-        rating,
-        tradeCount,
-        daysActive,
-        status,
-        amountSats,
-        isMine,
-      ]);
+    id,
+    kind,
+    fiatAmount,
+    fiatAmountMin,
+    fiatAmountMax,
+    fiatCode,
+    paymentMethod,
+    premium,
+    creatorPubkey,
+    createdAt,
+    expiresAt,
+    rating,
+    tradeCount,
+    daysActive,
+    status,
+    amountSats,
+    isMine,
+  ]);
 
   /// Map a Rust-bridge [OrderInfo] to an [OrderItem] for display.
   factory OrderItem.fromInfo(OrderInfo info) => OrderItem(
-        id: info.id,
-        kind: info.kind == OrderKind.buy ? 'buy' : 'sell',
-        fiatAmount: info.fiatAmount,
-        fiatAmountMin: info.fiatAmountMin,
-        fiatAmountMax: info.fiatAmountMax,
-        fiatCode: info.fiatCode,
-        paymentMethod: info.paymentMethod,
-        premium: info.premium,
-        creatorPubkey: info.creatorPubkey,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(
-          platformInt64ToInt(info.createdAt) * 1000,
-        ),
-        expiresAt: info.expiresAt != null
+    id: info.id,
+    kind: info.kind == OrderKind.buy ? 'buy' : 'sell',
+    fiatAmount: info.fiatAmount,
+    fiatAmountMin: info.fiatAmountMin,
+    fiatAmountMax: info.fiatAmountMax,
+    fiatCode: info.fiatCode,
+    paymentMethod: info.paymentMethod,
+    premium: info.premium,
+    creatorPubkey: info.creatorPubkey,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      platformInt64ToInt(info.createdAt) * 1000,
+    ),
+    expiresAt:
+        info.expiresAt != null
             ? DateTime.fromMillisecondsSinceEpoch(
-                platformInt64ToInt(info.expiresAt!) * 1000,
-              )
+              platformInt64ToInt(info.expiresAt!) * 1000,
+            )
             : null,
-        status: info.status,
-        amountSats: info.amountSats,
-        isMine: info.isMine,
-        rating: info.rating,
-        tradeCount: info.totalReviews,
-        daysActive: info.daysActive,
-      );
+    status: info.status,
+    amountSats: info.amountSats,
+    isMine: info.isMine,
+    rating: info.rating,
+    tradeCount: info.totalReviews,
+    daysActive: info.daysActive,
+  );
 }
 
 /// How an order reads from the side of whoever takes it.
@@ -266,7 +271,9 @@ extension OrderItemTakerView on OrderItem {
 /// Immediately yields the current cached snapshot (empty on first run) so the
 /// UI exits the shimmer/loading state right away.  Subsequent emissions arrive
 /// as [subscribe_orders()] upserts orders from the relay stream.
-final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) async* {
+final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((
+  ref,
+) async* {
   // Subscribe first so no broadcast is missed between snapshot and loop.
   final stream = await orders_api.onOrdersUpdated();
 
@@ -291,8 +298,11 @@ final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) asyn
 ///
 /// Screens that care about a single order used to scan the whole list for it,
 /// on every rebuild — an O(orders) walk per screen per relay event.
-final orderBookIndexProvider = Provider.autoDispose<Map<String, OrderItem>>((ref) {
-  final orders = ref.watch(orderBookProvider).valueOrNull ?? const <OrderItem>[];
+final orderBookIndexProvider = Provider.autoDispose<Map<String, OrderItem>>((
+  ref,
+) {
+  final orders =
+      ref.watch(orderBookProvider).valueOrNull ?? const <OrderItem>[];
   return {for (final order in orders) order.id: order};
 });
 
@@ -301,9 +311,31 @@ final orderBookIndexProvider = Provider.autoDispose<Map<String, OrderItem>>((ref
 /// The `select` is what makes this worth having: a screen watching one order
 /// rebuilds only when *that* order changes, not on every book emission. It
 /// relies on [OrderItem]'s value equality.
-final orderByIdProvider =
-    Provider.autoDispose.family<OrderItem?, String>((ref, orderId) {
+final orderByIdProvider = Provider.autoDispose.family<OrderItem?, String>((
+  ref,
+  orderId,
+) {
   return ref.watch(orderBookIndexProvider.select((index) => index[orderId]));
+});
+
+/// Whether [order] belongs on [tab] before any filter applies.
+///
+/// The book shows only pending orders, and "BUY BTC" lists sell orders (the
+/// taker buys) while "SELL BTC" lists buy orders. Own orders follow the same
+/// split as everyone else's — distinguished only by the "you are
+/// selling/buying" pill (issue #290); managing them has its own place (My
+/// Trades / MyOrderScreen on tap).
+bool _isListedOnTab(OrderItem order, OrderType tab) =>
+    order.status == OrderStatus.pending &&
+    order.kind == (tab == OrderType.buy ? 'sell' : 'buy');
+
+/// Whether the active tab has any order before filters apply — what tells
+/// "the filters hide everything" apart from "there is nothing to show".
+final tabHasOrdersProvider = Provider.autoDispose<bool>((ref) {
+  final orders =
+      ref.watch(orderBookProvider).valueOrNull ?? const <OrderItem>[];
+  final tab = ref.watch(homeOrderTypeProvider);
+  return orders.any((order) => _isListedOnTab(order, tab));
 });
 
 /// Filtered orders based on active tab, all filter providers and the selected
@@ -329,46 +361,38 @@ final filteredOrdersProvider = Provider.autoDispose<List<OrderItem>>((ref) {
   final premiumRange = ref.watch(premiumRangeFilterProvider);
   final sort = ref.watch(orderSortProvider);
 
-  // "BUY BTC" tab shows sell orders (taker buys); "SELL BTC" shows buy orders.
-  final targetKind = orderType == OrderType.buy ? 'sell' : 'buy';
-
   return allOrders.where((o) {
-    // Order book shows only pending orders.
-    if (o.status != OrderStatus.pending) return false;
-    // Own orders follow the same tab split as everyone else's — a sell
-    // order lives in BUY BTC, a buy order in SELL BTC — distinguished only
-    // by the "you are selling/buying" pill (issue #290). Managing them has
-    // its own place (My Trades / MyOrderScreen on tap).
-    if (o.kind != targetKind) return false;
+      if (!_isListedOnTab(o, orderType)) return false;
 
-    if (selectedCurrencies.isNotEmpty &&
-        !selectedCurrencies.contains(o.fiatCode)) {
-      return false;
-    }
-
-    if (selectedPaymentMethods.isNotEmpty) {
-      final tokens = o.paymentMethod
-          .split(',')
-          .map((t) => t.trim().toLowerCase())
-          .toSet();
-      final selectedLower =
-          selectedPaymentMethods.map((pm) => pm.toLowerCase()).toSet();
-      if (tokens.intersection(selectedLower).isEmpty) return false;
-    }
-
-    if (ratingRange != defaultRatingRange) {
-      if (o.rating < ratingRange.min || o.rating > ratingRange.max) {
+      if (selectedCurrencies.isNotEmpty &&
+          !selectedCurrencies.contains(o.fiatCode)) {
         return false;
       }
-    }
 
-    if (premiumRange != defaultPremiumRange) {
-      if (o.premium < premiumRange.min || o.premium > premiumRange.max) {
-        return false;
+      if (selectedPaymentMethods.isNotEmpty) {
+        final tokens =
+            o.paymentMethod
+                .split(',')
+                .map((t) => t.trim().toLowerCase())
+                .toSet();
+        final selectedLower =
+            selectedPaymentMethods.map((pm) => pm.toLowerCase()).toSet();
+        if (tokens.intersection(selectedLower).isEmpty) return false;
       }
-    }
 
-    return true;
-  }).toList()
+      if (ratingRange != defaultRatingRange) {
+        if (o.rating < ratingRange.min || o.rating > ratingRange.max) {
+          return false;
+        }
+      }
+
+      if (premiumRange != defaultPremiumRange) {
+        if (o.premium < premiumRange.min || o.premium > premiumRange.max) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList()
     ..sort(orderComparator(sort));
 });

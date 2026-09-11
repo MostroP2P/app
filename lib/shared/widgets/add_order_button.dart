@@ -54,6 +54,9 @@ class _AddOrderButtonState extends State<AddOrderButton>
 
   bool get _isOpen => _menu != null;
 
+  /// Screen size the open menu was placed for.
+  Size? _menuScreenSize;
+
   @override
   void initState() {
     super.initState();
@@ -69,6 +72,25 @@ class _AddOrderButtonState extends State<AddOrderButton>
       parent: _controller,
       curve: const Interval(0, 0.9, curve: Curves.easeOut),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The menu is placed from where the button sat when it opened. Rotating
+    // or resizing moves the button, so close rather than leave the ✕ and the
+    // Buy/Sell buttons behind. After the frame: resetting the controller here
+    // would rebuild the menu's animated widgets in the middle of a build.
+    final size = MediaQuery.sizeOf(context);
+    if (_isOpen && size != _menuScreenSize) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_isOpen) return;
+        setState(() {
+          _controller.value = 0;
+          _discardMenu();
+        });
+      });
+    }
   }
 
   @override
@@ -103,6 +125,7 @@ class _AddOrderButtonState extends State<AddOrderButton>
           ),
     );
     overlay.insert(menu);
+    _menuScreenSize = MediaQuery.sizeOf(context);
     setState(() => _menu = menu);
     _controller.forward();
   }

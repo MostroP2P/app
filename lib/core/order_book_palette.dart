@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Palette of the order-book handoff (`design_handoff_orderbook`, variants
-/// 4b · order card and 4d · create-order button), shared by the bottom bar.
+/// Palette of the order-book redesign (variants 4b · order card and
+/// 4d · create-order button), shared by the bottom bar.
 ///
 /// Dark values are the handoff's tokens. The handoff is dark-only, so [light]
 /// is a legibility mapping onto the drawer's light (3c) surfaces. Where a text

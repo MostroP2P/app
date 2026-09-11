@@ -149,8 +149,8 @@ class AppColors extends ThemeExtension<AppColors> {
 
 // ── Drawer redesign palette ───────────────────────────────────────────────────
 
-/// Palette of the drawer redesign handoff (`design_handoff_drawer`, variants
-/// 3b · dark and 3c · light): a floating gradient panel with decorative halos,
+/// Palette of the drawer redesign (variants 3b · dark and 3c · light): a
+/// floating gradient panel with decorative halos,
 /// tinted icon tiles and a release-stage chip. Values follow the handoff
 /// except where a text role fails WCAG AA (4.5:1) on the surface it really
 /// renders on — [tagline] sits at the centre of the green halo, and the light
@@ -379,6 +379,10 @@ abstract final class AppFonts {
 
   /// Figures that must line up from card to card — amounts, premiums, sats,
   /// ratings. Its digits are tabular.
+  ///
+  /// Only weights 500, 600 and 700 are bundled: a style that leaves
+  /// `fontWeight` unset (400) renders Medium. Set the weight explicitly, or
+  /// bundle `Manrope-Regular.ttf` before relying on 400.
   static const String figures = 'Manrope';
 }
 

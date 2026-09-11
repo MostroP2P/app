@@ -685,7 +685,7 @@
   "sortBestReputation": "Beste Reputation",
   "sortSheetTitle": "Sortieren nach",
   "orderCardPremiumCaption": "Prämie",
-  "orderFixedAmountPrefix": "Fester Betrag · für ",
+  "orderFixedAmount": "Fester Betrag · für {sats}",
   "satsAmount": "{amount} sats",
   "reputationNew": "Neu",
   "reputationNoTrades": "keine Trades",

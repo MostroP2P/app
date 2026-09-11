@@ -20,7 +20,7 @@ import 'package:mostro/shared/widgets/add_order_button.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
-import 'package:mostro/shared/widgets/order_list_skeleton.dart';
+import 'package:mostro/features/home/widgets/order_list_skeleton.dart';
 
 /// Side margin of every row on the screen (handoff 4b).
 const double _sideInset = 18;
@@ -88,27 +88,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : 1;
 
     // Shimmer while loading, error state, empty state, or the live list.
-    final orders = ref
-        .watch(orderBookProvider)
-        .when(
-          loading: () => const OrderListSkeleton(),
-          error:
-              (_, __) => _OrderBookError(
-                palette: pal,
-                onRetry: () => ref.invalidate(orderBookProvider),
-              ),
-          data:
-              (_) =>
-                  filteredOrders.isEmpty
-                      ? const OrderListEmpty()
-                      : OrderBookList(
-                        orders: filteredOrders,
-                        currencyFlags: flags,
-                        reasons: orderReasons,
-                        columns: columns,
-                        onOrderTap: _openOrder,
-                      ),
-        );
+    final book = ref.watch(orderBookProvider);
+    final orders = book.when(
+      loading: () => const OrderListSkeleton(),
+      error:
+          (_, __) => _OrderBookError(
+            palette: pal,
+            onRetry: () => ref.invalidate(orderBookProvider),
+          ),
+      data:
+          (_) =>
+              filteredOrders.isEmpty
+                  ? const OrderListEmpty()
+                  : OrderBookList(
+                    orders: filteredOrders,
+                    currencyFlags: flags,
+                    reasons: orderReasons,
+                    columns: columns,
+                    onOrderTap: _openOrder,
+                  ),
+    );
 
     // ── Main content column ───────────────────────────────────────────────────
     final mainContent = Column(
@@ -123,7 +122,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onSelected:
               (type) => ref.read(homeOrderTypeProvider.notifier).state = type,
         ),
-        _FilterRow(palette: pal, count: filteredOrders.length, sort: sort),
+        _FilterRow(
+          palette: pal,
+          count: filteredOrders.length,
+          sort: sort,
+          // Loading or failed: there is no book yet to count or to sort.
+          showsOrders: book.hasValue,
+        ),
         Expanded(
           child: AnimatedSwitcher(
             duration: _switchDuration,
@@ -187,9 +192,12 @@ class _OrderBookAppBar extends StatelessWidget {
   /// Null on desktop, where the persistent sidebar replaces the overlay drawer.
   final VoidCallback? onMenuTap;
 
-  /// Space between a 40-dp icon target and its 22-dp glyph, taken out of the
+  /// Material's minimum touch target.
+  static const double _target = 48;
+
+  /// Space between a 48-dp target and its 22-dp glyph, taken out of the
   /// mock's paddings so the glyphs — not the targets — sit where it puts them.
-  static const double _glyphInset = 9;
+  static const double _glyphInset = (_target - 22) / 2;
 
   @override
   Widget build(BuildContext context) {
@@ -201,10 +209,11 @@ class _OrderBookAppBar extends StatelessWidget {
         _sideInset - _glyphInset,
         top - _glyphInset,
         _sideInset - _glyphInset,
-        12 - _glyphInset,
+        // The target reaches 1 dp past the mock's 12 below the glyph.
+        math.max(0, 12 - _glyphInset),
       ),
       child: SizedBox(
-        height: 40,
+        height: _target,
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -219,7 +228,7 @@ class _OrderBookAppBar extends StatelessWidget {
                   IconButton(
                     onPressed: onMenuTap,
                     style: IconButton.styleFrom(
-                      minimumSize: const Size.square(40),
+                      minimumSize: const Size.square(_target),
                       padding: const EdgeInsets.all(_glyphInset),
                     ),
                     iconSize: 22,
@@ -318,31 +327,34 @@ class _SideTab extends StatelessWidget {
     return Semantics(
       selected: isSelected,
       inMutuallyExclusiveGroup: true,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
+      // The fill sits under the Material and the InkWell on it, so the ripple
+      // paints over the active tab's tint instead of beneath it.
+      child: AnimatedContainer(
+        duration: _switchDuration,
+        // Both halves carry the 1px border (transparent when inactive) so
+        // switching does not shift their height.
+        decoration: BoxDecoration(
+          color: isSelected ? palette.tabActiveFill : Colors.transparent,
           borderRadius: radius,
-          child: AnimatedContainer(
-            duration: _switchDuration,
-            // Both halves carry the 1px border (transparent when inactive) so
-            // switching does not shift their height.
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? palette.tabActiveFill : Colors.transparent,
-              borderRadius: radius,
-              border: Border.all(
-                color:
-                    isSelected ? palette.tabActiveBorder : Colors.transparent,
-              ),
-            ),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? palette.limeInk : palette.textSecondary,
+          border: Border.all(
+            color: isSelected ? palette.tabActiveBorder : Colors.transparent,
+          ),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? palette.limeInk : palette.textSecondary,
+                ),
               ),
             ),
           ),
@@ -360,11 +372,16 @@ class _FilterRow extends StatelessWidget {
     required this.palette,
     required this.count,
     required this.sort,
+    required this.showsOrders,
   });
 
   final OrderBookPalette palette;
   final int count;
   final OrderSort sort;
+
+  /// Whether the book has loaded. Until it has, only the filter chip shows:
+  /// "0 orders" and a sort picker over nothing would both be misleading.
+  final bool showsOrders;
 
   @override
   Widget build(BuildContext context) {
@@ -412,49 +429,51 @@ class _FilterRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          // The whole word, never "15 o…": on a very narrow screen it wraps.
-          Flexible(
-            child: Text(
-              l10n.ordersCount(count),
-              style: TextStyle(fontSize: 12, color: palette.textTertiary),
+          if (showsOrders) ...[
+            const SizedBox(width: 8),
+            // The whole word, never "15 o…": on a very narrow screen it wraps.
+            Flexible(
+              child: Text(
+                l10n.ordersCount(count),
+                style: TextStyle(fontSize: 12, color: palette.textTertiary),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: InkWell(
-                onTap: () => showOrderSortSheet(context),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          orderSortLabel(l10n, sort),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: palette.sortLabel,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: InkWell(
+                  onTap: () => showOrderSortSheet(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            orderSortLabel(l10n, sort),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: palette.sortLabel,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 5),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 16,
-                        color: palette.sortLabel,
-                      ),
-                    ],
+                        const SizedBox(width: 5),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: palette.sortLabel,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

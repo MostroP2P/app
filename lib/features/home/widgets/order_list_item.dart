@@ -30,11 +30,11 @@ const double _premiumHighThreshold = 3;
 /// is small — the claim that construction dominates does not hold.
 class OrderCardFormats {
   OrderCardFormats._(String locale)
-      : premium = NumberFormat('+0.0;-0.0', locale),
-        _unsignedPremium = NumberFormat('0.0', locale),
-        rating = NumberFormat('0.##', locale),
-        decimal = NumberFormat.decimalPattern(locale),
-        fiat = NumberFormat('#,##0.##', locale);
+    : premium = NumberFormat('+0.0;-0.0', locale),
+      _unsignedPremium = NumberFormat('0.0', locale),
+      rating = NumberFormat('0.##', locale),
+      decimal = NumberFormat.decimalPattern(locale),
+      fiat = NumberFormat('#,##0.##', locale);
 
   /// Premium, always signed: `+2.5` / `-2.5`.
   final NumberFormat premium;
@@ -391,23 +391,10 @@ class _AmountRow extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               if (order.hasFixedSats)
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(text: l10n.orderFixedAmountPrefix),
-                      TextSpan(
-                        text: l10n.satsAmount(
-                          formats.decimal.format(order.amountSats!.toInt()),
-                        ),
-                        style: TextStyle(
-                          fontFamily: AppFonts.figures,
-                          fontWeight: FontWeight.w600,
-                          color: palette.limeInk,
-                        ),
-                      ),
-                    ],
-                  ),
+                _FixedSatsCaption(
+                  sats: formats.decimal.format(order.amountSats!.toInt()),
                   style: captionStyle,
+                  palette: palette,
                 )
               else
                 Text(l10n.marketPriceCaption, style: captionStyle),
@@ -436,6 +423,52 @@ class _AmountRow extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// "Fixed amount · for 4,000 sats", with the figure set in the figures face.
+///
+/// One sentence with a placeholder rather than a prefix glued to the figure,
+/// so a locale can put the figure wherever its word order needs; the styled
+/// span is found by splitting around it. A translation that drops the
+/// placeholder still reads, just unstyled.
+class _FixedSatsCaption extends StatelessWidget {
+  const _FixedSatsCaption({
+    required this.sats,
+    required this.style,
+    required this.palette,
+  });
+
+  /// The grouped sats figure, without its unit.
+  final String sats;
+  final TextStyle style;
+  final OrderBookPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final figure = l10n.satsAmount(sats);
+    final caption = l10n.orderFixedAmount(figure);
+    final at = caption.indexOf(figure);
+    if (at < 0) return Text(caption, style: style);
+
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: caption.substring(0, at)),
+          TextSpan(
+            text: figure,
+            style: TextStyle(
+              fontFamily: AppFonts.figures,
+              fontWeight: FontWeight.w600,
+              color: palette.limeInk,
+            ),
+          ),
+          TextSpan(text: caption.substring(at + figure.length)),
+        ],
+      ),
+      style: style,
     );
   }
 }
