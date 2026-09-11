@@ -206,8 +206,10 @@
   "pubkeyCopiedToClipboard": "Öffentlicher Schlüssel in die Zwischenablage kopiert",
   "footerTagline": "Open-Source. Nicht-verwahrt. Privat.",
 
-  "drawerTitle": "MOSTRO",
-  "betaBadgeLabel": "Beta",
+  "drawerTitle": "Mostro",
+  "drawerTagline": "P2P-Handel",
+  "drawerStageBadge": "Alpha",
+  "drawerVersion": "Version {version}",
   "drawerAccountMenuItem": "Konto",
   "drawerSettingsMenuItem": "Einstellungen",
   "drawerAboutMenuItem": "Über",
