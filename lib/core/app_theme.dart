@@ -317,6 +317,195 @@ class OrderBookPalette {
       Theme.of(context).brightness == Brightness.dark ? dark : light;
 }
 
+// ── Drawer redesign palette ───────────────────────────────────────────────────
+
+/// Palette of the drawer redesign handoff (`design_handoff_drawer`, variants
+/// 3b · dark and 3c · light): a floating gradient panel with decorative halos,
+/// tinted icon tiles and a release-stage chip. Values follow the handoff
+/// except where a text role fails WCAG AA (4.5:1) on the surface it really
+/// renders on — [tagline] sits at the centre of the green halo, and the light
+/// [footerText] on the panel's bottom tone — so those are adjusted just enough
+/// to pass. Locked by `test/core/drawer_palette_contrast_test.dart`.
+@immutable
+class DrawerPalette {
+  const DrawerPalette({
+    required this.panelGradient,
+    required this.panelGradientStops,
+    required this.panelBorder,
+    required this.panelShadow,
+    required this.scrim,
+    required this.haloGreen,
+    required this.haloYellow,
+    required this.logoShadow,
+    required this.logoShadowBlur,
+    required this.wordmark,
+    required this.tagline,
+    required this.chipText,
+    required this.chipFill,
+    required this.chipBorder,
+    required this.chipGlow,
+    required this.accentDivider,
+    required this.itemFill,
+    required this.itemBorder,
+    required this.itemShadow,
+    required this.itemFillActive,
+    required this.itemBorderActive,
+    required this.iconTileGradient,
+    required this.iconTileBorder,
+    required this.icon,
+    required this.itemLabel,
+    required this.chevron,
+    required this.footerHairline,
+    required this.footerGlyph,
+    required this.footerText,
+  });
+
+  /// Panel background, top → bottom (the handoff's 175° gradient).
+  final List<Color> panelGradient;
+  final List<double> panelGradientStops;
+
+  /// 1px hairline on the panel's right edge (floating overlay only).
+  final Color panelBorder;
+  final List<BoxShadow> panelShadow;
+
+  /// Dims the screen behind the overlay drawer.
+  final Color scrim;
+
+  /// Centre colors of the two radial halos; each fades to transparent.
+  final Color haloGreen;
+  final Color haloYellow;
+
+  /// Tint and blur of the drop shadow under the mascot.
+  final Color logoShadow;
+  final double logoShadowBlur;
+
+  final Color wordmark;
+  final Color tagline;
+  final Color chipText;
+  final Color chipFill;
+  final Color chipBorder;
+  final List<BoxShadow> chipGlow;
+
+  /// Left → right stops of the accent line under the header.
+  final List<Color> accentDivider;
+
+  /// Menu row at rest.
+  final Color itemFill;
+  final Color itemBorder;
+  final List<BoxShadow> itemShadow;
+
+  /// Menu row while pressed or hovered (and the active desktop destination).
+  final Color itemFillActive;
+  final Color itemBorderActive;
+
+  final List<Color> iconTileGradient;
+  final Color iconTileBorder;
+  final Color icon;
+  final Color itemLabel;
+  final Color chevron;
+
+  /// Left → right stops of the hairline above the version footer.
+  final List<Color> footerHairline;
+  final Color footerGlyph;
+  final Color footerText;
+
+  static const dark = DrawerPalette(
+    panelGradient: [Color(0xFF212A3C), Color(0xFF181E2C), Color(0xFF141926)],
+    panelGradientStops: [0, 0.45, 1],
+    panelBorder: Color(0x1F92D64F), // rgba(146,214,79,0.12)
+    panelShadow: [
+      BoxShadow(
+        color: Color(0xE6000000), // black 90%
+        offset: Offset(26, 0),
+        blurRadius: 70,
+        spreadRadius: -18,
+      ),
+    ],
+    scrim: Color(0x9E06080C), // rgba(6,8,12,0.62)
+    haloGreen: Color(0x2192D64F), // rgba(146,214,79,0.13)
+    haloYellow: Color(0x1AF2D14B), // rgba(242,209,75,0.10)
+    logoShadow: Color(0x3392D64F), // rgba(146,214,79,0.20)
+    logoShadowBlur: 16,
+    wordmark: Color(0xFFEEF1F6),
+    // Handoff #8B97AD is 3.7:1 over the green halo — lightened to pass AA.
+    tagline: Color(0xFFA0AABD),
+    chipText: Color(0xFFF7DE72),
+    chipFill: Color(0x24F2D14B), // rgba(242,209,75,0.14)
+    chipBorder: Color(0x59F2D14B), // rgba(242,209,75,0.35)
+    chipGlow: [
+      BoxShadow(
+        color: Color(0x73F2D14B), // rgba(242,209,75,0.45)
+        blurRadius: 18,
+        spreadRadius: -4,
+      ),
+    ],
+    accentDivider: [Color(0xB392D64F), Color(0x0D92D64F)],
+    itemFill: Color(0x09FFFFFF), // white 3.5%
+    itemBorder: Color(0x0DFFFFFF), // white 5%
+    itemShadow: [],
+    itemFillActive: Color(0x1792D64F), // rgba(146,214,79,0.09)
+    itemBorderActive: Color(0x4092D64F), // rgba(146,214,79,0.25)
+    iconTileGradient: [Color(0x3892D64F), Color(0x0F92D64F)],
+    iconTileBorder: Color(0x3892D64F), // rgba(146,214,79,0.22)
+    icon: Color(0xFFB7E38A),
+    itemLabel: Color(0xFFEEF1F6),
+    chevron: Color(0xFF6C7789),
+    footerHairline: [Color(0x1AFFFFFF), Color(0x00FFFFFF)],
+    footerGlyph: Color(0xFF92D64F),
+    footerText: Color(0xFF7E899E),
+  );
+
+  static const light = DrawerPalette(
+    panelGradient: [Color(0xFFFFFFFF), Color(0xFFFBFCFA), Color(0xFFF3F6F1)],
+    panelGradientStops: [0, 0.55, 1],
+    panelBorder: Color(0x295C9130), // rgba(92,145,48,0.16)
+    panelShadow: [
+      BoxShadow(
+        color: Color(0x5912161F), // rgba(18,22,31,0.35)
+        offset: Offset(26, 0),
+        blurRadius: 70,
+        spreadRadius: -18,
+      ),
+    ],
+    scrim: Color(0x5712161F), // rgba(18,22,31,0.34)
+    haloGreen: Color(0x4792D64F), // rgba(146,214,79,0.28)
+    haloYellow: Color(0x33F2D14B), // rgba(242,209,75,0.20)
+    logoShadow: Color(0x475C9130), // rgba(92,145,48,0.28)
+    logoShadowBlur: 14,
+    wordmark: Color(0xFF12161F),
+    // Handoff #6F7A8C is 3.7:1 over the green halo — darkened to pass AA.
+    tagline: Color(0xFF5F6979),
+    chipText: Color(0xFF7A5D00),
+    chipFill: Color(0x47F2D14B), // rgba(242,209,75,0.28)
+    chipBorder: Color(0x73D8AF19), // rgba(216,175,25,0.45)
+    chipGlow: [],
+    accentDivider: [Color(0x995C9130), Color(0x0D5C9130)],
+    itemFill: Color(0xE6FFFFFF), // white 90%
+    itemBorder: Color(0x0F12161F), // rgba(18,22,31,0.06)
+    itemShadow: [
+      BoxShadow(
+        color: Color(0x0A12161F), // rgba(18,22,31,0.04)
+        offset: Offset(0, 1),
+        blurRadius: 2,
+      ),
+    ],
+    itemFillActive: Color(0x2492D64F), // rgba(146,214,79,0.14)
+    itemBorderActive: Color(0x4D5C9130), // rgba(92,145,48,0.30)
+    iconTileGradient: [Color(0x4D92D64F), Color(0x1A92D64F)],
+    iconTileBorder: Color(0x385C9130), // rgba(92,145,48,0.22)
+    icon: Color(0xFF4E7D28),
+    itemLabel: Color(0xFF2A303C),
+    chevron: Color(0xFF9AA4B8),
+    footerHairline: [Color(0x1A12161F), Color(0x0012161F)],
+    footerGlyph: Color(0xFF5C9130),
+    // Handoff #6F7A8C is 4.0:1 on the panel bottom — darkened to pass AA.
+    footerText: Color(0xFF5F6979),
+  );
+
+  static DrawerPalette of(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? dark : light;
+}
+
 // ── Spacing tokens ─────────────────────────────────────────────────────────────
 
 abstract final class AppSpacing {

@@ -206,8 +206,10 @@
   "pubkeyCopiedToClipboard": "Chiave pubblica copiata negli appunti",
   "footerTagline": "Open-source. Non custodiale. Privato.",
 
-  "drawerTitle": "MOSTRO",
-  "betaBadgeLabel": "Beta",
+  "drawerTitle": "Mostro",
+  "drawerTagline": "Scambio P2P",
+  "drawerStageBadge": "Alpha",
+  "drawerVersion": "Versione {version}",
   "drawerAccountMenuItem": "Account",
   "drawerSettingsMenuItem": "Impostazioni",
   "drawerAboutMenuItem": "Informazioni",
