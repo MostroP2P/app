@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
@@ -33,6 +34,8 @@ class OrderBookList extends StatelessWidget {
   /// create-order button. Shared with the loading skeleton.
   static const listPadding = EdgeInsets.fromLTRB(18, 0, 18, 96);
 
+  static const double _gap = 12;
+
   @override
   Widget build(BuildContext context) {
     // Where each order sits right now, so a row that moved can be found at its
@@ -50,9 +53,7 @@ class OrderBookList extends StatelessWidget {
     Map<String, int>? indexById;
     int? indexOfKey(Key key) {
       if (key is! ValueKey<String>) return null;
-      indexById ??= {
-        for (var i = 0; i < orders.length; i++) orders[i].id: i,
-      };
+      indexById ??= {for (var i = 0; i < orders.length; i++) orders[i].id: i};
       return indexById![key.value];
     }
 
@@ -60,7 +61,7 @@ class OrderBookList extends StatelessWidget {
       return ListView.separated(
         padding: listPadding,
         itemCount: orders.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => const SizedBox(height: _gap),
         // `separated` builds one child per item *and* one per separator, so a
         // child index is twice its item index — hence the doubling, which is
         // the whole reason Flutter later replaced this parameter with
@@ -78,17 +79,28 @@ class OrderBookList extends StatelessWidget {
       );
     }
 
-    return GridView.builder(
-      padding: listPadding,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.1,
-      ),
-      itemCount: orders.length,
-      findChildIndexCallback: indexOfKey,
-      itemBuilder: (context, index) => _card(orders[index]),
+    // Masonry, not a fixed-extent grid: a card's height depends on its
+    // content and the text scale (wrapping chips, two lines of payment
+    // methods), so a fixed tile ratio overflows on long localized copy or
+    // large text. The same index callback keeps rows moving on a re-sort.
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: listPadding,
+          sliver: SliverMasonryGrid(
+            gridDelegate: SliverSimpleGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+            ),
+            mainAxisSpacing: _gap,
+            crossAxisSpacing: _gap,
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _card(orders[index]),
+              childCount: orders.length,
+              findChildIndexCallback: indexOfKey,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

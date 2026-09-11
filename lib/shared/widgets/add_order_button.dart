@@ -29,9 +29,11 @@ const double _menuRise = 8;
 /// buttons above the button, which turns into a grey ✕ in the same place.
 /// Tapping the scrim, the ✕ or system back closes it.
 ///
-/// The open state renders in the nearest [Overlay] through an
-/// [OverlayPortal]: the Scaffold gives the button only its own slot, so a
-/// scrim drawn in place could never cover the bottom bar.
+/// The open state is its own [OverlayEntry] above the route. The Scaffold
+/// gives the button only its own slot, so a scrim drawn in place could never
+/// cover the bottom bar; and only an entry painted after the route can block
+/// the route's semantics — an [OverlayPortal] child is attached, for
+/// semantics, where the button sits, before the bottom bar.
 class AddOrderButton extends StatefulWidget {
   const AddOrderButton({super.key});
 
@@ -41,16 +43,16 @@ class AddOrderButton extends StatefulWidget {
 
 class _AddOrderButtonState extends State<AddOrderButton>
     with SingleTickerProviderStateMixin {
-  final _portal = OverlayPortalController();
   final _buttonKey = GlobalKey();
 
   late final AnimationController _controller;
   late final CurvedAnimation _scrim;
   late final CurvedAnimation _entrance;
 
-  /// Where the closed button sits in the overlay, captured when opening so
-  /// the ✕ lands exactly on top of it.
-  Rect _buttonRect = Rect.zero;
+  /// The open menu, inserted into the navigator's overlay above the route.
+  OverlayEntry? _menu;
+
+  bool get _isOpen => _menu != null;
 
   @override
   void initState() {
@@ -71,6 +73,7 @@ class _AddOrderButtonState extends State<AddOrderButton>
 
   @override
   void dispose() {
+    _discardMenu();
     _scrim.dispose();
     _entrance.dispose();
     _controller.dispose();
@@ -79,65 +82,66 @@ class _AddOrderButtonState extends State<AddOrderButton>
 
   void _open() {
     final button = _buttonKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (button == null || overlay == null) return;
-    setState(() {
-      _buttonRect =
-          button.localToGlobal(Offset.zero, ancestor: overlay) & button.size;
-      _portal.show();
-    });
+    final overlay = Overlay.of(context);
+    final overlayBox = overlay.context.findRenderObject() as RenderBox?;
+    if (_isOpen || button == null || overlayBox == null) return;
+
+    // Where the closed button sits in the overlay, so the ✕ lands exactly on
+    // top of it.
+    final buttonRect =
+        button.localToGlobal(Offset.zero, ancestor: overlayBox) & button.size;
+    final menu = OverlayEntry(
+      builder:
+          (context) => _OpenMenu(
+            palette: OrderBookPalette.of(context),
+            scrim: _scrim,
+            entrance: _entrance,
+            rotation: _controller,
+            buttonRect: buttonRect,
+            onDismiss: _close,
+            onCreate: _create,
+          ),
+    );
+    overlay.insert(menu);
+    setState(() => _menu = menu);
     _controller.forward();
   }
 
   Future<void> _close() async {
-    if (!_portal.isShowing) return;
+    if (!_isOpen) return;
     await _controller.reverse();
-    if (mounted && _portal.isShowing) setState(_portal.hide);
+    if (mounted) setState(_discardMenu);
   }
 
   void _create(String type) {
     _controller.value = 0;
-    setState(_portal.hide);
+    setState(_discardMenu);
     context.push('${AppRoute.addOrder}?type=$type');
+  }
+
+  void _discardMenu() {
+    _menu
+      ?..remove()
+      ..dispose();
+    _menu = null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final palette = OrderBookPalette.of(context);
-    final isOpen = _portal.isShowing;
-
     return PopScope(
-      canPop: !isOpen,
+      canPop: !_isOpen,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
       },
-      child: OverlayPortal(
-        controller: _portal,
-        overlayChildBuilder:
-            (_) => _OpenMenu(
-              palette: palette,
-              scrim: _scrim,
-              entrance: _entrance,
-              rotation: _controller,
-              buttonRect: _buttonRect,
-              onDismiss: _close,
-              onCreate: _create,
-            ),
-        // While open, the ✕ in the overlay is the control: the covered button
-        // leaves the semantics tree so automation finds exactly one.
-        child: ExcludeSemantics(
-          excluding: isOpen,
-          child: Padding(
-            // The Scaffold keeps floating buttons 16 from the edge; the mock
-            // sets 18.
-            padding: const EdgeInsets.only(right: 2),
-            child: _RoundButton(
-              key: _buttonKey,
-              palette: palette,
-              onPressed: _open,
-            ).withAutomationId(AutomationIds.orderAddFab),
-          ),
-        ),
+      child: Padding(
+        // The Scaffold keeps floating buttons 16 from the edge; the mock sets
+        // 18.
+        padding: const EdgeInsets.only(right: 2),
+        child: _RoundButton(
+          key: _buttonKey,
+          palette: OrderBookPalette.of(context),
+          onPressed: _open,
+        ).withAutomationId(AutomationIds.orderAddFab),
       ),
     );
   }
@@ -166,78 +170,92 @@ class _OpenMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return LayoutBuilder(
-      builder:
-          (context, constraints) => Stack(
-            children: [
-              Positioned.fill(
-                child: FadeTransition(
-                  opacity: scrim,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onDismiss,
-                    child: ColoredBox(color: palette.scrim),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: _menuSideInset,
-                right: _menuSideInset,
-                bottom: constraints.maxHeight - buttonRect.top + _menuGap,
-                child: AnimatedBuilder(
-                  animation: entrance,
-                  builder:
-                      (context, child) => Opacity(
-                        opacity: entrance.value,
-                        child: Transform.translate(
-                          offset: Offset(0, _menuRise * (1 - entrance.value)),
-                          child: child,
-                        ),
+    // Modal while open: from its own overlay entry, BlockSemantics drops the
+    // whole route — page and bottom bar — from the semantics tree, and the
+    // route-like scope makes a screen reader treat the open menu as the
+    // current screen.
+    return BlockSemantics(
+      child: Semantics(
+        container: true,
+        explicitChildNodes: true,
+        scopesRoute: true,
+        child: LayoutBuilder(
+          builder:
+              (context, constraints) => Stack(
+                children: [
+                  Positioned.fill(
+                    child: FadeTransition(
+                      opacity: scrim,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onDismiss,
+                        child: ColoredBox(color: palette.scrim),
                       ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _MenuButton(
-                        label: l10n.tabBuyBtc,
-                        icon: Icons.arrow_downward_rounded,
-                        fill: palette.lime,
-                        ink: palette.onLime,
-                        shadow: palette.buyShadow,
-                        onTap: () => onCreate('buy'),
-                      ).withAutomationId(AutomationIds.orderAddBuy),
-                      const SizedBox(height: 10),
-                      _MenuButton(
-                        label: l10n.tabSellBtc,
-                        icon: Icons.arrow_upward_rounded,
-                        fill: palette.sell,
-                        ink: palette.onSell,
-                        shadow: palette.sellShadow,
-                        onTap: () => onCreate('sell'),
-                      ).withAutomationId(AutomationIds.orderAddSell),
-                      const SizedBox(height: 12),
-                      Text(
-                        l10n.fabDismissHint,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: palette.scrimText,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                  Positioned(
+                    left: _menuSideInset,
+                    right: _menuSideInset,
+                    bottom: constraints.maxHeight - buttonRect.top + _menuGap,
+                    child: AnimatedBuilder(
+                      animation: entrance,
+                      builder:
+                          (context, child) => Opacity(
+                            opacity: entrance.value,
+                            child: Transform.translate(
+                              offset: Offset(
+                                0,
+                                _menuRise * (1 - entrance.value),
+                              ),
+                              child: child,
+                            ),
+                          ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _MenuButton(
+                            label: l10n.tabBuyBtc,
+                            icon: Icons.arrow_downward_rounded,
+                            fill: palette.lime,
+                            ink: palette.onLime,
+                            shadow: palette.buyShadow,
+                            onTap: () => onCreate('buy'),
+                          ).withAutomationId(AutomationIds.orderAddBuy),
+                          const SizedBox(height: 10),
+                          _MenuButton(
+                            label: l10n.tabSellBtc,
+                            icon: Icons.arrow_upward_rounded,
+                            fill: palette.sell,
+                            ink: palette.onSell,
+                            shadow: palette.sellShadow,
+                            onTap: () => onCreate('sell'),
+                          ).withAutomationId(AutomationIds.orderAddSell),
+                          const SizedBox(height: 12),
+                          Text(
+                            l10n.fabDismissHint,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: palette.scrimText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned.fromRect(
+                    rect: buttonRect,
+                    child: _RoundButton(
+                      palette: palette,
+                      rotation: rotation,
+                      onPressed: onDismiss,
+                    ).withAutomationId(AutomationIds.orderAddFab),
+                  ),
+                ],
               ),
-              Positioned.fromRect(
-                rect: buttonRect,
-                child: _RoundButton(
-                  palette: palette,
-                  rotation: rotation,
-                  onPressed: onDismiss,
-                ).withAutomationId(AutomationIds.orderAddFab),
-              ),
-            ],
-          ),
+        ),
+      ),
     );
   }
 }
@@ -350,7 +368,10 @@ class _RoundButton extends StatelessWidget {
                 child:
                     isOpen
                         ? RotationTransition(
-                          turns: Tween(begin: -0.125, end: 0.0).animate(rotation),
+                          turns: Tween(
+                            begin: -0.125,
+                            end: 0.0,
+                          ).animate(rotation),
                           child: Icon(
                             Icons.close,
                             size: 22,

@@ -81,6 +81,18 @@ void main() {
 
       expect(helper.ids(), ['c', 'b', 'a']);
     });
+
+    test('equal rating and trade count keep newest first', () async {
+      final helper = await bookWith([
+        fakeOrder(id: 'older', rating: 4.8, tradeCount: 12, minutesAgo: 30),
+        fakeOrder(id: 'recent', rating: 4.8, tradeCount: 12, minutesAgo: 2),
+      ]);
+
+      helper.container.read(orderSortProvider.notifier).state =
+          OrderSort.bestReputation;
+
+      expect(helper.ids(), ['recent', 'older']);
+    });
   });
 
   group('hasActiveOrderFiltersProvider', () {

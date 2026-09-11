@@ -28,6 +28,20 @@ const double _sideInset = 18;
 /// Buy/Sell switch: the list cross-fades, with no slide.
 const Duration _switchDuration = Duration(milliseconds: 150);
 
+/// Where tapping [order] leads: its own screen for an order of ours, the take
+/// flow for its side otherwise.
+///
+/// Decided by the order, never by the tab on screen: during the tab
+/// cross-fade the outgoing list is still tappable while the tab already names
+/// the other side.
+@visibleForTesting
+String routeForOrder(OrderItem order) {
+  if (order.isMine) return AppRoute.myOrderPath(order.id);
+  return order.kind == 'sell'
+      ? AppRoute.takeSellPath(order.id)
+      : AppRoute.takeBuyPath(order.id);
+}
+
 /// Home screen — the public order book (order-book handoff, variant 4b).
 ///
 /// App bar, Buy/Sell segmented tabs, filter row with the order count and the
@@ -47,13 +61,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _openOrder(String id) {
     final allOrders = ref.read(orderBookProvider).valueOrNull ?? [];
     final order = allOrders.where((o) => o.id == id).firstOrNull;
-    if (order?.isMine == true) {
-      context.push(AppRoute.myOrderPath(id));
-    } else if (ref.read(homeOrderTypeProvider) == OrderType.buy) {
-      context.push(AppRoute.takeSellPath(id));
-    } else {
-      context.push(AppRoute.takeBuyPath(id));
-    }
+    // Taken or cancelled between the frame that showed it and the tap.
+    if (order == null) return;
+    context.push(routeForOrder(order));
   }
 
   @override

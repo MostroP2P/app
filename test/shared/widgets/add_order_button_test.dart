@@ -23,8 +23,7 @@ Future<void> _pump(WidgetTester tester) async {
       ),
       GoRoute(
         path: AppRoute.addOrder,
-        builder:
-            (_, state) => Text('add ${state.uri.queryParameters['type']}'),
+        builder: (_, state) => Text('add ${state.uri.queryParameters['type']}'),
       ),
     ],
   );
@@ -100,6 +99,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_scrim, findsNothing);
+  });
+
+  testWidgets('hides what is behind the scrim from screen readers', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester);
+    // Semantics finders search the live semantics tree, where blocked nodes
+    // are actually gone.
+    expect(find.semantics.byLabel('NAV'), findsOne);
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.semantics.byLabel('NAV'), findsNothing);
+    expect(find.semantics.byLabel(RegExp('Buy BTC')), findsOne);
+    semantics.dispose();
   });
 
   for (final (label, type) in [('Buy BTC', 'buy'), ('Sell BTC', 'sell')]) {
