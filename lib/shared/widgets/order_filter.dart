@@ -67,14 +67,7 @@ class _OrderFilterDialog extends ConsumerWidget {
                   Text(l10n.filtersDialogTitle,
                       style: theme.textTheme.headlineSmall),
                   TextButton(
-                    onPressed: () {
-                      ref.read(currencyFilterProvider.notifier).state = [];
-                      ref.read(paymentMethodFilterProvider.notifier).state = [];
-                      ref.read(ratingFilterProvider.notifier).state =
-                          defaultRatingRange;
-                      ref.read(premiumRangeFilterProvider.notifier).state =
-                          defaultPremiumRange;
-                    },
+                    onPressed: () => clearOrderFilters(ref),
                     child: Text(l10n.resetButton, style: TextStyle(color: green)),
                   ),
                 ],

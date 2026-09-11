@@ -79,6 +79,9 @@ dependencies:
 
   # Required by flutter_rust_bridge generated code
   freezed_annotation: ^2.4.4
+  # Masonry grid for the order book on tablet/desktop: cards keep their
+  # natural height (no fixed tile ratio) and keyed rows still move on re-sort
+  flutter_staggered_grid_view: ^0.7.0
 
 dependency_overrides:
   # permission_handler_html 0.1.4+0 (published 2026-07-31) fails to compile
@@ -105,6 +108,32 @@ flutter:
     - assets/data/fiat.json
     - assets/data/payment_methods.json
     - assets/images/
+    - assets/fonts/outfit/OFL.txt
+    - assets/fonts/manrope/OFL.txt
+
+  # Brand typography (drawer and order-book handoffs), bundled so the app never
+  # fetches fonts at runtime. Outfit is the UI face; Manrope sets the figures
+  # (amounts, premiums, sats), whose tabular digits line up across cards. Both
+  # are OFL-1.1: the licences ship as assets and are registered with the
+  # LicenseRegistry at startup.
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/outfit/Outfit-Regular.ttf
+        - asset: assets/fonts/outfit/Outfit-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/outfit/Outfit-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/outfit/Outfit-Bold.ttf
+          weight: 700
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/manrope/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/manrope/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/manrope/Manrope-Bold.ttf
+          weight: 700
 
 # Launcher icons. Mirrors the v1 app's configuration (MostroP2P/mobile) so both
 # apps ship the same artwork. Regenerate with:
@@ -117,7 +146,7 @@ flutter_launcher_icons:
   # transparent square: iOS forbids an alpha channel in app icons, and
   # flattening it here would leave white corners under iOS's rounded mask.
   # `launcher-icon-ios.png` is the same art pre-composited onto the brand
-  # background (app_theme.dart `bgWell`), which also avoids a generator bug —
+  # background (#1D212C, the previous order-book list well), which also avoids a generator bug —
   # flutter_launcher_icons 0.14.4 turns near-transparent pixels into saturated
   # green, drawing a 1px ring around the disc.
   image_path_ios: "assets/images/launcher-icon-ios.png"
