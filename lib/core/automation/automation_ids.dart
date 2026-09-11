@@ -115,6 +115,10 @@ class AutomationIds {
   static const String orderCreateCurrencySearch =
       'order.create.currency.search';
   static const String orderCreateFiatAmount = 'order.create.fiat_amount';
+  // Range orders: the toggle replaces the single amount with a min/max pair.
+  static const String orderCreateRange = 'order.create.range';
+  static const String orderCreateFiatMin = 'order.create.fiat_min';
+  static const String orderCreateFiatMax = 'order.create.fiat_max';
   static const String orderCreatePaymentMethod = 'order.create.payment_method';
   static const String orderCreatePriceType = 'order.create.price_type';
   static const String orderCreateSatsAmount = 'order.create.sats_amount';
@@ -156,16 +160,22 @@ class AutomationIds {
   static const String tradeRateSubmit = 'trade.rate.submit';
   static const String tradeRateClose = 'trade.rate.close';
 
+  /// Star [score] (1-5) on the rating screen.
+  static String tradeRateStar(int score) => 'trade.rate.star.$score';
+
   /// Row of a trade in the My Trades list.
   static String tradesItem(String orderId) => 'trades.item.$orderId';
 
   // Buyer invoice (NWC generated or manual) and hold-invoice payment
   static const String invoiceNwcText = 'invoice.nwc.text';
   static const String invoiceManual = 'invoice.manual';
+  static const String invoiceAmount = 'invoice.amount';
+  static const String invoiceOrderId = 'invoice.order_id';
   static const String invoiceText = 'invoice.text';
   static const String invoiceSubmit = 'invoice.submit';
   static const String invoiceCancel = 'invoice.cancel';
   static const String payInvoiceText = 'pay.invoice.text';
+  static const String payOrderId = 'pay.order_id';
   static const String payNwc = 'pay.nwc';
   static const String payCancel = 'pay.cancel';
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mostro/core/automation/automation_id.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,11 +23,7 @@ import 'package:mostro/shared/widgets/bottom_nav_bar.dart'
 /// Desktop nav: Order Book, My Trades, Chat — active item highlighted.
 /// Account items: Account, Settings, About.
 class DrawerMenu extends ConsumerWidget {
-  const DrawerMenu({
-    super.key,
-    this.onClose,
-    this.persistent = false,
-  });
+  const DrawerMenu({super.key, this.onClose, this.persistent = false});
 
   /// Called when the user taps the overlay background (overlay mode only).
   final VoidCallback? onClose;
@@ -41,12 +38,9 @@ class DrawerMenu extends ConsumerWidget {
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
     final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
 
-    final tradesCount = persistent
-        ? ref.watch(orderBookNotificationCountProvider)
-        : 0;
-    final chatCount = persistent
-        ? ref.watch(chatNotificationCountProvider)
-        : 0;
+    final tradesCount =
+        persistent ? ref.watch(orderBookNotificationCountProvider) : 0;
+    final chatCount = persistent ? ref.watch(chatNotificationCountProvider) : 0;
 
     final panel = _SidebarContent(
       green: green,
@@ -138,8 +132,7 @@ class _SidebarContent extends StatelessWidget {
                 icon: Icons.list_alt_outlined,
                 activeIcon: Icons.list_alt,
                 label: l10n.navOrderBook,
-                isActive: currentPath == AppRoute.home ||
-                    currentPath == '/',
+                isActive: currentPath == AppRoute.home || currentPath == '/',
                 badgeCount: 0,
                 green: green,
                 onTap: () => context.go(AppRoute.home),
@@ -240,13 +233,12 @@ class _NavItem extends StatelessWidget {
     final activeBg = green.withValues(alpha: 0.12);
     final iconColor = isActive ? green : Colors.white;
     final textColor = isActive ? green : Colors.white;
-    final fontWeight =
-        isActive ? FontWeight.w600 : FontWeight.w500;
+    final fontWeight = isActive ? FontWeight.w600 : FontWeight.w500;
 
     return Semantics(
       identifier: automationId,
       button: true,
-      label: label,
+      label: automationSemanticLabel(automationId, label),
       selected: isActive,
       hint: badgeCount > 0 ? l10n.drawerBadgeNewCount(badgeCount) : null,
       child: Material(
@@ -268,8 +260,7 @@ class _NavItem extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(isActive ? activeIcon : icon,
-                    color: iconColor, size: 22),
+                Icon(isActive ? activeIcon : icon, color: iconColor, size: 22),
                 const SizedBox(width: AppSpacing.lg),
                 Expanded(
                   child: Text(
@@ -286,8 +277,7 @@ class _NavItem extends StatelessWidget {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: colors?.destructiveRed ??
-                          const Color(0xFFD84D4D),
+                      color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -322,7 +312,7 @@ class _MenuItem extends StatelessWidget {
     return Semantics(
       identifier: automationId,
       button: true,
-      label: label,
+      label: automationSemanticLabel(automationId, label),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

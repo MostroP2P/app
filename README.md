@@ -4,7 +4,7 @@
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter)](https://flutter.dev)
 [![Rust](https://img.shields.io/badge/Rust-1.94+-orange?logo=rust)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Web%20%7C%20macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#supported-platforms)
 
 ---
@@ -38,7 +38,7 @@ Mostro App is the official cross-platform client for the [Mostro](https://mostro
 - **Lightning-native** — All BTC settlements happen via Lightning invoices (BOLT 11). Supports [Nostr Wallet Connect (NWC)](https://nwc.dev) for automated invoice generation.
 - **Censorship-resistant** — Built on the Nostr network; no central server or domain to block.
 - **Multi-platform** — Single codebase targets Android, iOS, Web (PWA), macOS, Windows, and Linux.
-- **Open source** — MIT licensed. Fully auditable, no proprietary components.
+- **Open source** — AGPLv3 licensed. Fully auditable, no proprietary components.
 
 ---
 
@@ -633,7 +633,7 @@ We aim to acknowledge reports within 72 hours and provide a fix within 30 days f
 
 ## License
 
-MIT License
+GNU Affero General Public License v3.0 or later
 
 See [LICENSE](LICENSE) for the full text.
 

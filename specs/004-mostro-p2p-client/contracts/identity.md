@@ -38,7 +38,14 @@ disputes.
 2. Send `Action.restore` to Mostro daemon via NIP-44 (Kind 14).
 3. Receive list of order IDs + dispute IDs.
 4. Request details for each order/dispute.
-5. Sync trade key index.
+5. Sync trade key index: send `Action.last_trade_index` (rumor authored by a
+   trade key; the daemon resolves the account from the identity proof) and
+   raise the local counter to the reply's `trade_index` — the daemon's
+   authoritative high-water mark, which includes finalized trades the restore
+   payload omits (#328). If the daemon refuses (`CantDo`) or does not answer,
+   fall back to the maximum trade index in the restore payload (a lower
+   bound: the payload lists only non-finalized orders). The counter is only
+   ever raised, never lowered; re-asking is idempotent.
 6. Reconstruct local DB from daemon responses.
 
 **Note**: Recovery only works if identity is NOT in privacy mode.

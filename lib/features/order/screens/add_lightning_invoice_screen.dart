@@ -30,6 +30,7 @@ class AddLightningInvoiceScreen extends ConsumerStatefulWidget {
   });
 
   final String orderId;
+
   /// Sats amount for the invoice. `null` until the trade provider resolves it.
   final int? amountSats;
 
@@ -47,10 +48,13 @@ class _AddLightningInvoiceScreenState
     extends ConsumerState<AddLightningInvoiceScreen> {
   final _invoiceController = TextEditingController();
   bool _submitting = false;
+
   /// `true` while a protocol cancel is in flight — blocks re-entry and submit.
   bool _canceling = false;
+
   /// `true` when NWC is connected but generation failed → show manual form.
   bool _manualMode = false;
+
   /// One-shot guard so we don't navigate twice as further updates stream in.
   bool _navigated = false;
 
@@ -61,7 +65,8 @@ class _AddLightningInvoiceScreenState
   }
 
   BigInt? _resolvedSats(WidgetRef ref) {
-    final fromProvider = ref.watch(tradeAmountProvider(widget.orderId)).valueOrNull;
+    final fromProvider =
+        ref.watch(tradeAmountProvider(widget.orderId)).valueOrNull;
     if (fromProvider != null) return fromProvider;
     final fallback = widget.amountSats;
     return fallback != null ? BigInt.from(fallback) : null;
@@ -86,20 +91,21 @@ class _AddLightningInvoiceScreenState
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.cancelTradeDialogTitle),
-        content: Text(l10n.cancelTradeDialogContent),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.noButtonLabel),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(l10n.cancelTradeDialogTitle),
+            content: Text(l10n.cancelTradeDialogContent),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.noButtonLabel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.yesCancelButtonLabel),
+              ).withAutomationId(AutomationIds.tradeCancelConfirm),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.yesCancelButtonLabel),
-          ).withAutomationId(AutomationIds.tradeCancelConfirm),
-        ],
-      ),
     );
     if (!mounted || confirmed != true) return;
     setState(() => _canceling = true);
@@ -108,9 +114,9 @@ class _AddLightningInvoiceScreenState
       if (!mounted) return;
       _navigated = true;
       refreshTrades(ref);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.cancelRequestSent)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.cancelRequestSent)));
       context.go(AppRoute.home);
     } catch (e) {
       if (!mounted) return;
@@ -135,7 +141,9 @@ class _AddLightningInvoiceScreenState
     final resolvedSats = _resolvedSats(ref);
     if (_isLnAddress(input) && resolvedSats == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).waitingForTradeAmount)),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).waitingForTradeAmount),
+        ),
       );
       return;
     }
@@ -157,13 +165,18 @@ class _AddLightningInvoiceScreenState
       // invoice was NOT accepted (CantDo, e.g. invalid invoice, or timeout),
       // so stay on this screen. Strip the Rust error prefix for readability.
       final raw = e.toString();
-      final anyhowMatch = RegExp(r'^.*?AnyhowException\((.+)\)$').firstMatch(raw);
+      final anyhowMatch = RegExp(
+        r'^.*?AnyhowException\((.+)\)$',
+      ).firstMatch(raw);
       final msg = anyhowMatch != null ? anyhowMatch.group(1)! : raw;
-      final display =
-          localizedDaemonError(AppLocalizations.of(context), msg, fallback: msg);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(display)),
+      final display = localizedDaemonError(
+        AppLocalizations.of(context),
+        msg,
+        fallback: msg,
       );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(display)));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -179,6 +192,13 @@ class _AddLightningInvoiceScreenState
     final l10n = AppLocalizations.of(context);
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
+    final appBar = AppBar(
+      title: Text(l10n.addInvoiceTitle),
+      leading:
+          Navigator.of(context).canPop()
+              ? const BackButton().withAutomationId(AutomationIds.appBarBack)
+              : null,
+    );
 
     // Leave the screen when mostrod cancels the order (e.g. the buyer let the
     // waiting-state window expire): the daemon ignores messages for a
@@ -196,9 +216,9 @@ class _AddLightningInvoiceScreenState
           _navigated = true;
           // The wiped trade must also disappear from the My Trades cache.
           refreshTrades(ref);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.orderNoLongerActive)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l10n.orderNoLongerActive)));
           context.go(AppRoute.home);
         default:
           break;
@@ -217,7 +237,7 @@ class _AddLightningInvoiceScreenState
     // Show a loading indicator only in that case. Manual entry is always available.
     if (isWalletConnected && sats == null && !_manualMode) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.addInvoiceTitle)),
+        appBar: appBar,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -226,7 +246,10 @@ class _AddLightningInvoiceScreenState
               const SizedBox(height: AppSpacing.md),
               Text(
                 l10n.fetchingTradeAmount,
-                style: TextStyle(color: Theme.of(context).extension<AppColors>()?.textSecondary),
+                style: TextStyle(
+                  color:
+                      Theme.of(context).extension<AppColors>()?.textSecondary,
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
               TextButton(
@@ -241,9 +264,12 @@ class _AddLightningInvoiceScreenState
 
     // If NWC wallet is connected, amount is known, and we haven't fallen back
     // to manual, show the auto-invoice widget instead of the manual form.
-    if (isWalletConnected && !_manualMode && sats != null && sats > BigInt.zero) {
+    if (isWalletConnected &&
+        !_manualMode &&
+        sats != null &&
+        sats > BigInt.zero) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.addInvoiceTitle)),
+        appBar: appBar,
         body: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
@@ -269,8 +295,8 @@ class _AddLightningInvoiceScreenState
                       _invoiceController.text = invoice;
                       _submit(ref);
                     },
-                    onFallbackToManual: () =>
-                        setState(() => _manualMode = true),
+                    onFallbackToManual:
+                        () => setState(() => _manualMode = true),
                   ),
                 ),
               ),
@@ -281,7 +307,7 @@ class _AddLightningInvoiceScreenState
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.addInvoiceTitle)),
+      appBar: appBar,
       body: Padding(
         // #267: bottom system-bar inset so the Cancel/Submit row clears the
         // gesture / 3-button navigation bar.
@@ -325,16 +351,29 @@ class _AddLightningInvoiceScreenState
                       ),
                     ],
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    l10n.orderLabel(widget.orderId),
+                    style: theme.textTheme.bodySmall,
+                  ).withAutomationId(
+                    AutomationIds.invoiceOrderId,
+                    label: widget.orderId,
+                  ),
                   // Sats amount calculated by the daemon (arrives in the
                   // take/add-invoice reply and lands in the trade record).
                   if (sats != null) ...[
                     const SizedBox(height: AppSpacing.md),
                     Text(
-                      AppLocalizations.of(context).addInvoiceAmount(sats.toString()),
+                      AppLocalizations.of(
+                        context,
+                      ).addInvoiceAmount(sats.toString()),
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: green,
                         fontWeight: FontWeight.bold,
                       ),
+                    ).withAutomationId(
+                      AutomationIds.invoiceAmount,
+                      label: sats.toString(),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
@@ -357,9 +396,8 @@ class _AddLightningInvoiceScreenState
                         borderSide: BorderSide.none,
                       ),
                     ),
-                    style: (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
-                      fontFamily: 'monospace',
-                    ),
+                    style: (theme.textTheme.bodySmall ?? const TextStyle())
+                        .copyWith(fontFamily: 'monospace'),
                     onChanged: (_) => setState(() {}),
                   ).withAutomationId(AutomationIds.invoiceText),
                 ],
@@ -383,9 +421,10 @@ class _AddLightningInvoiceScreenState
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: FilledButton(
-                    onPressed: (!_canceling && _isValid(ref))
-                        ? () => _submit(ref)
-                        : null,
+                    onPressed:
+                        (!_canceling && _isValid(ref))
+                            ? () => _submit(ref)
+                            : null,
                     style: FilledButton.styleFrom(
                       backgroundColor: green,
                       foregroundColor: Colors.black,
@@ -395,13 +434,14 @@ class _AddLightningInvoiceScreenState
                         borderRadius: BorderRadius.circular(AppRadius.button),
                       ),
                     ),
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(l10n.submitButton),
+                    child:
+                        _submitting
+                            ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : Text(l10n.submitButton),
                   ).withAutomationId(AutomationIds.invoiceSubmit),
                 ),
               ],

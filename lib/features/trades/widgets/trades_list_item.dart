@@ -29,28 +29,26 @@ import 'package:mostro/shared/widgets/status_chip.dart';
 /// - `/add_invoice/:orderId` for creator orders in WaitingInvoice (buyer)
 /// - `/trade_detail/:orderId` otherwise (active creators and all takers).
 class TradesListItem extends ConsumerWidget {
-  const TradesListItem({
-    super.key,
-    required this.trade,
-  });
+  const TradesListItem({super.key, required this.trade});
 
   final TradeListItem trade;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
+    if (colors == null) {
+      throw StateError('AppColors theme extension must be registered');
+    }
     final textTheme = Theme.of(context).textTheme;
     final l10n = AppLocalizations.of(context);
 
     // Live status from the polling provider; falls back to the DB snapshot.
     final liveStatusAsync = ref.watch(tradeStatusProvider(trade.orderId));
-    final effectiveStatus = liveStatusAsync.whenOrNull(
-          data: orderStatusToFilter,
-        ) ??
-        trade.status;
+    final effectiveStatus =
+        liveStatusAsync.whenOrNull(data: orderStatusToFilter) ?? trade.status;
 
-    final titleText = trade.isSelling ? l10n.sellingBitcoin : l10n.buyingBitcoin;
+    final titleText =
+        trade.isSelling ? l10n.sellingBitcoin : l10n.buyingBitcoin;
     final (statusBg, statusFg) = _statusColors(effectiveStatus);
     final statusLabel = effectiveStatus.localizedLabel(l10n);
     final roleLabel =
@@ -77,9 +75,13 @@ class TradesListItem extends ConsumerWidget {
           final isCreator = trade.role == TradeRole.creator;
           final isPending = effectiveStatus == TradeStatusFilter.pending;
           final isWaitingPaymentSeller =
-              isCreator && effectiveStatus == TradeStatusFilter.waitingPayment && trade.isSelling;
+              isCreator &&
+              effectiveStatus == TradeStatusFilter.waitingPayment &&
+              trade.isSelling;
           final isWaitingInvoiceBuyer =
-              isCreator && effectiveStatus == TradeStatusFilter.waitingInvoice && !trade.isSelling;
+              isCreator &&
+              effectiveStatus == TradeStatusFilter.waitingInvoice &&
+              !trade.isSelling;
 
           if (isPending && isCreator) {
             context.push(AppRoute.myOrderPath(trade.orderId));
@@ -164,10 +166,7 @@ class TradesListItem extends ConsumerWidget {
               ),
 
               // ── Chevron ────────────────────────────────────────
-              Icon(
-                Icons.chevron_right,
-                color: colors.textSubtle,
-              ),
+              Icon(Icons.chevron_right, color: colors.textSubtle),
             ],
           ),
         ),
@@ -185,6 +184,7 @@ class TradesListItem extends ConsumerWidget {
       TradeStatusFilter.waitingPayment => AppColors.statusWaiting,
       TradeStatusFilter.active => AppColors.statusActive,
       TradeStatusFilter.fiatSent => AppColors.statusActive,
+      TradeStatusFilter.payoutPending => AppColors.statusWaiting,
       TradeStatusFilter.success => AppColors.statusSuccess,
       TradeStatusFilter.canceled => AppColors.statusInactive,
       TradeStatusFilter.dispute => AppColors.statusDispute,

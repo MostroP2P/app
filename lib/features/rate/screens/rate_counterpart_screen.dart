@@ -7,15 +7,16 @@ import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 
 /// Rate counterpart screen — Route `/rate_user/:orderId`.
 ///
-/// Prompted after trade completion:
-///   - Seller: prompted at `SettledHoldInvoice` (after releasing funds)
-///   - Buyer:  prompted at `Success` (after payment confirmed)
+/// Both actors may rate only after payout completion. An early notification
+/// or direct route shows the live trade screen until the order succeeds.
 ///
 /// Layout:
 ///   - "RATE" header label (uppercase, gray)
@@ -34,13 +35,18 @@ class RateCounterpartScreen extends ConsumerStatefulWidget {
       _RateCounterpartScreenState();
 }
 
-class _RateCounterpartScreenState
-    extends ConsumerState<RateCounterpartScreen> {
+class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
   int _rating = 0;
   bool _isSubmitting = false;
 
+  bool get _canRate {
+    final status = ref.read(tradeStatusProvider(widget.orderId)).valueOrNull;
+    return status != null &&
+        tradeStatusFromOrderStatus(status) == TradeStatus.pendingRating;
+  }
+
   Future<void> _submit() async {
-    if (_rating == 0) return;
+    if (_rating == 0 || !_canRate) return;
     setState(() => _isSubmitting = true);
     try {
       await reputation_api.submitRating(
@@ -51,7 +57,7 @@ class _RateCounterpartScreenState
       // been disposed by now — and ref, like context, must not be touched
       // after that.
       if (!mounted) return;
-      // The screen underneath buckets a settled trade as "rate me" until a
+      // The screen underneath buckets a successful trade as "rate me" until a
       // local rating exists, so refresh it before popping back (#327).
       ref.invalidate(tradeRatingProvider(widget.orderId));
       context.pop();
@@ -59,8 +65,13 @@ class _RateCounterpartScreenState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(localizedDaemonError(AppLocalizations.of(context), e,
-              fallback: AppLocalizations.of(context).ratingFailed)),
+          content: Text(
+            localizedDaemonError(
+              AppLocalizations.of(context),
+              e,
+              fallback: AppLocalizations.of(context).ratingFailed,
+            ),
+          ),
         ),
       );
     } finally {
@@ -70,8 +81,15 @@ class _RateCounterpartScreenState
 
   @override
   Widget build(BuildContext context) {
+    final status = ref.watch(tradeStatusProvider(widget.orderId)).valueOrNull;
+    if (status == null ||
+        tradeStatusFromOrderStatus(status) != TradeStatus.pendingRating) {
+      return TradeDetailScreen(orderId: widget.orderId);
+    }
     final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
+    if (colors == null) {
+      throw StateError('AppColors theme extension must be registered');
+    }
 
     final textTheme = Theme.of(context).textTheme;
     final green = colors.mostroGreen;
@@ -149,19 +167,20 @@ class _RateCounterpartScreenState
                     borderRadius: BorderRadius.circular(AppRadius.button),
                   ),
                 ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.black54,
+                child:
+                    _isSubmitting
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black54,
+                          ),
+                        )
+                        : Text(
+                          l10n.submitUppercaseButton,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      )
-                    : Text(
-                        l10n.submitUppercaseButton,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
               ).withAutomationId(AutomationIds.tradeRateSubmit),
 
               const SizedBox(height: AppSpacing.sm),

@@ -34,9 +34,10 @@ pub(crate) fn status_for_action(action: &mostro_core::message::Action) -> Option
         | Action::HoldInvoicePaymentAccepted
         | Action::BuyerInvoiceAccepted => Some(OrderStatus::Active),
         Action::FiatSentOk => Some(OrderStatus::FiatSent),
-        Action::HoldInvoicePaymentSettled | Action::Released | Action::PurchaseCompleted => {
+        Action::HoldInvoicePaymentSettled | Action::Released => {
             Some(OrderStatus::SettledHoldInvoice)
         }
+        Action::PurchaseCompleted => Some(OrderStatus::Success),
         Action::HoldInvoicePaymentCanceled => Some(OrderStatus::Canceled),
         Action::CooperativeCancelAccepted => Some(OrderStatus::CooperativelyCanceled),
         // Status doesn't change yet for cancel initiations; Rate/PaymentFailed
@@ -193,6 +194,22 @@ pub(crate) fn peer_reputation(
 mod tests {
     use super::*;
     use crate::mostro::test_fixtures::small_order_with;
+
+    #[test]
+    fn only_completed_payout_actions_imply_success() {
+        use mostro_core::message::Action;
+        assert_eq!(
+            status_for_action(&Action::PurchaseCompleted),
+            Some(OrderStatus::Success)
+        );
+        for action in [Action::Released, Action::HoldInvoicePaymentSettled] {
+            assert_eq!(
+                status_for_action(&action),
+                Some(OrderStatus::SettledHoldInvoice)
+            );
+        }
+        assert_eq!(status_for_action(&Action::PaymentFailed), None);
+    }
 
     /// `SettledHoldInvoice` is terminal for status-sync purposes but not
     /// "hard" terminal: the escrow is settled and the payout may still be in

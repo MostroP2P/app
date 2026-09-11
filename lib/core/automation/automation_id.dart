@@ -1,4 +1,19 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:mostro/core/test_environment.dart';
+
+/// Linux AT-SPI fallback until Flutter forwards Semantics.identifier.
+/// The prefix is present only in an explicitly armed Mortsom build.
+String linuxAutomationLabel(String id, String? label) =>
+    '[mortsom:$id]${label ?? ''}';
+
+/// Platform-specific name for the public accessibility contract.
+String? automationSemanticLabel(String id, String? label) =>
+    !kIsWeb &&
+            defaultTargetPlatform == TargetPlatform.linux &&
+            TestEnvironment.enabled
+        ? linuxAutomationLabel(id, label)
+        : label;
 
 /// Attaches a stable automation identifier to a control.
 ///
@@ -51,7 +66,7 @@ class AutomationId extends StatelessWidget {
     final isReadout = merge && label != null;
     final node = Semantics(
       identifier: id,
-      label: label,
+      label: automationSemanticLabel(id, label),
       container: true,
       explicitChildNodes: !merge,
       // A readout's value must be the label alone. Merging would otherwise

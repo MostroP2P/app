@@ -93,6 +93,20 @@ pub fn active_mostro_pubkey() -> String {
         .unwrap_or_else(|| DEFAULT_MOSTRO_PUBKEY.to_string())
 }
 
+static ORDER_EXPIRY_OVERRIDE: RwLock<Option<u64>> = RwLock::new(None);
+
+/// Seconds after creation a new order asks the daemon to expire it, when
+/// the Mortsom test environment set one. `None` leaves the expiry to the
+/// daemon's own default, as every production build does.
+pub fn order_expiry_override() -> Option<u64> {
+    *ORDER_EXPIRY_OVERRIDE.read().unwrap()
+}
+
+/// Set (or clear) the order expiry the test environment asks for.
+pub fn set_order_expiry_override(secs: Option<u64>) {
+    *ORDER_EXPIRY_OVERRIDE.write().unwrap() = secs;
+}
+
 /// Set (or clear) the active Mostro pubkey override.
 ///
 /// Any daemon responses still in flight from a previously active

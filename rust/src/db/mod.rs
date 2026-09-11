@@ -1,10 +1,16 @@
 pub mod app_db;
+#[cfg(target_arch = "wasm32")]
+pub mod indexeddb;
+#[cfg(target_arch = "wasm32")]
+pub mod web_lock;
 pub mod schema;
 pub mod seeds;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod sqlite;
-#[cfg(target_arch = "wasm32")]
-pub mod indexeddb;
+/// Used by the IndexedDB backend; compiled everywhere so its unit tests run
+/// natively, where the trait implementation that calls it does not exist.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub mod trade_json;
 
 use anyhow::Result;
 
@@ -72,6 +78,28 @@ pub mod settings_keys {
     pub fn dispute_mine(order_id: &str) -> String {
         format!("{DISPUTE_MINE_PREFIX}{order_id}")
     }
+
+    /// Per-order status replay cursor — the `created_at` (unix seconds,
+    /// decimal string) of the newest daemon message whose status write was
+    /// applied, clamped to the local clock. Full key is
+    /// `status_cursor:<order_id>`; build it with [`status_cursor`].
+    pub const STATUS_CURSOR_PREFIX: &str = "status_cursor:";
+
+    /// Build the settings key holding the status replay cursor for `order_id`.
+    ///
+    /// Same shape and purpose as [`chat_cursor`], for the other channel: the
+    /// global kind-14 subscription carries no `since`, so every start replays
+    /// the node's full history, and relays serve stored events newest-first.
+    /// Without a durable high-water mark the oldest message in that backlog is
+    /// applied last and wins, walking a trade's status back to where it began.
+    ///
+    /// Deliberately **not** cleared with the trade row: a cancel before the
+    /// trade went active wipes that row (`cancellation_wipes_history`), and the
+    /// cursor is precisely what still refuses the older messages afterwards.
+    /// One tiny row per order ever traded, like the chat cursor.
+    pub fn status_cursor(order_id: &str) -> String {
+        format!("{STATUS_CURSOR_PREFIX}{order_id}")
+    }
 }
 
 /// Storage trait — implemented by both SQLite (native) and IndexedDB (WASM).
@@ -119,13 +147,8 @@ pub trait Storage: Send + Sync {
     /// imported identity starts with a fresh trade key counter.
     async fn delete_identity(&self) -> Result<()>;
 
-    async fn save_queued_message(
-        &self,
-        msg: &crate::queue::outbox::QueuedMessage,
-    ) -> Result<()>;
-    async fn list_queued_messages(
-        &self,
-    ) -> Result<Vec<crate::queue::outbox::QueuedMessage>>;
+    async fn save_queued_message(&self, msg: &crate::queue::outbox::QueuedMessage) -> Result<()>;
+    async fn list_queued_messages(&self) -> Result<Vec<crate::queue::outbox::QueuedMessage>>;
     async fn update_queued_message_status(
         &self,
         id: &str,
@@ -193,11 +216,7 @@ pub trait Storage: Send + Sync {
     ///
     /// Loads the trade whose `order.id == old_order_id`, replaces `order.id`
     /// with `new_order_id`, and re-saves it. No-op when no matching trade exists.
-    async fn update_trade_order_id(
-        &self,
-        old_order_id: &str,
-        new_order_id: &str,
-    ) -> Result<()>;
+    async fn update_trade_order_id(&self, old_order_id: &str, new_order_id: &str) -> Result<()>;
 
     /// Update fields on a persisted trade identified by `order.id`.
     ///
@@ -229,4 +248,16 @@ pub trait Storage: Send + Sync {
     /// duplicate-rating guard survive a restart. No-op when no matching trade
     /// exists.
     async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()>;
+
+    /// Persist the counterparty's trade pubkey on the trade identified by
+    /// `order.id` (issue #334). Written when a daemon message reveals it, for
+    /// both roles — the trade row is the durable peer record; the in-memory
+    /// session is only a cache. Callers must pass a non-empty pubkey: this
+    /// method never clears an already-known counterparty. No-op when no
+    /// matching trade exists.
+    async fn update_trade_counterparty(
+        &self,
+        order_id: &str,
+        counterparty_pubkey: &str,
+    ) -> Result<()>;
 }

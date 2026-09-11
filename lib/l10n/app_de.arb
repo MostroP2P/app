@@ -277,14 +277,14 @@
   "aboutGithubRepoLabel": "GitHub-Repository",
   "aboutCommitHashLabel": "Commit-Hash",
   "aboutLicenseLabel": "Lizenz",
-  "aboutLicenseName": "MIT",
-  "aboutGithubRepoName": "mostro-mobile",
+  "aboutLicenseName": "AGPLv3+",
+  "aboutGithubRepoName": "MostroP2P/app",
   "aboutDocsUsersEnglish": "Nutzer (Englisch)",
   "aboutDocsUsersSpanish": "Nutzer (Spanisch)",
   "aboutDocsTechnical": "Technisch",
   "aboutDocsRead": "Lesen",
   "aboutCopiedToClipboard": "In die Zwischenablage kopiert",
-  "aboutLicenseDialogTitle": "MIT-Lizenz",
+  "aboutLicenseDialogTitle": "GNU Affero General Public License v3",
   "aboutNodeLoadingText": "Knoteninformationen werden geladen…",
   "aboutNodeUnavailable": "Knoteninformationen nicht verfügbar",
   "aboutNodeRetry": "Erneut versuchen",
@@ -739,5 +739,8 @@
   "settingsCashuMintOverrideInvalid": "Das ist keine gültige Mint-URL. Verwende http oder https mit einem Host.",
   "settingsEscrowEffectiveMode": "Effektives Backend: {mode}",
   "settingsEscrowEffectiveMint": "Effektive Mint: {mint}",
-  "settingsEscrowCashuUnavailable": "Cashu funktioniert ohne Mint nicht – unten eine festlegen."
+  "settingsEscrowCashuUnavailable": "Cashu funktioniert ohne Mint nicht – unten eine festlegen.",
+  "tradeStatusPayoutPending": "Auszahlung ausstehend",
+  "tradeHeadlinePayoutPending": "Warten auf die Auszahlung an den Käufer",
+  "tradeInstructionPayoutPending": "Der Verkäufer hat die Treuhandmittel freigegeben. Die Lightning-Zahlung an den Käufer steht noch aus."
 }

@@ -201,6 +201,15 @@ void main() {
       expect(TestEnvironment.allowInsecureRelays, isFalse);
     });
 
+    test('asks for an order expiry only when the define is set', () {
+      // The define is absent in this test build, so nothing is asked for
+      // whether or not the environment is armed.
+      TestEnvironment.arm();
+      expect(TestEnvironment.orderExpirySecs, isNull);
+      TestEnvironment.disarm();
+      expect(TestEnvironment.orderExpirySecs, isNull);
+    });
+
     test('parses a relay seed list, trimming and dropping blanks', () {
       expect(
         TestEnvironment.parseRelays(' ws://a:1 , ,ws://b:2, '),

@@ -495,9 +495,13 @@ pub(crate) async fn record_late_acceptance(trade_id: &str, dispute_id: Option<St
         .await;
 
     match result {
-        Ok(()) => log::info!(
-            "[disputes] reconciled late daemon acceptance for trade={trade_id}"
-        ),
+        Ok(()) => {
+            // Same as the on-time path: this side opened it, and the replay
+            // can never restore that, so the marker must be written here too
+            // or a restart would rehydrate the record as peer-opened.
+            persist_dispute_origin(trade_id).await;
+            log::info!("[disputes] reconciled late daemon acceptance for trade={trade_id}");
+        }
         Err(e) => log::warn!(
             "[disputes] could not reconcile late acceptance for trade={trade_id}: {e}"
         ),
@@ -1546,6 +1550,12 @@ mod tests {
     /// with no dispute to open and no solver to reach.
     #[tokio::test]
     async fn a_late_acceptance_is_reconciled_into_a_record() {
+        // Any SqliteStorage serves (process-wide OnceCell, first caller wins):
+        // this test only reads back its own key.
+        let path = std::env::temp_dir()
+            .join(format!("mostro_dispute_late_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
         let trade_id = format!("t-{}", uuid::Uuid::new_v4());
         let daemon_dispute_id = uuid::Uuid::new_v4().to_string();
 
@@ -1553,11 +1563,23 @@ mod tests {
 
         record_late_acceptance(&trade_id, Some(daemon_dispute_id.clone())).await;
 
-        let d = get_dispute(trade_id).await.unwrap().expect("record created");
+        let d = get_dispute(trade_id.clone()).await.unwrap().expect("record created");
         assert_eq!(d.id, daemon_dispute_id, "the daemon's id must be adopted");
         assert_eq!(d.status, DisputeStatus::Open);
         assert!(d.initiated_by_me, "we did open it, late reply or not");
         assert!(!d.is_read, "the caller was told it failed — this is news");
+
+        // PR #256 review: the origin must be persisted on this path too, or a
+        // restart rehydrates the dispute as peer-opened.
+        assert_eq!(
+            db.get_setting(&crate::db::settings_keys::dispute_mine(&trade_id))
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("1"),
+            "a late acceptance must persist the origin marker"
+        );
+        clear_dispute_keys(&trade_id).await;
     }
 
     /// PR #275 review: `Dispute.id` is contractually the daemon's, so an

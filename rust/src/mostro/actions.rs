@@ -13,7 +13,7 @@
 /// arguments — see `api::identity::get_transport_identity_keys`, which
 /// applies the runtime privacy toggle.
 use anyhow::Result;
-use mostro_core::message::{Action, Message, Payload};
+use mostro_core::message::{Action, Message, MessageKind, Payload};
 use nostr_sdk::prelude::*;
 use uuid::Uuid;
 
@@ -37,7 +37,20 @@ pub async fn new_order(
     params: &NewOrderParams,
     trade_index: u32,
     request_id: u64,
+    expires_at: Option<i64>,
 ) -> Result<String> {
+    let msg = new_order_message(params, trade_index, request_id, expires_at);
+    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
+/// The NewOrder message. `expires_at` is the unix time the maker asks the
+/// daemon to expire the untaken order at; `None` leaves it to the daemon.
+pub(crate) fn new_order_message(
+    params: &NewOrderParams,
+    trade_index: u32,
+    request_id: u64,
+    expires_at: Option<i64>,
+) -> Message {
     use mostro_core::order::{Kind, SmallOrder, Status};
 
     let kind = match params.kind {
@@ -65,18 +78,17 @@ pub async fn new_order(
         None,
         None,
         None,
-        None,
+        expires_at,
     );
 
     let payload = Some(Payload::Order(small_order));
-    let msg = Message::new_order(
+    Message::new_order(
         None,
         Some(request_id),
         Some(trade_index as i64),
         Action::NewOrder,
         payload,
-    );
-    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+    )
 }
 
 /// Build and wrap a TakeBuy MostroMessage.
@@ -145,16 +157,10 @@ pub async fn fiat_sent(
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    next_trade: Option<(String, u32)>,
 ) -> Result<String> {
-    simple_action(
-        identity_keys,
-        trade_keys,
-        mostro_pubkey,
-        order_id,
-        trade_index,
-        Action::FiatSent,
-    )
-    .await
+    let msg = action_message(order_id, trade_index, Action::FiatSent, next_trade)?;
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap a Release MostroMessage.
@@ -164,16 +170,40 @@ pub async fn release(
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    next_trade: Option<(String, u32)>,
 ) -> Result<String> {
-    simple_action(
-        identity_keys,
-        trade_keys,
-        mostro_pubkey,
-        order_id,
-        trade_index,
-        Action::Release,
-    )
-    .await
+    let msg = release_message(order_id, trade_index, next_trade)?;
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
+/// The Release message. A range order's seller names the trade key the
+/// daemon must hand the remainder to (`NextTrade`): without it the daemon
+/// settles the trade but never publishes what is left of the range.
+pub(crate) fn release_message(
+    order_id: &str,
+    trade_index: u32,
+    next_trade: Option<(String, u32)>,
+) -> Result<Message> {
+    action_message(order_id, trade_index, Action::Release, next_trade)
+}
+
+/// An order action that may name the trade key for a range remainder: the
+/// seller's Release, or the buyer's FiatSent when the buyer made the range.
+pub(crate) fn action_message(
+    order_id: &str,
+    trade_index: u32,
+    action: Action,
+    next_trade: Option<(String, u32)>,
+) -> Result<Message> {
+    let id = Uuid::parse_str(order_id)?;
+    let payload = next_trade.map(|(pubkey, index)| Payload::NextTrade(pubkey, index));
+    Ok(Message::new_order(
+        Some(id),
+        None,
+        Some(trade_index as i64),
+        action,
+        payload,
+    ))
 }
 
 /// Build and wrap a Cancel MostroMessage.
@@ -426,9 +456,93 @@ pub async fn restore_session(
     wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
+/// Build and wrap a `LastTradeIndex` request (#328).
+///
+/// Key split per <https://mostro.network/protocol/key_management.html>: the
+/// rumor is authored by an ephemeral trade key, and the identity travels only
+/// inside the encrypted proof — the outer kind-14 must never be authored by
+/// the master identity pubkey, which would publish a permanent
+/// identity→Mostro link on every relay. The daemon conforms: it resolves the
+/// account from `event.identity` and uses the rumor author (`event.sender`)
+/// only as the reply address (`mostro/src/app/last_trade_index.rs`).
+/// mostro-cli departs from the spec here, signing both seal and rumor with
+/// the identity keys (`src/cli/last_trade_index.rs`).
+///
+/// The reply carries the counter in `MessageKind::trade_index`. Payload must be
+/// `None` (enforced by mostro-core).
+///
+/// `request_id` is the correlation nonce the daemon echoes in its reply — the
+/// caller uses it to reject replayed replies from earlier requests.
+pub async fn last_trade_index(
+    identity_keys: &Keys,
+    trade_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    request_id: u64,
+) -> Result<String> {
+    let msg = Message::Restore(MessageKind::new(
+        None,
+        Some(request_id),
+        None,
+        Action::LastTradeIndex,
+        None,
+    ));
+    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A new order carries the expiry the maker asks for, and none when the
+    /// daemon's default is wanted.
+    #[test]
+    fn a_new_order_carries_the_requested_expiry_only_when_given() {
+        let params = NewOrderParams {
+            kind: OrderKind::Sell,
+            fiat_amount: Some(10.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "USD".into(),
+            payment_method: "cash".into(),
+            premium: 0.0,
+            amount_sats: Some(1000),
+        };
+        let expiry_of = |msg: Message| match msg.get_inner_message_kind().payload.clone() {
+            Some(Payload::Order(order)) => order.expires_at,
+            other => panic!("not an order payload: {other:?}"),
+        };
+        assert_eq!(expiry_of(new_order_message(&params, 1, 7, None)), None);
+        assert_eq!(
+            expiry_of(new_order_message(&params, 1, 7, Some(1_800_000_600))),
+            Some(1_800_000_600)
+        );
+    }
+
+    /// The seller of a range order releases with the key the daemon must
+    /// assign the remainder to; an ordinary release carries no payload.
+    #[test]
+    fn release_names_the_next_trade_key_only_for_a_range_remainder() {
+        let id = Uuid::new_v4().to_string();
+        let plain = release_message(&id, 3, None).unwrap();
+        assert_eq!(plain.get_inner_message_kind().get_next_trade_key().unwrap(), None);
+
+        let with_next = release_message(&id, 3, Some(("ab".repeat(32), 4))).unwrap();
+        let kind = with_next.get_inner_message_kind();
+        assert_eq!(kind.action, Action::Release);
+        assert_eq!(
+            kind.get_next_trade_key().unwrap(),
+            Some(("ab".repeat(32), 4))
+        );
+
+        // The buyer who made a range names the key in fiat-sent instead.
+        let fiat = action_message(&id, 3, Action::FiatSent, Some(("cd".repeat(32), 5))).unwrap();
+        let kind = fiat.get_inner_message_kind();
+        assert_eq!(kind.action, Action::FiatSent);
+        assert_eq!(
+            kind.get_next_trade_key().unwrap(),
+            Some(("cd".repeat(32), 5))
+        );
+    }
 
     /// The NIP-13 target difficulty the event was mined at, read from its
     /// nonce tag (`["nonce", "<nonce>", "<target>"]`), or `None` when the
@@ -484,6 +598,7 @@ mod tests {
                 &sample_params(),
                 3,
                 42,
+                None,
             )
             .await
             .unwrap();
@@ -538,6 +653,7 @@ mod tests {
                 &mostro_pubkey,
                 "94486ae3-4083-4dfe-b543-53fe761025e9",
                 5,
+                None,
             ),
         )
         .await
@@ -588,6 +704,7 @@ mod tests {
             &params,
             3,
             42,
+            None,
         )
         .await
         .unwrap();
@@ -757,6 +874,67 @@ mod tests {
         assert_eq!(unwrapped.sender, trade_keys.public_key());
         // The Seal carries the identity key: that is what the daemon uses to
         // locate the user's trades. Both halves of the key split matter.
+        assert_eq!(unwrapped.identity, identity_keys.public_key());
+    }
+
+    /// #328 wire contract — and the regression guard for this PR's own
+    /// history: the first version of `last_trade_index` signed the rumor with
+    /// the identity keys, publishing a permanent identity→Mostro link as the
+    /// kind-14 author on every relay (review round 1, Major). The suite
+    /// stayed green with that leak in place, so pin the key split here: the
+    /// rumor must be authored by the ephemeral trade key, with the identity
+    /// only inside the encrypted proof the daemon resolves the account from.
+    #[tokio::test]
+    async fn last_trade_index_payload_none_rumor_by_trade_key() {
+        let identity_keys = Keys::generate();
+        let trade_keys = Keys::generate();
+        let mostro_keys = Keys::generate();
+
+        // First-contact wrapping fails closed until this node's capabilities
+        // are published — a test double for the Kind 38385 fetch.
+        let _pow = crate::mostro::pow::test_support::lock_pow();
+        crate::mostro::pow::set_pows(&mostro_keys.public_key().to_hex(), 0, None);
+        crate::mostro::protocol_version::set_protocol_version(
+            &mostro_keys.public_key().to_hex(),
+            Some(2),
+        );
+
+        let json = last_trade_index(
+            &identity_keys,
+            &trade_keys,
+            &mostro_keys.public_key(),
+            4242,
+        )
+        .await
+        .unwrap();
+        let event = Event::from_json(&json).unwrap();
+        assert_eq!(
+            event.pubkey,
+            trade_keys.public_key(),
+            "the outer kind-14 author must be the trade key — an identity-\
+             authored event is the relay-visible leak this guards against"
+        );
+        let unwrapped = transport::unwrap_mostro_message(&mostro_keys, &event)
+            .await
+            .unwrap()
+            .expect("message must decrypt for the recipient");
+        let kind = unwrapped.message.get_inner_message_kind();
+        assert!(matches!(kind.action, Action::LastTradeIndex));
+        assert!(kind.payload.is_none(), "LastTradeIndex payload must be None");
+        assert_eq!(
+            kind.trade_index, None,
+            "the request consumes no trade index — the counter only travels \
+             in the reply"
+        );
+        // The correlation nonce the daemon echoes; the caller rejects replies
+        // that do not carry it back.
+        assert_eq!(kind.request_id, Some(4242));
+        // The rumor is authored by the trade key: the daemon replies to
+        // event.sender, and the reply loop correlates on that pubkey.
+        assert_eq!(unwrapped.sender, trade_keys.public_key());
+        // The identity travels only inside the encrypted proof — it is what
+        // the daemon looks the account up by (event.identity), never the
+        // public author.
         assert_eq!(unwrapped.identity, identity_keys.public_key());
     }
 }

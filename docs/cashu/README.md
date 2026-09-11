@@ -456,9 +456,17 @@ The cryptographic heart, kept UI-free so review can focus on correctness:
     `n_sigs_refund=1`);
   - `build_fee_token(fee_amount, p_m)` — P2PK 1-of-1 to `P_M`, value `2 * order.fee`;
   - `verify_escrow_token(token, p_b, p_s, p_m, amount, min_locktime)` — client-side
-    mirror of the daemon's composite check (defense in depth before submitting);
-  - `sign_proofs(token, trade_secret_key) -> Vec<CashuProofSignature>` — BIP-340
-    signatures over each proof secret (seller release / buyer coop-cancel);
+    mirror of the daemon's composite check (defense in depth before submitting):
+    the 2-of-3 condition on **every** proof, mint, unit, amount, DLEQ (NUT-12) and
+    NUT-07 unspent — a point-in-time statement, not a guarantee the proofs stay so;
+  - `sign_proofs(token, trade_secret_key, p_b, p_s, p_m, amount, min_locktime) ->
+    Vec<CashuProofSignature>` — BIP-340 signatures over each proof secret (seller
+    release / buyer coop-cancel). **Always verifies the token first, with no
+    unchecked form**: under `SIG_INPUTS` a signature commits to the secret alone,
+    so signing a counterparty-supplied decoy that reuses the escrow's secrets
+    would release the real escrow. Corollary for C6/C7: a release signature and a
+    coop-cancel signature over the same escrow authorise the same spend, so no
+    party may ever produce both for one escrow;
   - `combine_and_redeem(token, own_key, peer_signatures)` — attach both signatures,
     swap at the mint into fresh unconditional proofs (buyer release / seller reclaim);
   - `reclaim_after_locktime(token, seller_key)` — refund path spend.

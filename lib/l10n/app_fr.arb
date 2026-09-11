@@ -277,14 +277,14 @@
   "aboutGithubRepoLabel": "Dépôt GitHub",
   "aboutCommitHashLabel": "Hash du commit",
   "aboutLicenseLabel": "Licence",
-  "aboutLicenseName": "MIT",
-  "aboutGithubRepoName": "mostro-mobile",
+  "aboutLicenseName": "AGPLv3+",
+  "aboutGithubRepoName": "MostroP2P/app",
   "aboutDocsUsersEnglish": "Utilisateurs (Anglais)",
   "aboutDocsUsersSpanish": "Utilisateurs (Espagnol)",
   "aboutDocsTechnical": "Technique",
   "aboutDocsRead": "Lire",
   "aboutCopiedToClipboard": "Copié dans le presse-papiers",
-  "aboutLicenseDialogTitle": "Licence MIT",
+  "aboutLicenseDialogTitle": "Licence publique générale Affero GNU v3",
   "aboutNodeLoadingText": "Chargement des informations du nœud…",
   "aboutNodeUnavailable": "Informations du nœud indisponibles",
   "aboutNodeRetry": "Réessayer",
@@ -739,5 +739,8 @@
   "settingsCashuMintOverrideInvalid": "Ce n'est pas une URL de mint valide. Utilisez http ou https avec un hôte.",
   "settingsEscrowEffectiveMode": "Backend effectif : {mode}",
   "settingsEscrowEffectiveMint": "Mint effectif : {mint}",
-  "settingsEscrowCashuUnavailable": "Cashu ne peut pas fonctionner sans mint : configurez-en un ci-dessous."
+  "settingsEscrowCashuUnavailable": "Cashu ne peut pas fonctionner sans mint : configurez-en un ci-dessous.",
+  "tradeStatusPayoutPending": "Paiement en attente",
+  "tradeHeadlinePayoutPending": "En attente du paiement à l’acheteur",
+  "tradeInstructionPayoutPending": "Le vendeur a libéré les fonds en séquestre. En attente de la réussite du paiement Lightning à l’acheteur."
 }

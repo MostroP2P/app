@@ -50,12 +50,16 @@ const _kCountdownSeconds = 900; // 15 minutes
 enum TradeStatus {
   /// Status not yet resolved (initial loading state — no actions shown).
   loading('Loading'),
+
   /// Order published but not yet taken by a counterpart.
   pending('Pending'),
+
   /// Buyer must submit Lightning invoice (waitingBuyerInvoice).
   waitingInvoice('Waiting Invoice'),
+
   /// Seller must pay hold invoice (waitingPayment).
   waitingPayment('Waiting Payment'),
+
   /// Taken, real state unknown: the public order book only publishes NIP-69's
   /// coarse buckets, so `in-progress` says the order left the book — never
   /// that the escrow is locked. Offering the actions of [active] here is what
@@ -63,12 +67,17 @@ enum TradeStatus {
   inProgress('In Progress'),
   active('Active'),
   fiatSent('Fiat Sent'),
+
+  /// Seller escrow settled; the buyer payout has not completed yet.
+  payoutPending('Payout pending'),
   completed('Completed'),
   cancelled('Cancelled'),
   disputed('Disputed'),
+
   /// Trade completed; counterpart rating prompt shown.
   /// Maps to `Action.rate` / `Action.rateUser` from the Rust bridge.
   pendingRating('Rate'),
+
   /// Rating has been submitted (or skipped).
   /// Maps to `Action.rateReceived` — no further actions shown.
   rated('Rated');
@@ -84,8 +93,8 @@ enum TradeStatus {
 /// the localized pill copy. See `docs/automation-contract.md`.
 extension TradeStatusMachineName on TradeStatus {
   /// `TradeStatus.waitingInvoice` → `waiting-invoice`.
-  String get machineName => name
-      .replaceAllMapped(RegExp(r'[A-Z]'), (m) => '-${m[0]!.toLowerCase()}');
+  String get machineName =>
+      name.replaceAllMapped(RegExp(r'[A-Z]'), (m) => '-${m[0]!.toLowerCase()}');
 }
 
 /// Maps a protocol order status to the status this screen displays.
@@ -99,19 +108,20 @@ TradeStatus tradeStatusFromOrderStatus(OrderStatus s) =>
 /// Localized display label for the trade status pill.
 extension TradeStatusL10n on TradeStatus {
   String localizedLabel(AppLocalizations l10n) => switch (this) {
-        TradeStatus.loading => l10n.tradeStatusLoading,
-        TradeStatus.pending => l10n.tradeFilterPending,
-        TradeStatus.waitingInvoice => l10n.tradeFilterWaitingInvoice,
-        TradeStatus.waitingPayment => l10n.tradeFilterWaitingPayment,
-        TradeStatus.inProgress => l10n.orderStatusInProgress,
-        TradeStatus.active => l10n.tradeStatusActive,
-        TradeStatus.fiatSent => l10n.tradeStatusFiatSent,
-        TradeStatus.completed => l10n.tradeStatusCompleted,
-        TradeStatus.cancelled => l10n.tradeStatusCancelled,
-        TradeStatus.disputed => l10n.tradeStatusDisputed,
-        TradeStatus.pendingRating => l10n.tradeStatusRate,
-        TradeStatus.rated => l10n.tradeStatusRated,
-      };
+    TradeStatus.loading => l10n.tradeStatusLoading,
+    TradeStatus.pending => l10n.tradeFilterPending,
+    TradeStatus.waitingInvoice => l10n.tradeFilterWaitingInvoice,
+    TradeStatus.waitingPayment => l10n.tradeFilterWaitingPayment,
+    TradeStatus.inProgress => l10n.orderStatusInProgress,
+    TradeStatus.active => l10n.tradeStatusActive,
+    TradeStatus.fiatSent => l10n.tradeStatusFiatSent,
+    TradeStatus.payoutPending => l10n.tradeStatusPayoutPending,
+    TradeStatus.completed => l10n.tradeStatusCompleted,
+    TradeStatus.cancelled => l10n.tradeStatusCancelled,
+    TradeStatus.disputed => l10n.tradeStatusDisputed,
+    TradeStatus.pendingRating => l10n.tradeStatusRate,
+    TradeStatus.rated => l10n.tradeStatusRated,
+  };
 }
 
 /// Overflow-menu actions (currently just sharing the order).
@@ -119,7 +129,13 @@ enum _OverflowAction { shareOrder }
 
 class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   Timer? _countdownTimer;
-  Duration _remaining = const Duration(seconds: _kCountdownSeconds);
+
+  /// Drives only the contextual timer. A notifier rather than screen state:
+  /// this ticks every second, and this build method lays out the entire trade
+  /// detail — steps, actions, reputation, chat entry point.
+  final ValueNotifier<Duration> _remaining = ValueNotifier(
+    const Duration(seconds: _kCountdownSeconds),
+  );
   int _totalCountdownSeconds = _kCountdownSeconds;
 
   @override
@@ -132,6 +148,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _remaining.dispose();
     super.dispose();
   }
 
@@ -150,8 +167,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       if (!mounted) return;
       setState(() {
         _totalCountdownSeconds = diff > 0 ? diff : _kCountdownSeconds;
-        _remaining = diff > 0 ? Duration(seconds: diff) : Duration.zero;
       });
+      _remaining.value = diff > 0 ? Duration(seconds: diff) : Duration.zero;
     } catch (_) {
       // Keep the default remaining time on error.
     }
@@ -160,15 +177,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   void _startCountdown() {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() {
-        final next = _remaining - const Duration(seconds: 1);
-        if (next.inSeconds <= 0) {
-          _countdownTimer?.cancel();
-          _remaining = Duration.zero;
-        } else {
-          _remaining = next;
-        }
-      });
+      final next = _remaining.value - const Duration(seconds: 1);
+      if (next.inSeconds <= 0) {
+        _countdownTimer?.cancel();
+        _remaining.value = Duration.zero;
+      } else {
+        _remaining.value = next;
+      }
     });
   }
 
@@ -185,7 +200,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     OrderStatus.active => TradeStatus.active,
     OrderStatus.inProgress => TradeStatus.inProgress,
     OrderStatus.fiatSent => TradeStatus.fiatSent,
-    OrderStatus.settledHoldInvoice ||
+    OrderStatus.settledHoldInvoice => TradeStatus.payoutPending,
     OrderStatus.success ||
     OrderStatus.completedByAdmin ||
     OrderStatus.settledByAdmin => TradeStatus.pendingRating,
@@ -200,20 +215,21 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.cancelTradeDialogTitle),
-        content: Text(l10n.cancelTradeDialogContent),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.noButtonLabel),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(l10n.cancelTradeDialogTitle),
+            content: Text(l10n.cancelTradeDialogContent),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.noButtonLabel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.yesCancelButtonLabel),
+              ).withAutomationId(AutomationIds.tradeCancelConfirm),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.yesCancelButtonLabel),
-          ).withAutomationId(AutomationIds.tradeCancelConfirm),
-        ],
-      ),
     );
     if (!mounted) return;
     if (confirmed != true) {
@@ -223,16 +239,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       await orders_api.cancelOrder(orderId: widget.orderId);
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.cancelRequestSent)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.cancelRequestSent)));
     } catch (e, st) {
       debugPrint('[TradeDetailScreen] cancelOrder error: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text(localizedDaemonError(l10n, e, fallback: l10n.cancelRequestFailed)),
+          content: Text(
+            localizedDaemonError(l10n, e, fallback: l10n.cancelRequestFailed),
+          ),
         ),
       );
       rethrow;
@@ -247,8 +264,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(localizedDaemonError(AppLocalizations.of(context), e,
-              fallback: AppLocalizations.of(context).fiatSentFailed)),
+          content: Text(
+            localizedDaemonError(
+              AppLocalizations.of(context),
+              e,
+              fallback: AppLocalizations.of(context).fiatSentFailed,
+            ),
+          ),
         ),
       );
       rethrow;
@@ -269,7 +291,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       final dispute = await disputes_api.openDispute(tradeId: widget.orderId);
       if (!mounted) return;
       final openedAt = platformInt64ToInt(dispute.openedAt);
-      ref.read(disputeNotifierProvider.notifier).upsert(
+      ref
+          .read(disputeNotifierProvider.notifier)
+          .upsert(
             DisputeItem(
               id: dispute.id,
               tradeId: dispute.tradeId,
@@ -285,8 +309,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(localizedDaemonError(AppLocalizations.of(context), e,
-              fallback: AppLocalizations.of(context).openDisputeFailed)),
+          content: Text(
+            localizedDaemonError(
+              AppLocalizations.of(context),
+              e,
+              fallback: AppLocalizations.of(context).openDisputeFailed,
+            ),
+          ),
         ),
       );
       rethrow;
@@ -301,20 +330,23 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       throw const MostroActionAborted();
     }
     try {
-      await orders_api.releaseOrder(orderId: widget.orderId);
+      await ref.read(releaseOrderActionProvider)(widget.orderId);
       if (!mounted) return;
-      if (ref.read(privacyModeProvider)) {
-        context.go(AppRoute.home);
-      } else {
-        context.push(AppRoute.rateUserPath(widget.orderId));
-      }
+      // Publishing release confirms neither escrow settlement nor payout. Stay
+      // here until the live status reaches Success before offering rating.
+      ref.invalidate(tradeStatusProvider(widget.orderId));
     } catch (e, st) {
       debugPrint('[TradeDetailScreen] releaseOrder error: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(localizedDaemonError(AppLocalizations.of(context), e,
-              fallback: AppLocalizations.of(context).releaseFailed)),
+          content: Text(
+            localizedDaemonError(
+              AppLocalizations.of(context),
+              e,
+              fallback: AppLocalizations.of(context).releaseFailed,
+            ),
+          ),
         ),
       );
       rethrow;
@@ -350,6 +382,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     if (status == TradeStatus.disputed) {
       return l10n.tradeInstructionDisputed;
     }
+    if (status == TradeStatus.payoutPending) {
+      return l10n.tradeInstructionPayoutPending;
+    }
     if (status == TradeStatus.pendingRating) {
       return l10n.tradeInstructionPendingRating;
     }
@@ -378,24 +413,30 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   /// Headline of the state strip — the one thing happening right now.
   String _headline(bool isBuyer, TradeStatus status, OrderItem? order) {
     final l10n = AppLocalizations.of(context);
-    final amount = order != null
-        ? '${order.displayAmount} ${order.fiatCode}'
-        : l10n.theAgreedAmount;
+    final amount =
+        order != null
+            ? '${order.displayAmount} ${order.fiatCode}'
+            : l10n.theAgreedAmount;
     return switch (status) {
       TradeStatus.pending => l10n.tradeHeadlinePending,
-      TradeStatus.waitingInvoice => isBuyer
-          ? l10n.tradeHeadlineWaitingInvoiceBuyer
-          : l10n.tradeHeadlineWaitingInvoiceSeller,
-      TradeStatus.waitingPayment => isBuyer
-          ? l10n.tradeHeadlineWaitingPaymentBuyer
-          : l10n.tradeHeadlineWaitingPaymentSeller,
+      TradeStatus.waitingInvoice =>
+        isBuyer
+            ? l10n.tradeHeadlineWaitingInvoiceBuyer
+            : l10n.tradeHeadlineWaitingInvoiceSeller,
+      TradeStatus.waitingPayment =>
+        isBuyer
+            ? l10n.tradeHeadlineWaitingPaymentBuyer
+            : l10n.tradeHeadlineWaitingPaymentSeller,
       TradeStatus.inProgress => l10n.tradeHeadlineInProgress,
-      TradeStatus.active => isBuyer
-          ? l10n.tradeHeadlineActiveBuyer(amount)
-          : l10n.tradeHeadlineActiveSeller(amount),
-      TradeStatus.fiatSent => isBuyer
-          ? l10n.tradeHeadlineFiatSentBuyer
-          : l10n.tradeHeadlineFiatSentSeller(amount),
+      TradeStatus.active =>
+        isBuyer
+            ? l10n.tradeHeadlineActiveBuyer(amount)
+            : l10n.tradeHeadlineActiveSeller(amount),
+      TradeStatus.fiatSent =>
+        isBuyer
+            ? l10n.tradeHeadlineFiatSentBuyer
+            : l10n.tradeHeadlineFiatSentSeller(amount),
+      TradeStatus.payoutPending => l10n.tradeHeadlinePayoutPending,
       TradeStatus.disputed => l10n.tradeHeadlineDisputed,
       TradeStatus.pendingRating ||
       TradeStatus.completed => l10n.tradeHeadlineComplete,
@@ -410,67 +451,68 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final l10n = AppLocalizations.of(context);
     return switch (status) {
       TradeStatus.pending => (
-          l10n.tradeTimerPendingLabel,
-          l10n.tradeTimerPendingConsequence,
-        ),
+        l10n.tradeTimerPendingLabel,
+        l10n.tradeTimerPendingConsequence,
+      ),
       TradeStatus.waitingInvoice => (
-          isBuyer
-              ? l10n.tradeTimerWaitingInvoiceLabelBuyer
-              : l10n.tradeTimerWaitingInvoiceLabelSeller,
-          l10n.tradeTimerWaitingInvoiceConsequence,
-        ),
+        isBuyer
+            ? l10n.tradeTimerWaitingInvoiceLabelBuyer
+            : l10n.tradeTimerWaitingInvoiceLabelSeller,
+        l10n.tradeTimerWaitingInvoiceConsequence,
+      ),
       TradeStatus.waitingPayment => (
-          isBuyer
-              ? l10n.tradeTimerWaitingPaymentLabelBuyer
-              : l10n.tradeTimerWaitingPaymentLabelSeller,
-          l10n.tradeTimerWaitingInvoiceConsequence,
-        ),
+        isBuyer
+            ? l10n.tradeTimerWaitingPaymentLabelBuyer
+            : l10n.tradeTimerWaitingPaymentLabelSeller,
+        l10n.tradeTimerWaitingInvoiceConsequence,
+      ),
       TradeStatus.active => (
-          isBuyer
-              ? l10n.tradeTimerActiveLabelBuyer
-              : l10n.tradeTimerActiveLabelSeller,
-          l10n.tradeTimerActiveConsequence,
-        ),
+        isBuyer
+            ? l10n.tradeTimerActiveLabelBuyer
+            : l10n.tradeTimerActiveLabelSeller,
+        l10n.tradeTimerActiveConsequence,
+      ),
       TradeStatus.fiatSent => (
-          isBuyer
-              ? l10n.tradeTimerFiatSentLabelBuyer
-              : l10n.tradeTimerFiatSentLabelSeller,
-          l10n.tradeTimerFiatSentConsequence,
-        ),
+        isBuyer
+            ? l10n.tradeTimerFiatSentLabelBuyer
+            : l10n.tradeTimerFiatSentLabelSeller,
+        l10n.tradeTimerFiatSentConsequence,
+      ),
       _ => null,
     };
   }
 
   /// Status pill colors — (background, text).
   (Color, Color) _statusPillColors(TradeStatus status) => switch (status) {
-        TradeStatus.pending => AppColors.statusPending,
-        TradeStatus.waitingInvoice ||
-        TradeStatus.waitingPayment ||
-        TradeStatus.inProgress => AppColors.statusWaiting,
-        TradeStatus.active => AppColors.statusActive,
-        TradeStatus.fiatSent => AppColors.statusSettled,
-        TradeStatus.pendingRating ||
-        TradeStatus.completed ||
-        TradeStatus.rated => AppColors.statusSuccess,
-        TradeStatus.disputed => AppColors.statusDispute,
-        _ => AppColors.statusInactive,
-      };
+    TradeStatus.pending => AppColors.statusPending,
+    TradeStatus.waitingInvoice ||
+    TradeStatus.waitingPayment ||
+    TradeStatus.inProgress ||
+    TradeStatus.payoutPending => AppColors.statusWaiting,
+    TradeStatus.active => AppColors.statusActive,
+    TradeStatus.fiatSent => AppColors.statusSettled,
+    TradeStatus.pendingRating ||
+    TradeStatus.completed ||
+    TradeStatus.rated => AppColors.statusSuccess,
+    TradeStatus.disputed => AppColors.statusDispute,
+    _ => AppColors.statusInactive,
+  };
 
   /// 0-based index of the current step in [_steps]; equals the list length
   /// once the trade is fully done.
   int _currentStep(TradeStatus status) => switch (status) {
-        TradeStatus.pending => 0,
-        // The Lightning setup step: it is the widest the coarse in-progress
-        // bucket can honestly claim.
-        TradeStatus.waitingInvoice ||
-        TradeStatus.waitingPayment ||
-        TradeStatus.inProgress => 1,
-        TradeStatus.active => 2,
-        TradeStatus.fiatSent => 3,
-        TradeStatus.pendingRating || TradeStatus.completed => 4,
-        TradeStatus.rated => 5,
-        _ => -1, // disputed / cancelled / loading — timeline hidden
-      };
+    TradeStatus.pending => 0,
+    // The Lightning setup step: it is the widest the coarse in-progress
+    // bucket can honestly claim.
+    TradeStatus.waitingInvoice ||
+    TradeStatus.waitingPayment ||
+    TradeStatus.inProgress => 1,
+    TradeStatus.active => 2,
+    TradeStatus.fiatSent || TradeStatus.payoutPending => 3,
+    TradeStatus.pendingRating || TradeStatus.completed => 4,
+    TradeStatus.rated => 5,
+    _ => -1, // disputed / cancelled / loading — timeline hidden
+  };
 
   /// Step labels. Lightning setup is one step because the invoice/hold-invoice
   /// order depends on which side made the order.
@@ -512,14 +554,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // Use TradeStatus.loading while the provider hasn't resolved so the UI
     // doesn't flash the pending CTA before the real status is known.
     final tradeStatusAsync = ref.watch(tradeStatusProvider(widget.orderId));
-    final orderStatus = tradeStatusAsync.hasValue
-        ? _mapOrderStatus(tradeStatusAsync.value!)
-        : TradeStatus.loading;
+    final orderStatus =
+        tradeStatusAsync.hasValue
+            ? _mapOrderStatus(tradeStatusAsync.value!)
+            : TradeStatus.loading;
 
-    // The protocol has no "rated" order status — a settled trade stays
-    // settled once the rating is sent — so `rated` is only reachable by
+    // The protocol has no "rated" order status — a successful trade stays
+    // successful once the rating is sent — so `rated` is only reachable by
     // overlaying the local rating on top of the mapping above (#327). The
-    // lookup only matters (and is only watched) once the trade settles, and
+    // lookup only matters (and is only watched) once the payout succeeds, and
     // while its first fetch is unresolved the screen holds `loading` for
     // the same reason as above — never flash a CTA that may change on the
     // next frame. A refresh keeps the previous value, so resolving a fresh
@@ -554,6 +597,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       TradeStatus.inProgress,
       TradeStatus.active,
       TradeStatus.fiatSent,
+      TradeStatus.payoutPending,
       TradeStatus.disputed,
     }.contains(status);
 
@@ -562,8 +606,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         title: Text(inFlight ? l10n.activeTradeTitle : l10n.orderDetailsTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(AppRoute.home),
+          onPressed:
+              () =>
+                  context.canPop() ? context.pop() : context.go(AppRoute.home),
         ).withAutomationId(AutomationIds.appBarBack),
         actions: [_buildOverflowMenu()],
       ),
@@ -663,7 +708,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   }
 
   static String _shortId(String id) =>
-      id.length <= 14 ? id : '${id.substring(0, 8)}…${id.substring(id.length - 5)}';
+      id.length <= 14
+          ? id
+          : '${id.substring(0, 8)}…${id.substring(id.length - 5)}';
 
   // ── Overflow menu (share order) ───────────────────────────────────────────
 
@@ -681,17 +728,18 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           ),
         );
       },
-      itemBuilder: (_) => [
-        PopupMenuItem(
-          value: _OverflowAction.shareOrder,
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.share, size: 18),
-            title: Text(l10n.shareOrderButton),
-            dense: true,
-          ),
-        ),
-      ],
+      itemBuilder:
+          (_) => [
+            PopupMenuItem(
+              value: _OverflowAction.shareOrder,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.share, size: 18),
+                title: Text(l10n.shareOrderButton),
+                dense: true,
+              ),
+            ),
+          ],
     );
   }
 
@@ -703,14 +751,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     bool isBuyer,
     AppColors? colors,
   ) {
-    final canCancel = const {
-      TradeStatus.pending,
-      TradeStatus.waitingInvoice,
-      TradeStatus.waitingPayment,
-      TradeStatus.inProgress,
-      TradeStatus.active,
-      TradeStatus.fiatSent,
-    }.contains(status) ||
+    final canCancel =
+        const {
+          TradeStatus.pending,
+          TradeStatus.waitingInvoice,
+          TradeStatus.waitingPayment,
+          TradeStatus.inProgress,
+          TradeStatus.active,
+          TradeStatus.fiatSent,
+        }.contains(status) ||
         (status == TradeStatus.disputed && !isBuyer);
     // Matches the daemon's own precondition; in-progress is deliberately out,
     // it only means the order left the public book (issue #203).
@@ -728,15 +777,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       required String automationId,
       required String label,
       required Future<void> Function() onPressed,
-    }) =>
-        Expanded(
-          child: MostroReactiveButton(
-            outlined: true,
-            label: label,
-            variant: MostroButtonVariant.destructive,
-            onPressed: onPressed,
-          ).withAutomationId(automationId),
-        );
+    }) => Expanded(
+      child: MostroReactiveButton(
+        outlined: true,
+        label: label,
+        variant: MostroButtonVariant.destructive,
+        onPressed: onPressed,
+      ).withAutomationId(automationId),
+    );
 
     final buttons = [
       if (canRelease)
@@ -787,7 +835,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final currentStep = _currentStep(status);
     final totalSteps = _steps(isBuyer).length;
     final timerCtx = _timerContext(isBuyer, status);
-    final showTimer = timerCtx != null && _remaining > Duration.zero;
+    final showTimer = timerCtx != null;
     final l10n = AppLocalizations.of(context);
 
     return Container(
@@ -804,11 +852,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             children: [
               if (currentStep >= 0)
                 _Pill(
-                  label: currentStep >= totalSteps
-                      ? l10n.stepDoneLabel
-                      : l10n.stepIndicator(currentStep + 1, totalSteps),
-                  background: colors?.backgroundElevated ??
-                      const Color(0xFF2A2D35),
+                  label:
+                      currentStep >= totalSteps
+                          ? l10n.stepDoneLabel
+                          : l10n.stepIndicator(currentStep + 1, totalSteps),
+                  background:
+                      colors?.backgroundElevated ?? const Color(0xFF2A2D35),
                   foreground: textSec,
                 ),
               if (currentStep >= 0) const SizedBox(width: AppSpacing.sm),
@@ -846,17 +895,33 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             _getInstructionText(isBuyer, status),
             style: theme.textTheme.bodyMedium,
           ),
-          if (showTimer) ...[
-            const SizedBox(height: AppSpacing.lg),
-            _buildContextualTimer(colors, timerCtx),
-          ],
+          // The per-second tick repaints this builder only, instead of
+          // rebuilding the whole trade-detail layout once a second.
+          if (showTimer)
+            ValueListenableBuilder<Duration>(
+              valueListenable: _remaining,
+              builder: (context, remaining, _) {
+                if (remaining <= Duration.zero) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: AppSpacing.lg),
+                    _buildContextualTimer(colors, timerCtx, remaining),
+                  ],
+                );
+              },
+            ),
         ],
       ),
     );
   }
 
   /// Mini timer row: clock + remaining + label, progress bar, consequence.
-  Widget _buildContextualTimer(AppColors? colors, (String, String) ctx) {
+  Widget _buildContextualTimer(
+    AppColors? colors,
+    (String, String) ctx,
+    Duration remaining,
+  ) {
     final (label, consequence) = ctx;
     final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
@@ -864,13 +929,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
     final track = colors?.backgroundInput ?? const Color(0xFF252A3A);
 
-    final fraction = _totalCountdownSeconds > 0
-        ? (_remaining.inSeconds / _totalCountdownSeconds).clamp(0.0, 1.0)
-        : 0.0;
+    final fraction =
+        _totalCountdownSeconds > 0
+            ? (remaining.inSeconds / _totalCountdownSeconds).clamp(0.0, 1.0)
+            : 0.0;
     // Lime → amber at <10% remaining → red at <2%.
-    final timerColor = fraction < 0.02
-        ? red
-        : fraction < 0.10
+    final timerColor =
+        fraction < 0.02
+            ? red
+            : fraction < 0.10
             ? amber
             : green;
 
@@ -882,7 +949,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             Icon(Icons.schedule, size: 16, color: timerColor),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              _formatDuration(_remaining),
+              _formatDuration(remaining),
               style: TextStyle(
                 color: timerColor,
                 fontSize: 13,
@@ -938,22 +1005,20 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       required VoidCallback onPressed,
       Color? background,
       Color? foreground,
-    }) =>
-        FilledButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 18),
-          label: Text(label),
-          style: FilledButton.styleFrom(
-            backgroundColor: background ?? green,
-            foregroundColor: foreground ?? Colors.black,
-            minimumSize: const Size.fromHeight(56),
-            textStyle:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.card),
-            ),
-          ),
-        );
+    }) => FilledButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        backgroundColor: background ?? green,
+        foregroundColor: foreground ?? Colors.black,
+        minimumSize: const Size.fromHeight(56),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+      ),
+    );
 
     switch ((status, isBuyer)) {
       case (TradeStatus.waitingInvoice, true):
@@ -961,8 +1026,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           bigButton(
             label: l10n.addLightningInvoiceButton,
             icon: Icons.receipt_long_outlined,
-            onPressed: () =>
-                context.push(AppRoute.addInvoicePath(widget.orderId)),
+            onPressed:
+                () => context.push(AppRoute.addInvoicePath(widget.orderId)),
           ).withAutomationId(AutomationIds.tradeAddInvoice),
         ];
       case (TradeStatus.waitingPayment, false):
@@ -970,8 +1035,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
           bigButton(
             label: l10n.payHoldInvoiceButton,
             icon: Icons.bolt,
-            onPressed: () =>
-                context.push(AppRoute.payInvoicePath(widget.orderId)),
+            onPressed:
+                () => context.push(AppRoute.payInvoicePath(widget.orderId)),
           ).withAutomationId(AutomationIds.tradePayInvoice),
         ];
       case (TradeStatus.active, true):
@@ -1032,8 +1097,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       case (TradeStatus.rated, _) || (TradeStatus.cancelled, _):
         return [
           OutlinedButton(
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go(AppRoute.home),
+            onPressed:
+                () =>
+                    context.canPop()
+                        ? context.pop()
+                        : context.go(AppRoute.home),
             style: OutlinedButton.styleFrom(
               foregroundColor: green,
               side: BorderSide(color: green),
@@ -1057,6 +1125,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         return [_waitingButton(l10n.waitingForFiatPayment, colors)];
       case (TradeStatus.fiatSent, true):
         return [_waitingButton(l10n.waitingForSeller, colors)];
+      case (TradeStatus.payoutPending, _):
+        return [_waitingButton(l10n.tradeStatusPayoutPending, colors)];
       case (TradeStatus.pending, _):
         return [_waitingButton(l10n.waitingForCounterpart, colors)];
       default:
@@ -1143,24 +1213,30 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                   height: 22,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: i < current
-                        ? green
-                        : i == current
+                    color:
+                        i < current
+                            ? green
+                            : i == current
                             ? amber
                             : elevated,
                   ),
                   alignment: Alignment.center,
-                  child: i < current
-                      ? const Icon(Icons.check, size: 14, color: Colors.black)
-                      : i == current
+                  child:
+                      i < current
+                          ? const Icon(
+                            Icons.check,
+                            size: 14,
+                            color: Colors.black,
+                          )
+                          : i == current
                           ? Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black,
-                              ),
-                            )
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black,
+                            ),
+                          )
                           : null,
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -1172,9 +1248,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.3,
-                        color: i <= current
-                            ? colors?.textPrimary ?? Colors.white
-                            : textSec,
+                        color:
+                            i <= current
+                                ? colors?.textPrimary ?? Colors.white
+                                : textSec,
                         fontWeight:
                             i == current ? FontWeight.w700 : FontWeight.w500,
                       ),
@@ -1278,8 +1355,7 @@ class _ChatChip extends ConsumerWidget {
               CircleAvatar(
                 radius: 18,
                 backgroundColor: purple.withValues(alpha: 0.3),
-                child:
-                    Icon(Icons.chat_bubble_outline, size: 18, color: purple),
+                child: Icon(Icons.chat_bubble_outline, size: 18, color: purple),
               ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -1309,8 +1385,10 @@ class _ChatChip extends ConsumerWidget {
                 width: 22,
                 height: 22,
                 alignment: Alignment.center,
-                decoration:
-                    BoxDecoration(shape: BoxShape.circle, color: purple),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: purple,
+                ),
                 child: Text(
                   '$unread',
                   style: const TextStyle(

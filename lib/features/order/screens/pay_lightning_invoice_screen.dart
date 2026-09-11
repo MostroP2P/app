@@ -38,10 +38,13 @@ class PayLightningInvoiceScreen extends ConsumerStatefulWidget {
 class _PayLightningInvoiceScreenState
     extends ConsumerState<PayLightningInvoiceScreen> {
   bool _waiting = false;
+
   /// `true` while a protocol cancel is in flight — blocks re-entry.
   bool _canceling = false;
+
   /// `true` when NWC is connected but payment failed → show QR fallback.
   bool _manualMode = false;
+
   /// One-shot guard so we don't navigate twice as further statuses stream in.
   bool _navigated = false;
 
@@ -61,20 +64,21 @@ class _PayLightningInvoiceScreenState
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.cancelTradeDialogTitle),
-        content: Text(l10n.cancelTradeDialogContent),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.noButtonLabel),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(l10n.cancelTradeDialogTitle),
+            content: Text(l10n.cancelTradeDialogContent),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.noButtonLabel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.yesCancelButtonLabel),
+              ).withAutomationId(AutomationIds.tradeCancelConfirm),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.yesCancelButtonLabel),
-          ).withAutomationId(AutomationIds.tradeCancelConfirm),
-        ],
-      ),
     );
     if (!mounted || confirmed != true) return;
     setState(() => _canceling = true);
@@ -83,9 +87,9 @@ class _PayLightningInvoiceScreenState
       if (!mounted) return;
       _navigated = true;
       refreshTrades(ref);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.cancelRequestSent)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.cancelRequestSent)));
       context.go(AppRoute.home);
     } catch (e) {
       if (!mounted) return;
@@ -110,6 +114,22 @@ class _PayLightningInvoiceScreenState
     final l10n = AppLocalizations.of(context);
 
     final isWalletConnected = ref.watch(isWalletConnectedProvider);
+    final appBar = AppBar(
+      leading:
+          Navigator.of(context).canPop()
+              ? const BackButton().withAutomationId(AutomationIds.appBarBack)
+              : null,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.payLightningInvoiceTitle),
+          Text(
+            l10n.orderLabel(widget.orderId),
+            style: theme.textTheme.bodySmall,
+          ).withAutomationId(AutomationIds.payOrderId, label: widget.orderId),
+        ],
+      ),
+    );
     final tradeAsync = ref.watch(tradeInfoStreamProvider(widget.orderId));
 
     // Counterpart (taker) reputation: the maker is the seller here (paying the
@@ -124,40 +144,40 @@ class _PayLightningInvoiceScreenState
     // gift wrap that the Rust handler writes as OrderStatus.active. We react
     // here because `tradeInfoStreamProvider` terminates as soon as the hold
     // invoice is delivered and does not observe later transitions.
-    ref.listen<AsyncValue<OrderStatus>>(
-      tradeStatusProvider(widget.orderId),
-      (prev, next) {
-        final status = next.valueOrNull;
-        if (status == null || _navigated || !mounted) return;
-        switch (status) {
-          // waitingBuyerInvoice: on this screen it can only mean the hold
-          // invoice payment was registered and mostrod is now waiting for
-          // the buyer's invoice — move the seller to the trade screen.
-          case OrderStatus.waitingBuyerInvoice:
-          case OrderStatus.active:
-          case OrderStatus.fiatSent:
-          case OrderStatus.settledHoldInvoice:
-          case OrderStatus.success:
-          case OrderStatus.dispute:
-            _navigated = true;
-            if (!_waiting) setState(() => _waiting = true);
-            context.go(AppRoute.tradeDetailPath(widget.orderId));
-            break;
-          case OrderStatus.canceled:
-          case OrderStatus.cooperativelyCanceled:
-          case OrderStatus.canceledByAdmin:
-          case OrderStatus.expired:
-            _navigated = true;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.orderNoLongerActive)),
-            );
-            context.go(AppRoute.home);
-            break;
-          default:
-            break;
-        }
-      },
-    );
+    ref.listen<AsyncValue<OrderStatus>>(tradeStatusProvider(widget.orderId), (
+      prev,
+      next,
+    ) {
+      final status = next.valueOrNull;
+      if (status == null || _navigated || !mounted) return;
+      switch (status) {
+        // waitingBuyerInvoice: on this screen it can only mean the hold
+        // invoice payment was registered and mostrod is now waiting for
+        // the buyer's invoice — move the seller to the trade screen.
+        case OrderStatus.waitingBuyerInvoice:
+        case OrderStatus.active:
+        case OrderStatus.fiatSent:
+        case OrderStatus.settledHoldInvoice:
+        case OrderStatus.success:
+        case OrderStatus.dispute:
+          _navigated = true;
+          if (!_waiting) setState(() => _waiting = true);
+          context.go(AppRoute.tradeDetailPath(widget.orderId));
+          break;
+        case OrderStatus.canceled:
+        case OrderStatus.cooperativelyCanceled:
+        case OrderStatus.canceledByAdmin:
+        case OrderStatus.expired:
+          _navigated = true;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l10n.orderNoLongerActive)));
+          context.go(AppRoute.home);
+          break;
+        default:
+          break;
+      }
+    });
 
     // Push-based cancellation signal. The polling listener above cannot see
     // a daemon cancel anymore: the wiped trade has no DB row left, and after
@@ -174,9 +194,9 @@ class _PayLightningInvoiceScreenState
         case OrderStatus.expired:
           _navigated = true;
           refreshTrades(ref);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.orderNoLongerActive)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l10n.orderNoLongerActive)));
           context.go(AppRoute.home);
         default:
           break;
@@ -184,17 +204,16 @@ class _PayLightningInvoiceScreenState
     });
 
     return tradeAsync.when(
-      loading: () => Scaffold(
-        appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
-        body: const Center(child: CircularProgressIndicator()),
-      ),
+      loading:
+          () => Scaffold(
+            appBar: appBar,
+            body: const Center(child: CircularProgressIndicator()),
+          ),
       error: (e, st) {
         debugPrint('[PayLightningInvoiceScreen] load error: $e\n$st');
         return Scaffold(
-          appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
-          body: Center(
-            child: Text(l10n.tradeLoadError),
-          ),
+          appBar: appBar,
+          body: Center(child: Text(l10n.tradeLoadError)),
         );
       },
       data: (trade) {
@@ -204,7 +223,7 @@ class _PayLightningInvoiceScreenState
         if (invoice.isEmpty || amountSats <= 0) {
           // Hold invoice not yet available — waiting for Mostro daemon.
           return Scaffold(
-            appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
+            appBar: appBar,
             body: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -224,7 +243,7 @@ class _PayLightningInvoiceScreenState
         // If NWC wallet is connected and payment hasn't failed yet, show auto-pay.
         if (isWalletConnected && !_manualMode) {
           return Scaffold(
-            appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
+            appBar: appBar,
             body: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -247,8 +266,8 @@ class _PayLightningInvoiceScreenState
                         bolt11: invoice,
                         amountSats: amountSats,
                         onPaymentSuccess: _onPaymentDetected,
-                        onFallbackToManual: () =>
-                            setState(() => _manualMode = true),
+                        onFallbackToManual:
+                            () => setState(() => _manualMode = true),
                       ),
                     ),
                   ),
@@ -259,7 +278,7 @@ class _PayLightningInvoiceScreenState
         }
 
         return Scaffold(
-          appBar: AppBar(title: Text(l10n.payLightningInvoiceTitle)),
+          appBar: appBar,
           body: Padding(
             // #267: bottom system-bar inset so the Cancel button clears the
             // gesture / 3-button navigation bar.
@@ -329,8 +348,9 @@ class _PayLightningInvoiceScreenState
                               padding: const EdgeInsets.all(AppSpacing.md),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.card),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.card,
+                                ),
                               ),
                               child: QrImageView(
                                 data: invoice,
@@ -361,8 +381,7 @@ class _PayLightningInvoiceScreenState
                               if (!launched && context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content:
-                                        Text(l10n.noLightningWalletFound),
+                                    content: Text(l10n.noLightningWalletFound),
                                   ),
                                 );
                               }
@@ -376,8 +395,9 @@ class _PayLightningInvoiceScreenState
                                 vertical: AppSpacing.md,
                               ),
                               shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.button),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.button,
+                                ),
                               ),
                             ),
                           ),
@@ -407,8 +427,9 @@ class _PayLightningInvoiceScreenState
                                   backgroundColor: green,
                                   foregroundColor: Colors.black,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.button),
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.button,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -418,17 +439,16 @@ class _PayLightningInvoiceScreenState
                               child: FilledButton.icon(
                                 onPressed: () async {
                                   try {
-                                    await SharePlus.instance
-                                        .share(ShareParams(text: invoice));
+                                    await SharePlus.instance.share(
+                                      ShareParams(text: invoice),
+                                    );
                                   } catch (e, st) {
                                     debugPrint(
                                       '[PayLightningInvoiceScreen] share failed: $e\n$st',
                                     );
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(l10n.shareFailed),
-                                      ),
+                                      SnackBar(content: Text(l10n.shareFailed)),
                                     );
                                   }
                                 },
@@ -438,8 +458,9 @@ class _PayLightningInvoiceScreenState
                                   backgroundColor: green,
                                   foregroundColor: Colors.black,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.button),
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.button,
+                                    ),
                                   ),
                                 ),
                               ),

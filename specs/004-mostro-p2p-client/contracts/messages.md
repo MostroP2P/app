@@ -75,8 +75,13 @@ Send an encrypted message to the trade counterparty.
 **Side effects**: Wraps in the chat envelope (inner kind 1 signed by the
 trade key, outer kind 14 signed with `K_sign`), publishes to relays. The
 stored message id is the inner event id, so both sides dedup on the same
-identity. If the session, peer, or relay pool is unavailable the message is
-stored locally with a warning.
+identity. A missing session is first **rebuilt from the trade row** (the
+durable peer record, #381): index + counterparty from the row, ECDH
+re-derived, session re-cached — gated by the same liveness/poison guard
+as the startup resubscription. Only when the row cannot serve it either
+(no row, peer not yet revealed, terminal or poisoned row, web #233) does
+the message degrade to local-only storage with a warning; a relay-pool
+failure also degrades to local-only.
 
 **Errors**: `NoActiveTrade`, `TradeNotFound`, `MessageEmpty`.
 
@@ -131,7 +136,8 @@ Encrypt and upload a file attachment, then send as a chat message.
 **Returns**: ChatMessage with `has_attachment: true` and attachment metadata.
 
 **Errors**: `FileTooLarge`, `UnsupportedFileType`, `UploadFailed`,
-`NoActiveTrade`.
+`NoActiveTrade`, `SessionNotFound` (only when the session is absent AND
+the trade row cannot rebuild it — see `send_message`; #381).
 
 ---
 
@@ -148,7 +154,9 @@ FileDownloadResult {
 }
 ```
 
-**Errors**: `AttachmentNotFound`, `DownloadFailed`, `DecryptionFailed`.
+**Errors**: `AttachmentNotFound`, `DownloadFailed`, `DecryptionFailed`,
+`SessionNotFound` (only when the session is absent AND the trade row
+cannot rebuild it — see `send_message`; #381).
 
 ---
 

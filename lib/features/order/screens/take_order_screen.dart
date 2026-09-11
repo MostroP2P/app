@@ -46,7 +46,12 @@ class TakeOrderScreen extends ConsumerStatefulWidget {
 
 class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   Timer? _countdownTimer;
-  Duration _remaining = Duration.zero;
+
+  /// Drives only the countdown block. A notifier rather than screen state:
+  /// this ticks every second, and rebuilding the whole screen for it means
+  /// re-running a build that allocates the entire order layout, once a
+  /// second, for as long as the screen is open.
+  final ValueNotifier<Duration> _remaining = ValueNotifier(Duration.zero);
   bool _submitting = false;
   double? _selectedAmount;
 
@@ -80,6 +85,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _remaining.dispose();
     super.dispose();
   }
 
@@ -89,16 +95,16 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     if (order?.expiresAt == null) return;
 
     final expiresAt = order!.expiresAt!;
-    _remaining = expiresAt.difference(DateTime.now());
+    _remaining.value = expiresAt.difference(DateTime.now());
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() {
-        _remaining = expiresAt.difference(DateTime.now());
-        if (_remaining.isNegative) {
-          _countdownTimer?.cancel();
-          _remaining = Duration.zero;
-        }
-      });
+      final left = expiresAt.difference(DateTime.now());
+      if (left.isNegative) {
+        _countdownTimer?.cancel();
+        _remaining.value = Duration.zero;
+      } else {
+        _remaining.value = left;
+      }
     });
   }
 
@@ -427,63 +433,74 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
           ],
 
           // Contextual countdown: what expires and what happens then.
-          if (_remaining > Duration.zero) ...[
-            _InfoCard(
-              color: cardBg,
-              child: Column(
+          //
+          // The per-second tick repaints this builder only. Rebuilding the
+          // screen instead would re-run the whole order layout once a second.
+          ValueListenableBuilder<Duration>(
+            valueListenable: _remaining,
+            builder: (context, remaining, _) {
+              if (remaining <= Duration.zero) return const SizedBox.shrink();
+              return Column(
                 children: [
-                  SizedBox(
-                    width: 96,
-                    height: 96,
-                    child: CircularProgressIndicator(
-                      value: () {
-                        if (order.expiresAt == null) return 0.0;
-                        final lifetime = order.expiresAt!
-                            .difference(order.createdAt)
-                            .inSeconds;
-                        if (lifetime <= 0) return 0.0;
-                        return (_remaining.inSeconds / lifetime)
-                            .clamp(0.0, 1.0);
-                      }(),
-                      strokeWidth: 6,
-                      color: green,
-                      backgroundColor: colors?.backgroundInput ??
-                          const Color(0xFF252A3A),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    l10n.timeRemainingLabel(_formatDuration(_remaining)),
-                    style: theme.textTheme.bodyMedium!.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text.rich(
-                    TextSpan(
-                      text: l10n.orderExpiryRemovedNote,
-                      style: TextStyle(
-                        color: textSec,
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
+                  _InfoCard(
+                    color: cardBg,
+                    child: Column(
                       children: [
-                        TextSpan(
-                          text: l10n.orderExpiryNoReputationNote,
-                          style: TextStyle(
+                        SizedBox(
+                          width: 96,
+                          height: 96,
+                          child: CircularProgressIndicator(
+                            value: () {
+                              if (order.expiresAt == null) return 0.0;
+                              final lifetime = order.expiresAt!
+                                  .difference(order.createdAt)
+                                  .inSeconds;
+                              if (lifetime <= 0) return 0.0;
+                              return (remaining.inSeconds / lifetime)
+                                  .clamp(0.0, 1.0);
+                            }(),
+                            strokeWidth: 6,
                             color: green,
+                            backgroundColor: colors?.backgroundInput ??
+                                const Color(0xFF252A3A),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          l10n.timeRemainingLabel(_formatDuration(remaining)),
+                          style: theme.textTheme.bodyMedium!.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text.rich(
+                          TextSpan(
+                            text: l10n.orderExpiryRemovedNote,
+                            style: TextStyle(
+                              color: textSec,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: l10n.orderExpiryNoReputationNote,
+                                style: TextStyle(
+                                  color: green,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     ),
-                    textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: AppSpacing.xl),
                 ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-          ],
+              );
+            },
+          ),
         ],
       ),
 

@@ -107,6 +107,135 @@ impl SessionManager {
         Ok(session)
     }
 
+    /// Create a session already bound to its peer: inserted **fully
+    /// populated under the write lock**, so no concurrent reader can ever
+    /// observe a keyless intermediate (a `create_session` + `update_session`
+    /// pair leaves one visible between the two locks, and `send_message`
+    /// reads it as "peer not yet known" — silent local-only, #381 review).
+    /// Same duplicate semantics as [`Self::create_session`].
+    pub async fn create_session_with_peer(
+        &self,
+        order_id: String,
+        role: TradeRole,
+        trade_key_index: u32,
+        order: OrderInfo,
+        peer_pubkey: String,
+        shared_key: [u8; 32],
+    ) -> Result<Session> {
+        if order_id != order.id {
+            return Err(anyhow!(
+                "order_id mismatch: param='{}' vs order.id='{}'",
+                order_id,
+                order.id
+            ));
+        }
+
+        let session = Session {
+            order_id: order_id.clone(),
+            role,
+            trade_key_index,
+            shared_key: Some(shared_key),
+            admin_shared_key: None,
+            peer_pubkey: Some(peer_pubkey),
+            order,
+            created_at: crate::rt::unix_now(),
+        };
+
+        let mut sessions = self.sessions.write().await;
+        if sessions.contains_key(&order_id) {
+            return Err(anyhow!("SessionAlreadyExists: {}", order_id));
+        }
+        crate::api::logging::blog_info(
+            "session",
+            format!(
+                "created-with-peer order={} idx={} role={:?}",
+                crate::api::logging::short_id(&order_id),
+                session.trade_key_index,
+                session.role,
+            ),
+        );
+        sessions.insert(order_id, session.clone());
+        Ok(session)
+    }
+
+    /// Create or replace the session for a trade.
+    ///
+    /// Unlike [`create_session`], an existing session is not a hard error —
+    /// but it is not blindly overwritten either. At a confirmed take a session
+    /// can already exist for two unrelated reasons, told apart by its index:
+    ///
+    /// * **different `trade_key_index`** — a prior failed or timed-out take
+    ///   left it behind. It is stale and must lose: each attempt derives a
+    ///   fresh trade key, so keeping it would leave chat key lookups reading
+    ///   a superseded index (#335). Replaced.
+    /// * **same `trade_key_index`** — this take's own session, created by
+    ///   `apply_peer_reveal` when the first reply already carried both trade
+    ///   pubkeys, with `peer_pubkey` and `shared_key` set (#334/#345). It is
+    ///   strictly richer than what this call would build. Left untouched.
+    ///
+    /// The replacement path resets `peer_pubkey`, `shared_key` and
+    /// `admin_shared_key` to `None`, which is correct rather than lossy: a
+    /// shared key derived from the superseded trade key is invalid, and
+    /// carrying it over would fail the chat silently instead of rebuilding it.
+    pub async fn install_session(
+        &self,
+        order_id: String,
+        role: TradeRole,
+        trade_key_index: u32,
+        order: OrderInfo,
+    ) -> Result<Session> {
+        if order_id != order.id {
+            return Err(anyhow!(
+                "order_id mismatch: param='{}' vs order.id='{}'",
+                order_id,
+                order.id
+            ));
+        }
+
+        let mut sessions = self.sessions.write().await;
+
+        // Both the read and the write happen under this one lock: deciding
+        // outside it would let a peer reveal land in between and be discarded
+        // by a replacement that was decided when it did not yet exist.
+        if let Some(existing) = sessions.get(&order_id) {
+            if existing.trade_key_index == trade_key_index {
+                crate::api::logging::blog_info(
+                    "session",
+                    format!(
+                        "install kept existing order={} idx={} peer={}",
+                        crate::api::logging::short_id(&order_id),
+                        trade_key_index,
+                        existing.peer_pubkey.is_some(),
+                    ),
+                );
+                return Ok(existing.clone());
+            }
+        }
+
+        let session = Session {
+            order_id: order_id.clone(),
+            role,
+            trade_key_index,
+            shared_key: None,
+            admin_shared_key: None,
+            peer_pubkey: None,
+            order,
+            created_at: crate::rt::unix_now(),
+        };
+
+        crate::api::logging::blog_info(
+            "session",
+            format!(
+                "installed order={} idx={} role={:?}",
+                crate::api::logging::short_id(&order_id),
+                session.trade_key_index,
+                session.role,
+            ),
+        );
+        sessions.insert(order_id, session.clone());
+        Ok(session)
+    }
+
     /// Update an existing session.
     pub async fn update_session(&self, order_id: &str, session: Session) -> Result<()> {
         if session.order_id != order_id {

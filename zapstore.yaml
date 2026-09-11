@@ -12,7 +12,7 @@ description: |
     - Hierarchical Key Management: BIP-32 / BIP-39 key derivation with a unique key per trade
     - Censorship-resistant: Built on Nostr — no central server or domain to block
     - Multi-Language: English, Spanish, Italian, French, and German
-    - Open source: MIT licensed and fully auditable
+    - Open source: AGPLv3 licensed and fully auditable
 summary: Non-custodial, peer-to-peer Bitcoin exchange on Lightning, powered by Nostr.
 tags:
     - peer-to-peer
@@ -25,7 +25,7 @@ tags:
     - nostr
     - cryptography
     - freedom-tech
-license: MIT
+license: AGPL-3.0-or-later
 website: https://mostro.network
 # TODO: assets/images/wt-*.png are 817-byte placeholder PNGs, not real
 # screenshots. Populate with real store screenshots before publishing.

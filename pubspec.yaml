@@ -94,6 +94,8 @@ dev_dependencies:
   # Required by flutter_rust_bridge_codegen generate
   freezed: ^2.5.7
   build_runner: ^2.4.13
+  # Generates the iOS/Android launcher icons from assets/images/launcher-icon.png
+  flutter_launcher_icons: ^0.14.2
 
 flutter:
   uses-material-design: true
@@ -103,3 +105,23 @@ flutter:
     - assets/data/fiat.json
     - assets/data/payment_methods.json
     - assets/images/
+
+# Launcher icons. Mirrors the v1 app's configuration (MostroP2P/mobile) so both
+# apps ship the same artwork. Regenerate with:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/launcher-icon.png"
+  # iOS needs its own, already-opaque source. The shared art is a disc on a
+  # transparent square: iOS forbids an alpha channel in app icons, and
+  # flattening it here would leave white corners under iOS's rounded mask.
+  # `launcher-icon-ios.png` is the same art pre-composited onto the brand
+  # background (app_theme.dart `bgWell`), which also avoids a generator bug —
+  # flutter_launcher_icons 0.14.4 turns near-transparent pixels into saturated
+  # green, drawing a 1px ring around the disc.
+  image_path_ios: "assets/images/launcher-icon-ios.png"
+  adaptive_icon_foreground: "assets/images/launcher-icon.png"
+  # Same brand background as the iOS source, so the disc merges into the
+  # adaptive icon instead of floating on a slightly different grey.
+  adaptive_icon_background: "#1D212C"

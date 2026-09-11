@@ -637,7 +637,23 @@ impl Storage for SqliteStorage {
             query = query.bind(format!("{s:?}"));
         }
         query = query.bind(order_id);
-        query.execute(&self.pool).await?;
+        let result = query.execute(&self.pool).await?;
+
+        // Matching no row is not an error SQLite reports — the statement
+        // succeeds and updates nothing — but for every caller it is a silent
+        // loss: the status moved in the book and in the UI while the row My
+        // Trades reads kept the old value. Nothing here can repair it (the row
+        // is gone, or was never written), so the only useful thing to do is
+        // say so out loud instead of returning `Ok(())` like a real write.
+        if result.rows_affected() == 0 {
+            crate::api::logging::blog_warn(
+                "db",
+                format!(
+                    "update_trade_fields matched no row for order={}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+        }
         Ok(())
     }
 
@@ -681,6 +697,30 @@ impl Storage for SqliteStorage {
             .await?;
         Ok(())
     }
+
+    async fn update_trade_counterparty(
+        &self,
+        order_id: &str,
+        counterparty_pubkey: &str,
+    ) -> Result<()> {
+        // Reveals are monotonic: once known, the peer never changes for a
+        // trade, so an empty value is a caller bug — refuse it rather than
+        // wipe a good row.
+        if counterparty_pubkey.is_empty() {
+            return Err(anyhow::anyhow!(
+                "update_trade_counterparty: refusing to clear counterparty for order {order_id}"
+            ));
+        }
+        let sql = "UPDATE trades SET data = json_set(\
+             data, '$.counterparty_pubkey', ?) \
+             WHERE json_extract(data, '$.order.id') = ?";
+        sqlx::query(sql)
+            .bind(counterparty_pubkey)
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -693,6 +733,69 @@ mod tests {
         static COUNTER: AtomicU32 = AtomicU32::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!("mostro_test_{}_{n}.db", std::process::id()))
+    }
+
+    /// A status sync that matches no row used to be indistinguishable from one
+    /// that wrote: SQLite reports success for an `UPDATE` that touches nothing,
+    /// the result was discarded, and the caller's only failure report was a
+    /// `log::warn!` this app never emits. The write is unrecoverable either
+    /// way — the point is that it stops being silent.
+    #[tokio::test]
+    async fn a_trade_update_that_matches_no_row_is_reported() {
+        // The verbosity filter defaults to `Off`, so nothing reaches any sink
+        // until this runs — the same call `init_app` makes in the app.
+        crate::api::logging::install_log_bridge();
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let order_id = format!("ghost-{}", uuid::Uuid::new_v4());
+        storage
+            .update_trade_fields(
+                &order_id,
+                Some(crate::api::types::OrderStatus::Dispute),
+                None,
+                None,
+            )
+            .await
+            .expect("a no-op update is not an error, and never was");
+
+        let short = crate::api::logging::short_id(&order_id);
+        assert!(
+            crate::api::logging::recent_logs().iter().any(|e| {
+                e.tag == "db"
+                    && matches!(e.level, crate::api::types::LogLevel::Warning)
+                    && e.message.contains(&short)
+            }),
+            "a trade update matching no row must warn, not pass as a write",
+        );
+    }
+
+    /// The companion to the no-row check: a *genuine* storage failure must
+    /// still reach the caller. Reading the result to count affected rows put a
+    /// binding between `execute` and the `?` that propagates the error — the
+    /// shape a later "simplification" turns into `.ok()`, which would restore
+    /// exactly the silence this stopped. A closed pool is a real, deterministic
+    /// failure, so it pins the propagation without corrupting anything.
+    #[tokio::test]
+    async fn a_trade_update_that_fails_is_not_reported_as_a_write() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        storage.pool.close().await;
+
+        let result = storage
+            .update_trade_fields(
+                "any-order",
+                Some(crate::api::types::OrderStatus::Dispute),
+                None,
+                None,
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "a failed write must surface as Err, never as Ok(())",
+        );
     }
 
     /// `foreign_keys` is a per-connection pragma, so running it once through
@@ -1045,6 +1148,120 @@ mod tests {
             .unwrap()
             .expect("order-b survives");
         assert_eq!(b.rated_at, None);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The durable peer record (issue #334): the counterparty pubkey lands on
+    /// the row matched by `order.id` for both roles (the taker's row id is a
+    /// random UUID), overwrites a poisoned pre-fix value, survives reopen, and
+    /// an empty value is refused rather than clearing a known peer.
+    #[tokio::test]
+    async fn update_trade_counterparty_round_trips_by_order_id() {
+        use crate::api::types::*;
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let trade = |row_id: &str, order_id: &str, counterparty: &str| TradeInfo {
+            id: row_id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Sell,
+                status: OrderStatus::Active,
+                amount_sats: None,
+                fiat_amount: Some(100.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "daemon".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: counterparty.into(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+        };
+        // Maker-shaped row (empty peer) and a poisoned pre-fix row (daemon
+        // pubkey seeded by the old take path).
+        storage
+            .save_trade(&trade("row-uuid-a", "order-a", ""))
+            .await
+            .unwrap();
+        storage
+            .save_trade(&trade("row-uuid-b", "order-b", "daemon"))
+            .await
+            .unwrap();
+
+        storage
+            .update_trade_counterparty("order-a", "peer-a")
+            .await
+            .unwrap();
+        storage
+            .update_trade_counterparty("order-b", "peer-b")
+            .await
+            .unwrap();
+
+        // Scoped by order id, and the poisoned value is overwritten.
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.counterparty_pubkey, "peer-a");
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.counterparty_pubkey, "peer-b");
+
+        // An empty write is a caller bug: refused, and the row keeps its peer.
+        assert!(storage
+            .update_trade_counterparty("order-a", "")
+            .await
+            .is_err());
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(a.counterparty_pubkey, "peer-a");
+
+        // No matching order id: a silent no-op, like update_trade_fields.
+        storage
+            .update_trade_counterparty("no-such-order", "peer-x")
+            .await
+            .unwrap();
+
+        // Survives reopen — the value lives in the JSON blob, not in memory.
+        drop(storage);
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives reopen");
+        assert_eq!(a.counterparty_pubkey, "peer-a");
 
         drop(storage);
         let _ = std::fs::remove_file(&path);

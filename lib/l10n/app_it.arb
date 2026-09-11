@@ -277,14 +277,14 @@
   "aboutGithubRepoLabel": "Repository GitHub",
   "aboutCommitHashLabel": "Hash del commit",
   "aboutLicenseLabel": "Licenza",
-  "aboutLicenseName": "MIT",
-  "aboutGithubRepoName": "mostro-mobile",
+  "aboutLicenseName": "AGPLv3+",
+  "aboutGithubRepoName": "MostroP2P/app",
   "aboutDocsUsersEnglish": "Utenti (Inglese)",
   "aboutDocsUsersSpanish": "Utenti (Spagnolo)",
   "aboutDocsTechnical": "Tecnica",
   "aboutDocsRead": "Leggi",
   "aboutCopiedToClipboard": "Copiato negli appunti",
-  "aboutLicenseDialogTitle": "Licenza MIT",
+  "aboutLicenseDialogTitle": "Licenza Pubblica Generica Affero GNU v3",
   "aboutNodeLoadingText": "Caricamento informazioni del nodo…",
   "aboutNodeUnavailable": "Informazioni del nodo non disponibili",
   "aboutNodeRetry": "Riprova",
@@ -739,5 +739,8 @@
   "settingsCashuMintOverrideInvalid": "Non è un URL di mint valido. Usa http o https con un host.",
   "settingsEscrowEffectiveMode": "Backend effettivo: {mode}",
   "settingsEscrowEffectiveMint": "Mint effettiva: {mint}",
-  "settingsEscrowCashuUnavailable": "Cashu non può funzionare senza una mint: impostane una qui sotto."
+  "settingsEscrowCashuUnavailable": "Cashu non può funzionare senza una mint: impostane una qui sotto.",
+  "tradeStatusPayoutPending": "Pagamento in attesa",
+  "tradeHeadlinePayoutPending": "In attesa del pagamento all’acquirente",
+  "tradeInstructionPayoutPending": "Il venditore ha rilasciato i fondi in deposito. In attesa del completamento del pagamento Lightning all’acquirente."
 }

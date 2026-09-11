@@ -572,9 +572,9 @@
   "@aboutCommitHashLabel": {"description": "About screen — Commit Hash row label"},
   "aboutLicenseLabel": "License",
   "@aboutLicenseLabel": {"description": "About screen — License row label"},
-  "aboutLicenseName": "MIT",
+  "aboutLicenseName": "AGPLv3+",
   "@aboutLicenseName": {"description": "About screen — License name value"},
-  "aboutGithubRepoName": "mostro-mobile",
+  "aboutGithubRepoName": "MostroP2P/app",
   "@aboutGithubRepoName": {"description": "About screen — GitHub repository display name"},
   "aboutDocsUsersEnglish": "Users (English)",
   "@aboutDocsUsersEnglish": {"description": "About screen — English user docs link label"},
@@ -586,8 +586,8 @@
   "@aboutDocsRead": {"description": "About screen — action label for documentation links"},
   "aboutCopiedToClipboard": "Copied to clipboard",
   "@aboutCopiedToClipboard": {"description": "Snackbar shown after copying a value to clipboard on the About screen"},
-  "aboutLicenseDialogTitle": "MIT License",
-  "@aboutLicenseDialogTitle": {"description": "Title for the MIT license dialog on the About screen"},
+  "aboutLicenseDialogTitle": "GNU Affero General Public License v3",
+  "@aboutLicenseDialogTitle": {"description": "Title for the AGPLv3 license dialog on the About screen"},
   "aboutNodeLoadingText": "Loading node information…",
   "@aboutNodeLoadingText": {"description": "Text shown while the Mostro node info is being fetched"},
   "aboutNodeUnavailable": "Node information unavailable",
@@ -1645,5 +1645,8 @@
   "settingsEscrowEffectiveMint": "Effective mint: {mint}",
   "@settingsEscrowEffectiveMint": {"description": "Settings — the mint the app is actually acting on, overrides included", "placeholders": {"mint": {"type": "String"}}},
   "settingsEscrowCashuUnavailable": "Cashu cannot run without a mint — set one below.",
-  "@settingsEscrowCashuUnavailable": {"description": "Settings — warning shown when Cashu mode is on but no mint is available, so no Cashu path can run"}
+  "@settingsEscrowCashuUnavailable": {"description": "Settings — warning shown when Cashu mode is on but no mint is available, so no Cashu path can run"},
+  "tradeStatusPayoutPending": "Payout pending",
+  "tradeHeadlinePayoutPending": "Waiting for the buyer payout",
+  "tradeInstructionPayoutPending": "The seller released the escrow. Waiting for the Lightning payment to the buyer to succeed."
 }

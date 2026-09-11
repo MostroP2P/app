@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mostro/core/automation/automation_id.dart';
 
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/test_environment.dart';
@@ -35,7 +36,10 @@ class TestEnvironmentBanner extends StatelessWidget {
               textDirection: TextDirection.ltr,
               child: Semantics(
                 identifier: AutomationIds.envMarker,
-                label: TestEnvironment.markerLabel,
+                label: automationSemanticLabel(
+                  AutomationIds.envMarker,
+                  TestEnvironment.markerLabel,
+                ),
                 container: true,
                 child: IgnorePointer(
                   child: Container(
