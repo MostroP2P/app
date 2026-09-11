@@ -5,6 +5,7 @@ pub mod escrow;
 pub mod identity;
 pub mod logging;
 pub mod messages;
+pub mod nodes;
 pub mod nostr;
 pub mod nwc;
 pub mod orders;

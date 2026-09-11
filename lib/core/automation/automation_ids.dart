@@ -77,9 +77,17 @@ class AutomationIds {
 
   // Mostro node selector (bottom sheet)
   static const String nodeCustomPubkey = 'node.custom.pubkey';
-  static const String nodeUseDefault = 'node.use_default';
+  static const String nodeCustomName = 'node.custom.name';
   static const String nodeCustomConfirm = 'node.custom.confirm';
   static const String nodeCustomCancel = 'node.custom.cancel';
+  static const String nodeAddCustom = 'node.add_custom';
+  static const String nodeAddCustomCancel = 'node.add_custom.cancel';
+
+  /// Row of one node in the selector list.
+  static String nodeItem(String pubkey) => 'node.item.$pubkey';
+
+  /// Delete control of a user-added node.
+  static String nodeItemDelete(String pubkey) => 'node.item.$pubkey.delete';
 
   // Wallet / NWC
   static const String walletSettingsConnect = 'wallet.settings.connect';
