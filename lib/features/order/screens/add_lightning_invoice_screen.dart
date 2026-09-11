@@ -343,6 +343,17 @@ class _AddLightningInvoiceScreenState
               // A generated invoice the daemon refuses needs the same
               // persistent reason as a typed one.
               ..._errorReadout(colors),
+              // The readout tells the buyer to add a new invoice, but this
+              // branch has no form — its only other way out is leaving and
+              // reopening the screen, which regenerates and resubmits the
+              // wallet's (equally refused) invoice. Offer manual entry.
+              if (_lastError != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                TextButton(
+                  onPressed: () => setState(() => _manualMode = true),
+                  child: Text(l10n.enterInvoiceManually),
+                ).withAutomationId(AutomationIds.invoiceManual),
+              ],
             ],
           ),
         ),

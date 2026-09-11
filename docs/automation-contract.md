@@ -59,7 +59,7 @@ fails the build when an identifier is declared and attached to nothing.
 | `pay.invoice.text` | The hold invoice (`bolt11`), which is otherwise only drawn as a QR code or paid directly by the wallet. |
 | `pay.order_id` | The exact order ID shown in the seller invoice screen's app bar, including while its invoice is loading. |
 | `invoice.nwc.text` | The buyer invoice NWC generated, for payment correlation. |
-| `invoice.error` | The reason the daemon refused the last submitted buyer invoice. Present only after a rejection, until the next submission; the manual form stays open behind it. |
+| `invoice.error` | The reason the daemon refused the last submitted buyer invoice. Present only after a rejection, until the next submission; the manual form stays open behind it. In the wallet-generated (NWC) branch, which has no form, the readout comes with `invoice.manual` so the buyer can switch to manual entry. |
 | `settings.relays.item.<url>` | The relay's URL. |
 
 There is deliberately **no** identifier for the seed phrase. A stable readout
@@ -164,9 +164,9 @@ failure reaches the buyer as `payment-failed`, which changes nothing on screen: 
 `add-invoice` whose order still reads `settled-hold-invoice`. The app treats that message exactly as the
 first request for an invoice: the trade shows `waiting-invoice`, the add-invoice screen opens for the
 buyer and `trade.addInvoice` is offered on the trade detail. The replacement goes through the same manual
-form; the daemon's `invoice-updated` returns the trade to `payout-pending`, and `completed` follows only
-when the daemon publishes `success`. A rejected replacement is reported through `invoice.error` like any
-other rejection.
+form (or the NWC generator when a wallet is connected); the daemon's `invoice-updated` returns the trade to
+`payout-pending`, and `completed` follows only when the daemon publishes `success`. A rejected replacement is
+reported through `invoice.error` like any other rejection.
 
 ### Manual buyer invoice readouts
 

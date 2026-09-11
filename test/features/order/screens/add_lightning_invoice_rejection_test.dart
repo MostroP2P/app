@@ -141,6 +141,17 @@ void main() {
           tester.getSemantics(error).getSemanticsData().label,
           'The node rejected this invoice. Check its amount and expiry and add a new one.',
         );
+
+        // The readout tells the buyer to add a new invoice, so the wallet
+        // branch must offer a way to: manual entry, landing on the form with
+        // the refused invoice prefilled and the verdict still on screen.
+        final manual = _semantics('invoice.manual');
+        expect(manual, findsOneWidget);
+        await tester.tap(manual);
+        await tester.pump();
+        expect(_semantics('invoice.text'), findsOneWidget);
+        expect(find.text('lnbc1generated'), findsOneWidget);
+        expect(_semantics('invoice.error'), findsOneWidget);
       } finally {
         semantics.dispose();
         await tester.pumpWidget(const SizedBox.shrink());
