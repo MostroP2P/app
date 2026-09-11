@@ -44,8 +44,15 @@ void main() {
       expect(_format(en, '0'), '0');
     });
 
-    test('ignores decimals when they are not allowed', () {
-      expect(_format(ints, '5000,5'), '50.005');
+    test('drops the fraction when decimals are not allowed', () {
+      expect(_format(ints, '5000,5'), '5.000');
+      expect(_format(ints, '5000,'), '5.000');
+    });
+
+    test('a leading decimal separator gets a zero', () {
+      expect(_format(es, ',5'), '0,5');
+      expect(_format(en, '.5'), '0.5');
+      expect(_format(en, '.'), '0.');
     });
 
     test('moves the caret to the end of the regrouped text', () {

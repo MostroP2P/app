@@ -53,9 +53,24 @@ class _PaymentMethodPickerScreenState
   void _addCustom() {
     final sanitized = sanitizeCustomMethod(_customController.text);
     if (sanitized.isEmpty) return;
-    final notifier = ref.read(customPaymentMethodsProvider.notifier);
-    if (!notifier.state.contains(sanitized)) {
-      notifier.state = [...notifier.state, sanitized];
+    // A name the catalogue already has selects that entry instead of adding
+    // a look-alike custom row: two "Zelle" rows would behave differently on
+    // tap and the order would carry the method twice.
+    final fiatCode = ref.read(selectedFiatCodeProvider);
+    final catalogue = ref.read(paymentMethodsForCurrencyProvider(fiatCode));
+    final match = catalogue.cast<String?>().firstWhere(
+          (m) => m!.toLowerCase() == sanitized.toLowerCase(),
+          orElse: () => null,
+        );
+    if (match != null) {
+      if (!ref.read(selectedPaymentMethodsProvider).contains(match)) {
+        _toggle(match);
+      }
+    } else {
+      final notifier = ref.read(customPaymentMethodsProvider.notifier);
+      if (!notifier.state.contains(sanitized)) {
+        notifier.state = [...notifier.state, sanitized];
+      }
     }
     _customController.clear();
     setState(() => _customDraft = '');

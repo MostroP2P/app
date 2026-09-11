@@ -3,6 +3,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/about/models/mostro_instance.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
@@ -83,11 +85,15 @@ Future<ProviderContainer> _pump(
   return container;
 }
 
+/// The control carrying [id], so a new text field cannot shift the target.
+Finder _byId(String id) =>
+    find.byWidgetPredicate((w) => w is AutomationId && w.id == id);
+
 Future<void> _state5a(WidgetTester tester, ProviderContainer container) async {
   await tester.tap(find.text('Rango'));
   await tester.pumpAndSettle();
-  await tester.enterText(find.byType(TextField).at(0), '5000');
-  await tester.enterText(find.byType(TextField).at(1), '25000');
+  await tester.enterText(_byId(AutomationIds.orderCreateFiatMin), '5000');
+  await tester.enterText(_byId(AutomationIds.orderCreateFiatMax), '25000');
   container.read(premiumValueProvider.notifier).state = 3;
   // Drop focus so no field shows the caret.
   FocusManager.instance.primaryFocus?.unfocus();
@@ -95,10 +101,10 @@ Future<void> _state5a(WidgetTester tester, ProviderContainer container) async {
 }
 
 Future<void> _state5b(WidgetTester tester, ProviderContainer container) async {
-  await tester.enterText(find.byType(TextField).first, '5000');
+  await tester.enterText(_byId(AutomationIds.orderCreateFiatAmount), '5000');
   await tester.tap(find.text('Fijo'));
   await tester.pumpAndSettle();
-  await tester.enterText(find.byType(TextField).last, '5000');
+  await tester.enterText(_byId(AutomationIds.orderCreateSatsAmount), '5000');
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pumpAndSettle();
 }

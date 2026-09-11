@@ -8,7 +8,9 @@ import 'package:mostro/core/create_order_palette.dart';
 /// separator as the user types (`25000` → `25.000` in `es`), keeps at most
 /// one decimal separator and two decimals, and drops everything else. Only
 /// the locale's own decimal separator counts as one: a pasted `25.000` in
-/// `es` is twenty-five thousand, not twenty-five.
+/// `es` is twenty-five thousand, not twenty-five. A leading separator gets a
+/// zero (`,5` → `0,5`); with [allowDecimals] off, everything from the
+/// separator on is dropped.
 ///
 /// The field therefore always shows the amount the way the order book prints
 /// it; `canonicalAmount` strips the grouping again before the value is used.
@@ -44,11 +46,13 @@ class ThousandsInputFormatter extends TextInputFormatter {
           decimals++;
         }
         digitsOnly.write(char);
-      } else if (allowDecimals &&
-          !seenDecimal &&
-          char == decimalSeparator &&
-          digitsOnly.isNotEmpty) {
+      } else if (char == decimalSeparator && !seenDecimal) {
+        // An integer-only field ends at the separator: `5000,5` is 5 000,
+        // never 50 005.
+        if (!allowDecimals) break;
         seenDecimal = true;
+        // `,5` means 0,5 — keep the intent instead of turning it into 5.
+        if (digitsOnly.isEmpty) digitsOnly.write('0');
         digitsOnly.write(decimalSeparator);
       }
     }

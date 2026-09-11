@@ -83,6 +83,19 @@ void main() {
       expect(find.text('My bank x'), findsOneWidget);
     });
 
+    testWidgets('a custom name the catalogue has selects that entry instead',
+        (tester) async {
+      final container = await _pump(tester);
+      await tester.enterText(find.byType(TextField).last, ' zelle ');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      await tester.pump();
+
+      expect(container.read(selectedPaymentMethodsProvider), ['Zelle']);
+      expect(container.read(customPaymentMethodsProvider), isEmpty);
+      expect(find.text('Zelle'), findsOneWidget);
+    });
+
     testWidgets('an empty or duplicate custom method adds nothing',
         (tester) async {
       final container = await _pump(tester);

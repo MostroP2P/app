@@ -187,7 +187,7 @@ class _AddMethodChip extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return CustomPaint(
-      painter: _DashedPillPainter(color: create.dashedBorder),
+      foregroundPainter: _DashedPillPainter(color: create.dashedBorder),
       child: Material(
         color: palette.chipFill,
         borderRadius: BorderRadius.circular(999),

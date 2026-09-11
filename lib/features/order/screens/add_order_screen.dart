@@ -281,7 +281,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final active = expirationHours == null
         ? ''
         : l10n.previewActiveSuffix(
-            markPreview('$expirationHours h', PreviewRole.duration),
+            markPreview(l10n.durationHours(expirationHours), PreviewRole.duration),
           );
     final isSell = side == OrderType.sell;
 
@@ -290,7 +290,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       final sats = BigInt.tryParse(fixedSatsStr);
       if (sats == null || sats <= BigInt.zero) return null;
       final satsText = markPreview(
-        '${NumberFormat.decimalPattern(locale).format(sats.toInt())} sats',
+        l10n.satsAmount(NumberFormat.decimalPattern(locale).format(sats.toInt())),
         PreviewRole.sats,
       );
       sentence = isSell

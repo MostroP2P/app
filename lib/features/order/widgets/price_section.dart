@@ -168,7 +168,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
       children: [
         Row(
           children: [
-            Flexible(
+            Expanded(
               child: Text(
                 l10n.priceSectionTitle,
                 overflow: TextOverflow.ellipsis,
@@ -187,7 +187,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
               constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
               tooltip: l10n.priceTypeInfoTooltip,
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             PillSegmented<bool>(
               size: PillSegmentedSize.small,
               selected: isMarket,
@@ -467,7 +467,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
             ),
           ],
           trailing: Text(
-            'sats',
+            l10n.satsUnitLabel,
             style: TextStyle(fontSize: 13, color: palette.textTertiary),
           ),
           onChanged: (v) => ref.read(fixedSatsProvider.notifier).state =

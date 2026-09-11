@@ -26,13 +26,9 @@ final selectedFiatCurrencyProvider = Provider<FiatCurrency?>((ref) {
 /// Opens the searchable currency picker and writes the choice to
 /// [selectedFiatCodeProvider].
 void showCurrencyPicker(BuildContext context, WidgetRef ref) {
-  final currencies = ref.read(fiatCurrenciesProvider).valueOrNull ??
-      const <FiatCurrency>[];
-
   showDialog<void>(
     context: context,
     builder: (dialogContext) => _CurrencyPickerDialog(
-      currencies: currencies,
       selected: ref.read(selectedFiatCodeProvider),
       onSelect: (code) {
         ref.read(selectedFiatCodeProvider.notifier).state = code;
@@ -134,28 +130,31 @@ class CurrencyRowSelector extends ConsumerWidget {
   }
 }
 
-class _CurrencyPickerDialog extends StatefulWidget {
+/// Watches the catalogue rather than snapshotting it, so a picker opened
+/// while `assets/data/fiat.json` is still loading fills in once it lands.
+class _CurrencyPickerDialog extends ConsumerStatefulWidget {
   const _CurrencyPickerDialog({
-    required this.currencies,
     required this.selected,
     required this.onSelect,
   });
 
-  final List<FiatCurrency> currencies;
   final String selected;
   final ValueChanged<String> onSelect;
 
   @override
-  State<_CurrencyPickerDialog> createState() => _CurrencyPickerDialogState();
+  ConsumerState<_CurrencyPickerDialog> createState() =>
+      _CurrencyPickerDialogState();
 }
 
-class _CurrencyPickerDialogState extends State<_CurrencyPickerDialog> {
+class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
   String _query = '';
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
-    final filtered = widget.currencies.where((c) {
+    final currencies = ref.watch(fiatCurrenciesProvider);
+    final loaded = currencies.valueOrNull ?? const <FiatCurrency>[];
+    final filtered = loaded.where((c) {
       if (_query.isEmpty) return true;
       final q = _query.toLowerCase();
       return c.code.toLowerCase().contains(q) ||
@@ -182,7 +181,9 @@ class _CurrencyPickerDialogState extends State<_CurrencyPickerDialog> {
           ),
           SizedBox(
             height: 300,
-            child: ListView.builder(
+            child: currencies.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
               itemCount: filtered.length,
               itemBuilder: (_, i) {
                 final c = filtered[i];
