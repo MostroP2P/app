@@ -131,7 +131,7 @@ void main() {
         expect(find.text(label), findsOneWidget);
         expect(
           tester.getSemantics(_semantic(id)),
-          containsSemantics(isButton: true, isSelected: false),
+          isSemantics(isButton: true, isSelected: false),
         );
       }
       semantics.dispose();
@@ -205,11 +205,11 @@ void main() {
 
       expect(
         tester.getSemantics(_semantic(AutomationIds.navOrderBook)),
-        containsSemantics(isSelected: true),
+        isSemantics(isSelected: true),
       );
       expect(
         tester.getSemantics(_semantic(AutomationIds.drawerSettings)),
-        containsSemantics(isSelected: false),
+        isSemantics(isSelected: false),
       );
       expect(find.text('ALPHA'), findsOneWidget);
       semantics.dispose();
