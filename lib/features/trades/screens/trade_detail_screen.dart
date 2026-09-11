@@ -77,6 +77,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   /// Star picked on the completed card, 0 until the user taps one.
   int _selectedRating = 0;
 
+  /// Generation of the latest `expiresAt` fetch: a status change starts a
+  /// new one, and a slower, older response must not overwrite it.
+  int _expiresAtRequest = 0;
+
   @override
   void initState() {
     super.initState();
@@ -96,10 +100,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   /// Falls back to the default [_kCountdownSeconds] when the field is null or
   /// the order is no longer available.
   Future<void> _loadExpiresAt() async {
+    final request = ++_expiresAtRequest;
     try {
       final info = await orders_api.getOrder(orderId: widget.orderId);
       final raw = info?.expiresAt;
-      if (raw == null || !mounted) return;
+      if (raw == null || !mounted || request != _expiresAtRequest) return;
       final expiresAtSeconds = platformInt64ToInt(raw);
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final diff = expiresAtSeconds - now;
@@ -109,8 +114,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       });
       _remaining.value = diff > 0 ? Duration(seconds: diff) : Duration.zero;
       _scheduleTick();
-    } catch (_) {
-      // Keep the default remaining time on error.
+    } catch (e, st) {
+      // Keep the default remaining time; the clock is not worth a dialog.
+      debugPrint('[TradeDetailScreen] loadExpiresAt error: $e\n$st');
     }
   }
 
@@ -294,12 +300,20 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   /// Role: the in-memory map (set by TakeOrderScreen in this session) takes
   /// priority; the DB-backed provider covers trades reopened after a restart.
-  bool _isBuyer() {
+  ///
+  /// Null while the DB lookup is unresolved or failed: the screen then holds
+  /// `loading` rather than guessing a role, because a guessed role offers
+  /// the other party's actions (a seller shown "add your invoice").
+  bool? _isBuyer() {
     final roleMap = ref.watch(tradeRoleProvider);
     if (roleMap.containsKey(widget.orderId)) return roleMap[widget.orderId]!;
-    final dbRole =
-        ref.watch(tradeRoleFromDbProvider(widget.orderId)).valueOrNull;
-    return dbRole ?? true; // default to buyer while DB result is loading
+    final dbRole = ref.watch(tradeRoleFromDbProvider(widget.orderId));
+    if (dbRole.hasError) {
+      debugPrint(
+        '[TradeDetailScreen] trade role lookup failed: ${dbRole.error}',
+      );
+    }
+    return dbRole.valueOrNull;
   }
 
   /// [TradeStatus.loading] until the live status resolves, so the screen
@@ -312,6 +326,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   /// keeps the previous value, so a fresh rating never bounces through it.
   TradeStatus _status() {
     final live = ref.watch(tradeStatusProvider(widget.orderId));
+    if (live.hasError && !live.hasValue) {
+      debugPrint('[TradeDetailScreen] trade status failed: ${live.error}');
+    }
     if (!live.hasValue) return TradeStatus.loading;
     final status = tradeStatusFromOrderStatus(live.value!);
     if (status != TradeStatus.pendingRating) return status;
@@ -359,8 +376,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       }
     });
 
-    final isBuyer = _isBuyer();
-    final status = _status();
+    final role = _isBuyer();
+    final status = role == null ? TradeStatus.loading : _status();
+    final isBuyer = role ?? true;
+    // A failed status subscription would otherwise look like a slow one.
+    final loadFailed =
+        status == TradeStatus.loading &&
+        ref.watch(tradeStatusProvider(widget.orderId)).hasError;
     final canRate = !ref.watch(privacyModeProvider);
     final view = TradeView.of(
       status: status,
@@ -420,7 +442,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                         order,
                         room?.displayHandle(l10n),
                       )
-                      : _stepBlock(l10n, view, status, isBuyer, order),
+                      : _stepBlock(
+                        l10n,
+                        view,
+                        status,
+                        isBuyer,
+                        order,
+                        loadFailed: loadFailed,
+                      ),
             ),
           ),
           if (view.showsReputation && peerRating != null) ...[
@@ -494,8 +523,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     TradeView view,
     TradeStatus status,
     bool isBuyer,
-    OrderItem? order,
-  ) {
+    OrderItem? order, {
+    required bool loadFailed,
+  }) {
     final amount =
         order != null ? '${order.displayAmount} ${order.fiatCode}' : null;
     return TradeStepBlock(
@@ -506,7 +536,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       chip: view.chip,
       chipLabel: _chipLabel(l10n, view.chip),
       title: _title(l10n, status, isBuyer, amount),
-      body: _body(l10n, status, isBuyer, order?.paymentMethod),
+      body:
+          loadFailed
+              ? TextSpan(text: l10n.tradeLoadError)
+              : _body(l10n, status, isBuyer, order?.paymentMethod),
       warning: view.showsReleaseWarning ? l10n.tradeReleaseIrreversible : null,
       countdown: view.showsTimer ? _countdown(l10n, view, status) : null,
       statusReadout: status.machineName,
