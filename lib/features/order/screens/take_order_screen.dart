@@ -24,7 +24,6 @@ import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades;
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
-import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -150,7 +149,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
     setState(() => _cta = TakeOrderCta.loading);
     try {
-      await orders_api.takeOrder(
+      await ref.read(takeOrderActionProvider)(
         orderId: widget.orderId,
         role: widget.isBuying ? TradeRole.buyer : TradeRole.seller,
         fiatAmount: _selectedAmount,

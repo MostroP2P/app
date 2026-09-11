@@ -13,6 +13,8 @@ import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/l10n/app_localizations_en.dart';
+import 'package:mostro/src/rust/api/types.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 import '../../../support/fake_orders.dart';
@@ -25,11 +27,18 @@ const _book = OrderBookPalette.dark;
 /// Pumps the take-order screen over a book fed by [books], with the node's
 /// rate and the (absent) trade role stubbed. 1 000 ARS is 1 000 sats at
 /// the stubbed rate, so the estimates are easy to read.
+typedef _Take = Future<TradeInfo> Function({
+  required String orderId,
+  required TradeRole role,
+  double? fiatAmount,
+});
+
 Future<StreamController<List<OrderItem>>> _pump(
   WidgetTester tester, {
   required OrderItem order,
   bool isBuying = true,
   double? rate = 100000000,
+  _Take? take,
 }) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
@@ -43,6 +52,7 @@ Future<StreamController<List<OrderItem>>> _pump(
         yield* books.stream;
       }),
       tradeRoleLookupProvider.overrideWithValue((_) async => null),
+      if (take != null) takeOrderActionProvider.overrideWithValue(take),
       exchangeRateProvider.overrideWith((ref, code) async => rate),
       fiatCurrenciesProvider.overrideWith(
         (ref) async => const [
@@ -222,6 +232,87 @@ void main() {
         expect(find.text('Buyer'), findsOneWidget);
         expect(find.text('You get paid with'), findsOneWidget);
         expect(find.textContaining('you lock the sats'), findsOneWidget);
+      });
+    });
+  });
+
+  group('TakeOrderScreen taking', () {
+    final en = AppLocalizationsEn();
+
+    testWidgets('shows Taking… on a lime tint while the relay answers',
+        (tester) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        final reply = Completer<TradeInfo>();
+        await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) =>
+              reply.future,
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.text('Taking…'), findsOneWidget);
+        expect(find.text('Take order'), findsNothing);
+        expect(_colorOf(tester, 'Taking…'), _dark.ctaLoadingInk);
+        // Left unanswered on purpose: the screen is torn down while loading.
+      });
+    });
+
+    testWidgets('dies in place when the daemon says it was already taken',
+        (tester) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) async =>
+              throw Exception('AnyhowException(OrderAlreadyTaken)'),
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TakeOrderScreen), findsOneWidget);
+        expect(find.text('No longer available'), findsOneWidget);
+        expect(find.text(en.orderAlreadyTaken), findsOneWidget);
+      });
+    });
+
+    testWidgets('explains an unsupported bond and keeps the button',
+        (tester) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) async =>
+              throw Exception('AnyhowException(BondRequired)'),
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pumpAndSettle();
+
+        expect(find.text(en.bondRequired), findsOneWidget);
+        expect(find.text('Take order'), findsOneWidget);
+      });
+    });
+
+    testWidgets('maps a daemon timeout through the shared error table',
+        (tester) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) async =>
+              throw Exception('AnyhowException(NoDaemonResponse)'),
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pumpAndSettle();
+
+        expect(find.text(en.sessionTimeoutMessage), findsOneWidget);
+        expect(find.text('Take order'), findsOneWidget);
       });
     });
   });

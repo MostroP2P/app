@@ -220,7 +220,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 onPressed: _close,
               ).withAutomationId(AutomationIds.orderConfirmHome),
             ),
-            if (!isTerminalOrderStatus(status)) ...[
+            if (canCancelOrder(status)) ...[
               const SizedBox(width: 10),
               Expanded(
                 flex: 10,

@@ -99,9 +99,10 @@ class _MyOrderStatusBlockState extends State<MyOrderStatusBlock>
     }
   }
 
-  /// A countdown runs while the order is alive: waiting, or taken with a
-  /// payment pending. It repaints once a minute above an hour, once a
-  /// second under it, and stops at zero.
+  /// A countdown runs while the order waits for a taker: `expiresAt` is the
+  /// pending order's lifetime, not a trade-stage deadline, so it is shown for
+  /// no other status. It repaints once a minute above an hour, once a second
+  /// under it, and stops at zero.
   void _syncCountdown() {
     _tick?.cancel();
     _tick = null;
@@ -131,12 +132,8 @@ class _MyOrderStatusBlockState extends State<MyOrderStatusBlock>
     });
   }
 
-  static bool _hasCountdown(OrderStatus status) => switch (status) {
-    OrderStatus.pending ||
-    OrderStatus.waitingBuyerInvoice ||
-    OrderStatus.waitingPayment => true,
-    _ => false,
-  };
+  static bool _hasCountdown(OrderStatus status) =>
+      status == OrderStatus.pending;
 
   @override
   Widget build(BuildContext context) {
@@ -305,11 +302,8 @@ String statusLabel(AppLocalizations l10n, OrderStatus status) =>
       _ => l10n.orderStatusInProgress,
     };
 
-/// Whether the order can no longer be cancelled from here.
-bool isTerminalOrderStatus(OrderStatus status) => switch (statusFamily(
-  status,
-)) {
-  OrderStatusFamily.wait => status != OrderStatus.pending,
-  OrderStatusFamily.dead || OrderStatusFamily.cancel => true,
-  OrderStatusFamily.hold => false,
-};
+/// Whether the maker can still cancel from here. Only a pending order: the
+/// daemon rejects `Action::Cancel` once a taker is in (the waiting states
+/// have their own cancellation flow, from the trade), and there is nothing
+/// to cancel once the order is dead.
+bool canCancelOrder(OrderStatus status) => status == OrderStatus.pending;

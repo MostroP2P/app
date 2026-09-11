@@ -203,7 +203,7 @@ void main() {
   });
 
   group('MyOrderScreen after the order moved on', () {
-    testWidgets('reads taken while the payment is pending, keeps Cancel',
+    testWidgets('reads taken while the payment is pending, without Cancel',
         (tester) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(
@@ -217,9 +217,11 @@ void main() {
           _colorOf(tester, 'Taken · waiting for payment'),
           _dark.statusHoldText,
         );
-        expect(find.text('23:12'), findsOneWidget);
+        // The order expiry is not a trade-stage deadline: no countdown.
+        expect(find.text('23:12'), findsNothing);
         expect(find.textContaining('Published'), findsNothing);
-        expect(find.text('Cancel'), findsOneWidget);
+        // The daemon refuses a maker cancel once a taker is in.
+        expect(find.text('Cancel'), findsNothing);
       });
     });
 
