@@ -530,6 +530,10 @@ class _AddCustomNodeDialogState extends ConsumerState<AddCustomNodeDialog> {
       await ref
           .read(mostroNodesProvider.notifier)
           .addCustomNode(input: input, name: name.isEmpty ? null : name);
+      // The user may have barrier-dismissed the dialog during the await;
+      // popping via the captured navigator would then close the route
+      // underneath it (the selector sheet, or Settings).
+      if (!mounted) return;
       navigator.pop();
       messenger.showSnackBar(SnackBar(content: Text(l10n.nodeAddedSuccess)));
     } catch (e) {

@@ -60,10 +60,14 @@ class _FakeNodesNotifier extends MostroNodesNotifier {
   final bool failSelect;
   final List<String> selected = [];
   final List<String> removed = [];
+  final List<String> added = [];
 
   /// When set, [selectNode] waits on it — lets a test hold a switch in
   /// flight while interacting with the UI.
   Future<void>? selectGate;
+
+  /// Same, for [addCustomNode].
+  Future<void>? addGate;
 
   @override
   Future<List<MostroNodeEntry>> build() async => nodes;
@@ -82,6 +86,13 @@ class _FakeNodesNotifier extends MostroNodesNotifier {
   @override
   Future<void> removeCustomNode(String pubkey) async {
     removed.add(pubkey);
+  }
+
+  @override
+  Future<void> addCustomNode({required String input, String? name}) async {
+    final gate = addGate;
+    if (gate != null) await gate;
+    added.add(input);
   }
 }
 
@@ -220,6 +231,67 @@ void main() {
 
         // The stale continuation must not pop the underlying route.
         expect(find.text('open selector'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'dismissing the add dialog during a slow add never pops the sheet beneath',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 3000);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+        final gate = Completer<void>();
+        final notifier = _FakeNodesNotifier(_fixtureNodes)
+          ..addGate = gate.future;
+        final container = createContainer(
+          overrides: [mostroNodesProvider.overrideWith(() => notifier)],
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              theme: buildDarkTheme(),
+              locale: const Locale('en'),
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: Builder(
+                  builder: (context) => TextButton(
+                    onPressed: () => showMostroNodeSelector(context),
+                    child: const Text('open selector'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open selector'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add Custom Node'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(find.byType(TextField).first, _customPubkey);
+        await tester.tap(find.text('Add'));
+        await tester.pump(); // add now pending behind the gate
+
+        // Barrier-dismiss the dialog while the add is still in flight —
+        // neither the barrier nor the back gesture is gated by _submitting.
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        expect(find.byType(AddCustomNodeDialog), findsNothing);
+        expect(find.byType(MostroNodeSelector), findsOneWidget);
+
+        gate.complete();
+        await tester.pumpAndSettle();
+
+        // The stale continuation must not pop the selector sheet beneath.
+        expect(notifier.added, [_customPubkey]);
+        expect(find.byType(MostroNodeSelector), findsOneWidget);
       },
     );
 
