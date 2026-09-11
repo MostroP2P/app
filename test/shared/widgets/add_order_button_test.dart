@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
@@ -130,6 +131,24 @@ void main() {
     expect(find.semantics.byLabel('NAV'), findsNothing);
     expect(find.semantics.byLabel(RegExp('Buy BTC')), findsOne);
     semantics.dispose();
+  });
+
+  testWidgets('keeps keyboard focus inside the open menu', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    final visited = <FocusNode>{};
+    for (var i = 0; i < 6; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final focus = FocusManager.instance.primaryFocus!;
+      expect(focus.enclosingScope?.debugLabel, 'Create-order menu');
+      visited.add(focus);
+    }
+
+    // Twice round the three controls: Buy, Sell and Close, nothing else.
+    expect(visited, hasLength(3));
   });
 
   for (final (label, type) in [('Buy BTC', 'buy'), ('Sell BTC', 'sell')]) {

@@ -57,6 +57,11 @@ class _AddOrderButtonState extends State<AddOrderButton>
   /// Screen size the open menu was placed for.
   Size? _menuScreenSize;
 
+  /// Keyboard focus boundary of the open menu, and what held focus before it
+  /// opened so closing can hand focus back.
+  final _menuFocus = FocusScopeNode(debugLabel: 'Create-order menu');
+  FocusNode? _focusBeforeOpen;
+
   @override
   void initState() {
     super.initState();
@@ -95,7 +100,8 @@ class _AddOrderButtonState extends State<AddOrderButton>
 
   @override
   void dispose() {
-    _discardMenu();
+    _discardMenu(restoreFocus: false);
+    _menuFocus.dispose();
     _scrim.dispose();
     _entrance.dispose();
     _controller.dispose();
@@ -120,14 +126,21 @@ class _AddOrderButtonState extends State<AddOrderButton>
             entrance: _entrance,
             rotation: _controller,
             buttonRect: buttonRect,
+            focusScope: _menuFocus,
             onDismiss: _close,
             onCreate: _create,
           ),
     );
     overlay.insert(menu);
     _menuScreenSize = MediaQuery.sizeOf(context);
+    _focusBeforeOpen = FocusManager.instance.primaryFocus;
     setState(() => _menu = menu);
     _controller.forward();
+    // Autofocus would not take: the route's scope already holds focus. Move it
+    // into the menu once its scope is in the tree.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_isOpen) _menuFocus.requestFocus();
+    });
   }
 
   Future<void> _close() async {
@@ -142,11 +155,18 @@ class _AddOrderButtonState extends State<AddOrderButton>
     context.push('${AppRoute.addOrder}?type=$type');
   }
 
-  void _discardMenu() {
-    _menu
-      ?..remove()
+  void _discardMenu({bool restoreFocus = true}) {
+    if (_menu == null) return;
+    _menu!
+      ..remove()
       ..dispose();
     _menu = null;
+
+    final previous = _focusBeforeOpen;
+    _focusBeforeOpen = null;
+    if (restoreFocus && previous != null && previous.context != null) {
+      previous.requestFocus();
+    }
   }
 
   @override
@@ -177,6 +197,7 @@ class _OpenMenu extends StatelessWidget {
     required this.entrance,
     required this.rotation,
     required this.buttonRect,
+    required this.focusScope,
     required this.onDismiss,
     required this.onCreate,
   });
@@ -186,6 +207,7 @@ class _OpenMenu extends StatelessWidget {
   final Animation<double> entrance;
   final Animation<double> rotation;
   final Rect buttonRect;
+  final FocusScopeNode focusScope;
   final VoidCallback onDismiss;
   final ValueChanged<String> onCreate;
 
@@ -197,7 +219,7 @@ class _OpenMenu extends StatelessWidget {
     // whole route — page and bottom bar — from the semantics tree, and the
     // route-like scope makes a screen reader treat the open menu as the
     // current screen.
-    return BlockSemantics(
+    final menu = BlockSemantics(
       child: Semantics(
         container: true,
         explicitChildNodes: true,
@@ -280,6 +302,11 @@ class _OpenMenu extends StatelessWidget {
         ),
       ),
     );
+
+    // A route-like focus boundary too: keyboard traversal cycles through Buy,
+    // Sell and Close instead of reaching controls hidden behind the scrim.
+    // No semantics of its own, so the blocking above is left untouched.
+    return FocusScope(node: focusScope, includeSemantics: false, child: menu);
   }
 }
 
