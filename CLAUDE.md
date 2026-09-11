@@ -135,6 +135,10 @@ bridged by flutter_rust_bridge.
 - **All user-facing strings are Dart-level** (Flutter l10n): `lib/l10n/app_{en,es,fr,de,it}.arb`,
   config `l10n.yaml`, generated `AppLocalizations` via `flutter gen-l10n`, used with
   `AppLocalizations.of(context)`.
+- **One exception, deliberate:** `lib/core/startup_failure.dart` hard-codes its
+  English. It is the surface shown when startup fails before `runApp`, and
+  localization is one of the things that can be what failed — a rescue screen
+  that needs what broke is a second blank page (#389). Do not "fix" it into l10n.
 - **Rust does not translate.** Rust returns data or a stable marker/code (e.g. `NoDaemonResponse`);
   Dart maps it to a localized string. Don't hardcode user-facing prose in Rust.
   (Known debt: some `CantDo` errors still return English prose directly — should become markers.)
