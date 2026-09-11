@@ -3970,7 +3970,6 @@ async fn replace_subscription(
 async fn subscribe_node_filters(
     client: &nostr_sdk::prelude::Client,
     mostro_pubkey: nostr_sdk::prelude::PublicKey,
-    trade_pubkeys: Vec<nostr_sdk::prelude::PublicKey>,
 ) -> Result<()> {
     // Two filters, not one unbounded one: relays cap how many stored events
     // they replay per REQ (relay.mostro.network: 300, oldest-first when no
@@ -4013,21 +4012,45 @@ async fn subscribe_node_filters(
     // after any downtime it must replay the full stored history so status
     // changes and late reconciliations are never lost. Only the ephemeral
     // per-trade subscription (subscribe_daemon_messages) carries a cutoff.
-    if !trade_pubkeys.is_empty() {
-        let p_count = trade_pubkeys.len();
-        let dm_filter = nostr_sdk::prelude::Filter::new()
-            .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
-            .author(mostro_pubkey)
-            .pubkeys(trade_pubkeys);
-        replace_subscription(client, mostro_dm_subscription_id(), dm_filter).await?;
-        crate::api::logging::blog_info(
-            "relay",
-            format!(
-                "sub created id={} kinds=[14] p_count={p_count}",
-                mostro_dm_subscription_id(),
-            ),
-        );
+    replace_global_dm_filter(client, mostro_pubkey).await
+}
+
+/// Re-issue the bulk Kind-14 subscription from the full coverage map
+/// ([`global_dm_keys`]); a no-op while the map is empty.
+///
+/// Serialized: a node switch and a key joining mid-session both land here,
+/// and two interleaved CLOSE/REQ pairs either leave the filter built from an
+/// older key set or make one REQ fail with "subscription ID already exists".
+/// Reading the map under the lock means whichever replacement runs last
+/// carries every covered key.
+async fn replace_global_dm_filter(
+    client: &nostr_sdk::prelude::Client,
+    mostro_pubkey: nostr_sdk::prelude::PublicKey,
+) -> Result<()> {
+    static DM_FILTER_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _guard = DM_FILTER_LOCK.lock().await;
+    let trade_pubkeys: Vec<nostr_sdk::prelude::PublicKey> = global_dm_keys()
+        .read()
+        .await
+        .keys()
+        .filter_map(|hex| nostr_sdk::prelude::PublicKey::from_hex(hex).ok())
+        .collect();
+    if trade_pubkeys.is_empty() {
+        return Ok(());
     }
+    let p_count = trade_pubkeys.len();
+    let dm_filter = nostr_sdk::prelude::Filter::new()
+        .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
+        .author(mostro_pubkey)
+        .pubkeys(trade_pubkeys);
+    replace_subscription(client, mostro_dm_subscription_id(), dm_filter).await?;
+    crate::api::logging::blog_info(
+        "relay",
+        format!(
+            "sub replaced id={} kinds=[14] p_count={p_count}",
+            mostro_dm_subscription_id(),
+        ),
+    );
     Ok(())
 }
 
@@ -4067,9 +4090,9 @@ pub(crate) async fn refresh_subscriptions_for_active_node() {
         }
     };
 
-    let trade_pubkeys = seed_global_dm_coverage().await;
+    seed_global_dm_coverage().await;
 
-    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey, trade_pubkeys).await {
+    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey).await {
         log::error!("[orders] node switch: re-subscribe failed: {e}");
         return;
     }
@@ -4142,32 +4165,8 @@ async fn resubscribe_global_dm_filter() {
     let Ok(mostro_pubkey) = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey()) else {
         return;
     };
-    let trade_pubkeys: Vec<nostr_sdk::prelude::PublicKey> = global_dm_keys()
-        .read()
-        .await
-        .keys()
-        .filter_map(|hex| nostr_sdk::prelude::PublicKey::from_hex(hex).ok())
-        .collect();
-    if trade_pubkeys.is_empty() {
-        return;
-    }
-    let p_count = trade_pubkeys.len();
-    let dm_filter = nostr_sdk::prelude::Filter::new()
-        .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
-        .author(mostro_pubkey)
-        .pubkeys(trade_pubkeys);
-    if let Err(e) =
-        replace_subscription(&pool.client(), mostro_dm_subscription_id(), dm_filter).await
-    {
+    if let Err(e) = replace_global_dm_filter(&pool.client(), mostro_pubkey).await {
         log::warn!("[orders] bulk DM filter refresh failed: {e}");
-    } else {
-        crate::api::logging::blog_info(
-            "relay",
-            format!(
-                "sub replaced id={} kinds=[14] p_count={p_count}",
-                mostro_dm_subscription_id(),
-            ),
-        );
     }
 }
 
@@ -4543,7 +4542,7 @@ async fn _run_order_subscription() {
     // status changes) and the bulk Kind-14 Mostro-reply feed, both author-pinned
     // to the active node via stable subscription IDs (so a later node switch can
     // replace them in place). Display-level filtering is handled in Dart.
-    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey, trade_pubkeys).await {
+    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey).await {
         log::error!("[orders] subscribe failed: {e}");
         return;
     }
@@ -5372,14 +5371,18 @@ mod tests {
             .try_connect_relay(url, std::time::Duration::from_secs(3))
             .await
             .expect("connect");
-        let trade = Keys::generate().public_key();
+        let trade = Keys::generate();
+        global_dm_keys()
+            .write()
+            .await
+            .insert(trade.public_key().to_hex(), (trade, 93));
         let previous = Keys::generate().public_key();
         let next = Keys::generate().public_key();
 
-        subscribe_node_filters(&client, previous, vec![trade])
+        subscribe_node_filters(&client, previous)
             .await
             .expect("first subscribe");
-        subscribe_node_filters(&client, next, vec![trade])
+        subscribe_node_filters(&client, next)
             .await
             .expect("node switch");
 
@@ -5416,12 +5419,84 @@ mod tests {
             .await
             .expect("add relay");
 
-        let result = subscribe_node_filters(&client, Keys::generate().public_key(), vec![]).await;
+        let result = subscribe_node_filters(&client, Keys::generate().public_key()).await;
 
         assert!(
             result.is_err(),
             "a subscription no relay accepted must not pass for a live one"
         );
+    }
+
+    /// PR #423 review: a node switch and a mid-session key joining the
+    /// coverage both replace `mostro-dm`. Interleaved, the CLOSE/REQ pairs
+    /// either leave the filter built from the stale key set or make one REQ
+    /// hit "subscription ID already exists". The last replace must win with
+    /// every covered key, and neither caller may fail.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_dm_filter_replacements_keep_every_covered_key() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::{Client, Keys};
+
+        const RACERS: usize = 16;
+
+        let relay = MockRelay::run().await.expect("mock relay");
+        let url = relay.url().await;
+        let client = Client::new();
+        client.add_relay(&url).await.expect("add relay");
+        client
+            .try_connect_relay(url, std::time::Duration::from_secs(3))
+            .await
+            .expect("connect");
+        let node = Keys::generate().public_key();
+        let snapshot = Keys::generate();
+        global_dm_keys()
+            .write()
+            .await
+            .insert(snapshot.public_key().to_hex(), (snapshot.clone(), 94));
+
+        // Against an in-process relay one replacement never yields, so the
+        // race only shows with real parallelism: the barrier releases every
+        // racer at once, each adding its own key and replacing `mostro-dm`.
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(RACERS));
+        let joined: Vec<Keys> = (0..RACERS).map(|_| Keys::generate()).collect();
+        let racers: Vec<_> = joined
+            .iter()
+            .cloned()
+            .map(|keys| {
+                let (client, barrier) = (client.clone(), barrier.clone());
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    global_dm_keys()
+                        .write()
+                        .await
+                        .insert(keys.public_key().to_hex(), (keys, 95));
+                    replace_global_dm_filter(&client, node).await
+                })
+            })
+            .collect();
+        for racer in racers {
+            racer
+                .await
+                .expect("racer panicked")
+                .expect("a concurrent replacement failed");
+        }
+        let per_relay = client.subscription(&mostro_dm_subscription_id()).await;
+        let pubkeys = per_relay
+            .values()
+            .flatten()
+            .filter_map(|f| {
+                f.generic_tags
+                    .get(&nostr_sdk::prelude::SingleLetterTag::LOWERCASE_P)
+                    .cloned()
+            })
+            .flatten()
+            .collect::<std::collections::BTreeSet<_>>();
+        for key in std::iter::once(&snapshot).chain(&joined) {
+            assert!(
+                pubkeys.contains(&key.public_key().to_hex()),
+                "mostro-dm lost a covered key"
+            );
+        }
     }
 
     /// The truncation that keeps the daemon id under the cap must not merge
