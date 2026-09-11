@@ -1595,12 +1595,14 @@ pub(crate) async fn subscribe_daemon_messages(
 ) {
     // ── Synchronous setup: awaited by the caller ──
     // Single-owner claim before anything else (#325): if a watcher already
-    // owns this trade key, this call is a lease refresh — the live
-    // subscription and its pending record stay untouched, and the owner
-    // outlives this caller's interest. Claiming first means every early
-    // return below must release.
+    // owns this trade key with a live REQ, this call is a lease refresh —
+    // the subscription and its pending record stay untouched, and the owner
+    // outlives this caller's interest. If the owner is still mid-setup, the
+    // claim parks until the REQ is live (or takes over if that setup fails),
+    // so a bounce always means real coverage. Claiming first means every
+    // early return below must release, and the success path must mark_live.
     let trade_pubkey_hex = trade_pubkey.to_hex();
-    if !crate::nostr::subscriptions::try_claim(&trade_pubkey_hex).await {
+    if !crate::nostr::subscriptions::claim(&trade_pubkey_hex, trade_index).await {
         crate::api::logging::blog_info(
             "orders",
             format!(
@@ -1669,6 +1671,13 @@ pub(crate) async fn subscribe_daemon_messages(
         crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
         return;
     }
+
+    // The REQ is active: advance the claim to Live so claims parked on this
+    // key stop waiting and bounce against real coverage (#325). The `rx`
+    // above was obtained before subscribing, so events arriving before the
+    // watcher task spawns below sit buffered in the channel — nothing leaks
+    // in the gap.
+    crate::nostr::subscriptions::mark_live(&trade_pubkey_hex).await;
 
     crate::api::logging::blog_info(
         "orders",
@@ -5567,13 +5576,23 @@ mod tests {
     /// returns before the pending record, the live subscription, or even the
     /// relay pool are touched — the restore apply (#218) can call it twice
     /// without stranding the first watcher's waiting caller.
+    ///
+    /// The pending-record assert alone cannot distinguish a bounce from an
+    /// ordinary setup failure (no identity/pool in tests; neither early
+    /// return purges), so the test also asserts ownership was retained: a
+    /// post-call claim must still bounce. Had the call taken the non-bounce
+    /// path, its early return would have released the key and that claim
+    /// would win (review round 1).
     #[tokio::test]
     async fn rearming_a_covered_trade_key_leaves_its_pending_request_alone() {
         let keys = nostr_sdk::prelude::Keys::generate();
         let trade_pubkey = keys.public_key();
         let hex = trade_pubkey.to_hex();
 
-        assert!(crate::nostr::subscriptions::try_claim(&hex).await);
+        assert!(crate::nostr::subscriptions::claim(&hex, 9).await);
+        // Live, not Setup: against a mid-setup owner the re-arm below would
+        // (correctly) park instead of bouncing, and this test would hang.
+        crate::nostr::subscriptions::mark_live(&hex).await;
         pending_requests().lock().unwrap().insert(
             hex.clone(),
             PendingRequest {
@@ -5589,6 +5608,10 @@ mod tests {
         assert!(
             pending_requests().lock().unwrap().contains_key(&hex),
             "a bounced re-arm must not purge the live watcher's pending request"
+        );
+        assert!(
+            !crate::nostr::subscriptions::claim(&hex, 9).await,
+            "the original owner must still hold the key after a bounced re-arm"
         );
 
         pending_requests().lock().unwrap().remove(&hex);
