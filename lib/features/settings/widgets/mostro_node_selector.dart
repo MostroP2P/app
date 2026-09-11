@@ -1,67 +1,46 @@
+import 'dart:async';
+
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
-import 'package:mostro/core/mostro_defaults.dart';
+import 'package:mostro/core/node_selector_palette.dart';
+import 'package:mostro/core/order_book_palette.dart';
+import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
+import 'package:mostro/features/settings/models/node_display.dart';
+import 'package:mostro/features/settings/models/node_selector_rules.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
+import 'package:mostro/features/settings/providers/node_stats_provider.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/features/settings/widgets/add_custom_node_dialog.dart';
+import 'package:mostro/features/settings/widgets/node_card.dart';
+import 'package:mostro/features/settings/widgets/node_switch_confirm_sheet.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/widgets/nym_avatar.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
+export 'package:mostro/features/settings/models/node_display.dart'
+    show localizedNodeError, nodeDisplayName, regionFlag;
 export 'package:mostro/features/settings/providers/mostro_nodes_provider.dart'
     show mostroPubkeyProvider, truncatePubkey;
+export 'package:mostro/features/settings/widgets/add_custom_node_dialog.dart'
+    show AddCustomNodeDialog, showAddCustomNodeDialog;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/// Leading emoji token of a region label like `🇨🇺 Cuba`, or `null` when the
-/// label carries none.
-String? regionFlag(String? region) {
-  if (region == null || region.isEmpty) return null;
-  final first = region.split(' ').first;
-  final isEmoji =
-      first.runes.isNotEmpty && first.runes.every((r) => r >= 0x1F000);
-  return isEmoji ? first : null;
-}
-
-/// Display title for a node entry: kind 0 / user-given name, then the region
-/// place name, then the truncated pubkey — with the region flag appended when
-/// the name doesn't already carry it.
-String nodeDisplayName(MostroNodeEntry entry) {
-  final flag = regionFlag(entry.region);
-  var name = entry.name ?? '';
-  if (name.isEmpty && entry.region != null) {
-    name = entry.region!.split(' ').skip(1).join(' ');
-  }
-  if (name.isEmpty && entry.pubkey == defaultMostroPubkey) {
-    name = 'Mostro';
-  }
-  if (name.isEmpty) name = truncatePubkey(entry.pubkey);
-  if (flag != null && !name.contains(flag)) return '$name $flag';
-  return name;
-}
-
-/// Map a Rust marker error to a localized message. Markers are stable codes —
-/// see `rust/src/api/nodes.rs`; prose never crosses the bridge.
-String localizedNodeError(AppLocalizations l10n, Object error) {
-  final msg = error.toString();
-  if (msg.contains('PrivateKeyNotAllowed')) return l10n.privateKeyNotAllowed;
-  if (msg.contains('NodeAlreadyExists')) return l10n.nodeAlreadyExists;
-  if (msg.contains('InvalidPubkey')) return l10n.invalidPubkeyFormat;
-  if (msg.contains('CannotRemoveActiveNode')) {
-    return l10n.cannotRemoveActiveNode;
-  }
-  if (msg.contains('NotInitialized')) return l10n.nodeStorageUnavailable;
-  // `NodeIsTrusted` is deliberately unmapped: the UI only offers delete on
-  // custom tiles, so it cannot surface from here.
-  return l10n.errorSwitchingNode;
-}
-
-// ── Widget ────────────────────────────────────────────────────────────────────
-
-/// Bottom sheet listing trusted Mostro communities and user-added nodes; a tap
-/// selects the node. Show via [showMostroNodeSelector].
+/// `Elegir nodo` (handoff 9a): the Settings → node sheet.
+///
+/// One flat list — no `Trusted` / `Custom` sections, the chip on the card
+/// says it — ordered by open orders in the user's currency, unreachable
+/// nodes last. Each card answers "does it serve me?" (currencies, orders,
+/// fee, range) before "do I trust it?" (custody, bond). Tapping a card
+/// selects it and the sheet closes on its own; there is no confirm button.
+///
+/// Figures come from [nodeStatsProvider], fetched while the sheet is open;
+/// until they land the metric strips show skeletons, never a spinner over a
+/// card.
 class MostroNodeSelector extends ConsumerStatefulWidget {
   const MostroNodeSelector({super.key});
 
@@ -70,26 +49,65 @@ class MostroNodeSelector extends ConsumerStatefulWidget {
 }
 
 class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
-  /// Pubkey of the node currently being switched to, or `null` when idle.
-  String? _switchingPubkey;
+  /// Pubkey of the card just tapped: its radio fills while the sheet closes.
+  String? _selectingPubkey;
+
+  /// How long the filled radio is shown before the sheet closes itself.
+  static const _closeDelay = Duration(milliseconds: 200);
 
   @override
   void initState() {
     super.initState();
-    // Opportunistic refresh so names/avatars are current each time the
-    // selector opens; the cached registry shows meanwhile.
+    // Opportunistic kind 0 refresh (names, avatars) each time the selector
+    // opens; the cached registry shows meanwhile.
     Future.microtask(
       () => ref.read(mostroNodesProvider.notifier).refreshMetadata(),
     );
   }
 
+  /// A trade that has neither finished nor been resolved keeps living on the
+  /// node it started on; switching then deserves a word first.
+  Future<bool> _hasTradeInProgress() async {
+    try {
+      final trades = await ref.read(rawTradesProvider.future);
+      return trades.any((t) => t.completedAt == null && t.outcome == null);
+    } catch (e) {
+      debugPrint('[MostroNodeSelector] trades lookup failed: $e');
+      return false;
+    }
+  }
+
+  String _activeNodeName() {
+    final nodes = ref.read(mostroNodesProvider).valueOrNull ?? const [];
+    for (final n in nodes) {
+      if (n.isActive) return nodeDisplayName(n);
+    }
+    return truncatePubkey(ref.read(mostroPubkeyProvider));
+  }
+
   Future<void> _onNodeTap(MostroNodeEntry entry) async {
-    setState(() => _switchingPubkey = entry.pubkey);
+    if (entry.isActive || _selectingPubkey != null) return;
+    HapticFeedback.selectionClick();
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+
+    if (await _hasTradeInProgress()) {
+      if (!mounted) return;
+      final ok = await showNodeSwitchConfirmSheet(
+        context,
+        currentNode: _activeNodeName(),
+        newNode: nodeDisplayName(entry),
+      );
+      if (!ok || !mounted) return;
+    }
+
+    setState(() => _selectingPubkey = entry.pubkey);
     try {
-      await ref.read(mostroNodesProvider.notifier).selectNode(entry.pubkey);
+      await Future.wait([
+        ref.read(mostroNodesProvider.notifier).selectNode(entry.pubkey),
+        Future<void>.delayed(_closeDelay),
+      ]);
       // The user may have dismissed the sheet during the switch; popping via
       // the captured navigator would then close the route underneath it.
       if (mounted) navigator.pop();
@@ -100,12 +118,21 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
       );
     } catch (e) {
       debugPrint('[MostroNodeSelector] selectNode failed: $e');
-      if (mounted) setState(() => _switchingPubkey = null);
+      if (mounted) setState(() => _selectingPubkey = null);
       messenger.showSnackBar(SnackBar(content: Text(l10n.errorSwitchingNode)));
     }
   }
 
+  void _onBlocked(NodeBlocker blocker) {
+    final l10n = AppLocalizations.of(context);
+    _snack(switch (blocker) {
+      NodeBlocker.bondUnsupported => l10n.nodeNotSelectableBond,
+      NodeBlocker.unreachable => l10n.nodeNotSelectableOffline,
+    });
+  }
+
   Future<void> _onDeleteNode(MostroNodeEntry entry) async {
+    if (entry.isTrusted || entry.isActive) return;
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
@@ -119,14 +146,14 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                 onPressed: () => Navigator.of(ctx).pop(false),
                 child: Text(l10n.cancel),
               ),
-              TextButton(
+              FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
                 child: Text(l10n.deleteCustomNodeConfirm),
               ),
             ],
           ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     try {
       await ref
           .read(mostroNodesProvider.notifier)
@@ -134,485 +161,339 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
       messenger.showSnackBar(SnackBar(content: Text(l10n.nodeRemovedSuccess)));
     } catch (e) {
       debugPrint('[MostroNodeSelector] removeCustomNode failed: $e');
-      if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(
-          content: Text(localizedNodeError(AppLocalizations.of(context), e)),
-        ),
+        SnackBar(content: Text(localizedNodeError(l10n, e))),
       );
     }
   }
 
+  /// The sheet's snackbar: card surface, radius 12, two seconds.
+  void _snack(String text) {
+    final book = OrderBookPalette.of(context);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text, style: TextStyle(color: book.textStrong)),
+          backgroundColor: book.surface,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).extension<AppColors>()!;
     final nodesAsync = ref.watch(mostroNodesProvider);
-    final nodes = nodesAsync.valueOrNull ?? const <MostroNodeEntry>[];
-    final trusted = nodes.where((n) => n.isTrusted).toList();
-    final custom = nodes.where((n) => !n.isTrusted).toList();
+    final statsAsync = ref.watch(nodeStatsProvider);
+    final myFiat = ref.watch(
+      settingsProvider.select((s) => s.defaultFiatCode?.toUpperCase()),
+    );
+    final flags = ref.watch(currencyFlagsProvider);
+    final btcPrice =
+        myFiat == null
+            ? null
+            : ref.watch(exchangeRateProvider(myFiat)).valueOrNull;
+    final now = clock.now();
+
+    final stats = statsAsync.valueOrNull ?? const {};
+    final nodes = sortNodes(
+      nodesAsync.valueOrNull ?? const [],
+      stats,
+      myFiat,
+      now,
+    );
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.92;
 
     return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      decoration: BoxDecoration(
+        color: book.bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+        border: Border(
+          top: BorderSide(color: book.textPrimary.withValues(alpha: 0.08)),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: AppSpacing.sm),
-          // Handle bar
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: colors.textSubtle.withAlpha(120),
-              borderRadius: BorderRadius.circular(2),
+          Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 4),
+            child: Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: book.textPrimary.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
             ),
+          ),
+          _Header(myFiat: myFiat),
+          Flexible(
+            child:
+                nodesAsync.isLoading && nodes.isEmpty
+                    ? const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                    : ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      itemCount: nodes.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, i) {
+                        final entry = nodes[i];
+                        return NodeCard(
+                          key: ValueKey(entry.pubkey),
+                          entry: entry,
+                          stats: stats[entry.pubkey],
+                          statsLoading: statsAsync.isLoading,
+                          myFiat: myFiat,
+                          flags: flags,
+                          btcPrice: btcPrice,
+                          selected:
+                              entry.isActive ||
+                              entry.pubkey == _selectingPubkey,
+                          now: now,
+                          onSelect: () => _onNodeTap(entry),
+                          onBlocked: _onBlocked,
+                          onCopyPubkey: () => _snack(l10n.nodePubkeyCopied),
+                          onLongPress:
+                              entry.isTrusted || entry.isActive
+                                  ? null
+                                  : () => _onDeleteNode(entry),
+                        );
+                      },
+                    ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.sm,
-              AppSpacing.sm,
+            padding: EdgeInsets.fromLTRB(
+              18,
+              14,
+              18,
+              18 + MediaQuery.viewPaddingOf(context).bottom,
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text(
-                    l10n.selectMostroNode,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  tooltip: l10n.closeButtonLabel,
-                  onPressed: () => Navigator.of(context).pop(),
-                ).withAutomationId(AutomationIds.nodeCustomCancel),
-              ],
-            ),
-          ),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                0,
-                AppSpacing.lg,
-                AppSpacing.lg + MediaQuery.viewPaddingOf(context).bottom,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (nodesAsync.isLoading && nodes.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(AppSpacing.lg),
-                        child: CircularProgressIndicator(),
-                      ),
-                    ),
-                  if (trusted.isNotEmpty) ...[
-                    _sectionHeader(context, l10n.trustedNodesSection),
-                    const SizedBox(height: AppSpacing.sm),
-                    ...trusted.map(
-                      (n) => _NodeTile(
-                        entry: n,
-                        isSwitching: _switchingPubkey != null,
-                        isSwitchingThis: _switchingPubkey == n.pubkey,
-                        onTap: () => _onNodeTap(n),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                  ],
-                  _sectionHeader(context, l10n.customNodesSection),
-                  const SizedBox(height: AppSpacing.sm),
-                  if (custom.isEmpty)
+                _AddOwnNodeButton(
+                  enabled: _selectingPubkey == null,
+                  onTap: () => showAddCustomNodeDialog(context),
+                ).withAutomationId(AutomationIds.nodeAddCustom),
+                const SizedBox(height: 11),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.sm,
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 13,
+                        color: book.textFaint,
                       ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
                       child: Text(
-                        l10n.noCustomNodesYet,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colors.textSubtle,
+                        l10n.nodeDisclaimerShort,
+                        style: TextStyle(
+                          fontSize: 10,
+                          height: 1.5,
+                          color: book.textFaint,
                         ),
                       ),
-                    )
-                  else
-                    ...custom.map(
-                      (n) => _NodeTile(
-                        entry: n,
-                        isSwitching: _switchingPubkey != null,
-                        isSwitchingThis: _switchingPubkey == n.pubkey,
-                        onTap: () => _onNodeTap(n),
-                        onDelete: () => _onDeleteNode(n),
-                      ),
                     ),
-                  const SizedBox(height: AppSpacing.md),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      onPressed:
-                          _switchingPubkey != null
-                              ? null
-                              : () => showAddCustomNodeDialog(context, ref),
-                      icon: const Icon(Icons.add),
-                      label: Text(l10n.addCustomNode),
-                    ).withAutomationId(AutomationIds.nodeAddCustom),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  // Node-operator disclaimer — mirrors v1's community warning.
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withAlpha(26),
-                      borderRadius: BorderRadius.circular(AppRadius.card),
-                      border: Border.all(color: Colors.amber.withAlpha(100)),
-                    ),
-                    child: Text(
-                      l10n.communityDisclaimerBody,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.amber),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionHeader(BuildContext context, String title) {
-    final colors = Theme.of(context).extension<AppColors>()!;
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: colors.textSubtle,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-}
-
-// ── Node tile ─────────────────────────────────────────────────────────────────
-
-class _NodeTile extends StatelessWidget {
-  const _NodeTile({
-    required this.entry,
-    required this.isSwitching,
-    required this.isSwitchingThis,
-    required this.onTap,
-    this.onDelete,
-  });
-
-  final MostroNodeEntry entry;
-
-  /// A switch (to any node) is in flight — all tiles are inert meanwhile.
-  final bool isSwitching;
-
-  /// This tile is the switch target — shows the spinner.
-  final bool isSwitchingThis;
-  final VoidCallback onTap;
-  final VoidCallback? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).extension<AppColors>()!;
-    final about = entry.about;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: (isSwitching || entry.isActive) ? null : onTap,
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color:
-                  entry.isActive
-                      ? colors.mostroGreen.withAlpha(26)
-                      : colors.backgroundCard,
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              border: Border.all(
-                color:
-                    entry.isActive
-                        ? colors.mostroGreen.withAlpha(100)
-                        : colors.textSubtle.withAlpha(40),
-              ),
-            ),
-            child: Row(
-              children: [
-                _NodeAvatar(entry: entry),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              nodeDisplayName(entry),
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(fontWeight: FontWeight.w500),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (entry.isTrusted) ...[
-                            const SizedBox(width: AppSpacing.sm),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colors.mostroGreen.withAlpha(30),
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.chip,
-                                ),
-                              ),
-                              child: Text(
-                                l10n.trustedBadgeLabel,
-                                style: TextStyle(
-                                  color: colors.mostroGreen,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        truncatePubkey(entry.pubkey),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.textSubtle,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                      if (about != null && about.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          about,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: colors.textSubtle),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
+                  ],
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                if (isSwitchingThis)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (entry.isActive)
-                  Icon(Icons.check_circle, color: colors.mostroGreen, size: 22)
-                else if (onDelete != null)
-                  IconButton(
-                    onPressed: isSwitching ? null : onDelete,
-                    tooltip: l10n.deleteCustomNodeTitle,
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: colors.textSubtle,
-                      size: 20,
-                    ),
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(AppSpacing.xs),
-                  ).withAutomationId(
-                    AutomationIds.nodeItemDelete(entry.pubkey),
-                  ),
               ],
             ),
           ),
-        ).withAutomationId(AutomationIds.nodeItem(entry.pubkey), merge: false),
-      ),
-    );
-  }
-}
-
-// ── Avatar ────────────────────────────────────────────────────────────────────
-
-/// Node avatar: the kind 0 picture when one is advertised (https-only,
-/// enforced in Rust), falling back to a deterministic [NymAvatar] derived
-/// from the pubkey.
-class _NodeAvatar extends StatelessWidget {
-  const _NodeAvatar({required this.entry});
-
-  final MostroNodeEntry entry;
-
-  static const double _size = 40;
-
-  @override
-  Widget build(BuildContext context) {
-    final picture = entry.picture;
-    final fallback = _fallback();
-    if (picture == null || picture.isEmpty) return fallback;
-    // Fetching the avatar reveals the device's IP to whatever server the node
-    // operator put in their kind 0 — inherent to the v1-inherited design.
-    // cacheWidth bounds decoding: the URL is operator-controlled, and without
-    // it a huge image would be decoded at full size in memory.
-    return ClipOval(
-      child: Image.network(
-        picture,
-        width: _size,
-        height: _size,
-        fit: BoxFit.cover,
-        cacheWidth:
-            (_size * MediaQuery.devicePixelRatioOf(context)).round(),
-        errorBuilder: (_, __, ___) => fallback,
-      ),
-    );
-  }
-
-  Widget _fallback() {
-    // Derive icon/hue from the pubkey so the placeholder is stable per node.
-    final iconIndex = _hexSlice(0, 8) % 37;
-    final colorHue = _hexSlice(8, 16) % 360;
-    return NymAvatar(iconIndex: iconIndex, colorHue: colorHue, size: _size);
-  }
-
-  int _hexSlice(int start, int end) {
-    if (entry.pubkey.length < end) return 0;
-    return int.tryParse(entry.pubkey.substring(start, end), radix: 16) ?? 0;
-  }
-}
-
-// ── Add-custom-node dialog ────────────────────────────────────────────────────
-
-class AddCustomNodeDialog extends ConsumerStatefulWidget {
-  const AddCustomNodeDialog({super.key});
-
-  @override
-  ConsumerState<AddCustomNodeDialog> createState() =>
-      _AddCustomNodeDialogState();
-}
-
-class _AddCustomNodeDialogState extends ConsumerState<AddCustomNodeDialog> {
-  final _pubkeyController = TextEditingController();
-  final _nameController = TextEditingController();
-  String? _errorText;
-  bool _submitting = false;
-
-  @override
-  void dispose() {
-    _pubkeyController.dispose();
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final input = _pubkeyController.text.trim();
-    final l10n = AppLocalizations.of(context);
-    if (input.isEmpty) {
-      setState(() => _errorText = l10n.invalidPubkeyFormat);
-      return;
-    }
-    setState(() {
-      _submitting = true;
-      _errorText = null;
-    });
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-    try {
-      final name = _nameController.text.trim();
-      await ref
-          .read(mostroNodesProvider.notifier)
-          .addCustomNode(input: input, name: name.isEmpty ? null : name);
-      // The user may have barrier-dismissed the dialog during the await;
-      // popping via the captured navigator would then close the route
-      // underneath it (the selector sheet, or Settings).
-      if (!mounted) return;
-      navigator.pop();
-      messenger.showSnackBar(SnackBar(content: Text(l10n.nodeAddedSuccess)));
-    } catch (e) {
-      debugPrint('[AddCustomNodeDialog] addCustomNode failed: $e');
-      if (!mounted) return;
-      setState(() {
-        _submitting = false;
-        _errorText = localizedNodeError(AppLocalizations.of(context), e);
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text(l10n.addCustomNode),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _pubkeyController,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: l10n.nodePubkeyFieldLabel,
-              hintText: l10n.nodePubkeyFieldHint,
-              errorText: _errorText,
-            ),
-            onChanged: (_) {
-              if (_errorText != null) setState(() => _errorText = null);
-            },
-          ).withAutomationId(AutomationIds.nodeCustomPubkey),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: _nameController,
-            decoration: InputDecoration(labelText: l10n.nodeNameOptionalLabel),
-          ).withAutomationId(AutomationIds.nodeCustomName),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-          child: Text(l10n.cancel),
-        ).withAutomationId(AutomationIds.nodeAddCustomCancel),
-        FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child:
-              _submitting
-                  ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                  : Text(l10n.addButtonLabel),
-        ).withAutomationId(AutomationIds.nodeCustomConfirm),
-      ],
     );
   }
 }
 
-/// Show the [AddCustomNodeDialog].
-void showAddCustomNodeDialog(BuildContext context, WidgetRef ref) {
-  showDialog<void>(
-    context: context,
-    builder: (_) => const AddCustomNodeDialog(),
-  );
+class _Header extends StatelessWidget {
+  const _Header({required this.myFiat});
+
+  final String? myFiat;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+
+    // The currency code is set in lime inside the localized sentence: find it
+    // in the rendered string rather than splitting the template by hand.
+    final subtitleStyle = TextStyle(fontSize: 11, color: book.textTertiary);
+    final Widget subtitle;
+    final code = myFiat;
+    if (code == null) {
+      subtitle = Text(
+        l10n.nodeSelectorSubtitleNoCurrency,
+        style: subtitleStyle,
+      );
+    } else {
+      final text = l10n.nodeSelectorSubtitle(code);
+      final at = text.indexOf(code);
+      subtitle =
+          at < 0
+              ? Text(text, style: subtitleStyle)
+              : Text.rich(
+                TextSpan(
+                  style: subtitleStyle,
+                  children: [
+                    TextSpan(text: text.substring(0, at)),
+                    TextSpan(
+                      text: code,
+                      style: TextStyle(
+                        color: book.limeIcon,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(text: text.substring(at + code.length)),
+                  ],
+                ),
+              );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.selectMostroNode,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: book.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                subtitle,
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: Icon(Icons.close, size: 20, color: book.textSecondary),
+            tooltip: l10n.closeButtonLabel,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: VisualDensity.compact,
+          ).withAutomationId(AutomationIds.nodeCustomCancel),
+        ],
+      ),
+    );
+  }
 }
 
-// ── Entry point ───────────────────────────────────────────────────────────────
+/// `+ Agregar nodo propio`: full width, dashed border, the same pattern as
+/// the `Agregar` chip of create order.
+class _AddOwnNodeButton extends StatelessWidget {
+  const _AddOwnNodeButton({required this.enabled, required this.onTap});
 
-/// Show the [MostroNodeSelector] as a modal bottom sheet.
-void showMostroNodeSelector(BuildContext context) {
-  showModalBottomSheet<void>(
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = NodeSelectorPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    return CustomPaint(
+      foregroundPainter: _DashedRectPainter(color: pal.dashedBorder),
+      child: Material(
+        color: pal.dashedFill,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add, size: 14, color: book.limeIcon),
+                const SizedBox(width: 6),
+                Text(
+                  l10n.addCustomNode,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: book.textBody,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRectPainter extends CustomPainter {
+  const _DashedRectPainter({required this.color});
+
+  final Color color;
+
+  static const _dash = 4.0;
+  static const _gap = 3.0;
+  static const _radius = 16.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint =
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+    final path =
+        Path()..addRRect(
+          RRect.fromRectAndRadius(
+            (Offset.zero & size).deflate(0.5),
+            const Radius.circular(_radius),
+          ),
+        );
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + _dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + _gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRectPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Open the node selector as a modal sheet over Settings.
+Future<void> showMostroNodeSelector(BuildContext context) {
+  final book = OrderBookPalette.of(context);
+  return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
-    ),
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: book.scrim,
     builder: (_) => const MostroNodeSelector(),
   );
 }

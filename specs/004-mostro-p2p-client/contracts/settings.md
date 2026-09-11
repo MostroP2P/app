@@ -156,6 +156,25 @@ cached, even when some authors never answered; only an outright query failure
 errors, leaving the cache untouched. `picture`/`website` are kept only when
 `https://` — a kind 0 event is attacker-controlled input.
 
+### fetch_mostro_node_stats(pubkeys: Vec<String>) → Vec<MostroNodeStats> (`api/node_stats.rs`)
+Decision data for the selector cards, one row per requested pubkey in request
+order. Two batched relay queries (10s each, run concurrently): the nodes'
+kind 38385 instance events and their `pending` kind 38383 orders. Per node:
+`info_seen_at` (the 38385 `created_at` — a liveness signal, mostrod republishes
+it every `publish_mostro_info_interval`, 300 s by default, and never in Cashu
+mode), `latest_order_at`, `fee_pct` (the wire `fee` fraction × 100),
+`min_order_amount` / `max_order_amount`, `accepted_currencies`
+(`fiat_currencies_accepted` split, trimmed, upper-cased, deduplicated),
+`escrow_mode` marker (`unknown` / `lightning` / `cashu`), `cashu_mint_url`
+(Cashu only), `bond_required` (`bond_enabled`; `None` on a daemon without
+bonds), `bond_pct` (only when required), `orders_by_fiat` and `total_orders`.
+Orders are counted by the app — never declared by the node — keeping only the
+newest version per (`author`, `d`), `pending`, and not past `expiration`.
+Best-effort like `refresh_mostro_node_metadata`: a node that answered nothing
+is an empty row (the UI shows it as unreachable), never a missing one. Nothing
+is persisted and the active-node order book is never touched. **Errors**:
+`InvalidPubkey`, or a failed relay query.
+
 **Persistence**: `custom_mostro_nodes` (JSON array) and
 `mostro_node_metadata` (JSON map, pubkey → metadata) in the generic
 `settings` key-value table.
