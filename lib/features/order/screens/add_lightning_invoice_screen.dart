@@ -195,6 +195,23 @@ class _AddLightningInvoiceScreenState
     }
   }
 
+  /// The daemon's verdict on the last refused submission, as a readout
+  /// (`invoice.error`) that stays until the next submission; nothing when
+  /// there is none.
+  List<Widget> _errorReadout(AppColors? colors) {
+    final error = _lastError;
+    if (error == null) return const [];
+    return [
+      const SizedBox(height: AppSpacing.md),
+      Text(
+        error,
+        style: TextStyle(
+          color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
+        ),
+      ).withAutomationId(AutomationIds.invoiceError, label: error),
+    ];
+  }
+
   static Future<void> _bridgeSubmit(
     String orderId,
     String invoice,
@@ -323,6 +340,9 @@ class _AddLightningInvoiceScreenState
                   ),
                 ),
               ),
+              // A generated invoice the daemon refuses needs the same
+              // persistent reason as a typed one.
+              ..._errorReadout(colors),
             ],
           ),
         ),
@@ -423,19 +443,7 @@ class _AddLightningInvoiceScreenState
                         .copyWith(fontFamily: 'monospace'),
                     onChanged: (_) => setState(() {}),
                   ).withAutomationId(AutomationIds.invoiceText),
-                  if (_lastError case final error?) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      error,
-                      style: TextStyle(
-                        color:
-                            colors?.destructiveRed ?? const Color(0xFFD84D4D),
-                      ),
-                    ).withAutomationId(
-                      AutomationIds.invoiceError,
-                      label: error,
-                    ),
-                  ],
+                  ..._errorReadout(colors),
                 ],
               ),
             ),

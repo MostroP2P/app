@@ -97,4 +97,54 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'a rejected wallet-generated invoice keeps its reason on screen too',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              isWalletConnectedProvider.overrideWithValue(true),
+              tradeAmountProvider.overrideWith(
+                (ref, orderId) => Stream.value(BigInt.from(999)),
+              ),
+              tradeUpdatesProvider.overrideWith(
+                (ref) => const Stream<TradeUpdate>.empty(),
+              ),
+              tradeInfoProvider.overrideWith((ref, orderId) async => null),
+            ],
+            child: MaterialApp(
+              theme: buildDarkTheme(),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: AddLightningInvoiceScreen(
+                orderId: 'order-1',
+                generateInvoice: (_) async => 'lnbc1generated',
+                submitInvoice: (orderId, invoice, sats) async {
+                  throw Exception(
+                    'AnyhowException(Order rejected: invalid Lightning invoice.)',
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        await tester.pump();
+
+        final error = _semantics('invoice.error');
+        expect(error, findsOneWidget);
+        expect(
+          tester.getSemantics(error).getSemanticsData().label,
+          'The node rejected this invoice. Check its amount and expiry and add a new one.',
+        );
+      } finally {
+        semantics.dispose();
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+    },
+  );
 }
