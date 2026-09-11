@@ -1651,10 +1651,12 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
 /// how far the trade got:
 ///
 /// * **Never active** (`pending` / `waiting-*`, see
-///   [`cancellation_wipes_history`]): left untouched. The daemon answers with
-///   `Canceled`, and that arm wipes such a row together with its session —
-///   the same path a waiting timeout takes, and what every reference client
-///   does (none of them writes anything before the daemon replies). Marking
+///   [`cancellation_wipes_history`]), maker or taker: left untouched. The
+///   daemon answers with `Canceled` — plus a Kind 38383 `canceled` when the
+///   order dies with the cancel — and whichever lands first wipes such a row
+///   together with its session ([`wipe_on_public_cancel`]): the same path a
+///   waiting timeout takes, and what every reference client does (none of
+///   them writes anything before the daemon replies). Marking
 ///   the row `Canceled` here first made that arm skip it as "already
 ///   Canceled", so the row and the session outlived the trade, and the row's
 ///   terminal status then refused the daemon's `pending` republish: the
@@ -1715,8 +1717,9 @@ async fn apply_local_cancel(order_id: &str) {
 /// End a trade that never went active: its row, its session and — for a take
 /// — the local status its book entry carried.
 ///
-/// The two paths that settle such a trade share it: the daemon's `Canceled`
-/// and the stale sweep (a `Canceled` this client never received). For a
+/// The paths that settle such a trade share it: the daemon's `Canceled`, the
+/// public `canceled` event ([`wipe_on_public_cancel`]) and the stale sweep
+/// (a `Canceled` this client never received). For a
 /// **take** the order usually lives on — the daemon republishes it as
 /// `pending` — so the entry is handed back to the public book
 /// ([`OrderBook::settle_after_lost_take`]); without that, the ex-taker's entry
@@ -1738,6 +1741,75 @@ async fn wipe_never_active_trade(order_id: &str, was_take: bool) -> Result<()> {
         order_book().settle_after_lost_take(order_id).await;
     }
     Ok(())
+}
+
+/// End a trade of ours that never went active when a public Kind 38383 event
+/// says its order is over, the way the daemon's `Canceled` does. Returns
+/// whether the trade was wiped; the caller then leaves the row alone.
+///
+/// mostrod reports the end of a never-active trade twice, over two
+/// subscriptions this client handles independently: the `canceled` event and
+/// the kind-14 `Canceled` (cancel.rs publishes the event, then enqueues the
+/// message). The `Canceled` arm wipes a row that still reads `pending` /
+/// `waiting-*` but keeps one that already reads `Canceled` as history, so
+/// letting the event write `Canceled` first made a maker's own cancel end in
+/// My Trades or out of it depending on which of the two landed first — and
+/// did the same to a taker whose maker cancelled. Wiping here too makes both
+/// orders end alike. It also covers what only the event reports: an expired
+/// pending order gets no message at all, and mostrod publishes its `Expired`
+/// as `canceled` (nip33.rs `create_status_tags`).
+///
+/// Reads the trade row, never [`local_trade_status`]: that falls back to the
+/// book, where a stranger's `pending` order would pass for a never-active
+/// trade of ours. A trade that went further keeps its row, as in the
+/// `Canceled` arm. A wipe that fails reports `false`, so the caller's usual
+/// status write still lands and the row reads `Canceled` instead of a stale
+/// `pending`.
+async fn wipe_on_public_cancel(order_id: &str, wire: &OrderStatus) -> bool {
+    if !matches!(
+        wire,
+        OrderStatus::Canceled | OrderStatus::Expired | OrderStatus::CanceledByAdmin
+    ) {
+        return false;
+    }
+    let Some(db) = crate::db::app_db::db() else {
+        return false;
+    };
+    let short = crate::api::logging::short_id(order_id);
+    let local = match db.get_trade_by_order_id(order_id).await {
+        Ok(Some(trade)) => trade.order,
+        Ok(None) => return false,
+        Err(e) => {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!("public {wire:?}: trade lookup failed for order={short}: {e}"),
+            );
+            return false;
+        }
+    };
+    if !cancellation_wipes_history(&local.status) {
+        return false;
+    }
+    match wipe_never_active_trade(order_id, !local.is_mine).await {
+        Ok(()) => {
+            crate::api::logging::blog_info(
+                "orders",
+                format!(
+                    "public {wire:?} before active (local {:?}) — removed trade for order={short}",
+                    local.status
+                ),
+            );
+            emit_trade_update(order_id, OrderStatus::Canceled);
+            true
+        }
+        Err(e) => {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!("public {wire:?}: failed to remove trade for order={short}: {e}"),
+            );
+            false
+        }
+    }
 }
 
 // ── Mostro reply (Kind 14, protocol v2) subscription ─────────────────────────
@@ -2443,59 +2515,71 @@ async fn dispatch_mostro_message(
                 // a lost take's entry becomes is decided by the wipe below,
                 // from the latest public view it has seen.
                 if let Some(db) = crate::db::app_db::db() {
+                    // `None` when the lookup failed, `Some(None)` when there
+                    // is no row.
                     let local = match db.get_trade_by_order_id(&oid).await {
-                        Ok(trade) => trade.map(|t| t.order),
+                        Ok(trade) => Some(trade.map(|t| t.order)),
                         Err(e) => {
                             log::warn!("[orders] Canceled: trade lookup failed for {oid}: {e}");
                             None
                         }
                     };
-                    if let Some(local) = local
-                        .as_ref()
-                        .filter(|o| cancellation_wipes_history(&o.status))
-                    {
-                        // The trade never went active (no peer, no chat, no
-                        // exchange — typically a waiting-state timeout):
-                        // wipe it instead of keeping a meaningless
-                        // Canceled history row. Mirrors v1, which deletes
-                        // pending/waiting sessions on cancel.
-                        match wipe_never_active_trade(&oid, !local.is_mine).await {
-                            Ok(()) => crate::api::logging::blog_info(
-                                "orders",
-                                format!(
-                                    "Canceled before active — removed trade for order={oid}"
+                    match local {
+                        Some(Some(local)) if cancellation_wipes_history(&local.status) => {
+                            // The trade never went active (no peer, no chat, no
+                            // exchange — typically a waiting-state timeout):
+                            // wipe it instead of keeping a meaningless
+                            // Canceled history row. Mirrors v1, which deletes
+                            // pending/waiting sessions on cancel.
+                            match wipe_never_active_trade(&oid, !local.is_mine).await {
+                                Ok(()) => crate::api::logging::blog_info(
+                                    "orders",
+                                    format!(
+                                        "Canceled before active — removed trade for order={oid}"
+                                    ),
                                 ),
-                            ),
-                            Err(e) => log::warn!(
-                                "[orders] failed to remove canceled trade for {oid}: {e}"
-                            ),
+                                Err(e) => log::warn!(
+                                    "[orders] failed to remove canceled trade for {oid}: {e}"
+                                ),
+                            }
                         }
-                    } else {
-                        // Sync the Canceled status into the trade DB so My
-                        // Trades reflects the cancellation immediately.
-                        crate::api::logging::blog_info(
+                        // Nothing left to settle — typically the public
+                        // `canceled` got here first and already wiped the
+                        // never-active trade (`wipe_on_public_cancel`).
+                        Some(None) => crate::api::logging::blog_info(
                             "orders",
                             format!(
-                                "status order={} →Canceled src=kind14/Canceled (history kept)",
+                                "Canceled order={}: no trade row left",
                                 crate::api::logging::short_id(&oid),
                             ),
-                        );
-                        if let Err(e) = db
-                            .update_trade_fields(
-                                &oid,
-                                Some(crate::api::types::OrderStatus::Canceled),
-                                None,
-                                None,
-                            )
-                            .await
-                        {
-                            crate::api::logging::blog_warn(
+                        ),
+                        _ => {
+                            // Sync the Canceled status into the trade DB so My
+                            // Trades reflects the cancellation immediately.
+                            crate::api::logging::blog_info(
                                 "orders",
                                 format!(
-                                    "Canceled status not persisted for order={}: {e}",
+                                    "status order={} →Canceled src=kind14/Canceled (history kept)",
                                     crate::api::logging::short_id(&oid),
                                 ),
                             );
+                            if let Err(e) = db
+                                .update_trade_fields(
+                                    &oid,
+                                    Some(crate::api::types::OrderStatus::Canceled),
+                                    None,
+                                    None,
+                                )
+                                .await
+                            {
+                                crate::api::logging::blog_warn(
+                                    "orders",
+                                    format!(
+                                        "Canceled status not persisted for order={}: {e}",
+                                        crate::api::logging::short_id(&oid),
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
@@ -3466,9 +3550,14 @@ async fn apply_peer_reveal(
 /// `wire_status_applies` allows it; otherwise the entry keeps the local trade
 /// status. The wire's view is noted either way, so a take that is wiped later
 /// can hand the order back to the public book
-/// ([`OrderBook::settle_after_lost_take`]).
+/// ([`OrderBook::settle_after_lost_take`]). A `canceled` that ends a trade
+/// before it went active wipes it instead ([`wipe_on_public_cancel`]), and
+/// the wipe has already settled the entry.
 async fn apply_single_order_update(mut order: OrderInfo) {
     order_book().note_wire_order(&order);
+    if wipe_on_public_cancel(&order.id, &order.status).await {
+        return;
+    }
     let local = local_trade_status(&order.id).await;
     let applies = wire_status_applies(local.as_ref(), &order.status);
     // This subscription only exists for orders we created or took, so every
@@ -3557,6 +3646,13 @@ async fn subscribe_single_order(order_id: &str) {
 
             match timeout(remaining, rx.next()).await {
                 Ok(Some(ClientNotification::Event { event, .. })) => {
+                    // The notification stream carries every subscription's
+                    // events, and a d-tag is public: only the daemon may move
+                    // a trade of ours — a `canceled` now wipes a never-active
+                    // one (`wipe_on_public_cancel`).
+                    if event.pubkey != mostro_pubkey {
+                        continue;
+                    }
                     if let Some(order) =
                         crate::nostr::order_events::parse_order_event(&event, None)
                     {
@@ -4041,7 +4137,14 @@ async fn refetch_active_node_orders() {
         "orders",
         format!("refetched {} current orders for active node", events.len()),
     );
-    for event in events.into_iter() {
+    // The relays were asked for the daemon's events only; one that did not
+    // honour the author must not move a trade of ours — a `canceled` wipes a
+    // never-active one (`wipe_on_public_cancel`). The live subscription checks
+    // the same before ingesting.
+    for event in events
+        .into_iter()
+        .filter(|event| event.pubkey == mostro_pubkey)
+    {
         ingest_order_event_with(&event, Publish::WhenBatchEnds).await;
     }
     // One emission for the batch. Publishing per event made a refetch
@@ -4595,7 +4698,13 @@ async fn ingest_order_event_with(event: &nostr_sdk::prelude::Event, publish: Pub
             order_book().refresh_wire_order(&info);
             // Sync trade status in DB for own orders so My Trades
             // reflects status changes even without daemon-message delivery.
-            if info.status != crate::api::types::OrderStatus::Pending {
+            // A `canceled` that ends a trade of ours before it went active —
+            // maker or taker — wipes it instead, and leaves nothing local to
+            // sync or to hold the entry at (`wipe_on_public_cancel`; one more
+            // indexed row lookup, for `canceled` events only).
+            if info.status != crate::api::types::OrderStatus::Pending
+                && !wipe_on_public_cancel(&info.id, &info.status).await
+            {
                 let local = local_trade_status(&info.id).await;
                 let applies = wire_status_applies(local.as_ref(), &info.status);
                 if info.is_mine {
@@ -7266,6 +7375,155 @@ mod tests {
                 .status,
             crate::api::types::OrderStatus::Canceled,
             "an active trade's row is still marked Canceled optimistically"
+        );
+    }
+
+    async fn trade_row_gone(order_id: &str) -> bool {
+        crate::db::app_db::db()
+            .expect("store initialised")
+            .get_trade_by_order_id(order_id)
+            .await
+            .expect("trade lookup")
+            .is_none()
+    }
+
+    /// A maker's own cancel of an order that never went active ends out of
+    /// My Trades whichever of the daemon's two reports this client handles
+    /// first. mostrod publishes the Kind 38383 `canceled` and sends the
+    /// kind-14 `Canceled`, and the two reach separate subscriptions: event
+    /// first used to write `Canceled` into the row, which the message then
+    /// kept as history, while the opposite order wiped it.
+    ///
+    /// The event-first half also stands for an expired pending order, which
+    /// gets the event (mostrod publishes `Expired` as `canceled`) and no
+    /// message at all: the row must be gone before any `Canceled` arrives.
+    #[tokio::test]
+    async fn a_makers_never_active_cancel_is_wiped_whichever_signal_lands_first() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_maker_cancel_race_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        for (status, event_first) in [
+            (OrderStatus::Pending, true),
+            (OrderStatus::Pending, false),
+            (OrderStatus::WaitingPayment, true),
+            (OrderStatus::WaitingPayment, false),
+        ] {
+            let case = format!("{status:?}, event first: {event_first}");
+            let order_uuid = uuid::Uuid::new_v4();
+            let order_id = order_uuid.to_string();
+            let mut mine = wire_order(&order_id, status);
+            mine.is_mine = true;
+            order_book().upsert_order(mine.clone()).await;
+            db.save_trade(&cancel_test_row(mine.clone()))
+                .await
+                .expect("save the trade row");
+            session_manager()
+                .install_session(order_id.clone(), TradeRole::Buyer, 1, mine)
+                .await
+                .expect("install the maker's session");
+
+            apply_local_cancel(&order_id).await;
+            let canceled_event = book_event(&order_id, "canceled");
+            let message_id = format!("test-maker-cancel-{order_id}");
+            if event_first {
+                ingest_order_event_with(&canceled_event, Publish::WhenBatchEnds).await;
+                assert!(
+                    trade_row_gone(&order_id).await,
+                    "{case}: the public canceled alone must wipe the row"
+                );
+                dispatch_daemon_canceled(order_uuid, &message_id).await;
+            } else {
+                dispatch_daemon_canceled(order_uuid, &message_id).await;
+                ingest_order_event_with(&canceled_event, Publish::WhenBatchEnds).await;
+            }
+
+            assert!(
+                trade_row_gone(&order_id).await,
+                "{case}: the cancelled order must not stay in My Trades"
+            );
+            assert!(
+                session_manager().get_session(&order_id).await.is_none(),
+                "{case}: the maker's session must go with the row"
+            );
+        }
+    }
+
+    /// The same race from the taker's side: the maker cancels while the take
+    /// waits, and the taker's d-tag subscription delivers the `canceled` next
+    /// to the kind-14 `Canceled`. Event first used to mark the row `Canceled`
+    /// and keep it; it must wipe it with its session and drop the entry — the
+    /// order is dead, not back in the book.
+    #[tokio::test]
+    async fn a_take_whose_maker_cancelled_is_wiped_by_the_public_canceled() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_take_maker_cancelled_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let taken = wire_order(&order_id, OrderStatus::WaitingBuyerInvoice);
+        order_book().upsert_order(taken.clone()).await;
+        db.save_trade(&cancel_test_row(taken.clone()))
+            .await
+            .expect("save the trade row");
+        session_manager()
+            .install_session(order_id.clone(), TradeRole::Buyer, 1, taken)
+            .await
+            .expect("install the take's session");
+        apply_single_order_update(wire_order(&order_id, OrderStatus::InProgress)).await;
+
+        apply_single_order_update(wire_order(&order_id, OrderStatus::Canceled)).await;
+
+        assert!(
+            trade_row_gone(&order_id).await,
+            "the public canceled must wipe the never-active take"
+        );
+        assert!(
+            session_manager().get_session(&order_id).await.is_none(),
+            "the take's session must go with the row"
+        );
+        assert_eq!(
+            book_status(&order_id).await,
+            None,
+            "a cancelled order must not be handed back to the book"
+        );
+
+        dispatch_daemon_canceled(order_uuid, "test-take-maker-cancelled").await;
+        assert!(
+            trade_row_gone(&order_id).await,
+            "the Canceled that follows must not bring the row back"
+        );
+    }
+
+    /// Only a trade that never went active is wiped by the event. Past
+    /// `waiting-*` the `canceled` bucket also stands for a cooperative or an
+    /// admin cancel, and the row stays as history.
+    #[tokio::test]
+    async fn a_public_canceled_keeps_an_active_trade_as_history() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_public_canceled_active_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        db.save_trade(&cancel_test_row(wire_order(&order_id, OrderStatus::Active)))
+            .await
+            .expect("save the trade row");
+
+        apply_single_order_update(wire_order(&order_id, OrderStatus::Canceled)).await;
+
+        assert_eq!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("trade lookup")
+                .expect("an active trade's row must be kept")
+                .order
+                .status,
+            OrderStatus::Canceled,
+            "the active trade is kept as a Canceled history row"
         );
     }
 

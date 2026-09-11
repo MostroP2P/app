@@ -172,14 +172,16 @@ function does not validate ownership or status.
 **Local side effects**, applied once the message is published:
 - The order leaves the in-memory book.
 - A trade row that never went active (`Pending` / `WaitingBuyerInvoice` /
-  `WaitingPayment`) is **left untouched**: the daemon's `Canceled` wipes it
-  with its session (see *Daemon cancellation semantics*), the path a waiting
-  timeout takes too. Marking it `Canceled` first made that arm skip the row
-  as already canceled, so the row and the session outlived the trade, and the
-  row's terminal status then refused the daemon's `pending` republish — the
-  ex-taker never saw the order in the book again. No reference client writes
-  anything before the daemon replies. A cancel the daemon refuses also leaves
-  a live trade looking live.
+  `WaitingPayment`), maker's or taker's, is **left untouched**: the daemon's
+  `Canceled` — or the Kind 38383 `canceled` it publishes when the order dies
+  with the cancel, whichever lands first — wipes it with its session (see
+  *Daemon cancellation semantics*), the path a waiting timeout takes too.
+  The cancelled trade leaves My Trades, as in v1. Marking it `Canceled`
+  first made that arm skip the row as already canceled, so the row and the
+  session outlived the trade, and the row's terminal status then refused the
+  daemon's `pending` republish — the ex-taker never saw the order in the book
+  again. No reference client writes anything before the daemon replies. A
+  cancel the daemon refuses also leaves a live trade looking live.
 - A row further along is marked `Canceled` straight away.
 
 **Errors**: no trade-key binding for the order (`no persisted trade key for
@@ -540,6 +542,19 @@ Invariants:
   row for this arm rather than marking it `Canceled` first. When the row
   cannot be deleted, nothing else is touched — row, session and book entry
   keep describing the same trade.
+- The **Kind 38383 `canceled`** wipes such a trade the same way, on both
+  ingest paths (`wipe_on_public_cancel`). mostrod reports the end of a
+  never-active trade twice — it publishes the event, then enqueues the
+  `Canceled` (cancel.rs) — and the two reach separate subscriptions, so
+  either may be handled first. Had the event written `Canceled` into the
+  row, the `Canceled` arm would then keep it as history, and a maker's own
+  cancel (or a take whose maker cancelled) would end in My Trades or out of
+  it depending on arrival order. The event is also the only report of an
+  expired pending order: mostrod publishes `Expired` as `canceled` and sends
+  no message. The decision reads the trade row itself, never the book, so a
+  stranger's `pending` order cannot pass for a never-active trade of ours;
+  a trade further along keeps its row, marked `Canceled`. When the event
+  wins, the `Canceled` that follows finds no row and changes nothing.
 - The handler MUST NOT blindly remove the order from the in-memory book: on
   a taker-responsible timeout mostrod republishes the order as `pending`
   BEFORE sending `Canceled`, so a blind remove races the republish and
@@ -604,7 +619,13 @@ ever learned from daemon messages, so:
   NOT overwrite a status already learned from a daemon message, in the trade row
   or in the order book. The book entry carries that local status only while
   a trade of ours stands: once a never-active take is wiped, the entry goes
-  back to the public view (see *Daemon cancellation semantics*).
+  back to the public view (see *Daemon cancellation semantics*). A
+  `canceled` that reaches a never-active trade of ours wipes it instead of
+  being written to it (same section).
+- Both paths MUST accept only events authored by the active node: a d-tag is
+  public, and a `canceled` deletes a trade row. The live book subscription
+  and the refetch drop other authors before ingesting; `subscribe_single_order`
+  reads the client's shared notification stream and checks the author itself.
 - UI MUST NOT treat `InProgress` as `Active`. Actions the daemon gates on
   `Active`/`FiatSent` (dispute, fiat-sent) are rejected with `CantDo` in that
   state (issue #203).
