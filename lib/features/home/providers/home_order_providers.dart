@@ -280,6 +280,10 @@ final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((
   // Fast-exit shimmer only if the cache already has orders. If the cache is
   // empty we stay in loading state until the relay delivers the first update,
   // preventing an "No orders available" flash before any relay data arrives.
+  // An empty book is confirmed by the relay's EOSE on the pending-book
+  // subscription, which Rust publishes as an (empty) update — without that
+  // this would wait forever whenever the book is empty, both on a cold start
+  // and every time this provider is re-created after the last order left.
   final snapshot = await orders_api.getOrders(filters: null);
   debugPrint('[orderBook] initial snapshot: ${snapshot.length} orders');
   if (snapshot.isNotEmpty) {

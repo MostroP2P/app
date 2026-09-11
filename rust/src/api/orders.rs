@@ -330,6 +330,30 @@ impl OrderBook {
         });
     }
 
+    /// Publish the current book when a relay reports the end of stored events
+    /// for the pending-book subscription. Returns whether it published.
+    ///
+    /// Every other emission is driven by an order arriving, so a node with
+    /// no pending orders never emits: the UI (which stays in its loading
+    /// state until the first emission, so an empty book is not flashed
+    /// before the relay answers) then waits forever — on a cold start
+    /// against an empty book, and every time the book screen remounts after
+    /// the last order left the book. EOSE is the relay confirming there is
+    /// nothing more to send, which is exactly the signal the UI is waiting
+    /// on. Only the pending feed counts: the recent-changes and Kind 14
+    /// feeds end their stored events too, and publishing on each would send
+    /// the whole book once per relay per subscription.
+    pub(crate) async fn publish_on_stored_events_end(
+        &self,
+        sub_id: &nostr_sdk::prelude::SubscriptionId,
+    ) -> bool {
+        if *sub_id != orders_subscription_id() {
+            return false;
+        }
+        self.publish().await;
+        true
+    }
+
     /// Publish the current book to subscribers.
     pub(crate) async fn publish(&self) {
         let snapshot = self.orders.read().await.clone();
@@ -4633,6 +4657,10 @@ async fn _run_order_subscription() {
                                 crate::api::logging::display_relay(&relay_url.to_string()),
                             ),
                         );
+                        // An empty book is only ever confirmed by this: the
+                        // stream otherwise emits on ingest alone, and the UI
+                        // shows its loading state until the first emission.
+                        order_book().publish_on_stored_events_end(&sub_id).await;
                     }
                     RelayMessage::Closed {
                         subscription_id,
@@ -5666,6 +5694,44 @@ mod tests {
             misses.len() <= TRADE_KEY_MISS_CAPACITY,
             "miss cache grew to {}",
             misses.len()
+        );
+    }
+
+    /// The relay's EOSE on the pending-book subscription is the only signal
+    /// that an empty book is *confirmed* empty. Without it the UI has nothing
+    /// to leave its loading state on: the stream publishes on ingest alone,
+    /// and a node with no pending orders never ingests anything.
+    #[tokio::test]
+    async fn eose_on_the_pending_subscription_publishes_the_empty_book() {
+        let book = OrderBook::new();
+        let mut rx = book.subscribe();
+
+        let published = book
+            .publish_on_stored_events_end(&orders_subscription_id())
+            .await;
+
+        assert!(published);
+        let snapshot = rx.try_recv().expect("EOSE must publish the current book");
+        assert!(snapshot.is_empty(), "an empty book is published as empty");
+    }
+
+    /// Only the pending-book feed is the "book loaded" signal. The recent
+    /// changes feed and the Kind 14 feed end their stored events too, and
+    /// re-publishing on each would send the whole book across the bridge
+    /// once per relay per subscription.
+    #[tokio::test]
+    async fn eose_on_other_subscriptions_does_not_publish() {
+        let book = OrderBook::new();
+        let mut rx = book.subscribe();
+
+        let published = book
+            .publish_on_stored_events_end(&recent_orders_subscription_id())
+            .await;
+
+        assert!(!published);
+        assert!(
+            matches!(rx.try_recv(), Err(broadcast::error::TryRecvError::Empty)),
+            "EOSE on another subscription must not publish"
         );
     }
 
