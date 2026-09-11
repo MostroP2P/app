@@ -344,7 +344,9 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
 
-    // A step advanced by the relay: a nudge, and the crossfades below.
+    // A step advanced by the relay: a nudge, the crossfades below, and a
+    // fresh deadline — every step has its own expiration, owned by a
+    // different party, so the clock loaded for the previous step is stale.
     ref.listen<AsyncValue<OrderStatus>>(tradeStatusProvider(widget.orderId), (
       previous,
       next,
@@ -353,6 +355,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       final after = next.valueOrNull;
       if (before != null && after != null && before != after) {
         HapticFeedback.mediumImpact();
+        _loadExpiresAt();
       }
     });
 
