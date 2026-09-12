@@ -43,6 +43,16 @@ jobs:
       contents: read
     # The first uncached run compiles std from source (-Z build-std), which is slow.
     timeout-minutes: 60
+    env:
+      # What a negative control must find in its output to count as "died of
+      # the bug the sanitizer fixes", rather than of any of the five unrelated
+      # reasons smoke.mjs exits non-zero for. Two messages because Intl.Locale
+      # words the empty tag differently from a malformed one — both are the
+      # engine refusing a locale before runApp, and matching only the first
+      # would report the empty case as an unexplained failure. Kept exact
+      # rather than loosened to something like "locale": a lax pattern is what
+      # lets a control celebrate an unrelated crash.
+      LOCALE_CRASH_SIGNATURE: "Incorrect locale information provided|Intl.Locale constructor can't be empty"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -189,6 +199,27 @@ jobs:
         env:
           BUNDLE_DIR: ${{ github.workspace }}/build/web
         run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs
+      # Built once and reused by every negative control below. Copying the
+      # built bundle and cutting the sanitizer out of its HTML — rather than
+      # building a second time — is what makes the comparison mean something:
+      # both sides come from one build, so the sanitizer is the only difference.
+      - name: Build the control bundle — the same build, sanitizer removed (#227)
+        run: |
+          set -euo pipefail
+          control_dir="${RUNNER_TEMP}/web-no-sanitizer"
+          rm -rf "$control_dir"
+          cp -r "${GITHUB_WORKSPACE}/build/web" "$control_dir"
+          # Delete the marker comment through the end of the inline script it
+          # introduces. The script contains no literal </script>, so the first
+          # one after the marker closes it.
+          sed -i '/<!-- locale-sanitizer/,/<\/script>/d' "$control_dir/index.html"
+          # Never let a silent no-op turn the controls into a rubber stamp: if
+          # the marker is ever renamed, this cuts nothing and every control
+          # below would be comparing the bundle against itself.
+          if grep -q 'locale-sanitizer' "$control_dir/index.html"; then
+            echo "::error::failed to strip the sanitizer — the controls prove nothing"
+            exit 1
+          fi
 
       # Regression guard for issue #227: an unparseable browser locale (the
       # POSIX "C" locale, an underscored "en_US", empty) crashed the Flutter
@@ -198,10 +229,11 @@ jobs:
       # navigator.language(s). This reruns the same smoke test forcing an
       # invalid locale so the fix can't silently regress.
       #
-      # Only "C" is actually covered here: Playwright normalizes the locale it
-      # is given before the page sees it, so "en_US" reaches the browser as a
-      # valid "en-US" and "" falls back to the default. The sanitizer handles
-      # all three; CI can only exercise the first.
+      # This step covers "C" only, and does so through Playwright's `locale`
+      # option — the one path where the tag reaches the page as the browser's
+      # own locale rather than as a shadow this repo installed. Kept for that
+      # reason. The other broken tags cannot travel this way (Playwright
+      # normalizes them first) and are covered by the locale matrix below.
       #
       # The crash itself only exists on Flutter >= 3.38, where the engine's
       # parseBrowserLanguages started building the locale through
@@ -240,17 +272,6 @@ jobs:
         run: |
           set -euo pipefail
           control_dir="${RUNNER_TEMP}/web-no-sanitizer"
-          rm -rf "$control_dir"
-          cp -r "${GITHUB_WORKSPACE}/build/web" "$control_dir"
-          # Delete the marker comment through the end of the inline script it
-          # introduces. The script contains no literal </script>, so the first
-          # one after the marker closes it.
-          sed -i '/<!-- locale-sanitizer/,/<\/script>/d' "$control_dir/index.html"
-          # Never let a silent no-op turn this control into a rubber stamp.
-          if grep -q 'locale-sanitizer' "$control_dir/index.html"; then
-            echo "::error::failed to strip the sanitizer — the control proves nothing"
-            exit 1
-          fi
           control_log="${RUNNER_TEMP}/control-smoke.log"
           if BUNDLE_DIR="$control_dir" BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs >"$control_log" 2>&1; then
             cat "$control_log"
@@ -260,7 +281,7 @@ jobs:
           fi
           # It failed — but smoke.mjs fails for five reasons that have nothing
           # to do with this bug. Only the locale RangeError proves the control.
-          if ! grep -q 'Incorrect locale information provided' "$control_log"; then
+          if ! grep -Eq "$LOCALE_CRASH_SIGNATURE" "$control_log"; then
             cat "$control_log"
             echo "::error::the control failed, but not with the locale RangeError —"
             echo "::error::it proves nothing about this fix (see #227)"
@@ -271,6 +292,78 @@ jobs:
           # failure does not upload this expected one as its evidence.
           rm -f smoke-failure.png
           echo "control failed as expected — the locale guard is load-bearing"
+
+      # The two steps above only ever exercise "C". Playwright's `locale`
+      # option normalizes the tag before the page sees it, so "en_US" arrives
+      # as a valid "en-US" and "" falls back to the system locale — a limit of
+      # that option, not of the browser. SMOKE_NAVIGATOR_LANGUAGES shadows
+      # navigator.language(s) from an init script instead, which runs inside
+      # the page before any of its own scripts, so the engine is handed a tag
+      # Playwright would never deliver.
+      #
+      # That closes the gap on #227's second acceptance criterion, which names
+      # three tags, and covers the mixed list nothing tested at all: with
+      # "C,es-AR" the correct result is not the fallback but "es-AR" — the
+      # sanitizer must drop the broken tag and keep the good one.
+      #
+      # Which is why each case also states the locale it expects to find
+      # afterwards. "The view mounted" cannot tell a sanitizer that kept
+      # "es-AR" from one that dropped the whole list for the fallback: both
+      # boot fine, and only the second silently costs the user their language.
+      #
+      # Each tag runs twice: against the shipped bundle it must pass, against
+      # the control bundle it must fail with the locale signature. The control
+      # half costs ~20s per tag (it waits out SMOKE_TIMEOUT_MS for a view that
+      # will never mount), which is the price of the guard being self-validating.
+      - name: Locale matrix — every tag the sanitizer claims to handle (#227)
+        working-directory: test/web/smoke
+        run: |
+          set -euo pipefail
+          control_dir="${RUNNER_TEMP}/web-no-sanitizer"
+          base="/${GITHUB_REPOSITORY#*/}/"
+          # Deliberately includes the empty string; it is one of the broken
+          # tags, and smoke.mjs distinguishes unset from empty for that reason.
+          # "<injected tags>|<languages expected after the sanitizer>".
+          for case in "C|en-US" "en_US|en-US" "|en-US" "C,es-AR|es-AR"; do
+            langs="${case%%|*}"
+            expected="${case##*|}"
+            label="${langs:-<empty>}"
+
+            echo "::group::locale [$label] — with the sanitizer, must pass and leave [$expected]"
+            SMOKE_NAVIGATOR_LANGUAGES="$langs" SMOKE_EXPECT_LANGUAGES="$expected" \
+              BUNDLE_DIR="${GITHUB_WORKSPACE}/build/web" \
+              BASE_PATH="$base" node smoke.mjs
+            echo "::endgroup::"
+
+            echo "::group::locale [$label] — without the sanitizer, must fail"
+            log="${RUNNER_TEMP}/control-${label//[^A-Za-z0-9]/_}.log"
+            # Scoped to the control, not the step: this run is expected to die
+            # in engine bootstrap, so it always waits the selector out, and the
+            # default 120s would cost two idle minutes per tag. The positive
+            # run above keeps that default — same reason as the single-tag
+            # control before it, which must not be unified with it either.
+            if SMOKE_TIMEOUT_MS="20000" SMOKE_NAVIGATOR_LANGUAGES="$langs" \
+                 BUNDLE_DIR="$control_dir" \
+                 BASE_PATH="$base" node smoke.mjs >"$log" 2>&1; then
+              cat "$log"
+              echo "::error::locale [$label] passed without the sanitizer —"
+              echo "::error::the matrix above is no longer testing this bug (see #227)"
+              exit 1
+            fi
+            if ! grep -Eq "$LOCALE_CRASH_SIGNATURE" "$log"; then
+              cat "$log"
+              echo "::error::locale [$label] failed, but not with a locale error —"
+              echo "::error::it proves nothing about this fix (see #227)"
+              exit 1
+            fi
+            cat "$log"
+            echo "::endgroup::"
+
+            # Each failing control leaves a screenshot behind; drop it so a
+            # later, real failure does not upload an expected one as evidence.
+            rm -f smoke-failure.png
+            echo "locale [$label]: sanitized to [$expected] with the sanitizer, dies without it"
+          done
 
       - name: Upload smoke test failure screenshot
         if: failure()

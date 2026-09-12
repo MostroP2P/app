@@ -41,11 +41,39 @@ const CASES = [
     expected: 1,
     what: 'one uncaught page error fails the run',
   },
+  // The locale check is the one assertion "the view mounted" cannot make for
+  // itself: with a mixed list, a sanitizer that keeps "es-AR" and one that
+  // drops the whole list both boot fine, and only the second costs the user
+  // their language. So the comparison behind it needs holding down from both
+  // sides — a check that never fires and one that always fires each pass one
+  // of these cases and fail the other.
+  //
+  // The healthy fixture has no sanitizer, so whatever is injected is what
+  // navigator.languages still reads at the end. That is what makes the first
+  // case a mismatch and the second a match, with no bundle to build.
+  {
+    fixture: 'healthy',
+    expected: 1,
+    env: {
+      SMOKE_NAVIGATOR_LANGUAGES: 'C,es-AR',
+      SMOKE_EXPECT_LANGUAGES: 'es-AR',
+    },
+    what: 'a locale left unsanitized fails the run',
+  },
+  {
+    fixture: 'healthy',
+    expected: 0,
+    env: {
+      SMOKE_NAVIGATOR_LANGUAGES: 'es-AR',
+      SMOKE_EXPECT_LANGUAGES: 'es-AR',
+    },
+    what: 'the expected locale passes — and the init script reached the page',
+  },
 ];
 
 let failures = 0;
 
-for (const { fixture, expected, what } of CASES) {
+for (const { fixture, expected, what, env } of CASES) {
   const result = spawnSync(process.execPath, [join(here, 'smoke.mjs')], {
     cwd: here,
     encoding: 'utf8',
@@ -56,6 +84,8 @@ for (const { fixture, expected, what } of CASES) {
       // Static fixtures load instantly; no reason to wait out the bundle's
       // budget when something is wrong.
       SMOKE_TIMEOUT_MS: '30000',
+      // Last, so a case can set the knobs it exists to exercise.
+      ...env,
     },
   });
 
