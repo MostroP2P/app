@@ -183,6 +183,17 @@ final groupedTradeRowsProvider =
           );
     });
 
+/// Order ids of the trades whose next step is the user's, once the trades
+/// have loaded — null before, so the first load is not read as news.
+final needsActionIdsProvider = Provider<Set<String>?>((ref) {
+  final rows = ref.watch(tradeRowsProvider).valueOrNull;
+  if (rows == null) return null;
+  return {
+    for (final r in rows)
+      if (r.state.needsAction) r.orderId,
+  };
+});
+
 /// Trades whose next step is the user's, whatever the filter: the counter of
 /// `Requieren tu acción` and the badge of the trades tab are the same figure.
 final needsActionCountProvider = Provider<int>((ref) {

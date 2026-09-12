@@ -976,7 +976,7 @@
   "chatTurnRelease": "te toca liberar",
   "chatTurnRate": "te toca calificar",
   "chatYouLabel": "Tú:",
-  "chatListFootnote": "Cada conversación existe solo mientras dura la operación y está cifrada de extremo a extremo.",
+  "chatListFootnote": "Cada conversación pertenece a una operación y está cifrada de extremo a extremo. Cuando la operación termina, queda aquí para consulta.",
   "chatListEmptyTitle": "Todavía no tienes conversaciones",
   "chatListEmptyBody": "El chat se abre cuando una operación queda activa.",
   "chatClosedNotice": "La operación terminó. La conversación queda aquí para consulta.",

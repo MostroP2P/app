@@ -40,7 +40,7 @@ class TabAppBar extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             Text(
-              'Mostro',
+              AppLocalizations.of(context).appName,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,

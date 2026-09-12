@@ -39,9 +39,13 @@ class _TradesScreenState extends ConsumerState<TradesScreen> {
     final isDesktop =
         MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
 
-    // Something just became the user's to do.
-    ref.listen<int>(needsActionCountProvider, (prev, next) {
-      if (prev == 0 && next > 0) HapticFeedback.mediumImpact();
+    // Something just became the user's to do — any trade entering the
+    // group, not only the first: the count can stay put while one leaves
+    // and another arrives.
+    ref.listen<Set<String>?>(needsActionIdsProvider, (prev, next) {
+      if (prev != null && next != null && next.difference(prev).isNotEmpty) {
+        HapticFeedback.mediumImpact();
+      }
     });
 
     final content = Column(

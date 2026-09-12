@@ -73,6 +73,17 @@ class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
     final isDesktop =
         MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
 
+    // Keep every room live while the list is on screen: a message received
+    // here updates its preview, badge, the segment count and the order.
+    final rooms = ref.read(chatRoomsNotifierProvider.notifier);
+    for (final room in ref.watch(chatRoomsNotifierProvider)) {
+      ref.listen(
+        incomingMessageProvider(room.orderId),
+        (_, next) =>
+            next.whenData((msg) => rooms.foldIncoming(room.orderId, msg)),
+      );
+    }
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

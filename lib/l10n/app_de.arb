@@ -976,7 +976,7 @@
   "chatTurnRelease": "du gibst frei",
   "chatTurnRate": "du bewertest",
   "chatYouLabel": "Du:",
-  "chatListFootnote": "Jede Unterhaltung besteht nur, solange der Trade läuft, und ist Ende-zu-Ende-verschlüsselt.",
+  "chatListFootnote": "Jede Unterhaltung gehört zu einem Trade und ist Ende-zu-Ende-verschlüsselt. Nach dem Trade bleibt sie hier lesbar.",
   "chatListEmptyTitle": "Noch keine Unterhaltungen",
   "chatListEmptyBody": "Der Chat öffnet sich, sobald ein Trade aktiv wird.",
   "chatClosedNotice": "Der Trade ist beendet. Die Unterhaltung bleibt hier lesbar.",

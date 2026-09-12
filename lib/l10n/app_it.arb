@@ -976,7 +976,7 @@
   "chatTurnRelease": "tocca a te rilasciare",
   "chatTurnRate": "tocca a te valutare",
   "chatYouLabel": "Tu:",
-  "chatListFootnote": "Ogni conversazione esiste solo finché dura lo scambio ed è cifrata end-to-end.",
+  "chatListFootnote": "Ogni conversazione appartiene a uno scambio ed è cifrata end-to-end. Terminato lo scambio, resta qui da consultare.",
   "chatListEmptyTitle": "Nessuna conversazione per ora",
   "chatListEmptyBody": "La chat si apre quando uno scambio diventa attivo.",
   "chatClosedNotice": "Lo scambio è terminato. La conversazione resta qui da consultare.",

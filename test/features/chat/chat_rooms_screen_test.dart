@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/types.dart' show ChatMessage, MessageType;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/chat_list_fixtures.dart';
@@ -16,13 +19,18 @@ import '../../support/trades_list_fixtures.dart';
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
   List<ChatRoomState>? rooms,
+  Map<String, Stream<ChatMessage>> incoming = const {},
 }) async {
   tester.view.physicalSize = const Size(360, 1200);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
   final container = createContainer(
-    overrides: chatListOverrides(rooms: rooms, disputes: [kHandoffDispute]),
+    overrides: chatListOverrides(
+      rooms: rooms,
+      disputes: [kHandoffDispute],
+      incoming: incoming,
+    ),
   );
   final router = GoRouter(
     routes: [GoRoute(path: '/', builder: (_, __) => const ChatRoomsScreen())],
@@ -136,6 +144,41 @@ void main() {
     expect(
       find.text('El chat se abre cuando una operación queda activa.'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('a message received while on the list updates its row', (
+    tester,
+  ) async {
+    final stream = StreamController<ChatMessage>();
+    addTearDown(stream.close);
+    final container = await _pump(tester, incoming: {'pay': stream.stream});
+
+    stream.add(
+      ChatMessage(
+        id: 'm-new',
+        tradeId: 'pay',
+        senderPubkey: 'peer-otter',
+        content: 'Ya salió la transferencia',
+        messageType: MessageType.peer,
+        isMine: false,
+        isRead: false,
+        hasAttachment: false,
+        createdAt: kTradesNow.millisecondsSinceEpoch ~/ 1000,
+      ),
+    );
+    await withClock(Clock.fixed(kTradesNow), () => tester.pumpAndSettle());
+
+    expect(find.text('Ya salió la transferencia'), findsOneWidget);
+    final room = container
+        .read(chatRoomsNotifierProvider)
+        .firstWhere((r) => r.orderId == 'pay');
+    expect(room.unreadCount, 1);
+    // Newest message first within the group.
+    expect(
+      tester.getTopLeft(find.text('brave-otter')).dy <
+          tester.getTopLeft(find.text('used-jaguar')).dy,
+      isTrue,
     );
   });
 }

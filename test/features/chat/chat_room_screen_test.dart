@@ -273,8 +273,40 @@ void main() {
       await _leaveRoom(tester);
     });
 
+    testWidgets('holds the composer back while the trade resolves', (
+      tester,
+    ) async {
+      await _pumpChatRoom(
+        tester,
+        incoming,
+        overrides: [
+          chatRowStateProvider(_orderId).overrideWithValue(
+            ChatRowState.resolving,
+          ),
+        ],
+      );
+
+      expect(find.byType(MessageInput), findsNothing);
+      expect(
+        find.text('This trade has ended. The conversation stays here to read.'),
+        findsNothing,
+      );
+      await _leaveRoom(tester);
+    });
+
     testWidgets('an open one keeps the composer', (tester) async {
-      await _pumpChatRoom(tester, incoming);
+      await _pumpChatRoom(
+        tester,
+        incoming,
+        overrides: [
+          chatRowStateProvider(_orderId).overrideWithValue(
+            const ChatRowState(
+              group: ChatGroup.active,
+              tone: ChatAvatarTone.waiting,
+            ),
+          ),
+        ],
+      );
 
       expect(find.byType(MessageInput), findsOneWidget);
       await _leaveRoom(tester);

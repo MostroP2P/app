@@ -976,7 +976,7 @@
   "chatTurnRelease": "à vous de libérer",
   "chatTurnRate": "à vous d'évaluer",
   "chatYouLabel": "Vous :",
-  "chatListFootnote": "Chaque conversation n'existe que le temps de l'échange et est chiffrée de bout en bout.",
+  "chatListFootnote": "Chaque conversation appartient à un échange et est chiffrée de bout en bout. Une fois l'échange terminé, elle reste consultable ici.",
   "chatListEmptyTitle": "Pas encore de conversations",
   "chatListEmptyBody": "Le chat s'ouvre quand un échange devient actif.",
   "chatClosedNotice": "L'échange est terminé. La conversation reste consultable ici.",

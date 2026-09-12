@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/chat/models/chat_list_rules.dart';
 import 'package:mostro/features/chat/providers/chat_list_provider.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/chat/widgets/info_panels.dart';
@@ -535,14 +536,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 MediaQuery.of(context).viewInsets.bottom + AppSpacing.sm,
             top: AppSpacing.xs,
           ),
-          // A closed trade's conversation opens read-only (handoff 11b).
-          child: ref.watch(chatRowStateProvider(widget.orderId)).isReadOnly
-              ? const _ClosedNotice()
-              : MessageInput(
-                  onSendText: _onSend,
-                  onAttachFile: _onAttach,
-                  isAttaching: _isAttaching || _isSending,
-                ),
+          // A closed trade's conversation opens read-only (handoff 11b), and
+          // nothing is offered until the trade says which it is.
+          child: switch (ref.watch(chatRowStateProvider(widget.orderId))) {
+            ChatRowState(isReadOnly: true) => const _ClosedNotice(),
+            ChatRowState(canCompose: false) => const SizedBox.shrink(),
+            _ => MessageInput(
+                onSendText: _onSend,
+                onAttachFile: _onAttach,
+                isAttaching: _isAttaching || _isSending,
+              ),
+          },
         ),
       ],
     );

@@ -184,7 +184,7 @@ String? chatContextLine(TradeRow? trade, AppLocalizations l10n, String locale) {
     max: trade.fiatAmountMax,
     locale: locale,
   );
-  final closed = trade.state.group == TradeGroup.closed;
+  final closed = isTradeFinished(trade.status);
   final what = switch ((trade.isSelling, closed)) {
     (true, false) => l10n.chatContextSellActive(amount, trade.fiatCode),
     (false, false) => l10n.chatContextBuyActive(amount, trade.fiatCode),

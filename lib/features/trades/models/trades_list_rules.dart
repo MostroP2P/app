@@ -253,8 +253,10 @@ RelativeTime relativeTime(DateTime then, {required DateTime now}) {
   if (diff.inMinutes < 1) return const RelativeTime.now();
   if (diff.inMinutes < 60) return RelativeTime.minutes(diff.inMinutes);
   if (diff.inHours < 24) return RelativeTime.hours(diff.inHours);
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(then.year, then.month, then.day);
+  // Civil dates in UTC: two local midnights across a spring-forward change
+  // are 23 h apart, which `inDays` would read as the same day.
+  final today = DateTime.utc(now.year, now.month, now.day);
+  final day = DateTime.utc(then.year, then.month, then.day);
   final days = today.difference(day).inDays;
   if (days == 1) return const RelativeTime.yesterday();
   if (days < 7) return RelativeTime.weekday(then);

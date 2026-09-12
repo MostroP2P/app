@@ -39,7 +39,10 @@ final groupedChatRowsProvider = Provider<List<ChatRowGroup<ChatListRow>>>((
       ChatListRow(
         room: room,
         trade: trades[room.orderId],
-        state: ChatRowState.of(trades[room.orderId]?.state),
+        state: ChatRowState.of(
+          status: trades[room.orderId]?.status,
+          trade: trades[room.orderId]?.state,
+        ),
       ),
   ];
   return groupChatRows(
@@ -49,7 +52,15 @@ final groupedChatRowsProvider = Provider<List<ChatRowGroup<ChatListRow>>>((
   );
 });
 
-/// The state of one conversation, for the chat room: whether it is read-only.
-final chatRowStateProvider = Provider.family<ChatRowState, String>(
-  (ref, orderId) => ChatRowState.of(_tradesById(ref)[orderId]?.state),
-);
+/// The state of one conversation, for the chat room: whether it may compose
+/// yet, and whether it is read-only. A failed trades load reads as open — a
+/// read error must not take the composer away from a live trade.
+final chatRowStateProvider = Provider.family<ChatRowState, String>((
+  ref,
+  orderId,
+) {
+  final trades = ref.watch(tradeRowsProvider);
+  if (trades.isLoading && !trades.hasValue) return ChatRowState.resolving;
+  final trade = _tradesById(ref)[orderId];
+  return ChatRowState.of(status: trade?.status, trade: trade?.state);
+});

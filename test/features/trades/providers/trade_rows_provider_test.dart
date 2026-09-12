@@ -170,4 +170,19 @@ void main() {
       expect(notifier.state, TradeListFilter.active);
     });
   });
+
+  group('needsActionIdsProvider', () {
+    test(
+      'null until the trades load, then the ids that need the user',
+      () async {
+        final c = _container([
+          fakeTrade(id: 'buyer-active', status: OrderStatus.active),
+          fakeTrade(id: 'done', status: OrderStatus.canceled),
+        ]);
+        expect(c.read(needsActionIdsProvider), isNull);
+        await _rows(c);
+        expect(c.read(needsActionIdsProvider), {'order-buyer-active'});
+      },
+    );
+  });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mostro/src/rust/api/types.dart' show ChatMessage;
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 
@@ -55,10 +56,18 @@ final kHandoffDispute = DisputeItem(
 );
 
 /// Everything the chat tab reads on top of [tradesListOverrides].
+///
+/// [incoming] feeds the live message stream of each room by order id; a room
+/// without one gets an empty stream, so nothing reaches the bridge.
 List<Override> chatListOverrides({
   List<ChatRoomState>? rooms,
   List<DisputeItem> disputes = const [],
+  Map<String, Stream<ChatMessage>> incoming = const {},
 }) => [
+  for (final room in rooms ?? kHandoffRooms)
+    incomingMessageProvider(
+      room.orderId,
+    ).overrideWith((ref) => incoming[room.orderId] ?? const Stream.empty()),
   ...tradesListOverrides(kHandoffTrades),
   chatRoomsFromTradesProvider.overrideWith(
     (ref) async => rooms ?? kHandoffRooms,

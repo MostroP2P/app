@@ -251,6 +251,16 @@ void main() {
     });
   });
 
+  group('relativeTime across a clock change', () {
+    test('the previous calendar day is yesterday whatever the offset', () {
+      // 29 March 2026 is a spring-forward day in much of Europe: in such a
+      // zone the local midnights around it are 23 h apart.
+      final now = DateTime(2026, 3, 30, 9, 0);
+      final then = DateTime(2026, 3, 29, 8, 0);
+      expect(relativeTime(then, now: now), const RelativeTime.yesterday());
+    });
+  });
+
   group('paymentMethodLabel', () {
     test('one method as is, several as the first plus a count', () {
       expect(paymentMethodLabel('Mercado Pago'), 'Mercado Pago');

@@ -131,6 +131,34 @@ class ChatRoomsNotifier extends StateNotifier<List<ChatRoomState>> {
     }
   }
 
+  /// Folds a message that arrived for [orderId] into its room's preview,
+  /// time and unread count, so the list stays live without a reload.
+  ///
+  /// Only the buyer<->seller channel counts (dispute traffic shares the
+  /// order key), a message at or before the preview already shown is ignored
+  /// — the open room folds the same message in too — and only a message
+  /// from the counterparty that is not read raises the count.
+  void foldIncoming(String orderId, rust_types.ChatMessage msg) {
+    if (msg.messageType != rust_types.MessageType.peer) return;
+    final index = state.indexWhere((r) => r.orderId == orderId);
+    if (index < 0) return;
+    final room = state[index];
+    final at = msg.createdAt.toInt();
+    if (at < room.lastMessageAt ||
+        (at == room.lastMessageAt && msg.content == room.lastMessage)) {
+      return;
+    }
+    final updated = [...state];
+    updated[index] = room.copyWith(
+      lastMessage: msg.content,
+      lastMessageIsOwn: msg.isMine,
+      lastMessageAt: at,
+      unreadCount:
+          msg.isMine || msg.isRead ? room.unreadCount : room.unreadCount + 1,
+    );
+    state = updated;
+  }
+
   /// Mark all messages in a room as read (zero unread count).
   void markRead(String orderId) {
     state = [
