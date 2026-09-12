@@ -1018,5 +1018,6 @@
   "invoiceBackToBook": "Zurück zum Orderbuch",
   "invoiceTimeUpTitle": "Die Zeit ist abgelaufen",
   "invoiceTimeUpBody": "Die Rechnung wurde nicht rechtzeitig gesendet: Mostro bricht den Handel ab. Auf deiner Seite wurde nichts gebunden.",
-  "invoiceErrorWrongNetwork": "Die Rechnung ist für {invoice}, der Node nutzt {node}"
+  "invoiceErrorWrongNetwork": "Die Rechnung ist für {invoice}, der Node nutzt {node}",
+  "invoiceCountdownHours": "{hours} Std. {minutes}"
 }

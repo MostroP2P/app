@@ -1018,5 +1018,6 @@
   "invoiceBackToBook": "Torna al registro ordini",
   "invoiceTimeUpTitle": "Il tempo è scaduto",
   "invoiceTimeUpBody": "La fattura non è stata inviata in tempo: Mostro annulla l'operazione. Da parte tua non è stato impegnato nulla.",
-  "invoiceErrorWrongNetwork": "La fattura è per {invoice}, il nodo usa {node}"
+  "invoiceErrorWrongNetwork": "La fattura è per {invoice}, il nodo usa {node}",
+  "invoiceCountdownHours": "{hours} h {minutes}"
 }

@@ -3964,5 +3964,7 @@
   "invoiceTimeUpBody": "The invoice was not sent in time: Mostro cancels the trade. Nothing was committed on your side.",
   "@invoiceTimeUpBody": {"description": "13a terminal state explanation"},
   "invoiceErrorWrongNetwork": "The invoice is for {invoice}, the node uses {node}",
-  "@invoiceErrorWrongNetwork": {"description": "13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet", "placeholders": {"invoice": {"type": "String"}, "node": {"type": "String"}}}
+  "@invoiceErrorWrongNetwork": {"description": "13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet", "placeholders": {"invoice": {"type": "String"}, "node": {"type": "String"}}},
+  "invoiceCountdownHours": "{hours} h {minutes}",
+  "@invoiceCountdownHours": {"description": "Invoice time band countdown above one hour; hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence", "placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}}
 }

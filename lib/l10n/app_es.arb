@@ -1018,5 +1018,6 @@
   "invoiceBackToBook": "Volver al libro de órdenes",
   "invoiceTimeUpTitle": "Se acabó el tiempo",
   "invoiceTimeUpBody": "La factura no se envió a tiempo: Mostro cancela la operación. De tu lado no se comprometió nada.",
-  "invoiceErrorWrongNetwork": "La factura es de {invoice}, el nodo usa {node}"
+  "invoiceErrorWrongNetwork": "La factura es de {invoice}, el nodo usa {node}",
+  "invoiceCountdownHours": "{hours} h {minutes}"
 }

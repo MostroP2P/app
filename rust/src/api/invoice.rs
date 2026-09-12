@@ -30,12 +30,56 @@ pub fn decode_bolt11(invoice: String) -> Option<Bolt11Summary> {
 /// to it for their countdown.
 pub async fn trade_step_started_at(order_id: String) -> Option<i64> {
     let db = crate::db::app_db::db()?;
-    db.get_setting(&crate::db::settings_keys::status_cursor(&order_id))
+    let stored = db
+        .get_setting(&crate::db::settings_keys::invoice_step_start(&order_id))
         .await
         .ok()
-        .flatten()?
-        .parse()
-        .ok()
+        .flatten()?;
+    parse_step_start(&stored).map(|(_, ts)| ts)
+}
+
+/// Record that the daemon message dated `event_ts` opened `order_id`'s
+/// invoice step in `status` (called from the AddInvoice / PayInvoice arms).
+///
+/// Kept apart from the status cursor, which every later accepted status
+/// message advances: a re-sent or follow-up message for the same step must
+/// not push the countdown out. The earliest timestamp of a step is kept; a
+/// different status opens a new step.
+pub(crate) async fn record_invoice_step_start(order_id: &str, status: &str, event_ts: i64) {
+    // A message dated beyond the tolerated skew is not a trustworthy start.
+    let horizon = crate::rt::unix_now()
+        .saturating_add(crate::nostr::transport::MAX_CLOCK_SKEW_SECS as i64);
+    if event_ts > horizon {
+        return;
+    }
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    let key = crate::db::settings_keys::invoice_step_start(order_id);
+    let existing = db.get_setting(&key).await.ok().flatten();
+    let Some(value) = next_step_start(existing.as_deref(), status, event_ts) else {
+        return;
+    };
+    if let Err(e) = db.set_setting(&key, &value).await {
+        log::warn!("[invoice] could not record step start for order={order_id}: {e}");
+    }
+}
+
+/// The value to store for a step start of `status` at `event_ts`, or `None`
+/// when the stored one already covers it (same status, same or earlier time).
+fn next_step_start(existing: Option<&str>, status: &str, event_ts: i64) -> Option<String> {
+    if let Some((stored_status, stored_ts)) = existing.and_then(parse_step_start) {
+        if stored_status == status && stored_ts <= event_ts {
+            return None;
+        }
+    }
+    Some(format!("{status}:{event_ts}"))
+}
+
+/// `WaitingPayment:1757712000` → (`WaitingPayment`, 1757712000).
+fn parse_step_start(value: &str) -> Option<(&str, i64)> {
+    let (status, ts) = value.rsplit_once(':')?;
+    Some((status, ts.parse().ok()?))
 }
 
 fn summarize(input: &str) -> Option<Bolt11Summary> {
@@ -88,6 +132,39 @@ mod tests {
     fn an_invoice_without_amount_reports_none() {
         let summary = summarize(DONATION).expect("spec vector decodes");
         assert_eq!(summary.amount_msat, None);
+    }
+
+    #[test]
+    fn a_later_message_for_the_same_step_does_not_move_its_start() {
+        let first = next_step_start(None, "WaitingPayment", 1_000).expect("first write");
+        assert_eq!(first, "WaitingPayment:1000");
+        // A re-sent or follow-up PayInvoice dated later keeps the start.
+        assert_eq!(next_step_start(Some(&first), "WaitingPayment", 1_500), None);
+        assert_eq!(next_step_start(Some(&first), "WaitingPayment", 1_000), None);
+        // An earlier copy (relay order) moves it back to the true start.
+        assert_eq!(
+            next_step_start(Some(&first), "WaitingPayment", 900).as_deref(),
+            Some("WaitingPayment:900")
+        );
+    }
+
+    #[test]
+    fn a_new_status_opens_a_new_step() {
+        let paid = "WaitingPayment:1000";
+        assert_eq!(
+            next_step_start(Some(paid), "WaitingBuyerInvoice", 1_600).as_deref(),
+            Some("WaitingBuyerInvoice:1600")
+        );
+    }
+
+    #[test]
+    fn unreadable_stored_values_are_replaced() {
+        assert_eq!(
+            next_step_start(Some("garbage"), "WaitingPayment", 5).as_deref(),
+            Some("WaitingPayment:5")
+        );
+        assert_eq!(parse_step_start("WaitingPayment:12"), Some(("WaitingPayment", 12)));
+        assert_eq!(parse_step_start("WaitingPayment:x"), None);
     }
 
     #[test]

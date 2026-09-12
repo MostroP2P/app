@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
@@ -23,7 +22,6 @@ import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/providers/peer_nym_provider.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
 import 'package:mostro/shared/widgets/peer_reputation_card.dart';
 import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
@@ -132,7 +130,9 @@ class _AddLightningInvoiceScreenState
 
   void _onInputChanged() {
     _decodeTimer?.cancel();
-    setState(() {});
+    // The daemon's verdict was about the previous input; the new one gets
+    // its own local verdict.
+    setState(() => _lastError = null);
     final input = _input;
     if (classifyInvoiceInput(input) != InvoiceInputKind.bolt11) return;
     _decodeTimer = Timer(_debounce, () => _decode(input));
@@ -588,6 +588,7 @@ class _AddLightningInvoiceScreenState
                         child: InvoiceTimeBand(
                           remaining: remaining,
                           sentence: l10n.invoiceTimeToSend,
+                          hours: l10n.invoiceCountdownHours,
                         ),
                       ),
         ),
@@ -767,40 +768,4 @@ class _AddLightningInvoiceScreenState
         ),
     ];
   }
-}
-
-/// `312 ARS`, or null when the trade carries no fiat amount.
-String? formatInvoiceFiat(AppLocalizations l10n, TradeInfo trade) {
-  final amount = trade.order.fiatAmount;
-  if (amount == null || amount <= 0) return null;
-  final formatted = NumberFormat.decimalPatternDigits(
-    locale: l10n.localeName,
-    decimalDigits: amount == amount.truncateToDouble() ? 0 : 2,
-  ).format(amount);
-  return '$formatted ${trade.order.fiatCode}';
-}
-
-/// The counterpart's pseudonym, with their reputation beside it once the
-/// daemon's snapshot has arrived.
-InvoiceCardRow invoiceCounterpartRow(
-  WidgetRef ref,
-  AppLocalizations l10n,
-  TradeInfo trade,
-  String label,
-) {
-  final pubkey = trade.counterpartyPubkey;
-  final handle =
-      pubkey.isEmpty
-          ? null
-          : ref.watch(peerNymProvider(pubkey)).valueOrNull?.pseudonym;
-  final hasSnapshot = trade.peerRating != null;
-  return (
-    label: label,
-    value: handle ?? l10n.unknownPeerHandle,
-    trailing:
-        hasSnapshot
-            ? counterpartStars(trade.peerRating, trade.peerReviews) ??
-                l10n.invoiceNoTrades
-            : null,
-  );
 }

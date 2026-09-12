@@ -1018,5 +1018,6 @@
   "invoiceBackToBook": "Retour au carnet d'ordres",
   "invoiceTimeUpTitle": "Le temps est écoulé",
   "invoiceTimeUpBody": "La facture n'a pas été envoyée à temps : Mostro annule l'opération. Rien n'a été engagé de ton côté.",
-  "invoiceErrorWrongNetwork": "La facture est pour {invoice}, le nœud utilise {node}"
+  "invoiceErrorWrongNetwork": "La facture est pour {invoice}, le nœud utilise {node}",
+  "invoiceCountdownHours": "{hours} h {minutes}"
 }

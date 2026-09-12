@@ -17,8 +17,6 @@ import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
-import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart'
-    show formatInvoiceFiat, invoiceCounterpartRow;
 import 'package:mostro/features/order/widgets/invoice_clock.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
@@ -429,6 +427,7 @@ class _PayLightningInvoiceScreenState
                       InvoiceTimeBand(
                         remaining: remaining,
                         sentence: l10n.invoiceExpiresIn,
+                        hours: l10n.invoiceCountdownHours,
                       ),
                     ],
                     const SizedBox(height: 11),

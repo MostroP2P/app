@@ -56,23 +56,28 @@ int? holdInvoiceFee({required int holdSats, required double? nodeFee}) {
 /// Under this the time band turns red and the figure pulses.
 const kInvoiceUrgentThreshold = Duration(seconds: 60);
 
-/// `14:38` (mm:ss) under an hour; `1 h 05` above it.
-String formatInvoiceCountdown(Duration remaining) {
+/// `14:38` (mm:ss) under an hour; above it, [hours] builds the localized
+/// form (`1 h 05`) from the hour count and the two-digit minutes.
+String formatInvoiceCountdown(
+  Duration remaining, {
+  required String Function(String hours, String minutes) hours,
+}) {
   final d = remaining.isNegative ? Duration.zero : remaining;
   String two(int n) => n.toString().padLeft(2, '0');
-  if (d.inHours >= 1) return '${d.inHours} h ${two(d.inMinutes % 60)}';
+  if (d.inHours >= 1) return hours('${d.inHours}', two(d.inMinutes % 60));
   return '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
 }
 
 bool isInvoiceCountdownUrgent(Duration remaining) =>
     remaining < kInvoiceUrgentThreshold;
 
-/// How long until the displayed value changes: every second under an hour,
-/// at the next whole minute above it.
+/// How long until the displayed value changes: every second under an hour;
+/// above it, one second past the seconds into the current minute — the
+/// display floors to whole minutes, so `2:00:15` still reads `2 h 00` after
+/// 15 s and turns `1 h 59` one second later (and `2:00:00` after 1 s).
 Duration invoiceCountdownTick(Duration remaining) {
   if (remaining <= const Duration(hours: 1)) return const Duration(seconds: 1);
-  final intoMinute = remaining.inSeconds % 60;
-  return Duration(seconds: intoMinute == 0 ? 60 : intoMinute);
+  return Duration(seconds: remaining.inSeconds % 60 + 1);
 }
 
 // ── Buyer input ───────────────────────────────────────────────────────────────
@@ -104,7 +109,13 @@ String normalizeInvoiceInput(String raw) {
   return trimmed;
 }
 
-final _lnAddress = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+/// `user@domain` (LUD-16): the user part is `a-z0-9-_.+`, the domain is two
+/// or more non-empty labels of letters, digits and inner hyphens, ending in
+/// an alphabetic TLD — no empty labels (`..`, leading or trailing dot) and
+/// no URL delimiters. Matched against the lowercased input.
+final _lnAddress = RegExp(
+  r'^[a-z0-9._+-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$',
+);
 
 InvoiceInputKind classifyInvoiceInput(String raw) {
   final text = normalizeInvoiceInput(raw).toLowerCase();

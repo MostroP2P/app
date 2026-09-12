@@ -72,16 +72,26 @@ void main() {
   });
 
   group('countdown', () {
-    test('reads mm:ss under an hour and h mm above', () {
+    test('reads mm:ss under an hour and the localized h mm above', () {
+      String hours(String h, String m) => '$h Std. $m';
       expect(
-        formatInvoiceCountdown(const Duration(minutes: 14, seconds: 38)),
+        formatInvoiceCountdown(
+          const Duration(minutes: 14, seconds: 38),
+          hours: hours,
+        ),
         '14:38',
       );
       expect(
-        formatInvoiceCountdown(const Duration(hours: 1, minutes: 5)),
-        '1 h 05',
+        formatInvoiceCountdown(
+          const Duration(hours: 1, minutes: 5),
+          hours: hours,
+        ),
+        '1 Std. 05',
       );
-      expect(formatInvoiceCountdown(const Duration(seconds: -3)), '00:00');
+      expect(
+        formatInvoiceCountdown(const Duration(seconds: -3), hours: hours),
+        '00:00',
+      );
     });
 
     test('turns urgent under a minute', () {
@@ -94,9 +104,15 @@ void main() {
         invoiceCountdownTick(const Duration(minutes: 10)),
         const Duration(seconds: 1),
       );
+      // 2:00:15 still reads 2 h 00 at +15 s; it turns 1 h 59 at +16 s.
       expect(
         invoiceCountdownTick(const Duration(hours: 2, seconds: 15)),
-        const Duration(seconds: 15),
+        const Duration(seconds: 16),
+      );
+      // 2:00:00 turns 1 h 59 one second later, not a minute later.
+      expect(
+        invoiceCountdownTick(const Duration(hours: 2)),
+        const Duration(seconds: 1),
       );
     });
   });
@@ -119,6 +135,40 @@ void main() {
       expect(classifyInvoiceInput('LNURL1DP68GURN'), InvoiceInputKind.unknown);
       expect(classifyInvoiceInput('hello'), InvoiceInputKind.unknown);
       expect(classifyInvoiceInput('user@nodomain'), InvoiceInputKind.unknown);
+    });
+
+    test('accepts well-formed Lightning addresses', () {
+      for (final address in [
+        'satoshi@example.com',
+        'a.b+c_d-e@sub.my-wallet.io',
+        'USER@Example.COM',
+      ]) {
+        expect(
+          classifyInvoiceInput(address),
+          InvoiceInputKind.address,
+          reason: address,
+        );
+      }
+    });
+
+    test('refuses addresses with malformed domains', () {
+      for (final address in [
+        'user@example..com', // consecutive dots
+        'user@.example.com', // leading dot
+        'user@example.com.', // trailing dot
+        'user@-example.com', // label starting with a hyphen
+        'user@exam_ple.com', // invalid host character
+        'user@example.com/path', // URL delimiter
+        'user@example.com?x=1',
+        'us@er@example.com',
+        '@example.com',
+      ]) {
+        expect(
+          classifyInvoiceInput(address),
+          InvoiceInputKind.unknown,
+          reason: address,
+        );
+      }
     });
   });
 

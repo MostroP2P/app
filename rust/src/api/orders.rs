@@ -3118,6 +3118,14 @@ async fn dispatch_mostro_message(
                 return;
             }
             record_status_event(&order_id, event_ts).await;
+            // The add-invoice screen's countdown starts here, not at the
+            // status cursor, which later messages keep advancing.
+            crate::api::invoice::record_invoice_step_start(
+                &order_id,
+                &format!("{new_status:?}"),
+                event_ts,
+            )
+            .await;
             // Sync the book with status AND calculated sats: the add-invoice
             // screen polls the book for the amount (tradeAmountProvider) and
             // refuses to submit an LN address without it.
@@ -3213,6 +3221,13 @@ async fn dispatch_mostro_message(
                 return;
             }
             record_status_event(&order_id, event_ts).await;
+            // The pay-invoice screen's countdown starts here (see AddInvoice).
+            crate::api::invoice::record_invoice_step_start(
+                &order_id,
+                "WaitingPayment",
+                event_ts,
+            )
+            .await;
             // Save the hold invoice and update status to WaitingPayment. A
             // replay carrying the invoice and amount the row already holds
             // writes and emits nothing.

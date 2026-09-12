@@ -1,14 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/invoice_palette.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
+import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/providers/peer_nym_provider.dart';
+import 'package:mostro/src/rust/api/types.dart' show TradeInfo;
 
 /// Building blocks shared by the two invoice screens
-/// (`design_handoff_factura_lightning`, 13a and 13b).
+/// (`design_handoff_factura_lightning`, 13a and 13b). Both screens import
+/// this file, never each other.
+
+// ── Trade helpers ─────────────────────────────────────────────────────────────
+
+/// `312 ARS`, or null when the trade carries no fiat amount.
+String? formatInvoiceFiat(AppLocalizations l10n, TradeInfo trade) {
+  final amount = trade.order.fiatAmount;
+  if (amount == null || amount <= 0) return null;
+  final formatted = NumberFormat.decimalPatternDigits(
+    locale: l10n.localeName,
+    decimalDigits: amount == amount.truncateToDouble() ? 0 : 2,
+  ).format(amount);
+  return '$formatted ${trade.order.fiatCode}';
+}
+
+/// The counterpart's pseudonym, with their reputation beside it once the
+/// daemon's snapshot has arrived.
+InvoiceCardRow invoiceCounterpartRow(
+  WidgetRef ref,
+  AppLocalizations l10n,
+  TradeInfo trade,
+  String label,
+) {
+  final pubkey = trade.counterpartyPubkey;
+  final handle =
+      pubkey.isEmpty
+          ? null
+          : ref.watch(peerNymProvider(pubkey)).valueOrNull?.pseudonym;
+  final hasSnapshot = trade.peerRating != null;
+  return (
+    label: label,
+    value: handle ?? l10n.unknownPeerHandle,
+    trailing:
+        hasSnapshot
+            ? counterpartStars(trade.peerRating, trade.peerReviews) ??
+                l10n.invoiceNoTrades
+            : null,
+  );
+}
 
 /// Side margin and bottom padding of both screens.
 const kInvoiceGutter = 18.0;
@@ -238,10 +282,14 @@ class InvoiceTimeBand extends StatefulWidget {
     super.key,
     required this.remaining,
     required this.sentence,
+    required this.hours,
   });
 
   final Duration remaining;
   final String Function(String time) sentence;
+
+  /// The localized countdown above an hour (`1 h 05`).
+  final String Function(String hours, String minutes) hours;
 
   @override
   State<InvoiceTimeBand> createState() => _InvoiceTimeBandState();
@@ -293,7 +341,7 @@ class _InvoiceTimeBandState extends State<InvoiceTimeBand>
     final urgent = isInvoiceCountdownUrgent(widget.remaining);
     final ink = urgent ? pal.errorInk : pal.timeInk;
     final figureColor = urgent ? pal.errorInk : pal.timeFigure;
-    final time = formatInvoiceCountdown(widget.remaining);
+    final time = formatInvoiceCountdown(widget.remaining, hours: widget.hours);
     final (before, after) = _splitAround(widget.sentence);
 
     return Container(
