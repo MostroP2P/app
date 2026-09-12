@@ -1,157 +1,283 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/activity_palette.dart';
+import 'package:mostro/core/app_theme.dart' show AppFonts;
+import 'package:mostro/core/order_book_palette.dart';
+import 'package:mostro/features/chat/models/chat_list_rules.dart';
+import 'package:mostro/features/chat/providers/chat_list_provider.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
+import 'package:mostro/features/trades/models/trades_list_rules.dart';
+import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
+import 'package:mostro/features/trades/widgets/trade_list_chip.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/widgets/nym_avatar.dart';
+import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 
-/// A single row in the chat rooms list.
-///
-/// Shows the peer's avatar, handle, trade context, last message preview,
-/// a timestamp chip, and an unread-count dot when applicable.
+/// One conversation of the chat list (handoff 11b): an avatar tinted by the
+/// trade's state, the alias, which trade this is and where it stands, and
+/// the last message — bold with a badge while unread.
 class ChatListItem extends StatelessWidget {
   const ChatListItem({
     super.key,
-    required this.room,
+    required this.row,
     required this.onTap,
+    this.isLast = false,
   });
 
-  final ChatRoomState room;
+  final ChatListRow row;
   final VoidCallback onTap;
+
+  /// The last row of its card draws no divider: the card edge separates it.
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
-    final textTheme = Theme.of(context).textTheme;
+    final book = OrderBookPalette.of(context);
+    final pal = ActivityPalette.of(context);
     final l10n = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).toString();
+    final room = row.room;
     final handle = room.displayHandle(l10n);
-
-    final contextLine = room.isSelling
-        ? l10n.sellingSatsTo(handle)
-        : l10n.buyingSatsFrom(handle);
-
-    final previewText = room.lastMessage == null
-        ? null
-        : room.lastMessageIsOwn
-            ? l10n.youMessagePrefix(room.lastMessage!)
-            : room.lastMessage;
-
-    final timestampLabel = room.lastMessageAt > 0
-        ? _formatTimestamp(room.lastMessageAt, l10n)
-        : '';
+    final unread = room.unreadCount > 0;
+    final context_ = chatContextLine(row.trade, l10n, locale);
 
     return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border:
+              isLast ? null : Border(bottom: BorderSide(color: pal.rowDivider)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Avatar
-            NymAvatar(
-              iconIndex: room.peerIconIndex,
-              colorHue: room.peerColorHue,
-              size: 46,
-            ),
-            const SizedBox(width: AppSpacing.md),
-
-            // Text section
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Peer handle
-                  Text(
-                    handle,
-                    style: textTheme.bodyLarge?.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-
-                  // Context line
-                  Text(
-                    contextLine,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  // Last message preview
-                  if (previewText != null) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      previewText,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colors.textSubtle,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ChatAvatar(
+                initial: handle,
+                tone: row.state.tone,
+                showsActiveDot: row.state.showsActiveDot,
               ),
-            ),
-
-            // Trailing: timestamp + unread dot
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (timestampLabel.isNotEmpty)
-                  Text(
-                    timestampLabel,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colors.textSubtle,
-                      fontSize: 11,
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            handle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: book.textPrimary,
+                            ),
+                          ),
+                        ),
+                        if (room.lastMessageAt > 0)
+                          Text(
+                            _time(room.lastMessageAt, l10n, locale),
+                            style: TextStyle(
+                              fontFamily: AppFonts.figures,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: unread ? book.limeIcon : book.textFaint,
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
-                if (room.unreadCount > 0) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: colors.destructiveRed,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
+                    if (context_ != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        context_,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: book.textTertiary,
+                        ),
+                      ),
+                    ],
+                    if (room.lastMessage != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                children: [
+                                  if (room.lastMessageIsOwn)
+                                    TextSpan(
+                                      text: '${l10n.chatYouLabel} ',
+                                      style: TextStyle(
+                                        color: book.textFaint,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                  TextSpan(text: room.lastMessage),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.35,
+                                fontWeight:
+                                    unread ? FontWeight.w500 : FontWeight.w400,
+                                color:
+                                    unread
+                                        ? book.textStrong
+                                        : book.textSecondary,
+                              ),
+                            ),
+                          ),
+                          if (unread) ...[
+                            const SizedBox(width: 8),
+                            CountBadge(
+                              count: room.unreadCount,
+                              background: pal.badgeBg,
+                              foreground: pal.badgeInk,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Formats a unix timestamp as a human-friendly label.
-  ///
-  /// - Same day → locale time (e.g. "14:32")
-  /// - Yesterday → localized "Yesterday" from [AppLocalizations]
-  /// - Older → locale short date (e.g. "Mar 30")
-  String _formatTimestamp(int unixSeconds, AppLocalizations l10n) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
-    final now = DateTime.now();
+  /// `14:32` today, `ayer`, then a short date.
+  static String _time(int unixSeconds, AppLocalizations l10n, String locale) {
+    final at = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
+    final now = clock.now();
     final today = DateTime(now.year, now.month, now.day);
-    final msgDay = DateTime(dt.year, dt.month, dt.day);
+    final day = DateTime(at.year, at.month, at.day);
+    if (day == today) return DateFormat.Hm(locale).format(at);
+    if (today.difference(day).inDays == 1) return l10n.chatTimestampYesterday;
+    return DateFormat.MMMd(locale).format(at);
+  }
+}
 
-    if (msgDay == today) {
-      return DateFormat.Hm().format(dt);
-    }
+/// `Le vendes 55 BOB · te toca liberar`, `Le compraste 6.666 ARS ·
+/// completada`: which trade the conversation is about and where it stands.
+/// The verb is present while the trade is open and past once it closed. Null
+/// while the trade has not loaded.
+String? chatContextLine(TradeRow? trade, AppLocalizations l10n, String locale) {
+  if (trade == null) return null;
+  final amount = formatFiatAmount(
+    amount: trade.fiatAmount,
+    min: trade.fiatAmountMin,
+    max: trade.fiatAmountMax,
+    locale: locale,
+  );
+  final closed = trade.state.group == TradeGroup.closed;
+  final what = switch ((trade.isSelling, closed)) {
+    (true, false) => l10n.chatContextSellActive(amount, trade.fiatCode),
+    (false, false) => l10n.chatContextBuyActive(amount, trade.fiatCode),
+    (true, true) => l10n.chatContextSellClosed(amount, trade.fiatCode),
+    (false, true) => l10n.chatContextBuyClosed(amount, trade.fiatCode),
+  };
+  final where = switch (trade.state.verb) {
+    TradeRowVerb.addInvoice => l10n.chatTurnAddInvoice,
+    TradeRowVerb.payInvoice => l10n.chatTurnPayInvoice,
+    TradeRowVerb.sendPayment => l10n.chatTurnSendPayment,
+    TradeRowVerb.releaseSats => l10n.chatTurnRelease,
+    TradeRowVerb.rate => l10n.chatTurnRate,
+    TradeRowVerb.none =>
+      TradeListChip.text(trade.state.chip, l10n).toLowerCase(),
+  };
+  return '$what · $where';
+}
 
-    final yesterday = today.subtract(const Duration(days: 1));
-    if (msgDay == yesterday) {
-      return l10n.chatTimestampYesterday;
-    }
+/// The initial of the alias on a state-tinted circle, with the lime dot of
+/// an open trade at its lower right.
+class ChatAvatar extends StatelessWidget {
+  const ChatAvatar({
+    super.key,
+    required this.initial,
+    required this.tone,
+    required this.showsActiveDot,
+    this.dispute = false,
+  });
 
-    return DateFormat.MMMd().format(dt);
+  /// The alias; only its first character is drawn.
+  final String initial;
+  final ChatAvatarTone tone;
+  final bool showsActiveDot;
+
+  /// Tints the circle coral: an open dispute.
+  final bool dispute;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = ActivityPalette.of(context);
+    final (bg, ink) =
+        dispute
+            ? (pal.chipDisputeBg, pal.chipDisputeInk)
+            : switch (tone) {
+              ChatAvatarTone.yourTurn => (
+                pal.avatarActiveBg,
+                pal.chipActionInk,
+              ),
+              ChatAvatarTone.waiting => (pal.avatarWaitBg, pal.chipWaitInk),
+              ChatAvatarTone.closed => (
+                pal.avatarClosedBg,
+                pal.avatarClosedInk,
+              ),
+            };
+    final letter =
+        initial.trim().isEmpty ? '?' : initial.trim().characters.first;
+    return SizedBox(
+      width: 38,
+      height: 38,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+            child: Text(
+              letter.toUpperCase(),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: ink,
+              ),
+            ),
+          ),
+          if (showsActiveDot)
+            Positioned(
+              right: -1,
+              bottom: -1,
+              child: Container(
+                width: 11,
+                height: 11,
+                decoration: BoxDecoration(
+                  color: book.lime,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: book.surface, width: 2),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
