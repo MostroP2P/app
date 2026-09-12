@@ -35,6 +35,15 @@ pub enum OrderStatus {
     CompletedByAdmin,
     Dispute,
     InProgress,
+    /// The taker's anti-abuse bond is outstanding: the daemon matched the
+    /// take but the trade flow has not started. Publicly the order is still
+    /// `pending` (NIP-69 bucket), so it stays takeable by others until a bond
+    /// locks. See `docs/ANTI_ABUSE_BOND.md` §2.7.
+    WaitingTakerBond,
+    /// The maker's anti-abuse bond is outstanding: the order exists on the
+    /// daemon but has **no** kind 38383 event yet and is invisible in the
+    /// order book until the bond locks. See `docs/ANTI_ABUSE_BOND.md` §2.8.
+    WaitingMakerBond,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -286,6 +295,100 @@ pub struct TradeInfo {
     /// deserializable.
     #[serde(default)]
     pub rated_at: Option<i64>,
+    /// Anti-abuse bond attached to this trade, when the node required one
+    /// (`docs/ANTI_ABUSE_BOND.md` §7.1). `None` on nodes without bonds and
+    /// on rows written before the field existed (`#[serde(default)]`).
+    #[serde(default)]
+    pub bond: Option<BondInfo>,
+}
+
+/// Who posted the bond — a *posting-timing* role, not the buyer/seller side
+/// (`docs/ANTI_ABUSE_BOND.md` §2.3).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum BondRole {
+    Maker,
+    Taker,
+}
+
+/// Client-side view of a bond's lifecycle. The daemon owns the real state
+/// machine; this mirrors what the client can observe from the wire.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum BondState {
+    /// `pay-bond-invoice` received; the bolt11 has not been paid.
+    Requested,
+    /// Paid. Inferred from the first trade-flow message after the request —
+    /// the daemon sends no explicit "bond locked" message.
+    Locked,
+    /// The trade ended without a slash notice: the HTLC was cancelled and the
+    /// sats never left the user's wallet.
+    Released,
+    /// `bond-slashed` received for this order.
+    Slashed,
+}
+
+/// The bond the daemon asked this user to lock for one trade.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BondInfo {
+    pub role: BondRole,
+    /// Bond amount in satoshis, as sent by the daemon (never computed here).
+    pub amount_sats: u64,
+    /// The bond bolt11. Persisted so a restart lands back on the pay screen;
+    /// `None` only after a fresh-device restore, which carries no invoice.
+    pub invoice: Option<String>,
+    pub state: BondState,
+    /// Unix seconds when `pay-bond-invoice` was received.
+    pub requested_at: i64,
+    /// Unix seconds when the bolt11 stops being payable, decoded from the
+    /// invoice itself. `None` when it could not be decoded — then no local
+    /// expiry runs.
+    pub expires_at: Option<i64>,
+    /// Unix seconds when the bond was inferred locked.
+    pub locked_at: Option<i64>,
+}
+
+/// Whether the active node enforces anti-abuse bonds. Three states on
+/// purpose: an old daemon that publishes no `bond_enabled` tag is
+/// `Unsupported`, which is not the same as a node that turned the feature off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum BondPolicy {
+    /// No `bond_enabled` tag: the daemon predates the feature.
+    #[default]
+    Unsupported,
+    /// `bond_enabled = false`.
+    Disabled,
+    /// `bond_enabled = true`; the other fields of [`BondPolicyInfo`] are live.
+    Enabled,
+}
+
+/// Which side of a trade must lock a bond (`bond_apply_to` tag).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum BondApplyTo {
+    /// Only the taker, at take time.
+    Take,
+    /// Only the maker, before the order is published.
+    Make,
+    /// Both sides.
+    Both,
+}
+
+/// The bond policy a node advertises in its kind 38385 info event
+/// (`docs/ANTI_ABUSE_BOND.md` §3.4). Every parameter is `None` unless
+/// `policy == Enabled` **and** the tag parsed within its valid range, so a
+/// consumer can key off nullability alone.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct BondPolicyInfo {
+    pub policy: BondPolicy,
+    pub apply_to: Option<BondApplyTo>,
+    /// `bond_amount_pct` as the wire **fraction** (`0.01` = 1 %), `>= 0`.
+    pub amount_pct: Option<f64>,
+    /// `bond_base_amount_sats`: floor of the bond, in sats.
+    pub base_amount_sats: Option<u64>,
+    /// Whether a missed waiting-state timeout can slash a bond on this node.
+    pub slash_on_waiting_timeout: Option<bool>,
+    /// Fraction of a slashed bond the node keeps, in `[0, 1]`.
+    pub slash_node_share_pct: Option<f64>,
+    /// Days the winning counterparty has, from the slash, to claim its share.
+    pub payout_claim_window_days: Option<u32>,
 }
 
 /// A trade lifecycle change pushed from Rust so the UI does not have to poll

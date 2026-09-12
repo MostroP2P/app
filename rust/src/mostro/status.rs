@@ -28,6 +28,10 @@ pub(crate) fn status_for_action(action: &mostro_core::message::Action) -> Option
     use mostro_core::message::Action;
     match action {
         Action::AddInvoice => Some(OrderStatus::WaitingBuyerInvoice),
+        // The daemon parks a taken order while its taker's bond is unpaid.
+        // (A maker bond arrives on the create request and is classified
+        // there, not by this table.)
+        Action::PayBondInvoice => Some(OrderStatus::WaitingTakerBond),
         Action::WaitingSellerToPay => Some(OrderStatus::WaitingPayment),
         Action::WaitingBuyerInvoice => Some(OrderStatus::WaitingBuyerInvoice),
         Action::BuyerTookOrder
@@ -80,10 +84,10 @@ pub(crate) fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStat
         S::SettledByAdmin => OrderStatus::SettledByAdmin,
         S::CompletedByAdmin => OrderStatus::CompletedByAdmin,
         S::Dispute => OrderStatus::Dispute,
-        // Anti-abuse bond is out of scope; these statuses have no local
-        // OrderStatus mapping. No wildcard, so future Status variants keep
-        // forcing this match to be revisited.
-        S::WaitingTakerBond | S::WaitingMakerBond => return None,
+        // No wildcard, so a future upstream Status variant keeps forcing this
+        // match to be revisited instead of silently reading as nothing.
+        S::WaitingTakerBond => OrderStatus::WaitingTakerBond,
+        S::WaitingMakerBond => OrderStatus::WaitingMakerBond,
     })
 }
 
@@ -137,7 +141,13 @@ pub(crate) fn wire_status_applies(local: Option<&OrderStatus>, wire: &OrderStatu
 pub(crate) fn cancellation_wipes_history(status: &OrderStatus) -> bool {
     matches!(
         status,
-        OrderStatus::Pending | OrderStatus::WaitingBuyerInvoice | OrderStatus::WaitingPayment
+        OrderStatus::Pending
+            | OrderStatus::WaitingBuyerInvoice
+            | OrderStatus::WaitingPayment
+            // A bond window precedes the trade flow entirely: no peer, no
+            // chat, no escrow — nothing to keep as history.
+            | OrderStatus::WaitingTakerBond
+            | OrderStatus::WaitingMakerBond
     )
 }
 
@@ -265,15 +275,38 @@ mod tests {
         assert!(is_hard_terminal(&OrderStatus::Canceled));
     }
 
-    /// The bond statuses have no local mapping on purpose, and `map_core_status`
-    /// matches exhaustively so a new upstream variant fails the build rather
-    /// than silently reading as something else.
+    /// The bond statuses map to their own local variants (PR-0 of
+    /// `docs/ANTI_ABUSE_BOND.md`), and `map_core_status` still matches
+    /// exhaustively so a new upstream variant fails the build rather than
+    /// silently reading as something else.
     #[test]
-    fn bond_statuses_map_to_nothing_rather_than_to_something_wrong() {
+    fn bond_statuses_map_to_their_local_variants() {
         use mostro_core::order::Status as S;
-        assert_eq!(map_core_status(S::WaitingTakerBond), None);
-        assert_eq!(map_core_status(S::WaitingMakerBond), None);
+        assert_eq!(
+            map_core_status(S::WaitingTakerBond),
+            Some(OrderStatus::WaitingTakerBond)
+        );
+        assert_eq!(
+            map_core_status(S::WaitingMakerBond),
+            Some(OrderStatus::WaitingMakerBond)
+        );
         assert_eq!(map_core_status(S::Active), Some(OrderStatus::Active));
+    }
+
+    /// A bond window is pre-trade: neither terminal nor hard-terminal, wiped
+    /// on cancel like the other never-active states, and `pay-bond-invoice`
+    /// is the action that opens it.
+    #[test]
+    fn bond_statuses_are_pre_trade_states() {
+        for s in [OrderStatus::WaitingTakerBond, OrderStatus::WaitingMakerBond] {
+            assert!(!is_terminal_status(&s), "{s:?} is not terminal");
+            assert!(!is_hard_terminal(&s), "{s:?} is not hard terminal");
+            assert!(cancellation_wipes_history(&s), "{s:?} must be wiped");
+        }
+        assert_eq!(
+            status_for_action(&mostro_core::message::Action::PayBondInvoice),
+            Some(OrderStatus::WaitingTakerBond)
+        );
     }
 
     /// Actions that carry no status change must return `None`, not a guess:
@@ -555,6 +588,8 @@ mod tests {
             S::CompletedByAdmin,
             S::Dispute,
             S::InProgress,
+            S::WaitingTakerBond,
+            S::WaitingMakerBond,
         ];
         // Exhaustive on purpose: a new status fails to compile here, which is
         // the reminder to add it to `all` above.
@@ -574,7 +609,9 @@ mod tests {
                 | S::SettledByAdmin
                 | S::CompletedByAdmin
                 | S::Dispute
-                | S::InProgress => {}
+                | S::InProgress
+                | S::WaitingTakerBond
+                | S::WaitingMakerBond => {}
             }
         }
         // The Dart name flutter_rust_bridge gives each variant: lower camel case.

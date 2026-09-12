@@ -2023,6 +2023,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         };
         assert!(chat_still_relevant(&base));
 
@@ -2094,6 +2095,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         }
     }
 

@@ -18,6 +18,12 @@ enum TradeStatus {
   /// Seller must pay hold invoice (waitingPayment).
   waitingPayment('Waiting Payment'),
 
+  /// The user's anti-abuse bond is outstanding (waitingTakerBond /
+  /// waitingMakerBond): the daemon parked the take, or holds the order
+  /// unpublished, until the bond bolt11 is paid. See
+  /// `docs/ANTI_ABUSE_BOND.md` §6.1 / §6.2.
+  waitingBond('Waiting Bond'),
+
   /// Taken, real state unknown: the public order book only publishes NIP-69's
   /// coarse buckets, so `in-progress` says the order left the book — never
   /// that the escrow is locked. Offering the actions of [active] here is what
@@ -64,6 +70,8 @@ TradeStatus tradeStatusFromOrderStatus(OrderStatus s) => switch (s) {
   OrderStatus.pending => TradeStatus.pending,
   OrderStatus.waitingBuyerInvoice => TradeStatus.waitingInvoice,
   OrderStatus.waitingPayment => TradeStatus.waitingPayment,
+  OrderStatus.waitingTakerBond ||
+  OrderStatus.waitingMakerBond => TradeStatus.waitingBond,
   OrderStatus.active => TradeStatus.active,
   OrderStatus.inProgress => TradeStatus.inProgress,
   OrderStatus.fiatSent => TradeStatus.fiatSent,

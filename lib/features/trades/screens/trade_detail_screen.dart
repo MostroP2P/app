@@ -164,6 +164,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     TradeStatus.pending,
     TradeStatus.waitingInvoice,
     TradeStatus.waitingPayment,
+    TradeStatus.waitingBond,
   }.contains(status);
 
   /// What a cancel in [status] does, as the confirmation dialog tells it.
@@ -670,7 +671,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         isBuyer
             ? l10n.tradeHeadlineWaitingPaymentBuyer
             : l10n.tradeHeadlineWaitingPaymentSeller,
-      TradeStatus.inProgress => l10n.tradeHeadlineInProgress,
+      // Placeholder until the bond screen lands (docs/ANTI_ABUSE_BOND.md
+      // Phase 1): the trade is taken and waiting on the user's bond.
+      TradeStatus.inProgress ||
+      TradeStatus.waitingBond => l10n.tradeHeadlineInProgress,
       TradeStatus.active =>
         isBuyer
             ? l10n.tradeHeadlineActiveBuyer(figure)
@@ -718,7 +722,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         isBuyer
             ? l10n.tradeBodyWaitingPaymentBuyer
             : l10n.tradeWaitingPaymentSellerInstruction,
-      TradeStatus.inProgress => l10n.tradeInstructionInProgress,
+      TradeStatus.inProgress ||
+      TradeStatus.waitingBond => l10n.tradeInstructionInProgress,
       TradeStatus.active when method != null =>
         isBuyer
             ? l10n.tradeBodyActiveBuyer(method)

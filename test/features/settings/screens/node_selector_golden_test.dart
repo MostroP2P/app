@@ -13,7 +13,8 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/node_stats.dart';
-import 'package:mostro/src/rust/api/types.dart' show MostroNodeEntry;
+import 'package:mostro/src/rust/api/types.dart'
+    show BondPolicy, BondPolicyInfo, MostroNodeEntry;
 
 import '../../../support/provider_harness.dart';
 
@@ -58,6 +59,7 @@ final _stats = {
     acceptedCurrencies: const ['ARS', 'VES', 'BRL', 'EUR'],
     escrowMode: 'lightning',
     cashuMintUrl: null,
+    bond: const BondPolicyInfo(policy: BondPolicy.enabled, amountPct: 0.02),
     bondRequired: true,
     bondPct: 2,
     ordersByFiat: const [
@@ -77,6 +79,7 @@ final _stats = {
     acceptedCurrencies: const ['COP', 'VES'],
     escrowMode: 'cashu',
     cashuMintUrl: 'https://mint.cashu.space',
+    bond: const BondPolicyInfo(policy: BondPolicy.disabled),
     bondRequired: false,
     bondPct: null,
     ordersByFiat: const [FiatOrderCount(fiatCode: 'COP', count: 6)],

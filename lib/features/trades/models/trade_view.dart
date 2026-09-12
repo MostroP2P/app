@@ -149,6 +149,24 @@ class TradeView {
           note: TradeTimerNote.expiresCancels,
           isCompleted: false,
         );
+      case TradeStatus.waitingBond:
+        // The bond window precedes the trade flow. Its own view (pay the
+        // bond, countdown to the bolt11 expiry) comes with the pay-bond
+        // screen in docs/ANTI_ABUSE_BOND.md Phase 1, and only then can it
+        // tell the two sides apart: the daemon accepts a taker's cancel here
+        // but rejects a maker's (§2.8), and this status merges both. Until
+        // then no daemon action is offered at all.
+        return const TradeView(
+          step: 1,
+          chip: TradeChip.waiting,
+          showsChat: false,
+          showsReputation: false,
+          primary: TradePrimaryAction.none,
+          secondary: [],
+          timer: TradeTimerOwner.none,
+          note: TradeTimerNote.none,
+          isCompleted: false,
+        );
       case TradeStatus.inProgress:
         // The coarse public bucket: taken, escrow state unknown (#203). Only
         // cancel is safe to offer, and no clock is known.

@@ -743,7 +743,9 @@ fn is_order_finished(status: &OrderStatus) -> bool {
         | OrderStatus::FiatSent
         | OrderStatus::SettledHoldInvoice
         | OrderStatus::Dispute
-        | OrderStatus::InProgress => false,
+        | OrderStatus::InProgress
+        | OrderStatus::WaitingTakerBond
+        | OrderStatus::WaitingMakerBond => false,
     }
 }
 
@@ -1234,6 +1236,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         }
     }
 
