@@ -1185,10 +1185,6 @@
   "@orderCancelledSuccess": {
     "description": "Snackbar shown after a maker successfully cancels their own pending order"
   },
-  "aboutAppInfoTitle": "App Information",
-  "@aboutAppInfoTitle": {
-    "description": "About screen — App Information card title"
-  },
   "aboutDocumentationTitle": "Documentation",
   "@aboutDocumentationTitle": {
     "description": "About screen — Documentation card title"
@@ -1200,10 +1196,6 @@
   "aboutVersionLabel": "Version",
   "@aboutVersionLabel": {
     "description": "About screen — Version row label"
-  },
-  "aboutGithubRepoLabel": "GitHub Repository",
-  "@aboutGithubRepoLabel": {
-    "description": "About screen — GitHub Repository row label"
   },
   "aboutCommitHashLabel": "Commit Hash",
   "@aboutCommitHashLabel": {
@@ -1220,22 +1212,6 @@
   "aboutGithubRepoName": "MostroP2P/app",
   "@aboutGithubRepoName": {
     "description": "About screen — GitHub repository display name"
-  },
-  "aboutDocsUsersEnglish": "Users (English)",
-  "@aboutDocsUsersEnglish": {
-    "description": "About screen — English user docs link label"
-  },
-  "aboutDocsUsersSpanish": "Users (Spanish)",
-  "@aboutDocsUsersSpanish": {
-    "description": "About screen — Spanish user docs link label"
-  },
-  "aboutDocsTechnical": "Technical",
-  "@aboutDocsTechnical": {
-    "description": "About screen — Technical docs link label"
-  },
-  "aboutDocsRead": "Read",
-  "@aboutDocsRead": {
-    "description": "About screen — action label for documentation links"
   },
   "aboutCopiedToClipboard": "Copied to clipboard",
   "@aboutCopiedToClipboard": {
@@ -1257,37 +1233,9 @@
   "@aboutNodeRetry": {
     "description": "Button to retry fetching the Mostro node info"
   },
-  "aboutGeneralInfoSection": "General Info",
-  "@aboutGeneralInfoSection": {
-    "description": "About screen — Mostro Node general info section header"
-  },
-  "aboutTechnicalDetailsSection": "Technical Details",
-  "@aboutTechnicalDetailsSection": {
-    "description": "About screen — Mostro Node technical details section header"
-  },
   "aboutLightningNetworkSection": "Lightning Network",
   "@aboutLightningNetworkSection": {
     "description": "About screen — Mostro Node Lightning Network section header"
-  },
-  "aboutMostroPublicKeyLabel": "Mostro Public Key",
-  "@aboutMostroPublicKeyLabel": {
-    "description": "About screen — Mostro Public Key row label"
-  },
-  "aboutMaxOrderAmountLabel": "Max Order Amount",
-  "@aboutMaxOrderAmountLabel": {
-    "description": "About screen — Max Order Amount row label"
-  },
-  "aboutMinOrderAmountLabel": "Min Order Amount",
-  "@aboutMinOrderAmountLabel": {
-    "description": "About screen — Min Order Amount row label"
-  },
-  "aboutOrderLifespanLabel": "Order Lifespan",
-  "@aboutOrderLifespanLabel": {
-    "description": "About screen — Order Lifespan row label"
-  },
-  "aboutServiceFeeLabel": "Service Fee",
-  "@aboutServiceFeeLabel": {
-    "description": "About screen — Service Fee row label"
   },
   "aboutFiatCurrenciesLabel": "Fiat Currencies",
   "@aboutFiatCurrenciesLabel": {
@@ -1300,10 +1248,6 @@
   "aboutMostroCommitLabel": "Mostro Commit",
   "@aboutMostroCommitLabel": {
     "description": "About screen — Mostro Commit row label"
-  },
-  "aboutOrderExpirationLabel": "Order Expiration",
-  "@aboutOrderExpirationLabel": {
-    "description": "About screen — Order Expiration row label"
   },
   "aboutHoldInvoiceExpLabel": "Hold Invoice Expiration",
   "@aboutHoldInvoiceExpLabel": {
@@ -1329,18 +1273,6 @@
   "@aboutLndVersionLabel": {
     "description": "About screen — LND Version row label"
   },
-  "aboutLndNodePublicKeyLabel": "LND Node Public Key",
-  "@aboutLndNodePublicKeyLabel": {
-    "description": "About screen — LND Node Public Key row label"
-  },
-  "aboutLndCommitLabel": "LND Commit",
-  "@aboutLndCommitLabel": {
-    "description": "About screen — LND Commit row label"
-  },
-  "aboutLndNodeAliasLabel": "LND Node Alias",
-  "@aboutLndNodeAliasLabel": {
-    "description": "About screen — LND Node Alias row label"
-  },
   "aboutSupportedChainsLabel": "Supported Chains",
   "@aboutSupportedChainsLabel": {
     "description": "About screen — Supported Chains row label"
@@ -1349,21 +1281,9 @@
   "@aboutSupportedNetworksLabel": {
     "description": "About screen — Supported Networks row label"
   },
-  "aboutLndNodeUriLabel": "LND Node URI",
-  "@aboutLndNodeUriLabel": {
-    "description": "About screen — LND Node URI row label"
-  },
   "aboutSatoshisSuffix": "Satoshis",
   "@aboutSatoshisSuffix": {
     "description": "Suffix appended to sats amounts on the About screen"
-  },
-  "aboutHoursSuffix": "hours",
-  "@aboutHoursSuffix": {
-    "description": "Suffix appended to hour durations on the About screen"
-  },
-  "aboutSecondsSuffix": "seconds",
-  "@aboutSecondsSuffix": {
-    "description": "Suffix appended to second durations on the About screen"
   },
   "aboutBlocksSuffix": "blocks",
   "@aboutBlocksSuffix": {
@@ -1372,90 +1292,6 @@
   "aboutFiatCurrenciesAll": "All",
   "@aboutFiatCurrenciesAll": {
     "description": "Value shown when the node accepts all fiat currencies"
-  },
-  "aboutMostroPublicKeyExplanation": "The Nostr public key of the Mostro daemon. All orders and encrypted messages on this instance are published or routed by this key.",
-  "@aboutMostroPublicKeyExplanation": {
-    "description": "Info dialog explanation for the Mostro Public Key field"
-  },
-  "aboutMaxOrderAmountExplanation": "The maximum fiat amount allowed for a single order on this Mostro instance.",
-  "@aboutMaxOrderAmountExplanation": {
-    "description": "Info dialog explanation for the Max Order Amount field"
-  },
-  "aboutMinOrderAmountExplanation": "The minimum fiat amount required for a single order on this Mostro instance.",
-  "@aboutMinOrderAmountExplanation": {
-    "description": "Info dialog explanation for the Min Order Amount field"
-  },
-  "aboutOrderLifespanExplanation": "How long a pending order stays open before it automatically expires if no taker is found.",
-  "@aboutOrderLifespanExplanation": {
-    "description": "Info dialog explanation for the Order Lifespan field"
-  },
-  "aboutServiceFeeExplanation": "The percentage of the trade amount charged by the Mostro daemon as a service fee.",
-  "@aboutServiceFeeExplanation": {
-    "description": "Info dialog explanation for the Service Fee field"
-  },
-  "aboutFiatCurrenciesExplanation": "The fiat currencies accepted on this Mostro instance. 'All' means there are no restrictions.",
-  "@aboutFiatCurrenciesExplanation": {
-    "description": "Info dialog explanation for the Fiat Currencies field"
-  },
-  "aboutMostroVersionExplanation": "The version of the Mostro daemon software running this instance.",
-  "@aboutMostroVersionExplanation": {
-    "description": "Info dialog explanation for the Mostro Version field"
-  },
-  "aboutMostroCommitExplanation": "The Git commit hash of the Mostro daemon build, used to identify the exact software revision.",
-  "@aboutMostroCommitExplanation": {
-    "description": "Info dialog explanation for the Mostro Commit field"
-  },
-  "aboutOrderExpirationExplanation": "The timeout in seconds after which a trade waiting for action (e.g. invoice or payment) is automatically canceled.",
-  "@aboutOrderExpirationExplanation": {
-    "description": "Info dialog explanation for the Order Expiration field"
-  },
-  "aboutHoldInvoiceExpExplanation": "The time window in seconds during which the Lightning hold invoice must be settled.",
-  "@aboutHoldInvoiceExpExplanation": {
-    "description": "Info dialog explanation for the Hold Invoice Expiration field"
-  },
-  "aboutHoldInvoiceCltvExplanation": "The CLTV delta (block count) used for hold invoices, controlling how long the HTLC can remain locked.",
-  "@aboutHoldInvoiceCltvExplanation": {
-    "description": "Info dialog explanation for the Hold Invoice CLTV Delta field"
-  },
-  "aboutInvoiceExpWindowExplanation": "The time window in seconds within which the buyer must submit a Lightning invoice after the trade is initiated.",
-  "@aboutInvoiceExpWindowExplanation": {
-    "description": "Info dialog explanation for the Invoice Expiration Window field"
-  },
-  "aboutProofOfWorkExplanation": "The minimum proof-of-work difficulty required for Nostr events on this instance. 0 means no PoW is required.",
-  "@aboutProofOfWorkExplanation": {
-    "description": "Info dialog explanation for the Proof of Work field"
-  },
-  "aboutMaxOrdersPerResponseExplanation": "The maximum number of orders returned in a single relay response. Limits bandwidth usage.",
-  "@aboutMaxOrdersPerResponseExplanation": {
-    "description": "Info dialog explanation for the Max Orders Per Response field"
-  },
-  "aboutLndVersionExplanation": "The version of the LND (Lightning Network Daemon) node connected to this Mostro instance.",
-  "@aboutLndVersionExplanation": {
-    "description": "Info dialog explanation for the LND Version field"
-  },
-  "aboutLndNodePublicKeyExplanation": "The public key of the LND node. Used to identify and verify the Lightning Network node.",
-  "@aboutLndNodePublicKeyExplanation": {
-    "description": "Info dialog explanation for the LND Node Public Key field"
-  },
-  "aboutLndCommitExplanation": "The Git commit hash of the LND build, identifying the exact software revision of the Lightning node.",
-  "@aboutLndCommitExplanation": {
-    "description": "Info dialog explanation for the LND Commit field"
-  },
-  "aboutLndNodeAliasExplanation": "The human-readable alias of the LND node as configured by the node operator.",
-  "@aboutLndNodeAliasExplanation": {
-    "description": "Info dialog explanation for the LND Node Alias field"
-  },
-  "aboutSupportedChainsExplanation": "The blockchain(s) supported by the LND node (e.g. 'bitcoin').",
-  "@aboutSupportedChainsExplanation": {
-    "description": "Info dialog explanation for the Supported Chains field"
-  },
-  "aboutSupportedNetworksExplanation": "The network(s) the LND node operates on (e.g. 'mainnet', 'testnet').",
-  "@aboutSupportedNetworksExplanation": {
-    "description": "Info dialog explanation for the Supported Networks field"
-  },
-  "aboutLndNodeUriExplanation": "The connection URI of the LND node in the format pubkey@host:port. Used to open direct payment channels.",
-  "@aboutLndNodeUriExplanation": {
-    "description": "Info dialog explanation for the LND Node URI field"
   },
   "aboutAntiAbuseBondSection": "Anti-abuse Bond",
   "@aboutAntiAbuseBondSection": {
@@ -1477,17 +1313,9 @@
   "@aboutBondStatusLabel": {
     "description": "About screen — bond status row label"
   },
-  "aboutBondStatusExplanation": "Whether this Mostro instance requires an anti-abuse bond: a small Lightning hold invoice locked for the duration of a trade and released when the trade completes normally. 'Not supported' means the daemon predates the feature.",
-  "@aboutBondStatusExplanation": {
-    "description": "Info dialog explanation for the Bond status field"
-  },
   "aboutBondAppliesToLabel": "Applies to",
   "@aboutBondAppliesToLabel": {
     "description": "About screen — bond applies-to row label"
-  },
-  "aboutBondAppliesToExplanation": "Which side of a trade must lock a bond: the taker, the maker, or both.",
-  "@aboutBondAppliesToExplanation": {
-    "description": "Info dialog explanation for the bond Applies to field"
   },
   "aboutBondAppliesToTakers": "Takers",
   "@aboutBondAppliesToTakers": {
@@ -1505,41 +1333,21 @@
   "@aboutBondAmountLabel": {
     "description": "About screen — bond amount percentage row label"
   },
-  "aboutBondAmountExplanation": "The bond as a percentage of the order amount. The larger of this and the minimum bond is charged.",
-  "@aboutBondAmountExplanation": {
-    "description": "Info dialog explanation for the Bond amount field"
-  },
   "aboutBondBaseAmountLabel": "Minimum bond",
   "@aboutBondBaseAmountLabel": {
     "description": "About screen — minimum bond row label"
-  },
-  "aboutBondBaseAmountExplanation": "The floor for a bond, in satoshis. It applies when the percentage of the order amount falls below it.",
-  "@aboutBondBaseAmountExplanation": {
-    "description": "Info dialog explanation for the Minimum bond field"
   },
   "aboutBondNodeShareLabel": "Node share on slash",
   "@aboutBondNodeShareLabel": {
     "description": "About screen — node share of a slashed bond row label"
   },
-  "aboutBondNodeShareExplanation": "The share of a slashed bond kept by the node. The remainder is forwarded to the affected counterparty.",
-  "@aboutBondNodeShareExplanation": {
-    "description": "Info dialog explanation for the Node share on slash field"
-  },
   "aboutBondSlashOnTimeoutLabel": "Slash on waiting timeout",
   "@aboutBondSlashOnTimeoutLabel": {
     "description": "About screen — slash on waiting timeout row label"
   },
-  "aboutBondSlashOnTimeoutExplanation": "Whether the bond is slashed when a party lets a waiting state time out instead of acting.",
-  "@aboutBondSlashOnTimeoutExplanation": {
-    "description": "Info dialog explanation for the Slash on waiting timeout field"
-  },
   "aboutBondClaimWindowLabel": "Payout claim window",
   "@aboutBondClaimWindowLabel": {
     "description": "About screen — bond payout claim window row label"
-  },
-  "aboutBondClaimWindowExplanation": "How long the affected counterparty has to submit a Lightning invoice and claim their share of a slashed bond.",
-  "@aboutBondClaimWindowExplanation": {
-    "description": "Info dialog explanation for the Payout claim window field"
   },
   "aboutBondClaimWindowValue": "{count, plural, =1{{count} day} other{{count} days}}",
   "@aboutBondClaimWindowValue": {
@@ -3232,10 +3040,6 @@
   "@aboutCashuMintUrlLabel": {
     "description": "About screen — Cashu mint URL row label"
   },
-  "aboutCashuMintUrlExplanation": "The Cashu mint this node uses for every escrow. Ecash locked for a trade is issued by this mint; there is no per-order choice.",
-  "@aboutCashuMintUrlExplanation": {
-    "description": "Info dialog explanation for the Cashu Mint field"
-  },
   "aboutCashuMintNotAdvertised": "Not advertised",
   "@aboutCashuMintNotAdvertised": {
     "description": "About screen — shown when a node says it runs Cashu but publishes no mint, which means trades cannot run"
@@ -3244,17 +3048,9 @@
   "@aboutCashuLocktimeLabel": {
     "description": "About screen — Cashu escrow locktime row label"
   },
-  "aboutCashuLocktimeExplanation": "How long the seller's ecash stays locked in escrow. Once it expires the seller can reclaim the funds without the node's help.",
-  "@aboutCashuLocktimeExplanation": {
-    "description": "Info dialog explanation for the Cashu Escrow locktime field"
-  },
   "aboutCashuSettlementMarginLabel": "Settlement margin",
   "@aboutCashuSettlementMarginLabel": {
     "description": "About screen — Cashu settlement margin row label"
-  },
-  "aboutCashuSettlementMarginExplanation": "How close to the escrow expiry this node stops accepting 'fiat sent', so a trade is never settled with too little time left to complete it.",
-  "@aboutCashuSettlementMarginExplanation": {
-    "description": "Info dialog explanation for the Cashu Settlement margin field"
   },
   "escrowModeLightning": "Lightning",
   "@escrowModeLightning": {
@@ -3860,5 +3656,133 @@
   "noLogsForFilter": "No entries for this filter",
   "@noLogsForFilter": {
     "description": "Empty state when the active filter matches no entry"
+  },
+  "aboutAppSection": "Application",
+  "@aboutAppSection": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutSourceCodeLabel": "Source code",
+  "@aboutSourceCodeLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutUserGuideLabel": "User guide",
+  "@aboutUserGuideLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutTechnicalDocsLabel": "Technical documentation",
+  "@aboutTechnicalDocsLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutLanguageSpanish": "Spanish",
+  "@aboutLanguageSpanish": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutLanguageEnglish": "English",
+  "@aboutLanguageEnglish": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutConnectedNodeTitle": "Connected node",
+  "@aboutConnectedNodeTitle": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutMinOrderCell": "Min order",
+  "@aboutMinOrderCell": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutMaxOrderCell": "Max order",
+  "@aboutMaxOrderCell": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutFeeCell": "Fee",
+  "@aboutFeeCell": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutFeeValue": "{value}%",
+  "@aboutFeeValue": {
+    "description": "About screen — node fee figure; value is the locale-formatted percentage number",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutLimitsFootnote": "Limits in satoshis per order",
+  "@aboutLimitsFootnote": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutNodeTechnicalDataRow": "Node technical data",
+  "@aboutNodeTechnicalDataRow": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutFieldCount": "{count, plural, =1{{count} field} other{{count} fields}}",
+  "@aboutFieldCount": {
+    "description": "About screen — number of node fields listed on the technical data screen",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "aboutTechnicalDataTitle": "Technical data",
+  "@aboutTechnicalDataTitle": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutPublicKeyLabel": "Public key",
+  "@aboutPublicKeyLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutOrderExpiryLabel": "Order expiration",
+  "@aboutOrderExpiryLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutWaitingTimeoutLabel": "Waiting timeout",
+  "@aboutWaitingTimeoutLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutHoursShort": "{count} h",
+  "@aboutHoursShort": {
+    "description": "About screen — a duration in hours, abbreviated",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "aboutSecondsShort": "{count} s",
+  "@aboutSecondsShort": {
+    "description": "About screen — a duration in seconds, abbreviated",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "aboutAliasLabel": "Alias",
+  "@aboutAliasLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutNodePublicKeyLabel": "Node public key",
+  "@aboutNodePublicKeyLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutNodeUriLabel": "Node URI",
+  "@aboutNodeUriLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutCommitLabel": "Commit",
+  "@aboutCommitLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutChainNetworkLabel": "Chain and network",
+  "@aboutChainNetworkLabel": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutTechnicalFootnote": "These details identify the node you trade with. Useful for support, or to verify it before sending funds.",
+  "@aboutTechnicalFootnote": {
+    "description": "About screen redesign (12a/12b)"
+  },
+  "aboutCopyAllData": "Copy all data",
+  "@aboutCopyAllData": {
+    "description": "About screen redesign (12a/12b)"
   }
 }
