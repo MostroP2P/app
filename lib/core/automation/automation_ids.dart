@@ -89,7 +89,10 @@ class AutomationIds {
   static String nodeItem(String pubkey) => 'node.item.$pubkey';
 
   // Wallet / NWC
-  static const String walletSettingsConnect = 'wallet.settings.connect';
+  //
+  // Handoff 10c folded the connect and settings screens into one, so there is
+  // no separate "connect from wallet settings" control any more: the single
+  // connect CTA is [walletNwcConnect].
   static const String walletSettingsDisconnect = 'wallet.settings.disconnect';
   static const String walletNwcUri = 'wallet.nwc.uri';
   static const String walletNwcPaste = 'wallet.nwc.paste';
