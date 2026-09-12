@@ -9,21 +9,22 @@ import 'package:mostro/features/order/providers/payment_methods_provider.dart';
 import 'package:mostro/features/order/screens/payment_method_picker_screen.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/dashed_border.dart';
 
 /// Catalogue payment methods chosen for the order being created.
-final selectedPaymentMethodsProvider =
-    StateProvider<List<String>>((_) => []);
+final selectedPaymentMethodsProvider = StateProvider<List<String>>((_) => []);
 
 /// Free-text payment methods the user added themselves. Kept apart from the
 /// catalogue ones so a currency change prunes only the latter.
-final customPaymentMethodsProvider =
-    StateProvider<List<String>>((_) => []);
+final customPaymentMethodsProvider = StateProvider<List<String>>((_) => []);
 
 /// Every method the order will carry, catalogue first.
-final allPaymentMethodsProvider = Provider<List<String>>((ref) => [
-      ...ref.watch(selectedPaymentMethodsProvider),
-      ...ref.watch(customPaymentMethodsProvider),
-    ]);
+final allPaymentMethodsProvider = Provider<List<String>>(
+  (ref) => [
+    ...ref.watch(selectedPaymentMethodsProvider),
+    ...ref.watch(customPaymentMethodsProvider),
+  ],
+);
 
 /// Characters a free-text method may not carry: the wire joins methods with
 /// commas, and brackets, braces and quotes would break a naive reader.
@@ -31,10 +32,11 @@ final _forbiddenInCustomMethod = RegExp(r'[,"\\\[\]{}]');
 
 /// The custom method as it will be sent: forbidden characters and runs of
 /// whitespace collapsed to one space, trimmed. Empty when nothing is left.
-String sanitizeCustomMethod(String raw) => raw
-    .replaceAll(_forbiddenInCustomMethod, ' ')
-    .replaceAll(RegExp(r'\s+'), ' ')
-    .trim();
+String sanitizeCustomMethod(String raw) =>
+    raw
+        .replaceAll(_forbiddenInCustomMethod, ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
 
 /// "Payment methods" card: the chosen methods as lime chips plus a dashed
 /// `Add` chip that opens [PaymentMethodPickerScreen]. Only what the user
@@ -95,23 +97,28 @@ class PaymentMethodSection extends ConsumerWidget {
             for (final method in selected)
               _ChosenMethodChip(
                 label: method,
-                onRemove: () =>
-                    ref.read(selectedPaymentMethodsProvider.notifier).state =
-                        selected.where((m) => m != method).toList(),
+                onRemove:
+                    () =>
+                        ref
+                                .read(selectedPaymentMethodsProvider.notifier)
+                                .state =
+                            selected.where((m) => m != method).toList(),
               ),
             for (final method in custom)
               _ChosenMethodChip(
                 label: method,
-                onRemove: () =>
-                    ref.read(customPaymentMethodsProvider.notifier).state =
-                        custom.where((m) => m != method).toList(),
+                onRemove:
+                    () =>
+                        ref.read(customPaymentMethodsProvider.notifier).state =
+                            custom.where((m) => m != method).toList(),
               ),
             _AddMethodChip(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const PaymentMethodPickerScreen(),
-                ),
-              ),
+              onTap:
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PaymentMethodPickerScreen(),
+                    ),
+                  ),
             ).withAutomationId(AutomationIds.orderCreatePaymentMethodAdd),
           ],
         ),
@@ -187,7 +194,10 @@ class _AddMethodChip extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return CustomPaint(
-      foregroundPainter: _DashedPillPainter(color: create.dashedBorder),
+      foregroundPainter: DashedBorderPainter(
+        color: create.dashedBorder,
+        radius: null,
+      ),
       child: Material(
         color: palette.chipFill,
         borderRadius: BorderRadius.circular(999),
@@ -216,39 +226,4 @@ class _AddMethodChip extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DashedPillPainter extends CustomPainter {
-  const _DashedPillPainter({required this.color});
-
-  final Color color;
-
-  static const _dash = 4.0;
-  static const _gap = 3.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final rect = Offset.zero & size;
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        rect.deflate(0.5),
-        Radius.circular(size.height / 2),
-      ));
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final end = (distance + _dash).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance = end + _gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedPillPainter oldDelegate) =>
-      oldDelegate.color != color;
 }

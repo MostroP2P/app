@@ -20,6 +20,7 @@ import 'package:mostro/features/settings/widgets/node_card.dart';
 import 'package:mostro/features/settings/widgets/node_switch_confirm_sheet.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/dashed_border.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -437,7 +438,7 @@ class _AddOwnNodeButton extends StatelessWidget {
     final pal = NodeSelectorPalette.of(context);
     final l10n = AppLocalizations.of(context);
     return CustomPaint(
-      foregroundPainter: _DashedRectPainter(color: pal.dashedBorder),
+      foregroundPainter: DashedBorderPainter(color: pal.dashedBorder),
       child: Material(
         color: pal.dashedFill,
         borderRadius: BorderRadius.circular(16),
@@ -466,44 +467,6 @@ class _AddOwnNodeButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DashedRectPainter extends CustomPainter {
-  const _DashedRectPainter({required this.color});
-
-  final Color color;
-
-  static const _dash = 4.0;
-  static const _gap = 3.0;
-  static const _radius = 16.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
-    final path =
-        Path()..addRRect(
-          RRect.fromRectAndRadius(
-            (Offset.zero & size).deflate(0.5),
-            const Radius.circular(_radius),
-          ),
-        );
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final end = (distance + _dash).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance = end + _gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedRectPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 /// Open the node selector as a modal sheet over Settings.
