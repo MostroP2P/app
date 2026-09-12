@@ -146,7 +146,7 @@ class _MostroMascotState extends State<MostroMascot>
     return isLoopingMood(mood) ? _loop.value : _reactionPlayer.value;
   }
 
-  MostroSeason get _season => widget.season ?? seasonOn(clock.now());
+  MostroSeason get _season => widget.season ?? currentSeason(clock.now());
 
   void _onTap() {
     final now = clock.now();

@@ -565,7 +565,7 @@ class _Mascot extends StatelessWidget {
           ),
           image,
           MascotSeasonBadge(
-            season: seasonOn(clock.now()),
+            season: currentSeason(clock.now()),
             mascotHeight: _logoHeight,
           ),
         ],
