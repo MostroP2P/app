@@ -51,7 +51,7 @@ fails the build when an identifier is declared and attached to nothing.
 
 | Identifier | Value |
 |---|---|
-| `order.status` | The kebab-case name of `TradeStatus`: `loading`, `pending`, `waiting-invoice`, `waiting-payment`, `in-progress`, `active`, `fiat-sent`, `payout-pending`, `completed`, `cancelled`, `disputed`, `pending-rating`, `rated`. Never the localized pill copy. |
+| `order.status` | The kebab-case name of `TradeStatus`: `loading`, `pending`, `waiting-invoice`, `waiting-payment`, `in-progress`, `active`, `fiat-sent`, `payout-pending`, `completed`, `cancelled`, `disputed`, `pending-rating`, `rated`. Never the localized chip copy. |
 | `order.id` | The full order id, where the visible text is shortened. |
 | `keys.public_key` | The identity's full public key. |
 | `settings.mostro_node.pubkey` | The active daemon's full public key, where the visible subtitle is truncated. |
@@ -59,6 +59,7 @@ fails the build when an identifier is declared and attached to nothing.
 | `pay.invoice.text` | The hold invoice (`bolt11`), which is otherwise only drawn as a QR code or paid directly by the wallet. |
 | `pay.order_id` | The exact order ID shown in the seller invoice screen's app bar, including while its invoice is loading. |
 | `invoice.nwc.text` | The buyer invoice NWC generated, for payment correlation. |
+| `invoice.error` | The reason the daemon refused the last submitted buyer invoice. Present only after a rejection, until the next submission; the manual form stays open behind it. In the wallet-generated (NWC) branch, which has no form, the readout comes with `invoice.manual` so the buyer can switch to manual entry. |
 | `settings.relays.item.<url>` | The relay's URL. |
 
 There is deliberately **no** identifier for the seed phrase. A stable readout
@@ -73,19 +74,48 @@ the taker is buying. A driver that wants a side picks the tab that lists it.
 This matches the classic app.
 
 **The order form starts on market price, and a range locks it there.**
-`order.create.price_type` toggles between market and fixed; the sats field
-(`order.create.sats_amount`) exists only on fixed. `order.create.range` swaps
-the single `order.create.fiat_amount` for `order.create.fiat_min` and
-`order.create.fiat_max`, and disables the price toggle: the protocol prices a
-range at market only. Taking a range order asks its amount in a dialog
+The form's switches are segmented controls with both options always visible.
+`order.create.price_type` names the `Market | Fixed` control as a whole; its
+segments are `order.create.price.market` and `order.create.price.fixed`, and a
+driver taps a segment, not the control. The sats field
+(`order.create.sats_amount`) exists only on fixed. Likewise
+`order.create.range` names the `Single | Range` control, with segments
+`order.create.amount.single` and `order.create.amount.range`; range swaps the
+single `order.create.fiat_amount` for `order.create.fiat_min` and
+`order.create.fiat_max`, and disables the fixed segment: the protocol prices a
+range at market only. The side can be switched on the form too
+(`order.create.side.buy`, `order.create.side.sell`); it starts on the side the
+order-book button was tapped with. The premium figure
+(`order.create.premium`) opens a numeric field in place when tapped.
+
+**Payment methods are chosen on their own screen.** `order.create.payment_method.add`
+on the form opens it. There, `order.create.payment_method.search` narrows the
+per-currency list, `order.create.payment_method.<method>` toggles one method,
+and the free-text field `order.create.payment_method` plus
+`order.create.payment_method.custom_add` turn an arbitrary method into a chip.
+Going back keeps every choice; the form shows them as chips.
+
+**The take-order screen has one action.** `order.take.confirm` is `Take order`;
+there is no close button — `appbar.back` returns to the book. Once the order
+is taken by someone else or expires while the screen is open, the same node
+stays but reads as disabled (`No longer available`); the screen never
+navigates away on its own. Taking a range order asks its amount in a dialog
 (`order.take.amount`, `order.take.amount.confirm`) right after
 `order.take.confirm`; a fixed order never shows the dialog.
 
-**Rating is one star and a submit.** After a successful trade the detail
-offers `trade.rate`; the rating screen carries `trade.rate.star.<n>` for each
-of its five stars, `trade.rate.submit` (enabled once a star is chosen) and
-`trade.rate.close`. Submitting returns to the same trade, whose `order.status`
-then reads `rated`.
+**The maker's own order ends on `order.confirm.home` (`Close`) and
+`trade.cancel`.** `trade.cancel` opens a confirmation sheet whose affirmative
+is `trade.cancel.confirm`; the button is absent once the order is expired,
+cancelled or completed.
+
+**Rating is one star and a submit, on the trade itself.** After a successful
+trade the completed card of the trade detail carries `trade.rate.star.<n>` for
+each of its five stars, `trade.rate.submit` (enabled once a star is chosen) and
+`trade.rate.close`. Submitting stays on the same trade, whose `order.status`
+then reads `rated`; `trade.rate.close` then closes it. The standalone rating
+screen (`/rate_user/:orderId`, reached from a notification) keeps the same
+identifiers. A disputed trade offers `trade.dispute.view`; a cancelled one
+`trade.close`.
 
 **A pending order you created opens on `/my_order`, not `/trade_detail`.**
 Both screens therefore expose `order.status` and `order.id`, in the same
@@ -154,6 +184,19 @@ directories. XDG isolation alone does not isolate FlutterSecureStorage.
 `payout-pending` is nonterminal: the seller escrow has settled but the buyer payout has not yet been confirmed. Continue observing until the protocol status is `OrderStatus::Success`; only then may the UI expose `pending-rating` or completion. A released escrow alone never authorizes rating or a completed-trade assertion.
 
 
+### Buyer payout failure
+
+The daemon settles the seller's escrow at release and then pays the buyer's invoice. When that payment
+fails it retries on its own schedule (`payment_attempts` every `payment_retries_interval`); the first
+failure reaches the buyer as `payment-failed`, which changes nothing on screen: the trade stays
+`payout-pending`. Once the retries are exhausted the daemon asks the buyer for a new invoice with an
+`add-invoice` whose order still reads `settled-hold-invoice`. The app treats that message exactly as the
+first request for an invoice: the trade shows `waiting-invoice`, the add-invoice screen opens for the
+buyer and `trade.addInvoice` is offered on the trade detail. The replacement goes through the same manual
+form (or the NWC generator when a wallet is connected); the daemon's `invoice-updated` returns the trade to
+`payout-pending`, and `completed` follows only when the daemon publishes `success`. A rejected replacement is
+reported through `invoice.error` like any other rejection.
+
 ### Manual buyer invoice readouts
 
 `invoice.amount` exposes the positive unsigned number of sats requested by the daemon, alongside the
@@ -174,5 +217,4 @@ subsequent state assertions read its normal status. Both invoice screens expose 
 ordinary BackButton when navigation can pop; this action never invokes the order-cancellation control.
 
 The release action stays on trade detail while payment finalizes. An early rating notification or direct
-rating route also waits for final success. The historical order-preset selector still categorizes settled
-escrow as a successful preset; auditing that unrelated history surface is a follow-up.
+rating route also waits for final success.

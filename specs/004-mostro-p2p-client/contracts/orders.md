@@ -359,7 +359,12 @@ Coverage invariants:
   a create/take in flight must survive the seed.
 - **Mid-session keys join incrementally**: every derive path calls
   `ensure_global_dm_coverage`, which inserts the key and re-issues the
-  relay filter under the same stable subscription id.
+  relay filter under the same stable subscription id — closing that id
+  first, since nostr-sdk 0.45 rejects a duplicate id and keeps the stale
+  filter (`replace_subscription`). Every re-issue — this one and a node
+  switch's — goes through `replace_global_dm_filter`, which reads the map and
+  replaces the filter under one lock: interleaved CLOSE/REQ pairs would
+  otherwise keep an older key set or fail with a duplicate id.
 - **The relay filter is always rebuilt from the full map** — never from
   session-local state. A rebuild from a subset silently unsubscribes the
   missing trades at the relay.
@@ -402,7 +407,8 @@ what rebuilds sessions after one.
 | Action                             | Payload variant                                     | Effect on the local trade row                                                    |
 |------------------------------------|-----------------------------------------------------|----------------------------------------------------------------------------------|
 | `WaitingBuyerInvoice`              | (status sync)                                       | `status → WaitingBuyerInvoice`                                                   |
-| `AddInvoice`                       | `Payload::Order(small_order)`                       | Maker-buyer path (a taker's nonce-correlated copy is consumed by the take interception, even when late): `status → WaitingBuyerInvoice` (payload status, fallback `status_for_action`), `amount_sats ← small_order.amount` when > 0 — synced to book **and** DB so `tradeAmountProvider` sees the sats. Keyed by the message's order id (`trade_index` is `None`). The follow-up `AddInvoice` with a `Payload::Peer` (counterparty reputation) is ignored. |
+| `AddInvoice`                       | `Payload::Order(small_order)`                       | Maker-buyer path (a taker's nonce-correlated copy is consumed by the take interception, even when late): `status → WaitingBuyerInvoice` (payload status, fallback `status_for_action`), `amount_sats ← small_order.amount` when > 0 — synced to book **and** DB so `tradeAmountProvider` sees the sats. Keyed by the message's order id (`trade_index` is `None`). The follow-up `AddInvoice` with a `Payload::Peer` (counterparty reputation) is ignored. A payload status of `settled-hold-invoice` is the payout-failure replacement request (mostrod `check_failure_retries`, retries exhausted) and also maps to `WaitingBuyerInvoice` — persisting the settled status would hide the request and strand the payout. |
+| `InvoiceUpdated`                   | (status sync)                                       | `status → SettledHoldInvoice`: mostrod sends this only from `pay_new_invoice`, when the buyer's replacement payout invoice is accepted on a settled escrow — the payout is pending again on the new invoice |
 | `PayInvoice`                       | `Payload::PaymentRequest(small_order, bolt11, amt)` | `hold_invoice ← bolt11`, `amount_sats ← amt ?? small_order.amount`, `status → WaitingPayment` |
 | `BuyerTookOrder` / `HoldInvoicePaymentAccepted` | `SmallOrder` with `status = active`      | `status → Active` (routed through `map_core_status` kebab-case). The peer reveal happens in the pre-dispatch capture above, not in this arm. |
 | `FiatSentOk`                       | (status sync)                                       | `status → FiatSent`                                                              |

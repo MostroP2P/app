@@ -336,6 +336,30 @@ impl OrderBook {
         });
     }
 
+    /// Publish the current book when a relay reports the end of stored events
+    /// for the pending-book subscription. Returns whether it published.
+    ///
+    /// Every other emission is driven by an order arriving, so a node with
+    /// no pending orders never emits: the UI (which stays in its loading
+    /// state until the first emission, so an empty book is not flashed
+    /// before the relay answers) then waits forever — on a cold start
+    /// against an empty book, and every time the book screen remounts after
+    /// the last order left the book. EOSE is the relay confirming there is
+    /// nothing more to send, which is exactly the signal the UI is waiting
+    /// on. Only the pending feed counts: the recent-changes and Kind 14
+    /// feeds end their stored events too, and publishing on each would send
+    /// the whole book once per relay per subscription.
+    pub(crate) async fn publish_on_stored_events_end(
+        &self,
+        sub_id: &nostr_sdk::prelude::SubscriptionId,
+    ) -> bool {
+        if *sub_id != orders_subscription_id() {
+            return false;
+        }
+        self.publish().await;
+        true
+    }
+
     /// Publish the current book to subscribers.
     pub(crate) async fn publish(&self) {
         let snapshot = self.orders.read().await.clone();
@@ -2846,6 +2870,7 @@ async fn dispatch_mostro_message(
         | Action::DisputeInitiatedByPeer
         | Action::AdminSettled
         | Action::AdminCanceled
+        | Action::InvoiceUpdated
         // Rate/RateReceived/PaymentFailed do not change order status but are
         // handled explicitly so they don't fall through to the catch-all.
         | Action::Rate
@@ -4299,33 +4324,68 @@ fn relay_list_subscription_id() -> nostr_sdk::prelude::SubscriptionId {
     nostr_sdk::prelude::SubscriptionId::new("mostro-relay-list")
 }
 
+/// Point the long-lived subscription `id` at `filter`, replacing whatever it
+/// carried before.
+///
+/// nostr-sdk 0.45 refuses a subscribe whose id already exists and keeps the
+/// old filters, so the id is closed first (a no-op when it was never open).
+/// The brief gap between CLOSE and REQ loses nothing: a node switch refetches
+/// the book right after, and the Kind-14 feed has no `since`, so its REQ
+/// replays history.
+///
+/// The SDK reports per-relay failures inside an `Ok` output, which is how a
+/// rejected re-subscribe used to pass for a live one. No relay accepting it is
+/// an error here; a partial failure is logged.
+async fn replace_subscription(
+    client: &nostr_sdk::prelude::Client,
+    id: nostr_sdk::prelude::SubscriptionId,
+    filter: nostr_sdk::prelude::Filter,
+) -> Result<()> {
+    if let Err(e) = client.unsubscribe(&id).await {
+        log::warn!("[orders] closing {id} before re-subscribing failed: {e}");
+    }
+    let output = client
+        .subscribe(filter)
+        .with_id(id.clone())
+        .await
+        .map_err(|e| anyhow::anyhow!("subscribe {id} failed: {e}"))?;
+    if output.success.is_empty() {
+        return Err(anyhow::anyhow!(
+            "subscribe {id} rejected by every relay: {:?}",
+            output.failed
+        ));
+    }
+    for (url, err) in &output.failed {
+        crate::api::logging::blog_warn(
+            "relay",
+            format!(
+                "sub {id} failed relay={} err={}",
+                crate::api::logging::display_relay(&url.to_string()),
+                crate::api::logging::sanitize_relay_text(err),
+            ),
+        );
+    }
+    Ok(())
+}
+
 /// (Re)subscribe the order-book (Kind 38383) and Mostro-reply (Kind 14)
 /// filters, author-pinned to `mostro_pubkey`.
 ///
 /// Uses **stable** subscription IDs so that calling this again for a different
-/// node REPLACES the existing author-pinned filters in place (the relay pool
-/// overwrites the subscription for a known ID) instead of leaking a second
-/// subscription that keeps the old node's events flowing.
+/// node replaces the existing author-pinned filters (see
+/// [`replace_subscription`]) instead of leaking a second subscription that
+/// keeps the old node's events flowing.
 async fn subscribe_node_filters(
     client: &nostr_sdk::prelude::Client,
     mostro_pubkey: nostr_sdk::prelude::PublicKey,
-    trade_pubkeys: Vec<nostr_sdk::prelude::PublicKey>,
 ) -> Result<()> {
     // Two filters, not one unbounded one: relays cap how many stored events
     // they replay per REQ (relay.mostro.network: 300, oldest-first when no
     // limit is given), so a bare `kind+author` filter comes back with the
     // node's dead history and none of the live book. See `pending_orders_filter`.
     let (pending_filter, recent_filter) = order_book_filters(&mostro_pubkey);
-    client
-        .subscribe(pending_filter)
-        .with_id(orders_subscription_id())
-        .await
-        .map_err(|e| anyhow::anyhow!("order subscribe failed: {e}"))?;
-    client
-        .subscribe(recent_filter)
-        .with_id(recent_orders_subscription_id())
-        .await
-        .map_err(|e| anyhow::anyhow!("recent-orders subscribe failed: {e}"))?;
+    replace_subscription(client, orders_subscription_id(), pending_filter).await?;
+    replace_subscription(client, recent_orders_subscription_id(), recent_filter).await?;
     crate::api::logging::blog_info(
         "relay",
         format!(
@@ -4339,11 +4399,12 @@ async fn subscribe_node_filters(
 
     // The node's NIP-65 relay list, kept live so an operator adding a relay
     // reaches running clients; applied additively by apply_relay_list_event.
-    client
-        .subscribe(crate::nostr::relay_list::relay_list_filter(&mostro_pubkey))
-        .with_id(relay_list_subscription_id())
-        .await
-        .map_err(|e| anyhow::anyhow!("relay-list subscribe failed: {e}"))?;
+    replace_subscription(
+        client,
+        relay_list_subscription_id(),
+        crate::nostr::relay_list::relay_list_filter(&mostro_pubkey),
+    )
+    .await?;
     crate::api::logging::blog_info(
         "relay",
         format!(
@@ -4359,25 +4420,45 @@ async fn subscribe_node_filters(
     // after any downtime it must replay the full stored history so status
     // changes and late reconciliations are never lost. Only the ephemeral
     // per-trade subscription (subscribe_daemon_messages) carries a cutoff.
-    if !trade_pubkeys.is_empty() {
-        let p_count = trade_pubkeys.len();
-        let dm_filter = nostr_sdk::prelude::Filter::new()
-            .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
-            .author(mostro_pubkey)
-            .pubkeys(trade_pubkeys);
-        client
-            .subscribe(dm_filter)
-            .with_id(mostro_dm_subscription_id())
-            .await
-            .map_err(|e| anyhow::anyhow!("dm subscribe failed: {e}"))?;
-        crate::api::logging::blog_info(
-            "relay",
-            format!(
-                "sub created id={} kinds=[14] p_count={p_count}",
-                mostro_dm_subscription_id(),
-            ),
-        );
+    replace_global_dm_filter(client, mostro_pubkey).await
+}
+
+/// Re-issue the bulk Kind-14 subscription from the full coverage map
+/// ([`global_dm_keys`]); a no-op while the map is empty.
+///
+/// Serialized: a node switch and a key joining mid-session both land here,
+/// and two interleaved CLOSE/REQ pairs either leave the filter built from an
+/// older key set or make one REQ fail with "subscription ID already exists".
+/// Reading the map under the lock means whichever replacement runs last
+/// carries every covered key.
+async fn replace_global_dm_filter(
+    client: &nostr_sdk::prelude::Client,
+    mostro_pubkey: nostr_sdk::prelude::PublicKey,
+) -> Result<()> {
+    static DM_FILTER_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _guard = DM_FILTER_LOCK.lock().await;
+    let trade_pubkeys: Vec<nostr_sdk::prelude::PublicKey> = global_dm_keys()
+        .read()
+        .await
+        .keys()
+        .filter_map(|hex| nostr_sdk::prelude::PublicKey::from_hex(hex).ok())
+        .collect();
+    if trade_pubkeys.is_empty() {
+        return Ok(());
     }
+    let p_count = trade_pubkeys.len();
+    let dm_filter = nostr_sdk::prelude::Filter::new()
+        .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
+        .author(mostro_pubkey)
+        .pubkeys(trade_pubkeys);
+    replace_subscription(client, mostro_dm_subscription_id(), dm_filter).await?;
+    crate::api::logging::blog_info(
+        "relay",
+        format!(
+            "sub replaced id={} kinds=[14] p_count={p_count}",
+            mostro_dm_subscription_id(),
+        ),
+    );
     Ok(())
 }
 
@@ -4417,9 +4498,9 @@ pub(crate) async fn refresh_subscriptions_for_active_node() {
         }
     };
 
-    let trade_pubkeys = seed_global_dm_coverage().await;
+    seed_global_dm_coverage().await;
 
-    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey, trade_pubkeys).await {
+    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey).await {
         log::error!("[orders] node switch: re-subscribe failed: {e}");
         return;
     }
@@ -4492,35 +4573,8 @@ async fn resubscribe_global_dm_filter() {
     let Ok(mostro_pubkey) = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey()) else {
         return;
     };
-    let trade_pubkeys: Vec<nostr_sdk::prelude::PublicKey> = global_dm_keys()
-        .read()
-        .await
-        .keys()
-        .filter_map(|hex| nostr_sdk::prelude::PublicKey::from_hex(hex).ok())
-        .collect();
-    if trade_pubkeys.is_empty() {
-        return;
-    }
-    let p_count = trade_pubkeys.len();
-    let dm_filter = nostr_sdk::prelude::Filter::new()
-        .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
-        .author(mostro_pubkey)
-        .pubkeys(trade_pubkeys);
-    if let Err(e) = pool
-        .client()
-        .subscribe(dm_filter)
-        .with_id(mostro_dm_subscription_id())
-        .await
-    {
+    if let Err(e) = replace_global_dm_filter(&pool.client(), mostro_pubkey).await {
         log::warn!("[orders] bulk DM filter refresh failed: {e}");
-    } else {
-        crate::api::logging::blog_info(
-            "relay",
-            format!(
-                "sub replaced id={} kinds=[14] p_count={p_count}",
-                mostro_dm_subscription_id(),
-            ),
-        );
     }
 }
 
@@ -4914,7 +4968,7 @@ async fn _run_order_subscription() {
     // status changes) and the bulk Kind-14 Mostro-reply feed, both author-pinned
     // to the active node via stable subscription IDs (so a later node switch can
     // replace them in place). Display-level filtering is handled in Dart.
-    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey, trade_pubkeys).await {
+    if let Err(e) = subscribe_node_filters(&client, mostro_pubkey).await {
         log::error!("[orders] subscribe failed: {e}");
         return;
     }
@@ -5005,6 +5059,10 @@ async fn _run_order_subscription() {
                                 crate::api::logging::display_relay(&relay_url.to_string()),
                             ),
                         );
+                        // An empty book is only ever confirmed by this: the
+                        // stream otherwise emits on ingest alone, and the UI
+                        // shows its loading state until the first emission.
+                        order_book().publish_on_stored_events_end(&sub_id).await;
                     }
                     RelayMessage::Closed {
                         subscription_id,
@@ -5726,6 +5784,151 @@ mod tests {
         }
     }
 
+    /// A node switch re-runs `subscribe_node_filters` under the same stable
+    /// ids. nostr-sdk 0.45 refuses a subscribe whose id already exists and
+    /// keeps the old filters — reporting it per relay, not as an error — so
+    /// every live feed stayed pinned to the previous node until a restart.
+    #[tokio::test]
+    async fn a_node_switch_retargets_every_live_subscription() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::{Client, Keys};
+
+        let relay = MockRelay::run().await.expect("mock relay");
+        let url = relay.url().await;
+        let client = Client::new();
+        client.add_relay(&url).await.expect("add relay");
+        client
+            .try_connect_relay(url, std::time::Duration::from_secs(3))
+            .await
+            .expect("connect");
+        let trade = Keys::generate();
+        global_dm_keys()
+            .write()
+            .await
+            .insert(trade.public_key().to_hex(), (trade, 93));
+        let previous = Keys::generate().public_key();
+        let next = Keys::generate().public_key();
+
+        subscribe_node_filters(&client, previous)
+            .await
+            .expect("first subscribe");
+        subscribe_node_filters(&client, next)
+            .await
+            .expect("node switch");
+
+        for id in [
+            orders_subscription_id(),
+            recent_orders_subscription_id(),
+            relay_list_subscription_id(),
+            mostro_dm_subscription_id(),
+        ] {
+            let per_relay = client.subscription(&id).await;
+            assert!(!per_relay.is_empty(), "{id} has no live subscription");
+            for filter in per_relay.values().flatten() {
+                assert_eq!(
+                    filter.authors,
+                    Some(std::collections::BTreeSet::from([next])),
+                    "{id} is still pinned to the previous node"
+                );
+            }
+        }
+    }
+
+    /// The SDK reports a subscribe that failed on every relay as an `Ok`
+    /// output. Accepting that meant a feed with no REQ anywhere was logged
+    /// as created; a relay that was never connected must make it an error.
+    #[tokio::test]
+    async fn a_subscription_no_relay_accepts_is_an_error() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::{Client, Keys};
+
+        let relay = MockRelay::run().await.expect("mock relay");
+        let client = Client::new();
+        client
+            .add_relay(relay.url().await)
+            .await
+            .expect("add relay");
+
+        let result = subscribe_node_filters(&client, Keys::generate().public_key()).await;
+
+        assert!(
+            result.is_err(),
+            "a subscription no relay accepted must not pass for a live one"
+        );
+    }
+
+    /// PR #423 review: a node switch and a mid-session key joining the
+    /// coverage both replace `mostro-dm`. Interleaved, the CLOSE/REQ pairs
+    /// either leave the filter built from the stale key set or make one REQ
+    /// hit "subscription ID already exists". The last replace must win with
+    /// every covered key, and neither caller may fail.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_dm_filter_replacements_keep_every_covered_key() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::{Client, Keys};
+
+        const RACERS: usize = 16;
+
+        let relay = MockRelay::run().await.expect("mock relay");
+        let url = relay.url().await;
+        let client = Client::new();
+        client.add_relay(&url).await.expect("add relay");
+        client
+            .try_connect_relay(url, std::time::Duration::from_secs(3))
+            .await
+            .expect("connect");
+        let node = Keys::generate().public_key();
+        let snapshot = Keys::generate();
+        global_dm_keys()
+            .write()
+            .await
+            .insert(snapshot.public_key().to_hex(), (snapshot.clone(), 94));
+
+        // Against an in-process relay one replacement never yields, so the
+        // race only shows with real parallelism: the barrier releases every
+        // racer at once, each adding its own key and replacing `mostro-dm`.
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(RACERS));
+        let joined: Vec<Keys> = (0..RACERS).map(|_| Keys::generate()).collect();
+        let racers: Vec<_> = joined
+            .iter()
+            .cloned()
+            .map(|keys| {
+                let (client, barrier) = (client.clone(), barrier.clone());
+                tokio::spawn(async move {
+                    barrier.wait().await;
+                    global_dm_keys()
+                        .write()
+                        .await
+                        .insert(keys.public_key().to_hex(), (keys, 95));
+                    replace_global_dm_filter(&client, node).await
+                })
+            })
+            .collect();
+        for racer in racers {
+            racer
+                .await
+                .expect("racer panicked")
+                .expect("a concurrent replacement failed");
+        }
+        let per_relay = client.subscription(&mostro_dm_subscription_id()).await;
+        let pubkeys = per_relay
+            .values()
+            .flatten()
+            .filter_map(|f| {
+                f.generic_tags
+                    .get(&nostr_sdk::prelude::SingleLetterTag::LOWERCASE_P)
+                    .cloned()
+            })
+            .flatten()
+            .collect::<std::collections::BTreeSet<_>>();
+        for key in std::iter::once(&snapshot).chain(&joined) {
+            assert!(
+                pubkeys.contains(&key.public_key().to_hex()),
+                "mostro-dm lost a covered key"
+            );
+        }
+    }
+
     /// The truncation that keeps the daemon id under the cap must not merge
     /// two trade keys that share a prefix shorter than what is kept.
     #[test]
@@ -5902,6 +6105,44 @@ mod tests {
             misses.len() <= TRADE_KEY_MISS_CAPACITY,
             "miss cache grew to {}",
             misses.len()
+        );
+    }
+
+    /// The relay's EOSE on the pending-book subscription is the only signal
+    /// that an empty book is *confirmed* empty. Without it the UI has nothing
+    /// to leave its loading state on: the stream publishes on ingest alone,
+    /// and a node with no pending orders never ingests anything.
+    #[tokio::test]
+    async fn eose_on_the_pending_subscription_publishes_the_empty_book() {
+        let book = OrderBook::new();
+        let mut rx = book.subscribe();
+
+        let published = book
+            .publish_on_stored_events_end(&orders_subscription_id())
+            .await;
+
+        assert!(published);
+        let snapshot = rx.try_recv().expect("EOSE must publish the current book");
+        assert!(snapshot.is_empty(), "an empty book is published as empty");
+    }
+
+    /// Only the pending-book feed is the "book loaded" signal. The recent
+    /// changes feed and the Kind 14 feed end their stored events too, and
+    /// re-publishing on each would send the whole book across the bridge
+    /// once per relay per subscription.
+    #[tokio::test]
+    async fn eose_on_other_subscriptions_does_not_publish() {
+        let book = OrderBook::new();
+        let mut rx = book.subscribe();
+
+        let published = book
+            .publish_on_stored_events_end(&recent_orders_subscription_id())
+            .await;
+
+        assert!(!published);
+        assert!(
+            matches!(rx.try_recv(), Err(broadcast::error::TryRecvError::Empty)),
+            "EOSE on another subscription must not publish"
         );
     }
 

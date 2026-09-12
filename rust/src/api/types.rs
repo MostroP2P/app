@@ -405,11 +405,12 @@ pub struct AppState {
 
 /// Mostro daemon node information (name, version, fees, limits, currencies).
 ///
-/// Intentionally retained though currently unused: the active node's *identity*
-/// is just its pubkey (see `set_active_mostro_node`), while this richer record
-/// is the metadata model for the M5 multi-Mostro node registry — populated from
-/// the node's kind 0 / 38385 events. Kept here so M5 builds on a stable type
-/// instead of re-deriving it.
+/// Intentionally retained though currently unused: this models the daemon's
+/// kind 38385 *instance status*, which today reaches the UI as raw tags
+/// (`fetch_mostro_instance_tags`) parsed on the Dart side. The node registry
+/// shipped on [`MostroNodeEntry`] (operator profile from kind 0) instead;
+/// this stays as the Rust-side model for whenever that 38385 parsing moves
+/// behind the bridge.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MostroNodeInfo {
     pub pubkey: String,
@@ -432,6 +433,34 @@ pub struct MostroNodeInfo {
 
 fn default_expiration_hours() -> u32 {
     24
+}
+
+/// One entry of the Mostro node registry shown in Settings → Mostro Node.
+///
+/// Identity (pubkey) and trust/region come from the compiled-in registry or
+/// user additions; display metadata (name, picture, about, website) comes from
+/// the node operator's Nostr kind 0 event and may lag or be absent. Distinct
+/// from [`MostroNodeInfo`], which models the daemon's kind 38385 instance
+/// status rather than the operator's profile.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MostroNodeEntry {
+    /// Node pubkey, 64-char lowercase hex.
+    pub pubkey: String,
+    /// Region label (flag emoji + place name) for trusted nodes, `None` for
+    /// user-added ones.
+    pub region: Option<String>,
+    /// `true` when the entry comes from the compiled-in trusted registry.
+    pub is_trusted: bool,
+    /// `true` when this is the currently active node.
+    pub is_active: bool,
+    /// Display name: user-given (custom nodes) or from kind 0 metadata.
+    pub name: Option<String>,
+    /// Avatar URL from kind 0 metadata (https only; anything else is dropped).
+    pub picture: Option<String>,
+    /// Operator description from kind 0 metadata.
+    pub about: Option<String>,
+    /// Website URL from kind 0 metadata.
+    pub website: Option<String>,
 }
 
 fn default_expiration_seconds() -> u32 {

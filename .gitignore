@@ -44,3 +44,6 @@ web/flutter_service_worker.js
 # Headless web smoke test (test/web/smoke): deps and failure screenshots
 test/web/smoke/node_modules/
 test/web/smoke/smoke-failure.png
+
+# Golden diff output written by flutter test on a mismatch
+**/test/**/failures/

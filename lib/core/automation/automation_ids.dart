@@ -77,9 +77,16 @@ class AutomationIds {
 
   // Mostro node selector (bottom sheet)
   static const String nodeCustomPubkey = 'node.custom.pubkey';
-  static const String nodeUseDefault = 'node.use_default';
+  static const String nodeCustomName = 'node.custom.name';
   static const String nodeCustomConfirm = 'node.custom.confirm';
   static const String nodeCustomCancel = 'node.custom.cancel';
+  static const String nodeAddCustom = 'node.add_custom';
+  static const String nodeAddCustomCancel = 'node.add_custom.cancel';
+
+  /// Card of one node in the selector list. A user-added node is removed by
+  /// long-pressing its card (confirmation dialog), so there is no separate
+  /// delete control.
+  static String nodeItem(String pubkey) => 'node.item.$pubkey';
 
   // Wallet / NWC
   static const String walletSettingsConnect = 'wallet.settings.connect';
@@ -107,12 +114,35 @@ class AutomationIds {
   static const String orderCreateCurrencySearch =
       'order.create.currency.search';
   static const String orderCreateFiatAmount = 'order.create.fiat_amount';
-  // Range orders: the toggle replaces the single amount with a min/max pair.
+  // The screen's own `Buy BTC | Sell BTC` control: the side can be switched
+  // after arriving from the order book's create button.
+  static const String orderCreateSideBuy = 'order.create.side.buy';
+  static const String orderCreateSideSell = 'order.create.side.sell';
+  // Range orders: the `Single | Range` control replaces the single amount
+  // with a min/max pair. [orderCreateRange] names the whole control; the two
+  // segments are addressable on their own.
   static const String orderCreateRange = 'order.create.range';
+  static const String orderCreateAmountSingle = 'order.create.amount.single';
+  static const String orderCreateAmountRange = 'order.create.amount.range';
   static const String orderCreateFiatMin = 'order.create.fiat_min';
   static const String orderCreateFiatMax = 'order.create.fiat_max';
+  // Payment methods live on their own screen, opened by the `Add` chip. The
+  // free-text field is the one an automated driver can fill with an
+  // arbitrary method; `custom_add` turns it into a chip.
+  static const String orderCreatePaymentMethodAdd =
+      'order.create.payment_method.add';
+  static const String orderCreatePaymentMethodSearch =
+      'order.create.payment_method.search';
   static const String orderCreatePaymentMethod = 'order.create.payment_method';
+  static const String orderCreatePaymentMethodCustomAdd =
+      'order.create.payment_method.custom_add';
+  // `Market | Fixed` control, as a whole and per segment. Fixed is disabled
+  // while a range order is being written.
   static const String orderCreatePriceType = 'order.create.price_type';
+  static const String orderCreatePriceMarket = 'order.create.price.market';
+  static const String orderCreatePriceFixed = 'order.create.price.fixed';
+  // The premium figure; tapping it opens the numeric keyboard in place.
+  static const String orderCreatePremium = 'order.create.premium';
   static const String orderCreateSatsAmount = 'order.create.sats_amount';
   static const String orderCreateSubmit = 'order.create.submit';
   static const String orderCreateCancel = 'order.create.cancel';
@@ -130,11 +160,15 @@ class AutomationIds {
   static String orderCreateCurrencyOption(String code) =>
       'order.create.currency.$code';
 
+  /// One method in the payment-method picker. Methods carry spaces and
+  /// punctuation, which the identifier keeps verbatim.
+  static String orderCreatePaymentMethodOption(String method) =>
+      'order.create.payment_method.$method';
+
   // Take order — v2 asks the fiat amount on the same screen (range orders).
   static const String orderTakeAmount = 'order.take.amount';
   static const String orderTakeAmountConfirm = 'order.take.amount.confirm';
   static const String orderTakeConfirm = 'order.take.confirm';
-  static const String orderTakeClose = 'order.take.close';
 
   // Trade detail
   static const String orderId = 'order.id';
@@ -151,6 +185,8 @@ class AutomationIds {
   static const String tradeRate = 'trade.rate';
   static const String tradeRateSubmit = 'trade.rate.submit';
   static const String tradeRateClose = 'trade.rate.close';
+  static const String tradeViewDispute = 'trade.dispute.view';
+  static const String tradeClose = 'trade.close';
 
   /// Star [score] (1-5) on the rating screen.
   static String tradeRateStar(int score) => 'trade.rate.star.$score';
@@ -165,6 +201,10 @@ class AutomationIds {
   static const String invoiceOrderId = 'invoice.order_id';
   static const String invoiceText = 'invoice.text';
   static const String invoiceSubmit = 'invoice.submit';
+
+  /// Readout: the daemon's reason for refusing the last submitted invoice.
+  /// Present only after a rejection, until the next submission.
+  static const String invoiceError = 'invoice.error';
   static const String invoiceCancel = 'invoice.cancel';
   static const String payInvoiceText = 'pay.invoice.text';
   static const String payOrderId = 'pay.order_id';
