@@ -5847,6 +5847,11 @@ mod tests {
     /// Build a signed Kind 38383 event for `order_id` at `status`, the shape
     /// the relay feed delivers.
     fn book_event(order_id: &str, status: &str) -> nostr_sdk::prelude::Event {
+        book_event_amt(order_id, status, "0")
+    }
+
+    /// [`book_event`] with an explicit `amt` tag, for the amount-gate tests.
+    fn book_event_amt(order_id: &str, status: &str, amt: &str) -> nostr_sdk::prelude::Event {
         use nostr::event::FinalizeEvent;
         use nostr_sdk::prelude::{EventBuilder, Keys, Kind, Tag};
         EventBuilder::new(Kind::from(38383u16), "")
@@ -5857,12 +5862,71 @@ mod tests {
                 Tag::parse(["f", "USD"]).unwrap(),
                 Tag::parse(["pm", "cashapp"]).unwrap(),
                 Tag::parse(["premium", "1"]).unwrap(),
-                Tag::parse(["amt", "0"]).unwrap(),
+                Tag::parse(["amt", amt]).unwrap(),
                 Tag::parse(["fa", "20"]).unwrap(),
                 Tag::parse(["z", "order"]).unwrap(),
             ])
             .finalize(&Keys::generate())
             .unwrap()
+    }
+
+    /// Review round 2: the Kind 38383 sync is gated WHOLE on
+    /// `wire_status_applies` — a public bucket that may not replace the
+    /// private status must not sneak its amount into the row either. The
+    /// pre-#394 shape wrote the amount even when the status was refused;
+    /// this pins the gate so restoring that shape goes red. The d-tag
+    /// subscription shares the same shape but needs a live relay to drive,
+    /// so the book ingest stands in for both.
+    #[tokio::test]
+    async fn a_refused_wire_status_does_not_sneak_its_amount_into_the_row() {
+        let path = std::env::temp_dir().join(format!("mostro_amtgate_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let mut row = seam_trade_row(&order_id, crate::api::types::OrderStatus::Active);
+        row.order.amount_sats = Some(5_000);
+        db.save_trade(&row).await.expect("save the trade row");
+        store_trade_key_index(&order_id, 7).await;
+
+        // `in-progress` over an Active row is the canonical refusal (#203):
+        // neither the status nor the event's amount may land.
+        ingest_order_event_with(
+            &book_event_amt(&order_id, "in-progress", "7777"),
+            Publish::WhenBatchEnds,
+        )
+        .await;
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row exists");
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Active);
+        assert_eq!(
+            row.order.amount_sats,
+            Some(5_000),
+            "a refused wire status must not sneak its amount into the row",
+        );
+
+        // The control: a terminal wire status applies, and its amount lands
+        // with it — the gate refuses the pair, not the amount.
+        ingest_order_event_with(
+            &book_event_amt(&order_id, "canceled", "7777"),
+            Publish::WhenBatchEnds,
+        )
+        .await;
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row exists");
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Canceled);
+        assert_eq!(
+            row.order.amount_sats,
+            Some(7_777),
+            "an applied wire status carries its amount",
+        );
+        order_book().remove_order(&order_id).await;
     }
 
     /// The regression this PR was one predicate away from shipping: an order we
