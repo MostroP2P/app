@@ -22,7 +22,7 @@ use crate::mostro::bond_policy;
 /// `None` and `Some(policy = Unsupported)` differ: the first is "not known
 /// yet", the second is "known, and the daemon predates bonds".
 pub fn get_bond_policy() -> Option<BondPolicyInfo> {
-    bond_policy::get()
+    bond_policy::get_for(&crate::config::active_mostro_pubkey())
 }
 
 /// Estimated bond the active node would ask for an order of
@@ -30,7 +30,7 @@ pub fn get_bond_policy() -> Option<BondPolicyInfo> {
 /// unknown, not enabled, or advertises no percentage. Never used to charge
 /// anything: the daemon sends the exact bolt11.
 pub fn estimate_bond_sats(order_amount_sats: u64) -> Option<u64> {
-    let policy = bond_policy::get()?;
+    let policy = get_bond_policy()?;
     bond_policy::estimate_bond_sats(order_amount_sats, &policy)
 }
 
@@ -209,17 +209,24 @@ mod tests {
     }
 
     #[test]
-    fn the_estimate_reads_the_active_node_policy() {
+    fn the_estimate_reads_the_active_node_policy_only() {
         use crate::api::types::{BondPolicy, BondPolicyInfo};
-        bond_policy::clear();
-        assert_eq!(get_bond_policy(), None);
-        assert_eq!(estimate_bond_sats(500_000), None);
-        bond_policy::set_from_tags(BondPolicyInfo {
+        let enabled = BondPolicyInfo {
             policy: BondPolicy::Enabled,
             amount_pct: Some(0.01),
             base_amount_sats: Some(1_000),
             ..BondPolicyInfo::default()
-        });
+        };
+        bond_policy::clear();
+        assert_eq!(get_bond_policy(), None);
+        assert_eq!(estimate_bond_sats(500_000), None);
+
+        // A policy fetched from some other node is not the active node's.
+        bond_policy::set_from_tags("not-the-active-node", enabled.clone());
+        assert_eq!(get_bond_policy(), None);
+        assert_eq!(estimate_bond_sats(500_000), None);
+
+        bond_policy::set_from_tags(&crate::config::active_mostro_pubkey(), enabled);
         assert_eq!(estimate_bond_sats(500_000), Some(5_000));
         assert_eq!(estimate_bond_sats(10), Some(1_000));
         bond_policy::clear();

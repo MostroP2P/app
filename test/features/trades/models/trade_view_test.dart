@@ -6,6 +6,7 @@ import 'package:mostro/features/trades/models/trade_view.dart';
 /// one lime button when the user acts, none when they wait; chat only once
 /// the trade is active; dispute never before the escrow is locked (#203).
 void main() {
+  bondWindowTests();
   TradeView view(
     TradeStatus status, {
     required bool isBuyer,
@@ -182,6 +183,30 @@ void main() {
           reason: '$status',
         );
       }
+    }
+  });
+}
+
+/// Phase 0 of `docs/ANTI_ABUSE_BOND.md`: the bond window offers no daemon
+/// action yet. `waitingBond` merges the taker and maker waits, and the daemon
+/// rejects a maker's cancel during its bond (§2.8), so a Cancel here would be
+/// an action guaranteed to fail for one of the two sides. Phase 1 tells them
+/// apart with the pay-bond screen.
+void bondWindowTests() {
+  group('waiting for the anti-abuse bond', () {
+    for (final isBuyer in [true, false]) {
+      test('no primary and no secondary action (isBuyer: $isBuyer)', () {
+        final v = TradeView.of(
+          status: TradeStatus.waitingBond,
+          isBuyer: isBuyer,
+          canRate: true,
+        );
+        expect(v.chip, TradeChip.waiting);
+        expect(v.primary, TradePrimaryAction.none);
+        expect(v.secondary, isEmpty);
+        expect(v.showsChat, isFalse);
+        expect(v.timer, TradeTimerOwner.none);
+      });
     }
   });
 }

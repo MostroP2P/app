@@ -133,25 +133,35 @@ pub fn applies_to_maker(policy: &BondPolicyInfo) -> bool {
 
 // ── Process-global state ────────────────────────────────────────────────────
 
-/// What the active node's 38385 tags said, or `None` before the first
-/// successful fetch. Node-scoped: cleared whenever the fetch fails or finds no
-/// event, so a stale policy never outlives a node switch.
-static POLICY: RwLock<Option<BondPolicyInfo>> = RwLock::new(None);
+/// What one node's 38385 tags said, keyed by that node's hex pubkey, or
+/// `None` before the first successful fetch. The key is what makes the cache
+/// safe across a node switch: a capability fetch that was in flight for the
+/// previous node lands here tagged with *that* node, and [`get_for`] refuses
+/// to serve it for the new one (same reasoning as `pow::first_contact_pow_for`).
+/// Cleared whenever a fetch fails or finds no event, and at the start of a
+/// node switch.
+static POLICY: RwLock<Option<(String, BondPolicyInfo)>> = RwLock::new(None);
 
-/// Record what the active node advertised. A poisoned lock is recovered from
-/// rather than propagated: this is a cache of what the node said.
-pub fn set_from_tags(policy: BondPolicyInfo) {
-    *POLICY.write().unwrap_or_else(|e| e.into_inner()) = Some(policy);
+/// Record what `node` (hex pubkey) advertised. A poisoned lock is recovered
+/// from rather than propagated: this is a cache of what the node said.
+pub fn set_from_tags(node: &str, policy: BondPolicyInfo) {
+    *POLICY.write().unwrap_or_else(|e| e.into_inner()) = Some((node.to_string(), policy));
 }
 
-/// Forget the active node's policy (fetch failed, no event, node switch).
+/// Forget the cached policy (fetch failed, no event, node switch).
 pub fn clear() {
     *POLICY.write().unwrap_or_else(|e| e.into_inner()) = None;
 }
 
-/// The active node's policy, `None` until its info event has been fetched.
-pub fn get() -> Option<BondPolicyInfo> {
-    POLICY.read().unwrap_or_else(|e| e.into_inner()).clone()
+/// The policy fetched **from `node`** (hex pubkey), `None` until its info
+/// event has been fetched — or when the cache holds another node's answer.
+pub fn get_for(node: &str) -> Option<BondPolicyInfo> {
+    POLICY
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .filter(|(from, _)| from.eq_ignore_ascii_case(node))
+        .map(|(_, policy)| policy.clone())
 }
 
 #[cfg(test)]
@@ -369,14 +379,18 @@ mod tests {
         assert!(!applies_to_taker(&p) && !applies_to_maker(&p));
     }
 
-    /// The global is a cache of what the node said: set, read back, cleared.
+    /// The global is a cache of what one node said: served only for that
+    /// node, so a fetch that raced a node switch never answers for the new
+    /// node; and cleared on demand.
     #[test]
-    fn the_snapshot_round_trips_and_clears() {
+    fn the_snapshot_is_served_only_for_the_node_it_came_from() {
         clear();
-        assert_eq!(get(), None);
-        set_from_tags(parse_tags(&enabled_tags()));
-        assert_eq!(get().map(|p| p.policy), Some(BondPolicy::Enabled));
+        assert_eq!(get_for("aa"), None);
+        set_from_tags("aa", parse_tags(&enabled_tags()));
+        assert_eq!(get_for("aa").map(|p| p.policy), Some(BondPolicy::Enabled));
+        assert_eq!(get_for("AA").map(|p| p.policy), Some(BondPolicy::Enabled));
+        assert_eq!(get_for("bb"), None, "another node's answer is not reused");
         clear();
-        assert_eq!(get(), None);
+        assert_eq!(get_for("aa"), None);
     }
 }

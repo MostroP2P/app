@@ -620,9 +620,10 @@ pub(crate) async fn fetch_and_set_node_capabilities() {
             // The anti-abuse bond policy, so the UI can warn before a take or
             // a create and price a payout claim's deadline. Node-scoped like
             // the escrow mode. See mostro::bond_policy.
-            crate::mostro::bond_policy::set_from_tags(crate::mostro::bond_policy::parse_tags(
-                &tags,
-            ));
+            crate::mostro::bond_policy::set_from_tags(
+                &mostro_pubkey_hex,
+                crate::mostro::bond_policy::parse_tags(&tags),
+            );
         }
         Ok(None) => {
             log::warn!("[nostr] no Kind 38385 event found — PoW defaults to 0");

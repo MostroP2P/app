@@ -1777,6 +1777,11 @@ async fn rebuild_trade_from_dm(
             | Action::Canceled
             | Action::CantDo
             | Action::BondSlashed
+            // A bond bolt11 is not a trade to recover: its payload amount is
+            // the bond, not the order, and a row without the invoice would be
+            // a waiting-bond trade the user cannot pay. The take path owns
+            // it (docs/ANTI_ABUSE_BOND.md Phase 1).
+            | Action::PayBondInvoice
             | Action::RestoreSession
             | Action::AdminTookDispute
     ) {
@@ -5205,6 +5210,10 @@ pub(crate) async fn refresh_subscriptions_for_active_node() {
     // read as Unknown — which keeps Cashu shut — instead of carrying one
     // node's Cashu mode onto another.
     crate::mostro::escrow_mode::clear();
+    // The bond policy is node-scoped for the same reason: until the
+    // re-fetch answers, the previous node's policy must not pre-warn (or
+    // fail to) for the new one.
+    crate::mostro::bond_policy::clear();
 
     let Ok(pool) = crate::api::nostr::get_pool() else {
         log::warn!(
@@ -11252,6 +11261,61 @@ mod tests {
             drain_updates(&mut rx, &order_id),
             vec![crate::api::types::OrderStatus::WaitingBuyerInvoice],
         );
+    }
+
+    /// A redelivered `pay-bond-invoice` (startup replay, reconnect backlog)
+    /// must not rebuild a trade: its `SmallOrder.amount` is the bond, not the
+    /// order, and a row without the bond invoice would be a waiting-bond
+    /// trade the user cannot pay. The take path owns it (Phase 1).
+    #[tokio::test]
+    async fn a_replayed_pay_bond_invoice_does_not_rebuild_a_trade() {
+        use mostro_core::message::{Action, Payload};
+
+        let path = std::env::temp_dir().join(format!("mostro_rebuild_bond_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut rx = trade_updates_tx().subscribe();
+
+        // Shape of the daemon's bond message: status Pending as a placeholder,
+        // amount = the bond, no trade pubkeys.
+        let so = mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Pending),
+            1_000,
+            "EUR".to_string(),
+            None,
+            None,
+            50,
+            "SEPA".to_string(),
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                Action::PayBondInvoice,
+                Some(Payload::PaymentRequest(Some(so), "lnbc10u1...".to_string(), None)),
+                2_000,
+            ),
+            "test-rebuild-bond",
+            "ff00ff32",
+            13,
+        )
+        .await;
+
+        assert!(
+            db.get_trade_by_order_id(&order_id).await.expect("lookup").is_none(),
+            "a bond bolt11 is not a trade to recover"
+        );
+        assert!(drain_updates(&mut rx, &order_id).is_empty());
     }
 
     /// #394 step 2: a payload naming two strangers proves no role for the
