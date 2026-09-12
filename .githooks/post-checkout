@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
+# installed by scripts/setup-hooks.sh — edit .githooks/, then re-run it
 # Post-checkout hook: regenerate gitignored generated code after switching branches.
 # Args: <previous HEAD> <new HEAD> <1 if branch checkout, 0 if file checkout>
-# Install: git config core.hooksPath .githooks
 [[ "${3-0}" == "1" ]] || exit 0
 # Deliberately NOT skipped mid-rebase: a rebase that drops every local commit
 # (patches already upstream) fires this and no post-rewrite, and there the tree

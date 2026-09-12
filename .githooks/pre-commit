@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
+# installed by scripts/setup-hooks.sh — edit .githooks/, then re-run it
 # Pre-commit hook: lint and test checks
-# Install: git config core.hooksPath .githooks
 set -e
 
 # Cheap and first: catches a partial flutter_rust_bridge version bump before it lands.
