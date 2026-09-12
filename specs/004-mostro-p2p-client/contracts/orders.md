@@ -658,6 +658,11 @@ ever learned from daemon messages, so:
   running on the previous node, so it also stops as soon as an event of its
   order arrives while its node is no longer the active one, as
   `dispatch_mostro_message` rejects any sender but the active node.
+- One `subscribe_single_order` task per order. A retake calls it again while
+  the first take's task may still be running; the newest call replaces the
+  older task, which stops at its next wake without touching the
+  `mostro-order-<id>` subscription. The new task re-opens it (a fresh idle
+  window) and is the only one that may drop it.
 - UI MUST NOT treat `InProgress` as `Active`. Actions the daemon gates on
   `Active`/`FiatSent` (dispute, fiat-sent) are rejected with `CantDo` in that
   state (issue #203).

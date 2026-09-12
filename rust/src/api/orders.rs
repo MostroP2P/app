@@ -4,7 +4,7 @@
 /// applies filters, and exposes a stream for UI updates.
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 
@@ -4317,9 +4317,13 @@ async fn handle_single_order_event(
 /// down or after a generous idle timeout (no updates for 30 minutes).
 async fn subscribe_single_order(order_id: &str) {
     let order_id = order_id.to_string();
+    // Claimed before the spawn, so a retake that calls this again supersedes
+    // the earlier take's task at once rather than after it gets scheduled.
+    let (generation, replaced) = claim_single_order_task(&order_id);
     crate::rt::spawn(async move {
         let Ok(pool) = crate::api::nostr::get_pool() else {
             log::warn!("[orders] subscribe_single_order: relay pool not initialized");
+            release_single_order_task(&order_id, generation);
             return;
         };
         let client = pool.client();
@@ -4328,6 +4332,7 @@ async fn subscribe_single_order(order_id: &str) {
                 Ok(pk) => pk,
                 Err(e) => {
                     log::error!("[orders] subscribe_single_order: invalid pubkey: {e}");
+                    release_single_order_task(&order_id, generation);
                     return;
                 }
             };
@@ -4335,7 +4340,17 @@ async fn subscribe_single_order(order_id: &str) {
         let mut rx = client.notifications();
         let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, &order_id);
         let sub_id = single_order_subscription_id(&order_id);
+        if replaced {
+            // The earlier take's REQ is still open under this same id, and
+            // nostr-sdk refuses a subscribe whose id exists (it keeps the old
+            // filter and reports that per relay, not as an error). Drop it so
+            // this subscribe is accepted and owned by this task; the relay
+            // replays the order's latest event on the new REQ, so nothing is
+            // missed in between.
+            let _ = client.unsubscribe(&sub_id).await;
+        }
         if let Err(e) = client.subscribe(filter).with_id(sub_id.clone()).await {
+            release_single_order_task(&order_id, generation);
             log::warn!("[orders] subscribe_single_order subscribe failed: {e}");
             return;
         }
@@ -4359,6 +4374,11 @@ async fn subscribe_single_order(order_id: &str) {
 
             match timeout(remaining, rx.next()).await {
                 Ok(Some(ClientNotification::Event { event, .. })) => {
+                    // A retake replaced this task while it waited: stop
+                    // before handling anything, so no event is applied twice.
+                    if !single_order_task_is_current(&order_id, generation) {
+                        break;
+                    }
                     match handle_single_order_event(
                         &event,
                         &order_id,
@@ -4380,13 +4400,79 @@ async fn subscribe_single_order(order_id: &str) {
             }
         }
 
-        // Drop the relay-side REQ; see subscribe_daemon_messages.
-        if let Err(e) = client.unsubscribe(&sub_id).await {
-            log::warn!(
-                "[orders] subscribe_single_order unsubscribe failed for order={order_id}: {e}"
+        // Drop the relay-side REQ; see subscribe_daemon_messages. Only while
+        // this task still owns it: a superseded task leaves the REQ to the
+        // retake's task, which re-opened it under the same id.
+        if release_single_order_task(&order_id, generation) {
+            if let Err(e) = client.unsubscribe(&sub_id).await {
+                log::warn!(
+                    "[orders] subscribe_single_order unsubscribe failed for order={order_id}: {e}"
+                );
+            }
+        } else {
+            crate::api::logging::blog_debug(
+                "orders",
+                format!(
+                    "d-tag task order={} superseded by a retake — subscription left to it",
+                    crate::api::logging::short_id(&order_id),
+                ),
             );
         }
     });
+}
+
+/// Live single-order tasks, by order id: the generation of the task that owns
+/// the order's `mostro-order-<id>` subscription.
+///
+/// A retake calls [`subscribe_single_order`] again while the first take's
+/// task may still be running — it stops only on a 30-minute idle, a shutdown
+/// or a node switch, and a wipe is none of those. Two tasks would then read
+/// the same notifications and apply every event twice, and whichever exited
+/// first would unsubscribe the REQ the other relies on. The newest claim
+/// replaces the older one instead: the old task stops at its next wake
+/// without touching the subscription, and the new task re-opens and owns it,
+/// with an idle window that starts from the retake.
+fn single_order_tasks() -> &'static std::sync::Mutex<HashMap<String, u64>> {
+    static TASKS: OnceLock<std::sync::Mutex<HashMap<String, u64>>> = OnceLock::new();
+    TASKS.get_or_init(Default::default)
+}
+
+/// Source of single-order task generations; strictly increasing.
+static SINGLE_ORDER_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// Claim the single-order task for `order_id`: a fresh generation, and
+/// whether it replaced a task still holding the order.
+fn claim_single_order_task(order_id: &str) -> (u64, bool) {
+    let generation = SINGLE_ORDER_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+    let replaced = single_order_tasks()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(order_id.to_string(), generation)
+        .is_some();
+    (generation, replaced)
+}
+
+/// Whether `generation` still owns `order_id`'s single-order task.
+fn single_order_task_is_current(order_id: &str, generation: u64) -> bool {
+    single_order_tasks()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(order_id)
+        == Some(&generation)
+}
+
+/// Release `generation`'s claim on `order_id`, returning whether it still held
+/// it — only then does the task own the subscription it is about to drop.
+fn release_single_order_task(order_id: &str, generation: u64) -> bool {
+    let mut tasks = single_order_tasks()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if tasks.get(order_id) == Some(&generation) {
+        tasks.remove(order_id);
+        true
+    } else {
+        false
+    }
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
@@ -8769,6 +8855,67 @@ mod tests {
             "the active node's canceled wipes the never-active take"
         );
         assert!(session_manager().get_session(&order_id).await.is_none());
+    }
+
+    /// A retake's single-order task replaces the first take's: the first stops
+    /// being current, and releasing it does not hand back the subscription —
+    /// only the current task may drop the REQ both would otherwise share.
+    #[test]
+    fn a_retake_replaces_the_earlier_single_order_task() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+
+        let (first, replaced) = claim_single_order_task(&order_id);
+        assert!(!replaced, "the first take replaces nothing");
+        let (second, replaced) = claim_single_order_task(&order_id);
+        assert!(replaced, "the retake replaces the first take's task");
+
+        assert!(
+            !single_order_task_is_current(&order_id, first),
+            "the first take's task must stop"
+        );
+        assert!(single_order_task_is_current(&order_id, second));
+        assert!(
+            !release_single_order_task(&order_id, first),
+            "a superseded task must not drop the subscription"
+        );
+        assert!(
+            single_order_task_is_current(&order_id, second),
+            "nor take the retake's claim with it"
+        );
+        assert!(
+            release_single_order_task(&order_id, second),
+            "the current task owns the subscription it drops"
+        );
+        assert!(!single_order_task_is_current(&order_id, second));
+    }
+
+    /// `subscribe_single_order` claims before it spawns, so a second call
+    /// supersedes the first task at once; and both tasks leave the registry
+    /// empty when they end (here at once: no relay pool in unit tests).
+    #[tokio::test]
+    async fn subscribe_single_order_claims_before_it_spawns() {
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let current = || {
+            single_order_tasks()
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(&order_id)
+                .copied()
+        };
+
+        subscribe_single_order(&order_id).await;
+        let first = current().expect("the first call claims the order");
+        subscribe_single_order(&order_id).await;
+        let second = current().expect("the retake's call claims the order");
+        assert_ne!(first, second, "the retake's task replaces the first");
+
+        for _ in 0..20 {
+            if current().is_none() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert_eq!(current(), None, "no claim outlives its task");
     }
 
     /// Dispatch an action-only daemon message for `order_uuid`, as the relay
