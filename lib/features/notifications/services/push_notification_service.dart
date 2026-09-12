@@ -73,12 +73,12 @@ class PushNotificationService {
     // TODO: Replace 'YOUR_VAPID_KEY' with the real VAPID key from Firebase console.
     const vapidKey = 'YOUR_VAPID_KEY';
     if (kIsWeb && vapidKey == 'YOUR_VAPID_KEY') {
-      debugPrint('[push] WARNING: VAPID key not configured — skipping web token');
+      debugPrint(
+        '[push] WARNING: VAPID key not configured — skipping web token',
+      );
     } else {
       try {
-        _token = await _fcm.getToken(
-          vapidKey: kIsWeb ? vapidKey : null,
-        );
+        _token = await _fcm.getToken(vapidKey: kIsWeb ? vapidKey : null);
         debugPrint('[push] FCM token acquired (${_token?.length ?? 0} chars)');
       } catch (e) {
         debugPrint('[push] FCM getToken failed: $e');
@@ -111,7 +111,10 @@ class PushNotificationService {
     _initialized = true;
   }
 
-  void _handleForeground(RemoteMessage message, {ProviderContainer? container}) {
+  void _handleForeground(
+    RemoteMessage message, {
+    ProviderContainer? container,
+  }) {
     final data = message.data;
     if (data.isEmpty) return;
 
@@ -158,8 +161,10 @@ class PushNotificationService {
     final prefs = _cachedPrefs;
     if (prefs == null) return true; // allow until prefs are loaded
     return switch (type) {
-      'tradeUpdate' || 'orderTaken' => prefs.getBool('notify_trade_updates') ?? true,
-      'invoiceRequest' || 'paymentReceived' => prefs.getBool('notify_payments') ?? true,
+      'tradeUpdate' ||
+      'orderTaken' => prefs.getBool('notify_trade_updates') ?? true,
+      'invoiceRequest' ||
+      'paymentReceived' => prefs.getBool('notify_payments') ?? true,
       'dispute' => prefs.getBool('notify_disputes') ?? true,
       _ => true,
     };
@@ -196,10 +201,7 @@ class PushNotificationService {
       final response = await http.post(
         Uri.parse('$_pushServerUrl/api/unregister'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'trade_pubkey': tradePubkey,
-          'token': _token,
-        }),
+        body: jsonEncode({'trade_pubkey': tradePubkey, 'token': _token}),
       );
       if (response.statusCode >= 200 && response.statusCode < 300) {
         _registeredTradePubkeys.remove(tradePubkey);
@@ -226,6 +228,26 @@ class PushNotificationService {
     }
   }
 
+  // ── System permission ──────────────────────────────────────────────────────
+
+  /// Whether the OS is refusing to show this app's notifications.
+  ///
+  /// 10d needs to say so before the four toggles, since flipping them on
+  /// while the system permission is denied changes nothing the user can see.
+  /// Anything other than an explicit denial reads as false — a platform with
+  /// no push (desktop), a build without Firebase, or a permission the user
+  /// has not been asked for yet is not a setting for them to go and fix.
+  Future<bool> isSystemPermissionDenied() async {
+    if (!_isSupported) return false;
+    try {
+      final settings = await _fcm.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.denied;
+    } catch (e) {
+      debugPrint('[push] permission status unavailable: $e');
+      return false;
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   bool get _isSupported => !_isDesktop;
@@ -243,27 +265,28 @@ class PushNotificationService {
   }
 
   NotificationType _typeFromString(String type) => switch (type) {
-        'tradeUpdate' => NotificationType.tradeUpdate,
-        'invoiceRequest' => NotificationType.invoiceRequest,
-        'paymentReceived' => NotificationType.paymentReceived,
-        'orderTaken' => NotificationType.orderTaken,
-        'dispute' => NotificationType.dispute,
-        _ => NotificationType.system,
-      };
+    'tradeUpdate' => NotificationType.tradeUpdate,
+    'invoiceRequest' => NotificationType.invoiceRequest,
+    'paymentReceived' => NotificationType.paymentReceived,
+    'orderTaken' => NotificationType.orderTaken,
+    'dispute' => NotificationType.dispute,
+    _ => NotificationType.system,
+  };
 
   String _defaultTitle(String type) => switch (type) {
-        'tradeUpdate' => 'Trade updated',
-        'invoiceRequest' => 'Invoice requested',
-        'paymentReceived' => 'Payment received',
-        'orderTaken' => 'Order taken',
-        'dispute' => 'Dispute opened',
-        _ => 'Mostro notification',
-      };
+    'tradeUpdate' => 'Trade updated',
+    'invoiceRequest' => 'Invoice requested',
+    'paymentReceived' => 'Payment received',
+    'orderTaken' => 'Order taken',
+    'dispute' => 'Dispute opened',
+    _ => 'Mostro notification',
+  };
 
   String _defaultBody(String type, String? orderId) {
-    final id = orderId != null
-        ? ' for order ${orderId.substring(0, math.min(8, orderId.length))}'
-        : '';
+    final id =
+        orderId != null
+            ? ' for order ${orderId.substring(0, math.min(8, orderId.length))}'
+            : '';
     return switch (type) {
       'tradeUpdate' => 'Your trade status changed$id.',
       'invoiceRequest' => 'Add your Lightning invoice$id.',

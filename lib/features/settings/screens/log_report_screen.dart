@@ -1,16 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/settings_palette.dart';
+import 'package:mostro/features/settings/models/log_export.dart';
+import 'package:mostro/features/settings/models/settings_rows.dart';
 import 'package:mostro/features/settings/providers/log_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
+import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
+import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
-// ── Screen ────────────────────────────────────────────────────────────────────
-
+/// Logs — handoff 10e.
+///
+/// Three levels in colour instead of one blue `INFO`: an error is findable by
+/// scanning the list, which is the whole point of a diagnostic screen.
+/// Subsystem chips filter, and the verbose switch left the app bar (where it
+/// was an unlabelled toggle) for a footer row that states its cost.
 class LogReportScreen extends ConsumerStatefulWidget {
   const LogReportScreen({super.key});
 
@@ -19,266 +30,556 @@ class LogReportScreen extends ConsumerStatefulWidget {
 }
 
 class _LogReportScreenState extends ConsumerState<LogReportScreen> {
+  /// Null is `Todos`.
+  LogSubsystem? _filter;
+
+  final _scroll = ScrollController();
+
+  /// True while the user is reading back through the list; the newest entries
+  /// then arrive behind a chip instead of yanking the view.
+  bool _pinnedToNewest = true;
+
+  /// Entries the user has tapped open, by id — the message is clamped to
+  /// three lines until then.
+  final _expanded = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// The list is reversed, so "newest" is offset zero.
+  void _onScroll() {
+    final pinned = _scroll.offset <= 24;
+    if (pinned != _pinnedToNewest) setState(() => _pinnedToNewest = pinned);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final loggingEnabled = ref.watch(settingsProvider).loggingEnabled;
-    final colorsRaw = Theme.of(context).extension<AppColors>();
-    if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
-    final colors = colorsRaw;
     final l10n = AppLocalizations.of(context);
-
-    final logAsync = ref.watch(logEntriesProvider);
-    final entries = logAsync.valueOrNull ?? const [];
+    final book = OrderBookPalette.of(context);
+    final loggingEnabled = ref.watch(settingsProvider).loggingEnabled;
+    final all = ref.watch(logEntriesProvider).valueOrNull ?? const <LogEntry>[];
+    final entries =
+        _filter == null
+            ? all
+            : all.where((e) => logSubsystem(e.tag) == _filter).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.logReportSettingTitle),
+      backgroundColor: book.bg,
+      appBar: redesignAppBar(
+        context,
+        title: l10n.logsScreenTitle,
+        onBack:
+            () =>
+                context.canPop()
+                    ? context.pop()
+                    : context.go(AppRoute.settings),
         actions: [
-          // Share logs — disabled when no entries exist.
           IconButton(
-            icon: const Icon(Icons.share_outlined),
-            tooltip: entries.isNotEmpty
-                ? l10n.shareLogsTooltip
-                : l10n.noLogsToShareTooltip,
+            icon: Icon(Icons.ios_share, size: 19, color: book.limeIcon),
+            tooltip:
+                entries.isNotEmpty
+                    ? l10n.shareLogsTooltip
+                    : l10n.noLogsToShareTooltip,
+            // Exports what the active filter shows, redacted — never the
+            // whole buffer, which the user cannot see to check.
             onPressed: entries.isNotEmpty ? () => _shareLogs(entries) : null,
           ),
-          // Toggle logging
-          IconButton(
-            icon: Icon(
-              loggingEnabled
-                  ? Icons.toggle_on_outlined
-                  : Icons.toggle_off_outlined,
-              color: loggingEnabled ? colors.mostroGreen : colors.textDisabled,
-            ),
-            tooltip: loggingEnabled
-                ? l10n.disableLoggingTooltip
-                : l10n.enableLoggingTooltip,
-            onPressed: () {
-              ref
-                  .read(settingsProvider.notifier)
-                  .setLoggingEnabled(!loggingEnabled);
-            },
-          ),
+          // An IconButton pads itself by 8; the rest lines the glyph up with
+          // the content below.
+          const SizedBox(width: redesignSidePadding - 8),
         ],
       ),
       body: Column(
         children: [
-          // Logging status banner
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            color: loggingEnabled
-                ? colors.mostroGreen.withAlpha(30)
-                : colors.backgroundElevated,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  loggingEnabled
-                      ? Icons.fiber_manual_record
-                      : Icons.fiber_manual_record_outlined,
-                  size: 12,
-                  color: loggingEnabled
-                      ? colors.mostroGreen
-                      : colors.textDisabled,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  loggingEnabled
-                      ? l10n.loggingEnabledStatus
-                      : l10n.loggingDisabledStatus,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: loggingEnabled
-                            ? colors.mostroGreen
-                            : colors.textDisabled,
-                      ),
-                ),
-              ],
-            ),
+          _FilterRow(
+            active: _filter,
+            onChanged: (next) => setState(() => _filter = next),
           ),
-          // Log entries
           Expanded(
-            child: entries.isEmpty
-                ? Center(
-                    child: Text(
-                      l10n.noLogEntriesMessage,
-                      style: Theme.of(context).textTheme.bodyMedium,
+            child:
+                entries.isEmpty
+                    ? Center(
+                      child: Text(
+                        _filter == null
+                            ? l10n.noLogEntriesMessage
+                            : l10n.noLogsForFilter,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: book.textSecondary,
+                        ),
+                      ),
+                    )
+                    : Stack(
+                      children: [
+                        ListView.separated(
+                          controller: _scroll,
+                          // `logEntriesProvider` yields newest first, so the
+                          // list is reversed and offset zero is the newest.
+                          reverse: true,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: redesignSidePadding,
+                            vertical: 12,
+                          ),
+                          itemCount: entries.length,
+                          separatorBuilder:
+                              (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final entry = entries[index];
+                            // Reversed, so the "previous" entry in time is the
+                            // one at the higher index.
+                            final older =
+                                index + 1 < entries.length
+                                    ? entries[index + 1]
+                                    : null;
+                            return Column(
+                              children: [
+                                if (_startsNewMinute(entry, older))
+                                  _TimeSeparator(entry: entry),
+                                _LogEntryTile(
+                                  entry: entry,
+                                  expanded: _expanded.contains(entry.id),
+                                  onTap:
+                                      () => setState(() {
+                                        _expanded.contains(entry.id)
+                                            ? _expanded.remove(entry.id)
+                                            : _expanded.add(entry.id);
+                                      }),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        if (!_pinnedToNewest)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 12,
+                            child: Center(
+                              child: _NewLogsChip(
+                                onTap:
+                                    () => _scroll.animateTo(
+                                      0,
+                                      duration: const Duration(
+                                        milliseconds: 240,
+                                      ),
+                                      curve: Curves.easeOut,
+                                    ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  )
-                : ListView.builder(
-                    // #267: bottom system-bar inset so the last log entry
-                    // clears the gesture / 3-button navigation bar.
-                    padding: EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      AppSpacing.md,
-                      AppSpacing.md,
-                      AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
-                    ),
-                    itemCount: entries.length,
-                    itemBuilder: (context, index) {
-                      return _LogEntryTile(
-                        entry: entries[index],
-                        colors: colors,
-                      );
-                    },
-                  ),
+          ),
+          _VerboseBar(
+            value: loggingEnabled,
+            onChanged:
+                (v) => ref.read(settingsProvider.notifier).setLoggingEnabled(v),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _shareLogs(List<LogEntry> entries) async {
-    final lines = entries.map((e) {
-      final time = _formatTimestamp(platformInt64ToInt(e.timestamp));
-      final level = e.level.name.toUpperCase().padRight(7);
-      final tag = _sanitizeForShare(e.tag);
-      final message = _sanitizeForShare(e.message);
-      return '$time [$level] $tag: $message';
-    }).join('\n');
+  /// One separator per minute with activity.
+  static bool _startsNewMinute(LogEntry entry, LogEntry? older) {
+    if (older == null) return true;
+    return _minuteOf(entry) != _minuteOf(older);
+  }
 
-    final content = 'Mostro Log Report\n'
-        '=================\n'
-        '$lines';
+  static int _minuteOf(LogEntry entry) =>
+      platformInt64ToInt(entry.timestamp) ~/ 60;
+
+  Future<void> _shareLogs(List<LogEntry> entries) async {
+    final lines = entries
+        .map((e) {
+          final time = formatLogTimestamp(platformInt64ToInt(e.timestamp));
+          final level = e.level.name.toUpperCase().padRight(7);
+          return '$time [$level] ${sanitizeForShare(e.tag)}: '
+              '${sanitizeForShare(e.message)}';
+        })
+        .join('\n');
 
     try {
-      await SharePlus.instance.share(ShareParams(text: content));
+      await SharePlus.instance.share(
+        ShareParams(text: 'Mostro Log Report\n=================\n$lines'),
+      );
     } catch (e) {
       debugPrint('Failed to share logs: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).failedToShareLogsMessage),
-          ),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).failedToShareLogsMessage),
+        ),
+      );
     }
   }
 }
 
-// ── Log entry tile ────────────────────────────────────────────────────────────
+// ── Filter row ────────────────────────────────────────────────────────────────
 
-class _LogEntryTile extends StatelessWidget {
-  const _LogEntryTile({required this.entry, required this.colors});
+class _FilterRow extends StatelessWidget {
+  const _FilterRow({required this.active, required this.onChanged});
 
-  final LogEntry entry;
-  final AppColors colors;
+  /// Null is `Todos`.
+  final LogSubsystem? active;
+  final ValueChanged<LogSubsystem?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final (chipBg, chipFg) = _levelColors(entry.level);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: colors.backgroundCard,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+    final l10n = AppLocalizations.of(context);
+    final chips = <(LogSubsystem?, String)>[
+      (null, l10n.logFilterAll),
+      (LogSubsystem.relays, l10n.logFilterRelays),
+      (LogSubsystem.orders, l10n.logFilterOrders),
+      (LogSubsystem.payments, l10n.logFilterPayments),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(
+        redesignSidePadding,
+        0,
+        redesignSidePadding,
+        12,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              // Level chip
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: chipBg,
-                  borderRadius: BorderRadius.circular(AppRadius.chip),
-                ),
-                child: Text(
-                  entry.level.name.toUpperCase(),
-                  style: TextStyle(
-                    color: chipFg,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+          for (final (subsystem, label) in chips)
+            Padding(
+              padding: const EdgeInsets.only(right: 7),
+              child: _FilterChip(
+                label: label,
+                selected: subsystem == active,
+                onTap: () => onChanged(subsystem),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              // Tag
-              Text(
-                entry.tag,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              const Spacer(),
-              // Timestamp
-              Text(
-                _formatTimestamp(platformInt64ToInt(entry.timestamp)),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = SettingsPalette.of(context);
+    return Material(
+      color: selected ? pal.chipActiveBg : pal.chipIdleBg,
+      borderRadius: const BorderRadius.all(Radius.circular(999)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(Radius.circular(999)),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(Radius.circular(999)),
+            border: Border.all(
+              color: selected ? pal.chipActiveBorder : pal.chipIdleBorder,
+            ),
           ),
-          const SizedBox(height: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? pal.chipActiveInk : pal.chipIdleInk,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Time separator ────────────────────────────────────────────────────────────
+
+class _TimeSeparator extends StatelessWidget {
+  const _TimeSeparator({required this.entry});
+
+  final LogEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = SettingsPalette.of(context);
+    final at =
+        DateTime.fromMillisecondsSinceEpoch(
+          platformInt64ToInt(entry.timestamp) * 1000,
+        ).toLocal();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 4),
+      child: Row(
+        children: [
           Text(
-            entry.message,
-            style: Theme.of(context).textTheme.bodyMedium,
+            '${at.hour.toString().padLeft(2, '0')}:'
+            '${at.minute.toString().padLeft(2, '0')}',
+            style: TextStyle(
+              fontFamily: AppFonts.figures,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: pal.placeholder,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(height: 1, color: book.border)),
+          const SizedBox(width: 8),
+          Text(
+            _relative(AppLocalizations.of(context), at),
+            style: TextStyle(fontSize: 10, color: pal.placeholder),
           ),
         ],
       ),
     );
   }
 
-  (Color, Color) _levelColors(LogLevel level) {
-    return switch (level) {
-      LogLevel.debug => (const Color(0xFF374151), const Color(0xFFD1D5DB)),
-      LogLevel.info => (const Color(0xFF1E3A8A), const Color(0xFF93C5FD)),
-      LogLevel.warning => (const Color(0xFF854D0E), const Color(0xFFFCD34D)),
-      LogLevel.error => (const Color(0xFF7F1D1D), const Color(0xFFFCA5A5)),
-    };
+  static String _relative(AppLocalizations l10n, DateTime at) {
+    final diff = DateTime.now().difference(at);
+    if (diff.isNegative || diff.inMinutes < 1) return l10n.justNow;
+    if (diff.inMinutes < 60) return l10n.minutesAgo(diff.inMinutes);
+    if (diff.inHours < 24) return l10n.hoursAgo(diff.inHours);
+    return l10n.daysAgo(diff.inDays);
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Log entry ─────────────────────────────────────────────────────────────────
 
-/// Redact common secrets and keys from a log string before sharing.
-///
-/// Patterns replaced:
-/// - Authorization/Bearer tokens → `[REDACTED_AUTH]`
-/// - Key-value secrets (token, apikey, secret, password, …) → `[REDACTED_SECRET]`
-/// - Long hex strings ≥32 chars, npub/nsec Bech32 keys → `[REDACTED_KEY]`
-String _sanitizeForShare(String text) {
-  // Authorization: Bearer <value>
-  var out = text.replaceAllMapped(
-    RegExp(r'(Authorization\s*:\s*Bearer\s+)\S+', caseSensitive: false),
-    (m) => '${m[1]}[REDACTED_AUTH]',
-  );
-  // Key-value secrets: token=, apikey=, secret=, password=, api_key= (: or = separator)
-  out = out.replaceAllMapped(
-    RegExp(
-      r'((?:token|apikey|api_key|secret|password)\s*[=:]\s*)\S+',
-      caseSensitive: false,
-    ),
-    (m) => '${m[1]}[REDACTED_SECRET]',
-  );
-  // Long hex strings (≥32 hex chars) — covers private keys and trade IDs
-  out = out.replaceAll(RegExp(r'[0-9a-fA-F]{32,}'), '[REDACTED_KEY]');
-  // npub / nsec Bech32 keys
-  out = out.replaceAll(RegExp(r'n(?:pub|sec)1[02-9ac-hj-np-z]{6,}'), '[REDACTED_KEY]');
-  return out;
+class _LogEntryTile extends StatelessWidget {
+  const _LogEntryTile({
+    required this.entry,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final LogEntry entry;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = SettingsPalette.of(context);
+    final (chipBg, chipInk) = _levelColors(pal, entry.level);
+
+    return Material(
+      color: book.surface,
+      borderRadius: const BorderRadius.all(Radius.circular(14)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(Radius.circular(14)),
+            border: Border.all(color: pal.rowDivider),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: chipBg,
+                      borderRadius: const BorderRadius.all(Radius.circular(6)),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        _levelLabel(entry.level),
+                        style: TextStyle(
+                          fontFamily: AppFonts.figures,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.54,
+                          color: chipInk,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.tag,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: book.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    formatLogTimestamp(platformInt64ToInt(entry.timestamp)),
+                    style: TextStyle(
+                      fontFamily: AppFonts.figures,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: pal.placeholder,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                entry.message,
+                maxLines: expanded ? null : 3,
+                overflow: expanded ? null : TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: AppFonts.figures,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                  color: pal.textMono,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// `WARNING` and `ERROR` shorten to the handoff's three-level chip; the
+  /// shared export keeps the full name.
+  static String _levelLabel(LogLevel level) => switch (level) {
+    LogLevel.debug => 'DEBUG',
+    LogLevel.info => 'INFO',
+    LogLevel.warning => 'WARN',
+    LogLevel.error => 'ERR',
+  };
+
+  static (Color, Color) _levelColors(SettingsPalette pal, LogLevel level) =>
+      switch (level) {
+        LogLevel.debug => (pal.logDebugBg, pal.logDebugInk),
+        LogLevel.info => (pal.logInfoBg, pal.logInfoInk),
+        LogLevel.warning => (pal.logWarnBg, pal.logWarnInk),
+        LogLevel.error => (pal.logErrBg, pal.logErrInk),
+      };
 }
 
-String _formatTimestamp(int unixSeconds) {
-  final dt = DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000).toLocal();
-  final now = DateTime.now();
-  final h = dt.hour.toString().padLeft(2, '0');
-  final m = dt.minute.toString().padLeft(2, '0');
-  final s = dt.second.toString().padLeft(2, '0');
-  final time = '$h:$m:$s';
-  final sameDay = dt.year == now.year && dt.month == now.month && dt.day == now.day;
-  if (sameDay) return time;
-  final y = dt.year.toString();
-  final mo = dt.month.toString().padLeft(2, '0');
-  final d = dt.day.toString().padLeft(2, '0');
-  return '$y-$mo-$d $time';
+// ── Chrome ────────────────────────────────────────────────────────────────────
+
+/// Returns the list to the newest entry after the user has scrolled back.
+class _NewLogsChip extends StatelessWidget {
+  const _NewLogsChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = SettingsPalette.of(context);
+    return Material(
+      color: pal.chipActiveBg,
+      borderRadius: const BorderRadius.all(Radius.circular(999)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(Radius.circular(999)),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(Radius.circular(999)),
+            border: Border.all(color: pal.chipActiveBorder),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.arrow_downward, size: 12, color: pal.chipActiveInk),
+              const SizedBox(width: 6),
+              Text(
+                AppLocalizations.of(context).newLogsChipLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: pal.chipActiveInk,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// `Registro detallado` with its consequence in writing. It used to be an
+/// unlabelled switch in the app bar, which nothing explained.
+class _VerboseBar extends StatelessWidget {
+  const _VerboseBar({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final book = OrderBookPalette.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: book.surfaceNav,
+        border: Border(top: BorderSide(color: book.navBorder)),
+      ),
+      child: Padding(
+        // #267: bottom system-bar inset so the toggle clears the gesture /
+        // 3-button navigation bar.
+        padding: EdgeInsets.fromLTRB(
+          redesignSidePadding,
+          12,
+          redesignSidePadding,
+          18 + MediaQuery.of(context).viewPadding.bottom,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.verboseLoggingTitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: book.textStrong,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.verboseLoggingSubtitle,
+                    style: TextStyle(fontSize: 10, color: book.textTertiary),
+                  ),
+                ],
+              ),
+            ),
+            MostroToggle(
+              value: value,
+              semanticLabel: l10n.verboseLoggingTitle,
+              onChanged: onChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

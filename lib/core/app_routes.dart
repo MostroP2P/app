@@ -14,11 +14,11 @@ import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
 import 'package:mostro/features/disputes/screens/dispute_chat_screen.dart';
 import 'package:mostro/features/rate/screens/rate_counterpart_screen.dart';
 import 'package:mostro/features/about/screens/about_screen.dart';
-import 'package:mostro/features/settings/screens/connect_wallet_screen.dart';
+import 'package:mostro/features/settings/screens/nwc_wallet_screen.dart';
 import 'package:mostro/features/settings/screens/log_report_screen.dart';
 import 'package:mostro/features/settings/screens/notification_settings_screen.dart';
 import 'package:mostro/features/settings/screens/settings_screen.dart';
-import 'package:mostro/features/settings/screens/wallet_settings_screen.dart';
+import 'package:mostro/features/settings/screens/relays_screen.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/trades/screens/trades_screen.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
@@ -188,15 +188,17 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.relays,
-      redirect: (_, __) => AppRoute.settings,
+      builder: (_, __) => const RelaysScreen(),
     ),
+    // One screen with two states (handoff 10c), so both paths reach it: the
+    // settings row picks by connection state and old deep links still work.
     GoRoute(
       path: AppRoute.walletSettings,
-      builder: (_, __) => const WalletSettingsScreen(),
+      builder: (_, __) => const NwcWalletScreen(),
     ),
     GoRoute(
       path: AppRoute.connectWallet,
-      builder: (_, __) => const ConnectWalletScreen(),
+      builder: (_, __) => const NwcWalletScreen(),
     ),
     GoRoute(
       path: AppRoute.rateUser,

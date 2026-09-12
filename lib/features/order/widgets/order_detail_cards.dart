@@ -8,6 +8,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_detail_palette.dart';
 import 'package:mostro/features/order/models/order_detail_rules.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 
 /// Building blocks shared by the maker's own-order screen (handoff 6a) and
 /// the take-order screen (handoff 7a): the surface card, the currency chip,
@@ -19,8 +20,9 @@ const _cardRadius = BorderRadius.all(Radius.circular(18));
 /// Vertical gap between the blocks of both screens.
 const double orderDetailBlockGap = 12;
 
-/// Side padding of both screens.
-const double orderDetailSidePadding = 18;
+/// Side padding of both screens — the redesign's, shared with the settings
+/// screens so the two cannot drift.
+const double orderDetailSidePadding = redesignSidePadding;
 
 // ── Surface ───────────────────────────────────────────────────────────────────
 
@@ -189,7 +191,10 @@ class OrderDataRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Align(alignment: AlignmentDirectional.centerEnd, child: value),
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: value,
+            ),
           ),
         ],
       ),
@@ -428,45 +433,27 @@ class OrderPrimaryButton extends StatelessWidget {
   }
 }
 
-/// App bar shared by both screens: back arrow, sentence-case title, and an
-/// optional trailing widget flush right.
+/// App bar of both screens: the redesign's shared bar, with an optional
+/// trailing widget flush right.
 PreferredSizeWidget orderDetailAppBar(
   BuildContext context, {
   required String title,
   required VoidCallback onBack,
   Widget? trailing,
-}) {
-  final book = OrderBookPalette.of(context);
-  return AppBar(
-    backgroundColor: book.bg,
-    surfaceTintColor: Colors.transparent,
-    elevation: 0,
-    leading: IconButton(
-      icon: Icon(Icons.arrow_back, size: 22, color: book.textBody),
-      tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-      onPressed: onBack,
-    ).withAutomationId(AutomationIds.appBarBack),
-    titleSpacing: 0,
-    title: Text(
-      title,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.3,
-        color: book.textPrimary,
-      ),
-    ),
-    actions:
-        trailing == null
-            ? null
-            : [
-              Padding(
-                padding: const EdgeInsets.only(right: orderDetailSidePadding),
-                child: trailing,
-              ),
-            ],
-  );
-}
+}) => redesignAppBar(
+  context,
+  title: title,
+  onBack: onBack,
+  actions:
+      trailing == null
+          ? const []
+          : [
+            Padding(
+              padding: const EdgeInsets.only(right: orderDetailSidePadding),
+              child: trailing,
+            ),
+          ],
+);
 
 // ── Text helpers ──────────────────────────────────────────────────────────────
 
