@@ -3627,6 +3627,64 @@ async fn apply_single_order_update(mut order: OrderInfo) {
     order_book().upsert_order(order).await;
 }
 
+/// What the single-order task made of one notification.
+#[derive(Debug, PartialEq)]
+enum SingleOrderEvent {
+    /// Not an event of this order from the node the task watches.
+    Ignored,
+    /// Applied to the trade row and the book entry.
+    Applied,
+    /// An event of this order, but the watched node is no longer the active
+    /// one: the task stops.
+    NodeChanged,
+}
+
+/// Handle one notification of the single-order task for `order_id`, opened
+/// for `watched_node`. `active_node` is read only for an event of this order,
+/// so the rest of the notification stream never pays for it.
+///
+/// The stream carries every subscription's events, and a d-tag is public:
+/// only the daemon may move a trade of ours — a `canceled` wipes a
+/// never-active one ([`wipe_on_public_cancel`]). And only the *active*
+/// daemon, as everywhere else: `dispatch_mostro_message` rejects any other
+/// sender, and the book loop drops other authors. A node switch re-targets
+/// the long-lived subscriptions but leaves this task running, which kept
+/// writing the previous node's view into the trade row and into the new
+/// node's book. It stops instead, as soon as its order shows up.
+async fn handle_single_order_event(
+    event: &nostr_sdk::prelude::Event,
+    order_id: &str,
+    watched_node: &nostr_sdk::prelude::PublicKey,
+    active_node: impl FnOnce() -> String,
+) -> SingleOrderEvent {
+    if event.pubkey != *watched_node {
+        return SingleOrderEvent::Ignored;
+    }
+    let Some(order) = parse_order_event(event, None) else {
+        return SingleOrderEvent::Ignored;
+    };
+    if order.id != order_id {
+        return SingleOrderEvent::Ignored;
+    }
+    if active_node() != watched_node.to_hex() {
+        crate::api::logging::blog_info(
+            "orders",
+            format!(
+                "d-tag subscription order={} stops: its node is no longer the active one",
+                crate::api::logging::short_id(order_id),
+            ),
+        );
+        return SingleOrderEvent::NodeChanged;
+    }
+    log::info!(
+        "[orders] d-tag update: order={} status={:?}",
+        order_id,
+        order.status
+    );
+    apply_single_order_update(order).await;
+    SingleOrderEvent::Applied
+}
+
 /// Subscribe to K38383 updates for a single order (by `d`-tag) so that status
 /// changes after taking the order are reflected in the local order book.
 ///
@@ -3677,25 +3735,19 @@ async fn subscribe_single_order(order_id: &str) {
 
             match timeout(remaining, rx.next()).await {
                 Ok(Some(ClientNotification::Event { event, .. })) => {
-                    // The notification stream carries every subscription's
-                    // events, and a d-tag is public: only the daemon may move
-                    // a trade of ours — a `canceled` now wipes a never-active
-                    // one (`wipe_on_public_cancel`).
-                    if event.pubkey != mostro_pubkey {
-                        continue;
-                    }
-                    if let Some(order) =
-                        crate::nostr::order_events::parse_order_event(&event, None)
+                    match handle_single_order_event(
+                        &event,
+                        &order_id,
+                        &mostro_pubkey,
+                        crate::config::active_mostro_pubkey,
+                    )
+                    .await
                     {
-                        if order.id == order_id {
-                            log::info!(
-                                "[orders] d-tag update: order={} status={:?}",
-                                order_id,
-                                order.status
-                            );
+                        SingleOrderEvent::Applied => {
                             last_activity = crate::rt::time::Instant::now();
-                            apply_single_order_update(order).await;
                         }
+                        SingleOrderEvent::NodeChanged => break,
+                        SingleOrderEvent::Ignored => {}
                     }
                 }
                 Ok(Some(ClientNotification::Shutdown)) | Ok(None) => break,
@@ -5728,8 +5780,17 @@ mod tests {
     /// Build a signed Kind 38383 event for `order_id` at `status`, the shape
     /// the relay feed delivers.
     fn book_event(order_id: &str, status: &str) -> nostr_sdk::prelude::Event {
+        book_event_by(order_id, status, &nostr_sdk::prelude::Keys::generate())
+    }
+
+    /// [`book_event`] signed by `author`.
+    fn book_event_by(
+        order_id: &str,
+        status: &str,
+        author: &nostr_sdk::prelude::Keys,
+    ) -> nostr_sdk::prelude::Event {
         use nostr::event::FinalizeEvent;
-        use nostr_sdk::prelude::{EventBuilder, Keys, Kind, Tag};
+        use nostr_sdk::prelude::{EventBuilder, Kind, Tag};
         EventBuilder::new(Kind::from(38383u16), "")
             .tags([
                 Tag::parse(["d", order_id]).unwrap(),
@@ -5742,7 +5803,7 @@ mod tests {
                 Tag::parse(["fa", "20"]).unwrap(),
                 Tag::parse(["z", "order"]).unwrap(),
             ])
-            .finalize(&Keys::generate())
+            .finalize(author)
             .unwrap()
     }
 
@@ -7562,6 +7623,116 @@ mod tests {
             OrderStatus::Canceled,
             "the active trade is kept as a Canceled history row"
         );
+    }
+
+    /// A never-active take watched by a d-tag task: its row, its session and
+    /// its book entry, all at `waiting-buyer-invoice`.
+    async fn watched_never_active_take(order_id: &str) {
+        let db = crate::db::app_db::db().expect("store initialised");
+        let taken = wire_order(order_id, OrderStatus::WaitingBuyerInvoice);
+        order_book().upsert_order(taken.clone()).await;
+        db.save_trade(&cancel_test_row(taken.clone()))
+            .await
+            .expect("save the trade row");
+        session_manager()
+            .install_session(order_id.to_string(), TradeRole::Buyer, 1, taken)
+            .await
+            .expect("install the take's session");
+    }
+
+    /// After a node switch the d-tag task is still running, watching the
+    /// previous node: an event of its order must stop it rather than move
+    /// local state. Everything else already ignores a non-active node
+    /// (`dispatch_mostro_message`, the book loop); this task used to keep
+    /// writing that node's view into the row and into the new node's book,
+    /// and a `canceled` now wipes the row.
+    #[tokio::test]
+    async fn the_d_tag_task_stops_once_its_node_is_no_longer_active() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_d_tag_node_switch_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        watched_never_active_take(&order_id).await;
+        let previous_node = nostr_sdk::prelude::Keys::generate();
+        let active_node = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+
+        let outcome = handle_single_order_event(
+            &book_event_by(&order_id, "canceled", &previous_node),
+            &order_id,
+            &previous_node.public_key(),
+            || active_node,
+        )
+        .await;
+
+        assert_eq!(outcome, SingleOrderEvent::NodeChanged);
+        assert!(
+            !trade_row_gone(&order_id).await,
+            "the previous node's canceled must not wipe the row"
+        );
+        assert!(
+            session_manager().get_session(&order_id).await.is_some(),
+            "nor remove the session"
+        );
+        assert_eq!(
+            book_status(&order_id).await,
+            Some(OrderStatus::WaitingBuyerInvoice),
+            "nor touch the book entry"
+        );
+    }
+
+    /// On the active node the task applies its order's events, and only
+    /// those: another author's event for the same d-tag, or the node's event
+    /// for another order, changes nothing.
+    #[tokio::test]
+    async fn the_d_tag_task_applies_only_its_active_nodes_events() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_d_tag_active_node_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        watched_never_active_take(&order_id).await;
+        let node = nostr_sdk::prelude::Keys::generate();
+        let node_hex = node.public_key().to_hex();
+
+        let forged = book_event_by(
+            &order_id,
+            "canceled",
+            &nostr_sdk::prelude::Keys::generate(),
+        );
+        assert_eq!(
+            handle_single_order_event(&forged, &order_id, &node.public_key(), || {
+                node_hex.clone()
+            })
+            .await,
+            SingleOrderEvent::Ignored,
+        );
+        let other_order = book_event_by(&uuid::Uuid::new_v4().to_string(), "canceled", &node);
+        assert_eq!(
+            handle_single_order_event(&other_order, &order_id, &node.public_key(), || {
+                node_hex.clone()
+            })
+            .await,
+            SingleOrderEvent::Ignored,
+        );
+        assert!(
+            !trade_row_gone(&order_id).await,
+            "neither may touch the row"
+        );
+
+        let canceled = book_event_by(&order_id, "canceled", &node);
+        assert_eq!(
+            handle_single_order_event(&canceled, &order_id, &node.public_key(), || {
+                node_hex.clone()
+            })
+            .await,
+            SingleOrderEvent::Applied,
+        );
+        assert!(
+            trade_row_gone(&order_id).await,
+            "the active node's canceled wipes the never-active take"
+        );
+        assert!(session_manager().get_session(&order_id).await.is_none());
     }
 
     /// Dispatch an action-only daemon message for `order_uuid`, as the relay

@@ -631,6 +631,10 @@ ever learned from daemon messages, so:
   public, and a `canceled` deletes a trade row. The live book subscription
   and the refetch drop other authors before ingesting; `subscribe_single_order`
   reads the client's shared notification stream and checks the author itself.
+  A node switch re-targets the long-lived subscriptions but leaves that task
+  running on the previous node, so it also stops as soon as an event of its
+  order arrives while its node is no longer the active one, as
+  `dispatch_mostro_message` rejects any sender but the active node.
 - UI MUST NOT treat `InProgress` as `Active`. Actions the daemon gates on
   `Active`/`FiatSent` (dispute, fiat-sent) are rejected with `CantDo` in that
   state (issue #203).
