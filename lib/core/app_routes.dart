@@ -14,6 +14,7 @@ import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
 import 'package:mostro/features/disputes/screens/dispute_chat_screen.dart';
 import 'package:mostro/features/rate/screens/rate_counterpart_screen.dart';
 import 'package:mostro/features/about/screens/about_screen.dart';
+import 'package:mostro/features/about/screens/node_technical_data_screen.dart';
 import 'package:mostro/features/settings/screens/connect_wallet_screen.dart';
 import 'package:mostro/features/settings/screens/log_report_screen.dart';
 import 'package:mostro/features/settings/screens/notification_settings_screen.dart';
@@ -42,6 +43,7 @@ abstract final class AppRoute {
   static const keyManagement = '/key_management';
   static const settings = '/settings';
   static const about = '/about';
+  static const aboutTechnical = '/about/technical';
   static const notifications = '/notifications';
   static const relays = '/relays';
   static const walletSettings = '/wallet_settings';
@@ -181,6 +183,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoute.about,
       builder: (_, __) => const AboutScreen(),
+      routes: [
+        GoRoute(
+          path: 'technical',
+          builder: (_, __) => const NodeTechnicalDataScreen(),
+        ),
+      ],
     ),
     GoRoute(
       path: AppRoute.notifications,
