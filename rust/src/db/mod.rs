@@ -99,11 +99,15 @@ pub mod settings_keys {
     /// there is). Full key is `trade_wiped:<order_id>`; build it with
     /// [`trade_wiped`]. See issue #394.
     ///
-    /// The value is the wipe's unix timestamp (decimal string): the Canceled
-    /// event's `created_at` where an event drove the wipe, the local clock in
-    /// the sweeper, which acts on public book state and has no event. Only
-    /// presence classifies — never compare this against the status cursor,
-    /// whose timestamps come from a different rule.
+    /// The value is `<wiped_at>:<trade_index>`. `wiped_at` is the wipe's unix
+    /// timestamp (decimal): the Canceled event's `created_at` where an event
+    /// drove the wipe, the local clock in the sweeper, which acts on public
+    /// book state and has no event — never compare it against the status
+    /// cursor, whose timestamps come from a different rule. `trade_index` is
+    /// the dead row's trade key index: the tombstone covers that generation
+    /// and older, so a later take of the same order — a different trade —
+    /// classifies `NeverWritten` and stays recoverable (`tombstone_covers`,
+    /// review round 2).
     ///
     /// Cleared whenever a trade row is (re)created for the order id — a
     /// canceled order can be legitimately re-taken (`persist_trade_row`).

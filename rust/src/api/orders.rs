@@ -1461,13 +1461,14 @@ async fn adopt_range_remainder(
     if matches!(db.get_trade_by_order_id(order_id).await, Ok(Some(_))) {
         return false;
     }
-    // A wipe tombstone means this order id already lived and died here — the
-    // adopted remainder was canceled before going active. Its replayed
-    // new-order must not resurrect the row on the next start (#394).
+    // A wipe tombstone covering this generation means this order id already
+    // lived and died here — the adopted remainder was canceled before going
+    // active. Its replayed new-order must not resurrect the row on the next
+    // start (#394). A later generation is a new trade and adopts normally.
     if matches!(
         db.get_setting(&crate::db::settings_keys::trade_wiped(order_id))
             .await,
-        Ok(Some(_))
+        Ok(Some(value)) if tombstone_covers(&value, trade_index)
     ) {
         crate::api::logging::blog_debug(
             "orders",
@@ -2205,7 +2206,7 @@ async fn dispatch_mostro_message(
     // incoming-chat subscription for a trade deleted on purpose. Take
     // replies consumed by the waiters pay one extra point read for it.
     let mut row_state = match &kind.id {
-        Some(order_id) => trade_row_state(&order_id.to_string()).await,
+        Some(order_id) => trade_row_state(&order_id.to_string(), trade_index).await,
         None => RowState::Unknown,
     };
 
@@ -2542,7 +2543,9 @@ async fn dispatch_mostro_message(
                     // cancel), and leave the tombstone that reclassifies the
                     // order's replays as noise (#394).
                     if let Some(db) = crate::db::app_db::db() {
-                        match wipe_trade_row(db, &oid, event_ts).await {
+                        let wiped_index =
+                            row_state.trade().map_or(u32::MAX, |t| t.trade_key_index);
+                        match wipe_trade_row(db, &oid, event_ts, wiped_index).await {
                             Ok(()) => crate::api::logging::blog_info(
                                 "orders",
                                 format!(
@@ -3338,7 +3341,24 @@ impl RowState {
     }
 }
 
-async fn trade_row_state(order_id: &str) -> RowState {
+/// Whether a wipe tombstone covers a message decrypted with `trade_index`'s
+/// key. The tombstone records the generation it wiped
+/// (`<wiped_at>:<trade_index>`): a message on a LATER index belongs to a new
+/// take of the same order — a different trade, possibly one whose
+/// confirmation timed out — and must stay classified `NeverWritten` so the
+/// DM rebuild can recover it (review round 2, probe P5). A tombstone whose
+/// index does not parse covers every generation, degrading to the
+/// pre-generation behavior: replays dropped, recovery muted.
+fn tombstone_covers(value: &str, trade_index: u32) -> bool {
+    let wiped_index = value
+        .split(':')
+        .nth(1)
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(u32::MAX);
+    trade_index <= wiped_index
+}
+
+async fn trade_row_state(order_id: &str, trade_index: u32) -> RowState {
     let Some(db) = crate::db::app_db::db() else {
         return RowState::Unknown;
     };
@@ -3348,8 +3368,8 @@ async fn trade_row_state(order_id: &str) -> RowState {
             .get_setting(&crate::db::settings_keys::trade_wiped(order_id))
             .await
         {
-            Ok(Some(_)) => RowState::Wiped,
-            Ok(None) => RowState::NeverWritten,
+            Ok(Some(value)) if tombstone_covers(&value, trade_index) => RowState::Wiped,
+            Ok(Some(_)) | Ok(None) => RowState::NeverWritten,
             Err(e) => {
                 log::warn!("[orders] tombstone lookup failed for order={order_id}: {e}");
                 RowState::Unknown
@@ -3403,12 +3423,22 @@ fn status_arm_gate(
 /// (issue #394). Shared by the two wipe paths: the pre-active cancel and the
 /// stale sweeper. Session removal and the UI push stay with the callers —
 /// they already differ between the two.
-async fn wipe_trade_row(db: &impl Storage, order_id: &str, wiped_at: i64) -> Result<()> {
+///
+/// The tombstone records the generation it wiped (`<wiped_at>:<trade_index>`,
+/// the dead row's trade key index): a later take of the same order is a
+/// different trade, and its messages must not read as noise — see
+/// [`tombstone_covers`] (review round 2).
+async fn wipe_trade_row(
+    db: &impl Storage,
+    order_id: &str,
+    wiped_at: i64,
+    wiped_index: u32,
+) -> Result<()> {
     db.delete_trade_by_order_id(order_id).await?;
     if let Err(e) = db
         .set_setting(
             &crate::db::settings_keys::trade_wiped(order_id),
-            &wiped_at.to_string(),
+            &format!("{wiped_at}:{wiped_index}"),
         )
         .await
     {
@@ -4226,7 +4256,14 @@ async fn run_stale_sweep_once() {
                 log::info!("[orders] sweep: payout completed for order={oid}");
                 resynced += 1;
             }
-            SweepAction::Wipe => match wipe_trade_row(db, &oid, crate::rt::unix_now()).await {
+            SweepAction::Wipe => match wipe_trade_row(
+                db,
+                &oid,
+                crate::rt::unix_now(),
+                trade.trade_key_index,
+            )
+            .await
+            {
                 Ok(()) => {
                     crate::mostro::session::session_manager()
                         .remove_session(&oid)
@@ -8666,6 +8703,125 @@ mod tests {
             drain_updates(&mut rx, &order_id),
             vec![crate::api::types::OrderStatus::Dispute],
         );
+    }
+
+    /// Review round 2, probe P5: the tombstone records the generation it
+    /// wiped, so a message of a LATER take of the same order — decrypted
+    /// with a higher trade index — is not noise: it classifies
+    /// `NeverWritten` and the DM rebuild recovers it. A replay of the wiped
+    /// generation itself stays dropped.
+    #[tokio::test]
+    async fn a_later_generation_is_not_covered_by_the_wipe_tombstone() {
+        use mostro_core::message::{Action, Payload};
+
+        let path = std::env::temp_dir().join(format!("mostro_wipegen_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let my5_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let peer_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        order_book().upsert_order(dummy_order_info(&order_id)).await;
+        db.save_trade(&seam_trade_row(
+            &order_id,
+            crate::api::types::OrderStatus::WaitingPayment,
+        ))
+        .await
+        .expect("save the generation-1 row");
+
+        // The cancel wipes generation 1 (seam_trade_row's index) and
+        // records it in the tombstone.
+        dispatch_mostro_message(
+            daemon_message(order_uuid, Action::Canceled, None, 1_000),
+            "test-wipegen-cancel",
+            "ff00ff23",
+            1,
+        )
+        .await;
+        assert!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("lookup")
+                .is_none(),
+            "the pre-active cancel must wipe the row",
+        );
+
+        // A replay of the wiped generation (equal timestamp passes the
+        // cursor, so the tombstone is what drops it) stays noise.
+        let mut rx = trade_updates_tx().subscribe();
+        let replay = Payload::Order(mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::WaitingBuyerInvoice),
+            457,
+            "USD".to_string(),
+            None,
+            None,
+            100,
+            "Bank".to_string(),
+            0,
+            Some(my5_hex.clone()),
+            Some(peer_hex.clone()),
+            None,
+            None,
+            None,
+        ));
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                Action::AddInvoice,
+                Some(replay.clone()),
+                1_000,
+            ),
+            "test-wipegen-replay",
+            &my5_hex,
+            1,
+        )
+        .await;
+        assert!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("lookup")
+                .is_none(),
+            "the wiped generation's replay must stay dropped",
+        );
+        assert!(drain_updates(&mut rx, &order_id).is_empty());
+
+        // The same message on a later index is a NEW take whose
+        // confirmation timed out — exactly what the rebuild exists for.
+        dispatch_mostro_message(
+            daemon_message(order_uuid, Action::AddInvoice, Some(replay), 2_000),
+            "test-wipegen-newgen",
+            &my5_hex,
+            5,
+        )
+        .await;
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("the later generation must be rebuilt");
+        assert_eq!(row.trade_key_index, 5);
+        assert_eq!(
+            row.order.status,
+            crate::api::types::OrderStatus::WaitingBuyerInvoice,
+        );
+        assert_eq!(
+            drain_updates(&mut rx, &order_id),
+            vec![crate::api::types::OrderStatus::WaitingBuyerInvoice],
+        );
+    }
+
+    /// `tombstone_covers` — the generation rule, plus the conservative
+    /// fallback: a value without a parseable index covers everything.
+    #[test]
+    fn tombstone_covers_older_generations_only() {
+        assert!(tombstone_covers("1000:3", 2));
+        assert!(tombstone_covers("1000:3", 3));
+        assert!(!tombstone_covers("1000:3", 4));
+        assert!(tombstone_covers("1000", 999), "legacy value covers all");
+        assert!(tombstone_covers("1000:junk", 999), "unparseable covers all");
     }
 
     /// Review round 2, blocker 3: `persist_trade_row` is the one way to
