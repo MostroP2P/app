@@ -20,7 +20,6 @@ import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
-import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 
 /// Detail screen for an order created by the current user (handoff 6a/6b).
 ///
@@ -54,7 +53,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
 
     setState(() => _cancelling = true);
     try {
-      await orders_api.cancelOrder(orderId: widget.orderId);
+      await ref.read(cancelOrderActionProvider)(widget.orderId);
       // Reload the trades list now. A pending order never went active, so
       // the row is not marked Canceled locally: the daemon's Canceled or its
       // public `canceled`, whichever lands first, wipes it, and the

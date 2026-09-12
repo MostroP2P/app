@@ -192,6 +192,29 @@ function does not validate ownership or status.
   cancel the daemon refuses also leaves a live trade looking live.
 - A row further along is marked `Canceled` straight away.
 
+**Between the request and the daemon's answer.** The call returns once the
+message is published; nothing waits for the daemon.
+- A never-active trade: the screen the user cancelled from goes home at
+  once. The trade screen and the invoice screens say the cancel request was
+  sent; the maker's own order screen says the order was cancelled. My Trades
+  keeps listing the trade at its previous status until the daemon's
+  `Canceled` or the public `canceled` wipes it, normally within a second or
+  two.
+- No answer (relay down, app closed before it lands): a taker's
+  `WaitingBuyerInvoice` / `WaitingPayment` row is settled by the stale sweep
+  (*Stale-state sweep*). The sweep runs 60 s after the order subscription
+  starts and then every 30 minutes, and acts once the row is past its window
+  (`timeout_at`, else `started_at` + 900 s), asking the relays for the
+  order's public status. A maker's `Pending` row is left to the public
+  `canceled`: the sweep does not look at pending rows, so if that event is
+  missed too, the row stays listed as pending.
+- Refused (`CantDo`): nothing changes locally, which is right, because the
+  trade is still live. But the user is not told: `cancel_order` does not wait
+  for the reply, and the `CantDo` arm finds no pending request to route it to.
+- A trade further along reads `Canceled` at once (above), although from
+  `active` on the daemon only records a cooperative request until the
+  counterparty agrees.
+
 **Errors**: no trade-key binding for the order (`no persisted trade key for
 order …`), trade-key or identity load failures, and publish failures. Daemon
 rejections arrive later as `CantDo`; this call does not wait for them.

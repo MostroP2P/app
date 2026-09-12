@@ -2048,7 +2048,10 @@ async fn apply_local_cancel(order_id: &str) {
 /// kept the dead trade's status and the order vanished from their book, while
 /// every other client could take it (mostrix drops the same row for the same
 /// reason). A **maker's** own order dies with the cancel, and its entry is
-/// left to the Kind 38383 `canceled` the daemon publishes.
+/// left to the Kind 38383 `canceled` the daemon publishes. Either way the
+/// order has no public-view note afterwards: the settle consumes a take's,
+/// and a maker's is forgotten (only a take's d-tag task writes one today, but
+/// the invariant should not rest on that).
 ///
 /// The row goes through [`wipe_trade_row`], which leaves the tombstone
 /// (`wiped_at`, and the `wiped_index` of the trade key it covers) that turns
@@ -2071,6 +2074,8 @@ async fn wipe_never_active_trade(
         .await;
     if was_take {
         order_book().settle_after_lost_take(order_id).await;
+    } else {
+        order_book().forget_wire_order(order_id);
     }
     Ok(())
 }
@@ -9069,6 +9074,34 @@ mod tests {
         assert!(
             !order_book().has_wire_note(&order_id),
             "the settle consumed the note"
+        );
+    }
+
+    /// After a wipe the order has no public-view note, maker or taker. Only a
+    /// take's d-tag task writes one today, so the note here is planted: the
+    /// invariant must not rest on who happens to write notes.
+    #[tokio::test]
+    async fn a_wiped_makers_order_leaves_no_wire_note_behind() {
+        let path =
+            std::env::temp_dir().join(format!("mostro_maker_wipe_note_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut mine = wire_order(&order_id, OrderStatus::Pending);
+        mine.is_mine = true;
+        db.save_trade(&cancel_test_row(mine.clone()))
+            .await
+            .expect("save the maker's row");
+        order_book().note_wire_order(&mine);
+
+        dispatch_daemon_canceled(order_uuid, "test-maker-wipe-note").await;
+
+        assert!(trade_row_gone(&order_id).await, "the never-active row is wiped");
+        assert!(
+            !order_book().has_wire_note(&order_id),
+            "a maker's wipe must forget the note too"
         );
     }
 
