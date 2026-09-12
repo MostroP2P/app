@@ -16,6 +16,13 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+# Every developer runs this script at least once; piggy-back the hook install on it so a
+# fresh clone stops depending on someone remembering the one-liner. Never fatal — a clone
+# that points core.hooksPath elsewhere just gets told, and codegen carries on.
+if [[ -z "${CI-}" ]]; then
+  ./scripts/setup-hooks.sh >/dev/null || true
+fi
+
 # pubspec.yaml is the single source of truth; every other declaration must agree with it.
 PUBSPEC='pubspec.yaml'
 CARGO_TOML='rust/Cargo.toml'

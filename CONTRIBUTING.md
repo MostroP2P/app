@@ -65,15 +65,20 @@ Run the full verify before committing and before requesting review:
 - **Bindings:** run `./scripts/frb-generate.sh` after any change to `rust/src/api/`. It refuses to generate when your local `flutter_rust_bridge_codegen` does not match the version pinned in `pubspec.yaml`, because a mismatched CLI produces bindings that fail to compile with an error that never mentions versions. The generated `lib/src/rust/` is gitignored and produced on the fly (locally and in CI) — do not commit it.
 - **Localization:** run `flutter gen-l10n` after editing `lib/l10n/*.arb`.
 
-### Git hooks (opt-in)
+### Git hooks
 
-`.githooks/pre-commit` runs the Rust and Dart checks above, plus the flutter_rust_bridge pin check, before each commit. It is **not active by default** — Git only picks it up once you point `core.hooksPath` at it:
+Install them once per clone:
 
 ```bash
-git config core.hooksPath .githooks
+./scripts/setup-hooks.sh
 ```
 
-Without this, the checks above are yours to run manually.
+That points `core.hooksPath` at `.githooks` (and is a no-op if it already does; it refuses, rather than overwrites, when you have pointed that config somewhere else). `./scripts/frb-generate.sh` runs the installer too, so the first codegen in a fresh clone arms the hooks — `./scripts/setup-hooks.sh --check` tells you where a clone stands.
+
+What the hooks do:
+
+- `pre-commit` runs the Rust and Dart checks above, plus the flutter_rust_bridge pin check, before each commit.
+- `post-merge` / `post-checkout` / `post-rewrite` regenerate the gitignored bindings and localizations whenever a pull, branch switch, or rebase touched `rust/src/api/`, `pubspec.yaml`, or an `.arb`. Without them, a pull leaves `lib/src/rust/` stale and the next build fails naming a Dart type that was never generated.
 
 ### Configure Git user name and email metadata
 
