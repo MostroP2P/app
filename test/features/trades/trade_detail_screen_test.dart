@@ -812,6 +812,55 @@ void main() {
     );
   });
 
+  group('the cancel dialog says what the cancel does', () {
+    final l10n = AppLocalizationsEn();
+    final texts = [
+      l10n.cancelTradeDialogContentNotStarted,
+      l10n.cancelTradeDialogContentMaybeStarted,
+      l10n.cancelTradeDialogContent,
+    ];
+    for (final (status, kind, expected) in [
+      // Before `active` mostrod cancels at once: the dialog used to announce
+      // a cooperative request the counterparty had to accept.
+      (
+        OrderStatus.waitingPayment,
+        'immediate',
+        l10n.cancelTradeDialogContentNotStarted,
+      ),
+      (
+        OrderStatus.waitingBuyerInvoice,
+        'immediate',
+        l10n.cancelTradeDialogContentNotStarted,
+      ),
+      // Taken, real state unknown (#203): either may happen.
+      (
+        OrderStatus.inProgress,
+        'either',
+        l10n.cancelTradeDialogContentMaybeStarted,
+      ),
+      (OrderStatus.active, 'cooperative', l10n.cancelTradeDialogContent),
+      (OrderStatus.fiatSent, 'cooperative', l10n.cancelTradeDialogContent),
+    ]) {
+      testWidgets('${status.name}: the $kind cancel', (tester) async {
+        await _pumpTradeDetail(
+          tester,
+          orderId: 'order-cancel-copy',
+          isBuyer: true,
+          status: status,
+        );
+        await tester.tap(_outlinedButtonWithText(l10n.cancelTradeButton));
+        await tester.pump();
+
+        for (final text in texts) {
+          expect(
+            find.text(text),
+            text == expected ? findsOneWidget : findsNothing,
+          );
+        }
+      });
+    }
+  });
+
   group('a trade that is no longer the user\'s', () {
     const orderId = 'order-lost';
 

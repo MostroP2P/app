@@ -211,6 +211,8 @@
 
   "cancelTradeDialogTitle": "Annullare lo scambio?",
   "cancelTradeDialogContent": "Annullamento cooperativo richiesto. Anche l'altra parte deve accettare affinché lo scambio venga annullato.",
+  "cancelTradeDialogContentNotStarted": "Lo scambio non è ancora iniziato, quindi viene annullato subito. Non serve che l'altra parte accetti.",
+  "cancelTradeDialogContentMaybeStarted": "Se lo scambio non è ancora iniziato, viene annullato subito. Se è già iniziato, anche l'altra parte deve accettare.",
   "noButtonLabel": "No",
   "yesButtonLabel": "Sì",
   "yesCancelButtonLabel": "Sì, annulla",

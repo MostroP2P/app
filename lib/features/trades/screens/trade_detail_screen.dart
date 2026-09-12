@@ -236,6 +236,23 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     TradeStatus.waitingPayment,
   }.contains(status);
 
+  /// What a cancel in [status] does, as the confirmation dialog tells it.
+  /// Before `active` mostrod cancels at once; from `active` on it is a
+  /// cooperative request; `inProgress` only says the order was taken, so it
+  /// may be either (#203).
+  static String _cancelDialogContent(
+    AppLocalizations l10n,
+    TradeStatus status,
+  ) {
+    if (_cancelEndsTrade(status)) {
+      return l10n.cancelTradeDialogContentNotStarted;
+    }
+    if (status == TradeStatus.inProgress) {
+      return l10n.cancelTradeDialogContentMaybeStarted;
+    }
+    return l10n.cancelTradeDialogContent;
+  }
+
   Future<void> _cancelOrder(TradeStatus status) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
@@ -243,7 +260,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       builder:
           (ctx) => AlertDialog(
             title: Text(l10n.cancelTradeDialogTitle),
-            content: Text(l10n.cancelTradeDialogContent),
+            content: Text(_cancelDialogContent(l10n, status)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),

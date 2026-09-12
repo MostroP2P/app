@@ -211,6 +211,8 @@
 
   "cancelTradeDialogTitle": "¿Cancelar intercambio?",
   "cancelTradeDialogContent": "Se solicita una cancelación cooperativa. La otra parte también debe aceptar para que el intercambio quede cancelado.",
+  "cancelTradeDialogContentNotStarted": "El intercambio aún no ha comenzado, así que se cancela de inmediato. No hace falta que la otra parte lo acepte.",
+  "cancelTradeDialogContentMaybeStarted": "Si el intercambio aún no ha comenzado, se cancela de inmediato. Si ya comenzó, la otra parte también debe aceptar.",
   "noButtonLabel": "No",
   "yesButtonLabel": "Sí",
   "yesCancelButtonLabel": "Sí, cancelar",
