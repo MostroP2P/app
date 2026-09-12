@@ -83,11 +83,10 @@ class AutomationIds {
   static const String nodeAddCustom = 'node.add_custom';
   static const String nodeAddCustomCancel = 'node.add_custom.cancel';
 
-  /// Row of one node in the selector list.
+  /// Card of one node in the selector list. A user-added node is removed by
+  /// long-pressing its card (confirmation dialog), so there is no separate
+  /// delete control.
   static String nodeItem(String pubkey) => 'node.item.$pubkey';
-
-  /// Delete control of a user-added node.
-  static String nodeItemDelete(String pubkey) => 'node.item.$pubkey.delete';
 
   // Wallet / NWC
   static const String walletSettingsConnect = 'wallet.settings.connect';
