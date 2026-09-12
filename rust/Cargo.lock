@@ -3378,6 +3378,7 @@ dependencies = [
  "hex",
  "indexed_db_futures",
  "k256",
+ "lightning-invoice",
  "log",
  "mostro-core",
  "nostr",

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/features/about/providers/mostro_node_provider.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
@@ -48,6 +50,9 @@ void main() {
                 (ref) => const Stream<TradeUpdate>.empty(),
               ),
               tradeInfoProvider.overrideWith((ref, id) async => null),
+              invoiceDeadlineProvider.overrideWith((ref, id) async => null),
+              mostroNodeProvider.overrideWith((ref) async => null),
+              activeNodeNameProvider.overrideWithValue(null),
             ],
             child: MaterialApp(
               theme: buildDarkTheme(),
@@ -64,12 +69,14 @@ void main() {
 
         final cancelId =
             buyer ? AutomationIds.invoiceCancel : AutomationIds.payCancel;
-        await tester.tap(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is Semantics && widget.properties.identifier == cancelId,
-          ),
+        final cancel = find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics && widget.properties.identifier == cancelId,
         );
+        // Both screens scroll; the cancel link closes the page.
+        await tester.ensureVisible(cancel);
+        await tester.pumpAndSettle();
+        await tester.tap(cancel);
         await tester.pumpAndSettle();
 
         expect(

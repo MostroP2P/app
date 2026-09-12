@@ -51,18 +51,18 @@ void main() {
               widget.properties.identifier == 'invoice.order_id',
         );
         expect(tester.getSemantics(order).getSemanticsData().label, 'order-1');
-        expect(find.text('Order order-1'), findsOneWidget);
+        expect(find.text('#order-1'), findsOneWidget);
         amounts.add(BigInt.from(999));
         await tester.pump();
         await tester.pump();
         expect(readout, findsOneWidget);
         expect(tester.getSemantics(readout).getSemanticsData().label, '999');
-        expect(find.text('Amount to receive: 999 sats'), findsOneWidget);
+        expect(find.text('999'), findsOneWidget);
         amounts.add(BigInt.from(998));
         await tester.pump();
         await tester.pump();
         expect(tester.getSemantics(readout).getSemanticsData().label, '998');
-        expect(find.text('Amount to receive: 998 sats'), findsOneWidget);
+        expect(find.text('998'), findsOneWidget);
       } finally {
         semantics.dispose();
         await tester.pumpWidget(const SizedBox.shrink());
