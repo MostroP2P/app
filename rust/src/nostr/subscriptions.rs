@@ -3,8 +3,8 @@
 //! Every per-trade watcher (`subscribe_daemon_messages`) owns a relay-side
 //! subscription plus, transitively, the pending-request record for its trade
 //! key: the watcher's exit path unsubscribes the REQ and purges the record
-//! unconditionally (`purge_pending_request` is documented as "only for the
-//! end of the per-trade subscription's lifetime"). Two watchers over the same
+//! (`purge_detached_pending_request` is documented as "only for the end of
+//! the per-trade subscription's lifetime"). Two watchers over the same
 //! trade key therefore cannot coexist — the older one's teardown would kill
 //! the newer one's live subscription and strand its waiting caller with a
 //! `NoDaemonResponse` on a request the daemon actually accepted.
@@ -37,7 +37,19 @@
 //!   concurrent claim either bounces first (and the owner keeps running) or
 //!   waits and finds the key free (and subscribes from scratch). The chat
 //!   guard (`ACTIVE_CHATS`) releases before unsubscribing and leaves exactly
-//!   this window open — do not copy that ordering.
+//!   this window open — do not copy that ordering. The purge half of the
+//!   pair is *detached-only*: a record with a live waiter belongs to a
+//!   caller that registered it before claiming (the create/take ordering)
+//!   and may be the very claim parked on this lock, about to subscribe from
+//!   scratch — purging it would strand that caller with the
+//!   `NoDaemonResponse` this registry exists to prevent.
+//! * **An abandoned setup cannot wedge the key.** [`claim`] hands the owner
+//!   a [`SetupGuard`]; the normal exits ([`mark_live`], [`release`]) consume
+//!   it, and a guard dropped still armed — a panic unwinding the setup (FRB
+//!   catches it and reports the error to Dart), a cancelled future — frees
+//!   the claim from `Drop`. Without that, the entry would leak in `Setup`
+//!   and every later claim for the key — every `take_order`/`create_order`
+//!   on it — would park forever.
 //!
 //! The subscription id is recomputed from the trade pubkey
 //! ([`daemon_message_subscription_id`]), so the registry needs no
@@ -109,26 +121,75 @@ pub(crate) fn daemon_message_subscription_id(
     nostr_sdk::prelude::SubscriptionId::new(format!("mostro-daemon-{key}"))
 }
 
+/// Exclusive ownership of a key's `Setup` phase, returned by [`claim`].
+///
+/// The owner must end its setup by consuming the guard: [`mark_live`] when
+/// `client.subscribe` succeeded, [`release`] on any earlier exit. A guard
+/// dropped still armed — a panic unwinding the setup, a cancelled future —
+/// frees the claim from `Drop` instead, so parked claims take over rather
+/// than hanging forever on a `Setup` entry nobody will ever advance
+/// (PR #407 round 2).
+#[must_use = "dropping the guard releases the claim — consume it via mark_live or release"]
+pub(crate) struct SetupGuard {
+    /// `Some` while armed; [`mark_live`]/[`release`] take it, disarming
+    /// `Drop`.
+    key: Option<String>,
+}
+
+impl Drop for SetupGuard {
+    fn drop(&mut self) {
+        let Some(key) = self.key.take() else { return };
+        // Reached only when the setup was abandoned — the normal exits
+        // disarm the guard first. While the guard was armed nothing else
+        // could remove or replace the entry (claims park on Setup, and
+        // teardown paths only run for watchers, which exist past
+        // `mark_live`), so the entry is still ours. `Drop` is sync and the
+        // registry lock is async: `try_lock` covers the uncontended case,
+        // a contended lock falls back to a spawned release. Claims keep
+        // parking until that release runs — which is exactly the wake they
+        // are waiting for.
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "subscription setup abandoned for trade={} without mark_live/release — freeing the claim",
+                short(&key)
+            ),
+        );
+        match registry().try_lock() {
+            Ok(mut map) => remove_and_wake(&key, &mut map),
+            Err(_) => {
+                crate::rt::spawn(async move {
+                    remove_and_wake(&key, &mut *registry().lock().await);
+                });
+            }
+        }
+    }
+}
+
+/// Remove `key`'s entry and wake anything parked on it — shared by the two
+/// release paths (explicit [`release`], guard [`Drop`]).
+fn remove_and_wake(key: &str, map: &mut HashMap<String, Entry>) {
+    if let Some(entry) = map.remove(key) {
+        entry.setup_done.notify_waiters();
+    }
+}
+
 /// Claim ownership of `trade_pubkey_hex`'s subscription lifecycle.
 ///
-/// Returns `true` when the caller is now the single owner: it must run the
-/// setup and then either [`mark_live`] (subscribe succeeded) or [`release`]
-/// (any earlier exit). Returns `false` when a watcher already owns the key
-/// **and its REQ is live**: the subscription and pending record stay
-/// untouched, and the bounce is recorded as a lease refresh so the owner
-/// outlives the caller's interest (see [`teardown_or_rearm`]).
+/// Returns `Some(guard)` when the caller is now the single owner: it must
+/// run the setup and then consume the guard via [`mark_live`] (subscribe
+/// succeeded) or [`release`] (any earlier exit); an abandoned guard frees
+/// the claim from its `Drop` (see [`SetupGuard`]). Returns `None` when a
+/// watcher already owns the key **and its REQ is live**: the subscription
+/// and pending record stay untouched, and the bounce is recorded as a lease
+/// refresh so the owner outlives the caller's interest (see
+/// [`teardown_or_rearm`]).
 ///
 /// If the key is claimed but still in setup, this call parks until the owner
 /// reaches `Live` (then bounces) or releases (then takes over and returns
-/// `true`) — a bounce is a promise of coverage, and during setup that
+/// `Some`) — a bounce is a promise of coverage, and during setup that
 /// coverage does not exist yet.
-///
-/// Cancellation caveat: if an owner's setup future is dropped between its
-/// claim and its `mark_live`/`release`, the entry leaks in `Setup` and later
-/// claims for that key park indefinitely. No caller does that today — FRB
-/// runs API futures to completion and `subscribe_daemon_messages` is awaited
-/// — but a future cancellable caller would need an RAII guard here.
-pub(crate) async fn claim(trade_pubkey_hex: &str, trade_index: u32) -> bool {
+pub(crate) async fn claim(trade_pubkey_hex: &str, trade_index: u32) -> Option<SetupGuard> {
     loop {
         let notify = {
             let mut map = registry().lock().await;
@@ -142,7 +203,9 @@ pub(crate) async fn claim(trade_pubkey_hex: &str, trade_index: u32) -> bool {
                             setup_done: Arc::new(tokio::sync::Notify::new()),
                         },
                     );
-                    return true;
+                    return Some(SetupGuard {
+                        key: Some(trade_pubkey_hex.to_string()),
+                    });
                 }
                 Some(entry) => match &mut entry.state {
                     State::Live { rearmed } => {
@@ -159,7 +222,7 @@ pub(crate) async fn claim(trade_pubkey_hex: &str, trade_index: u32) -> bool {
                                 ),
                             );
                         }
-                        return false;
+                        return None;
                     }
                     State::Setup => entry.setup_done.clone(),
                 },
@@ -209,10 +272,12 @@ async fn parked_on_current_setup(
 
 /// The owner's setup succeeded: its `client.subscribe` returned, the REQ is
 /// active. Advance `Setup` → `Live` and wake any parked claims — from this
-/// point a bounce is backed by a real subscription.
-pub(crate) async fn mark_live(trade_pubkey_hex: &str) {
+/// point a bounce is backed by a real subscription. Consumes (disarms) the
+/// guard: from here the entry belongs to the watcher's exit paths.
+pub(crate) async fn mark_live(mut guard: SetupGuard) {
+    let Some(key) = guard.key.take() else { return };
     let mut map = registry().lock().await;
-    if let Some(entry) = map.get_mut(trade_pubkey_hex) {
+    if let Some(entry) = map.get_mut(&key) {
         entry.state = State::Live { rearmed: false };
         entry.setup_done.notify_waiters();
     }
@@ -223,11 +288,9 @@ pub(crate) async fn mark_live(trade_pubkey_hex: &str) {
 /// record — if any — belongs to its caller's own rollback/timeout paths.
 /// Parked claims are woken and the first to retry becomes the new owner,
 /// re-running setup from scratch.
-pub(crate) async fn release(trade_pubkey_hex: &str) {
-    let mut map = registry().lock().await;
-    if let Some(entry) = map.remove(trade_pubkey_hex) {
-        entry.setup_done.notify_waiters();
-    }
+pub(crate) async fn release(mut guard: SetupGuard) {
+    let Some(key) = guard.key.take() else { return };
+    remove_and_wake(&key, &mut *registry().lock().await);
 }
 
 /// The owner's idle-timeout exit: refresh the lease or dismantle, atomically.
@@ -303,17 +366,20 @@ async fn dismantle(
     }
 
     // The subscription bounds the pending record's lifetime: once no reply
-    // can be delivered here anymore, a still-unconsumed record (request timed
-    // out and no genuine late reply ever arrived) is dead state — drop it,
-    // whatever attempt it belongs to.
-    crate::mostro::pending::purge_pending_request(trade_pubkey_hex);
+    // can be delivered here anymore, a still-unconsumed record (request
+    // timed out and no genuine late reply ever arrived) is dead state —
+    // drop it. But only a *detached* record (`tx: None`, its 10 s timeout
+    // ran) is dead: one with a live waiter belongs to a caller that
+    // registered it before calling `subscribe_daemon_messages` (the
+    // create/take ordering) and may be parked on this very lock, about to
+    // subscribe from scratch — purging it would strand that caller with a
+    // `NoDaemonResponse` on a request the daemon accepted.
+    crate::mostro::pending::purge_detached_pending_request(trade_pubkey_hex);
 
     // Defensive: a watcher only exists past `mark_live`, so nothing should
     // be parked here — but if an entry ever were still in Setup, leaving its
     // waiters asleep would strand them forever.
-    if let Some(entry) = map.remove(trade_pubkey_hex) {
-        entry.setup_done.notify_waiters();
-    }
+    remove_and_wake(trade_pubkey_hex, map);
 }
 
 #[cfg(test)]
@@ -332,10 +398,10 @@ mod tests {
     #[tokio::test]
     async fn second_claim_bounces_off_the_single_owner() {
         let key = "aa".repeat(32);
-        assert!(claim(&key, 1).await);
-        mark_live(&key).await;
-        assert!(!claim(&key, 1).await);
-        release(&key).await;
+        let guard = claim(&key, 1).await.expect("first claim owns the key");
+        mark_live(guard).await;
+        assert!(claim(&key, 1).await.is_none());
+        teardown(&offline_client(), &key).await;
     }
 
     /// The bounce is a lease refresh: the owner's next idle-timeout exit
@@ -348,9 +414,9 @@ mod tests {
         let key = "ab".repeat(32);
         let client = offline_client();
 
-        assert!(claim(&key, 1).await);
-        mark_live(&key).await;
-        assert!(!claim(&key, 1).await); // re-arm bounces, marks the lease
+        let guard = claim(&key, 1).await.expect("first claim owns the key");
+        mark_live(guard).await;
+        assert!(claim(&key, 1).await.is_none()); // re-arm bounces, marks the lease
 
         // Idle timeout fires: the mark wins, the owner keeps running…
         assert!(teardown_or_rearm(&client, &key).await);
@@ -359,8 +425,8 @@ mod tests {
 
         // Fully released: the key is claimable from scratch (what #218
         // needs after an owner genuinely expires between applies).
-        assert!(claim(&key, 1).await);
-        release(&key).await;
+        let guard = claim(&key, 1).await.expect("key must be free again");
+        release(guard).await;
     }
 
     /// Criterion 2 (#325): re-arming a key with a live owner must not purge
@@ -373,8 +439,8 @@ mod tests {
         let key = "ac".repeat(32);
         let client = offline_client();
 
-        assert!(claim(&key, 1).await);
-        mark_live(&key).await;
+        let guard = claim(&key, 1).await.expect("first claim owns the key");
+        mark_live(guard).await;
         pending_requests().lock().unwrap().insert(
             key.clone(),
             PendingRequest {
@@ -386,7 +452,7 @@ mod tests {
         );
 
         // Re-arm, then idle timeout: lease refreshed, record intact.
-        assert!(!claim(&key, 1).await);
+        assert!(claim(&key, 1).await.is_none());
         assert!(teardown_or_rearm(&client, &key).await);
         assert!(pending_requests().lock().unwrap().contains_key(&key));
 
@@ -403,14 +469,14 @@ mod tests {
         let key = "ad".repeat(32);
         let client = offline_client();
 
-        assert!(claim(&key, 1).await);
-        mark_live(&key).await;
-        assert!(!claim(&key, 1).await); // mark set
+        let guard = claim(&key, 1).await.expect("first claim owns the key");
+        mark_live(guard).await;
+        assert!(claim(&key, 1).await.is_none()); // mark set
         teardown(&client, &key).await;
 
         // Ownership fully released despite the mark.
-        assert!(claim(&key, 1).await);
-        release(&key).await;
+        let guard = claim(&key, 1).await.expect("key must be free again");
+        release(guard).await;
     }
 
     /// Criterion 3 (#325): teardown is targeted — dismantling one trade's
@@ -421,18 +487,18 @@ mod tests {
         let key_b = "af".repeat(32);
         let client = offline_client();
 
-        assert!(claim(&key_a, 1).await);
-        mark_live(&key_a).await;
-        assert!(claim(&key_b, 2).await);
-        mark_live(&key_b).await;
+        let guard_a = claim(&key_a, 1).await.expect("A claims");
+        mark_live(guard_a).await;
+        let guard_b = claim(&key_b, 2).await.expect("B claims");
+        mark_live(guard_b).await;
 
         assert!(!teardown_or_rearm(&client, &key_a).await);
 
         // A is free again; B is still owned.
-        assert!(claim(&key_a, 1).await);
-        assert!(!claim(&key_b, 2).await);
+        let guard_a = claim(&key_a, 1).await.expect("A must be free again");
+        assert!(claim(&key_b, 2).await.is_none());
         assert!(teardown_or_rearm(&client, &key_b).await); // consume B's mark
-        release(&key_a).await;
+        release(guard_a).await;
         assert!(!teardown_or_rearm(&client, &key_b).await);
     }
 
@@ -444,7 +510,7 @@ mod tests {
     async fn claim_during_setup_parks_until_the_owner_is_live() {
         let key = "ba".repeat(32);
 
-        assert!(claim(&key, 1).await); // owner: Setup, no mark_live yet
+        let guard = claim(&key, 1).await.expect("owner claims"); // Setup, no mark_live yet
 
         let contender = {
             let key = key.clone();
@@ -459,9 +525,9 @@ mod tests {
             "a claim during setup must park, not bounce off a REQ that is not live yet"
         );
 
-        mark_live(&key).await;
+        mark_live(guard).await;
         assert!(
-            !contender.await.unwrap(),
+            contender.await.unwrap().is_none(),
             "once the owner is live, the parked claim bounces — coverage now exists"
         );
 
@@ -480,7 +546,7 @@ mod tests {
     async fn parked_recheck_rejects_a_replaced_setup_entry() {
         let key = "bc".repeat(32);
 
-        assert!(claim(&key, 1).await); // E1: Setup
+        let guard1 = claim(&key, 1).await.expect("E1 claims"); // E1: Setup
         let stale = registry()
             .lock()
             .await
@@ -492,11 +558,11 @@ mod tests {
 
         // Owner's setup fails: entry gone, its notify lost for anyone who
         // had not registered yet.
-        release(&key).await;
+        release(guard1).await;
         assert!(!parked_on_current_setup(&key, &stale).await);
 
         // A third claimant re-claims: Setup again, but a different entry.
-        assert!(claim(&key, 1).await);
+        let guard2 = claim(&key, 1).await.expect("key is free again");
         assert!(
             !parked_on_current_setup(&key, &stale).await,
             "same state, different entry: the stale gate must be rejected so the claim retries"
@@ -511,9 +577,9 @@ mod tests {
         assert!(parked_on_current_setup(&key, &current).await);
 
         // Once Live, nobody parks: the claim loop bounces instead.
-        mark_live(&key).await;
+        mark_live(guard2).await;
         assert!(!parked_on_current_setup(&key, &current).await);
-        release(&key).await;
+        teardown(&offline_client(), &key).await;
     }
 
     /// The other half of the window: the owner's setup fails and releases.
@@ -523,7 +589,7 @@ mod tests {
     async fn claim_during_setup_takes_over_when_the_owner_releases() {
         let key = "bb".repeat(32);
 
-        assert!(claim(&key, 1).await); // owner: Setup
+        let guard = claim(&key, 1).await.expect("owner claims"); // owner: Setup
 
         let contender = {
             let key = key.clone();
@@ -534,11 +600,94 @@ mod tests {
         }
         assert!(!contender.is_finished());
 
-        release(&key).await; // owner's setup failed
-        assert!(
-            contender.await.unwrap(),
-            "the parked claim must take over a released key and run setup itself"
+        release(guard).await; // owner's setup failed
+        let takeover = contender
+            .await
+            .unwrap()
+            .expect("the parked claim must take over a released key and run setup itself");
+        release(takeover).await;
+    }
+
+    /// Review round 2 (blocking): the teardown's purge must spare a pending
+    /// record whose waiter is still attached. Its caller registered the
+    /// record *before* calling `subscribe_daemon_messages` (the create/take
+    /// ordering) and may be parked on the registry lock while this very
+    /// dismantle runs — purging its record would strand it with a
+    /// `NoDaemonResponse` on a request the daemon accepted.
+    #[tokio::test]
+    async fn dismantle_spares_a_pending_record_with_a_live_waiter() {
+        use crate::mostro::pending::{pending_requests, PendingRequest, PendingRequestKind};
+
+        let key = "ag".repeat(32);
+        let client = offline_client();
+
+        let guard = claim(&key, 1).await.expect("first claim owns the key");
+        mark_live(guard).await;
+        let (tx, _rx) = tokio::sync::oneshot::channel();
+        pending_requests().lock().unwrap().insert(
+            key.clone(),
+            PendingRequest {
+                request_id: 9,
+                trade_index: 1,
+                kind: PendingRequestKind::Take,
+                tx: Some(tx),
+            },
         );
-        release(&key).await;
+
+        // Idle timeout, no re-arm: ownership released, REQ closed…
+        assert!(!teardown_or_rearm(&client, &key).await);
+        // …but the record with a live waiter survives for its caller.
+        assert!(pending_requests().lock().unwrap().contains_key(&key));
+
+        // Once the 10 s timeout detaches the waiter, the record is dead
+        // state again and the next teardown drops it.
+        pending_requests().lock().unwrap().get_mut(&key).unwrap().tx = None;
+        let guard = claim(&key, 1).await.expect("key was released");
+        mark_live(guard).await;
+        assert!(!teardown_or_rearm(&client, &key).await);
+        assert!(!pending_requests().lock().unwrap().contains_key(&key));
+    }
+
+    /// Review round 2: a guard dropped without `mark_live`/`release` — a
+    /// panic unwinding the setup, a cancelled future — must free the key.
+    /// Leaking the `Setup` entry would park every later claim (and thus
+    /// every take/create on the key) forever, with no log and no recovery
+    /// short of a restart.
+    #[tokio::test]
+    async fn dropped_setup_guard_frees_the_key() {
+        let key = "ah".repeat(32);
+
+        let guard = claim(&key, 1).await.expect("first claim owns the key");
+        drop(guard); // abandoned setup
+
+        let guard = claim(&key, 1)
+            .await
+            .expect("an abandoned setup must leave the key claimable");
+        release(guard).await;
+    }
+
+    /// The parked contender is who the guard exists for: when the owner's
+    /// setup is abandoned, the contender must take over, not hang.
+    #[tokio::test]
+    async fn parked_claim_takes_over_when_the_owners_guard_drops() {
+        let key = "ai".repeat(32);
+
+        let guard = claim(&key, 1).await.expect("owner claims"); // Setup
+
+        let contender = {
+            let key = key.clone();
+            tokio::spawn(async move { claim(&key, 1).await })
+        };
+        for _ in 0..20 {
+            tokio::task::yield_now().await;
+        }
+        assert!(!contender.is_finished());
+
+        drop(guard); // owner's setup abandoned mid-flight
+        let takeover = contender
+            .await
+            .unwrap()
+            .expect("the parked claim must take over after the guard's Drop released the key");
+        release(takeover).await;
     }
 }

@@ -124,7 +124,8 @@ rust/                         # Rust core
 │   ├── nostr/                # Nostr event construction + parsing
 │   │   ├── transport.rs      # Transport: NIP-44 direct (Kind 14, v2) for daemon + chat envelope (Kind 14) for peer/dispute chat
 │   │   ├── order_events.rs   # Kind 38383 event parsing
-│   │   └── relay_pool.rs     # Multi-relay connection manager
+│   │   ├── relay_pool.rs     # Multi-relay connection manager
+│   │   └── subscriptions.rs  # Single-owner registry for per-trade subscriptions (#325)
 │   ├── crypto/               # Key derivation + encryption
 │   │   ├── keys.rs           # BIP-39 mnemonic, BIP-32 derivation
 │   │   ├── ecdh.rs           # ECDH shared key computation

@@ -376,9 +376,17 @@ enforced by a registry in `nostr/subscriptions.rs`:
   registry under its lock: re-armed → reset the timer and keep running;
   otherwise unsubscribe that one trade's REQ and purge its pending record
   while still holding the lock, so no concurrent claim can land between
-  the decision and the destruction. Shutdown/closed-channel exits tear
+  the decision and the destruction. The purge spares a record whose
+  waiter is still attached: its caller registered it before claiming
+  (the create/take ordering) and may be parked on the registry, about to
+  subscribe from scratch — only a detached record (its 10 s timeout ran)
+  is dead state. Shutdown/closed-channel exits tear
   down unconditionally — their receiver is dead — and post-reconnect
   coverage belongs to the re-arm paths, not to the registry.
+- **An abandoned setup cannot wedge a key.** The claim is an RAII guard:
+  a setup that ends in neither mark-live nor release (a panic unwinding
+  it, a cancelled future) frees the claim on drop, so parked claims take
+  over instead of hanging every later take/create on that key.
 
 ### Inbound Kind 14 actions consumed by `dispatch_mostro_message`
 

@@ -1600,9 +1600,12 @@ pub(crate) async fn subscribe_daemon_messages(
     // outlives this caller's interest. If the owner is still mid-setup, the
     // claim parks until the REQ is live (or takes over if that setup fails),
     // so a bounce always means real coverage. Claiming first means every
-    // early return below must release, and the success path must mark_live.
+    // early return below must release the guard and the success path must
+    // consume it via mark_live; a panic anywhere in between frees the claim
+    // from the guard's Drop instead of wedging the key in Setup.
     let trade_pubkey_hex = trade_pubkey.to_hex();
-    if !crate::nostr::subscriptions::claim(&trade_pubkey_hex, trade_index).await {
+    let Some(setup) = crate::nostr::subscriptions::claim(&trade_pubkey_hex, trade_index).await
+    else {
         crate::api::logging::blog_info(
             "orders",
             format!(
@@ -1611,20 +1614,20 @@ pub(crate) async fn subscribe_daemon_messages(
             ),
         );
         return;
-    }
+    };
 
     let recipient_keys = match crate::api::identity::get_active_trade_keys(trade_index).await {
         Ok(k) => k,
         Err(e) => {
             log::error!("[orders] subscribe_daemon_messages: no trade keys: {e}");
-            crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
+            crate::nostr::subscriptions::release(setup).await;
             return;
         }
     };
 
     let Ok(pool) = crate::api::nostr::get_pool() else {
         log::warn!("[orders] subscribe_daemon_messages: relay pool not initialized");
-        crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
+        crate::nostr::subscriptions::release(setup).await;
         return;
     };
     let client = pool.client();
@@ -1634,7 +1637,7 @@ pub(crate) async fn subscribe_daemon_messages(
             Ok(pk) => pk,
             Err(e) => {
                 log::error!("[orders] subscribe_daemon_messages: invalid mostro pubkey: {e}");
-                crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
+                crate::nostr::subscriptions::release(setup).await;
                 return;
             }
         };
@@ -1668,7 +1671,7 @@ pub(crate) async fn subscribe_daemon_messages(
     let sub_id = crate::nostr::subscriptions::daemon_message_subscription_id(&trade_pubkey_hex);
     if let Err(e) = client.subscribe(filter).with_id(sub_id).await {
         log::warn!("[orders] subscribe_daemon_messages subscribe failed: {e}");
-        crate::nostr::subscriptions::release(&trade_pubkey_hex).await;
+        crate::nostr::subscriptions::release(setup).await;
         return;
     }
 
@@ -1677,7 +1680,7 @@ pub(crate) async fn subscribe_daemon_messages(
     // above was obtained before subscribing, so events arriving before the
     // watcher task spawns below sit buffered in the channel — nothing leaks
     // in the gap.
-    crate::nostr::subscriptions::mark_live(&trade_pubkey_hex).await;
+    crate::nostr::subscriptions::mark_live(setup).await;
 
     crate::api::logging::blog_info(
         "orders",
@@ -5589,10 +5592,12 @@ mod tests {
         let trade_pubkey = keys.public_key();
         let hex = trade_pubkey.to_hex();
 
-        assert!(crate::nostr::subscriptions::claim(&hex, 9).await);
+        let guard = crate::nostr::subscriptions::claim(&hex, 9)
+            .await
+            .expect("first claim owns the key");
         // Live, not Setup: against a mid-setup owner the re-arm below would
         // (correctly) park instead of bouncing, and this test would hang.
-        crate::nostr::subscriptions::mark_live(&hex).await;
+        crate::nostr::subscriptions::mark_live(guard).await;
         pending_requests().lock().unwrap().insert(
             hex.clone(),
             PendingRequest {
@@ -5610,12 +5615,12 @@ mod tests {
             "a bounced re-arm must not purge the live watcher's pending request"
         );
         assert!(
-            !crate::nostr::subscriptions::claim(&hex, 9).await,
+            crate::nostr::subscriptions::claim(&hex, 9).await.is_none(),
             "the original owner must still hold the key after a bounced re-arm"
         );
 
         pending_requests().lock().unwrap().remove(&hex);
-        crate::nostr::subscriptions::release(&hex).await;
+        crate::nostr::subscriptions::teardown(&nostr_sdk::prelude::Client::default(), &hex).await;
     }
 
     /// Nothing ever displays a stranger's finished order — the book filters to
