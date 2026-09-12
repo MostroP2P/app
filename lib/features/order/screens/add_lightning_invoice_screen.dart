@@ -161,9 +161,8 @@ class _AddLightningInvoiceScreenState
         classifyInvoiceInput(input) == InvoiceInputKind.bolt11 &&
         _decoderAvailable &&
         _decodedInput != input;
-    // While the decoder has not caught up, say nothing and let the daemon
-    // judge an immediate submission.
-    if (pending) return const InvoiceCheckUnverified();
+    // While the decoder has not caught up, say nothing and hold submission.
+    if (pending) return const InvoiceCheckPending();
     return checkInvoiceInput(
       raw: input,
       expectedSats: sats?.toInt(),
@@ -681,7 +680,9 @@ class _AddLightningInvoiceScreenState
     AppLocalizations l10n,
     InvoiceCheck check,
   ) => switch (check) {
-    InvoiceCheckNone() || InvoiceCheckUnverified() => null,
+    InvoiceCheckNone() ||
+    InvoiceCheckPending() ||
+    InvoiceCheckUnverified() => null,
     InvoiceCheckAddress() => l10n.invoiceValidAddress,
     InvoiceCheckValid(:final sats) => l10n.invoiceValidInvoice(
       formatInvoiceSats(sats),

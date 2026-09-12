@@ -40,22 +40,34 @@ final invoiceStepStartLookupProvider = Provider<Future<int?> Function(String)>(
 /// mostrod cancels a waiting step `expiration_seconds` after `taken_at`, so
 /// the deadline is the daemon message that opened the step plus the node's
 /// window — not the 38383 `expires_at`, which is the pending order's
-/// lifetime. Without a recorded step start, the trade's own `timeout_at`
-/// (set at take time) is the fallback.
+/// lifetime.
+///
+/// The step start is not always recorded: a taker's first reply is consumed
+/// by the waiting `take_order` before any status cursor is written. A
+/// taker's trade starts when they take, so its `started_at` stands in, with
+/// the same node window — never the fixed `timeout_at`, which assumes 900 s.
+/// A maker's `started_at` is when the order was created, so without a
+/// recorded step start their deadline is unknown and no band is drawn.
 final invoiceDeadlineProvider = FutureProvider.autoDispose.family<int?, String>(
   (ref, orderId) async {
-    // Re-evaluated whenever the trade record changes, which is what a new
-    // step does.
-    final trade = await ref.watch(tradeInfoProvider(orderId).future);
+    // Both dependencies are watched before the first await. Watched after
+    // it, the autoDispose node provider would be left without a listener
+    // during every rebuild — disposed, refetched, resolved, rebuilding this
+    // one again, forever.
     final window =
         ref.watch(mostroNodeProvider).valueOrNull?.expirationSeconds ??
         kDefaultInvoiceStepSeconds;
+    // Re-evaluated whenever the trade record changes, which is what a new
+    // step does.
+    final tradeFuture = ref.watch(tradeInfoProvider(orderId).future);
+    final trade = await tradeFuture;
     try {
       final started = await ref.read(invoiceStepStartLookupProvider)(orderId);
       if (started != null) return started + window;
     } catch (e) {
       debugPrint('[invoiceDeadline] step start unavailable: $e');
     }
-    return trade?.timeoutAt?.toInt();
+    if (trade == null || trade.order.isMine) return null;
+    return trade.startedAt.toInt() + window;
   },
 );

@@ -101,7 +101,9 @@ void main() {
         classifyInvoiceInput('satoshi@example.com'),
         InvoiceInputKind.address,
       );
-      expect(classifyInvoiceInput('LNURL1DP68GURN'), InvoiceInputKind.address);
+      // The daemon path only resolves `user@domain`; an LNURL would be
+      // sent as an invoice, so it is not offered as an address.
+      expect(classifyInvoiceInput('LNURL1DP68GURN'), InvoiceInputKind.unknown);
       expect(classifyInvoiceInput('hello'), InvoiceInputKind.unknown);
       expect(classifyInvoiceInput('user@nodomain'), InvoiceInputKind.unknown);
     });
@@ -167,6 +169,7 @@ void main() {
 
     test('only a usable verdict enables submission', () {
       expect(invoiceCheckAllowsSubmit(const InvoiceCheckNone()), isFalse);
+      expect(invoiceCheckAllowsSubmit(const InvoiceCheckPending()), isFalse);
       expect(
         invoiceCheckAllowsSubmit(
           const InvoiceCheckError(InvoiceProblem.expired),

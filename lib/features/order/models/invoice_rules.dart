@@ -84,10 +84,11 @@ enum InvoiceInputKind {
   /// `lnbc…` / `lntb…` (BOLT11).
   bolt11,
 
-  /// `user@domain` or `lnurl…`: resolved into an invoice on submission.
+  /// `user@domain`: resolved into an invoice on submission.
   address,
 
-  /// Anything else.
+  /// Anything else — including an LNURL, which the submission path does not
+  /// resolve (it only treats `user@domain` as an address).
   unknown,
 }
 
@@ -111,7 +112,7 @@ InvoiceInputKind classifyInvoiceInput(String raw) {
   if (text.startsWith('lnbc') || text.startsWith('lntb')) {
     return InvoiceInputKind.bolt11;
   }
-  if (text.startsWith('lnurl') || _lnAddress.hasMatch(text)) {
+  if (_lnAddress.hasMatch(text)) {
     return InvoiceInputKind.address;
   }
   return InvoiceInputKind.unknown;
@@ -133,7 +134,13 @@ final class InvoiceCheckUnverified extends InvoiceCheck {
   const InvoiceCheckUnverified();
 }
 
-/// A Lightning address (or LNURL), resolved into an invoice on submission.
+/// A BOLT11 input the decoder has not judged yet: no row, and no submission
+/// until it has, so a bad invoice cannot slip past the validation.
+final class InvoiceCheckPending extends InvoiceCheck {
+  const InvoiceCheckPending();
+}
+
+/// A Lightning address, resolved into an invoice on submission.
 final class InvoiceCheckAddress extends InvoiceCheck {
   const InvoiceCheckAddress();
 }
@@ -215,7 +222,7 @@ InvoiceCheck checkInvoiceInput({
 
 /// Whether [check] lets the buyer submit.
 bool invoiceCheckAllowsSubmit(InvoiceCheck check) => switch (check) {
-  InvoiceCheckNone() || InvoiceCheckError() => false,
+  InvoiceCheckNone() || InvoiceCheckPending() || InvoiceCheckError() => false,
   InvoiceCheckUnverified() ||
   InvoiceCheckAddress() ||
   InvoiceCheckValid() => true,
