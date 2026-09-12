@@ -948,6 +948,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         peer_reviews: None,
         peer_days: None,
         rated_at: None,
+        bond: None,
     };
     if let Some(db) = crate::db::app_db::db() {
         if let Err(e) = persist_trade_row(db, &trade).await {
@@ -1194,6 +1195,7 @@ pub async fn take_order(
         peer_reviews: None,
         peer_days: None,
         rated_at: None,
+        bond: None,
     };
 
     // The other side of the race guarded in `dispatch_mostro_message`: this
@@ -1630,6 +1632,7 @@ fn trade_row_from_small_order(
         peer_reviews: None,
         peer_days: None,
         rated_at: None,
+        bond: None,
     })
 }
 
@@ -8169,6 +8172,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         }
     }
 
@@ -9175,6 +9179,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         })
         .await
         .expect("save the trade row");
@@ -9290,6 +9295,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         })
         .await
         .expect("save the trade row");
@@ -9402,6 +9408,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         })
         .await
         .expect("save the trade row");
@@ -9498,6 +9505,7 @@ mod tests {
                 peer_reviews: None,
                 peer_days: None,
                 rated_at: None,
+                bond: None,
             }
         };
         db.save_trade(&row(&fixed_id, fixed, TradeRole::Seller))
@@ -10339,6 +10347,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         })
         .await
         .expect("save the pre-reveal row");
@@ -10600,6 +10609,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         }
     }
 

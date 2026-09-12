@@ -616,6 +616,13 @@ pub(crate) async fn fetch_and_set_node_capabilities() {
             // to Unknown — which keeps every Cashu path shut. See escrow_mode.
             let (mode, config) = escrow_mode::parse_tags(&tags);
             escrow_mode::set_from_tags(mode, config);
+
+            // The anti-abuse bond policy, so the UI can warn before a take or
+            // a create and price a payout claim's deadline. Node-scoped like
+            // the escrow mode. See mostro::bond_policy.
+            crate::mostro::bond_policy::set_from_tags(crate::mostro::bond_policy::parse_tags(
+                &tags,
+            ));
         }
         Ok(None) => {
             log::warn!("[nostr] no Kind 38385 event found — PoW defaults to 0");
@@ -623,6 +630,7 @@ pub(crate) async fn fetch_and_set_node_capabilities() {
             // Nothing was advertised: stay Unknown rather than assume
             // Lightning, and leave Cashu closed.
             escrow_mode::clear();
+            crate::mostro::bond_policy::clear();
         }
         Err(e) => {
             log::warn!("[nostr] failed to fetch Kind 38385 for node capabilities: {e}");
@@ -633,6 +641,9 @@ pub(crate) async fn fetch_and_set_node_capabilities() {
             // alone on purpose — a stale difficulty still gets messages
             // accepted, whereas a stale escrow mode opens a path.
             escrow_mode::clear();
+            // Same reasoning: a stale bond policy would pre-warn (or fail to
+            // pre-warn) for the wrong node.
+            crate::mostro::bond_policy::clear();
         }
     }
 }

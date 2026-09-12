@@ -150,6 +150,10 @@ class TradeView {
           isCompleted: false,
         );
       case TradeStatus.inProgress:
+      // The bond window precedes the trade flow; its own view (pay the bond,
+      // countdown to the bolt11 expiry) comes with the pay-bond screen in
+      // docs/ANTI_ABUSE_BOND.md Phase 1. Until then, the safe minimum.
+      case TradeStatus.waitingBond:
         // The coarse public bucket: taken, escrow state unknown (#203). Only
         // cancel is safe to offer, and no clock is known.
         return const TradeView(

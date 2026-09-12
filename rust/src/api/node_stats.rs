@@ -17,8 +17,8 @@ use anyhow::Result;
 use nostr_sdk::prelude::{Event, Filter, Kind, PublicKey, SingleLetterTag, Timestamp};
 use serde::{Deserialize, Serialize};
 
-use crate::api::types::{OrderInfo, OrderStatus};
-use crate::mostro::escrow_mode;
+use crate::api::types::{BondPolicy, BondPolicyInfo, OrderInfo, OrderStatus};
+use crate::mostro::{bond_policy, escrow_mode};
 use crate::nostr::order_events::{parse_order_event, KIND_ORDER, RECENT_ORDERS_WINDOW_SECS};
 
 /// Kind 38385 — Mostro instance status (NIP-33 addressable, `d` = pubkey).
@@ -60,13 +60,15 @@ pub struct MostroNodeStats {
     pub escrow_mode: String,
     /// Mint the node pins for Cashu escrow; only set when the mode is Cashu.
     pub cashu_mint_url: Option<String>,
+    /// The node's full anti-abuse bond policy (`docs/ANTI_ABUSE_BOND.md`
+    /// §3.4): three-state, with every parameter gated on `Enabled`.
+    pub bond: BondPolicyInfo,
     /// `bond_enabled` tag: `Some(true)` when the node requires a bond,
     /// `Some(false)` when it explicitly does not, `None` when the daemon
-    /// predates bonds. This client cannot post a bond, so `Some(true)` makes
-    /// the node non-selectable.
+    /// predates bonds. Derived from [`Self::bond`] for the node card.
     pub bond_required: Option<bool>,
     /// `bond_amount_pct`, **in percent**; only set when `bond_required` is
-    /// `Some(true)`.
+    /// `Some(true)`. Derived from [`Self::bond`] for the node card.
     pub bond_pct: Option<f64>,
     /// Pending orders per fiat currency, sorted by code.
     pub orders_by_fiat: Vec<FiatOrderCount>,
@@ -86,6 +88,7 @@ impl MostroNodeStats {
             accepted_currencies: Vec::new(),
             escrow_mode: escrow_mode::EscrowMode::Unknown.as_marker().to_string(),
             cashu_mint_url: None,
+            bond: BondPolicyInfo::default(),
             bond_required: None,
             bond_pct: None,
             orders_by_fiat: Vec::new(),
@@ -152,12 +155,13 @@ fn apply_info_tags(stats: &mut MostroNodeStats, tags: &[Vec<String>], seen_at: i
         None
     };
 
-    stats.bond_required = tag_value(tags, "bond_enabled").map(|v| v.eq_ignore_ascii_case("true"));
-    stats.bond_pct = if stats.bond_required == Some(true) {
-        fraction_to_pct(tag_value(tags, "bond_amount_pct"))
-    } else {
-        None
+    stats.bond = bond_policy::parse_tags(tags);
+    stats.bond_required = match stats.bond.policy {
+        BondPolicy::Unsupported => None,
+        BondPolicy::Disabled => Some(false),
+        BondPolicy::Enabled => Some(true),
     };
+    stats.bond_pct = stats.bond.amount_pct.map(|f| f * 100.0);
 }
 
 /// Keep only the newest version of each addressable order (`author` + `d`).
@@ -418,6 +422,31 @@ mod tests {
         );
         assert_eq!(s.bond_required, Some(true));
         assert_eq!(s.bond_pct, Some(2.0));
+        assert_eq!(s.bond.policy, BondPolicy::Enabled);
+        assert_eq!(s.bond.amount_pct, Some(0.02));
+    }
+
+    /// The card's `bond_required` / `bond_pct` are views over the full policy,
+    /// so the two can never disagree about the same event.
+    #[test]
+    fn bond_card_fields_are_derived_from_the_policy() {
+        let mut s = MostroNodeStats::empty(NODE_A);
+        apply_info_tags(
+            &mut s,
+            &tags(&[
+                ("bond_enabled", "true"),
+                ("bond_apply_to", "both"),
+                ("bond_amount_pct", "0.015"),
+                ("bond_base_amount_sats", "2000"),
+                ("bond_payout_claim_window_days", "10"),
+            ]),
+            1,
+        );
+        assert_eq!(s.bond.apply_to, Some(crate::api::types::BondApplyTo::Both));
+        assert_eq!(s.bond.base_amount_sats, Some(2000));
+        assert_eq!(s.bond.payout_claim_window_days, Some(10));
+        assert_eq!(s.bond_required, Some(true));
+        assert_eq!(s.bond_pct, Some(1.5));
     }
 
     #[test]

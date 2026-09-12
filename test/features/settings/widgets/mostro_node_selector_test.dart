@@ -16,7 +16,8 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/node_stats.dart';
-import 'package:mostro/src/rust/api/types.dart' show MostroNodeEntry;
+import 'package:mostro/src/rust/api/types.dart'
+    show BondPolicy, BondPolicyInfo, MostroNodeEntry;
 import '../../../support/fake_trades.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../support/provider_harness.dart';
@@ -67,6 +68,13 @@ MostroNodeStats _stats(
   acceptedCurrencies: accepted,
   escrowMode: escrowMode,
   cashuMintUrl: mint,
+  bond: BondPolicyInfo(
+    policy: switch (bondRequired) {
+      true => BondPolicy.enabled,
+      false => BondPolicy.disabled,
+      null => BondPolicy.unsupported,
+    },
+  ),
   bondRequired: bondRequired,
   bondPct: null,
   ordersByFiat: [

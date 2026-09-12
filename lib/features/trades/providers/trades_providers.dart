@@ -51,6 +51,9 @@ TradeStatusFilter orderStatusToFilter(rust_types.OrderStatus status) {
     rust_types.OrderStatus.waitingBuyerInvoice =>
       TradeStatusFilter.waitingInvoice,
     rust_types.OrderStatus.waitingPayment => TradeStatusFilter.waitingPayment,
+    // A bond is a payment the user owes before the trade starts.
+    rust_types.OrderStatus.waitingTakerBond ||
+    rust_types.OrderStatus.waitingMakerBond => TradeStatusFilter.waitingPayment,
     rust_types.OrderStatus.active => TradeStatusFilter.active,
     rust_types.OrderStatus.inProgress => TradeStatusFilter.active,
     rust_types.OrderStatus.fiatSent => TradeStatusFilter.fiatSent,

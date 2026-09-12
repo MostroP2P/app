@@ -113,8 +113,11 @@ class TradeRowState {
       TradeStatus.waitingInvoice => (inProgress, TradeChipLabel.waitingInvoice),
       // The buyer waits for the seller to lock the sats.
       TradeStatus.waitingPayment => (inProgress, TradeChipLabel.waitingPayment),
+      // `waitingBond` gets its own chip and verb with the pay-bond screen
+      // (docs/ANTI_ABUSE_BOND.md Phase 1); until then it reads as in progress.
       TradeStatus.loading ||
-      TradeStatus.inProgress => (inProgress, TradeChipLabel.inProgress),
+      TradeStatus.inProgress ||
+      TradeStatus.waitingBond => (inProgress, TradeChipLabel.inProgress),
       // The seller waits for the fiat.
       TradeStatus.active => (inProgress, TradeChipLabel.waitingPayment),
       TradeStatus.fiatSent ||

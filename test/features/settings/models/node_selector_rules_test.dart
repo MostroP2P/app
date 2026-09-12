@@ -29,6 +29,13 @@ MostroNodeStats _stats({
   acceptedCurrencies: accepted,
   escrowMode: 'lightning',
   cashuMintUrl: null,
+  bond: BondPolicyInfo(
+    policy: switch (bondRequired) {
+      true => BondPolicy.enabled,
+      false => BondPolicy.disabled,
+      null => BondPolicy.unsupported,
+    },
+  ),
   bondRequired: bondRequired,
   bondPct: null,
   ordersByFiat: [
