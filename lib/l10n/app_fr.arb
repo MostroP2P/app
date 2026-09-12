@@ -1,7 +1,6 @@
 {
   "@@locale": "fr",
   "@@last_modified": "2026-03-31",
-
   "appName": "Mostro",
   "loading": "Chargement…",
   "error": "Erreur",
@@ -10,9 +9,7 @@
   "confirm": "Confirmer",
   "done": "Terminé",
   "skip": "Passer",
-
   "chatTimestampYesterday": "Hier",
-
   "disputesEmptyState": "Vos litiges apparaîtront ici",
   "disputeAttachFile": "Joindre un fichier",
   "disputeWriteMessageHint": "Écrire un message…",
@@ -29,15 +26,14 @@
   "disputeResolved": "Résolu",
   "disputeSuccessfullyCompleted": "Complété avec succès",
   "disputeCoopCancelMessage": "La commande a été annulée coopérativement. Aucun fonds n'a été transféré.",
-  "disputeWithBuyer": "Litige avec l'Acheteur\u00a0: {handle}",
-  "disputeWithSeller": "Litige avec le Vendeur\u00a0: {handle}",
+  "disputeWithBuyer": "Litige avec l'Acheteur : {handle}",
+  "disputeWithSeller": "Litige avec le Vendeur : {handle}",
   "orderLabel": "Commande {orderId}",
   "disputeInitiated": "Initié",
   "disputeInProgress": "En cours",
   "disputeStatusClosed": "Fermé",
   "disputeLostFundsToBuyer": "L'administrateur a réglé le litige en faveur de l'acheteur. Les sats ont été libérés à l'acheteur.",
   "disputeLostFundsToSeller": "L'administrateur a annulé la commande et retourné les sats au vendeur. Vous n'avez pas reçu les sats.",
-
   "walkthroughSlideOneTitle": "Échangez du Bitcoin librement — sans KYC",
   "walkthroughSlideOneBody": "Mostro est un exchange pair-à-pair qui vous permet d'échanger du Bitcoin contre n'importe quelle devise et méthode de paiement — sans KYC et sans avoir à communiquer vos données à qui que ce soit. Il est construit sur Nostr, ce qui le rend résistant à la censure. Personne ne peut vous empêcher de trader.",
   "walkthroughSlideTwoTitle": "Confidentialité par défaut",
@@ -50,7 +46,6 @@
   "walkthroughSlideFiveBody": "Parcourez le carnet d'ordres, choisissez une offre qui vous convient et suivez le déroulement de la transaction étape par étape. Vous pourrez consulter le profil de l'autre utilisateur, chatter en toute sécurité et finaliser l'échange facilement.",
   "walkthroughSlideSixTitle": "Vous ne trouvez pas ce qu'il vous faut ?",
   "walkthroughSlideSixBody": "Vous pouvez également créer votre propre offre et attendre que quelqu'un la prenne. Définissez le montant et la méthode de paiement souhaitée — Mostro s'occupe du reste.",
-
   "tabBuyBtc": "Acheter BTC",
   "tabSellBtc": "Vendre BTC",
   "filterButtonLabel": "Filtrer",
@@ -59,7 +54,6 @@
   "minutesAgo": "il y a {m}m",
   "hoursAgo": "il y a {h}h",
   "daysAgo": "il y a {d}j",
-
   "payLightningInvoiceTitle": "Payer la facture Lightning",
   "invoiceRejected": "Le nœud a refusé cette facture. Vérifiez son montant et son expiration et ajoutez-en une nouvelle.",
   "invoiceCopied": "Facture copiée",
@@ -74,7 +68,6 @@
   "addInvoiceAmount": "Montant à recevoir : {sats} sats",
   "payInvoiceAmount": "Montant à payer : {sats} sats",
   "orderIdCopied": "ID d'ordre copié",
-
   "fiatSentButtonLabel": "FIAT ENVOYÉ",
   "disputeButtonLabel": "LITIGE",
   "contactButtonLabel": "CONTACTER",
@@ -87,7 +80,6 @@
   "tradeStatusCancelled": "Annulé",
   "tradeStatusDisputed": "En litige",
   "releaseButtonLabel": "LIBÉRER",
-
   "accountScreenTitle": "Compte",
   "secretWordsTitle": "Mots secrets",
   "toRestoreYourAccount": "Pour restaurer votre compte",
@@ -109,7 +101,6 @@
   "refreshUserDialogContent": "Cela va récupérer à nouveau vos transactions et ordres depuis l'instance Mostro. Utilisez cette option si vous pensez que vos données sont désynchronisées ou si des ordres manquent.",
   "hideButtonLabel": "Masquer",
   "showButtonLabel": "Afficher",
-
   "settingsScreenTitle": "Paramètres",
   "languageSettingTitle": "Langue",
   "appearanceSettingTitle": "Apparence",
@@ -202,7 +193,6 @@
   "nodeSwitchConfirmBody": "Vous avez une opération en cours sur {currentNode}. Elle y reste ; le carnet affichera désormais {newNode}.",
   "nodeSwitchConfirmAction": "Changer de nœud",
   "nodeTradesCheckFailed": "Impossible de vérifier vos opérations. Réessayez.",
-
   "notificationsScreenTitle": "Notifications",
   "markAllAsReadMenuItem": "Tout marquer comme lu",
   "clearAllMenuItem": "Tout effacer",
@@ -211,12 +201,10 @@
   "noNotifications": "Aucune notification",
   "markAsRead": "Marquer comme lu",
   "deleteNotificationLabel": "Supprimer",
-
   "rateScreenHeader": "NOTER",
   "successfulOrder": "Ordre réussi",
   "submitRatingButton": "SOUMETTRE",
   "closeRatingButton": "FERMER",
-
   "aboutScreenTitle": "À propos",
   "mostroTagline": "Trading Bitcoin pair-à-pair sur Nostr",
   "viewDocumentationButton": "Voir la documentation",
@@ -226,7 +214,6 @@
   "relaysLabel": "Relais",
   "pubkeyCopiedToClipboard": "Clé publique copiée dans le presse-papiers",
   "footerTagline": "Open-source. Non-custodial. Privé.",
-
   "drawerTitle": "Mostro",
   "drawerTagline": "Échange P2P",
   "drawerStageBadge": "Alpha",
@@ -234,7 +221,6 @@
   "drawerAccountMenuItem": "Compte",
   "drawerSettingsMenuItem": "Paramètres",
   "drawerAboutMenuItem": "À propos",
-
   "navOrderBook": "Carnet d'ordres",
   "navMyTrades": "Mes transactions",
   "navChat": "Chat",
@@ -249,7 +235,6 @@
   "relayRemoveFailed": "Échec de la suppression du relais",
   "backupConfirmCheckbox": "J'ai noté mes mots et les ai sauvegardés en lieu sûr",
   "backupRitualSecondFailureMessage": "C'est encore incorrect. Veuillez vérifier et sauvegarder vos mots secrets, puis recommencer la vérification depuis le début.",
-
   "cancelTradeDialogTitle": "Annuler l'échange ?",
   "cancelTradeDialogContent": "Annulation coopérative demandée. L'autre partie doit également accepter pour que l'échange soit entièrement annulé.",
   "cancelTradeDialogContentNotStarted": "L'échange n'a pas encore commencé, il est donc annulé immédiatement. L'autre partie n'a pas besoin d'accepter.",
@@ -268,31 +253,24 @@
   "markFiatSentButton": "Marquer comme envoyé",
   "confirmReleaseSatsButton": "Confirmer et libérer les sats",
   "shareOrderButton": "Partager l'ordre",
-
   "orderPillYouAreSelling": "VOUS VENDEZ",
   "orderPillYouAreBuying": "VOUS ACHETEZ",
   "orderPillSelling": "VENTE",
   "orderPillBuying": "ACHAT",
-
   "myOrderSellTitle": "Ton ordre de vente",
   "myOrderBuyTitle": "Ton ordre d'achat",
   "cancelOrderFailed": "Échec de l'annulation de la commande. Veuillez réessayer.",
   "copyButtonLabel": "Copier",
   "closeButtonLabel": "Fermer",
-
   "orderStatusWaitingForTaker": "En attente d'un preneur",
   "orderStatusWaitingBuyerInvoice": "En attente de la facture de l'acheteur",
   "orderStatusWaitingPayment": "En attente du paiement",
   "orderStatusInProgress": "En cours",
   "orderStatusExpired": "Expirée",
-
   "copyOrderIdTooltip": "Copier l'ID de la commande",
   "orderNotFoundTitle": "Commande introuvable",
   "orderNotFoundMessage": "Cette commande n'est plus disponible.",
-
-  "orderCancelledSuccess": "Commande annulée avec succès."
-,
-
+  "orderCancelledSuccess": "Commande annulée avec succès.",
   "aboutAppInfoTitle": "Informations sur l'application",
   "aboutDocumentationTitle": "Documentation",
   "aboutMostroNodeTitle": "Nœud Mostro",
@@ -478,6 +456,7 @@
   "loggingDisabledStatus": "Journalisation détaillée désactivée",
   "noLogEntriesMessage": "Aucune entrée de journal",
   "failedToShareLogsMessage": "Échec du partage des journaux",
+  "logReportShareHeading": "Rapport de journaux Mostro",
   "tradeFilterAll": "Tous",
   "tradeFilterPending": "En attente",
   "tradeFilterWaitingInvoice": "En attente de facture",
@@ -633,7 +612,7 @@
   "publishOrder": "Publier l'ordre",
   "removePaymentMethod": "Retirer {method}",
   "satsUnitLabel": "sats",
-  "satsAmount": "{sats} sats",
+  "satsAmount": "{amount} sats",
   "durationHours": "{hours} h",
   "paymentMethodsLabel": "Moyens de paiement",
   "customPaymentMethodHint": "Moyen de paiement personnalisé...",
@@ -671,7 +650,6 @@
   "sortSheetTitle": "Trier par",
   "orderCardPremiumCaption": "prime",
   "orderFixedAmount": "Montant fixe · pour {sats}",
-  "satsAmount": "{amount} sats",
   "reputationNew": "Nouveau",
   "reputationNoTrades": "aucune transaction",
   "bottomNavBook": "Carnet",
@@ -743,67 +721,167 @@
   "tradeHeadlinePayoutPending": "En attente du paiement à l’acheteur",
   "tradeInstructionPayoutPending": "Le vendeur a libéré les fonds en séquestre. En attente de la réussite du paiement Lightning à l’acheteur.",
   "tradeScreenTitle": "Votre opération",
-  "@tradeScreenTitle": {"description": "App bar title of the trade screen"},
+  "@tradeScreenTitle": {
+    "description": "App bar title of the trade screen"
+  },
   "tradeChipWaiting": "EN ATTENTE",
-  "@tradeChipWaiting": {"description": "Status chip while the user waits on the counterpart (uppercase)"},
+  "@tradeChipWaiting": {
+    "description": "Status chip while the user waits on the counterpart (uppercase)"
+  },
   "tradeChipActive": "ACTIVE",
-  "@tradeChipActive": {"description": "Status chip of an active trade while the counterpart acts (uppercase)"},
+  "@tradeChipActive": {
+    "description": "Status chip of an active trade while the counterpart acts (uppercase)"
+  },
   "tradeChipYourTurn": "À VOUS",
-  "@tradeChipYourTurn": {"description": "Status chip when the user has something to do (uppercase)"},
+  "@tradeChipYourTurn": {
+    "description": "Status chip when the user has something to do (uppercase)"
+  },
   "tradeChipDispute": "LITIGE",
-  "@tradeChipDispute": {"description": "Status chip of a disputed trade (uppercase)"},
+  "@tradeChipDispute": {
+    "description": "Status chip of a disputed trade (uppercase)"
+  },
   "tradeChatLockedNote": "Pas encore de chat : tant que l'opération n'est pas active, aucune des deux parties ne sait qui est l'autre.",
-  "@tradeChatLockedNote": {"description": "Line shown in place of the chat card until the trade is active"},
+  "@tradeChatLockedNote": {
+    "description": "Line shown in place of the chat card until the trade is active"
+  },
   "tradeChatEncrypted": "Chat chiffré de bout en bout",
-  "@tradeChatEncrypted": {"description": "Subtitle of the chat card under the counterpart alias"},
+  "@tradeChatEncrypted": {
+    "description": "Subtitle of the chat card under the counterpart alias"
+  },
   "tradeBodyWaitingPaymentBuyer": "Le vendeur paie la facture de dépôt. Une fois les sats bloqués, ce sera à vous de payer le fiat.",
-  "@tradeBodyWaitingPaymentBuyer": {"description": "Step body for the buyer while the seller pays the hold invoice"},
+  "@tradeBodyWaitingPaymentBuyer": {
+    "description": "Step body for the buyer while the seller pays the hold invoice"
+  },
   "tradeBodyActiveSeller": "Transmettez vos coordonnées {method} dans le chat ci-dessus.",
-  "@tradeBodyActiveSeller": {"description": "Step body for the seller of an active trade; {method} is the payment method", "placeholders": {"method": {"type": "String"}}},
+  "@tradeBodyActiveSeller": {
+    "description": "Step body for the seller of an active trade; {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
   "tradeBodyActiveBuyer": "Par {method}, avec les coordonnées reçues dans le chat. Une fois envoyé, indiquez-le ci-dessous.",
-  "@tradeBodyActiveBuyer": {"description": "Step body for the buyer of an active trade; {method} is the payment method", "placeholders": {"method": {"type": "String"}}},
+  "@tradeBodyActiveBuyer": {
+    "description": "Step body for the buyer of an active trade; {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
   "tradeBodyFiatSentSeller": "L'acheteur a marqué le paiement comme envoyé. Vérifiez votre compte {method} avant de libérer.",
-  "@tradeBodyFiatSentSeller": {"description": "Step body for the seller once the buyer marked the fiat as sent; {method} is the payment method", "placeholders": {"method": {"type": "String"}}},
+  "@tradeBodyFiatSentSeller": {
+    "description": "Step body for the seller once the buyer marked the fiat as sent; {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
   "tradeReleaseIrreversible": "La libération des sats est irréversible.",
-  "@tradeReleaseIrreversible": {"description": "Warning inside the step block before releasing"},
+  "@tradeReleaseIrreversible": {
+    "description": "Warning inside the step block before releasing"
+  },
   "tradeTimerYouHave": "Il vous reste",
-  "@tradeTimerYouHave": {"description": "Countdown label when the user must act"},
+  "@tradeTimerYouHave": {
+    "description": "Countdown label when the user must act"
+  },
   "tradeTimerTheyHave": "Il leur reste",
-  "@tradeTimerTheyHave": {"description": "Countdown label when the counterpart must act"},
+  "@tradeTimerTheyHave": {
+    "description": "Countdown label when the counterpart must act"
+  },
   "tradeTimerOrderHas": "Temps restant",
-  "@tradeTimerOrderHas": {"description": "Countdown label of a pending order's time in the book"},
+  "@tradeTimerOrderHas": {
+    "description": "Countdown label of a pending order's time in the book"
+  },
   "tradeTimerNoteCoordinate": "S'il vous faut plus de temps, convenez-en dans le chat avant l'expiration.",
-  "@tradeTimerNoteCoordinate": {"description": "Note under the countdown of an active trade"},
+  "@tradeTimerNoteCoordinate": {
+    "description": "Note under the countdown of an active trade"
+  },
   "tradeRoleBuyer": "Acheteur",
-  "@tradeRoleBuyer": {"description": "Counterpart role on the reputation row"},
+  "@tradeRoleBuyer": {
+    "description": "Counterpart role on the reputation row"
+  },
   "tradeRoleSeller": "Vendeur",
-  "@tradeRoleSeller": {"description": "Counterpart role on the reputation row"},
+  "@tradeRoleSeller": {
+    "description": "Counterpart role on the reputation row"
+  },
   "reputationTradesCount": "{count, plural, =1{1 opération} other{{count} opérations}}",
-  "@reputationTradesCount": {"description": "Number of trades on the reputation row", "placeholders": {"count": {"type": "int"}}},
+  "@reputationTradesCount": {
+    "description": "Number of trades on the reputation row",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reputationDaysOnMostro": "{count, plural, =1{1 jour sur Mostro} other{{count} jours sur Mostro}}",
-  "@reputationDaysOnMostro": {"description": "Account age on the reputation row", "placeholders": {"count": {"type": "int"}}},
+  "@reputationDaysOnMostro": {
+    "description": "Account age on the reputation row",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "tradeFiatSentAction": "J'ai envoyé le paiement",
-  "@tradeFiatSentAction": {"description": "Primary action of the buyer once the fiat is sent"},
+  "@tradeFiatSentAction": {
+    "description": "Primary action of the buyer once the fiat is sent"
+  },
   "tradeCloseAction": "Fermer",
-  "@tradeCloseAction": {"description": "Closes the trade screen"},
+  "@tradeCloseAction": {
+    "description": "Closes the trade screen"
+  },
   "tradeSendRatingAction": "Envoyer la note",
-  "@tradeSendRatingAction": {"description": "Submits the counterpart rating from the completed card"},
+  "@tradeSendRatingAction": {
+    "description": "Submits the counterpart rating from the completed card"
+  },
   "tradeCompletedTitle": "Opération terminée",
-  "@tradeCompletedTitle": {"description": "Title of the completed card"},
+  "@tradeCompletedTitle": {
+    "description": "Title of the completed card"
+  },
   "tradeRatedCounterpart": "Vous avez noté {alias} {score}",
-  "@tradeRatedCounterpart": {"description": "Rating row of the completed card; {alias} is the counterpart, {score} 1–5", "placeholders": {"alias": {"type": "String"}, "score": {"type": "String"}}},
+  "@tradeRatedCounterpart": {
+    "description": "Rating row of the completed card; {alias} is the counterpart, {score} 1–5",
+    "placeholders": {
+      "alias": {
+        "type": "String"
+      },
+      "score": {
+        "type": "String"
+      }
+    }
+  },
   "tradeIdLabel": "ID",
-  "@tradeIdLabel": {"description": "Label before the shortened order id"},
+  "@tradeIdLabel": {
+    "description": "Label before the shortened order id"
+  },
   "tradeCreatedTodayLabel": "créée aujourd'hui à {time}",
-  "@tradeCreatedTodayLabel": {"description": "Creation time of an order created today; {time} is HH:mm", "placeholders": {"time": {"type": "String"}}},
+  "@tradeCreatedTodayLabel": {
+    "description": "Creation time of an order created today; {time} is HH:mm",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "releaseSheetTitle": "Libérer les sats ?",
-  "@releaseSheetTitle": {"description": "Title of the release confirmation sheet"},
+  "@releaseSheetTitle": {
+    "description": "Title of the release confirmation sheet"
+  },
   "releaseSheetBody": "C'est irréversible. Ne libérez que si l'argent est déjà sur votre compte.",
-  "@releaseSheetBody": {"description": "Body of the release confirmation sheet"},
+  "@releaseSheetBody": {
+    "description": "Body of the release confirmation sheet"
+  },
   "releaseSheetConfirm": "Oui, libérer",
-  "@releaseSheetConfirm": {"description": "Confirms the release from the sheet"},
+  "@releaseSheetConfirm": {
+    "description": "Confirms the release from the sheet"
+  },
   "releaseSheetBack": "Retour",
-  "@releaseSheetBack": {"description": "Dismisses the release sheet"},
+  "@releaseSheetBack": {
+    "description": "Dismisses the release sheet"
+  },
   "orderSideChipSell": "Tu vends du BTC",
   "orderSideChipBuy": "Tu achètes du BTC",
   "orderDetailMarketPremium": "Prix du marché · {premium} de prime",
@@ -839,5 +917,46 @@
   "takeOrderClosed": "Fermée",
   "easterEggWhitepaper": "31 octobre 2008 : neuf pages, la permission de personne. Joyeux Halloween.",
   "easterEggGenesis": "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks",
-  "easterEggPizzaDay": "22 mai 2010 : 10 000 BTC pour deux pizzas. On espère qu'elles étaient bonnes."
+  "easterEggPizzaDay": "22 mai 2010 : 10 000 BTC pour deux pizzas. On espère qu'elles étaient bonnes.",
+  "settingsGroupApp": "Application",
+  "settingsGroupPayments": "Paiements",
+  "settingsGroupNetwork": "Réseau",
+  "settingsGroupHelp": "Aide",
+  "fiatCurrencySettingTitle": "Devise fiat",
+  "notificationsEnabledOfTotal": "{count} sur {total}",
+  "notificationsAllOff": "Désactivées",
+  "lightningAddressUnset": "Non configurée",
+  "nwcWalletNotConnected": "Non connecté",
+  "relaysConnectedOfTotal": "{connected} sur {total} connectés",
+  "relaysSummaryHealthy": "Vous recevez ordres et messages normalement",
+  "relaysSummaryAtRisk": "Vous risquez de ne plus voir les nouveaux ordres",
+  "relayStatusConnected": "Connecté",
+  "relayStatusOffline": "Pas de connexion",
+  "relayStatusSlow": "Lent · {ms} ms",
+  "addRelayButtonLabel": "Ajouter un relais",
+  "relaysFootnote": "Les relais transportent vos ordres et vos messages. Avec moins de deux connectés, vous risquez de ne plus voir les nouveaux ordres.",
+  "lastRelayBlockedMessage": "Gardez au moins un relais actif : sans relais, vous ne pouvez ni voir ni publier d’ordres.",
+  "disableButtonLabel": "Désactiver",
+  "nwcExplainerTitle": "Connecter votre portefeuille",
+  "nwcExplainerSubtitle": "Avec Nostr Wallet Connect",
+  "nwcExplainerBody": "Mostro encaissera et paiera les factures de vos opérations depuis ce portefeuille, sans que vous ayez à copier une facture à la main.",
+  "nwcUriFieldLabel": "URI de connexion",
+  "nwcUriPlaceholder": "nostr+walletconnect://…",
+  "nwcStorageFootnote": "L’URI est stockée uniquement sur cet appareil et n’est jamais publiée sur Nostr.",
+  "walletConnectedMessage": "Portefeuille connecté",
+  "nwcConnectedStatus": "Connecté",
+  "nwcBalanceSats": "{sats} sats",
+  "notificationsSystemDenied": "Les notifications sont désactivées dans les réglages du système.",
+  "openSystemSettingsAction": "Ouvrir les réglages",
+  "notificationsPrivacyFootnote": "Les notifications ne contiennent ni montants ni contreparties : elles vous signalent seulement qu’il y a quelque chose à voir.",
+  "notificationPrefSaveFailed": "Impossible d’enregistrer cette préférence",
+  "logsScreenTitle": "Journaux",
+  "logFilterAll": "Tous",
+  "logFilterRelays": "Relays",
+  "logFilterOrders": "Ordres",
+  "logFilterPayments": "Paiements",
+  "verboseLoggingTitle": "Journalisation détaillée",
+  "verboseLoggingSubtitle": "Plus de détail, plus de consommation",
+  "newLogsChipLabel": "Nouveaux journaux",
+  "noLogsForFilter": "Aucune entrée pour ce filtre"
 }

@@ -1,183 +1,258 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/core/order_book_palette.dart';
+import 'package:mostro/core/settings_palette.dart';
+import 'package:mostro/features/settings/providers/notification_permission_provider.dart';
+import 'package:mostro/features/settings/providers/notification_prefs_provider.dart';
+import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 
-/// Notification preferences screen.
+/// Push notifications — handoff 10d.
 ///
-/// Settings are persisted via SharedPreferences. When the Rust settings API
-/// gains notification fields (notify_trade_updates, etc.), replace the
-/// SharedPreferences calls with settings_api calls.
-class NotificationSettingsScreen extends StatefulWidget {
+/// One group card with four rows: 13/600 titles (the old 17px forced
+/// `Actualizaciones de operaciones` onto two lines), an 11/400 description,
+/// and the glyph centred on the text block rather than on its first line.
+class NotificationSettingsScreen extends ConsumerWidget {
   const NotificationSettingsScreen({super.key});
 
-  @override
-  State<NotificationSettingsScreen> createState() =>
-      _NotificationSettingsScreenState();
-}
-
-class _NotificationSettingsScreenState
-    extends State<NotificationSettingsScreen> {
-  bool _tradeUpdates = true;
-  bool _newMessages = true;
-  bool _paymentAlerts = true;
-  bool _disputeUpdates = true;
-
-  static const _kTradeUpdates = 'notify_trade_updates';
-  static const _kNewMessages = 'notify_new_messages';
-  static const _kPaymentAlerts = 'notify_payments';
-  static const _kDisputeUpdates = 'notify_disputes';
+  /// The rows, in the handoff's order, with the icon each carries.
+  static const _rows = <(NotificationEvent, IconData)>[
+    (NotificationEvent.tradeUpdates, Icons.swap_horiz),
+    (NotificationEvent.newMessages, Icons.chat_bubble_outline),
+    (NotificationEvent.paymentAlerts, Icons.bolt),
+    (NotificationEvent.disputeUpdates, Icons.gavel_outlined),
+  ];
 
   @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
-
-  Future<void> _loadSettings() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (!mounted) return;
-      setState(() {
-        _tradeUpdates = prefs.getBool(_kTradeUpdates) ?? true;
-        _newMessages = prefs.getBool(_kNewMessages) ?? true;
-        _paymentAlerts = prefs.getBool(_kPaymentAlerts) ?? true;
-        _disputeUpdates = prefs.getBool(_kDisputeUpdates) ?? true;
-      });
-    } catch (e) {
-      debugPrint('[notification_settings] load failed: $e');
-    }
-  }
-
-  Future<void> _saveBool(String key, bool value) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(key, value);
-    } catch (e) {
-      debugPrint('[notification_settings] save failed: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorsRaw = Theme.of(context).extension<AppColors>();
-    if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
-    final colors = colorsRaw;
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final book = OrderBookPalette.of(context);
+    final prefs = ref.watch(notificationPrefsProvider);
+    // Unknown reads as granted: a banner that appears while the answer is
+    // still loading would flash on every visit.
+    final denied =
+        ref.watch(notificationPermissionDeniedProvider).valueOrNull ?? false;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.pushNotificationsSettingTitle),
+      backgroundColor: book.bg,
+      appBar: redesignAppBar(
+        context,
+        title: l10n.pushNotificationsSettingTitle,
+        onBack:
+            () =>
+                context.canPop()
+                    ? context.pop()
+                    : context.go(AppRoute.settings),
       ),
       body: ListView(
         // #267: add the bottom system-bar inset so the last item isn't hidden
         // behind the gesture / 3-button navigation bar.
         padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.lg,
-          AppSpacing.lg,
-          AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+          redesignSidePadding,
+          6,
+          redesignSidePadding,
+          14 + MediaQuery.of(context).viewPadding.bottom,
         ),
         children: [
+          if (denied) ...[
+            const _SystemDeniedBanner(),
+            const SizedBox(height: 14),
+          ],
           Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
             child: Text(
               l10n.chooseNotificationEventsSubtitle,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: colors.textSubtle),
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: book.textSecondary,
+              ),
             ),
           ),
-          _buildSwitch(
-            context,
-            colors,
-            icon: Icons.swap_horiz,
-            title: l10n.notifTradeUpdatesTitle,
-            subtitle: l10n.notifTradeUpdatesSubtitle,
-            value: _tradeUpdates,
-            onChanged: (v) {
-              setState(() => _tradeUpdates = v);
-              _saveBool(_kTradeUpdates, v);
-            },
+          // With the system permission denied the rows change nothing the
+          // user can see, so they fade and stop taking taps; the banner above
+          // is the only thing left to act on.
+          Opacity(
+            opacity: denied ? 0.55 : 1,
+            child: SettingsGroup(
+              rows: [
+                for (final (event, icon) in _rows)
+                  _EventRow(
+                    event: event,
+                    icon: icon,
+                    value: prefs.isEnabled(event),
+                    enabled: !denied,
+                  ),
+              ],
+            ),
           ),
-          _buildSwitch(
-            context,
-            colors,
-            icon: Icons.chat_bubble_outline,
-            title: l10n.notifNewMessagesTitle,
-            subtitle: l10n.notifNewMessagesSubtitle,
-            value: _newMessages,
-            onChanged: (v) {
-              setState(() => _newMessages = v);
-              _saveBool(_kNewMessages, v);
-            },
+          const SizedBox(height: settingsGroupGap),
+          SettingsFootnote(
+            icon: Icons.lock_outline,
+            // Relevant in a privacy app: pushes travel through Google/Apple.
+            text: l10n.notificationsPrivacyFootnote,
           ),
-          _buildSwitch(
-            context,
-            colors,
-            icon: Icons.bolt,
-            title: l10n.notifPaymentAlertsTitle,
-            subtitle: l10n.notifPaymentAlertsSubtitle,
-            value: _paymentAlerts,
-            onChanged: (v) {
-              setState(() => _paymentAlerts = v);
-              _saveBool(_kPaymentAlerts, v);
-            },
+        ],
+      ),
+    );
+  }
+}
+
+class _EventRow extends ConsumerWidget {
+  const _EventRow({
+    required this.event,
+    required this.icon,
+    required this.value,
+    required this.enabled,
+  });
+
+  final NotificationEvent event;
+  final IconData icon;
+  final bool value;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final book = OrderBookPalette.of(context);
+    final (title, description) = _copy(l10n, event);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      child: Row(
+        // Centred on the whole text block, not its first line: at two lines
+        // the v2 icon sat halfway up the title.
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 17,
+            color: value ? book.limeIcon : book.textTertiary,
           ),
-          _buildSwitch(
-            context,
-            colors,
-            icon: Icons.gavel_outlined,
-            title: l10n.notifDisputeUpdatesTitle,
-            subtitle: l10n.notifDisputeUpdatesSubtitle,
-            value: _disputeUpdates,
-            onChanged: (v) {
-              setState(() => _disputeUpdates = v);
-              _saveBool(_kDisputeUpdates, v);
-            },
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: book.textStrong,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.4,
+                    color: book.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          MostroToggle(
+            value: value,
+            semanticLabel: title,
+            onChanged: enabled ? (next) => _set(context, ref, next) : null,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSwitch(
-    BuildContext context,
-    AppColors colors, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+  Future<void> _set(BuildContext context, WidgetRef ref, bool next) async {
+    final ok = await ref
+        .read(notificationPrefsProvider.notifier)
+        .setEvent(event, next);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).notificationPrefSaveFailed,
+          ),
+        ),
+      );
+    }
+  }
+
+  static (String, String) _copy(
+    AppLocalizations l10n,
+    NotificationEvent event,
+  ) => switch (event) {
+    NotificationEvent.tradeUpdates => (
+      l10n.notifTradeUpdatesTitle,
+      l10n.notifTradeUpdatesSubtitle,
+    ),
+    NotificationEvent.newMessages => (
+      l10n.notifNewMessagesTitle,
+      l10n.notifNewMessagesSubtitle,
+    ),
+    NotificationEvent.paymentAlerts => (
+      l10n.notifPaymentAlertsTitle,
+      l10n.notifPaymentAlertsSubtitle,
+    ),
+    NotificationEvent.disputeUpdates => (
+      l10n.notifDisputeUpdatesTitle,
+      l10n.notifDisputeUpdatesSubtitle,
+    ),
+  };
+}
+
+// ── Denied-permission banner ──────────────────────────────────────────────────
+
+/// Shown when the OS is refusing this app's notifications: the four toggles
+/// below cannot deliver anything until this is fixed, and it is not fixed
+/// from here.
+class _SystemDeniedBanner extends ConsumerWidget {
+  const _SystemDeniedBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final pal = SettingsPalette.of(context);
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: colors.backgroundCard,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        color: pal.warnBg,
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        border: Border.all(color: pal.warnBorder),
       ),
-      child: SwitchListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.xs,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            Text(
+              l10n.notificationsSystemDenied,
+              style: TextStyle(fontSize: 11, height: 1.4, color: pal.warnInk),
+            ),
+            InkWell(
+              // `notificationPermissionDeniedProvider` re-reads the answer
+              // when the app resumes, which is when the user comes back.
+              onTap: () => ref.read(openSystemSettingsProvider)(),
+              child: Text(
+                l10n.openSystemSettingsAction,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: pal.warnInk,
+                  decoration: TextDecoration.underline,
+                  decorationColor: pal.warnInk,
+                ),
+              ),
+            ),
+          ],
         ),
-        secondary: Icon(icon, color: colors.mostroGreen, size: 22),
-        title: Text(
-          title,
-          style: Theme.of(context)
-              .textTheme
-              .bodyLarge
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        value: value,
-        onChanged: onChanged,
-        activeThumbColor: colors.mostroGreen,
       ),
     );
   }
