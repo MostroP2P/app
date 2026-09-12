@@ -211,7 +211,32 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     OrderStatus.dispute => TradeStatus.disputed,
   };
 
-  Future<void> _cancelOrder() async {
+  /// Set once the screen has decided to leave, so no rebuild in between
+  /// navigates twice.
+  bool _leaving = false;
+
+  /// Back to home with [message], at most once.
+  void _leave(String message) {
+    if (_leaving || !mounted) return;
+    _leaving = true;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+    context.go(AppRoute.home);
+  }
+
+  /// Whether a cancel in [status] ends the trade outright. Mirrors Rust's
+  /// `cancellation_wipes_history`: before `active` mostrod cancels at once —
+  /// a take hands the order back to the book, a maker's order dies — and the
+  /// trade row is wiped. From `active` on it is a cooperative request, and
+  /// `inProgress` may be either.
+  static bool _cancelEndsTrade(TradeStatus status) => const {
+    TradeStatus.pending,
+    TradeStatus.waitingInvoice,
+    TradeStatus.waitingPayment,
+  }.contains(status);
+
+  Future<void> _cancelOrder(TradeStatus status) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -236,9 +261,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       throw const MostroActionAborted();
     }
     try {
-      await orders_api.cancelOrder(orderId: widget.orderId);
+      await ref.read(cancelOrderActionProvider)(widget.orderId);
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
+      if (_cancelEndsTrade(status)) {
+        // Nothing is left to follow here: leave, as the invoice screens do.
+        _leave(l10n.cancelRequestSent);
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.cancelRequestSent)));
@@ -589,7 +619,26 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // stream): it refreshes on the TradeUpdate the Rust side emits after
     // persisting the snapshot. Present only once someone took the order, and
     // the taker's role is the opposite of the user's own.
-    final trade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
+    final tradeAsync = ref.watch(tradeInfoProvider(widget.orderId));
+    final trade = tradeAsync.valueOrNull;
+
+    // No trade row and not the maker: this is no longer a trade of this
+    // user's. A take lost before going active (its own cancel, a waiting
+    // timeout, the maker cancelling) is wiped in Rust, and the order is
+    // handed back to the public book, where it reads `pending` — which this
+    // screen would render as the user's own published order, cancel button
+    // included. Leave instead, as the invoice screens do; this also covers
+    // arriving later from a notification or the chat header. Only on a
+    // settled read of the trades list: no answer yet is not an absent row.
+    if (!_leaving &&
+        !tradeAsync.isLoading &&
+        tradeAsync.hasValue &&
+        trade == null &&
+        order?.isMine != true) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _leave(l10n.orderNoLongerActive),
+      );
+    }
 
     final inFlight = const {
       TradeStatus.waitingInvoice,
@@ -797,7 +846,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         destructiveButton(
           automationId: AutomationIds.tradeCancel,
           label: l10n.cancelTradeButton,
-          onPressed: _cancelOrder,
+          onPressed: () => _cancelOrder(status),
         ),
       if (canDispute)
         destructiveButton(

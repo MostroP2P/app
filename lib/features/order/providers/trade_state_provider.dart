@@ -46,6 +46,11 @@ final releaseOrderActionProvider = Provider<Future<void> Function(String)>(
   (ref) => (orderId) => orders_api.releaseOrder(orderId: orderId),
 );
 
+/// Publishes a cancel for the order; the daemon's answer arrives later.
+final cancelOrderActionProvider = Provider<Future<void> Function(String)>(
+  (ref) => (orderId) => orders_api.cancelOrder(orderId: orderId),
+);
+
 /// Live order status for a single trade, polled from the order book every 2 s.
 ///
 /// Starts with an immediate fetch (no initial delay) so the first emission
