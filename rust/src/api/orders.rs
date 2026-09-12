@@ -1435,6 +1435,13 @@ fn trade_row_from_small_order(
 /// that key's trade index, which the daemon echoes from the release. It
 /// becomes a maker trade of this client's, listed and cancellable like the
 /// parent was. Returns whether an order was adopted.
+///
+/// With the content fingerprint gone (#394 step 3) this is also the ONLY
+/// path that restores a still-pending maker order on cold start: a create
+/// sends `trade_index`, mostrod echoes it in the Pending ack, and the
+/// replayed ack of a create whose confirmation timed out is adopted here as
+/// a maker row once no pending record remains to intercept it (review
+/// round 2).
 async fn adopt_range_remainder(
     order_id: &str,
     kind: &mostro_core::message::MessageKind,
@@ -1662,9 +1669,12 @@ async fn persist_late_create_confirmation(
     trade_index: u32,
 ) {
     let Some(mostro_core::message::Payload::Order(order)) = &kind.payload else {
-        log::warn!(
-            "[orders] late create confirmation for order={daemon_id} carries no order — \
-             nothing to persist"
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "late create confirmation for order={daemon_id} carries no order — \
+                 nothing to persist"
+            ),
         );
         return;
     };
@@ -1672,7 +1682,10 @@ async fn persist_late_create_confirmation(
         Some(mostro_core::order::Kind::Sell) => TradeRole::Seller,
         Some(mostro_core::order::Kind::Buy) => TradeRole::Buyer,
         None => {
-            log::warn!("[orders] late create confirmation for order={daemon_id} names no kind");
+            crate::api::logging::blog_warn(
+                "orders",
+                format!("late create confirmation for order={daemon_id} names no kind"),
+            );
             return;
         }
     };
@@ -1696,7 +1709,10 @@ async fn persist_late_create_confirmation(
         return;
     };
     if let Err(e) = persist_trade_row(db, &trade).await {
-        log::warn!("[orders] late create confirmation not persisted for order={daemon_id}: {e}");
+        crate::api::logging::blog_warn(
+            "orders",
+            format!("late create confirmation not persisted for order={daemon_id}: {e}"),
+        );
         return;
     }
     crate::api::logging::blog_info(
@@ -2457,9 +2473,12 @@ async fn dispatch_mostro_message(
                 } else {
                     // Cold start / reconnect (no record — in-memory state is
                     // empty after a restart), or an uncorrelated event that
-                    // must not consume anything. Recovery is DM-driven: the
-                    // trade row either exists (nothing to do) or is rebuilt
-                    // from a message that proves it (#394).
+                    // must not consume anything. Recovery for a NewOrder is
+                    // NOT the prologue rebuild (it excludes NewOrder): a
+                    // replayed create ack is adopted by
+                    // `adopt_range_remainder` above, which just declined —
+                    // row already there, tombstone, older than the cursor,
+                    // or not a Pending order of this key's (#394).
                     crate::api::logging::blog_info("daemon-msg", format!(
                         "NewOrder: daemon order={daemon_id} with no matching \
                          pending create — leaving state untouched"
@@ -3322,9 +3341,12 @@ enum RowState {
     /// Deleted on purpose: status arms drop the message whole — no cursor
     /// advance, no write, no TradeUpdate.
     Wiped,
-    /// No row and no tombstone: never persisted. Kept on today's path (the
-    /// write warns "matched no row", the update still emits) until
-    /// DM-driven rebuild lands — issue #394 step 2.
+    /// No row and no tombstone covering the message's generation: never
+    /// persisted, or a later take of a wiped order. The dispatch prologue
+    /// rebuilds the row when the message proves one
+    /// (`rebuild_trade_from_dm`, #394 step 2); a message that proves
+    /// nothing falls through to the pre-#394 path — the write warns
+    /// "matched no row", the update still emits.
     NeverWritten,
     /// No store yet, or the store failed to answer: nothing to classify on,
     /// arms behave exactly as before this classification existed.
@@ -3371,12 +3393,18 @@ async fn trade_row_state(order_id: &str, trade_index: u32) -> RowState {
             Ok(Some(value)) if tombstone_covers(&value, trade_index) => RowState::Wiped,
             Ok(Some(_)) | Ok(None) => RowState::NeverWritten,
             Err(e) => {
-                log::warn!("[orders] tombstone lookup failed for order={order_id}: {e}");
+                crate::api::logging::blog_warn(
+                    "orders",
+                    format!("tombstone lookup failed for order={order_id}: {e}"),
+                );
                 RowState::Unknown
             }
         },
         Err(e) => {
-            log::warn!("[orders] trade lookup failed for order={order_id}: {e}");
+            crate::api::logging::blog_warn(
+                "orders",
+                format!("trade lookup failed for order={order_id}: {e}"),
+            );
             RowState::Unknown
         }
     }
@@ -3384,9 +3412,11 @@ async fn trade_row_state(order_id: &str, trade_index: u32) -> RowState {
 
 /// Gate for the status-writing dispatch arms (issue #394). `true` means drop
 /// the message whole. A wiped row is the normal drop on every restart replay,
-/// so it logs at debug; a never-written row falls through to today's behavior
-/// but logs the recovery candidate it is — that line is the field measurement
-/// step 3 of the issue is gated on.
+/// so it logs at debug. A never-written row reaching an arm means the
+/// prologue rebuild already declined — the message proved no trade — so it
+/// falls through to the pre-#394 behavior and logs the recovery candidate it
+/// still is: the line that measured DM coverage before the fingerprint went
+/// (#394 step 3), kept because a gap here is a lost trade.
 fn status_arm_gate(
     row_state: &RowState,
     action: &mostro_core::message::Action,
@@ -3444,7 +3474,10 @@ async fn wipe_trade_row(
     {
         // Classification degrades to pre-#394 behavior for this order:
         // replays write to nothing and emit, as they always did.
-        log::warn!("[orders] wipe tombstone not persisted for order={order_id}: {e}");
+        crate::api::logging::blog_warn(
+            "orders",
+            format!("wipe tombstone not persisted for order={order_id}: {e}"),
+        );
     }
     Ok(())
 }
@@ -3458,9 +3491,13 @@ async fn persist_trade_row(db: &impl Storage, trade: &crate::api::types::TradeIn
     if let Err(e) = db.delete_setting(&key).await {
         // Save anyway: a stale tombstone only mutes replays for this order,
         // and the next (re)creation retries the delete.
-        log::warn!(
-            "[orders] failed to lift wipe tombstone for order={}: {e}",
-            trade.order.id
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "failed to lift wipe tombstone for order={}: {e} — replays for \
+                 this trade stay muted until a (re)creation retries the lift",
+                trade.order.id
+            ),
         );
     }
     db.save_trade(trade).await
@@ -9672,6 +9709,79 @@ mod tests {
             vec![crate::api::types::OrderStatus::Canceled],
             "only the cancel reaches the UI",
         );
+    }
+
+    /// Review round 2: the adoption's own tombstone check, isolated from the
+    /// cursor gate — a wipe recorded with no status cursor must still refuse
+    /// the replayed create ack of its generation, while a later generation
+    /// (a fresh create of the same order id) adopts normally.
+    #[tokio::test]
+    async fn adoption_respects_the_wipe_tombstone_without_a_cursor() {
+        use mostro_core::message::{Action, Message, Payload};
+
+        let path = std::env::temp_dir().join(format!("mostro_adoptts_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let my_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        db.set_setting(&crate::db::settings_keys::trade_wiped(&order_id), "1000:5")
+            .await
+            .expect("write the tombstone");
+
+        let ack_at = |ts: u64, idx: i64| {
+            let so = mostro_core::order::SmallOrder::new(
+                Some(order_uuid),
+                Some(mostro_core::order::Kind::Sell),
+                Some(mostro_core::order::Status::Pending),
+                0,
+                "ARS".to_string(),
+                None,
+                None,
+                1000,
+                "cash".to_string(),
+                0,
+                None,
+                Some(my_hex.clone()),
+                None,
+                Some(1_700_000_000),
+                Some(1_700_003_600),
+            );
+            let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+                .expect("valid mostro pubkey");
+            mostro_core::nip59::UnwrappedMessage {
+                message: Message::new_order(
+                    Some(order_uuid),
+                    None,
+                    Some(idx),
+                    Action::NewOrder,
+                    Some(Payload::Order(so)),
+                ),
+                signature: None,
+                sender,
+                identity: sender,
+                created_at: nostr_sdk::prelude::Timestamp::from(ts),
+            }
+        };
+
+        dispatch_mostro_message(ack_at(2_000, 5), "test-adoptts-covered", &my_hex, 5).await;
+        assert!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("lookup")
+                .is_none(),
+            "the wiped generation's replayed ack must not be adopted",
+        );
+
+        dispatch_mostro_message(ack_at(3_000, 6), "test-adoptts-later", &my_hex, 6).await;
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("a later generation adopts normally");
+        assert_eq!(row.trade_key_index, 6);
+        assert!(row.order.is_mine);
     }
 
     /// The change detector behind the #394 no-op suppression: only provided
