@@ -107,14 +107,20 @@ Future<void> _pumpRoutedTradeDetail(
   required Future<List<TradeInfo>> Function() loadTrades,
   List<OrderItem> book = const [],
   Future<void> Function(String)? cancelOrder,
+  Stream<OrderStatus>? statusUpdates,
+  Stream<List<OrderItem>>? bookUpdates,
 }) async {
   final container = createContainer(
     overrides: [
       if (cancelOrder != null)
         cancelOrderActionProvider.overrideWithValue(cancelOrder),
       tradeRoleProvider.overrideWith((ref) => {orderId: true}),
-      tradeStatusProvider(orderId).overrideWith((ref) => Stream.value(status)),
-      orderBookProvider.overrideWith((ref) => Stream.value(book)),
+      tradeStatusProvider(
+        orderId,
+      ).overrideWith((ref) => statusUpdates ?? Stream.value(status)),
+      orderBookProvider.overrideWith(
+        (ref) => bookUpdates ?? Stream.value(book),
+      ),
       rawTradesProvider.overrideWith((ref) => loadTrades()),
     ],
   );
@@ -1181,6 +1187,84 @@ void main() {
       expect(find.byType(TradeDetailScreen), findsOneWidget);
       expect(find.text(AppLocalizationsEn().cancelRequestSent), findsOneWidget);
       await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('a trade that goes active while the cancel dialog is open '
+        'stays open', (tester) async {
+      // The seller's payment can land while the buyer hesitates. The cancel
+      // then goes out as a cooperative request, and leaving would strand an
+      // active trade behind a "cancel sent" snackbar.
+      final l10n = AppLocalizationsEn();
+      final status = StreamController<OrderStatus>();
+      addTearDown(() => unawaited(status.close()));
+      status.add(OrderStatus.waitingPayment);
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.waitingPayment,
+        statusUpdates: status.stream,
+        loadTrades:
+            () async => [
+              fakeTrade(id: 'lost', status: OrderStatus.waitingPayment),
+            ],
+        cancelOrder: (_) async {},
+      );
+      await tester.tap(_cancelButton());
+      await tester.pump();
+      expect(
+        find.text(l10n.cancelTradeDialogContentNotStarted),
+        findsOneWidget,
+      );
+
+      status.add(OrderStatus.active);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.text(l10n.cancelTradeDialogContent),
+        findsOneWidget,
+        reason: 'the copy the user confirms follows the live status',
+      );
+      expect(find.text(l10n.cancelTradeDialogContentNotStarted), findsNothing);
+
+      await tester.tap(find.text(l10n.yesCancelButtonLabel));
+      await tester.pump();
+      await tester.pump();
+      await _finishPageTransition(tester);
+
+      expect(find.byType(TradeDetailScreen), findsOneWidget);
+      expect(find.text(l10n.cancelRequestSent), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('an absent row is not judged before the order book loads', (
+      tester,
+    ) async {
+      // A cold start can resolve the trades list before the book's first
+      // emission. Until the book answers, a missing order is not a
+      // stranger's one.
+      final book = StreamController<List<OrderItem>>();
+      addTearDown(() => unawaited(book.close()));
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        loadTrades: () async => const [],
+        bookUpdates: book.stream,
+      );
+      await _finishPageTransition(tester);
+      expect(
+        find.byType(TradeDetailScreen),
+        findsOneWidget,
+        reason: 'the book has not answered yet',
+      );
+
+      book.add([fakeOrder(id: orderId, isMine: true)]);
+      await _finishPageTransition(tester);
+      expect(
+        find.byType(TradeDetailScreen),
+        findsOneWidget,
+        reason: "the maker's own order arrived",
+      );
     });
   });
 }

@@ -180,6 +180,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     return l10n.cancelTradeDialogContent;
   }
 
+  /// The trade's status now, from the live provider; [fallback] while it has
+  /// no value yet. The status a callback was built with goes stale across an
+  /// await: the seller's payment can land while the cancel dialog is open.
+  TradeStatus _liveStatus(TradeStatus fallback) {
+    final live = ref.read(tradeStatusProvider(widget.orderId)).valueOrNull;
+    return live == null ? fallback : tradeStatusFromOrderStatus(live);
+  }
+
   Future<void> _cancelOrder(TradeStatus status) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
@@ -187,7 +195,19 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       builder:
           (ctx) => AlertDialog(
             title: Text(l10n.cancelTradeDialogTitle),
-            content: Text(_cancelDialogContent(l10n, status)),
+            // Follows the live status, so the copy the user confirms is the
+            // cancel the daemon will apply.
+            content: Consumer(
+              builder: (context, dialogRef, child) {
+                final live =
+                    dialogRef
+                        .watch(tradeStatusProvider(widget.orderId))
+                        .valueOrNull;
+                final now =
+                    live == null ? status : tradeStatusFromOrderStatus(live);
+                return Text(_cancelDialogContent(l10n, now));
+              },
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -208,7 +228,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       await ref.read(cancelOrderActionProvider)(widget.orderId);
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
-      if (_cancelEndsTrade(status)) {
+      // Decided on the status the cancel was sent in, not the one the button
+      // was built with: a trade that went active meanwhile is a cooperative
+      // request and stays open.
+      if (_cancelEndsTrade(_liveStatus(status))) {
         // Nothing is left to follow here: leave, as the invoice screens do.
         _leave(l10n.cancelRequestSent);
         return;
@@ -456,9 +479,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // handed back to the public book, where it reads `pending` — which this
     // screen would render as the user's own published order, cancel button
     // included. Leave instead, as the invoice screens do; this also covers
-    // arriving later from a notification or the chat header. Only on a
-    // settled read of the trades list: no answer yet is not an absent row.
+    // arriving later from a notification or the chat header. Only on settled
+    // reads of both the trades list and the order book: no answer yet is
+    // neither an absent row nor a stranger's order (a cold start can resolve
+    // the trades before the book's first emission).
     if (!_leaving &&
+        ref.watch(orderBookProvider).hasValue &&
         !tradeAsync.isLoading &&
         tradeAsync.hasValue &&
         trade == null &&
