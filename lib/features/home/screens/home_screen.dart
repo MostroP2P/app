@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,10 @@ import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
 import 'package:mostro/shared/widgets/pill_segmented.dart';
 import 'package:mostro/features/home/widgets/order_list_skeleton.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/shared/mascot/mostro_mascot.dart';
+import 'package:mostro/shared/mascot/mostro_mood.dart';
+import 'package:mostro/src/rust/api/types.dart' show TradeUpdate;
 
 /// Side margin of every row on the screen (handoff 4b).
 const double _sideInset = 18;
@@ -219,11 +224,7 @@ class _OrderBookAppBar extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Image.asset(
-              'assets/images/mostro_mascot.webp',
-              height: 26,
-              excludeFromSemantics: true,
-            ),
+            const _HeaderMascot(),
             Row(
               children: [
                 if (onMenuTap != null)
@@ -529,5 +530,92 @@ class _OrderBookError extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ── The mascot in the header ──────────────────────────────────────────────────
+
+/// The order book's Mostro: tap it and it reacts, and it picks up the mood of
+/// the app around it.
+///
+/// v1 hid an easter egg in this same logo, so this is where v2 keeps its own.
+/// The ambient moods are deliberately cheap: the book's loading state is
+/// already watched by this screen, and the trade stream is already alive for
+/// the bottom bar's badge, so neither costs a subscription of its own.
+class _HeaderMascot extends ConsumerStatefulWidget {
+  const _HeaderMascot();
+
+  @override
+  ConsumerState<_HeaderMascot> createState() => _HeaderMascotState();
+}
+
+class _HeaderMascotState extends ConsumerState<_HeaderMascot> {
+  /// How long the book may take before Mostro starts shuffling.
+  static const Duration _patienceRunsOut = Duration(seconds: 6);
+
+  /// How long the party lasts after a trade completes.
+  static const Duration _celebration = Duration(milliseconds: 1400);
+
+  static const Set<OrderStatus> _completed = {
+    OrderStatus.success,
+    OrderStatus.settledByAdmin,
+    OrderStatus.completedByAdmin,
+  };
+
+  Timer? _patience;
+  Timer? _party;
+  bool _impatient = false;
+  bool _celebrating = false;
+
+  @override
+  void dispose() {
+    _patience?.cancel();
+    _party?.cancel();
+    super.dispose();
+  }
+
+  /// Starts the clock while the book is loading and stops it when it lands.
+  /// Never calls `setState` itself: it runs from `build`, and the timer's
+  /// callback does not.
+  void _syncPatience(bool loading) {
+    if (loading) {
+      _patience ??= Timer(_patienceRunsOut, () {
+        if (mounted) setState(() => _impatient = true);
+      });
+      return;
+    }
+    _patience?.cancel();
+    _patience = null;
+    if (!_impatient) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _impatient = false);
+    });
+  }
+
+  void _onTradeUpdate(
+    AsyncValue<TradeUpdate>? _,
+    AsyncValue<TradeUpdate> next,
+  ) {
+    final update = next.valueOrNull;
+    if (update == null || !_completed.contains(update.status)) return;
+    _party?.cancel();
+    setState(() => _celebrating = true);
+    _party = Timer(_celebration, () {
+      if (mounted) setState(() => _celebrating = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _syncPatience(ref.watch(orderBookProvider).isLoading);
+    ref.listen(tradeUpdatesProvider, _onTradeUpdate);
+
+    final mood = switch ((_celebrating, _impatient)) {
+      (true, _) => MostroMood.celebrating,
+      (_, true) => MostroMood.impatient,
+      _ => MostroMood.neutral,
+    };
+
+    return MostroMascot(height: 26, mood: mood, interactive: true);
   }
 }

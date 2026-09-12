@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,9 @@ import 'package:mostro/features/about/screens/about_screen.dart'
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show orderBookNotificationCountProvider;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_season_badge.dart';
+import 'package:mostro/shared/mascot/mascot_stretch.dart';
+import 'package:mostro/shared/mascot/mostro_mood.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart'
     show chatNotificationCountProvider;
 
@@ -539,25 +543,33 @@ class _Mascot extends StatelessWidget {
     final sigma = palette.logoShadowBlur / 2;
 
     // CSS `drop-shadow`: a blurred silhouette of the image, tinted and
-    // offset 6 below it.
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Transform.translate(
-          offset: const Offset(0, 6),
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-            child: ColorFiltered(
-              colorFilter: ColorFilter.mode(
-                palette.logoShadow,
-                BlendMode.srcIn,
+    // offset 6 below it. The whole thing is pullable: this is the biggest
+    // Mostro in the app, and the one people linger on.
+    return MascotStretch(
+      height: _logoHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Transform.translate(
+            offset: const Offset(0, 6),
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+              child: ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  palette.logoShadow,
+                  BlendMode.srcIn,
+                ),
+                child: image,
               ),
-              child: image,
             ),
           ),
-        ),
-        image,
-      ],
+          image,
+          MascotSeasonBadge(
+            season: seasonOn(clock.now()),
+            mascotHeight: _logoHeight,
+          ),
+        ],
+      ),
     );
   }
 }
