@@ -383,18 +383,39 @@ Rules:
   `add-invoice`, `waiting-buyer-invoice`, `pay-invoice`, `waiting-seller-to-pay`,
   `buyer-took-order`, `hold-invoice-payment-accepted` for that order implies the bond
   locked ⇒ set `bond.state = Locked`, then apply the message's normal status effect.
-- `canceled` while at `WaitingTakerBond` ⇒ **lost the lock race** (or the maker
-  cancelled). The trade row is wiped like any never-active cancel, the order is put back
-  as available in the local book (it was `pending` on the wire all along), and the user
-  sees "This order was taken by another user before your bond was paid" — never a
-  silent retry.
+- `canceled` while at `WaitingTakerBond` has **three possible causes** and the wire
+  action carries none of them: the user's own cancel, a maker cancel, or a lost lock
+  race. The trade row is wiped like any never-active cancel in all three cases; what
+  differs is the local book and the copy, so the Rust side classifies the cause before
+  emitting the `TradeUpdate` (`reason` field, §7.1):
+  - `UserCanceled` — the client sent the `cancel` itself (the pending cancel request is
+    still registered). Neutral copy, order left as the wire reports it.
+  - `BondLostRace` — the order's last kind-38383 status is `in-progress` (the winner's
+    lock moved it to `WaitingPayment` / `WaitingBuyerInvoice`, which publishes in that
+    bucket) or still `pending`. Copy: "This order was taken by another user before your
+    bond was paid." The local book keeps the order only while the wire still says
+    `pending`.
+  - `MakerCanceled` — the wire status is `canceled`. Copy: "The maker cancelled this
+    order." The order leaves the local book.
+  - When the book has no fresh status for the order, fall back to neutral copy ("This
+    order is no longer available") and to whatever the wire says next. Never retry the
+    take silently in any of the cases.
 - The pay-bond screen offers **Cancel**: the daemon accepts a taker `cancel` at
   `WaitingTakerBond` and releases only that taker's bond. The screen reuses the existing
   `cancel_order` bridge call.
-- The bond bolt11 stops being payable after the node's `hold_invoice_expiration_window`.
-  The client shows that countdown and, when it elapses without a lock, marks the trade
-  expired locally and wipes it (mirrors the existing timeout detection, issue #148).
-  No daemon message is expected for that case.
+- **Bond expiry is the bolt11's own expiry.** The daemon sends no message when a bond
+  hold invoice expires unpaid (upstream `on_bond_invoice_canceled` only releases the row
+  and republishes), and `hold_invoice_expiration_window` is the daemon's window for
+  paying the *escrow* / adding the buyer invoice, not the lifetime of a Lightning
+  invoice. So the Rust core decodes the bond bolt11's `expiry` (a pure-Rust bolt11
+  decoder such as `lightning-invoice`, native + wasm; §13) into `BondInfo.expires_at`
+  and the screen counts down to it. **Local expiry sweep** (T1.2): when `expires_at`
+  elapses without a lock, the row is set to `Expired`, a `TradeUpdate { status:
+  Expired, reason: BondExpired }` is emitted **before** the row is wiped, and the order
+  is restored to the local book only if the wire still reports it `pending`. If the
+  bolt11 cannot be decoded, `expires_at` is `None`, **no local cleanup runs**, and the
+  screen shows no countdown — the user can still cancel. The existing
+  `timeout_at = now + 900` seeding is not applied to a trade at `WaitingTakerBond`.
 - A seller-as-taker sees **two sequential pay screens** for the same order: first the
   bond (small, "locked, not spent"), then the trade escrow. They are independent HTLCs
   and the user must approve each. Copy must label the first one explicitly.
@@ -433,8 +454,17 @@ Rules:
   the hold invoice expire server-side. Copy explains that nothing was published and
   nothing was charged.
 - **Local expiry.** The daemon expires an unpaid maker-bond order silently (§2.8). The
-  client marks the local row expired after `hold_invoice_expiration_window` seconds
-  from `bond.requested_at` and wipes it, same as the taker case.
+  client uses the decoded bolt11 expiry exactly as in §6.1; as a second bound it also
+  uses the order's own `expires_at` (the daemon's pending-order expiry, which is what
+  actually reaps a `WaitingMakerBond` row upstream). Whichever comes first ends the
+  local row with the same `Expired` update-then-wipe sequence. With an undecodable
+  bolt11 only the order expiry applies.
+- **The invoice survives a restart.** `BondInfo.invoice` is persisted in the trade row
+  (§7.1), so a maker who closes the app and comes back lands on the pay-bond screen with
+  the same bolt11. The only case that loses it is a **fresh device / wiped database**
+  restored via `restore-session`; there is no upstream re-request for a maker bond
+  (§6.5), so that order can only be abandoned or left to expire. Proposed upstream
+  follow-up in §13.
 - **My Order screen** shows the maker-bond state as "Waiting for your bond — the order
   is not published yet", distinct from "Waiting for a taker".
 - Pre-create warning: when the node's policy is `make`/`both`, the create form shows the
@@ -475,13 +505,39 @@ daemon → cant-do(NotAllowedByStatus)      → see below
 
 Rules:
 
-- **Key = `order_id`.** Retries carry the same `slashed_at`; an upsert with identical
-  `(order_id, slashed_at)` is a no-op. A different `slashed_at` for the same order
-  (theoretical: range parent re-anchor) replaces the claim.
+- **Key = `(node_pubkey, order_id)`.** The claim records the daemon that issued it
+  (§7.1) because the user can switch nodes while a claim is open and the inbound
+  daemon filter is `author = active node` (`rust/src/api/orders.rs`, the `.author(
+  mostro_pubkey)` filters). Submission always addresses `claim.node_pubkey`, never the
+  active node, and the kind-14 subscription includes the pubkeys of every node holding
+  a non-terminal claim so the daemon's retries and acks keep arriving after a switch.
+- **Phase-aware upsert.** Every `add-bond-invoice` carries the same `order_id` and
+  `slashed_at`, whether it is a cadence retry (no invoice received yet) or a re-prompt
+  after the daemon accepted an invoice and then exhausted its payment retries
+  (upstream Phase 4.5). The two must be told apart by the **claim's current phase**,
+  not by the payload:
+
+  | Current phase | On `add-bond-invoice` |
+  |---|---|
+  | none | create `Pending` |
+  | `Pending` | no-op (cadence retry) |
+  | `Submitted` | no-op (retry that crossed our reply in flight; the ack decides) |
+  | `Acknowledged` | **re-prompt**: back to `Pending`, clear `submitted_invoice`, emit update, notify ("the payout could not be routed, add a new invoice") |
+  | `Completed` | ignore and log (the daemon never re-prompts a paid bond) |
+  | `Expired` | re-evaluate the deadline; stay `Expired` if still past it |
+
+  A different `slashed_at` for the same order (theoretical: range parent re-anchor)
+  replaces the claim outright.
 - **Deadline** = `slashed_at + claim_window_days × 86 400`, with `claim_window_days`
-  from the node stats (`bond_payout_claim_window_days`), defaulting to **15** when the
-  tag is absent. A request that is already past its deadline on arrival is persisted as
-  `Expired` and not surfaced as actionable.
+  from the node stats (`bond_payout_claim_window_days`) at the moment the claim is
+  **first** persisted, defaulting to **15** when the tag is absent. `deadline_at` is
+  frozen in the claim and never recomputed from later stats, so a policy change after
+  the slash cannot silently move a deadline the user was already shown. The daemon's
+  own verdict stays authoritative: a `CantDo` after the frozen deadline resolves to
+  `Expired` (below). `BondPayoutRequest` does not carry the window itself; an upstream
+  proposal to ship `claim_window_days` / `deadline_at` in the payload is listed in §13.
+  A request that is already past its deadline on arrival is persisted as `Expired` and
+  not surfaced as actionable.
 - **Invoice amount.** The bolt11 must be for exactly `order.amount` sats (the
   counterparty share); the daemon validates the principal with fee 0. The claim screen
   pre-fills that amount and, when NWC is connected, can create the invoice with
@@ -497,15 +553,22 @@ Rules:
 
 ### 6.5 Flow 5 — Restore session
 
-`restore-session` returns `RestoreData` with every open order and its daemon-side
-status, including `waiting-taker-bond` / `waiting-maker-bond`. Rebuilt trades in those
-statuses have **no bolt11** (the daemon does not re-send it in the restore payload):
+Two different situations, with different recovery:
 
-- Taker: the pay-bond screen shows "Request the bond invoice again"; tapping it
-  re-emits `take-buy` / `take-sell` with the trade's existing key, which the daemon
-  treats as an idempotent retry and answers with the same bolt11.
-- Maker: there is no idempotent re-request upstream. The screen shows the state and
-  the local expiry countdown; if the user wants out, Abandon (§6.2).
+- **Ordinary restart** (local database intact): the trade row already holds
+  `BondInfo.invoice` and `expires_at`; the pay-bond screen reopens with the same bolt11
+  for taker and maker alike. Nothing to re-request.
+- **Fresh device / wiped database**: `restore-session` returns `RestoreData` with every
+  open order and its daemon-side status, including `waiting-taker-bond` /
+  `waiting-maker-bond`, but **no bolt11**. Rebuilt trades in those statuses therefore
+  have `invoice: None`:
+  - Taker: the pay-bond screen shows "Request the bond invoice again"; tapping it
+    re-emits `take-buy` / `take-sell` under the **retake identity contract** (§9) —
+    same trade key and index, fresh `request_id` — which the daemon treats as an
+    idempotent retry and answers with the same bolt11.
+  - Maker: there is no idempotent re-request upstream (`new-order` would create a
+    second order). The screen shows the state and the order-expiry countdown; if the
+    user wants out, Abandon (§6.2).
 
 Claims are not part of `RestoreData`; they are restored from the local claim store.
 The daemon's cadence retry of `add-bond-invoice` re-creates any claim the device lost.
@@ -541,16 +604,25 @@ pub enum BondState {
 pub struct BondInfo {
     pub role: BondRole,
     pub amount_sats: u64,
-    pub invoice: Option<String>,   // None after restore until re-requested
+    pub invoice: Option<String>,   // persisted; None only after a fresh-device restore
     pub state: BondState,
     pub requested_at: i64,
-    pub expires_at: Option<i64>,   // requested_at + hold_invoice_expiration_window
+    pub expires_at: Option<i64>,   // decoded from the bolt11 `expiry`; None if undecodable
     pub locked_at: Option<i64>,
 }
 
 pub struct TradeInfo {
     // … existing fields …
     pub bond: Option<BondInfo>,
+}
+
+/// Why a status changed, when the wire action alone is ambiguous.
+pub enum TradeUpdateReason { UserCanceled, MakerCanceled, BondLostRace, BondExpired }
+
+pub struct TradeUpdate {
+    pub order_id: String,
+    pub status: OrderStatus,
+    pub reason: Option<TradeUpdateReason>,   // new, `None` for every existing emitter
 }
 ```
 
@@ -562,9 +634,10 @@ pub enum BondClaimPhase { Pending, Submitted, Acknowledged, Completed, Expired }
 
 pub struct BondClaim {
     pub order_id: String,
+    pub node_pubkey: String,       // daemon that issued the claim; submission target
     pub amount_sats: u64,          // counterparty share
     pub slashed_at: i64,
-    pub deadline_at: i64,          // slashed_at + window_days * 86_400
+    pub deadline_at: i64,          // slashed_at + window_days * 86_400, frozen at first receipt
     pub phase: BondClaimPhase,
     pub submitted_invoice: Option<String>,
     pub fiat_code: String,         // from the SmallOrder, for display only
@@ -608,17 +681,19 @@ pub struct BondRequest { pub amount_sats: u64, pub invoice: String }
 ### 7.3 Persistence — `rust/src/db/`
 
 - `trades.data` JSON: gains `bond` (no migration).
-- New table / store **`bond_claims`** keyed by `order_id`, one JSON `data` column plus
-  `phase` and `deadline_at` columns for listing/sorting:
+- New table / store **`bond_claims`** keyed by `node_pubkey:order_id`, one JSON `data`
+  column plus `node_pubkey`, `phase` and `deadline_at` columns for listing/sorting:
 
   ```sql
   CREATE TABLE IF NOT EXISTS bond_claims (
-    id          TEXT PRIMARY KEY NOT NULL,   -- order_id
+    id          TEXT PRIMARY KEY NOT NULL,   -- "<node_pubkey>:<order_id>"
+    node_pubkey TEXT NOT NULL,
     data        TEXT NOT NULL,               -- BondClaim JSON
     phase       TEXT NOT NULL,
     deadline_at INTEGER NOT NULL,
     updated_at  INTEGER NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS idx_bond_claims_node ON bond_claims(node_pubkey, phase);
   ```
 
   Added to `SQLITE_INIT_SQL` (`rust/src/db/schema.rs`, idempotent `IF NOT EXISTS`) and
@@ -634,7 +709,7 @@ pub struct BondRequest { pub amount_sats: u64, pub invoice: String }
 | `request_bond_invoice_again(order_id)` | `bond.rs` | idempotent retake to recover a lost bolt11 (taker only) |
 | `abandon_bonded_order(order_id)` | `bond.rs` | local wipe for a maker bond the user will not pay |
 | `estimate_bond_sats(order_amount_sats) -> Option<u64>` | `bond.rs` | `max(pct × amount, base)` from the active node's stats; `None` when policy not enabled |
-| `submit_bond_payout_invoice(order_id, invoice)` | `bond.rs` | build + publish the `add-bond-invoice` reply, set phase `Submitted` |
+| `submit_bond_payout_invoice(order_id, invoice)` | `bond.rs` | build + publish the `add-bond-invoice` reply **to `claim.node_pubkey`** (not the active node), set phase `Submitted` |
 | `list_bond_claims()` / `get_bond_claim(order_id)` | `bond.rs` | for My Trades and the claim screen |
 | `on_bond_claim_updated() -> BondClaimStream` | `bond.rs` | broadcast of `BondClaimUpdate`, same pattern as `BondSlashedStream` |
 | `on_bond_slashed()` (existing) | `bond.rs` | unchanged |
@@ -677,18 +752,19 @@ Same skeleton as `pay_lightning_invoice_screen.dart` (QR, amount, copy, share,
 "Pay with Lightning wallet" via NWC, waiting state). Differences:
 
 - Title "Lock anti-abuse bond"; explanatory line: "N sats are held, not spent; they are
-  released when the trade ends. They can be slashed only if you abandon the trade
-  (timeout) or a solver rules against you in a dispute" — the second clause conditional
-  on `bond_slash_on_waiting_timeout`.
-- Countdown to the bolt11 expiry.
+  released when the trade ends. They can be slashed if a solver rules against you in a
+  dispute" — always shown — plus "or if you let a waiting step time out" **only when
+  `bond_slash_on_waiting_timeout = true`** (the dispute risk exists on every
+  bond-enabled node; the timeout risk is the node-policy switch).
+- Countdown to the bolt11 expiry when `expires_at` is known; nothing otherwise.
 - Taker: **Cancel** (daemon cancel). Maker: **Abandon** (local wipe, copy explains).
 - Restored without an invoice: "Request the invoice again" (taker) / countdown only
   (maker).
 - On `TradeUpdate` leaving the waiting-bond status: taker-buyer → Trade Detail;
   taker-seller → `/pay_invoice/:orderId` with a one-line "Bond locked. Now lock the
   trade amount." banner; maker → `/my_order/:orderId`.
-- On `TradeUpdate` to `canceled`: snackbar "Taken by another user before your bond was
-  paid" and back to the order book.
+- On `TradeUpdate` to `canceled` / `expired`: snackbar chosen by `reason` (§6.1:
+  lost race / maker cancelled / expired / neutral) and back to the order book.
 
 ### 8.3 My Trades and Trade Detail
 
@@ -747,8 +823,19 @@ deletion, `#197`) **does not port**:
 - **Restore session** rebuilds bond statuses (§6.5). The pending-request registry is
   in-memory; a maker-bond confirmation arriving after a restart is matched by
   `(trade pubkey, order id)` against the persisted `WaitingMakerBond` row (§6.2).
-- **Retake guard** (v1 "clear the stale timer on retake") is unnecessary: there is no
-  timer; a retake creates a fresh trade key and row.
+- **Retake identity contract.** Two different things are both called "retake"; they
+  must not be conflated:
+  - **Re-request on the same take** (§6.5 taker restore, `request_bond_invoice_again`,
+    T1.3): the trade row still exists at `WaitingTakerBond`. The client re-emits
+    `take-buy` / `take-sell` with the **same trade key and trade index** stored on the
+    row and a **fresh `request_id`**; the daemon answers with the same bolt11
+    (idempotent per upstream §6.5.1). The reply updates the existing row's `invoice` /
+    `expires_at`; no new row, no new key.
+  - **New take after the previous one ended** (cancel, expiry, lost race): the old row
+    was wiped; `take_order` derives a **fresh trade key and index** and creates a new
+    row, as today. The daemon sees a different pubkey and creates a new bond.
+  - v1's "clear the stale timer on retake" guard has no counterpart: there is no
+    deferred-deletion timer in v2.
 
 ---
 
@@ -788,8 +875,8 @@ now round-trips to Dart; the app behaves identically.
 
 | Task | Scope | Files |
 |---|---|---|
-| T1.1 | `classify_take_reply`: `PayBondInvoice` ⇒ `TakeAccepted { status: WaitingTakerBond, bond: Some(..) }` (retire the `BondRequired` short-circuit); `take_order` persists the trade with `bond = Requested` and `expires_at` from `hold_invoice_expiration_window`; `PayBondInvoice` dispatch arm for the *late / replayed* case (after the 10 s window, or idempotent retake): update the existing row's invoice, no duplicate trade | `rust/src/mostro/pending.rs`, `rust/src/api/orders.rs` |
-| T1.2 | Lock inference: every trade-progress arm (`AddInvoice`, `WaitingBuyerInvoice`, `PayInvoice`, `WaitingSellerToPay`, `BuyerTookOrder`, `HoldInvoicePaymentAccepted`) sets `bond.state = Locked` when the row is at `WaitingTakerBond`; `Canceled` at `WaitingTakerBond` wipes the row and re-arms the local order as available with a `BondLostRace` marker on the emitted `TradeUpdate`; `Released`/`Success`/admin outcomes set `Released` unless a slash notice arrived; local bond expiry sweep (reuse the #148 timeout job) | `rust/src/api/orders.rs`, `rust/src/mostro/status.rs` |
+| T1.1 | `classify_take_reply`: `PayBondInvoice` ⇒ `TakeAccepted { status: WaitingTakerBond, bond: Some(..) }` (retire the `BondRequired` short-circuit); bolt11 `expiry` decoding in Rust (add a pure-Rust bolt11 decoder crate, native + wasm) into `BondInfo.expires_at`, `None` on decode failure; `take_order` persists the trade with `bond = Requested` and no `timeout_at`; `PayBondInvoice` dispatch arm for the *late / replayed* case (after the 10 s window, or the same-take re-request of §9): update the existing row's `invoice` / `expires_at`, no duplicate trade; `TradeUpdate.reason` field (`None` from every existing emitter) | `rust/Cargo.toml`, `rust/src/mostro/pending.rs`, `rust/src/api/orders.rs`, `rust/src/api/types.rs` |
+| T1.2 | Lock inference: every trade-progress arm (`AddInvoice`, `WaitingBuyerInvoice`, `PayInvoice`, `WaitingSellerToPay`, `BuyerTookOrder`, `HoldInvoicePaymentAccepted`) sets `bond.state = Locked` when the row is at `WaitingTakerBond`; `Canceled` at `WaitingTakerBond` classifies the cause (`UserCanceled` / `MakerCanceled` / `BondLostRace` / none, §6.1) from the pending cancel registry and the order's last wire status, wipes the row, emits the update with `reason`, and keeps the order in the local book only while the wire says `pending`; `Released`/`Success`/admin outcomes set `Released` unless a slash notice arrived; local bond expiry sweep: `Expired` + `TradeUpdate { reason: BondExpired }` **then** wipe, only when `expires_at` is known (extends the #148 timeout job) | `rust/src/api/orders.rs`, `rust/src/mostro/status.rs` |
 | T1.3 | `request_bond_invoice_again(order_id)` (idempotent retake with the stored trade index) | `rust/src/api/bond.rs`, `rust/src/mostro/actions.rs` |
 | T1.4 | Pay-bond screen + route + navigation on `TradeUpdate`; take screen: navigate on `WaitingTakerBond`, race-loss snackbar; seller-as-taker hand-off banner | `lib/features/order/screens/pay_bond_invoice_screen.dart`, `lib/core/app_routes.dart`, `take_order_screen.dart`, `pay_lightning_invoice_screen.dart`, l10n |
 | T1.5 | Take-screen policy block with the estimate; WAITING BOND chip + subtitle in My Trades / Trade Detail; `localizedDaemonError` markers | `take_order_screen.dart`, `lib/features/trades/…`, `lib/core/daemon_errors.dart`, l10n |
@@ -814,7 +901,7 @@ before.
 | Task | Scope | Files |
 |---|---|---|
 | T2.1 | Create-record correlation: `PayBondInvoice` on a `Create` record ⇒ `DaemonReply::BondRequested`; the record stays pending with `bond_requested = true`; `NewOrder` on such a record flips `WaitingMakerBond → Pending`, `bond → Locked`; fallback match by `(trade pubkey, order id)` when the registry is empty (restart); `create_order` returns `OrderInfo{status = WaitingMakerBond}` and persists the maker row with the bond | `rust/src/mostro/pending.rs`, `rust/src/api/orders.rs` |
-| T2.2 | `abandon_bonded_order(order_id)`; local expiry for `WaitingMakerBond`; `cancel_order` returns a `BondCancelNotAllowed` marker when called at `WaitingMakerBond` instead of hitting the daemon | `rust/src/api/bond.rs`, `rust/src/api/orders.rs` |
+| T2.2 | `abandon_bonded_order(order_id)`; local expiry for `WaitingMakerBond` = min(bolt11 expiry, order `expires_at`) with the same update-then-wipe sequence as T1.2; `cancel_order` returns a `BondCancelNotAllowed` marker when called at `WaitingMakerBond` instead of hitting the daemon | `rust/src/api/bond.rs`, `rust/src/api/orders.rs` |
 | T2.3 | Create flow: navigate to the pay-bond screen (maker variant: Abandon, "not published yet" copy); My Order status block for `WaitingMakerBond`; create-form policy block | `add_order_screen.dart`, `pay_bond_invoice_screen.dart`, `my_order_status_block.dart`, l10n |
 
 - **PR-2a** — T2.1 + T2.2 (Rust). Justification: T2.2 is the exit path of the state
@@ -832,9 +919,9 @@ Orthogonal to Phase 2; depends on Phase 0 only. Can land in parallel with Phase 
 
 | Task | Scope | Files |
 |---|---|---|
-| T3.1 | `BondClaim` model + `bond_claims` storage on SQLite **and** IndexedDB (`DB_VERSION` bump) + `Storage` trait methods + tests | `rust/src/api/types.rs`, `rust/src/db/{schema,sqlite,indexeddb,mod}.rs` |
-| T3.2 | Dispatch arms: `AddBondInvoice` with `BondPayoutRequest` (upsert, deadline, `Expired` on arrival past deadline; ignore the `PaymentRequest` shape — that is our own reply echoed back); `BondInvoiceAccepted` / `BondPayoutCompleted` ⇒ phase; `CantDo` correlated to a pending claim submission ⇒ local resolution (§6.4); `BondClaimStream` | `rust/src/api/orders.rs`, `rust/src/api/bond.rs` |
-| T3.3 | `submit_bond_payout_invoice` (validate non-empty, publish `add-bond-invoice` with `PaymentRequest(None, bolt11, None)`, phase `Submitted`, `NoDaemonResponse` handling as `send_invoice` does), `list_bond_claims`, `get_bond_claim` | `rust/src/mostro/actions.rs`, `rust/src/api/bond.rs` |
+| T3.1 | `BondClaim` model (with `node_pubkey`) + `bond_claims` storage on SQLite **and** IndexedDB (`DB_VERSION` bump) + `Storage` trait methods + tests | `rust/src/api/types.rs`, `rust/src/db/{schema,sqlite,indexeddb,mod}.rs` |
+| T3.2 | Dispatch arms: `AddBondInvoice` with `BondPayoutRequest` (phase-aware upsert per the §6.4 table, frozen `deadline_at`, `Expired` on arrival past deadline; ignore the `PaymentRequest` shape — that is our own reply echoed back); `BondInvoiceAccepted` / `BondPayoutCompleted` ⇒ phase; `CantDo` correlated to a pending claim submission ⇒ local resolution (§6.4); `BondClaimStream`; the kind-14 daemon filter includes the `node_pubkey` of every non-terminal claim in addition to the active node | `rust/src/api/orders.rs`, `rust/src/api/bond.rs` |
+| T3.3 | `submit_bond_payout_invoice` (validate non-empty, publish `add-bond-invoice` with `PaymentRequest(None, bolt11, None)` addressed to `claim.node_pubkey`, phase `Submitted`, `NoDaemonResponse` handling as `send_invoice` does), `list_bond_claims`, `get_bond_claim` | `rust/src/mostro/actions.rs`, `rust/src/api/bond.rs` |
 | T3.4 | Claim screen + route; NWC "Create with wallet" | `lib/features/order/screens/bond_payout_invoice_screen.dart`, `app_routes.dart`, l10n |
 | T3.5 | Trade Detail banner, My Trades badge and claim-only rows, providers, notification for new claim / completed | `lib/features/trades/…`, `lib/features/notifications/…`, `app_bootstrap.dart`, l10n |
 
@@ -905,10 +992,16 @@ PR adds the tests for its own tasks; coverage target 80 % on new code.
 - Create correlation: `PayBondInvoice` then `NewOrder` on one `request_id`; `NewOrder`
   with an empty registry matched by pubkey + id; `NewOrder` for a wiped
   `WaitingMakerBond` row ignored.
-- Claims: upsert idempotence on retries, `slashed_at` anchor, deadline arithmetic
-  (window from stats, default 15), arrival past deadline ⇒ `Expired`, ack transitions,
-  `CantDo` local resolution matrix, storage round-trip on SQLite (native) and the
+- Claims: the §6.4 phase-aware upsert table (cadence retry is a no-op, re-prompt after
+  `Acknowledged` re-arms), `slashed_at` anchor, deadline arithmetic (window from stats
+  at first receipt, default 15, frozen afterwards), arrival past deadline ⇒ `Expired`,
+  ack transitions, `CantDo` local resolution matrix, a claim from node A survives a
+  switch to node B and submits to A, storage round-trip on SQLite (native) and the
   IndexedDB stub contract (wasm target compiled by `build-web.sh`).
+- Cancel-cause classification at `WaitingTakerBond`: own cancel, wire `canceled`, wire
+  `in-progress`, wire `pending`, no wire status — each yields the expected `reason` and
+  local-book outcome; bolt11 expiry decoding (valid, no `expiry` field ⇒ bolt11 default
+  3600 s, garbage ⇒ `None` and no sweep).
 - Node stats: seven tags, three-state policy, malformed values fall back to
   `Unsupported`, `estimate_bond_sats` floor/percentage cases.
 - Restart: wiped trade key still decrypts a `bond-slashed` after re-init (T4.2).
@@ -971,9 +1064,17 @@ trades, the pre-take/pre-create estimate, and web parity of the claim store.
 2. **Does `RestoreData` include `waiting-taker-bond` / `waiting-maker-bond` orders?**
    Assumed yes (they are open orders on the daemon side). If the daemon filters them,
    the local rows are the only record and the "request again" path is the recovery.
-3. **`hold_invoice_expiration_window` as the bond bolt11 lifetime.** The bond hold
-   invoice is created with the same LND expiry settings as the escrow one upstream;
-   confirm on regtest and fall back to a conservative 15 minutes if the tag is absent.
+3. **bolt11 decoder crate.** `lightning-invoice` (rust-lightning) is the candidate:
+   pure Rust, `no_std`-capable, builds for `wasm32-unknown-unknown`. Confirm it does
+   not drag a conflicting `secp256k1` / `bitcoin` version into the tree next to
+   `bip32` / `k256` before PR-1a; if it does, a minimal bech32 + tagged-field reader
+   for the `x` (expiry) and `c`/timestamp fields is acceptable (no signature check is
+   needed — the daemon is the trusted source of the invoice).
+7. **Upstream follow-ups to propose** (not blockers): ship `claim_window_days` or
+   `deadline_at` inside `BondPayoutRequest` so the deadline is immutable end to end;
+   an idempotent re-request for a maker bond bolt11 (or the bolt11 in `RestoreData`)
+   so a fresh-device restore does not strand a `WaitingMakerBond` order; a cause field
+   on `bond-slashed`.
 4. **Amount seeding for a seller-as-taker.** The existing `PayInvoice` arm seeds
    `order.amount_sats` from the payload; confirm the `PayBondInvoice` payload's
    `amount` (the bond) is never used for that seeding (T1.1 test).
