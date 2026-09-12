@@ -17,6 +17,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/node_stats.dart';
 import 'package:mostro/src/rust/api/types.dart' show MostroNodeEntry;
+import '../../../support/fake_trades.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../support/provider_harness.dart';
 
@@ -159,6 +160,8 @@ List<Override> _overrides(
   Map<String, MostroNodeStats>? stats,
   Completer<Map<String, MostroNodeStats>>? statsGate,
   String? fiat = 'ARS',
+  bool tradeInProgress = false,
+  bool tradesFail = false,
 }) => [
   mostroNodesProvider.overrideWith(() => notifier),
   nodeStatsProvider.overrideWith(
@@ -174,7 +177,10 @@ List<Override> _overrides(
     'USD': '🇺🇸',
   }),
   exchangeRateProvider.overrideWith((ref, code) async => 36000000.0),
-  rawTradesProvider.overrideWith((ref) async => const []),
+  rawTradesProvider.overrideWith((ref) async {
+    if (tradesFail) throw Exception('db locked');
+    return tradeInProgress ? [fakeTrade()] : const [];
+  }),
 ];
 
 Widget _app(ProviderContainer container, Widget home) =>
@@ -201,6 +207,8 @@ Future<_FakeNodesNotifier> _pump(
   Completer<Map<String, MostroNodeStats>>? statsGate,
   String? fiat = 'ARS',
   bool failSelect = false,
+  bool tradeInProgress = false,
+  bool tradesFail = false,
 }) async {
   tester.view.physicalSize = const Size(1200, 3000);
   tester.view.devicePixelRatio = 1.0;
@@ -215,6 +223,8 @@ Future<_FakeNodesNotifier> _pump(
       stats: stats,
       statsGate: statsGate,
       fiat: fiat,
+      tradeInProgress: tradeInProgress,
+      tradesFail: tradesFail,
     ),
   );
   await tester.pumpWidget(
@@ -397,19 +407,89 @@ void main() {
         final myNode = tester.getTopLeft(find.text('My Node'));
         final cuba = tester.getTopLeft(find.text('Kmbalache 🇨🇺'));
         expect(cuba.dy, lessThan(myNode.dy));
-        final opacity = tester.widget<Opacity>(
+        // Only the card's fill is dimmed; the text stays fully opaque.
+        final fill = tester.widget<DecoratedBox>(
           find
               .ancestor(
                 of: find.text('My Node'),
-                matching: find.byType(Opacity),
+                matching: find.byWidgetPredicate(
+                  (w) =>
+                      w is DecoratedBox &&
+                      (w.decoration as BoxDecoration).color != null &&
+                      (w.decoration as BoxDecoration).borderRadius ==
+                          BorderRadius.circular(18),
+                ),
               )
               .first,
         );
-        expect(opacity.opacity, 0.55);
+        expect(
+          ((fill.decoration as BoxDecoration).color!.a),
+          closeTo(0.55, 0.01),
+        );
+        final name = tester.widget<Text>(find.text('My Node'));
+        expect(name.style!.color!.a, 1.0);
         await tester.tap(find.text('My Node'));
         await _settleSelection(tester);
         expect(notifier.selected, isEmpty);
         expect(find.text('This node is not responding'), findsOneWidget);
+      });
+    });
+
+    testWidgets('a trade in progress asks first; confirming switches', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(_now), () async {
+        final notifier = await _pump(tester, tradeInProgress: true);
+        await tester.tap(find.text('Kmbalache 🇨🇺'));
+        await tester.pumpAndSettle();
+        expect(find.text('Change node?'), findsOneWidget);
+        expect(notifier.selected, isEmpty);
+        await tester.tap(find.text('Change node'));
+        await tester.pumpAndSettle();
+        expect(notifier.selected, [_cubaPubkey]);
+      });
+    });
+
+    testWidgets('a trade in progress asks first; cancelling keeps the node', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(_now), () async {
+        final notifier = await _pump(tester, tradeInProgress: true);
+        await tester.tap(find.text('Kmbalache 🇨🇺'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(notifier.selected, isEmpty);
+        expect(find.byType(MostroNodeSelector), findsOneWidget);
+        // The guard is released: a second tap works.
+        await tester.tap(find.text('Kmbalache 🇨🇺'));
+        await tester.pumpAndSettle();
+        expect(find.text('Change node?'), findsOneWidget);
+      });
+    });
+
+    testWidgets('an unreadable trade list blocks the switch with a message', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(_now), () async {
+        final notifier = await _pump(tester, tradesFail: true);
+        await tester.tap(find.text('Kmbalache 🇨🇺'));
+        await _settleSelection(tester);
+        expect(notifier.selected, isEmpty);
+        expect(
+          find.text("Couldn't check your trades. Try again."),
+          findsOneWidget,
+        );
+      });
+    });
+
+    testWidgets('two quick taps start a single switch', (tester) async {
+      await withClock(Clock.fixed(_now), () async {
+        final notifier = await _pump(tester);
+        await tester.tap(find.text('Kmbalache 🇨🇺'));
+        await tester.tap(find.text('My Node'));
+        await _settleSelection(tester);
+        expect(notifier.selected, [_cubaPubkey]);
       });
     });
 

@@ -201,6 +201,7 @@
   "nodeSwitchConfirmTitle": "Cambiare nodo?",
   "nodeSwitchConfirmBody": "Hai un'operazione in corso su {currentNode}. Resta lì; il libro mostrerà ora {newNode}.",
   "nodeSwitchConfirmAction": "Cambia nodo",
+  "nodeTradesCheckFailed": "Impossibile verificare le tue operazioni. Riprova.",
 
   "notificationsScreenTitle": "Notifiche",
   "markAllAsReadMenuItem": "Segna tutto come letto",

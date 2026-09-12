@@ -14,12 +14,12 @@
 use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Result;
-use nostr_sdk::prelude::{Event, Filter, Kind, PublicKey, SingleLetterTag};
+use nostr_sdk::prelude::{Event, Filter, Kind, PublicKey, SingleLetterTag, Timestamp};
 use serde::{Deserialize, Serialize};
 
 use crate::api::types::{OrderInfo, OrderStatus};
 use crate::mostro::escrow_mode;
-use crate::nostr::order_events::{parse_order_event, KIND_ORDER};
+use crate::nostr::order_events::{parse_order_event, KIND_ORDER, RECENT_ORDERS_WINDOW_SECS};
 
 /// Kind 38385 — Mostro instance status (NIP-33 addressable, `d` = pubkey).
 const KIND_INSTANCE: u16 = 38385;
@@ -265,10 +265,17 @@ fn summarize(
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
-/// Fetch decision data for every node in `pubkeys` (64-char hex) with two
-/// relay queries — their kind 38385 instance events and their `pending`
-/// kind 38383 orders — and return one [`MostroNodeStats`] per requested
-/// pubkey, in request order.
+/// Fetch decision data for every node in `pubkeys` (64-char hex) with three
+/// relay queries — their kind 38385 instance events, their `pending` kind
+/// 38383 orders, and every kind 38383 revision of the last
+/// [`RECENT_ORDERS_WINDOW_SECS`] regardless of status — and return one
+/// [`MostroNodeStats`] per requested pubkey, in request order.
+///
+/// The recent status-agnostic query is what keeps the count honest: a
+/// relay may still hold an order's older `pending` revision next to its
+/// newer `canceled` one, and the `s=pending` filter alone would never
+/// return the newer revision, so [`dedup_latest`] could not discard the stale
+/// one. Both sets are merged before deduplication.
 ///
 /// Best-effort like `refresh_mostro_node_metadata`: whatever arrives within
 /// the window is used, a node that answered nothing comes back as an empty
@@ -295,21 +302,32 @@ pub async fn fetch_mostro_node_stats(pubkeys: Vec<String>) -> Result<Vec<MostroN
     let info_filter = Filter::new()
         .kind(Kind::from(KIND_INSTANCE))
         .authors(authors.clone());
-    let orders_filter = Filter::new()
+    let now = crate::rt::unix_now();
+    let pending_filter = Filter::new()
+        .kind(Kind::from(KIND_ORDER))
+        .authors(authors.clone())
+        .custom_tag(SingleLetterTag::LOWERCASE_S, "pending");
+    let since = Timestamp::from_secs((now as u64).saturating_sub(RECENT_ORDERS_WINDOW_SECS));
+    let recent_filter = Filter::new()
         .kind(Kind::from(KIND_ORDER))
         .authors(authors)
-        .custom_tag(SingleLetterTag::LOWERCASE_S, "pending");
+        .since(since);
 
-    let (info, orders) = tokio::join!(
+    let (info, pending, recent) = tokio::join!(
         client.fetch_events(info_filter).timeout(timeout),
-        client.fetch_events(orders_filter).timeout(timeout),
+        client.fetch_events(pending_filter).timeout(timeout),
+        client.fetch_events(recent_filter).timeout(timeout),
     );
     let info = info.map_err(|e| anyhow::anyhow!("fetch_events (38385) failed: {e}"))?;
-    let orders = orders.map_err(|e| anyhow::anyhow!("fetch_events (38383) failed: {e}"))?;
+    let pending =
+        pending.map_err(|e| anyhow::anyhow!("fetch_events (38383 pending) failed: {e}"))?;
+    let recent = recent.map_err(|e| anyhow::anyhow!("fetch_events (38383 recent) failed: {e}"))?;
 
     let info: Vec<Event> = info.into_iter().collect();
-    let orders: Vec<Event> = orders.into_iter().collect();
-    Ok(summarize(&pubkeys, &info, &orders, crate::rt::unix_now()))
+    // Merged before `summarize` deduplicates by (author, d): the newer
+    // revision wins whichever query returned it.
+    let orders: Vec<Event> = pending.into_iter().chain(recent).collect();
+    Ok(summarize(&pubkeys, &info, &orders, now))
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -465,6 +483,20 @@ mod tests {
         ];
         let per_node = count_open_orders(orders, 1_000);
         assert!(!per_node.contains_key(NODE_A), "both orders are canceled");
+    }
+
+    #[test]
+    fn a_newer_canceled_revision_from_the_recent_query_beats_a_stale_pending_one() {
+        // What the two relay queries hand back for the same `d` tag: the
+        // `s=pending` query only ever sees the older pending revision; the
+        // status-agnostic recent query sees the newer canceled one. Merged
+        // (pending first, as in `fetch_mostro_node_stats`), the order must
+        // not count as open.
+        let pending_query = vec![order(NODE_A, "o1", "ARS", OrderStatus::Pending, 10)];
+        let recent_query = vec![order(NODE_A, "o1", "ARS", OrderStatus::Canceled, 20)];
+        let merged: Vec<OrderInfo> = pending_query.into_iter().chain(recent_query).collect();
+        let per_node = count_open_orders(merged, 1_000);
+        assert!(!per_node.contains_key(NODE_A));
     }
 
     #[test]

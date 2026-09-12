@@ -52,6 +52,10 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
   /// Pubkey of the card just tapped: its radio fills while the sheet closes.
   String? _selectingPubkey;
 
+  /// Set before the first await of a tap, so two quick taps cannot open two
+  /// confirmation flows or race two `selectNode` calls.
+  bool _switching = false;
+
   /// How long the filled radio is shown before the sheet closes itself.
   static const _closeDelay = Duration(milliseconds: 200);
 
@@ -66,14 +70,15 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
   }
 
   /// A trade that has neither finished nor been resolved keeps living on the
-  /// node it started on; switching then deserves a word first.
-  Future<bool> _hasTradeInProgress() async {
+  /// node it started on; switching then deserves a word first. `null` when
+  /// the lookup itself failed — the caller must not switch on a guess.
+  Future<bool?> _hasTradeInProgress() async {
     try {
       final trades = await ref.read(rawTradesProvider.future);
       return trades.any((t) => t.completedAt == null && t.outcome == null);
     } catch (e) {
       debugPrint('[MostroNodeSelector] trades lookup failed: $e');
-      return false;
+      return null;
     }
   }
 
@@ -86,14 +91,30 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
   }
 
   Future<void> _onNodeTap(MostroNodeEntry entry) async {
-    if (entry.isActive || _selectingPubkey != null) return;
+    if (entry.isActive || _switching) return;
+    _switching = true;
+    try {
+      await _switchTo(entry);
+    } finally {
+      _switching = false;
+    }
+  }
+
+  Future<void> _switchTo(MostroNodeEntry entry) async {
     HapticFeedback.selectionClick();
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
-    if (await _hasTradeInProgress()) {
-      if (!mounted) return;
+    final inProgress = await _hasTradeInProgress();
+    if (!mounted) return;
+    if (inProgress == null) {
+      // Unknown whether a trade would be left behind: do not switch on a
+      // guess, say so, and let the user try again.
+      _snack(l10n.nodeTradesCheckFailed);
+      return;
+    }
+    if (inProgress) {
       final ok = await showNodeSwitchConfirmSheet(
         context,
         currentNode: _activeNodeName(),

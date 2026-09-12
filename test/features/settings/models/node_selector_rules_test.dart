@@ -86,6 +86,20 @@ void main() {
       expect(availabilityOf(s, 'ARS', _now), NodeAvailability.unreachable);
     });
 
+    test('a far-future heartbeat is a wrong clock, not a fresh node', () {
+      final s = _stats(
+        infoSeenAt: _now.add(const Duration(days: 1)),
+        orders: {},
+      );
+      expect(availabilityOf(s, 'ARS', _now), NodeAvailability.unreachable);
+      // Ordinary clock skew is tolerated.
+      final skewed = _stats(
+        infoSeenAt: _now.add(nodeClockSkewAllowance),
+        orders: {'ARS': 1},
+      );
+      expect(availabilityOf(skewed, 'ARS', _now), NodeAvailability.online);
+    });
+
     test('no heartbeat but open orders keeps a Cashu node reachable', () {
       // mostrod in Cashu mode publishes no info event.
       final s = _stats(
@@ -107,6 +121,16 @@ void main() {
         latestOrderAt: _now.subtract(const Duration(hours: 1)),
       );
       expect(lastSignalAt(s), _now.subtract(const Duration(hours: 1)));
+    });
+  });
+
+  group('dimFactorOf', () {
+    test('blocked 55 %, currency mismatch 70 %, otherwise opaque', () {
+      expect(dimFactorOf(NodeBlocker.unreachable, true), 0.55);
+      expect(dimFactorOf(NodeBlocker.bondUnsupported, false), 0.55);
+      expect(dimFactorOf(null, false), 0.70);
+      expect(dimFactorOf(null, true), 1.0);
+      expect(dimFactorOf(null, null), 1.0);
     });
   });
 

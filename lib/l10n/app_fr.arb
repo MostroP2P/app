@@ -201,6 +201,7 @@
   "nodeSwitchConfirmTitle": "Changer de nœud ?",
   "nodeSwitchConfirmBody": "Vous avez une opération en cours sur {currentNode}. Elle y reste ; le carnet affichera désormais {newNode}.",
   "nodeSwitchConfirmAction": "Changer de nœud",
+  "nodeTradesCheckFailed": "Impossible de vérifier vos opérations. Réessayez.",
 
   "notificationsScreenTitle": "Notifications",
   "markAllAsReadMenuItem": "Tout marquer comme lu",

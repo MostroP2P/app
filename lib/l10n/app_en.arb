@@ -446,6 +446,8 @@
   },
   "nodeSwitchConfirmAction": "Change node",
   "@nodeSwitchConfirmAction": {"description": "Confirm button of the node-switch confirmation sheet"},
+  "nodeTradesCheckFailed": "Couldn't check your trades. Try again.",
+  "@nodeTradesCheckFailed": {"description": "Snackbar when the node selector could not read the local trades to decide whether a switch needs confirmation"},
 
   "notificationsScreenTitle": "Notifications",
   "@notificationsScreenTitle": {"description": "Screen title for the Notifications screen"},

@@ -16,6 +16,11 @@ import 'package:mostro/src/rust/api/types.dart';
 /// [availabilityOf] also accepts an open order as proof of life.
 const nodeHeartbeatStaleAfter = Duration(minutes: 30);
 
+/// A heartbeat stamped further in the future than this is not a fresh
+/// heartbeat but a wrong clock (ours or the node's) and must not keep a node
+/// selectable until local time catches up with it.
+const nodeClockSkewAllowance = Duration(minutes: 5);
+
 enum NodeAvailability {
   /// Heartbeat recent (or open orders exist) and at least one order the user
   /// can use.
@@ -29,13 +34,18 @@ enum NodeAvailability {
   unreachable,
 }
 
-DateTime _fromUnix(int seconds) =>
-    DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
+/// Bridge timestamps are `PlatformInt64`: `int` on native, `BigInt` on the
+/// web. Both answer `toInt()`, so every arithmetic step goes through it.
+DateTime _fromUnix(num seconds) =>
+    DateTime.fromMillisecondsSinceEpoch(seconds.toInt() * 1000, isUtc: true);
 
 /// Newest signal we have from the node — heartbeat or newest open order.
 DateTime? lastSignalAt(MostroNodeStats stats) {
   final candidates =
-      [stats.infoSeenAt, stats.latestOrderAt].whereType<int>().toList();
+      [
+        stats.infoSeenAt,
+        stats.latestOrderAt,
+      ].nonNulls.map((t) => t.toInt()).toList();
   if (candidates.isEmpty) return null;
   return _fromUnix(candidates.reduce((a, b) => a > b ? a : b));
 }
@@ -57,9 +67,11 @@ NodeAvailability availabilityOf(
   DateTime now,
 ) {
   final info = stats.infoSeenAt;
+  final age = info == null ? null : now.difference(_fromUnix(info.toInt()));
   final heartbeatFresh =
-      info != null &&
-      now.difference(_fromUnix(info)) <= nodeHeartbeatStaleAfter;
+      age != null &&
+      age >= -nodeClockSkewAllowance &&
+      age <= nodeHeartbeatStaleAfter;
   if (!heartbeatFresh && stats.totalOrders == 0) {
     return NodeAvailability.unreachable;
   }
@@ -86,6 +98,15 @@ NodeBlocker? blockerOf(MostroNodeStats? stats, String? myFiat, DateTime now) {
     return NodeBlocker.unreachable;
   }
   return null;
+}
+
+/// How much a card's decorative surfaces are dimmed. Text is never dimmed —
+/// the contrast tests measure it on the undimmed surfaces — only the card
+/// fill, borders, chips, strip and indicators fade.
+double dimFactorOf(NodeBlocker? blocker, bool? acceptsMyFiat) {
+  if (blocker != null) return 0.55;
+  if (acceptsMyFiat == false) return 0.70;
+  return 1.0;
 }
 
 // ── Ordering ──────────────────────────────────────────────────────────────────

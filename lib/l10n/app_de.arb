@@ -201,6 +201,7 @@
   "nodeSwitchConfirmTitle": "Knoten wechseln?",
   "nodeSwitchConfirmBody": "Du hast einen laufenden Handel auf {currentNode}. Er bleibt dort; das Orderbuch zeigt jetzt {newNode}.",
   "nodeSwitchConfirmAction": "Knoten wechseln",
+  "nodeTradesCheckFailed": "Deine Geschäfte konnten nicht geprüft werden. Versuch es erneut.",
 
   "notificationsScreenTitle": "Benachrichtigungen",
   "markAllAsReadMenuItem": "Alle als gelesen markieren",

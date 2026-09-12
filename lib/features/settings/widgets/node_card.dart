@@ -67,13 +67,15 @@ class NodeCard extends StatelessWidget {
     final s = stats;
     final blocker = blockerOf(s, myFiat, now);
     final accepts = s == null ? null : acceptsMyFiat(s, myFiat);
-    final opacity = blocker != null ? 0.55 : (accepts == false ? 0.70 : 1.0);
+    final dim = dimFactorOf(blocker, accepts);
 
     final body = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_radius),
-        border: Border.all(color: selected ? pal.borderSelected : pal.border),
+        border: Border.all(
+          color: dimmed(selected ? pal.borderSelected : pal.border, dim),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -84,28 +86,31 @@ class NodeCard extends StatelessWidget {
             myFiat: myFiat,
             now: now,
             selected: selected,
+            dim: dim,
             onCopyPubkey: onCopyPubkey,
           ),
           const SizedBox(height: 11),
-          _CurrencyRow(stats: s, myFiat: myFiat, flags: flags),
+          _CurrencyRow(stats: s, myFiat: myFiat, flags: flags, dim: dim),
           const SizedBox(height: 11),
           _MetricsStrip(
             stats: s,
             loading: statsLoading,
             myFiat: myFiat,
             btcPrice: btcPrice,
+            dim: dim,
           ),
           const SizedBox(height: 11),
-          _TrustRow(stats: s),
+          _TrustRow(stats: s, dim: dim),
         ],
       ),
     );
 
-    // A blocked card has no ink: a tap only explains why.
+    // A blocked card has no ink: a tap only explains why. Dimming touches
+    // the fill, borders, chips and indicators — never the text.
     final Widget tappable =
         blocker == null
             ? Material(
-              color: book.surface,
+              color: dimmed(book.surface, dim),
               borderRadius: BorderRadius.circular(_radius),
               child: InkWell(
                 onTap: onSelect,
@@ -120,19 +125,24 @@ class NodeCard extends StatelessWidget {
               onLongPress: onLongPress,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: book.surface,
+                  color: dimmed(book.surface, dim),
                   borderRadius: BorderRadius.circular(_radius),
                 ),
                 child: body,
               ),
             );
 
-    return Opacity(
-      opacity: opacity,
-      child: tappable,
-    ).withAutomationId(AutomationIds.nodeItem(entry.pubkey), merge: false);
+    return tappable.withAutomationId(
+      AutomationIds.nodeItem(entry.pubkey),
+      merge: false,
+    );
   }
 }
+
+/// [color] with its alpha scaled by [dim] — how decorative surfaces fade on a
+/// dimmed card while the text on them stays fully opaque.
+Color dimmed(Color color, double dim) =>
+    dim >= 1 ? color : color.withValues(alpha: color.a * dim);
 
 // ── Row 1 · identity ──────────────────────────────────────────────────────────
 
@@ -143,6 +153,7 @@ class _IdentityRow extends StatelessWidget {
     required this.myFiat,
     required this.now,
     required this.selected,
+    required this.dim,
     required this.onCopyPubkey,
   });
 
@@ -151,6 +162,7 @@ class _IdentityRow extends StatelessWidget {
   final String? myFiat;
   final DateTime now;
   final bool selected;
+  final double dim;
   final VoidCallback onCopyPubkey;
 
   @override
@@ -162,7 +174,7 @@ class _IdentityRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _NodeAvatar(entry: entry),
+        _NodeAvatar(entry: entry, dim: dim),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -190,9 +202,11 @@ class _IdentityRow extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: pal.trustedBg,
+                        color: dimmed(pal.trustedBg, dim),
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: pal.trustedBorder),
+                        border: Border.all(
+                          color: dimmed(pal.trustedBorder, dim),
+                        ),
                       ),
                       child: Text(
                         l10n.trustedBadgeLabel.toUpperCase(),
@@ -233,16 +247,17 @@ class _IdentityRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        _Radio(selected: selected),
+        _Radio(selected: selected, dim: dim),
       ],
     );
   }
 }
 
 class _NodeAvatar extends StatelessWidget {
-  const _NodeAvatar({required this.entry});
+  const _NodeAvatar({required this.entry, required this.dim});
 
   final MostroNodeEntry entry;
+  final double dim;
   static const double _size = 32;
 
   @override
@@ -257,7 +272,7 @@ class _NodeAvatar extends StatelessWidget {
       height: _size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: lime ? pal.avatarLimeBg : pal.avatarYellowBg,
+        color: dimmed(lime ? pal.avatarLimeBg : pal.avatarYellowBg, dim),
         shape: BoxShape.circle,
       ),
       child: Text(
@@ -285,9 +300,10 @@ class _NodeAvatar extends StatelessWidget {
 }
 
 class _Radio extends StatelessWidget {
-  const _Radio({required this.selected});
+  const _Radio({required this.selected, required this.dim});
 
   final bool selected;
+  final double dim;
 
   @override
   Widget build(BuildContext context) {
@@ -303,9 +319,11 @@ class _Radio extends StatelessWidget {
         height: 20,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: selected ? book.lime : Colors.transparent,
+          color: selected ? dimmed(book.lime, dim) : Colors.transparent,
           border:
-              selected ? null : Border.all(color: pal.radioBorder, width: 1.5),
+              selected
+                  ? null
+                  : Border.all(color: dimmed(pal.radioBorder, dim), width: 1.5),
         ),
         child:
             selected ? Icon(Icons.check, size: 14, color: book.onLime) : null,
@@ -385,11 +403,13 @@ class _CurrencyRow extends StatelessWidget {
     required this.stats,
     required this.myFiat,
     required this.flags,
+    required this.dim,
   });
 
   final MostroNodeStats? stats;
   final String? myFiat;
   final Map<String, String> flags;
+  final double dim;
 
   @override
   Widget build(BuildContext context) {
@@ -414,9 +434,10 @@ class _CurrencyRow extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.fromLTRB(6, 3, 8, 3),
         decoration: BoxDecoration(
-          color: bg,
+          color: dimmed(bg, dim),
           borderRadius: BorderRadius.circular(8),
-          border: border == null ? null : Border.all(color: border),
+          border:
+              border == null ? null : Border.all(color: dimmed(border, dim)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -483,12 +504,14 @@ class _MetricsStrip extends StatelessWidget {
     required this.loading,
     required this.myFiat,
     required this.btcPrice,
+    required this.dim,
   });
 
   final MostroNodeStats? stats;
   final bool loading;
   final String? myFiat;
   final double? btcPrice;
+  final double dim;
 
   /// Below this width (at the current text scale) the three columns wrap
   /// into two rows (2 + 1) instead of squeezing the figures.
@@ -545,19 +568,19 @@ class _MetricsStrip extends StatelessWidget {
     final rangeMetric = _Metric(
       figure: range ?? '—',
       figureColor: range == null ? pal.stripText : book.textStrong,
-      unit: range == null ? null : 'sats',
+      unit: range == null ? null : l10n.satsUnitLabel,
       unitColor: pal.stripText,
       label: l10n.nodePerTradeLabel,
       secondLine: equivalent == null ? null : '$equivalent $mine',
     );
 
     final columns = [liquidity, feeMetric, rangeMetric];
-    final divider = Container(width: 1, color: pal.colDivider);
+    final divider = Container(width: 1, color: dimmed(pal.colDivider, dim));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: pal.inset,
+        color: dimmed(pal.inset, dim),
         borderRadius: BorderRadius.circular(12),
       ),
       child: LayoutBuilder(
@@ -600,7 +623,7 @@ class _MetricsStrip extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              Container(height: 1, color: pal.colDivider),
+              Container(height: 1, color: dimmed(pal.colDivider, dim)),
               const SizedBox(height: 10),
               _MetricCell(metric: columns[2], loading: loading),
             ],
@@ -738,9 +761,10 @@ class _MetricCell extends StatelessWidget {
 // ── Row 4 · trust ─────────────────────────────────────────────────────────────
 
 class _TrustRow extends StatelessWidget {
-  const _TrustRow({required this.stats});
+  const _TrustRow({required this.stats, required this.dim});
 
   final MostroNodeStats? stats;
+  final double dim;
 
   @override
   Widget build(BuildContext context) {
@@ -764,7 +788,7 @@ class _TrustRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.only(top: 10),
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: pal.rowDivider)),
+        border: Border(top: BorderSide(color: dimmed(pal.rowDivider, dim))),
       ),
       child: Row(
         children: [
