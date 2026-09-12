@@ -39,6 +39,10 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
   /// then arrive behind a chip instead of yanking the view.
   bool _pinnedToNewest = true;
 
+  /// The newest entry the user had in view while pinned; the chip appears
+  /// only once something newer arrives while they read back.
+  int? _seenNewestId;
+
   /// Entries the user has tapped open, by id — the message is clamped to
   /// three lines until then.
   final _expanded = <int>{};
@@ -68,10 +72,11 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
     final book = OrderBookPalette.of(context);
     final loggingEnabled = ref.watch(settingsProvider).loggingEnabled;
     final all = ref.watch(logEntriesProvider).valueOrNull ?? const <LogEntry>[];
-    final entries =
-        _filter == null
-            ? all
-            : all.where((e) => logSubsystem(e.tag) == _filter).toList();
+    final entries = _visible(all, _filter);
+    final newestId = entries.isEmpty ? null : entries.first.id;
+    if (_pinnedToNewest) _seenNewestId = newestId;
+    final hasUnseen =
+        !_pinnedToNewest && newestId != null && newestId != _seenNewestId;
 
     return Scaffold(
       backgroundColor: book.bg,
@@ -103,7 +108,13 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
         children: [
           _FilterRow(
             active: _filter,
-            onChanged: (next) => setState(() => _filter = next),
+            onChanged:
+                (next) => setState(() {
+                  _filter = next;
+                  // A different filter is not a new log.
+                  final visible = _visible(all, next);
+                  _seenNewestId = visible.isEmpty ? null : visible.first.id;
+                }),
           ),
           Expanded(
             child:
@@ -159,7 +170,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
                             );
                           },
                         ),
-                        if (!_pinnedToNewest)
+                        if (hasUnseen)
                           Positioned(
                             left: 0,
                             right: 0,
@@ -190,6 +201,11 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
     );
   }
 
+  static List<LogEntry> _visible(List<LogEntry> all, LogSubsystem? filter) =>
+      filter == null
+          ? all
+          : all.where((e) => logSubsystem(e.tag) == filter).toList();
+
   /// One separator per minute with activity.
   static bool _startsNewMinute(LogEntry entry, LogEntry? older) {
     if (older == null) return true;
@@ -200,6 +216,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
       platformInt64ToInt(entry.timestamp) ~/ 60;
 
   Future<void> _shareLogs(List<LogEntry> entries) async {
+    final heading = AppLocalizations.of(context).logReportShareHeading;
     final lines = entries
         .map((e) {
           final time = formatLogTimestamp(platformInt64ToInt(e.timestamp));
@@ -211,7 +228,7 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
 
     try {
       await SharePlus.instance.share(
-        ShareParams(text: 'Mostro Log Report\n=================\n$lines'),
+        ShareParams(text: '$heading\n${'=' * heading.length}\n$lines'),
       );
     } catch (e) {
       debugPrint('Failed to share logs: $e');

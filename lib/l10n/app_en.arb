@@ -1941,6 +1941,10 @@
   "@failedToShareLogsMessage": {
     "description": "Snackbar shown when sharing logs fails"
   },
+  "logReportShareHeading": "Mostro log report",
+  "@logReportShareHeading": {
+    "description": "First line of the log report text handed to the share sheet"
+  },
   "tradeFilterAll": "All",
   "@tradeFilterAll": {
     "description": "My Trades status filter: all"
@@ -3756,13 +3760,9 @@
   "@relaysFootnote": {
     "description": "Footnote below the relay list"
   },
-  "lastRelayDialogTitle": "Disable the last relay?",
-  "@lastRelayDialogTitle": {
-    "description": "Title of the sheet shown before disabling the last active relay"
-  },
-  "lastRelayDialogBody": "Without relays you cannot see or publish orders.",
-  "@lastRelayDialogBody": {
-    "description": "Body of the sheet shown before disabling the last active relay"
+  "lastRelayBlockedMessage": "Keep at least one relay active: without relays you cannot see or publish orders.",
+  "@lastRelayBlockedMessage": {
+    "description": "Shown instead of disabling or removing the last active relay, which the core refuses"
   },
   "disableButtonLabel": "Disable",
   "@disableButtonLabel": {
@@ -3788,7 +3788,7 @@
   "@nwcUriPlaceholder": {
     "description": "Placeholder of the NWC URI field, showing the real scheme"
   },
-  "nwcStorageFootnote": "The URI is stored encrypted on your device and is never published to Nostr.",
+  "nwcStorageFootnote": "The URI is stored only on this device and is never published to Nostr.",
   "@nwcStorageFootnote": {
     "description": "Footnote answering where the NWC URI is stored"
   },

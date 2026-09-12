@@ -237,11 +237,9 @@ class _SystemDeniedBanner extends ConsumerWidget {
               style: TextStyle(fontSize: 11, height: 1.4, color: pal.warnInk),
             ),
             InkWell(
-              onTap: () async {
-                await ref.read(openSystemSettingsProvider)();
-                // The answer can only have changed while the user was away.
-                ref.invalidate(notificationPermissionDeniedProvider);
-              },
+              // `notificationPermissionDeniedProvider` re-reads the answer
+              // when the app resumes, which is when the user comes back.
+              onTap: () => ref.read(openSystemSettingsProvider)(),
               child: Text(
                 l10n.openSystemSettingsAction,
                 style: TextStyle(

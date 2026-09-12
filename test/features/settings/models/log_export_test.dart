@@ -18,6 +18,17 @@ void main() {
       );
     });
 
+    test('redacts a quoted secret whole, spaces included', () {
+      expect(
+        sanitizeForShare('password="correct horse battery staple" next'),
+        'password=[REDACTED_SECRET] next',
+      );
+      expect(
+        sanitizeForShare("secret: 'two words'"),
+        'secret: [REDACTED_SECRET]',
+      );
+    });
+
     test('redacts long hex runs and Bech32 keys', () {
       expect(
         sanitizeForShare('order ${'a' * 64} taken'),

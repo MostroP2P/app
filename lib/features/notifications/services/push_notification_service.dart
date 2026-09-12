@@ -31,6 +31,9 @@ class PushNotificationService {
 
   /// Guards [initialize] against a second run attaching duplicate listeners.
   bool _initStarted = false;
+
+  /// Kept from the first [initialize] so [retryInitialize] can pass it on.
+  ProviderContainer? _container;
   SharedPreferences? _cachedPrefs;
   final Set<String> _registeredTradePubkeys = {};
 
@@ -38,6 +41,7 @@ class PushNotificationService {
   static const _pushServerUrl = 'https://push.mostro.network';
 
   Future<void> initialize({ProviderContainer? container}) async {
+    _container = container ?? _container;
     if (!_isSupported) return;
     // Steps 4, 5 and 7 below attach stream listeners that are never
     // cancelled, so a second run would double every foreground notification
@@ -63,6 +67,8 @@ class PushNotificationService {
     );
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       debugPrint('[push] permission denied');
+      // Nothing is attached yet, so a later grant may run this again.
+      _initStarted = false;
       return;
     }
 
@@ -237,6 +243,14 @@ class PushNotificationService {
   /// Anything other than an explicit denial reads as false — a platform with
   /// no push (desktop), a build without Firebase, or a permission the user
   /// has not been asked for yet is not a setting for them to go and fix.
+  /// Runs [initialize] again after the user granted a permission they had
+  /// denied: the first run stopped before acquiring a token or attaching
+  /// listeners. A no-op once a run has got past the permission step.
+  Future<void> retryInitialize() async {
+    if (_initStarted) return;
+    await initialize(container: _container);
+  }
+
   Future<bool> isSystemPermissionDenied() async {
     if (!_isSupported) return false;
     try {

@@ -26,21 +26,26 @@ RelayInfo _relay(
 
 /// Records what the mutator was asked to do, and can be told to fail.
 class _FakeMutator extends RelayMutator {
-  _FakeMutator({this.fail = false});
+  _FakeMutator({this.fail = false, this.gate});
 
   final bool fail;
+
+  /// When set, every call waits for it — the bridge still answering.
+  final Future<void>? gate;
   final added = <String>[];
   final removed = <String>[];
 
   @override
   Future<void> add(String url) async {
     added.add(url);
+    await gate;
     if (fail) throw StateError('bridge refused');
   }
 
   @override
   Future<void> remove(String url) async {
     removed.add(url);
+    await gate;
     if (fail) throw StateError('bridge refused');
   }
 }
@@ -107,10 +112,10 @@ void main() {
       h.container.read(relaysProvider);
       await pumpEventQueue();
 
-      expect(
-        h.container.read(relaysProvider).map((r) => r.url),
-        ['wss://a', 'wss://b'],
-      );
+      expect(h.container.read(relaysProvider).map((r) => r.url), [
+        'wss://a',
+        'wss://b',
+      ]);
     });
 
     test('folds a status change in without reordering the list', () async {
@@ -129,20 +134,22 @@ void main() {
       expect(relayHealth(relays.last), RelayHealth.connected);
     });
 
-    test('appends a relay the stream reports but the list has not seen',
-        () async {
-      final h = _harness(loaded: [_relay('wss://a')]);
-      h.container.read(relaysProvider);
-      await pumpEventQueue();
+    test(
+      'appends a relay the stream reports but the list has not seen',
+      () async {
+        final h = _harness(loaded: [_relay('wss://a')]);
+        h.container.read(relaysProvider);
+        await pumpEventQueue();
 
-      h.status.push(_relay('wss://new'));
-      await pumpEventQueue();
+        h.status.push(_relay('wss://new'));
+        await pumpEventQueue();
 
-      expect(
-        h.container.read(relaysProvider).map((r) => r.url),
-        ['wss://a', 'wss://new'],
-      );
-    });
+        expect(h.container.read(relaysProvider).map((r) => r.url), [
+          'wss://a',
+          'wss://new',
+        ]);
+      },
+    );
 
     test('setActive applies optimistically and calls the bridge', () async {
       final mutator = _FakeMutator();
@@ -206,14 +213,110 @@ void main() {
       h.container.read(relaysProvider);
       await pumpEventQueue();
 
-      final ok =
-          await h.container.read(relaysProvider.notifier).remove('wss://b');
+      final ok = await h.container
+          .read(relaysProvider.notifier)
+          .remove('wss://b');
 
       expect(ok, isFalse);
-      expect(
-        h.container.read(relaysProvider).map((r) => r.url),
-        ['wss://a', 'wss://b'],
+      expect(h.container.read(relaysProvider).map((r) => r.url), [
+        'wss://a',
+        'wss://b',
+      ]);
+    });
+
+    test(
+      'the removal broadcast does not switch a disabled relay back on',
+      () async {
+        final h = _harness(
+          loaded: [_relay('wss://a'), _relay('wss://b')],
+          mutator: _FakeMutator(),
+        );
+        h.container.read(relaysProvider);
+        await pumpEventQueue();
+
+        await h.container
+            .read(relaysProvider.notifier)
+            .setActive('wss://a', false);
+        // `remove_relay` broadcasts the removed row with `is_active` still true.
+        h.status.push(_relay('wss://a', status: RelayStatus.disconnected));
+        await pumpEventQueue();
+
+        final relays = h.container.read(relaysProvider);
+        expect(relays.map((r) => r.url), ['wss://a', 'wss://b']);
+        expect(relays.first.isActive, isFalse);
+      },
+    );
+
+    test(
+      'a reload keeps the row of a relay the core no longer lists',
+      () async {
+        final loaded = [_relay('wss://a'), _relay('wss://b')];
+        final h = _harness(loaded: loaded, mutator: _FakeMutator());
+        h.container.read(relaysProvider);
+        await pumpEventQueue();
+
+        await h.container
+            .read(relaysProvider.notifier)
+            .setActive('wss://a', false);
+        loaded.removeAt(0);
+        await h.container.read(relaysProvider.notifier).reload();
+
+        final relays = h.container.read(relaysProvider);
+        expect(relays.map((r) => r.url), ['wss://b', 'wss://a']);
+        expect(relays.last.isActive, isFalse);
+      },
+    );
+
+    test('the removal broadcast does not bring a deleted relay back', () async {
+      final h = _harness(
+        loaded: [_relay('wss://a'), _relay('wss://b', isDefault: false)],
+        mutator: _FakeMutator(),
       );
+      h.container.read(relaysProvider);
+      await pumpEventQueue();
+
+      await h.container.read(relaysProvider.notifier).remove('wss://b');
+      h.status.push(_relay('wss://b', status: RelayStatus.disconnected));
+      await pumpEventQueue();
+
+      expect(h.container.read(relaysProvider).map((r) => r.url), ['wss://a']);
+    });
+
+    test('a failed toggle rolls back its own row, not newer status', () async {
+      final gate = Completer<void>();
+      final h = _harness(
+        loaded: [_relay('wss://a'), _relay('wss://b')],
+        mutator: _FakeMutator(fail: true, gate: gate.future),
+      );
+      h.container.read(relaysProvider);
+      await pumpEventQueue();
+
+      final pending = h.container
+          .read(relaysProvider.notifier)
+          .setActive('wss://a', false);
+      h.status.push(_relay('wss://b', status: RelayStatus.error));
+      await pumpEventQueue();
+      gate.complete();
+
+      expect(await pending, isFalse);
+      final relays = h.container.read(relaysProvider);
+      expect(relays.first.isActive, isTrue);
+      expect(relayHealth(relays.last), RelayHealth.offline);
+    });
+
+    test('add refuses a relay that is already listed', () async {
+      final mutator = _FakeMutator();
+      final h = _harness(loaded: [_relay('wss://a')], mutator: mutator);
+      h.container.read(relaysProvider);
+      await pumpEventQueue();
+
+      final ok = await h.container
+          .read(relaysProvider.notifier)
+          .add('wss://a/');
+
+      expect(ok, isFalse);
+      expect(mutator.added, isEmpty);
+      expect(h.container.read(relaysProvider), hasLength(1));
     });
   });
 }

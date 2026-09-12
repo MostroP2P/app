@@ -338,11 +338,9 @@ class _RelayRow extends ConsumerWidget {
 
   Future<void> _toggle(BuildContext context, WidgetRef ref, bool value) async {
     final notifier = ref.read(relaysProvider.notifier);
-    // Only the step that would leave the user with nothing asks first —
-    // every other toggle is reversible from the same row.
-    if (!value && RelayTally.of(ref.read(relaysProvider)).total <= 1) {
-      final confirmed = await _confirmLastRelay(context);
-      if (confirmed != true) return;
+    if (!value && _wouldLeaveNone(ref)) {
+      _explainLastRelay(context);
+      return;
     }
     final ok = await notifier.setActive(relay.url, value);
     if (!ok && context.mounted) {
@@ -355,102 +353,30 @@ class _RelayRow extends ConsumerWidget {
     }
   }
 
-  Future<bool?> _confirmLastRelay(BuildContext context) =>
-      showModalBottomSheet<bool>(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) => _LastRelaySheet(),
-      );
+  /// The core refuses to drop the last active relay (`LastRelay`), so the
+  /// row says why instead of offering a step that can only fail.
+  bool _wouldLeaveNone(WidgetRef ref) =>
+      relay.isActive && RelayTally.of(ref.read(relaysProvider)).total <= 1;
+
+  void _explainLastRelay(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.of(context).lastRelayBlockedMessage),
+      ),
+    );
+  }
 
   Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    if (_wouldLeaveNone(ref)) {
+      _explainLastRelay(context);
+      return;
+    }
     final ok = await ref.read(relaysProvider.notifier).remove(relay.url);
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppLocalizations.of(context).relayRemoveFailed)),
       );
     }
-  }
-}
-
-/// Asked only when disabling the relay would leave none active.
-class _LastRelaySheet extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final book = OrderBookPalette.of(context);
-    final pal = SettingsPalette.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(redesignSidePadding),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: book.surface,
-            borderRadius: const BorderRadius.all(Radius.circular(18)),
-            border: Border.all(color: book.border),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l10n.lastRelayDialogTitle,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: book.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.lastRelayDialogBody,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.5,
-                    color: book.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: book.textBody,
-                          side: BorderSide(color: pal.buttonBorder),
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(14)),
-                          ),
-                        ),
-                        child: Text(l10n.cancel),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: pal.danger,
-                          side: BorderSide(color: pal.dangerBorder),
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(14)),
-                          ),
-                        ),
-                        child: Text(l10n.disableButtonLabel),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/settings/providers/notification_prefs_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -67,14 +69,29 @@ void main() {
     });
 
     test('the four keys are the ones the push service reads', () {
+      expect(NotificationEvent.values.map((e) => e.prefsKey), const [
+        'notify_trade_updates',
+        'notify_new_messages',
+        'notify_payments',
+        'notify_disputes',
+      ]);
+    });
+
+    test('a toggle made while loading survives the load', () async {
+      SharedPreferences.setMockInitialValues({
+        NotificationEvent.paymentAlerts.prefsKey: false,
+      });
+      final disk = Completer<SharedPreferences>();
+      final notifier = NotificationPrefsNotifier(prefs: () => disk.future);
+
+      final saved = notifier.setEvent(NotificationEvent.newMessages, false);
+      disk.complete(await SharedPreferences.getInstance());
+
+      expect(await saved, isTrue);
+      expect(notifier.state.isEnabled(NotificationEvent.newMessages), isFalse);
       expect(
-        NotificationEvent.values.map((e) => e.prefsKey),
-        const [
-          'notify_trade_updates',
-          'notify_new_messages',
-          'notify_payments',
-          'notify_disputes',
-        ],
+        notifier.state.isEnabled(NotificationEvent.paymentAlerts),
+        isFalse,
       );
     });
   });

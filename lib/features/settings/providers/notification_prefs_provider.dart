@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// preferences have to be readable from two places. The keys are the ones
 /// `push_notification_service.dart` gates on — changing one here without the
 /// other silently stops (or starts) delivering a class of notification.
+/// `newMessages` is the exception: no push type carries a chat message yet,
+/// so `_isTypeEnabled` has nothing to gate with it.
 enum NotificationEvent {
   tradeUpdates('notify_trade_updates'),
   newMessages('notify_new_messages'),
@@ -50,13 +52,20 @@ class NotificationPrefsNotifier extends StateNotifier<NotificationPrefs> {
 
   final Future<SharedPreferences> Function() _prefs;
 
+  /// Events toggled before [_load] finished. The load read the disk before
+  /// those writes, so its values for them are older than what the screen shows.
+  final _touched = <NotificationEvent>{};
+
   Future<void> _load() async {
     try {
       final prefs = await _prefs();
       if (!mounted) return;
       state = NotificationPrefs({
         for (final event in NotificationEvent.values)
-          event: prefs.getBool(event.prefsKey) ?? true,
+          event:
+              _touched.contains(event)
+                  ? state.isEnabled(event)
+                  : prefs.getBool(event.prefsKey) ?? true,
       });
     } catch (e) {
       debugPrint('[notification_prefs] load failed: $e');
@@ -68,6 +77,7 @@ class NotificationPrefsNotifier extends StateNotifier<NotificationPrefs> {
   /// false and the state rolling back.
   Future<bool> setEvent(NotificationEvent event, bool value) async {
     final before = state;
+    _touched.add(event);
     state = state.withEvent(event, value);
     try {
       final prefs = await _prefs();

@@ -297,7 +297,9 @@ void main() {
       expect(find.text('You may stop seeing new orders'), findsOneWidget);
     });
 
-    testWidgets('asks before disabling the last active relay', (tester) async {
+    testWidgets('refuses to disable the last active relay and says why', (
+      tester,
+    ) async {
       final container = await _pump(
         tester,
         const RelaysScreen(),
@@ -305,22 +307,22 @@ void main() {
       );
 
       await tester.tap(find.byType(MostroToggle));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(find.text('Disable the last relay?'), findsOneWidget);
-      // Cancelling leaves the relay on.
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+      // The core rejects it (`LastRelay`), so no step that can only fail.
+      expect(find.textContaining('Keep at least one relay'), findsOneWidget);
       expect(container.read(relaysProvider).single.isActive, isTrue);
     });
 
-    testWidgets('does not ask when another relay stays active', (tester) async {
+    testWidgets('disables freely while another relay stays active', (
+      tester,
+    ) async {
       await _pump(tester, const RelaysScreen());
 
       await tester.tap(find.byType(MostroToggle).first);
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(find.text('Disable the last relay?'), findsNothing);
+      expect(find.textContaining('Keep at least one relay'), findsNothing);
     });
   });
 

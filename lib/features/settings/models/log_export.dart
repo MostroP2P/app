@@ -17,7 +17,9 @@ String sanitizeForShare(String text) {
   // Key-value secrets: token=, apikey=, secret=, password=, api_key= (: or = separator)
   out = out.replaceAllMapped(
     RegExp(
-      r'((?:token|apikey|api_key|secret|password)\s*[=:]\s*)\S+',
+      // A quoted value is consumed whole, spaces included; `\S+` alone left
+      // everything after the first space in the shared report.
+      r'''((?:token|apikey|api_key|secret|password)\s*[=:]\s*)(?:"[^"]*"|'[^']*'|\S+)''',
       caseSensitive: false,
     ),
     (m) => '${m[1]}[REDACTED_SECRET]',
