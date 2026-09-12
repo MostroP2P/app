@@ -45,6 +45,17 @@ bool _isMoving(WidgetTester tester) =>
         .evaluate()
         .isNotEmpty;
 
+/// The opacities [glyph] is being drawn at right now.
+///
+/// Present is not the same as visible: the flourishes are built whatever the
+/// animation is doing and fade in with it, so a mood that never starts leaves
+/// them in the tree at zero. That gap is where the celebration bug hid.
+Iterable<double> _glyphOpacities(WidgetTester tester, String glyph) => tester
+    .widgetList<Opacity>(
+      find.ancestor(of: find.text(glyph), matching: find.byType(Opacity)),
+    )
+    .map((opacity) => opacity.opacity);
+
 Future<void> _tap(WidgetTester tester) async {
   await tester.tap(find.byType(MostroMascot));
   await tester.pump();
@@ -93,8 +104,9 @@ void main() {
         await _tap(tester);
         await tester.pump(const Duration(milliseconds: 200));
 
-        // Three stars go round the head.
+        // Three stars go round the head, and are actually drawn.
         expect(find.text('✨'), findsNWidgets(3));
+        expect(_glyphOpacities(tester, '✨'), everyElement(greaterThan(0)));
       });
     });
 
@@ -227,6 +239,54 @@ void main() {
     });
   });
 
+  group('accessibility', () {
+    testWidgets('keeps the whole mascot out of the semantics tree',
+        (tester) async {
+      // A day with a badge on, and tapped into its noisiest state, so every
+      // glyph the mascot can draw is on screen at once.
+      await withClock(Clock.fixed(DateTime(2026, 10, 31, 9)), () async {
+        final semantics = tester.ensureSemantics();
+        await _pump(
+          tester,
+          const MostroMascot(height: 40, interactive: true),
+        );
+        for (var i = 0; i < mostroDizzyTaps; i++) {
+          await _tap(tester);
+        }
+        await tester.pump(const Duration(milliseconds: 200));
+
+        expect(find.text('✨'), findsNWidgets(3));
+        expect(find.bySemanticsLabel('✨'), findsNothing);
+        expect(find.bySemanticsLabel('🎃'), findsNothing);
+        // An unlabelled tap target would be worse than no target at all.
+        // With the mascot excluded this resolves to the node above it, which
+        // offers nothing; were it exposing its own, that node would be it.
+        expect(
+          tester.getSemantics(find.byType(MostroMascot)),
+          isNot(isSemantics(hasTapAction: true)),
+        );
+
+        semantics.dispose();
+      });
+    });
+
+    testWidgets('keeps the sleeping Z out of it too', (tester) async {
+      await withClock(Clock.fixed(_plainDay), () async {
+        final semantics = tester.ensureSemantics();
+        await _pump(
+          tester,
+          const MostroMascot(height: 64, mood: MostroMood.asleep),
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.text('Z'), findsOneWidget);
+        expect(find.bySemanticsLabel('Z'), findsNothing);
+
+        semantics.dispose();
+      });
+    });
+  });
+
   group('ambient moods', () {
     testWidgets('sleeps with a Z when there is nothing to trade',
         (tester) async {
@@ -279,7 +339,26 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 300));
 
+        // Nobody taps to celebrate: the mood arrives from the screen, so the
+        // mascot has to start this one itself or it is never seen.
         expect(find.text('✨'), findsNWidgets(3));
+        expect(_glyphOpacities(tester, '✨'), everyElement(greaterThan(0)));
+      });
+    });
+
+    testWidgets('keeps the celebration still under reduce motion',
+        (tester) async {
+      await withClock(Clock.fixed(_plainDay), () async {
+        await _pump(
+          tester,
+          const MostroMascot(height: 26, mood: MostroMood.celebrating),
+          reduceMotion: true,
+        );
+        await tester.pumpAndSettle();
+
+        // Motion nobody asked for answers to the setting; a tap reaction,
+        // which the viewer caused, does not.
+        expect(_glyphOpacities(tester, '✨'), everyElement(0));
       });
     });
   });

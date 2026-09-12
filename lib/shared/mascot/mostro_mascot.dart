@@ -110,23 +110,40 @@ class _MostroMascotState extends State<MostroMascot>
   bool get _reduceMotion =>
       MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
+  /// Drives whatever [widget.mood] asks for.
+  ///
+  /// Ambient moods arrive from the parent rather than from a tap, so nothing
+  /// else would ever start them: a looping one has to be told to repeat, and
+  /// a one-shot one — celebrating — has to be played here or it renders at
+  /// rest and is never seen.
+  ///
+  /// All of it is unsolicited motion, so all of it answers to reduce-motion.
+  /// A tap reaction does not: the viewer asked for that one themselves.
   void _syncAmbient() {
     final ambient = widget.mood;
-    if (isLoopingMood(ambient) && !_reduceMotion) {
-      _loop.duration = _durationOf(ambient);
-      if (!_loop.isAnimating) _loop.repeat();
-    } else if (_loop.isAnimating) {
+    if (_loop.isAnimating) {
       _loop
         ..stop()
         ..value = 0;
     }
+    if (ambient == MostroMood.neutral || _reduceMotion) return;
+
+    if (isLoopingMood(ambient)) {
+      _loop.duration = _durationOf(ambient);
+      _loop.repeat();
+      return;
+    }
+    _reactionPlayer
+      ..duration = _durationOf(ambient)
+      ..forward(from: 0);
   }
 
-  /// A one-shot mood that is playing has its own progress; a loop reads the
-  /// looping controller; anything else is at rest.
+  /// Progress of whatever is playing: the looping controller for a looping
+  /// mood, the one-shot player for everything else that moves.
   double get _t {
-    if (_reaction != null) return _reactionPlayer.value;
-    return isLoopingMood(widget.mood) ? _loop.value : 0;
+    final mood = _mood;
+    if (mood == MostroMood.neutral) return 0;
+    return isLoopingMood(mood) ? _loop.value : _reactionPlayer.value;
   }
 
   MostroSeason get _season => widget.season ?? seasonOn(clock.now());
@@ -208,12 +225,18 @@ class _MostroMascotState extends State<MostroMascot>
             ? body
             : Opacity(opacity: widget.opacity, child: body);
 
-    if (!widget.interactive) return opaque;
-    return GestureDetector(
-      // Decorative on purpose: announcing it would give the egg away.
-      onTap: _onTap,
-      behavior: HitTestBehavior.opaque,
-      child: opaque,
+    // Decorative from top to bottom, so none of it reaches assistive tech:
+    // the artwork carries no information, the glyphs that orbit it are
+    // noise, and a tap target with no label would be worse than no target
+    // at all. Announcing it would also give the egg away.
+    if (!widget.interactive) return ExcludeSemantics(child: opaque);
+    return ExcludeSemantics(
+      child: GestureDetector(
+        onTap: _onTap,
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        child: opaque,
+      ),
     );
   }
 
