@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mostro_mascot.dart';
+import 'package:mostro/shared/mascot/mostro_mood.dart';
 
-/// Empty order book: the faded mascot, a title, and one line that says why.
+/// Empty order book: the sleeping mascot, a title, and one line that says why.
 ///
 /// It blames the filters — and offers to clear them — only when they are
 /// what hides the orders: when the tab has none at all, clearing the filters
@@ -27,11 +29,11 @@ class OrderListEmpty extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
-              'assets/images/mostro_mascot.webp',
+            // Nothing to trade, so Mostro takes a nap.
+            const MostroMascot(
               height: 64,
-              opacity: const AlwaysStoppedAnimation(0.4),
-              excludeFromSemantics: true,
+              mood: MostroMood.asleep,
+              opacity: 0.4,
             ),
             const SizedBox(height: 16),
             Text(
