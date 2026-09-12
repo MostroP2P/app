@@ -613,6 +613,22 @@ With 3+ developers after Phase 2 completes:
 
 ---
 
+## Phase 22: Mascot Easter Eggs
+
+**V1 ref**: v1 hid one in the header logo — tapping it made Mostro smile.
+
+**Goal**: The mascot has a pulse. It answers a tap, it picks up the mood of the app around it, and it marks the three dates Bitcoin remembers.
+
+**Independent Test**: Tap the mascot in the order book's app bar → it bounces. Tap it seven times in a row → it wobbles with stars round its head. Open the drawer and drag the big Mostro down → it stretches and springs back. Empty the book → the mascot in the empty state sleeps, with a rising Z. Set the device date to 31 October → it wears a pumpkin, and a tap quotes the whitepaper.
+
+- [x] T140 Add `lib/shared/mascot/`: `mostro_mood.dart` holds the pure rules (`MostroMood`, `MostroSeason`, `seasonOn`, the tap-streak counter and its window, `isLoopingMood`); `mostro_mascot.dart` is the widget, same artwork throughout with the mood deciding only the motion; `mascot_season_badge.dart` places the emoji badge against the artwork's box and maps a season to its line; `mascot_stretch.dart` is the drawer's pull-to-stretch wrapper. Looping moods (`asleep`, `impatient`) are gated behind the viewer's reduce-motion setting — an accessibility call, and what keeps a looping mascot from hanging widget tests that settle.
+- [x] T141 Wire the three surfaces: the order book's app bar mascot is the interactive one (tap → bounce, seven taps in a row → dizzy) and takes its ambient mood from state the screen already watches (`orderBookProvider` still loading after 6 s → `impatient`; a completed trade on `tradeUpdatesProvider`, already alive for the bottom bar's badge → `celebrating` for 1.4 s). The empty-state mascot sleeps. The drawer's mascot stretches when pulled and wears the seasonal badge.
+- [x] T142 Seasonal lines in `lib/l10n/app_{en,es,fr,de,it}.arb`: `easterEggWhitepaper` (31 October — the whitepaper, and Halloween, which a monster mascot makes its own joke), `easterEggGenesis` (3 January — the headline Satoshi put in the genesis block, a quotation from The Times that stays in English in every locale), `easterEggPizzaDay` (22 May). A tap on one of those dates shows the line once per tap streak, never once per tap.
+
+- [x] T143 Add `--dart-define=MOSTRO_FORCE_SEASON=<whitepaper|halloween|genesis|pizza|none>` so an anniversary can be looked at without waiting a year and without moving the machine's clock, which in this app would leave signed events carrying a displaced timestamp and relays refusing them. Parsed in `mostro_mood.dart` (`parseSeason`, trimmed and case-insensitive, `none` forces an ordinary day so a badge can be checked off on a real anniversary); `resolveSeason` holds the precedence and is unit-tested both ways; `currentSeason` is what the widgets call. A release build ignores the define outright, read via `bool.fromEnvironment('dart.vm.product')` rather than `kReleaseMode` so the pure rules stay Flutter-free, so a stray define on a shipping build cannot leave Mostro in a pumpkin hat all year. The end-to-end wiring check is skipped in an ordinary run and names the command that runs it.
+
+**Checkpoint**: Nothing the easter eggs do delays, blocks or alters a real action — they are visual and local. Nothing was added to the seed-words or backup screens, where the user needs concentration rather than surprises.
+
 ## Notes
 
 - [P] tasks operate on different files with no dependency on incomplete tasks in the same phase

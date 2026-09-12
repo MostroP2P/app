@@ -1763,5 +1763,11 @@
   "takeOrderUnavailable": "No longer available",
   "@takeOrderUnavailable": {"description": "'Take order' once the order was taken by someone else or expired"},
   "takeOrderClosed": "Closed",
-  "@takeOrderClosed": {"description": "Replaces the countdown in the app bar once the order is gone"}
+  "@takeOrderClosed": {"description": "Replaces the countdown in the app bar once the order is gone"},
+  "easterEggWhitepaper": "31 October 2008: nine pages, nobody's permission. Happy Halloween.",
+  "@easterEggWhitepaper": {"description": "Easter egg shown when the mascot is tapped on 31 October, the whitepaper's anniversary — and Halloween, which Mostro being a monster makes its own joke"},
+  "easterEggGenesis": "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks",
+  "@easterEggGenesis": {"description": "Easter egg shown when the mascot is tapped on 3 January: the headline Satoshi embedded in the genesis block. A quotation from The Times — keep it in English, unchanged, in every locale"},
+  "easterEggPizzaDay": "22 May 2010: 10,000 BTC for two pizzas. Hope they were good.",
+  "@easterEggPizzaDay": {"description": "Easter egg shown when the mascot is tapped on 22 May, Bitcoin Pizza Day"}
 }

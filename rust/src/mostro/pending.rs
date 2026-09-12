@@ -87,11 +87,6 @@ pub(crate) enum PendingRequestKind {
         /// daemon assigned the real one. Bridged to the daemon UUID on
         /// confirmation.
         local_uuid: String,
-        /// Content fingerprint (see `order_content_key`) — lets the Kind
-        /// 38383 subscription find this record when the daemon's public
-        /// event arrives (that event carries neither our trade pubkey nor a
-        /// request_id).
-        content_key: String,
     },
     /// A take-buy / take-sell awaiting the daemon's first reply.
     Take,
@@ -221,27 +216,6 @@ pub(crate) fn take_matching_request(
         }
         None => None,
     }
-}
-
-/// Remove and return the pending create whose content fingerprint equals
-/// `content_key` — used by the Kind 38383 subscription to bridge the local
-/// UUID once the daemon's public event arrives. Records with a live waiter
-/// (`tx` is `Some`) are left alone: the in-flight `create_order` call owns
-/// the reconciliation and must still find its record when the kind-14
-/// acknowledgement lands.
-pub(crate) fn take_pending_create_by_content_key(content_key: &str) -> Option<PendingRequest> {
-    let mut map = pending_requests().lock().ok()?;
-    let key = map
-        .iter()
-        .find(|(_, p)| {
-            p.tx.is_none()
-                && matches!(
-                    &p.kind,
-                    PendingRequestKind::Create { content_key: ck, .. } if ck == content_key
-                )
-        })
-        .map(|(k, _)| k.clone())?;
-    map.remove(&key)
 }
 
 /// Detach the waiter channel from the pending request for `trade_pubkey_hex`,
@@ -532,33 +506,6 @@ pub(crate) fn may_reconcile_stored_id(
     stored_id != incoming_id && pending_local_uuid == Some(stored_id)
 }
 
-/// Build a stable content key for a maker order.
-///
-/// The key is stored in `TRADE_KEY_MAP` at creation time (prefixed with
-/// `"content:"` so it never collides with real UUIDs).  On cold start the
-/// relay subscription can compute the same key from an incoming Kind 38383
-/// event and look up the trade index, restoring `is_mine = true` without
-/// needing the daemon's acknowledgement.
-pub(crate) fn order_content_key(
-    kind: &crate::api::types::OrderKind,
-    fiat_code: &str,
-    fiat_amount: Option<f64>,
-    fiat_amount_min: Option<f64>,
-    fiat_amount_max: Option<f64>,
-    payment_method: &str,
-) -> String {
-    let amount = match (fiat_amount, fiat_amount_min, fiat_amount_max) {
-        (Some(a), _, _) => format!("f{}", a as i64),
-        (_, Some(mn), Some(mx)) => format!("r{}:{}", mn as i64, mx as i64),
-        _ => "?".to_string(),
-    };
-    let k = match kind {
-        crate::api::types::OrderKind::Buy => "buy",
-        crate::api::types::OrderKind::Sell => "sell",
-    };
-    format!("content:{k}:{fiat_code}:{amount}:{payment_method}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -574,30 +521,6 @@ mod tests {
         assert!(!request_id_matches(42, None));
     }
 
-    /// The content key is what lets a cold-started client recognise its own
-    /// maker order from the daemon's public event, which carries neither the
-    /// trade pubkey nor a request_id. Range and fixed orders must not collide.
-    #[test]
-    fn the_content_key_separates_range_from_fixed_orders() {
-        use crate::api::types::OrderKind;
-        let fixed = order_content_key(&OrderKind::Buy, "EUR", Some(100.0), None, None, "SEPA");
-        let range = order_content_key(
-            &OrderKind::Buy,
-            "EUR",
-            None,
-            Some(10.0),
-            Some(100.0),
-            "SEPA",
-        );
-        assert_ne!(fixed, range);
-        assert!(fixed.starts_with("content:buy:EUR:"));
-        // The prefix keeps these out of the UUID keyspace they share a map with.
-        assert!(range.starts_with("content:"));
-        // Kind is part of the identity: a buy and a sell are different orders.
-        let sell = order_content_key(&OrderKind::Sell, "EUR", Some(100.0), None, None, "SEPA");
-        assert_ne!(fixed, sell);
-    }
-
     fn insert_pending_create(
         key: &str,
         request_id: u64,
@@ -610,7 +533,6 @@ mod tests {
                 trade_index: 3,
                 kind: PendingRequestKind::Create {
                     local_uuid: format!("local-{key}"),
-                    content_key: format!("content:{key}"),
                 },
                 tx: Some(tx),
             },
@@ -1021,28 +943,6 @@ mod tests {
         assert!(!may_reconcile_stored_id("local-1", "daemon-1", None));
     }
 
-    /// The Kind 38383 path matches by content fingerprint, but must leave
-    /// records with a live waiter alone — the in-flight create_order call owns
-    /// that reconciliation.
-    #[tokio::test]
-    async fn content_key_lookup_skips_live_waiters() {
-        let key = "test-content-key-pubkey";
-        let ck = format!("content:{key}");
-        let _rx = insert_pending_create(key, 31);
-
-        // Live waiter attached: the 38383 path must not consume the record.
-        assert!(take_pending_create_by_content_key(&ck).is_none());
-
-        // After the timeout detaches the waiter, the fingerprint match takes it.
-        detach_request_waiter(key, 31);
-        let pending = take_pending_create_by_content_key(&ck).expect("must match");
-        assert_eq!(local_uuid_of(&pending), format!("local-{key}"));
-        assert!(!pending_requests().lock().unwrap().contains_key(key));
-
-        // Unknown fingerprints never match anything.
-        assert!(take_pending_create_by_content_key("content:unknown").is_none());
-    }
-
     /// `take_matching_restore` returns and removes a pending RESTORE record for
     /// the given trade pubkey, and ignores non-RESTORE kinds — the nonce-gate
     /// asymmetry #215 relies on (RestoreSession carries no request_id).
@@ -1070,7 +970,6 @@ mod tests {
                     trade_index: 3,
                     kind: PendingRequestKind::Create {
                         local_uuid: "uuid".to_string(),
-                        content_key: "ck".to_string(),
                     },
                     tx: None,
                 },

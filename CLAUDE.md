@@ -108,10 +108,16 @@ bridged by flutter_rust_bridge.
   whatever *uses* the missing field, so a stale `TradeInfo` reads as a broken test helper
   rather than as out-of-date bindings. If `flutter analyze` reports a field or l10n getter
   that plainly exists in `rust/src/api/types.rs` or `lib/l10n/*.arb`, regenerate before
-  believing it. **Automate it:** `git config core.hooksPath .githooks` installs
-  `post-merge`/`post-checkout`/`post-rewrite` hooks that regenerate both whenever the pull,
-  branch switch, or rebase touched `rust/src/api/`, `pubspec.yaml`, or an `.arb` (no-op
-  otherwise).
+  believing it. **Automate it:** `./scripts/setup-hooks.sh` copies `.githooks/` into this
+  clone's `.git/hooks/`, where `post-merge`/`post-checkout`/`post-rewrite` regenerate both
+  whenever the pull, branch switch, or rebase touched `rust/src/api/`, `pubspec.yaml`, or
+  an `.arb` (no-op otherwise). `frb-generate.sh` runs that installer itself, so the first
+  codegen in a clone arms the hooks and later codegen refreshes them;
+  `./scripts/setup-hooks.sh --check` reports the state without changing it.
+  **Copies, not `core.hooksPath=.githooks`:** pointing that config at a tracked directory
+  makes `git checkout` execute hook code from the ref being checked out, so
+  `gh pr checkout` on a contributor's branch would run their script. `.git/hooks` is not
+  tracked, so a hostile branch is inert. Edit `.githooks/` and re-run the installer.
 
 ## Transport (protocol v2)
 - **Daemon messages** (new-order, take, release, cancel, dispute, rate, invoice, restore):

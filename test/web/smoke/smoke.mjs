@@ -165,12 +165,46 @@ async function main() {
     // after it — hence the 'en-US' default. web-build.yml also runs this
     // script once with SMOKE_LOCALE=C: a regression guard for issue #227,
     // fixed by the locale sanitizer in web/index.html. The pin stays for
-    // determinism; it is no longer load-bearing for that bug.
+    // determinism; it is no longer load-bearing for that bug. The other broken
+    // tags cannot be delivered this way — see SMOKE_NAVIGATOR_LANGUAGES below.
     //
     // `??`, not `||`: the empty string is one of the broken tags this guards
     // against, and `||` would silently turn SMOKE_LOCALE='' into 'en-US' —
     // the one case the knob exists for, passing green without testing it.
     const page = await browser.newPage({ locale: process.env.SMOKE_LOCALE ?? 'en-US' });
+
+    // SMOKE_LOCALE goes through Playwright, which normalizes the tag before the
+    // page sees it: 'en_US' arrives as 'en-US' and '' falls back to the system
+    // locale, so only 'C' survives the trip. That is a limit of that option,
+    // not of the browser — an init script runs inside the page, before any of
+    // its own scripts, so it can hand the engine a tag Playwright would never
+    // deliver. Comma-separated, used verbatim; unset means "do not touch",
+    // which is every run except the locale matrix in web-build.yml.
+    //
+    // `!== undefined`, not a truthiness check: SMOKE_NAVIGATOR_LANGUAGES=''
+    // is the empty-tag case, one of the broken ones this exists to cover.
+    //
+    // `configurable: true` is load-bearing, but not as a false-green guard.
+    // The sanitizer bails out when either property is already locked down
+    // (#370 review), so a non-configurable shadow makes it skip the very path
+    // under test — the engine then gets the raw tag and the positive run
+    // *fails*, with the same `Incorrect locale information provided` a real
+    // regression produces. Measured both ways on `C` and `C,es-AR` (#406
+    // review). What this flag prevents is a red matrix that reads as a broken
+    // sanitizer when it is really a broken harness.
+    const forcedLanguages = process.env.SMOKE_NAVIGATOR_LANGUAGES;
+    if (forcedLanguages !== undefined) {
+      await page.addInitScript((langs) => {
+        Object.defineProperty(navigator, 'languages', {
+          get: () => langs,
+          configurable: true,
+        });
+        Object.defineProperty(navigator, 'language', {
+          get: () => langs[0] ?? '',
+          configurable: true,
+        });
+      }, forcedLanguages.split(','));
+    }
 
     const record = (origin, text) => {
       (isIgnorable(text) ? ignored : errors).push(`[${origin}] ${text}`);
@@ -247,6 +281,28 @@ async function main() {
       })
       .catch(() => fail('the Flutter view never mounted'));
     console.log('✓ Flutter view mounted');
+
+    // 2b. The sanitizer left the locale it was supposed to leave.
+    //
+    //     Opt-in, and only meaningful alongside SMOKE_NAVIGATOR_LANGUAGES.
+    //     "The view mounted" is enough for a tag with no valid part — the page
+    //     could not have booted unless the sanitizer replaced it. It is not
+    //     enough for a mixed list: with "C,es-AR" a sanitizer that dropped the
+    //     whole list for the fallback boots exactly as happily as one that
+    //     kept "es-AR", and the user silently loses their language. Only
+    //     reading the result back tells those two apart.
+    if (process.env.SMOKE_EXPECT_LANGUAGES !== undefined) {
+      const expected = process.env.SMOKE_EXPECT_LANGUAGES;
+      const actual = (
+        await page.evaluate(() => Array.from(navigator.languages ?? []))
+      ).join(',');
+      if (actual !== expected) {
+        await fail(
+          `navigator.languages is "${actual}", expected "${expected}"`,
+        );
+      }
+      console.log(`✓ locale sanitized to [${actual}]`);
+    }
 
     // 3. The Rust bridge answered. Poll for either outcome so a broken bridge
     //    fails immediately with its reason instead of timing out silently.

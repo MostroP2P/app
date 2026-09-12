@@ -100,6 +100,33 @@ pub mod settings_keys {
     pub fn status_cursor(order_id: &str) -> String {
         format!("{STATUS_CURSOR_PREFIX}{order_id}")
     }
+
+    /// Per-order tombstone marking the trade row as deleted **on purpose** —
+    /// by the pre-active cancel wipe (`cancellation_wipes_history`) or by the
+    /// stale sweeper — so a daemon message for an order with no row can tell
+    /// "removed deliberately" (replay noise, drop it) from "never persisted"
+    /// (a confirmation timeout, where the message is the only recovery signal
+    /// there is). Full key is `trade_wiped:<order_id>`; build it with
+    /// [`trade_wiped`]. See issue #394.
+    ///
+    /// The value is `<wiped_at>:<trade_index>`. `wiped_at` is the wipe's unix
+    /// timestamp (decimal): the Canceled event's `created_at` where an event
+    /// drove the wipe, the local clock in the sweeper, which acts on public
+    /// book state and has no event — never compare it against the status
+    /// cursor, whose timestamps come from a different rule. `trade_index` is
+    /// the dead row's trade key index: the tombstone covers that generation
+    /// and older, so a later take of the same order — a different trade —
+    /// classifies `NeverWritten` and stays recoverable (`tombstone_covers`,
+    /// review round 2).
+    ///
+    /// Cleared whenever a trade row is (re)created for the order id — a
+    /// canceled order can be legitimately re-taken (`persist_trade_row`).
+    pub const TRADE_WIPED_PREFIX: &str = "trade_wiped:";
+
+    /// Build the settings key marking `order_id`'s trade row as wiped.
+    pub fn trade_wiped(order_id: &str) -> String {
+        format!("{TRADE_WIPED_PREFIX}{order_id}")
+    }
 }
 
 /// Storage trait — implemented by both SQLite (native) and IndexedDB (WASM).
