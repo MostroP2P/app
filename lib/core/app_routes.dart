@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/features/account/screens/account_screen.dart';
+import 'package:mostro/features/cashu/screens/cashu_wallet_screen.dart';
 import 'package:mostro/features/home/screens/home_screen.dart';
 import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
@@ -51,6 +52,11 @@ abstract final class AppRoute {
   static const notificationSettings = '/notification_settings';
   static const logs = '/logs';
   static const disputeChat = '/dispute_chat/:disputeId';
+
+  /// Embedded Cashu wallet. Only reachable from Settings when the active node
+  /// runs Cashu — the route is always registered, and the screen shows a
+  /// disconnected wallet anywhere else.
+  static const cashuWallet = '/cashu_wallet';
 
   /// Build a path with a single [id] substituted for the `:orderId` segment.
   static String tradeDetailPath(String orderId) =>
@@ -223,6 +229,10 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => DisputeChatScreen(
         disputeId: state.pathParameters['disputeId']!,
       ),
+    ),
+    GoRoute(
+      path: AppRoute.cashuWallet,
+      builder: (_, __) => const CashuWalletScreen(),
     ),
   ],
 );
