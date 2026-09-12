@@ -1440,6 +1440,7 @@ async fn adopt_range_remainder(
     kind: &mostro_core::message::MessageKind,
     trade_pubkey_hex: &str,
     trade_index: u32,
+    event_ts: i64,
 ) -> bool {
     let Some(mostro_core::message::Payload::Order(order)) = &kind.payload else {
         return false;
@@ -1475,6 +1476,13 @@ async fn adopt_range_remainder(
                 crate::api::logging::short_id(order_id),
             ),
         );
+        return false;
+    }
+    // Same cursor gate as the status arms and the DM rebuild (review
+    // round 2): a replayed create ack older than the order's newest
+    // accepted event — its maker already canceled it — must not resurrect
+    // the row as Pending on the next start.
+    if status_write_blocked(order_id, &kind.action, event_ts).await {
         return false;
     }
     let Some(trade) = trade_row_from_small_order(
@@ -2343,13 +2351,19 @@ async fn dispatch_mostro_message(
     // After the interceptions on purpose: a live take or create reply is
     // consumed above and its caller owns persistence; only messages nothing
     // is waiting for — the startup replay, a reconnect backlog — reach this.
+    // Gated on the same cursor the arms consult: a Canceled with no row
+    // still advances the cursor, so on a newest-first replay the older take
+    // reply behind it must not rebuild what the daemon already ended
+    // (review round 2).
     if matches!(row_state, RowState::NeverWritten) {
         if let Some(order_id) = &kind.id {
-            if let Some(rebuilt) =
-                rebuild_trade_from_dm(kind, &order_id.to_string(), trade_pubkey_hex, trade_index)
-                    .await
-            {
-                row_state = RowState::Exists(Box::new(rebuilt));
+            let oid = order_id.to_string();
+            if !status_write_blocked(&oid, &kind.action, event_ts).await {
+                if let Some(rebuilt) =
+                    rebuild_trade_from_dm(kind, &oid, trade_pubkey_hex, trade_index).await
+                {
+                    row_state = RowState::Exists(Box::new(rebuilt));
+                }
             }
         }
     }
@@ -2409,8 +2423,14 @@ async fn dispatch_mostro_message(
                         )
                         .await;
                     }
-                } else if adopt_range_remainder(&daemon_id, kind, trade_pubkey_hex, trade_index)
-                    .await
+                } else if adopt_range_remainder(
+                    &daemon_id,
+                    kind,
+                    trade_pubkey_hex,
+                    trade_index,
+                    event_ts,
+                )
+                .await
                 {
                     // What was left of a range this client sold, now its own
                     // pending order under the next trade key.
@@ -9139,6 +9159,198 @@ mod tests {
             drain_updates(&mut rx, &order_id),
             vec![crate::api::types::OrderStatus::FiatSent],
             "one rebuild, one update — the older tail is refused",
+        );
+    }
+
+    /// Review round 2, blocker 1 (probes P1/P2): a Canceled with no row
+    /// still advances the status cursor, so on a newest-first replay the
+    /// older take reply behind it must not rebuild the row — the daemon
+    /// already ended this trade and will never speak of it again, and the
+    /// rebuilt row would sit in its waiting state forever.
+    #[tokio::test]
+    async fn a_rebuild_older_than_an_accepted_cancel_is_refused() {
+        use mostro_core::message::{Action, Payload};
+
+        let path = std::env::temp_dir().join(format!("mostro_rebuild5_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let my_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let peer_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let mut rx = trade_updates_tx().subscribe();
+
+        // P1 — buyer side: Canceled@3000, then the older AddInvoice@2000.
+        let buy_uuid = uuid::Uuid::new_v4();
+        let buy_id = buy_uuid.to_string();
+        let add_invoice = Payload::Order(mostro_core::order::SmallOrder::new(
+            Some(buy_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::WaitingBuyerInvoice),
+            457,
+            "USD".to_string(),
+            None,
+            None,
+            100,
+            "Bank".to_string(),
+            0,
+            Some(my_hex.clone()),
+            Some(peer_hex.clone()),
+            None,
+            None,
+            None,
+        ));
+        dispatch_mostro_message(
+            daemon_message(buy_uuid, Action::Canceled, None, 3_000),
+            "test-necro-cancel-buy",
+            &my_hex,
+            15,
+        )
+        .await;
+        dispatch_mostro_message(
+            daemon_message(buy_uuid, Action::AddInvoice, Some(add_invoice), 2_000),
+            "test-necro-addinvoice",
+            &my_hex,
+            15,
+        )
+        .await;
+        assert!(
+            db.get_trade_by_order_id(&buy_id)
+                .await
+                .expect("lookup")
+                .is_none(),
+            "an AddInvoice older than the accepted cancel must not rebuild the row",
+        );
+        assert_eq!(
+            drain_updates(&mut rx, &buy_id),
+            vec![crate::api::types::OrderStatus::Canceled],
+            "only the cancel reaches the UI",
+        );
+
+        // P2 — seller side: Canceled@3000, then the older PayInvoice@2000.
+        let sell_uuid = uuid::Uuid::new_v4();
+        let sell_id = sell_uuid.to_string();
+        let pay_invoice = Payload::PaymentRequest(
+            Some(mostro_core::order::SmallOrder::new(
+                Some(sell_uuid),
+                Some(mostro_core::order::Kind::Buy),
+                Some(mostro_core::order::Status::WaitingPayment),
+                457,
+                "USD".to_string(),
+                None,
+                None,
+                100,
+                "Bank".to_string(),
+                0,
+                Some(peer_hex.clone()),
+                Some(my_hex.clone()),
+                None,
+                None,
+                None,
+            )),
+            "lnbc1".to_string(),
+            None,
+        );
+        dispatch_mostro_message(
+            daemon_message(sell_uuid, Action::Canceled, None, 3_000),
+            "test-necro-cancel-sell",
+            &my_hex,
+            15,
+        )
+        .await;
+        dispatch_mostro_message(
+            daemon_message(sell_uuid, Action::PayInvoice, Some(pay_invoice), 2_000),
+            "test-necro-payinvoice",
+            &my_hex,
+            15,
+        )
+        .await;
+        assert!(
+            db.get_trade_by_order_id(&sell_id)
+                .await
+                .expect("lookup")
+                .is_none(),
+            "a PayInvoice older than the accepted cancel must not rebuild the row",
+        );
+        assert_eq!(
+            drain_updates(&mut rx, &sell_id),
+            vec![crate::api::types::OrderStatus::Canceled],
+            "only the cancel reaches the UI",
+        );
+    }
+
+    /// Review round 2, blocker 1 (probe P3): the replayed ack of a create
+    /// whose maker later canceled the order must not be adopted back as a
+    /// Pending maker row. Same cursor gate, applied to
+    /// `adopt_range_remainder` — this closes a variant that predates the
+    /// classification (`main` resurrected the order too).
+    #[tokio::test]
+    async fn a_create_ack_older_than_an_accepted_cancel_is_not_adopted() {
+        use mostro_core::message::{Action, Message, Payload};
+
+        let path = std::env::temp_dir().join(format!("mostro_rebuild6_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let my_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let mut rx = trade_updates_tx().subscribe();
+
+        dispatch_mostro_message(
+            daemon_message(order_uuid, Action::Canceled, None, 3_000),
+            "test-necro-cancel-ack",
+            &my_hex,
+            21,
+        )
+        .await;
+
+        // The create's ack: NewOrder, status Pending, this key's trade
+        // index echoed — exactly what `adopt_range_remainder` accepts.
+        let ack = mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Pending),
+            0,
+            "ARS".to_string(),
+            None,
+            None,
+            1000,
+            "cash".to_string(),
+            0,
+            None,
+            Some(my_hex.clone()),
+            None,
+            Some(1_700_000_000),
+            Some(1_700_003_600),
+        );
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        let unwrapped = mostro_core::nip59::UnwrappedMessage {
+            message: Message::new_order(
+                Some(order_uuid),
+                None,
+                Some(21),
+                Action::NewOrder,
+                Some(Payload::Order(ack)),
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::from(2_000u64),
+        };
+        dispatch_mostro_message(unwrapped, "test-necro-ack", &my_hex, 21).await;
+
+        assert!(
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("lookup")
+                .is_none(),
+            "a create ack older than the accepted cancel must not be adopted",
+        );
+        assert_eq!(
+            drain_updates(&mut rx, &order_id),
+            vec![crate::api::types::OrderStatus::Canceled],
+            "only the cancel reaches the UI",
         );
     }
 
