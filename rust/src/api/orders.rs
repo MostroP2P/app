@@ -1531,11 +1531,13 @@ async fn adopt_range_remainder(
 /// Anything less provable does not rebuild: a wrong role signs the wrong
 /// context, the #326 failure class.
 ///
-/// What a rebuild recovers is the trade: its progress, its signing key (the
-/// durable trade-key binding) and its counterparty. What it cannot recover
-/// is maker-ness — indistinguishable in a mid-trade message — so `is_mine`
-/// stays false, and a rebuilt row never claims range metadata it cannot
-/// prove.
+/// A rebuild recovers the whole trade: its progress, its signing key (the
+/// durable trade-key binding), its counterparty — and its maker-ness. The
+/// order kind is the maker's perspective (the maker of a sell order is its
+/// seller, of a buy order its buyer), so the proven role plus the payload's
+/// kind proves `is_mine` too — the same equivalence the Dart side leans on
+/// (`_deriveIsBuyer`, review round 2). A rebuilt row still never claims
+/// range metadata it cannot prove.
 ///
 /// Emits the rebuilt status itself: the arm that follows sees the row
 /// already holding it and skips its own write and update.
@@ -1601,12 +1603,20 @@ async fn rebuild_trade_from_dm(
         .status
         .and_then(map_core_status)
         .or_else(|| status_for_action(&kind.action))?;
+    // The order kind is the maker's perspective — the maker of a sell order
+    // is its seller, of a buy order its buyer — so the proven role plus the
+    // payload's kind is proven maker-ness (review round 2).
+    let is_mine = matches!(
+        (order.kind.as_ref(), &role),
+        (Some(mostro_core::order::Kind::Sell), TradeRole::Seller)
+            | (Some(mostro_core::order::Kind::Buy), TradeRole::Buyer)
+    );
     let db = crate::db::app_db::db()?;
     let trade = trade_row_from_small_order(
         order_id,
         order,
         role,
-        false,
+        is_mine,
         trade_index,
         counterparty,
         "",
@@ -4801,9 +4811,10 @@ async fn ingest_order_event_with(event: &nostr_sdk::prelude::Event, publish: Pub
             // reference client keys ownership by daemon UUID. The binding
             // miss is the common case (every stranger's order), answered by
             // the in-memory map or the negative cache; the row read only
-            // runs on a hit. A maker row recovered by DM rebuild carries
-            // `is_mine = false` on purpose — maker-ness is not provable from
-            // a mid-trade message — so this restore leaves it false too.
+            // runs on a hit. A row recovered by DM rebuild proves its
+            // maker-ness from the payload's kind plus the proven role
+            // (review round 2), so this restore trusts the row for makers
+            // and takers alike.
             if !info.is_mine && lookup_trade_key_index(&info.id).await.is_some() {
                 if let Some(db) = crate::db::app_db::db() {
                     if let Ok(Some(trade)) = db.get_trade_by_order_id(&info.id).await {
@@ -8845,7 +8856,10 @@ mod tests {
         assert_eq!(row.counterparty_pubkey, peer_hex);
         assert_eq!(row.order.status, crate::api::types::OrderStatus::Active);
         assert_eq!(row.trade_key_index, 11);
-        assert!(!row.order.is_mine, "maker-ness is not provable mid-trade");
+        assert!(
+            row.order.is_mine,
+            "the maker of a sell order is its seller (review round 2)",
+        );
         assert_eq!(row.order.amount_sats, Some(457));
         assert_eq!(
             get_trade_key_index(&order_id).await,
@@ -8856,6 +8870,65 @@ mod tests {
             drain_updates(&mut rx, &order_id),
             vec![crate::api::types::OrderStatus::Active],
             "the rebuild emits once; the arm sees the row current and stays quiet",
+        );
+    }
+
+    /// Review round 2, blocker 2 — the taker mirror of the rebuild above:
+    /// our key is the buyer of a sell order, so the row is a trade of ours
+    /// but not an order of ours (`is_mine == false`).
+    #[tokio::test]
+    async fn a_rebuilt_taker_row_is_not_mine() {
+        use mostro_core::message::{Action, Payload};
+
+        let path =
+            std::env::temp_dir().join(format!("mostro_rebuild_tk_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let my_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let peer_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+
+        let so = mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Active),
+            457,
+            "USD".to_string(),
+            None,
+            None,
+            100,
+            "Bank".to_string(),
+            0,
+            Some(my_hex.clone()),
+            Some(peer_hex.clone()),
+            None,
+            None,
+            None,
+        );
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                Action::HoldInvoicePaymentAccepted,
+                Some(Payload::Order(so)),
+                2_000,
+            ),
+            "test-rebuild-taker",
+            &my_hex,
+            13,
+        )
+        .await;
+
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row rebuilt from the DM");
+        assert_eq!(row.role, TradeRole::Buyer, "our key is the buyer's");
+        assert!(
+            !row.order.is_mine,
+            "the buyer of a sell order took it — not the maker",
         );
     }
 
@@ -8913,6 +8986,10 @@ mod tests {
             row.role,
             TradeRole::Buyer,
             "add-invoice addresses the buyer"
+        );
+        assert!(
+            !row.order.is_mine,
+            "buyer of a sell order: the fallback role derives taker-ness too",
         );
         assert_eq!(
             row.order.status,
