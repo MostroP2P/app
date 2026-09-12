@@ -42,7 +42,7 @@ void main() {
   });
 
   group('scripts/setup-hooks.sh', () {
-    /// A throwaway git repository holding just the script under test.
+    /// A throwaway git repository holding the installer and the hooks it copies.
     Future<Directory> freshClone() async {
       final tmp = Directory.systemTemp.createTempSync('hooks_setup_test');
       addTearDown(() => tmp.deleteSync(recursive: true));
@@ -50,33 +50,84 @@ void main() {
       Directory('${tmp.path}/scripts').createSync();
       setupHooks.copySync('${tmp.path}/scripts/setup-hooks.sh');
       await Process.run('chmod', ['+x', '${tmp.path}/scripts/setup-hooks.sh']);
+      Directory('${tmp.path}/.githooks').createSync();
+      for (final hook in Directory('.githooks').listSync().whereType<File>()) {
+        hook.copySync('${tmp.path}/.githooks/${hook.uri.pathSegments.last}');
+      }
       return tmp;
     }
+
+    Future<ProcessResult> install(Directory repo, [List<String> args = const []]) =>
+        Process.run('./scripts/setup-hooks.sh', args, workingDirectory: repo.path);
 
     Future<String> hooksPathOf(Directory repo) async {
       final result = await Process.run('git', [
         'config',
-        '--local',
         '--get',
         'core.hooksPath',
       ], workingDirectory: repo.path);
       return (result.stdout as String).trim();
     }
 
-    test('points core.hooksPath at .githooks in a fresh clone', () async {
+    File installed(Directory repo, String name) =>
+        File('${repo.path}/.git/hooks/$name');
+
+    test('copies the hooks into .git/hooks, leaving core.hooksPath unset',
+        () async {
       // Arrange
       final repo = await freshClone();
 
       // Act
-      final run = await Process.run(
-        './scripts/setup-hooks.sh',
-        const [],
-        workingDirectory: repo.path,
-      );
+      final run = await install(repo);
+
+      // Assert — a copy under .git/hooks is the whole point: no ref can write
+      // there, so checking out a hostile branch cannot swap the hook out.
+      expect(run.exitCode, 0, reason: '${run.stderr}');
+      for (final name in const [
+        'pre-commit',
+        'post-merge',
+        'post-checkout',
+        'post-rewrite',
+        'regen-if-needed.sh',
+      ]) {
+        expect(installed(repo, name).existsSync(), isTrue, reason: name);
+      }
+      expect(await hooksPathOf(repo), isEmpty);
+    });
+
+    test('migrates a clone still pointing core.hooksPath at the tracked dir',
+        () async {
+      // Arrange — the arrangement this script used to create, and the one that
+      // makes `git checkout` run code from the incoming ref.
+      final repo = await freshClone();
+      await Process.run('git', [
+        'config',
+        'core.hooksPath',
+        '.githooks',
+      ], workingDirectory: repo.path);
+
+      // Act
+      final run = await install(repo);
 
       // Assert
       expect(run.exitCode, 0, reason: '${run.stderr}');
-      expect(await hooksPathOf(repo), '.githooks');
+      expect(await hooksPathOf(repo), isEmpty);
+      expect(installed(repo, 'post-checkout').existsSync(), isTrue);
+    });
+
+    test('refuses to clobber a hook it did not install', () async {
+      // Arrange
+      final repo = await freshClone();
+      final mine = installed(repo, 'pre-commit')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('#!/bin/sh\necho mine\n');
+
+      // Act
+      final run = await install(repo);
+
+      // Assert
+      expect(run.exitCode, isNonZero);
+      expect(mine.readAsStringSync(), contains('echo mine'));
     });
 
     test('leaves a hooksPath someone else set alone', () async {
@@ -89,11 +140,7 @@ void main() {
       ], workingDirectory: repo.path);
 
       // Act
-      final run = await Process.run(
-        './scripts/setup-hooks.sh',
-        const [],
-        workingDirectory: repo.path,
-      );
+      final run = await install(repo);
 
       // Assert
       expect(run.exitCode, isNonZero);
@@ -105,13 +152,45 @@ void main() {
       final repo = await freshClone();
 
       // Act
-      final run = await Process.run('./scripts/setup-hooks.sh', const [
-        '--check',
-      ], workingDirectory: repo.path);
+      final run = await install(repo, const ['--check']);
 
       // Assert
       expect(run.exitCode, isNonZero);
-      expect(await hooksPathOf(repo), isEmpty);
+      expect(installed(repo, 'post-checkout').existsSync(), isFalse);
+    });
+
+    test('refreshes a copy that has fallen behind its source', () async {
+      // Arrange — an edit in .githooks/ only reaches a clone when the installer
+      // runs again, so this is the path that keeps copies from going stale.
+      final repo = await freshClone();
+      await install(repo);
+      // Keeps the marker: this is our copy gone stale, not somebody else's hook.
+      installed(repo, 'post-merge').writeAsStringSync(
+        '#!/bin/sh\n# installed by scripts/setup-hooks.sh\n# stale\n',
+      );
+
+      // Act
+      final run = await install(repo);
+
+      // Assert
+      expect(run.exitCode, 0, reason: '${run.stderr}');
+      expect(
+        installed(repo, 'post-merge').readAsStringSync(),
+        File('.githooks/post-merge').readAsStringSync(),
+      );
+    });
+
+    test('is a no-op the second time', () async {
+      // Arrange
+      final repo = await freshClone();
+      await install(repo);
+
+      // Act
+      final run = await install(repo);
+
+      // Assert
+      expect(run.exitCode, 0, reason: '${run.stderr}');
+      expect(run.stdout, contains('up to date'));
     });
   });
 

@@ -73,7 +73,9 @@ Install them once per clone:
 ./scripts/setup-hooks.sh
 ```
 
-That points `core.hooksPath` at `.githooks` (and is a no-op if it already does; it refuses, rather than overwrites, when you have pointed that config somewhere else). `./scripts/frb-generate.sh` runs the installer too, so the first codegen in a fresh clone arms the hooks — `./scripts/setup-hooks.sh --check` tells you where a clone stands.
+That copies `.githooks/` into this clone's `.git/hooks/`. It is idempotent, it refreshes copies that have fallen behind, and it refuses rather than overwrites when a hook it did not install is already there or when you have pointed `core.hooksPath` somewhere of your own. `./scripts/frb-generate.sh` runs the installer too, so the first codegen in a fresh clone arms the hooks and later runs keep them current — `./scripts/setup-hooks.sh --check` tells you where a clone stands.
+
+They are **copies, not `core.hooksPath=.githooks`**. Pointing that config at a tracked directory makes git run hook code from whatever ref is checked out, so `gh pr checkout` on an outside contributor's branch would execute their `post-checkout` script there and then, with no build and no run in between. `.git/hooks` is not tracked and no ref can write it, so checking out a hostile branch stays inert. The cost is that a hook edit reaches a clone only when the installer runs again, which codegen does anyway. If you have an older clone with `core.hooksPath=.githooks`, the installer clears it and migrates you.
 
 What the hooks do:
 
