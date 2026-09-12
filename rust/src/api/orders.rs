@@ -8668,6 +8668,29 @@ mod tests {
         );
     }
 
+    /// Review round 2, blocker 3: `persist_trade_row` is the one way to
+    /// (re)create a trade row — it lifts the wipe tombstone first. A direct
+    /// `save_trade` reverted into any production path (`take_order`,
+    /// `create_order`, the adoption, the rebuild) would leave a stale
+    /// tombstone silently swallowing every daemon message of the new trade,
+    /// and `a_retake_after_a_wipe_lifts_the_tombstone` above only proves the
+    /// helper works, not that the callers use it. Pin the callers statically.
+    #[test]
+    fn production_code_saves_trades_only_through_persist_trade_row() {
+        let source = include_str!("orders.rs");
+        let production = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("split always yields a first chunk");
+        assert_eq!(
+            production.matches(".save_trade(").count(),
+            1,
+            "expected exactly one .save_trade( call in production code — the \
+             one inside persist_trade_row. Route new call sites through \
+             persist_trade_row so the wipe tombstone is lifted (#394).",
+        );
+    }
+
     /// #394 "minor": a replayed message carrying the value the row already
     /// holds must neither write nor emit — but the cursor still advances
     /// (the message WAS accepted), so strictly-older backlog stays refused.
