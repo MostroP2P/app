@@ -1101,7 +1101,7 @@ void main() {
       expect(find.byType(TradeDetailScreen), findsNothing);
       expect(find.text('home'), findsOneWidget);
       expect(
-        find.text(AppLocalizationsEn().orderNoLongerActive),
+        find.text(AppLocalizationsEn().tradeNoLongerYours),
         findsOneWidget,
       );
     });
@@ -1119,7 +1119,7 @@ void main() {
       await _finishPageTransition(tester);
 
       expect(find.byType(TradeDetailScreen), findsOneWidget);
-      expect(find.text(AppLocalizationsEn().orderNoLongerActive), findsNothing);
+      expect(find.text(AppLocalizationsEn().tradeNoLongerYours), findsNothing);
     });
 
     testWidgets('a take is not judged before its trade row has loaded', (

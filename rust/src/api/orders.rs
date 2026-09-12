@@ -563,6 +563,7 @@ impl OrderBook {
     ///   38383 event lands on nothing local and applies as is. That covers a
     ///   `Canceled` that overtook the republish on the way here.
     /// * No view, entry already `pending`: already public, left alone.
+    /// * No view and no entry: nothing to settle.
     pub(crate) async fn settle_after_lost_take(&self, order_id: &str) {
         let noted = self.wire_notes().remove(order_id);
         let public_status = match &noted {
@@ -581,6 +582,15 @@ impl OrderBook {
             (None, Some(OrderStatus::Pending)) => crate::api::logging::blog_info(
                 "orders",
                 format!("lost take order={short}: book entry already public pending"),
+            ),
+            // No view noted and no entry: nothing to settle. Logged apart so
+            // the drop below is only reported when an entry was there.
+            (None, None) => crate::api::logging::blog_info(
+                "orders",
+                format!(
+                    "lost take order={short}: no book entry to settle — the next Kind \
+                     38383 event applies as is"
+                ),
             ),
             (_, public) => {
                 self.remove_order(order_id).await;
@@ -1291,15 +1301,30 @@ pub async fn take_order(
 /// keys its trades. Saved through [`persist_trade_row`], which lifts the wipe
 /// tombstone an earlier take of this order left, so the retake's own messages
 /// are not dropped as replays.
+///
+/// Every earlier row goes, whatever its status, and no real history goes
+/// with it. A trade that truly ended — success, a cooperative or admin
+/// cancel, an expiry, a resolved dispute — leaves its order in a status
+/// mostrod never takes it out of: a take needs `Pending` (`take_buy.rs`,
+/// `take_sell.rs`), and the only transitions back to `Pending` start from a
+/// waiting state. So no confirmed take of that order can follow it. What can
+/// sit next to a new take is a local leftover of a take that never went
+/// active, and some of those read `Canceled`: before the cancel stopped
+/// writing its status up front, a taker's own cancel did. Scoping the delete
+/// to never-active statuses would keep exactly those.
 async fn persist_confirmed_take(trade: &crate::api::types::TradeInfo) {
     let Some(db) = crate::db::app_db::db() else {
         return;
     };
     if let Err(e) = db.delete_trade_by_order_id(&trade.order.id).await {
+        // Saving anyway beats losing the new trade, but it leaves the state
+        // this function exists to prevent: say so, for whoever reads the log.
         crate::api::logging::blog_warn(
             "orders",
             format!(
-                "take_order: earlier rows for order={} not removed: {e}",
+                "take_order: earlier rows for order={} not removed ({e}) — saving the \
+                 new take anyway: the order may now have two rows, and a lookup by \
+                 order id (LIMIT 1, unordered) can return the earlier one",
                 crate::api::logging::short_id(&trade.order.id),
             ),
         );

@@ -156,7 +156,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   /// `cancellation_wipes_history`: before `active` mostrod cancels at once —
   /// a take hands the order back to the book, a maker's order dies — and the
   /// trade row is wiped. From `active` on it is a cooperative request, and
-  /// `inProgress` may be either.
+  /// `inProgress` may be either. Kept equal to the Rust predicate by
+  /// `the_trade_screen_copy_of_cancellation_wipes_history_matches`
+  /// (`rust/src/mostro/status.rs`), which reads this set from source: keep
+  /// the `=> const {…}.contains(status)` shape.
   static bool _cancelEndsTrade(TradeStatus status) => const {
     TradeStatus.pending,
     TradeStatus.waitingInvoice,
@@ -490,7 +493,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
         trade == null &&
         order?.isMine != true) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _leave(l10n.orderNoLongerActive),
+        (_) => _leave(l10n.tradeNoLongerYours),
       );
     }
 

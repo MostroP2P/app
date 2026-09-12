@@ -401,6 +401,7 @@
   "payWithLightningWallet": "Payer avec un portefeuille Lightning",
   "noLightningWalletFound": "Aucun portefeuille Lightning trouvé sur cet appareil",
   "orderNoLongerActive": "Cet ordre n'est plus actif",
+  "tradeNoLongerYours": "Vous ne participez plus à cet échange",
   "sessionTimeoutMessage": "Aucune réponse reçue, vérifiez votre connexion et réessayez plus tard",
   "noIdentityFoundMessage": "Aucune identité trouvée — essayez de redémarrer l'application.",
   "failedToLoadSecretWordsMessage": "Échec du chargement des mots secrets. Veuillez réessayer.",
