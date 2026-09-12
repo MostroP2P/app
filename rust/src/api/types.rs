@@ -380,6 +380,16 @@ pub struct NymIdentity {
     pub color_hue: u16,
 }
 
+/// What the add-invoice screen needs from a BOLT11 invoice to validate it
+/// before submission (see `api::invoice::decode_bolt11`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Bolt11Summary {
+    /// Whole sats, or `None` for an invoice that leaves the amount open.
+    pub amount_sats: Option<u64>,
+    /// Unix seconds after which the invoice can no longer be paid.
+    pub expires_at: i64,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LogEntry {
     pub id: u32,
