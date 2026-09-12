@@ -1668,9 +1668,15 @@ pub(crate) async fn subscribe_daemon_messages(
         .author(mostro_pubkey)
         .pubkey(trade_pubkey)
         .limit(0);
+    // `subscribe_accepted`, not a bare subscribe: the SDK reports a REQ
+    // that failed on every relay as an `Ok`, and a failed REQ is removed
+    // from the relay's registry, beyond reconnect resubscription's reach.
+    // Marking that Live would promise coverage that never exists — claims
+    // would bounce off it while the caller's request dies at its 10 s
+    // timeout with `NoDaemonResponse`.
     let sub_id = crate::nostr::subscriptions::daemon_message_subscription_id(&trade_pubkey_hex);
-    if let Err(e) = client.subscribe(filter).with_id(sub_id).await {
-        log::warn!("[orders] subscribe_daemon_messages subscribe failed: {e}");
+    if let Err(e) = subscribe_accepted(&client, sub_id, filter).await {
+        log::warn!("[orders] subscribe_daemon_messages: {e}");
         crate::nostr::subscriptions::release(setup).await;
         return;
     }
@@ -3973,26 +3979,20 @@ fn relay_list_subscription_id() -> nostr_sdk::prelude::SubscriptionId {
     nostr_sdk::prelude::SubscriptionId::new("mostro-relay-list")
 }
 
-/// Point the long-lived subscription `id` at `filter`, replacing whatever it
-/// carried before.
-///
-/// nostr-sdk 0.45 refuses a subscribe whose id already exists and keeps the
-/// old filters, so the id is closed first (a no-op when it was never open).
-/// The brief gap between CLOSE and REQ loses nothing: a node switch refetches
-/// the book right after, and the Kind-14 feed has no `since`, so its REQ
-/// replays history.
+/// Subscribe `filter` under `id`, failing when no relay accepted the REQ.
 ///
 /// The SDK reports per-relay failures inside an `Ok` output, which is how a
-/// rejected re-subscribe used to pass for a live one. No relay accepting it is
+/// rejected subscribe used to pass for a live one. Empty success is not a
+/// transient state, either: a REQ that failed on a relay is *removed* from
+/// that relay's subscription registry (nostr-sdk 0.45,
+/// `subscribe_long_lived`), so reconnect resubscription cannot revive it —
+/// the subscription exists nowhere and never will. No relay accepting it is
 /// an error here; a partial failure is logged.
-async fn replace_subscription(
+async fn subscribe_accepted(
     client: &nostr_sdk::prelude::Client,
     id: nostr_sdk::prelude::SubscriptionId,
     filter: nostr_sdk::prelude::Filter,
 ) -> Result<()> {
-    if let Err(e) = client.unsubscribe(&id).await {
-        log::warn!("[orders] closing {id} before re-subscribing failed: {e}");
-    }
     let output = client
         .subscribe(filter)
         .with_id(id.clone())
@@ -4015,6 +4015,25 @@ async fn replace_subscription(
         );
     }
     Ok(())
+}
+
+/// Point the long-lived subscription `id` at `filter`, replacing whatever it
+/// carried before.
+///
+/// nostr-sdk 0.45 refuses a subscribe whose id already exists and keeps the
+/// old filters, so the id is closed first (a no-op when it was never open).
+/// The brief gap between CLOSE and REQ loses nothing: a node switch refetches
+/// the book right after, and the Kind-14 feed has no `since`, so its REQ
+/// replays history.
+async fn replace_subscription(
+    client: &nostr_sdk::prelude::Client,
+    id: nostr_sdk::prelude::SubscriptionId,
+    filter: nostr_sdk::prelude::Filter,
+) -> Result<()> {
+    if let Err(e) = client.unsubscribe(&id).await {
+        log::warn!("[orders] closing {id} before re-subscribing failed: {e}");
+    }
+    subscribe_accepted(client, id, filter).await
 }
 
 /// (Re)subscribe the order-book (Kind 38383) and Mostro-reply (Kind 14)
@@ -5486,6 +5505,43 @@ mod tests {
         assert!(
             result.is_err(),
             "a subscription no relay accepted must not pass for a live one"
+        );
+    }
+
+    /// PR #407 CodeRabbit: the per-trade daemon REQ shares that guard via
+    /// `subscribe_accepted` — no relay accepting it must be an error, so
+    /// `subscribe_daemon_messages` releases its claim instead of marking a
+    /// coverage-less subscription Live (a failed REQ is also removed from
+    /// the relay's registry, beyond reconnect resubscription's reach).
+    #[tokio::test]
+    async fn a_per_trade_subscription_no_relay_accepts_is_an_error() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::{Client, Keys};
+
+        let relay = MockRelay::run().await.expect("mock relay");
+        let client = Client::new();
+        client
+            .add_relay(relay.url().await)
+            .await
+            .expect("add relay");
+        // Added but never connected: the only relay rejects the REQ.
+
+        let trade_pubkey = Keys::generate().public_key();
+        let filter = nostr_sdk::prelude::Filter::new()
+            .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
+            .author(Keys::generate().public_key())
+            .pubkey(trade_pubkey)
+            .limit(0);
+        let result = subscribe_accepted(
+            &client,
+            crate::nostr::subscriptions::daemon_message_subscription_id(&trade_pubkey.to_hex()),
+            filter,
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "a per-trade REQ no relay accepted must not reach mark_live"
         );
     }
 

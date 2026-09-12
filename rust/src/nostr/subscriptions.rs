@@ -275,8 +275,12 @@ async fn parked_on_current_setup(
 /// point a bounce is backed by a real subscription. Consumes (disarms) the
 /// guard: from here the entry belongs to the watcher's exit paths.
 pub(crate) async fn mark_live(mut guard: SetupGuard) {
-    let Some(key) = guard.key.take() else { return };
+    // Lock first, disarm after: cancellation at this await must leave the
+    // guard armed, so its `Drop` still frees the `Setup` entry instead of
+    // leaking it (its own `try_lock` fails against whoever holds this lock
+    // and falls back to the spawned release).
     let mut map = registry().lock().await;
+    let Some(key) = guard.key.take() else { return };
     if let Some(entry) = map.get_mut(&key) {
         entry.state = State::Live { rearmed: false };
         entry.setup_done.notify_waiters();
@@ -289,8 +293,10 @@ pub(crate) async fn mark_live(mut guard: SetupGuard) {
 /// Parked claims are woken and the first to retry becomes the new owner,
 /// re-running setup from scratch.
 pub(crate) async fn release(mut guard: SetupGuard) {
+    // Same ordering as `mark_live`: disarm only once the lock is held.
+    let mut map = registry().lock().await;
     let Some(key) = guard.key.take() else { return };
-    remove_and_wake(&key, &mut *registry().lock().await);
+    remove_and_wake(&key, &mut map);
 }
 
 /// The owner's idle-timeout exit: refresh the lease or dismantle, atomically.
@@ -689,5 +695,49 @@ mod tests {
             .unwrap()
             .expect("the parked claim must take over after the guard's Drop released the key");
         release(takeover).await;
+    }
+
+    /// PR #407 CodeRabbit: `mark_live`/`release` must not disarm the guard
+    /// before they hold the registry lock. Cancelled at that await with the
+    /// key already taken, the guard would drop disarmed and the `Setup`
+    /// entry would leak — every later claim parking forever. Cancel each
+    /// one exactly there (the test holds the lock, so both must be parked
+    /// on it) and assert the guard's `Drop` still frees the key.
+    #[tokio::test]
+    async fn cancelled_mark_live_and_release_still_free_the_key() {
+        use crate::rt::time::{timeout, Duration};
+
+        for consume_via_release in [false, true] {
+            let key = if consume_via_release { "ak" } else { "aj" }.repeat(32);
+            let guard = claim(&key, 1).await.expect("first claim owns the key");
+
+            // Park the consuming call on the registry lock…
+            let held = registry().lock().await;
+            let task = tokio::spawn(async move {
+                if consume_via_release {
+                    release(guard).await;
+                } else {
+                    mark_live(guard).await;
+                }
+            });
+            for _ in 0..20 {
+                tokio::task::yield_now().await;
+            }
+            assert!(!task.is_finished(), "must be parked on the held lock");
+
+            // …and cancel it right there. `task.await` returns only after
+            // the future — and with it the still-armed guard — is dropped;
+            // the guard's `Drop` finds this lock held and spawns its
+            // release, which runs once the test lets go.
+            task.abort();
+            let _ = task.await;
+            drop(held);
+
+            let guard = timeout(Duration::from_secs(5), claim(&key, 1))
+                .await
+                .expect("a cancelled consume must leave the key claimable, not park forever")
+                .expect("the freed key is claimed fresh");
+            release(guard).await;
+        }
     }
 }

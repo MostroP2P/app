@@ -364,9 +364,12 @@ enforced by a registry in `nostr/subscriptions.rs`:
   covered key (the restore apply #218, the resume paths #291/#308) is
   idempotent.
 - **A bounce is never backed by setup alone.** A claim advances
-  `Setup → Live` only once `client.subscribe` succeeded; a claim landing
-  mid-setup parks until the owner is Live (then bounces, against a real
-  REQ) or until that setup fails and releases (then takes over and
+  `Setup → Live` only once at least one relay accepted the REQ — the SDK
+  reports a subscribe every relay rejected as an `Ok`, and a rejected REQ
+  is dropped from the relay's registry, beyond reconnect resubscription's
+  reach, so it counts as a failed setup and releases the claim. A claim
+  landing mid-setup parks until the owner is Live (then bounces, against
+  a real REQ) or until that setup fails and releases (then takes over and
   subscribes itself). A bounce is therefore always a promise of coverage
   that exists.
 - **A bounce is a lease refresh**: it re-arms the owner's 30-minute idle
