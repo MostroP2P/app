@@ -4,6 +4,11 @@ import 'package:mostro/shared/mascot/mostro_mood.dart';
 /// Whatever this run was given, so the end-to-end check knows to run.
 const String _define = String.fromEnvironment('MOSTRO_FORCE_SEASON');
 
+/// The season this run's define actually names, which is the thing to key on.
+/// A define that is absent and one that names no season both name nothing,
+/// and "non-empty" is not the same as "forces a season".
+final MostroSeason? _named = parseSeason(_define);
+
 void main() {
   group('seasonOn', () {
     test('marks the three dates Bitcoin remembers, whatever the year', () {
@@ -83,21 +88,33 @@ void main() {
   });
 
   group('forcedSeason', () {
-    test('forces nothing unless the build says so', () {
-      // The anniversaries have to keep arriving on their own in an ordinary
-      // build, which is every build that does not pass the define.
-      expect(forcedSeason, _define.isEmpty ? isNull : isNotNull);
+    test('is exactly what this build\'s define names', () {
+      // Holds in every build, including one whose define names no season.
+      expect(forcedSeason, _named);
     });
+
+    test(
+      'forces nothing when nothing names a season',
+      () {
+        // The ordinary case, and the one CI runs: the anniversaries have to
+        // keep arriving on their own.
+        expect(forcedSeason, isNull);
+        expect(currentSeason(DateTime(2026, 10, 31)), MostroSeason.whitepaper);
+      },
+      skip:
+          _named == null
+              ? false
+              : 'this build forces $_named, so it cannot make this claim',
+    );
 
     test(
       'reaches currentSeason when the build defines one',
       () {
-        expect(forcedSeason, parseSeason(_define));
         // An ordinary day, so only the define can be answering.
-        expect(currentSeason(DateTime(2026, 6, 1)), forcedSeason);
+        expect(currentSeason(DateTime(2026, 6, 1)), _named);
       },
       skip:
-          _define.isEmpty
+          _named == null
               ? 'pass --dart-define=MOSTRO_FORCE_SEASON=genesis to check '
                   'the wiring end to end'
               : false,
