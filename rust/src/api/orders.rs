@@ -3126,6 +3126,14 @@ async fn dispatch_mostro_message(
                 return;
             }
             record_status_event(&order_id, event_ts).await;
+            // The add-invoice screen's countdown starts here, not at the
+            // status cursor, which later messages keep advancing.
+            crate::api::invoice::record_invoice_step_start(
+                &order_id,
+                &format!("{new_status:?}"),
+                event_ts,
+            )
+            .await;
             // Sync the book with status AND calculated sats: the add-invoice
             // screen polls the book for the amount (tradeAmountProvider) and
             // refuses to submit an LN address without it.
@@ -3221,6 +3229,13 @@ async fn dispatch_mostro_message(
                 return;
             }
             record_status_event(&order_id, event_ts).await;
+            // The pay-invoice screen's countdown starts here (see AddInvoice).
+            crate::api::invoice::record_invoice_step_start(
+                &order_id,
+                "WaitingPayment",
+                event_ts,
+            )
+            .await;
             // Save the hold invoice and update status to WaitingPayment. A
             // replay carrying the invoice and amount the row already holds
             // writes and emits nothing.
@@ -3576,8 +3591,9 @@ async fn status_sync_blocked_by_terminal(
 
 /// Newest daemon-message timestamp already applied to `order_id`'s status.
 ///
-/// `None` when nothing was ever recorded, or when there is no durable store
-/// (web, until #233) — both mean "no high-water mark", which fails open.
+/// `None` when nothing was ever recorded, or when the store is not initialised
+/// yet — both mean "no high-water mark", which fails open. Native (SQLite) and
+/// web (IndexedDB settings KV, since #246) both persist it.
 async fn load_status_cursor(order_id: &str) -> Option<i64> {
     let db = crate::db::app_db::db()?;
     db.get_setting(&crate::db::settings_keys::status_cursor(order_id))

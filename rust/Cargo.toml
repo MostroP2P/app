@@ -69,6 +69,11 @@ k256 = { version = "0.13", features = ["ecdh", "arithmetic"] }
 bip32 = "0.5"
 bip39 = { version = "2", features = ["all-languages", "rand"] }
 
+# BOLT11 decoding for the add-invoice screen's live validation (amount and
+# expiry). Already in the native tree through cdk; on wasm its heavy
+# dependency, `bitcoin`, already comes in through mostro-core.
+lightning-invoice = "0.34"
+
 # Native-only: SQLite + tokio do NOT compile to WASM
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

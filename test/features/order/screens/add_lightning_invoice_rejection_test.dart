@@ -61,6 +61,8 @@ void main() {
         expect(_semantics('invoice.error'), findsNothing);
 
         await tester.enterText(find.byType(TextField), 'lnbc1short');
+        // Send stays disabled until the validation debounce has run.
+        await tester.pump(const Duration(milliseconds: 400));
         await tester.pump();
         await tester.tap(_semantics('invoice.submit'));
         await tester.pump();

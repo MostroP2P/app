@@ -101,6 +101,14 @@ pub mod settings_keys {
         format!("{STATUS_CURSOR_PREFIX}{order_id}")
     }
 
+    /// Per-order start of the current invoice step (`<status>:<unix secs>`,
+    /// node clock), written only by the AddInvoice / PayInvoice arms. Unlike
+    /// [`status_cursor`], later messages for the same step never advance it,
+    /// so the invoice screens' countdown cannot be pushed out.
+    pub fn invoice_step_start(order_id: &str) -> String {
+        format!("invoice_step_start:{order_id}")
+    }
+
     /// Per-order tombstone marking the trade row as deleted **on purpose** —
     /// by the pre-active cancel wipe (`cancellation_wipes_history`) or by the
     /// stale sweeper — so a daemon message for an order with no row can tell

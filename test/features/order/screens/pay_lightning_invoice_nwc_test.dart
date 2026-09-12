@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/about/providers/mostro_node_provider.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
@@ -42,6 +44,8 @@ void main() {
                 peerReviews: 3,
                 peerDays: 50,
               )),
+          invoiceDeadlineProvider.overrideWith((ref, id) async => null),
+          mostroNodeProvider.overrideWith((ref) async => null),
         ],
         child: MaterialApp(
           theme: buildDarkTheme(),

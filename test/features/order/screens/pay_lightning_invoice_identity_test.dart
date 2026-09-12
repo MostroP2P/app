@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/about/providers/mostro_node_provider.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
@@ -41,6 +43,9 @@ void main() {
                   (ref) => const Stream<TradeUpdate>.empty(),
                 ),
                 tradeInfoProvider.overrideWith((ref, id) async => null),
+                invoiceDeadlineProvider.overrideWith((ref, id) async => null),
+                mostroNodeProvider.overrideWith((ref) async => null),
+                activeNodeNameProvider.overrideWithValue(null),
               ],
               child: MaterialApp(
                 theme: buildDarkTheme(),
@@ -83,7 +88,7 @@ void main() {
                 .label,
             'order-1',
           );
-          expect(find.text('Order order-1'), findsOneWidget);
+          expect(find.text('#order-1'), findsOneWidget);
           expect(
             id(buyer ? 'invoice.text' : 'pay.invoice.text'),
             findsOneWidget,
