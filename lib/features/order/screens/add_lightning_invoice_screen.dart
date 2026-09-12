@@ -168,6 +168,16 @@ class _AddLightningInvoiceScreenState
       expectedSats: sats?.toInt(),
       decoded: _decoded,
       decoderAvailable: _decoderAvailable,
+      // The node's `lnd_networks` (38385): an invoice for another chain is
+      // refused here rather than when the daemon tries to pay it.
+      nodeNetworks:
+          ref
+              .watch(mostroNodeProvider)
+              .valueOrNull
+              ?.lndNetworks
+              ?.split(',')
+              .where((n) => n.trim().isNotEmpty)
+              .toList(),
       // The same clock as the countdown, so the two never disagree.
       now: clock.now().millisecondsSinceEpoch ~/ 1000,
     );
@@ -500,27 +510,52 @@ class _AddLightningInvoiceScreenState
       // under the field rather than in the footer.
       resizeToAvoidBottomInset: true,
       appBar: appBar,
-      body: LayoutBuilder(
+      // At 00:00 the form goes: mostrod still accepts a late invoice until
+      // its scheduler cancels, but the screen does not invite one — same
+      // terminal state as 13b. A submission already in flight finishes.
+      body: ValueListenableBuilder<Duration?>(
+        valueListenable: invoiceRemaining,
         builder:
-            (context, constraints) => SingleChildScrollView(
-              // #267: bottom system-bar inset so the footer clears the
-              // gesture / 3-button navigation bar.
-              padding: EdgeInsets.fromLTRB(
-                kInvoiceGutter,
-                4,
-                kInvoiceGutter,
-                kInvoiceGutter + MediaQuery.of(context).viewPadding.bottom,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 4 - kInvoiceGutter,
-                ),
-                child: IntrinsicHeight(child: _form(l10n, sats, trade)),
-              ),
-            ),
+            (context, remaining, _) =>
+                remaining == Duration.zero && !_submitting
+                    ? InvoiceTimeUpView(
+                      title: l10n.invoiceTimeUpTitle,
+                      body: l10n.invoiceTimeUpBody,
+                      actionLabel: l10n.invoiceBackToBook,
+                      onAction: () {
+                        _navigated = true;
+                        refreshTrades(ref);
+                        context.go(AppRoute.home);
+                      },
+                    )
+                    : _scrollableForm(l10n, sats, trade),
       ),
     );
   }
+
+  Widget _scrollableForm(
+    AppLocalizations l10n,
+    BigInt? sats,
+    TradeInfo? trade,
+  ) => LayoutBuilder(
+    builder:
+        (context, constraints) => SingleChildScrollView(
+          // #267: bottom system-bar inset so the footer clears the
+          // gesture / 3-button navigation bar.
+          padding: EdgeInsets.fromLTRB(
+            kInvoiceGutter,
+            4,
+            kInvoiceGutter,
+            kInvoiceGutter + MediaQuery.of(context).viewPadding.bottom,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight - 4 - kInvoiceGutter,
+            ),
+            child: IntrinsicHeight(child: _form(l10n, sats, trade)),
+          ),
+        ),
+  );
 
   Widget _form(AppLocalizations l10n, BigInt? sats, TradeInfo? trade) {
     final check = _check(sats);
@@ -676,28 +711,36 @@ class _AddLightningInvoiceScreenState
   }
 
   /// The validation row's sentence, or null when the row is not drawn.
-  String? _validationText(
-    AppLocalizations l10n,
-    InvoiceCheck check,
-  ) => switch (check) {
-    InvoiceCheckNone() ||
-    InvoiceCheckPending() ||
-    InvoiceCheckUnverified() => null,
-    InvoiceCheckAddress() => l10n.invoiceValidAddress,
-    InvoiceCheckValid(:final sats) => l10n.invoiceValidInvoice(
-      formatInvoiceSats(sats),
-    ),
-    InvoiceCheckError(:final problem, :final actualSats, :final expectedSats) =>
-      switch (problem) {
-        InvoiceProblem.wrongAmount => l10n.invoiceErrorWrongAmount(
-          formatInvoiceSats(actualSats ?? 0),
-          formatInvoiceSats(expectedSats ?? 0),
+  String? _validationText(AppLocalizations l10n, InvoiceCheck check) =>
+      switch (check) {
+        InvoiceCheckNone() ||
+        InvoiceCheckPending() ||
+        InvoiceCheckUnverified() => null,
+        InvoiceCheckAddress() => l10n.invoiceValidAddress,
+        InvoiceCheckValid(:final sats) => l10n.invoiceValidInvoice(
+          formatInvoiceSats(sats),
         ),
-        InvoiceProblem.expired => l10n.invoiceErrorExpired,
-        InvoiceProblem.malformed => l10n.invoiceErrorMalformed,
-        InvoiceProblem.unrecognized => l10n.invoiceErrorUnrecognized,
-      },
-  };
+        InvoiceCheckError(
+          :final problem,
+          :final actualMsat,
+          :final expectedSats,
+          :final invoiceNetwork,
+          :final nodeNetwork,
+        ) =>
+          switch (problem) {
+            InvoiceProblem.wrongAmount => l10n.invoiceErrorWrongAmount(
+              formatInvoiceMsat(actualMsat ?? 0),
+              formatInvoiceSats(expectedSats ?? 0),
+            ),
+            InvoiceProblem.wrongNetwork => l10n.invoiceErrorWrongNetwork(
+              invoiceNetwork ?? '?',
+              nodeNetwork ?? '?',
+            ),
+            InvoiceProblem.expired => l10n.invoiceErrorExpired,
+            InvoiceProblem.malformed => l10n.invoiceErrorMalformed,
+            InvoiceProblem.unrecognized => l10n.invoiceErrorUnrecognized,
+          },
+      };
 
   /// `≈ 312 ARS · Bitcoin Bolivia`: what the sats are worth, and the node
   /// that settles the trade (not the counterpart).

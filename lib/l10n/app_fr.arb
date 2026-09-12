@@ -1015,5 +1015,8 @@
   "invoiceQrSemantics": "QR code de la facture Lightning : {invoice}",
   "invoiceExpiredTitle": "La facture a expiré",
   "invoiceExpiredBody": "Elle n'a pas été payée à temps : Mostro annule l'opération et aucun sat n'a quitté ton portefeuille.",
-  "invoiceBackToBook": "Retour au carnet d'ordres"
+  "invoiceBackToBook": "Retour au carnet d'ordres",
+  "invoiceTimeUpTitle": "Le temps est écoulé",
+  "invoiceTimeUpBody": "La facture n'a pas été envoyée à temps : Mostro annule l'opération. Rien n'a été engagé de ton côté.",
+  "invoiceErrorWrongNetwork": "La facture est pour {invoice}, le nœud utilise {node}"
 }

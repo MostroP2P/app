@@ -1015,5 +1015,8 @@
   "invoiceQrSemantics": "Codice QR della fattura Lightning: {invoice}",
   "invoiceExpiredTitle": "La fattura è scaduta",
   "invoiceExpiredBody": "Non è stata pagata in tempo: Mostro annulla l'operazione e nessun sat ha lasciato il tuo wallet.",
-  "invoiceBackToBook": "Torna al registro ordini"
+  "invoiceBackToBook": "Torna al registro ordini",
+  "invoiceTimeUpTitle": "Il tempo è scaduto",
+  "invoiceTimeUpBody": "La fattura non è stata inviata in tempo: Mostro annulla l'operazione. Da parte tua non è stato impegnato nulla.",
+  "invoiceErrorWrongNetwork": "La fattura è per {invoice}, il nodo usa {node}"
 }

@@ -74,7 +74,11 @@ Future<void> _pump(
             (ref, id) async => _nowSeconds + left.inSeconds,
           ),
           invoiceDecoderProvider.overrideWithValue(
-            (input) async => (amountSats: 250, expiresAt: _nowSeconds + 3600),
+            (input) async => (
+              amountMsat: 250000,
+              expiresAt: _nowSeconds + 3600,
+              network: 'mainnet',
+            ),
           ),
           mostroNodeProvider.overrideWith((ref) async => null),
           activeNodeNameProvider.overrideWithValue('Bitcoin Bolivia'),

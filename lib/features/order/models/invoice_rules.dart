@@ -162,32 +162,72 @@ enum InvoiceProblem {
   wrongAmount,
 
   expired,
+
+  /// Decodes, but for another chain than the node's.
+  wrongNetwork,
 }
 
 final class InvoiceCheckError extends InvoiceCheck {
-  const InvoiceCheckError(this.problem, {this.actualSats, this.expectedSats});
+  const InvoiceCheckError(
+    this.problem, {
+    this.actualMsat,
+    this.expectedSats,
+    this.invoiceNetwork,
+    this.nodeNetwork,
+  });
   final InvoiceProblem problem;
 
-  /// Set for [InvoiceProblem.wrongAmount].
-  final int? actualSats;
+  /// Set for [InvoiceProblem.wrongAmount]; msat, so a sub-sat remainder can
+  /// be shown rather than rounded away.
+  final int? actualMsat;
   final int? expectedSats;
+
+  /// Set for [InvoiceProblem.wrongNetwork], in LND's naming.
+  final String? invoiceNetwork;
+  final String? nodeNetwork;
 }
 
 /// The decoded fields of a BOLT11 invoice, as the bridge returns them.
-typedef DecodedInvoice = ({int? amountSats, int expiresAt});
+typedef DecodedInvoice = ({int? amountMsat, int expiresAt, String network});
+
+/// An msat amount as sats: `250`, or `250.5` when it carries a remainder.
+String formatInvoiceMsat(int msat) {
+  final sats = msat ~/ 1000;
+  final rest = msat % 1000;
+  if (rest == 0) return formatInvoiceSats(sats);
+  final fraction = rest
+      .toString()
+      .padLeft(3, '0')
+      .replaceFirst(RegExp(r'0+$'), '');
+  return '${formatInvoiceSats(sats)}.$fraction';
+}
+
+/// Whether an invoice for [invoiceNetwork] can be paid by a node that lists
+/// [nodeNetworks] (its `lnd_networks`). LND names testnet generations
+/// `testnet`, `testnet3`, `testnet4`; BOLT11 tells them all `lntb`.
+bool invoiceNetworkMatches(String invoiceNetwork, List<String> nodeNetworks) {
+  String family(String name) =>
+      name.trim().toLowerCase().startsWith('testnet')
+          ? 'testnet'
+          : name.trim().toLowerCase();
+  final wanted = family(invoiceNetwork);
+  return nodeNetworks.any((n) => family(n) == wanted);
+}
 
 /// Judges [raw] for a trade that pays [expectedSats].
 ///
 /// [decoded] is the local decoder's reading of a BOLT11 input: `null` when it
 /// did not decode. [decoderAvailable] is false when the decoder itself could
-/// not run, in which case a BOLT11 input is left to the daemon. [now] is unix
-/// seconds.
+/// not run, in which case a BOLT11 input is left to the daemon.
+/// [nodeNetworks] is the node's `lnd_networks`; null or empty skips the
+/// network check. [now] is unix seconds.
 InvoiceCheck checkInvoiceInput({
   required String raw,
   required int? expectedSats,
   required DecodedInvoice? decoded,
   required bool decoderAvailable,
   required int now,
+  List<String>? nodeNetworks,
 }) {
   switch (classifyInvoiceInput(raw)) {
     case InvoiceInputKind.empty:
@@ -201,22 +241,33 @@ InvoiceCheck checkInvoiceInput({
       if (decoded == null) {
         return const InvoiceCheckError(InvoiceProblem.malformed);
       }
+      final networks = nodeNetworks;
+      if (networks != null &&
+          networks.isNotEmpty &&
+          !invoiceNetworkMatches(decoded.network, networks)) {
+        return InvoiceCheckError(
+          InvoiceProblem.wrongNetwork,
+          invoiceNetwork: decoded.network,
+          nodeNetwork: networks.first.trim(),
+        );
+      }
       if (decoded.expiresAt <= now) {
         return const InvoiceCheckError(InvoiceProblem.expired);
       }
-      final actual = decoded.amountSats;
+      final actual = decoded.amountMsat;
       // An open-amount invoice is the daemon's to accept or refuse.
       if (actual == null || expectedSats == null) {
         return const InvoiceCheckUnverified();
       }
-      if (actual != expectedSats) {
+      // Compared in msat: 250 500 msat is not a 250 sats invoice.
+      if (actual != expectedSats * 1000) {
         return InvoiceCheckError(
           InvoiceProblem.wrongAmount,
-          actualSats: actual,
+          actualMsat: actual,
           expectedSats: expectedSats,
         );
       }
-      return InvoiceCheckValid(actual);
+      return InvoiceCheckValid(expectedSats);
   }
 }
 

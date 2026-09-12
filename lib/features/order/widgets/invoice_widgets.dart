@@ -659,6 +659,69 @@ class InvoiceHoldNote extends StatelessWidget {
   }
 }
 
+/// Terminal state once an invoice step ran out of time: the reason and one
+/// way back, instead of a form or a QR nobody can use any more.
+class InvoiceTimeUpView extends StatelessWidget {
+  const InvoiceTimeUpView({
+    super.key,
+    required this.title,
+    required this.body,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final String title;
+  final String body;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        kInvoiceGutter,
+        0,
+        kInvoiceGutter,
+        kInvoiceGutter + MediaQuery.of(context).viewPadding.bottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
+          Icon(Icons.timer_off_outlined, size: 40, color: book.textSecondary),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: book.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: book.textSecondary,
+            ),
+          ),
+          const Spacer(),
+          InvoicePrimaryButton(
+            icon: Icons.arrow_back,
+            label: actionLabel,
+            onPressed: onAction,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The verdict under the invoice field: lime when usable, red with the
 /// concrete reason otherwise.
 class InvoiceValidationRow extends StatelessWidget {

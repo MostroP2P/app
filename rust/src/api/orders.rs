@@ -3568,8 +3568,9 @@ async fn status_sync_blocked_by_terminal(
 
 /// Newest daemon-message timestamp already applied to `order_id`'s status.
 ///
-/// `None` when nothing was ever recorded, or when there is no durable store
-/// (web, until #233) — both mean "no high-water mark", which fails open.
+/// `None` when nothing was ever recorded, or when the store is not initialised
+/// yet — both mean "no high-water mark", which fails open. Native (SQLite) and
+/// web (IndexedDB settings KV, since #246) both persist it.
 async fn load_status_cursor(order_id: &str) -> Option<i64> {
     let db = crate::db::app_db::db()?;
     db.get_setting(&crate::db::settings_keys::status_cursor(order_id))

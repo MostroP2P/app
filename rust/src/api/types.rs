@@ -384,10 +384,15 @@ pub struct NymIdentity {
 /// before submission (see `api::invoice::decode_bolt11`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Bolt11Summary {
-    /// Whole sats, or `None` for an invoice that leaves the amount open.
-    pub amount_sats: Option<u64>,
+    /// Millisatoshis, or `None` for an invoice that leaves the amount open.
+    /// Kept in msat so a sub-sat remainder is never rounded into a match.
+    pub amount_msat: Option<u64>,
     /// Unix seconds after which the invoice can no longer be paid.
     pub expires_at: i64,
+    /// The chain the invoice is for, in LND's naming (`mainnet`, `testnet`,
+    /// `regtest`, `signet`, `simnet`) so it compares against the node's
+    /// `lnd_networks`.
+    pub network: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

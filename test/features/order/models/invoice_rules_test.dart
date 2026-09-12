@@ -8,12 +8,25 @@ InvoiceCheck _check(
   int? expected = 250,
   DecodedInvoice? decoded,
   bool available = true,
+  List<String>? nodeNetworks,
 }) => checkInvoiceInput(
   raw: raw,
   expectedSats: expected,
   decoded: decoded,
   decoderAvailable: available,
+  nodeNetworks: nodeNetworks,
   now: _now,
+);
+
+DecodedInvoice _decoded(
+  int? sats, {
+  int? msat,
+  int expiresAt = _now + 600,
+  String network = 'mainnet',
+}) => (
+  amountMsat: msat ?? (sats == null ? null : sats * 1000),
+  expiresAt: expiresAt,
+  network: network,
 );
 
 void main() {
@@ -110,7 +123,7 @@ void main() {
   });
 
   group('checkInvoiceInput', () {
-    const good = (amountSats: 250, expiresAt: _now + 600);
+    final good = _decoded(250);
 
     test('draws nothing for an empty field', () {
       expect(_check(''), isA<InvoiceCheckNone>());
@@ -123,23 +136,60 @@ void main() {
     });
 
     test('names the amounts of a wrong-amount invoice', () {
-      final check = _check(
-        'lnbc1wrong',
-        decoded: (amountSats: 200, expiresAt: _now + 600),
-      );
+      final check = _check('lnbc1wrong', decoded: _decoded(200));
       expect(check, isA<InvoiceCheckError>());
       final error = check as InvoiceCheckError;
       expect(error.problem, InvoiceProblem.wrongAmount);
-      expect(error.actualSats, 200);
+      expect(error.actualMsat, 200000);
       expect(error.expectedSats, 250);
     });
 
     test('refuses an expired invoice before comparing amounts', () {
-      final check = _check(
-        'lnbc1old',
-        decoded: (amountSats: 200, expiresAt: _now),
-      );
+      final check = _check('lnbc1old', decoded: _decoded(200, expiresAt: _now));
       expect((check as InvoiceCheckError).problem, InvoiceProblem.expired);
+    });
+
+    test('a sub-sat remainder is a wrong amount, not a rounded match', () {
+      final check = _check(
+        'lnbc1subsat',
+        decoded: _decoded(null, msat: 250500),
+      );
+      final error = check as InvoiceCheckError;
+      expect(error.problem, InvoiceProblem.wrongAmount);
+      expect(error.actualMsat, 250500);
+      expect(formatInvoiceMsat(250500), '250.5');
+      expect(formatInvoiceMsat(250000), '250');
+    });
+
+    test('refuses an invoice for another network than the node', () {
+      final check = _check(
+        'lntb1x',
+        decoded: _decoded(250, network: 'testnet'),
+        nodeNetworks: const ['mainnet'],
+      );
+      final error = check as InvoiceCheckError;
+      expect(error.problem, InvoiceProblem.wrongNetwork);
+      expect(error.invoiceNetwork, 'testnet');
+      expect(error.nodeNetwork, 'mainnet');
+    });
+
+    test('a matching or unknown node network does not block', () {
+      expect(
+        _check(
+          'lntb1x',
+          decoded: _decoded(250, network: 'testnet'),
+          nodeNetworks: const ['testnet4'],
+        ),
+        isA<InvoiceCheckValid>(),
+      );
+      expect(
+        _check('lnbc1x', decoded: good, nodeNetworks: null),
+        isA<InvoiceCheckValid>(),
+      );
+      expect(
+        _check('lnbc1x', decoded: good, nodeNetworks: const []),
+        isA<InvoiceCheckValid>(),
+      );
     });
 
     test('calls an undecodable invoice malformed', () {
@@ -150,7 +200,7 @@ void main() {
     test('leaves the invoice to the daemon when it cannot judge', () {
       expect(_check('lnbc1x', available: false), isA<InvoiceCheckUnverified>());
       expect(
-        _check('lnbc1x', decoded: (amountSats: null, expiresAt: _now + 60)),
+        _check('lnbc1x', decoded: _decoded(null)),
         isA<InvoiceCheckUnverified>(),
       );
       expect(

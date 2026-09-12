@@ -6,7 +6,7 @@
 
 use std::str::FromStr;
 
-use lightning_invoice::Bolt11Invoice;
+use lightning_invoice::{Bolt11Invoice, Currency};
 
 use crate::api::types::Bolt11Summary;
 use crate::db::Storage;
@@ -22,8 +22,8 @@ pub fn decode_bolt11(invoice: String) -> Option<Bolt11Summary> {
 }
 
 /// Unix seconds (the node's clock) of the daemon message that moved
-/// `order_id` into its current status, or `None` when none was recorded —
-/// always on web, which has no durable store yet (#233).
+/// `order_id` into its current status, or `None` when none was recorded.
+/// Native (SQLite) and web (IndexedDB, since #246) both persist it.
 ///
 /// mostrod times a waiting step from `taken_at` (`scheduler.rs`), which this
 /// message carries; the invoice screens add the node's `expiration_seconds`
@@ -48,9 +48,20 @@ fn summarize(input: &str) -> Option<Bolt11Summary> {
     let created = parsed.duration_since_epoch().as_secs();
     let expires = created.saturating_add(parsed.expiry_time().as_secs());
     Some(Bolt11Summary {
-        amount_sats: parsed.amount_milli_satoshis().map(|msat| msat / 1000),
+        amount_msat: parsed.amount_milli_satoshis(),
         expires_at: i64::try_from(expires).unwrap_or(i64::MAX),
+        network: lnd_network_name(parsed.currency()).to_string(),
     })
+}
+
+fn lnd_network_name(currency: Currency) -> &'static str {
+    match currency {
+        Currency::Bitcoin => "mainnet",
+        Currency::BitcoinTestnet => "testnet",
+        Currency::Regtest => "regtest",
+        Currency::Signet => "signet",
+        Currency::Simnet => "simnet",
+    }
 }
 
 #[cfg(test)]
@@ -68,14 +79,24 @@ mod tests {
     #[test]
     fn reads_amount_and_expiry() {
         let summary = summarize(COFFEE).expect("spec vector decodes");
-        assert_eq!(summary.amount_sats, Some(250_000));
+        assert_eq!(summary.amount_msat, Some(250_000_000));
         assert_eq!(summary.expires_at, 1_496_314_658 + 60);
+        assert_eq!(summary.network, "mainnet");
     }
 
     #[test]
     fn an_invoice_without_amount_reports_none() {
         let summary = summarize(DONATION).expect("spec vector decodes");
-        assert_eq!(summary.amount_sats, None);
+        assert_eq!(summary.amount_msat, None);
+    }
+
+    #[test]
+    fn every_currency_maps_to_an_lnd_network_name() {
+        assert_eq!(lnd_network_name(Currency::Bitcoin), "mainnet");
+        assert_eq!(lnd_network_name(Currency::BitcoinTestnet), "testnet");
+        assert_eq!(lnd_network_name(Currency::Regtest), "regtest");
+        assert_eq!(lnd_network_name(Currency::Signet), "signet");
+        assert_eq!(lnd_network_name(Currency::Simnet), "simnet");
     }
 
     #[test]

@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,8 +21,9 @@ final invoiceDecoderProvider =
         final summary = await invoice_api.decodeBolt11(invoice: input);
         if (summary == null) return null;
         return (
-          amountSats: summary.amountSats?.toInt(),
+          amountMsat: summary.amountMsat?.toInt(),
           expiresAt: summary.expiresAt.toInt(),
+          network: summary.network,
         );
       },
     );
@@ -63,7 +65,13 @@ final invoiceDeadlineProvider = FutureProvider.autoDispose.family<int?, String>(
     final trade = await tradeFuture;
     try {
       final started = await ref.read(invoiceStepStartLookupProvider)(orderId);
-      if (started != null) return started + window;
+      if (started != null) {
+        // The cursor is in the node's clock, which the transport lets run up
+        // to a minute ahead of ours; the countdown runs on ours. A start
+        // "in the future" is clamped to now, so a fast node never adds time.
+        final now = clock.now().millisecondsSinceEpoch ~/ 1000;
+        return (started > now ? now : started) + window;
+      }
     } catch (e) {
       debugPrint('[invoiceDeadline] step start unavailable: $e');
     }

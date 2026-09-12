@@ -1015,5 +1015,8 @@
   "invoiceQrSemantics": "QR-Code der Lightning-Rechnung: {invoice}",
   "invoiceExpiredTitle": "Die Rechnung ist abgelaufen",
   "invoiceExpiredBody": "Sie wurde nicht rechtzeitig bezahlt: Mostro bricht den Handel ab, und keine Sats haben deine Wallet verlassen.",
-  "invoiceBackToBook": "Zurück zum Orderbuch"
+  "invoiceBackToBook": "Zurück zum Orderbuch",
+  "invoiceTimeUpTitle": "Die Zeit ist abgelaufen",
+  "invoiceTimeUpBody": "Die Rechnung wurde nicht rechtzeitig gesendet: Mostro bricht den Handel ab. Auf deiner Seite wurde nichts gebunden.",
+  "invoiceErrorWrongNetwork": "Die Rechnung ist für {invoice}, der Node nutzt {node}"
 }

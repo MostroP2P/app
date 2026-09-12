@@ -564,52 +564,14 @@ class _PayLightningInvoiceScreenState
 
   /// Terminal state once the hold invoice ran out: the reason and a way
   /// back, never a dead QR left on screen.
-  Widget _expired(AppLocalizations l10n) {
-    final book = OrderBookPalette.of(context);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        kInvoiceGutter,
-        0,
-        kInvoiceGutter,
-        kInvoiceGutter + MediaQuery.of(context).viewPadding.bottom,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Spacer(),
-          Icon(Icons.timer_off_outlined, size: 40, color: book.textSecondary),
-          const SizedBox(height: 16),
-          Text(
-            l10n.invoiceExpiredTitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: book.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.invoiceExpiredBody,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.45,
-              color: book.textSecondary,
-            ),
-          ),
-          const Spacer(),
-          InvoicePrimaryButton(
-            icon: Icons.arrow_back,
-            label: l10n.invoiceBackToBook,
-            onPressed: () {
-              _navigated = true;
-              refreshTrades(ref);
-              context.go(AppRoute.home);
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _expired(AppLocalizations l10n) => InvoiceTimeUpView(
+    title: l10n.invoiceExpiredTitle,
+    body: l10n.invoiceExpiredBody,
+    actionLabel: l10n.invoiceBackToBook,
+    onAction: () {
+      _navigated = true;
+      refreshTrades(ref);
+      context.go(AppRoute.home);
+    },
+  );
 }

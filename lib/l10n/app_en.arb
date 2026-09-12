@@ -3950,7 +3950,7 @@
   "invoiceOpenWallet": "Open in my wallet",
   "@invoiceOpenWallet": {"description": "13b primary action: opens the hold invoice as a lightning: deep link"},
   "invoiceHoldNote": "This is a {hold} invoice: the sats are held, they don't leave your wallet until you confirm the buyer's payment.",
-  "@invoiceHoldNote": {"description": "13b note explaining the hold invoice; hold is the word 'hold', rendered bold", "placeholders": {"hold": {"type": "String"}}},
+  "@invoiceHoldNote": {"description": "13b note explaining the hold invoice; hold is the protocol term 'hold', rendered bold and deliberately left untranslated in every locale (as in 'factura hold') — move the placeholder, do not replace it", "placeholders": {"hold": {"type": "String"}}},
   "invoiceQrSemantics": "Lightning invoice QR code: {invoice}",
   "@invoiceQrSemantics": {"description": "13b screen reader label of the QR: the whole invoice", "placeholders": {"invoice": {"type": "String"}}},
   "invoiceExpiredTitle": "The invoice expired",
@@ -3958,5 +3958,11 @@
   "invoiceExpiredBody": "It was not paid in time: Mostro cancels the trade and no sats left your wallet.",
   "@invoiceExpiredBody": {"description": "13b terminal state explanation"},
   "invoiceBackToBook": "Back to the order book",
-  "@invoiceBackToBook": {"description": "13b terminal state action"}
+  "@invoiceBackToBook": {"description": "13b terminal state action"},
+  "invoiceTimeUpTitle": "Time is up",
+  "@invoiceTimeUpTitle": {"description": "13a terminal state when the buyer's invoice window ran out"},
+  "invoiceTimeUpBody": "The invoice was not sent in time: Mostro cancels the trade. Nothing was committed on your side.",
+  "@invoiceTimeUpBody": {"description": "13a terminal state explanation"},
+  "invoiceErrorWrongNetwork": "The invoice is for {invoice}, the node uses {node}",
+  "@invoiceErrorWrongNetwork": {"description": "13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet", "placeholders": {"invoice": {"type": "String"}, "node": {"type": "String"}}}
 }
