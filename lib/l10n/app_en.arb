@@ -1055,7 +1055,15 @@
   },
   "cancelTradeDialogContent": "Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.",
   "@cancelTradeDialogContent": {
-    "description": "Body text for the cancel-trade confirmation dialog"
+    "description": "Body text for the cancel-trade confirmation dialog once the trade is active: the cancel is a cooperative request"
+  },
+  "cancelTradeDialogContentNotStarted": "The trade has not started yet, so it is cancelled right away. The other party does not need to agree.",
+  "@cancelTradeDialogContentNotStarted": {
+    "description": "Body text for the cancel-trade confirmation dialog before the trade is active (pending, waiting for the invoice or the hold-invoice payment): the daemon cancels at once"
+  },
+  "cancelTradeDialogContentMaybeStarted": "If the trade has not started yet, it is cancelled right away. If it has, the other party must also agree.",
+  "@cancelTradeDialogContentMaybeStarted": {
+    "description": "Body text for the cancel-trade confirmation dialog while the order is only known to be taken (in progress): the trade may or may not be active yet"
   },
   "noButtonLabel": "No",
   "yesButtonLabel": "Yes",
@@ -1428,7 +1436,11 @@
   },
   "orderNoLongerActive": "This order is no longer active",
   "@orderNoLongerActive": {
-    "description": "Neutral notice shown when the order reaches a terminal state (canceled, cooperatively canceled, canceled by admin, or expired) while the user is on the pay invoice screen"
+    "description": "Neutral notice shown when the order reaches a terminal state (canceled, cooperatively canceled, canceled by admin, or expired) while the user is on the add-invoice or pay-invoice screen"
+  },
+  "tradeNoLongerYours": "You're no longer part of this trade",
+  "@tradeNoLongerYours": {
+    "description": "Notice when the trade screen closes because the user no longer has a trade on this order: a take lost before it went active (their own cancel, a waiting timeout, the maker cancelling), or a later visit to such a trade from a notification. Neutral on purpose: the order may be back in the book or gone for good"
   },
   "sessionTimeoutMessage": "No response received, check your connection and try again later",
   "@sessionTimeoutMessage": {

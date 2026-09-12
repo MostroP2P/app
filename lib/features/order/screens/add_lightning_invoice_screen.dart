@@ -106,7 +106,9 @@ class _AddLightningInvoiceScreenState
       builder:
           (ctx) => AlertDialog(
             title: Text(l10n.cancelTradeDialogTitle),
-            content: Text(l10n.cancelTradeDialogContent),
+            // This screen only exists before the trade goes active, where
+            // mostrod cancels at once — no cooperative request.
+            content: Text(l10n.cancelTradeDialogContentNotStarted),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),

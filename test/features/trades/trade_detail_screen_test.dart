@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
@@ -11,6 +13,7 @@ import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/rate/screens/rate_counterpart_screen.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/trades/widgets/trade_chat_card.dart';
 import 'package:mostro/features/trades/widgets/trade_completed_card.dart';
@@ -21,6 +24,8 @@ import 'package:mostro/l10n/app_localizations_en.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
+import '../../support/fake_orders.dart';
+import '../../support/fake_trades.dart';
 import '../../support/provider_harness.dart';
 
 /// Pumps [TradeDetailScreen] for [orderId] with the role and live order
@@ -89,6 +94,101 @@ Future<ProviderContainer> _pumpTradeDetail(
 
   await _settle(tester);
   return container;
+}
+
+/// Pumps [TradeDetailScreen] for the buyer under a router, so leaving for
+/// home is observable, with the trades list and the order book under test
+/// control. [loadTrades] answers the trades list; [book] is the order book;
+/// [cancelOrder] stands in for publishing the cancel.
+Future<void> _pumpRoutedTradeDetail(
+  WidgetTester tester, {
+  required String orderId,
+  required OrderStatus status,
+  required Future<List<TradeInfo>> Function() loadTrades,
+  List<OrderItem> book = const [],
+  Future<void> Function(String)? cancelOrder,
+  Stream<OrderStatus>? statusUpdates,
+  Stream<List<OrderItem>>? bookUpdates,
+}) async {
+  final container = createContainer(
+    overrides: [
+      if (cancelOrder != null)
+        cancelOrderActionProvider.overrideWithValue(cancelOrder),
+      tradeRoleProvider.overrideWith((ref) => {orderId: true}),
+      tradeStatusProvider(
+        orderId,
+      ).overrideWith((ref) => statusUpdates ?? Stream.value(status)),
+      orderBookProvider.overrideWith(
+        (ref) => bookUpdates ?? Stream.value(book),
+      ),
+      rawTradesProvider.overrideWith((ref) => loadTrades()),
+    ],
+  );
+  final router = GoRouter(
+    initialLocation: AppRoute.tradeDetailPath(orderId),
+    routes: [
+      // A Scaffold, as the real home is: the snackbar the screen leaves with
+      // shows on whichever Scaffold is current.
+      GoRoute(
+        path: AppRoute.home,
+        builder: (_, __) => const Scaffold(body: Text('home')),
+      ),
+      GoRoute(
+        path: AppRoute.tradeDetail,
+        builder:
+            (_, state) =>
+                TradeDetailScreen(orderId: state.pathParameters['orderId']!),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        theme: buildDarkTheme(),
+        locale: const Locale('en'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ),
+  );
+  // See `_pumpTradeDetail`: frames, never `pumpAndSettle()`.
+  await tester.pump();
+  await tester.pump();
+}
+
+/// Lets a navigation the screen started run its page transition out, so the
+/// route it left is gone from the tree. A fixed step, never `pumpAndSettle()`
+/// (see `_pumpTradeDetail`).
+Future<void> _finishPageTransition(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
+}
+
+/// The secondary Cancel, by its automation id: its label is "Cancel trade"
+/// alone in the row and "Cancel" next to the dispute.
+Finder _cancelButton() => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      widget.properties.identifier == AutomationIds.tradeCancel,
+);
+
+/// Taps the secondary Cancel and confirms the dialog.
+Future<void> _cancelFromTradeDetail(WidgetTester tester) async {
+  final l10n = AppLocalizationsEn();
+  await tester.tap(_cancelButton());
+  await tester.pump();
+  await tester.tap(find.text(l10n.yesCancelButtonLabel));
+  await tester.pump();
+  await tester.pump();
 }
 
 /// One frame for the build, one to flush the fire-and-forget
@@ -928,5 +1028,243 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+  });
+
+  group('the cancel dialog says what the cancel does', () {
+    final l10n = AppLocalizationsEn();
+    final texts = [
+      l10n.cancelTradeDialogContentNotStarted,
+      l10n.cancelTradeDialogContentMaybeStarted,
+      l10n.cancelTradeDialogContent,
+    ];
+    for (final (status, kind, expected) in [
+      // Before `active` mostrod cancels at once: the dialog used to announce
+      // a cooperative request the counterparty had to accept.
+      (
+        OrderStatus.waitingPayment,
+        'immediate',
+        l10n.cancelTradeDialogContentNotStarted,
+      ),
+      (
+        OrderStatus.waitingBuyerInvoice,
+        'immediate',
+        l10n.cancelTradeDialogContentNotStarted,
+      ),
+      // Taken, real state unknown (#203): either may happen.
+      (
+        OrderStatus.inProgress,
+        'either',
+        l10n.cancelTradeDialogContentMaybeStarted,
+      ),
+      (OrderStatus.active, 'cooperative', l10n.cancelTradeDialogContent),
+      (OrderStatus.fiatSent, 'cooperative', l10n.cancelTradeDialogContent),
+    ]) {
+      testWidgets('${status.name}: the $kind cancel', (tester) async {
+        await _pumpTradeDetail(
+          tester,
+          orderId: 'order-cancel-copy',
+          isBuyer: true,
+          status: status,
+        );
+        await tester.tap(_cancelButton());
+        await tester.pump();
+
+        for (final text in texts) {
+          expect(
+            find.text(text),
+            text == expected ? findsOneWidget : findsNothing,
+          );
+        }
+      });
+    }
+  });
+
+  group('a trade that is no longer the user\'s', () {
+    const orderId = 'order-lost';
+
+    testWidgets('a lost take whose order is public again leaves for home', (
+      tester,
+    ) async {
+      // The take was wiped in Rust and the order handed back to the book,
+      // where it reads `pending`: without leaving, the screen showed the
+      // ex-taker the maker's "your order is published" view, cancel
+      // button included.
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        loadTrades: () async => const [],
+        book: [fakeOrder(id: orderId)],
+      );
+      await _finishPageTransition(tester);
+
+      expect(find.byType(TradeDetailScreen), findsNothing);
+      expect(find.text('home'), findsOneWidget);
+      expect(
+        find.text(AppLocalizationsEn().tradeNoLongerYours),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the maker stays on an order of theirs without a trade row', (
+      tester,
+    ) async {
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        loadTrades: () async => const [],
+        book: [fakeOrder(id: orderId, isMine: true)],
+      );
+      await _finishPageTransition(tester);
+
+      expect(find.byType(TradeDetailScreen), findsOneWidget);
+      expect(find.text(AppLocalizationsEn().tradeNoLongerYours), findsNothing);
+    });
+
+    testWidgets('a take is not judged before its trade row has loaded', (
+      tester,
+    ) async {
+      final trades = Completer<List<TradeInfo>>();
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.waitingBuyerInvoice,
+        loadTrades: () => trades.future,
+      );
+      await _finishPageTransition(tester);
+      expect(
+        find.byType(TradeDetailScreen),
+        findsOneWidget,
+        reason: 'no answer yet is not an absent row',
+      );
+
+      trades.complete([fakeTrade(id: 'lost')]);
+      await _finishPageTransition(tester);
+      expect(find.byType(TradeDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('cancelling a trade that never went active leaves for home', (
+      tester,
+    ) async {
+      final cancelled = <String>[];
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.waitingPayment,
+        loadTrades: () async => [fakeTrade(id: 'lost')],
+        cancelOrder: (id) async => cancelled.add(id),
+      );
+
+      await _cancelFromTradeDetail(tester);
+      await _finishPageTransition(tester);
+
+      expect(cancelled, [orderId]);
+      expect(find.byType(TradeDetailScreen), findsNothing);
+      expect(find.text('home'), findsOneWidget);
+      expect(find.text(AppLocalizationsEn().cancelRequestSent), findsOneWidget);
+      // Drain the button's success indication, which outlives the screen.
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('cancelling an active trade stays on the screen', (
+      tester,
+    ) async {
+      // From `active` on a cancel is a cooperative request: the trade goes on
+      // until the counterparty agrees.
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.active,
+        loadTrades:
+            () async => [fakeTrade(id: 'lost', status: OrderStatus.active)],
+        cancelOrder: (_) async {},
+      );
+
+      await _cancelFromTradeDetail(tester);
+      await _finishPageTransition(tester);
+
+      expect(find.byType(TradeDetailScreen), findsOneWidget);
+      expect(find.text(AppLocalizationsEn().cancelRequestSent), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('a trade that goes active while the cancel dialog is open '
+        'stays open', (tester) async {
+      // The seller's payment can land while the buyer hesitates. The cancel
+      // then goes out as a cooperative request, and leaving would strand an
+      // active trade behind a "cancel sent" snackbar.
+      final l10n = AppLocalizationsEn();
+      final status = StreamController<OrderStatus>();
+      addTearDown(() => unawaited(status.close()));
+      status.add(OrderStatus.waitingPayment);
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.waitingPayment,
+        statusUpdates: status.stream,
+        loadTrades:
+            () async => [
+              fakeTrade(id: 'lost', status: OrderStatus.waitingPayment),
+            ],
+        cancelOrder: (_) async {},
+      );
+      await tester.tap(_cancelButton());
+      await tester.pump();
+      expect(
+        find.text(l10n.cancelTradeDialogContentNotStarted),
+        findsOneWidget,
+      );
+
+      status.add(OrderStatus.active);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.text(l10n.cancelTradeDialogContent),
+        findsOneWidget,
+        reason: 'the copy the user confirms follows the live status',
+      );
+      expect(find.text(l10n.cancelTradeDialogContentNotStarted), findsNothing);
+
+      await tester.tap(find.text(l10n.yesCancelButtonLabel));
+      await tester.pump();
+      await tester.pump();
+      await _finishPageTransition(tester);
+
+      expect(find.byType(TradeDetailScreen), findsOneWidget);
+      expect(find.text(l10n.cancelRequestSent), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('an absent row is not judged before the order book loads', (
+      tester,
+    ) async {
+      // A cold start can resolve the trades list before the book's first
+      // emission. Until the book answers, a missing order is not a
+      // stranger's one.
+      final book = StreamController<List<OrderItem>>();
+      addTearDown(() => unawaited(book.close()));
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        loadTrades: () async => const [],
+        bookUpdates: book.stream,
+      );
+      await _finishPageTransition(tester);
+      expect(
+        find.byType(TradeDetailScreen),
+        findsOneWidget,
+        reason: 'the book has not answered yet',
+      );
+
+      book.add([fakeOrder(id: orderId, isMine: true)]);
+      await _finishPageTransition(tester);
+      expect(
+        find.byType(TradeDetailScreen),
+        findsOneWidget,
+        reason: "the maker's own order arrived",
+      );
+    });
   });
 }

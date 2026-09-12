@@ -138,14 +138,79 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  Future<void> _cancelOrder() async {
+  /// Set once the screen has decided to leave, so no rebuild in between
+  /// navigates twice.
+  bool _leaving = false;
+
+  /// Back to home with [message], at most once.
+  void _leave(String message) {
+    if (_leaving || !mounted) return;
+    _leaving = true;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+    context.go(AppRoute.home);
+  }
+
+  /// Whether a cancel in [status] ends the trade outright. Mirrors Rust's
+  /// `cancellation_wipes_history`: before `active` mostrod cancels at once —
+  /// a take hands the order back to the book, a maker's order dies — and the
+  /// trade row is wiped. From `active` on it is a cooperative request, and
+  /// `inProgress` may be either. Kept equal to the Rust predicate by
+  /// `the_trade_screen_copy_of_cancellation_wipes_history_matches`
+  /// (`rust/src/mostro/status.rs`), which reads this set from source: keep
+  /// the `=> const {…}.contains(status)` shape.
+  static bool _cancelEndsTrade(TradeStatus status) => const {
+    TradeStatus.pending,
+    TradeStatus.waitingInvoice,
+    TradeStatus.waitingPayment,
+  }.contains(status);
+
+  /// What a cancel in [status] does, as the confirmation dialog tells it.
+  /// Before `active` mostrod cancels at once; from `active` on it is a
+  /// cooperative request; `inProgress` only says the order was taken, so it
+  /// may be either (#203).
+  static String _cancelDialogContent(
+    AppLocalizations l10n,
+    TradeStatus status,
+  ) {
+    if (_cancelEndsTrade(status)) {
+      return l10n.cancelTradeDialogContentNotStarted;
+    }
+    if (status == TradeStatus.inProgress) {
+      return l10n.cancelTradeDialogContentMaybeStarted;
+    }
+    return l10n.cancelTradeDialogContent;
+  }
+
+  /// The trade's status now, from the live provider; [fallback] while it has
+  /// no value yet. The status a callback was built with goes stale across an
+  /// await: the seller's payment can land while the cancel dialog is open.
+  TradeStatus _liveStatus(TradeStatus fallback) {
+    final live = ref.read(tradeStatusProvider(widget.orderId)).valueOrNull;
+    return live == null ? fallback : tradeStatusFromOrderStatus(live);
+  }
+
+  Future<void> _cancelOrder(TradeStatus status) async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (ctx) => AlertDialog(
             title: Text(l10n.cancelTradeDialogTitle),
-            content: Text(l10n.cancelTradeDialogContent),
+            // Follows the live status, so the copy the user confirms is the
+            // cancel the daemon will apply.
+            content: Consumer(
+              builder: (context, dialogRef, child) {
+                final live =
+                    dialogRef
+                        .watch(tradeStatusProvider(widget.orderId))
+                        .valueOrNull;
+                final now =
+                    live == null ? status : tradeStatusFromOrderStatus(live);
+                return Text(_cancelDialogContent(l10n, now));
+              },
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -163,9 +228,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       throw const MostroActionAborted();
     }
     try {
-      await orders_api.cancelOrder(orderId: widget.orderId);
+      await ref.read(cancelOrderActionProvider)(widget.orderId);
       ref.invalidate(rawTradesProvider);
       if (!mounted) return;
+      // Decided on the status the cancel was sent in, not the one the button
+      // was built with: a trade that went active meanwhile is a cooperative
+      // request and stays open.
+      if (_cancelEndsTrade(_liveStatus(status))) {
+        // Nothing is left to follow here: leave, as the invoice screens do.
+        _leave(l10n.cancelRequestSent);
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.cancelRequestSent)));
@@ -394,13 +467,35 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // Counterpart reputation snapshot persisted from the daemon's follow-up
     // Peer DM (#305), via tradeInfoProvider: it refreshes on the TradeUpdate
     // the Rust side emits after persisting the snapshot.
-    final trade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
+    final tradeAsync = ref.watch(tradeInfoProvider(widget.orderId));
+    final trade = tradeAsync.valueOrNull;
     final peerRating = trade?.peerRating;
     final room =
         ref
             .watch(chatRoomsNotifierProvider)
             .where((r) => r.orderId == widget.orderId)
             .firstOrNull;
+
+    // No trade row and not the maker: this is no longer a trade of this
+    // user's. A take lost before going active (its own cancel, a waiting
+    // timeout, the maker cancelling) is wiped in Rust, and the order is
+    // handed back to the public book, where it reads `pending` — which this
+    // screen would render as the user's own published order, cancel button
+    // included. Leave instead, as the invoice screens do; this also covers
+    // arriving later from a notification or the chat header. Only on settled
+    // reads of both the trades list and the order book: no answer yet is
+    // neither an absent row nor a stranger's order (a cold start can resolve
+    // the trades before the book's first emission).
+    if (!_leaving &&
+        ref.watch(orderBookProvider).hasValue &&
+        !tradeAsync.isLoading &&
+        tradeAsync.hasValue &&
+        trade == null &&
+        order?.isMine != true) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _leave(l10n.tradeNoLongerYours),
+      );
+    }
 
     return Scaffold(
       backgroundColor: book.bg,
@@ -829,7 +924,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
             label:
                 view.cancelIsFullWidth ? l10n.cancelTradeButton : l10n.cancel,
             automationId: AutomationIds.tradeCancel,
-            onPressed: _cancelOrder,
+            onPressed: () => _cancelOrder(status),
             isDestructive: true,
           ),
           TradeSecondaryAction.dispute => TradeSecondarySpec(

@@ -512,4 +512,130 @@ mod tests {
             assert!(!cancellation_wipes_history(&s), "{s:?} must keep history");
         }
     }
+
+    /// Every `Prefix.name` in `text`, in order — `TradeStatus.pending` → `pending`.
+    fn dotted_names<'a>(text: &'a str, prefix: &str) -> Vec<&'a str> {
+        text.split(prefix)
+            .skip(1)
+            .map(|rest| {
+                let end = rest
+                    .find(|c: char| !c.is_ascii_alphanumeric())
+                    .unwrap_or(rest.len());
+                &rest[..end]
+            })
+            .collect()
+    }
+
+    /// The trade screen keeps its own copy of this predicate,
+    /// `_cancelEndsTrade` in `trade_detail_screen.dart`: it picks the cancel
+    /// dialog's copy and decides whether the screen leaves after a cancel.
+    /// Asking Rust instead would be the bridge's first synchronous call. So
+    /// this pins the two together, reading the Dart source: add or drop a
+    /// status here and this fails, instead of the dialog promising an
+    /// immediate cancel that the daemon runs as a cooperative request, or the
+    /// screen staying open on a trade that was wiped.
+    #[test]
+    fn the_trade_screen_copy_of_cancellation_wipes_history_matches() {
+        use crate::api::types::OrderStatus as S;
+        use std::collections::{BTreeMap, BTreeSet};
+
+        let all = [
+            S::Pending,
+            S::WaitingBuyerInvoice,
+            S::WaitingPayment,
+            S::Active,
+            S::FiatSent,
+            S::SettledHoldInvoice,
+            S::Success,
+            S::Canceled,
+            S::Expired,
+            S::CooperativelyCanceled,
+            S::CanceledByAdmin,
+            S::SettledByAdmin,
+            S::CompletedByAdmin,
+            S::Dispute,
+            S::InProgress,
+        ];
+        // Exhaustive on purpose: a new status fails to compile here, which is
+        // the reminder to add it to `all` above.
+        for s in &all {
+            match s {
+                S::Pending
+                | S::WaitingBuyerInvoice
+                | S::WaitingPayment
+                | S::Active
+                | S::FiatSent
+                | S::SettledHoldInvoice
+                | S::Success
+                | S::Canceled
+                | S::Expired
+                | S::CooperativelyCanceled
+                | S::CanceledByAdmin
+                | S::SettledByAdmin
+                | S::CompletedByAdmin
+                | S::Dispute
+                | S::InProgress => {}
+            }
+        }
+        // The Dart name flutter_rust_bridge gives each variant: lower camel case.
+        let dart_order_status = |s: &S| {
+            let debug = format!("{s:?}");
+            let mut chars = debug.chars();
+            let first = chars.next().expect("a variant name");
+            format!("{}{}", first.to_ascii_lowercase(), chars.as_str())
+        };
+
+        // The screen's `OrderStatus` → `TradeStatus` mapping, read from source.
+        let mapping_src = include_str!("../../../lib/features/trades/models/trade_status.dart");
+        let body = mapping_src
+            .split("TradeStatus tradeStatusFromOrderStatus(OrderStatus s) => switch (s) {")
+            .nth(1)
+            .and_then(|rest| rest.split("};").next())
+            .expect("tradeStatusFromOrderStatus's switch in trade_status.dart");
+        let mut to_trade_status = BTreeMap::new();
+        for arm in body.split(',') {
+            let Some((statuses, trade)) = arm.split_once("=>") else {
+                continue;
+            };
+            let trade = dotted_names(trade, "TradeStatus.")
+                .first()
+                .copied()
+                .expect("an arm maps to a TradeStatus");
+            for status in dotted_names(statuses, "OrderStatus.") {
+                to_trade_status.insert(status.to_string(), trade);
+            }
+        }
+
+        // The screen's set, read from source.
+        let screen_src =
+            include_str!("../../../lib/features/trades/screens/trade_detail_screen.dart");
+        let set = screen_src
+            .split("static bool _cancelEndsTrade(TradeStatus status) => const {")
+            .nth(1)
+            .and_then(|rest| rest.split("}.contains(status)").next())
+            .expect("_cancelEndsTrade's set in trade_detail_screen.dart");
+        let listed: BTreeSet<&str> = dotted_names(set, "TradeStatus.").into_iter().collect();
+
+        let mut expected = BTreeSet::new();
+        for s in &all {
+            let name = dart_order_status(s);
+            let trade = *to_trade_status
+                .get(&name)
+                .unwrap_or_else(|| panic!("trade_status.dart maps no OrderStatus.{name}"));
+            if cancellation_wipes_history(s) {
+                expected.insert(trade);
+            } else {
+                assert!(
+                    !listed.contains(trade),
+                    "{s:?} keeps its history, yet the screen treats TradeStatus.{trade} \
+                     as ending the trade"
+                );
+            }
+        }
+        assert_eq!(
+            listed, expected,
+            "_cancelEndsTrade in trade_detail_screen.dart must list exactly the \
+             TradeStatus values of the statuses cancellation_wipes_history wipes"
+        );
+    }
 }
