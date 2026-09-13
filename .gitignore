@@ -47,3 +47,7 @@ test/web/smoke/smoke-failure.png
 
 # Golden diff output written by flutter test on a mismatch
 **/test/**/failures/
+
+# Merge / patch artifacts
+*.orig
+*.rej
