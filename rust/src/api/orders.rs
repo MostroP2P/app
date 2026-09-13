@@ -1351,17 +1351,29 @@ pub async fn send_invoice(
     invoice_or_address: String,
     amount_sats: u64,
 ) -> Result<()> {
-    if invoice_or_address.trim().is_empty() {
-        return Err(anyhow::anyhow!("Invoice or address must not be empty"));
-    }
-
-    // For bolt11 invoices the amount is encoded in the invoice; pass None.
-    // For Lightning Addresses Mostro needs the amount to resolve the address.
-    let amount_opt = if invoice_or_address.contains('@') && amount_sats > 0 {
-        Some(amount_sats)
-    } else {
-        None
+    // One classifier for what the buyer handed us (api::invoice). An address
+    // needs the trade amount so the daemon can resolve it; a bolt11 carries
+    // its own. Anything else never leaves the device: the daemon would only
+    // answer `CantDo(InvalidInvoice)`, so that is the marker raised here.
+    use crate::api::types::PaymentDestination;
+    let (destination, amount_opt) = match crate::api::invoice::classify(&invoice_or_address) {
+        PaymentDestination::Bolt11(_) => (
+            crate::api::invoice::normalize(&invoice_or_address).to_string(),
+            None,
+        ),
+        PaymentDestination::LightningAddress(address) => {
+            (address, (amount_sats > 0).then_some(amount_sats))
+        }
+        PaymentDestination::Empty => {
+            return Err(anyhow::anyhow!("InvalidInvoice: invoice or address must not be empty"));
+        }
+        PaymentDestination::MalformedBolt11 | PaymentDestination::Unknown => {
+            return Err(anyhow::anyhow!(
+                "InvalidInvoice: neither a BOLT11 invoice nor a Lightning address"
+            ));
+        }
     };
+    let is_address = destination.contains('@');
 
     let trade_index = get_trade_key_index(&order_id).await.ok_or_else(|| {
         log::warn!("[orders] send_invoice: no persisted trade key for order {order_id}");
@@ -1419,7 +1431,7 @@ pub async fn send_invoice(
             "add_invoice published for order={} trade_index={trade_index} \
              ln_address={} amount={:?} — waiting for daemon",
             crate::api::logging::short_id(&order_id),
-            invoice_or_address.contains('@'),
+            is_address,
             amount_opt
         ),
     );

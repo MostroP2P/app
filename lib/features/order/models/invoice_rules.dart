@@ -4,6 +4,16 @@
 /// return.
 library;
 
+import 'package:mostro/src/rust/api/types.dart' as rust_types;
+import 'package:mostro/src/rust/api/types.dart'
+    show
+        InvoiceVerdict,
+        InvoiceVerdict_Empty,
+        InvoiceVerdict_Unverified,
+        InvoiceVerdict_Address,
+        InvoiceVerdict_Valid,
+        InvoiceVerdict_Rejected;
+
 // ── Order id ──────────────────────────────────────────────────────────────────
 
 /// `#09150348`: the app bar shows the first eight characters of the UUID;
@@ -82,25 +92,11 @@ Duration invoiceCountdownTick(Duration remaining) {
 
 // ── Buyer input ───────────────────────────────────────────────────────────────
 
-/// What the buyer typed, told apart by its shape alone.
-enum InvoiceInputKind {
-  empty,
-
-  /// `lnbc…` / `lntb…` (BOLT11).
-  bolt11,
-
-  /// `user@domain`: resolved into an invoice on submission.
-  address,
-
-  /// Anything else — including an LNURL, which the submission path does not
-  /// resolve (it only treats `user@domain` as an address).
-  unknown,
-}
-
 const _scheme = 'lightning:';
 
 /// [raw] without surrounding whitespace or a `lightning:` prefix, which QR
-/// codes and wallet shares often carry.
+/// codes and wallet shares often carry. Field tidying only: the Rust core
+/// normalizes again before it judges or sends anything.
 String normalizeInvoiceInput(String raw) {
   final trimmed = raw.trim();
   if (trimmed.toLowerCase().startsWith(_scheme)) {
@@ -109,27 +105,9 @@ String normalizeInvoiceInput(String raw) {
   return trimmed;
 }
 
-/// `user@domain` (LUD-16): the user part is `a-z0-9-_.+`, the domain is two
-/// or more non-empty labels of letters, digits and inner hyphens, ending in
-/// an alphabetic TLD — no empty labels (`..`, leading or trailing dot) and
-/// no URL delimiters. Matched against the lowercased input.
-final _lnAddress = RegExp(
-  r'^[a-z0-9._+-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$',
-);
-
-InvoiceInputKind classifyInvoiceInput(String raw) {
-  final text = normalizeInvoiceInput(raw).toLowerCase();
-  if (text.isEmpty) return InvoiceInputKind.empty;
-  if (text.startsWith('lnbc') || text.startsWith('lntb')) {
-    return InvoiceInputKind.bolt11;
-  }
-  if (_lnAddress.hasMatch(text)) {
-    return InvoiceInputKind.address;
-  }
-  return InvoiceInputKind.unknown;
-}
-
-/// Verdict of the validation row under the invoice field.
+/// Verdict of the validation row under the invoice field, as the screen
+/// renders it. The judgement itself is the Rust core's
+/// (`api::invoice::check_buyer_invoice`); [invoiceCheckFromVerdict] maps it.
 sealed class InvoiceCheck {
   const InvoiceCheck();
 }
@@ -139,14 +117,14 @@ final class InvoiceCheckNone extends InvoiceCheck {
   const InvoiceCheckNone();
 }
 
-/// Nothing to say locally — the decoder is unavailable, or the amount is not
-/// known yet — so submission is allowed and the daemon decides.
+/// Nothing to say locally — the checker is unavailable, the amount is open
+/// or not known yet — so submission is allowed and the daemon decides.
 final class InvoiceCheckUnverified extends InvoiceCheck {
   const InvoiceCheckUnverified();
 }
 
-/// A BOLT11 input the decoder has not judged yet: no row, and no submission
-/// until it has, so a bad invoice cannot slip past the validation.
+/// An input the checker has not judged yet: no row, and no submission until
+/// it has, so a bad invoice cannot slip past the validation.
 final class InvoiceCheckPending extends InvoiceCheck {
   const InvoiceCheckPending();
 }
@@ -174,6 +152,10 @@ enum InvoiceProblem {
 
   expired,
 
+  /// Unexpired, but with less lifetime left than the node demands
+  /// (`invoice_expiration_window`): the daemon would refuse it.
+  expiresTooSoon,
+
   /// Decodes, but for another chain than the node's.
   wrongNetwork,
 }
@@ -185,6 +167,7 @@ final class InvoiceCheckError extends InvoiceCheck {
     this.expectedSats,
     this.invoiceNetwork,
     this.nodeNetwork,
+    this.minRemainingSecs,
   });
   final InvoiceProblem problem;
 
@@ -196,10 +179,44 @@ final class InvoiceCheckError extends InvoiceCheck {
   /// Set for [InvoiceProblem.wrongNetwork], in LND's naming.
   final String? invoiceNetwork;
   final String? nodeNetwork;
+
+  /// Set for [InvoiceProblem.expiresTooSoon]: the node's minimum, seconds.
+  final int? minRemainingSecs;
 }
 
-/// The decoded fields of a BOLT11 invoice, as the bridge returns them.
-typedef DecodedInvoice = ({int? amountMsat, int expiresAt, String network});
+/// The Rust core's verdict as the row renders it.
+InvoiceCheck invoiceCheckFromVerdict(
+  InvoiceVerdict verdict,
+) => switch (verdict) {
+  InvoiceVerdict_Empty() => const InvoiceCheckNone(),
+  InvoiceVerdict_Unverified() => const InvoiceCheckUnverified(),
+  InvoiceVerdict_Address() => const InvoiceCheckAddress(),
+  InvoiceVerdict_Valid(:final sats) => InvoiceCheckValid(sats.toInt()),
+  InvoiceVerdict_Rejected(
+    :final problem,
+    :final actualMsat,
+    :final expectedSats,
+    :final invoiceNetwork,
+    :final nodeNetwork,
+    :final minRemainingSecs,
+  ) =>
+    InvoiceCheckError(
+      switch (problem) {
+        rust_types.InvoiceProblem.unrecognized => InvoiceProblem.unrecognized,
+        rust_types.InvoiceProblem.malformed => InvoiceProblem.malformed,
+        rust_types.InvoiceProblem.wrongAmount => InvoiceProblem.wrongAmount,
+        rust_types.InvoiceProblem.expired => InvoiceProblem.expired,
+        rust_types.InvoiceProblem.expiresTooSoon =>
+          InvoiceProblem.expiresTooSoon,
+        rust_types.InvoiceProblem.wrongNetwork => InvoiceProblem.wrongNetwork,
+      },
+      actualMsat: actualMsat?.toInt(),
+      expectedSats: expectedSats?.toInt(),
+      invoiceNetwork: invoiceNetwork,
+      nodeNetwork: nodeNetwork,
+      minRemainingSecs: minRemainingSecs?.toInt(),
+    ),
+};
 
 /// An msat amount as sats: `250`, or `250.5` when it carries a remainder.
 String formatInvoiceMsat(int msat) {
@@ -211,75 +228,6 @@ String formatInvoiceMsat(int msat) {
       .padLeft(3, '0')
       .replaceFirst(RegExp(r'0+$'), '');
   return '${formatInvoiceSats(sats)}.$fraction';
-}
-
-/// Whether an invoice for [invoiceNetwork] can be paid by a node that lists
-/// [nodeNetworks] (its `lnd_networks`). LND names testnet generations
-/// `testnet`, `testnet3`, `testnet4`; BOLT11 tells them all `lntb`.
-bool invoiceNetworkMatches(String invoiceNetwork, List<String> nodeNetworks) {
-  String family(String name) =>
-      name.trim().toLowerCase().startsWith('testnet')
-          ? 'testnet'
-          : name.trim().toLowerCase();
-  final wanted = family(invoiceNetwork);
-  return nodeNetworks.any((n) => family(n) == wanted);
-}
-
-/// Judges [raw] for a trade that pays [expectedSats].
-///
-/// [decoded] is the local decoder's reading of a BOLT11 input: `null` when it
-/// did not decode. [decoderAvailable] is false when the decoder itself could
-/// not run, in which case a BOLT11 input is left to the daemon.
-/// [nodeNetworks] is the node's `lnd_networks`; null or empty skips the
-/// network check. [now] is unix seconds.
-InvoiceCheck checkInvoiceInput({
-  required String raw,
-  required int? expectedSats,
-  required DecodedInvoice? decoded,
-  required bool decoderAvailable,
-  required int now,
-  List<String>? nodeNetworks,
-}) {
-  switch (classifyInvoiceInput(raw)) {
-    case InvoiceInputKind.empty:
-      return const InvoiceCheckNone();
-    case InvoiceInputKind.unknown:
-      return const InvoiceCheckError(InvoiceProblem.unrecognized);
-    case InvoiceInputKind.address:
-      return const InvoiceCheckAddress();
-    case InvoiceInputKind.bolt11:
-      if (!decoderAvailable) return const InvoiceCheckUnverified();
-      if (decoded == null) {
-        return const InvoiceCheckError(InvoiceProblem.malformed);
-      }
-      final networks = nodeNetworks;
-      if (networks != null &&
-          networks.isNotEmpty &&
-          !invoiceNetworkMatches(decoded.network, networks)) {
-        return InvoiceCheckError(
-          InvoiceProblem.wrongNetwork,
-          invoiceNetwork: decoded.network,
-          nodeNetwork: networks.first.trim(),
-        );
-      }
-      if (decoded.expiresAt <= now) {
-        return const InvoiceCheckError(InvoiceProblem.expired);
-      }
-      final actual = decoded.amountMsat;
-      // An open-amount invoice is the daemon's to accept or refuse.
-      if (actual == null || expectedSats == null) {
-        return const InvoiceCheckUnverified();
-      }
-      // Compared in msat: 250 500 msat is not a 250 sats invoice.
-      if (actual != expectedSats * 1000) {
-        return InvoiceCheckError(
-          InvoiceProblem.wrongAmount,
-          actualMsat: actual,
-          expectedSats: expectedSats,
-        );
-      }
-      return InvoiceCheckValid(expectedSats);
-  }
 }
 
 /// Whether [check] lets the buyer submit.

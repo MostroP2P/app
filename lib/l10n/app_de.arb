@@ -1001,6 +1001,7 @@
   "invoiceValidInvoice": "Gültige Rechnung · {sats} Sats",
   "invoiceErrorWrongAmount": "Die Rechnung lautet auf {actual} Sats, es müssen {expected} sein",
   "invoiceErrorExpired": "Die Rechnung ist bereits abgelaufen",
+  "invoiceErrorExpiresTooSoon": "Die Rechnung läuft in weniger als {minutes} Minuten ab, der Node braucht mehr Zeit zum Bezahlen",
   "invoiceErrorMalformed": "Diese Rechnung ist unvollständig oder falsch kopiert",
   "invoiceErrorUnrecognized": "Weder eine Rechnung (lnbc…) noch eine Lightning-Adresse (nutzer@domain)",
   "invoiceSellerLabel": "Verkäufer",

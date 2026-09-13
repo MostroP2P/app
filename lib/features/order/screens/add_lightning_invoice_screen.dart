@@ -89,15 +89,17 @@ class _AddLightningInvoiceScreenState
   /// submission, so the user can see why the invoice was refused and fix it.
   String? _lastError;
 
-  Timer? _decodeTimer;
+  Timer? _checkTimer;
 
-  /// The input [_decoded] belongs to; a different input is still pending.
-  String? _decodedInput;
-  DecodedInvoice? _decoded;
+  /// The input and trade amount [_verdict] was computed for; anything else
+  /// is still pending.
+  String? _verdictInput;
+  int? _verdictSats;
+  InvoiceCheck? _verdict;
 
-  /// False once the local decoder failed to run: invoices go to the daemon
-  /// unjudged rather than being refused for a missing bridge.
-  bool _decoderAvailable = true;
+  /// False once the core failed to answer: inputs go to the daemon unjudged
+  /// rather than being held for a bridge that is not there.
+  bool _checkerAvailable = true;
 
   @override
   void initState() {
@@ -112,7 +114,7 @@ class _AddLightningInvoiceScreenState
 
   @override
   void dispose() {
-    _decodeTimer?.cancel();
+    _checkTimer?.cancel();
     _invoiceController.dispose();
     _focus.dispose();
     super.dispose();
@@ -129,58 +131,73 @@ class _AddLightningInvoiceScreenState
   String get _input => normalizeInvoiceInput(_invoiceController.text);
 
   void _onInputChanged() {
-    _decodeTimer?.cancel();
+    _checkTimer?.cancel();
     // The daemon's verdict was about the previous input; the new one gets
     // its own local verdict.
     setState(() => _lastError = null);
     final input = _input;
-    if (classifyInvoiceInput(input) != InvoiceInputKind.bolt11) return;
-    _decodeTimer = Timer(_debounce, () => _decode(input));
+    if (input.isEmpty) return;
+    _checkTimer = Timer(_debounce, () => _evaluate(input, _resolvedSats(ref)));
   }
 
-  Future<void> _decode(String input) async {
-    DecodedInvoice? decoded;
-    var available = true;
+  /// Ask the Rust core what [input] is and whether the daemon would take it
+  /// for a trade of [sats]. A core that cannot answer leaves the input to
+  /// the daemon rather than refusing it for a missing bridge.
+  Future<void> _evaluate(String input, BigInt? sats) async {
+    final node = ref.read(mostroNodeProvider).valueOrNull;
+    final request = (
+      input: input,
+      expectedSats: sats?.toInt(),
+      // The node's `lnd_networks` (38385): an invoice for another chain is
+      // refused here rather than when the daemon tries to pay it.
+      nodeNetworks:
+          node?.lndNetworks
+              ?.split(',')
+              .map((n) => n.trim())
+              .where((n) => n.isNotEmpty)
+              .toList() ??
+          const <String>[],
+      // The node's `invoice_expiration_window`: mostrod refuses an invoice
+      // with less lifetime left than this.
+      minRemainingSecs: node?.invoiceExpirationWindow,
+      // The same clock as the countdown, so the two never disagree.
+      now: clock.now().millisecondsSinceEpoch ~/ 1000,
+    );
+    InvoiceCheck verdict;
     try {
-      decoded = await ref.read(invoiceDecoderProvider)(input);
+      verdict = await ref.read(invoiceCheckerProvider)(request);
     } catch (e) {
-      debugPrint('[AddLightningInvoiceScreen] decoder unavailable: $e');
-      available = false;
+      debugPrint('[AddLightningInvoiceScreen] checker unavailable: $e');
+      verdict = const InvoiceCheckUnverified();
+      if (mounted) setState(() => _checkerAvailable = false);
+      return;
     }
     if (!mounted || input != _input) return;
     setState(() {
-      _decodedInput = input;
-      _decoded = decoded;
-      _decoderAvailable = available;
+      _checkerAvailable = true;
+      _verdictInput = input;
+      _verdictSats = sats?.toInt();
+      _verdict = verdict;
     });
   }
 
   InvoiceCheck _check(BigInt? sats) {
     final input = _input;
-    final pending =
-        classifyInvoiceInput(input) == InvoiceInputKind.bolt11 &&
-        _decoderAvailable &&
-        _decodedInput != input;
-    // While the decoder has not caught up, say nothing and hold submission.
-    if (pending) return const InvoiceCheckPending();
-    return checkInvoiceInput(
-      raw: input,
-      expectedSats: sats?.toInt(),
-      decoded: _decoded,
-      decoderAvailable: _decoderAvailable,
-      // The node's `lnd_networks` (38385): an invoice for another chain is
-      // refused here rather than when the daemon tries to pay it.
-      nodeNetworks:
-          ref
-              .watch(mostroNodeProvider)
-              .valueOrNull
-              ?.lndNetworks
-              ?.split(',')
-              .where((n) => n.trim().isNotEmpty)
-              .toList(),
-      // The same clock as the countdown, so the two never disagree.
-      now: clock.now().millisecondsSinceEpoch ~/ 1000,
-    );
+    if (input.isEmpty) return const InvoiceCheckNone();
+    if (!_checkerAvailable) return const InvoiceCheckUnverified();
+    final verdict = _verdict;
+    if (verdict == null || _verdictInput != input) {
+      // While the core has not caught up, say nothing and hold submission.
+      return const InvoiceCheckPending();
+    }
+    if (_verdictSats != sats?.toInt()) {
+      // The trade amount arrived (or changed) after the verdict: judge again
+      // against it, and hold submission meanwhile.
+      _checkTimer?.cancel();
+      _checkTimer = Timer(Duration.zero, () => _evaluate(input, sats));
+      return const InvoiceCheckPending();
+    }
+    return verdict;
   }
 
   bool _canSubmit(BigInt? sats) {
@@ -251,8 +268,7 @@ class _AddLightningInvoiceScreenState
     // the Rust side uses it to resolve the address. Bolt11 invoices encode
     // their own amount so BigInt.one is an acceptable non-zero placeholder.
     final resolvedSats = _resolvedSats(ref);
-    if (classifyInvoiceInput(input) == InvoiceInputKind.address &&
-        resolvedSats == null) {
+    if (_check(resolvedSats) is InvoiceCheckAddress && resolvedSats == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(AppLocalizations.of(context).waitingForTradeAmount),
@@ -727,6 +743,7 @@ class _AddLightningInvoiceScreenState
           :final expectedSats,
           :final invoiceNetwork,
           :final nodeNetwork,
+          :final minRemainingSecs,
         ) =>
           switch (problem) {
             InvoiceProblem.wrongAmount => l10n.invoiceErrorWrongAmount(
@@ -738,6 +755,9 @@ class _AddLightningInvoiceScreenState
               nodeNetwork ?? '?',
             ),
             InvoiceProblem.expired => l10n.invoiceErrorExpired,
+            InvoiceProblem.expiresTooSoon => l10n.invoiceErrorExpiresTooSoon(
+              ((minRemainingSecs ?? 0) / 60).ceil().toString(),
+            ),
             InvoiceProblem.malformed => l10n.invoiceErrorMalformed,
             InvoiceProblem.unrecognized => l10n.invoiceErrorUnrecognized,
           },

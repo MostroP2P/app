@@ -1,33 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
-
-const _now = 1700000000;
-
-InvoiceCheck _check(
-  String raw, {
-  int? expected = 250,
-  DecodedInvoice? decoded,
-  bool available = true,
-  List<String>? nodeNetworks,
-}) => checkInvoiceInput(
-  raw: raw,
-  expectedSats: expected,
-  decoded: decoded,
-  decoderAvailable: available,
-  nodeNetworks: nodeNetworks,
-  now: _now,
-);
-
-DecodedInvoice _decoded(
-  int? sats, {
-  int? msat,
-  int expiresAt = _now + 600,
-  String network = 'mainnet',
-}) => (
-  amountMsat: msat ?? (sats == null ? null : sats * 1000),
-  expiresAt: expiresAt,
-  network: network,
-);
+import 'package:mostro/src/rust/api/types.dart' as rust_types;
+import 'package:mostro/src/rust/api/types.dart' show InvoiceVerdict;
 
 void main() {
   group('invoiceOrderTag', () {
@@ -117,154 +91,64 @@ void main() {
     });
   });
 
-  group('classifyInvoiceInput', () {
-    test('tells the shapes apart', () {
-      expect(classifyInvoiceInput('  '), InvoiceInputKind.empty);
-      expect(classifyInvoiceInput('lnbc2500u1abc'), InvoiceInputKind.bolt11);
-      expect(classifyInvoiceInput('LNTB1abc'), InvoiceInputKind.bolt11);
+  group('invoiceCheckFromVerdict', () {
+    test('maps every verdict onto the row model', () {
       expect(
-        classifyInvoiceInput('lightning:lnbc1abc'),
-        InvoiceInputKind.bolt11,
+        invoiceCheckFromVerdict(const InvoiceVerdict.empty()),
+        isA<InvoiceCheckNone>(),
       );
       expect(
-        classifyInvoiceInput('satoshi@example.com'),
-        InvoiceInputKind.address,
+        invoiceCheckFromVerdict(const InvoiceVerdict.unverified()),
+        isA<InvoiceCheckUnverified>(),
       );
-      // The daemon path only resolves `user@domain`; an LNURL would be
-      // sent as an invoice, so it is not offered as an address.
-      expect(classifyInvoiceInput('LNURL1DP68GURN'), InvoiceInputKind.unknown);
-      expect(classifyInvoiceInput('hello'), InvoiceInputKind.unknown);
-      expect(classifyInvoiceInput('user@nodomain'), InvoiceInputKind.unknown);
-    });
-
-    test('accepts well-formed Lightning addresses', () {
-      for (final address in [
-        'satoshi@example.com',
-        'a.b+c_d-e@sub.my-wallet.io',
-        'USER@Example.COM',
-      ]) {
-        expect(
-          classifyInvoiceInput(address),
-          InvoiceInputKind.address,
-          reason: address,
-        );
-      }
-    });
-
-    test('refuses addresses with malformed domains', () {
-      for (final address in [
-        'user@example..com', // consecutive dots
-        'user@.example.com', // leading dot
-        'user@example.com.', // trailing dot
-        'user@-example.com', // label starting with a hyphen
-        'user@exam_ple.com', // invalid host character
-        'user@example.com/path', // URL delimiter
-        'user@example.com?x=1',
-        'us@er@example.com',
-        '@example.com',
-      ]) {
-        expect(
-          classifyInvoiceInput(address),
-          InvoiceInputKind.unknown,
-          reason: address,
-        );
-      }
-    });
-  });
-
-  group('checkInvoiceInput', () {
-    final good = _decoded(250);
-
-    test('draws nothing for an empty field', () {
-      expect(_check(''), isA<InvoiceCheckNone>());
-    });
-
-    test('accepts an unexpired invoice for the trade amount', () {
-      final check = _check('lnbc1valid', decoded: good);
-      expect(check, isA<InvoiceCheckValid>());
-      expect((check as InvoiceCheckValid).sats, 250);
-    });
-
-    test('names the amounts of a wrong-amount invoice', () {
-      final check = _check('lnbc1wrong', decoded: _decoded(200));
-      expect(check, isA<InvoiceCheckError>());
-      final error = check as InvoiceCheckError;
-      expect(error.problem, InvoiceProblem.wrongAmount);
-      expect(error.actualMsat, 200000);
-      expect(error.expectedSats, 250);
-    });
-
-    test('refuses an expired invoice before comparing amounts', () {
-      final check = _check('lnbc1old', decoded: _decoded(200, expiresAt: _now));
-      expect((check as InvoiceCheckError).problem, InvoiceProblem.expired);
-    });
-
-    test('a sub-sat remainder is a wrong amount, not a rounded match', () {
-      final check = _check(
-        'lnbc1subsat',
-        decoded: _decoded(null, msat: 250500),
-      );
-      final error = check as InvoiceCheckError;
-      expect(error.problem, InvoiceProblem.wrongAmount);
-      expect(error.actualMsat, 250500);
-      expect(formatInvoiceMsat(250500), '250.5');
-      expect(formatInvoiceMsat(250000), '250');
-    });
-
-    test('refuses an invoice for another network than the node', () {
-      final check = _check(
-        'lntb1x',
-        decoded: _decoded(250, network: 'testnet'),
-        nodeNetworks: const ['mainnet'],
-      );
-      final error = check as InvoiceCheckError;
-      expect(error.problem, InvoiceProblem.wrongNetwork);
-      expect(error.invoiceNetwork, 'testnet');
-      expect(error.nodeNetwork, 'mainnet');
-    });
-
-    test('a matching or unknown node network does not block', () {
       expect(
-        _check(
-          'lntb1x',
-          decoded: _decoded(250, network: 'testnet'),
-          nodeNetworks: const ['testnet4'],
+        invoiceCheckFromVerdict(const InvoiceVerdict.address()),
+        isA<InvoiceCheckAddress>(),
+      );
+      final valid = invoiceCheckFromVerdict(
+        InvoiceVerdict.valid(sats: BigInt.from(250)),
+      );
+      expect(valid, isA<InvoiceCheckValid>());
+      expect((valid as InvoiceCheckValid).sats, 250);
+    });
+
+    test('carries the fields each problem names', () {
+      final wrong = invoiceCheckFromVerdict(
+        InvoiceVerdict.rejected(
+          problem: rust_types.InvoiceProblem.wrongAmount,
+          actualMsat: BigInt.from(300500),
+          expectedSats: BigInt.from(250),
         ),
-        isA<InvoiceCheckValid>(),
       );
-      expect(
-        _check('lnbc1x', decoded: good, nodeNetworks: null),
-        isA<InvoiceCheckValid>(),
-      );
-      expect(
-        _check('lnbc1x', decoded: good, nodeNetworks: const []),
-        isA<InvoiceCheckValid>(),
-      );
-    });
+      expect(wrong, isA<InvoiceCheckError>());
+      final e = wrong as InvoiceCheckError;
+      expect(e.problem, InvoiceProblem.wrongAmount);
+      expect(e.actualMsat, 300500);
+      expect(e.expectedSats, 250);
 
-    test('calls an undecodable invoice malformed', () {
-      final check = _check('lnbc1short');
-      expect((check as InvoiceCheckError).problem, InvoiceProblem.malformed);
-    });
+      final soon =
+          invoiceCheckFromVerdict(
+                InvoiceVerdict.rejected(
+                  problem: rust_types.InvoiceProblem.expiresTooSoon,
+                  minRemainingSecs: BigInt.from(3600),
+                ),
+              )
+              as InvoiceCheckError;
+      expect(soon.problem, InvoiceProblem.expiresTooSoon);
+      expect(soon.minRemainingSecs, 3600);
 
-    test('leaves the invoice to the daemon when it cannot judge', () {
-      expect(_check('lnbc1x', available: false), isA<InvoiceCheckUnverified>());
-      expect(
-        _check('lnbc1x', decoded: _decoded(null)),
-        isA<InvoiceCheckUnverified>(),
-      );
-      expect(
-        _check('lnbc1x', expected: null, decoded: good),
-        isA<InvoiceCheckUnverified>(),
-      );
-    });
-
-    test('accepts an address and refuses anything else', () {
-      expect(_check('satoshi@example.com'), isA<InvoiceCheckAddress>());
-      expect(
-        (_check('hello') as InvoiceCheckError).problem,
-        InvoiceProblem.unrecognized,
-      );
+      final network =
+          invoiceCheckFromVerdict(
+                const InvoiceVerdict.rejected(
+                  problem: rust_types.InvoiceProblem.wrongNetwork,
+                  invoiceNetwork: 'testnet',
+                  nodeNetwork: 'mainnet',
+                ),
+              )
+              as InvoiceCheckError;
+      expect(network.problem, InvoiceProblem.wrongNetwork);
+      expect(network.invoiceNetwork, 'testnet');
+      expect(network.nodeNetwork, 'mainnet');
     });
 
     test('only a usable verdict enables submission', () {
@@ -279,6 +163,17 @@ void main() {
       expect(invoiceCheckAllowsSubmit(const InvoiceCheckUnverified()), isTrue);
       expect(invoiceCheckAllowsSubmit(const InvoiceCheckAddress()), isTrue);
       expect(invoiceCheckAllowsSubmit(const InvoiceCheckValid(250)), isTrue);
+    });
+  });
+
+  group('normalizeInvoiceInput', () {
+    test('strips whitespace and the lightning scheme', () {
+      expect(normalizeInvoiceInput('  lightning:lnbc1abc \n'), 'lnbc1abc');
+      expect(normalizeInvoiceInput('LIGHTNING: lnbc1abc'), 'lnbc1abc');
+      expect(
+        normalizeInvoiceInput('satoshi@example.com'),
+        'satoshi@example.com',
+      );
     });
   });
 

@@ -131,9 +131,17 @@ pub async fn get_balance() -> Result<Option<u64>> {
 ///
 /// **Errors**: `NoWalletConnected`, `InvoiceInvalid`.
 pub async fn pay_invoice(bolt11: String) -> Result<PaymentResult> {
-    if bolt11.trim().is_empty() {
-        bail!("InvoiceInvalid: bolt11 must not be empty");
-    }
+    // The wallet is never handed something that is not a BOLT11 invoice
+    // (api::invoice is the one judge of that); a scheme prefix is stripped.
+    let bolt11 = match crate::api::invoice::classify(&bolt11) {
+        crate::api::types::PaymentDestination::Bolt11(_) => {
+            crate::api::invoice::normalize(&bolt11).to_string()
+        }
+        crate::api::types::PaymentDestination::Empty => {
+            bail!("InvoiceInvalid: bolt11 must not be empty")
+        }
+        _ => bail!("InvoiceInvalid: not a BOLT11 invoice"),
+    };
 
     let client = {
         let guard = wallet_store().client.read().await;
@@ -227,6 +235,17 @@ mod tests {
         assert!(err.to_string().contains("InvoiceInvalid"));
     }
 
+    /// The wallet is never asked to pay something that does not decode —
+    /// a truncated copy, a Lightning address, an LNURL — whether or not a
+    /// wallet is connected.
+    #[tokio::test]
+    async fn pay_invoice_rejects_what_is_not_a_bolt11() {
+        for input in ["lnbc1...", "satoshi@example.com", "LNURL1DP68GURN"] {
+            let err = pay_invoice(input.into()).await.unwrap_err();
+            assert!(err.to_string().contains("InvoiceInvalid"), "{input}: {err}");
+        }
+    }
+
     #[tokio::test]
     async fn invalid_uri_returns_error() {
         let err = connect_wallet("not-a-valid-uri".into()).await.unwrap_err();
@@ -246,7 +265,9 @@ mod tests {
     async fn pay_invoice_errors_when_not_connected() {
         let _g = wallet_lock().lock().unwrap();
         let _ = disconnect_wallet().await;
-        let err = pay_invoice("lnbc1...".into()).await.unwrap_err();
+        let err = pay_invoice(crate::api::invoice::test_vectors::COFFEE.into())
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("NoWalletConnected"));
     }
 

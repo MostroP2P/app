@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
+import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
@@ -73,12 +74,8 @@ Future<void> _pump(
           invoiceDeadlineProvider.overrideWith(
             (ref, id) async => _nowSeconds + left.inSeconds,
           ),
-          invoiceDecoderProvider.overrideWithValue(
-            (input) async => (
-              amountMsat: 250000,
-              expiresAt: _nowSeconds + 3600,
-              network: 'mainnet',
-            ),
+          invoiceCheckerProvider.overrideWithValue(
+            (request) async => const InvoiceCheckValid(250),
           ),
           mostroNodeProvider.overrideWith((ref) async => null),
           activeNodeNameProvider.overrideWithValue('Bitcoin Bolivia'),
