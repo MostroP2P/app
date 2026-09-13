@@ -40,6 +40,22 @@ String localizedDaemonError(
       raw.contains('invalid Lightning invoice')) {
     return l10n.invoiceRejected;
   }
+  // Payout claim submission (docs/ANTI_ABUSE_BOND.md §6.4).
+  if (raw.contains('InvoiceAmountMismatch')) {
+    return l10n.bondClaimErrorAmount;
+  }
+  if (raw.contains('BondClaimExpired')) {
+    return l10n.bondClaimErrorExpired;
+  }
+  if (raw.contains('BondClaimRejected')) {
+    return l10n.bondClaimErrorRejected;
+  }
+  if (raw.contains('ClaimNotClaimable') || raw.contains('ClaimNotFound')) {
+    return l10n.bondClaimErrorNotClaimable;
+  }
+  if (raw.contains('TradeKeyMissing')) {
+    return l10n.bondClaimErrorNoKey;
+  }
   // A cancel during the maker's bond window: the daemon would refuse it
   // (docs/ANTI_ABUSE_BOND.md §2.8); the pay-bond screen offers Abandon.
   if (raw.contains('BondCancelNotAllowed')) {

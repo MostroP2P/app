@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
 import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
-import 'package:mostro/src/rust/api/types.dart' show TradeInfo;
+import 'package:mostro/src/rust/api/types.dart'
+    show BondClaim, BondClaimUpdate, TradeInfo;
 
 const kBondExplainerOpenKey = 'bond_explainer_open';
 
@@ -91,3 +92,45 @@ final bondEstimateProvider = FutureProvider.autoDispose.family<int?, int>((
   );
   return estimate?.toInt();
 });
+
+// ── Payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ─────────────────────────────
+
+/// Claim phase changes pushed by the core (new claim, submission, ack,
+/// payout, expiry). Screens filter by `orderId`.
+final bondClaimUpdatesProvider = StreamProvider.autoDispose<BondClaimUpdate>((
+  ref,
+) async* {
+  final stream = await bond_api.onBondClaimUpdated();
+  while (true) {
+    yield await stream.next();
+  }
+});
+
+/// The claim for one order, re-read on every claim update for it.
+final bondClaimProvider = FutureProvider.autoDispose.family<BondClaim?, String>(
+  (ref, orderId) async {
+    ref.listen(bondClaimUpdatesProvider, (_, next) {
+      if (next.valueOrNull?.orderId == orderId) ref.invalidateSelf();
+    });
+    return bond_api.getBondClaim(orderId: orderId);
+  },
+);
+
+/// Every claim, most recently changed first.
+final bondClaimsProvider = FutureProvider.autoDispose<List<BondClaim>>((
+  ref,
+) async {
+  ref.listen(bondClaimUpdatesProvider, (_, _) => ref.invalidateSelf());
+  return bond_api.listBondClaims();
+});
+
+/// The submission behind a seam: publish the bolt11 for a claim's share to
+/// the node that issued it.
+final submitBondPayoutInvoiceProvider =
+    Provider<Future<void> Function(String orderId, String invoice)>(
+      (ref) =>
+          (orderId, invoice) => bond_api.submitBondPayoutInvoice(
+            orderId: orderId,
+            invoice: invoice,
+          ),
+    );

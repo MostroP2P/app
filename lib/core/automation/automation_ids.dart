@@ -222,6 +222,17 @@ class AutomationIds {
   static const String bondOrderId = 'bond.order_id';
   static const String bondExplainer = 'bond.explainer';
   static const String bondCancel = 'bond.cancel';
+
+  // Payout claim on a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4)
+  static const String bondClaimOrderId = 'bond.claim.order_id';
+  /// Readout: the share on offer, in sats.
+  static const String bondClaimAmount = 'bond.claim.amount';
+  /// Readout: the claim's phase (`pending`, `submitted`, `acknowledged`,
+  /// `completed`, `expired`), the clock applied.
+  static const String bondClaimStatus = 'bond.claim.status';
+  static const String bondClaimText = 'bond.claim.text';
+  static const String bondClaimSubmit = 'bond.claim.submit';
+  static const String bondClaimManual = 'bond.claim.manual';
   static const String payOrderId = 'pay.order_id';
   static const String payNwc = 'pay.nwc';
   static const String payCancel = 'pay.cancel';
