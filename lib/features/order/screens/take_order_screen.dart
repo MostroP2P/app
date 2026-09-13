@@ -282,10 +282,17 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     final book = OrderBookPalette.of(context);
     final flags = ref.watch(currencyFlagsProvider);
     final privacyMode = ref.watch(privacyModeProvider);
+    // Not while a take is in flight: the user's own take moves the order out
+    // of `pending` before it settles (Rust updates the book entry as soon as
+    // the daemon confirms, then persists the trade and subscribes, and only
+    // then does `take_order` return). Read as the order going away, that
+    // showed "No longer available" for the order the user had just got
+    // (#454). The listener above holds back for the same reason; once the
+    // take settles, a failure lands back on `idle` and the book decides.
     final isUnavailable =
         _cta == TakeOrderCta.unavailable ||
-        live == null ||
-        live.status != OrderStatus.pending;
+        (_cta != TakeOrderCta.loading &&
+            (live == null || live.status != OrderStatus.pending));
     final cta = isUnavailable ? TakeOrderCta.unavailable : _cta;
 
     return Scaffold(
