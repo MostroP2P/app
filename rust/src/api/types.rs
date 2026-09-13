@@ -536,8 +536,10 @@ pub enum InvoiceVerdict {
     /// A BOLT11 invoice for exactly `sats`, unexpired, on the node's chain.
     /// `expires_at` (unix seconds) lets the caller re-judge it before the
     /// verdict goes stale: it stops being valid `min_remaining_secs` before
-    /// that moment.
-    Valid { sats: u64, expires_at: i64 },
+    /// that moment. `u64`, not `i64`: an `i64` inside a bridge enum is a
+    /// Dart `int` in the generated union but a `BigInt` on the web, and
+    /// dart2js refuses the mismatch — a `u64` is a `BigInt` everywhere.
+    Valid { sats: u64, expires_at: u64 },
     /// Refused. The optional fields carry what the copy needs to name.
     Rejected {
         problem: InvoiceProblem,

@@ -189,7 +189,8 @@ pub(crate) fn check(
     }
     InvoiceVerdict::Valid {
         sats: expected,
-        expires_at: summary.expires_at,
+        // Unexpired here, so past the epoch; the fallback is unreachable.
+        expires_at: u64::try_from(summary.expires_at).unwrap_or(0),
     }
 }
 
@@ -519,7 +520,7 @@ mod tests {
             verdict(bolt11(Some(250))),
             InvoiceVerdict::Valid {
                 sats: 250,
-                expires_at: NOW + 600
+                expires_at: (NOW + 600) as u64
             }
         );
     }
@@ -571,7 +572,7 @@ mod tests {
         }
         let valid = InvoiceVerdict::Valid {
             sats: 250,
-            expires_at: NOW + 600,
+            expires_at: (NOW + 600) as u64,
         };
         assert_eq!(
             check(soon.clone(), Some(250), &[], Some(600), NOW),
@@ -606,7 +607,7 @@ mod tests {
     fn a_matching_or_unknown_node_network_does_not_block() {
         let valid = InvoiceVerdict::Valid {
             sats: 250,
-            expires_at: NOW + 600,
+            expires_at: (NOW + 600) as u64,
         };
         let testnet3 = vec![" testnet3 ".to_string()];
         assert_eq!(

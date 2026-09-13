@@ -6469,7 +6469,7 @@ impl SseDecode for crate::api::types::InvoiceVerdict {
             }
             3 => {
                 let mut var_sats = <u64>::sse_decode(deserializer);
-                let mut var_expiresAt = <i64>::sse_decode(deserializer);
+                let mut var_expiresAt = <u64>::sse_decode(deserializer);
                 return crate::api::types::InvoiceVerdict::Valid {
                     sats: var_sats,
                     expires_at: var_expiresAt,
@@ -10421,7 +10421,7 @@ impl SseEncode for crate::api::types::InvoiceVerdict {
             crate::api::types::InvoiceVerdict::Valid { sats, expires_at } => {
                 <i32>::sse_encode(3, serializer);
                 <u64>::sse_encode(sats, serializer);
-                <i64>::sse_encode(expires_at, serializer);
+                <u64>::sse_encode(expires_at, serializer);
             }
             crate::api::types::InvoiceVerdict::Rejected {
                 problem,
