@@ -523,6 +523,7 @@
   "tradesStatLabel": "Trades",
   "daysActiveStatLabel": "Tage aktiv",
   "timeRemainingLabel": "Verbleibende Zeit: {time}",
+  "createOrderMakerBondUnsupported": "Dieser Node verlangt von Erstellenden eine Einlage, die diese App noch nicht zahlen kann. Wähle einen anderen Node zum Veröffentlichen.",
   "orderAmountOutOfRange": "Der Betrag muss für diesen Mostro-Knoten zwischen {min} und {max} Sats liegen",
   "orderAmountOutOfRangeFiat": "Der Betrag muss für diesen Mostro-Knoten zwischen {min} und {max} {currency} liegen",
   "priceTypeMarket": "Markt",

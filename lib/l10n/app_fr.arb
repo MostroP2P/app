@@ -523,6 +523,7 @@
   "tradesStatLabel": "transactions",
   "daysActiveStatLabel": "jours actifs",
   "timeRemainingLabel": "Temps restant : {time}",
+  "createOrderMakerBondUnsupported": "Ce nœud demande un dépôt à qui crée l'ordre, et cette app ne peut pas encore le payer. Choisis un autre nœud pour publier.",
   "orderAmountOutOfRange": "Le montant doit être compris entre {min} et {max} sats pour ce nœud Mostro",
   "orderAmountOutOfRangeFiat": "Le montant doit être compris entre {min} et {max} {currency} pour ce nœud Mostro",
   "priceTypeMarket": "Marché",

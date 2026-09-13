@@ -2314,6 +2314,8 @@
       }
     }
   },
+  "createOrderMakerBondUnsupported": "This node asks makers for a deposit, which this app cannot pay yet. Pick another node to publish.",
+  "@createOrderMakerBondUnsupported": {"description": "Create-order form error on a node whose bond applies to makers, until the maker bond flow ships (docs/ANTI_ABUSE_BOND.md Phase 2)"},
   "orderAmountOutOfRange": "Amount must be between {min} and {max} sats for this Mostro node",
   "@orderAmountOutOfRange": {
     "description": "Shown when a fixed-sats order amount is outside the node min/max order amount",

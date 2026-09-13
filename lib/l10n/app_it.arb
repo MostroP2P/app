@@ -523,6 +523,7 @@
   "tradesStatLabel": "operazioni",
   "daysActiveStatLabel": "giorni attivo",
   "timeRemainingLabel": "Tempo rimanente: {time}",
+  "createOrderMakerBondUnsupported": "Questo nodo chiede un deposito a chi crea l'ordine, e questa app non può ancora pagarlo. Scegli un altro nodo per pubblicare.",
   "orderAmountOutOfRange": "L'importo deve essere compreso tra {min} e {max} sats per questo nodo Mostro",
   "orderAmountOutOfRangeFiat": "L'importo deve essere compreso tra {min} e {max} {currency} per questo nodo Mostro",
   "priceTypeMarket": "Mercato",

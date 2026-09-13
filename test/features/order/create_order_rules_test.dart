@@ -1,8 +1,38 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/about/models/mostro_instance.dart'
+    show BondApplyTo, BondPolicy;
 import 'package:mostro/features/order/models/create_order_rules.dart';
 
 void main() {
+  group('makerBondBlocks', () {
+    test('blocks only an enabled policy that bonds makers', () {
+      expect(
+        makerBondBlocks(policy: BondPolicy.enabled, applyTo: BondApplyTo.make),
+        isTrue,
+      );
+      expect(
+        makerBondBlocks(policy: BondPolicy.enabled, applyTo: BondApplyTo.both),
+        isTrue,
+      );
+      expect(
+        makerBondBlocks(policy: BondPolicy.enabled, applyTo: BondApplyTo.take),
+        isFalse,
+      );
+    });
+    test('unknown, disabled or missing policy publishes as before', () {
+      expect(
+        makerBondBlocks(policy: BondPolicy.disabled, applyTo: BondApplyTo.both),
+        isFalse,
+      );
+      expect(
+        makerBondBlocks(policy: BondPolicy.unsupported, applyTo: null),
+        isFalse,
+      );
+      expect(makerBondBlocks(policy: null, applyTo: null), isFalse);
+    });
+  });
+
   group('premiumFavour (maker side)', () {
     test('selling above market favours the maker', () {
       expect(premiumFavour(OrderType.sell, 3), PremiumFavour.good);
@@ -130,7 +160,8 @@ void main() {
     });
 
     test('tells sats apart from amount even when the figures match', () {
-      final sentence = '${markPreview('5.000 sats', PreviewRole.sats)} por '
+      final sentence =
+          '${markPreview('5.000 sats', PreviewRole.sats)} por '
           '${markPreview('5.000 ARS', PreviewRole.amount)}';
       final roles = previewFragments(sentence).map((f) => f.role).toList();
       expect(roles, [PreviewRole.sats, PreviewRole.text, PreviewRole.amount]);
