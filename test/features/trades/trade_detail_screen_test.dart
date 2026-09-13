@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1265,6 +1266,132 @@ void main() {
         findsOneWidget,
         reason: "the maker's own order arrived",
       );
+    });
+  });
+
+  group('the trade row outranks what the book says about the order', () {
+    const orderId = 'order-row';
+
+    testWidgets('a take left Canceled reads cancelled over a public pending', (
+      tester,
+    ) async {
+      // Older builds marked a take Canceled as soon as its cancel went out;
+      // the daemon then put the order back in the book, where it reads
+      // `pending`. Shown as is, that was the user's own order with a Cancel
+      // the daemon refuses (IsNotYourOrder).
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        loadTrades:
+            () async => [fakeTrade(id: 'row', status: OrderStatus.canceled)],
+        book: [fakeOrder(id: orderId)],
+      );
+      await _finishPageTransition(tester);
+
+      expect(find.byType(TradeDetailScreen), findsOneWidget);
+      expect(find.text(_en.tradeHeadlineCancelled), findsOneWidget);
+      expect(find.text(_en.tradeHeadlinePending), findsNothing);
+      expect(_cancelButton(), findsNothing);
+    });
+
+    testWidgets('an ended take stays ended when someone else completes it', (
+      tester,
+    ) async {
+      // The same leftover row, its order since taken and completed by
+      // someone else: the book's `success` is not this user's trade. The
+      // My Trades list reads it the same way.
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.success,
+        loadTrades:
+            () async => [fakeTrade(id: 'row', status: OrderStatus.canceled)],
+      );
+      await _finishPageTransition(tester);
+
+      expect(find.text(_en.tradeHeadlineCancelled), findsOneWidget);
+      expect(find.byType(TradeCompletedCard), findsNothing);
+    });
+
+    testWidgets('an open take keeps its own step over a public pending', (
+      tester,
+    ) async {
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        loadTrades:
+            () async => [
+              fakeTrade(id: 'row', status: OrderStatus.waitingPayment),
+            ],
+        book: [fakeOrder(id: orderId)],
+      );
+      await _finishPageTransition(tester);
+
+      expect(find.text(_en.tradeHeadlineWaitingPaymentBuyer), findsOneWidget);
+      expect(find.text(_en.tradeHeadlinePending), findsNothing);
+    });
+
+    testWidgets("a maker's order still reads pending from the book", (
+      tester,
+    ) async {
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        loadTrades:
+            () async => [
+              fakeTrade(
+                id: 'row',
+                status: OrderStatus.waitingPayment,
+                isMine: true,
+              ),
+            ],
+        book: [fakeOrder(id: orderId, isMine: true)],
+      );
+      await _finishPageTransition(tester);
+
+      expect(find.text(_en.tradeHeadlinePending), findsOneWidget);
+    });
+
+    testWidgets('a book change the row outranks is not a step: no nudge', (
+      tester,
+    ) async {
+      final nudges = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') nudges.add('$call');
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final book = StreamController<OrderStatus>();
+      addTearDown(() => unawaited(book.close()));
+      book.add(OrderStatus.pending);
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.pending,
+        statusUpdates: book.stream,
+        loadTrades:
+            () async => [fakeTrade(id: 'row', status: OrderStatus.canceled)],
+      );
+      await _finishPageTransition(tester);
+
+      // Someone else takes the order: the book moves, this trade does not.
+      book.add(OrderStatus.inProgress);
+      await tester.pump();
+      await tester.pump();
+
+      expect(nudges, isEmpty);
+      expect(find.text(_en.tradeHeadlineCancelled), findsOneWidget);
     });
   });
 }

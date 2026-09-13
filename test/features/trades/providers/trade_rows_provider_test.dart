@@ -69,6 +69,29 @@ void main() {
       expect((await _rows(c)).single.status, OrderStatus.canceled);
     });
 
+    test('a take keeps its own status over a public pending', () async {
+      // A take parked at its bond: publicly the order is still `pending`.
+      final c = _container(
+        [fakeTrade(id: 'a', status: OrderStatus.waitingTakerBond)],
+        live: {'order-a': OrderStatus.pending},
+      );
+      expect((await _rows(c)).single.status, OrderStatus.waitingTakerBond);
+    });
+
+    test("a maker's pending order still follows the book", () async {
+      final c = _container(
+        [
+          fakeTrade(
+            id: 'a',
+            status: OrderStatus.waitingBuyerInvoice,
+            isMine: true,
+          ),
+        ],
+        live: {'order-a': OrderStatus.pending},
+      );
+      expect((await _rows(c)).single.status, OrderStatus.pending);
+    });
+
     test('a durable rating marker closes a successful trade', () async {
       final rated = fakeTrade(id: 'a', status: OrderStatus.success);
       final c = _container([

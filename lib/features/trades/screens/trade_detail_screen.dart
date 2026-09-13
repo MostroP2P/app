@@ -36,6 +36,7 @@ import 'package:mostro/shared/widgets/mostro_reactive_button.dart';
 import 'package:mostro/src/rust/api/disputes.dart' as disputes_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
+import 'package:mostro/src/rust/api/types.dart' show TradeInfo;
 
 export 'package:mostro/features/trades/models/trade_status.dart';
 
@@ -189,8 +190,22 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
   /// await: the seller's payment can land while the cancel dialog is open.
   TradeStatus _liveStatus(TradeStatus fallback) {
     final live = ref.read(tradeStatusProvider(widget.orderId)).valueOrNull;
-    return live == null ? fallback : tradeStatusFromOrderStatus(live);
+    if (live == null) return fallback;
+    final trade = ref.read(tradeInfoProvider(widget.orderId)).valueOrNull;
+    return tradeStatusFromOrderStatus(_shown(live, trade));
   }
+
+  /// What [live] shows for this trade once its [trade] row is read in
+  /// ([shownTradeStatus]); [live] itself while the row has not loaded, or
+  /// when there is none.
+  static OrderStatus _shown(OrderStatus live, TradeInfo? trade) =>
+      trade == null
+          ? live
+          : shownTradeStatus(
+            row: trade.order.status,
+            live: live,
+            isTake: !trade.order.isMine,
+          );
 
   Future<void> _cancelOrder(TradeStatus status) async {
     final l10n = AppLocalizations.of(context);
@@ -207,8 +222,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                     dialogRef
                         .watch(tradeStatusProvider(widget.orderId))
                         .valueOrNull;
+                final trade =
+                    dialogRef
+                        .watch(tradeInfoProvider(widget.orderId))
+                        .valueOrNull;
                 final now =
-                    live == null ? status : tradeStatusFromOrderStatus(live);
+                    live == null
+                        ? status
+                        : tradeStatusFromOrderStatus(_shown(live, trade));
                 return Text(_cancelDialogContent(l10n, now));
               },
             ),
@@ -405,7 +426,8 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
       debugPrint('[TradeDetailScreen] trade status failed: ${live.error}');
     }
     if (!live.hasValue) return TradeStatus.loading;
-    final status = tradeStatusFromOrderStatus(live.value!);
+    final trade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
+    final status = tradeStatusFromOrderStatus(_shown(live.value!, trade));
     if (status != TradeStatus.pendingRating) return status;
     final rating = ref.watch(tradeRatingProvider(widget.orderId));
     if (rating.isLoading && !rating.hasValue) return TradeStatus.loading;
@@ -439,13 +461,18 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
     // A step advanced by the relay: a nudge, the crossfades below, and a
     // fresh deadline — every step has its own expiration, owned by a
     // different party, so the clock loaded for the previous step is stale.
+    // Judged on what the screen shows: a book change the row outranks is
+    // not a step of this trade.
     ref.listen<AsyncValue<OrderStatus>>(tradeStatusProvider(widget.orderId), (
       previous,
       next,
     ) {
+      final trade = ref.read(tradeInfoProvider(widget.orderId)).valueOrNull;
       final before = previous?.valueOrNull;
       final after = next.valueOrNull;
-      if (before != null && after != null && before != after) {
+      if (before != null &&
+          after != null &&
+          _shown(before, trade) != _shown(after, trade)) {
         HapticFeedback.mediumImpact();
         _loadExpiresAt();
       }

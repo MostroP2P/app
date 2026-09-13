@@ -88,7 +88,7 @@ final tradeStatusProvider = StreamProvider.family
         final status = await lookup(orderId);
         if (status != null) {
           yield status;
-          if (_isTerminal(status)) return;
+          if (isTerminalTradeStatus(status)) return;
         }
         await Future.delayed(const Duration(seconds: 2));
       }
@@ -111,8 +111,9 @@ final tradeUpdatesProvider = StreamProvider.autoDispose<TradeUpdate>((
   }
 });
 
-/// Whether the UI can stop polling. Escrow settlement still awaits payout.
-bool _isTerminal(OrderStatus s) => const {
+/// Whether a trade in [s] has ended: nothing moves it out again, so the UI
+/// can stop polling. Escrow settlement still awaits payout.
+bool isTerminalTradeStatus(OrderStatus s) => const {
   OrderStatus.success,
   OrderStatus.settledByAdmin,
   OrderStatus.completedByAdmin,
@@ -121,6 +122,33 @@ bool _isTerminal(OrderStatus s) => const {
   OrderStatus.cooperativelyCanceled,
   OrderStatus.canceledByAdmin,
 }.contains(s);
+
+/// The status a trade shows: its [row]'s persisted one, or the [live] one
+/// from [tradeStatusProvider], which reads the order book first.
+///
+/// The row wins in two cases:
+/// * **It has ended** ([isTerminalTradeStatus]). Whatever the book says about
+///   the order later is no longer this trade. The one way such a row can be
+///   wrong is the cancel's optimistic write on an active trade: a cooperative
+///   cancel the peer never accepts, on a trade that then completes.
+/// * **It is a take ([isTake]) and the book says `pending`.** A public
+///   `pending` means nobody holds the order, so it is never a take's status.
+///   Older builds marked a take `Canceled` as soon as its cancel went out,
+///   even before it went active; once the daemon put the order back in the
+///   book, that `pending` read as the user's own order, with a Cancel the
+///   daemon refuses (`IsNotYourOrder`). A take parked at `WaitingTakerBond`
+///   is another: publicly its order is still `pending`.
+///
+/// Otherwise the live status, or the row's while there is none yet.
+OrderStatus shownTradeStatus({
+  required OrderStatus row,
+  required OrderStatus? live,
+  required bool isTake,
+}) {
+  if (live == null || isTerminalTradeStatus(row)) return row;
+  if (isTake && live == OrderStatus.pending) return row;
+  return live;
+}
 
 /// Loads the buyer/seller role for a trade from the persistent DB.
 ///
