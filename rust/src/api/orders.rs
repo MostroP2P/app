@@ -1351,29 +1351,8 @@ pub async fn send_invoice(
     invoice_or_address: String,
     amount_sats: u64,
 ) -> Result<()> {
-    // One classifier for what the buyer handed us (api::invoice). An address
-    // needs the trade amount so the daemon can resolve it; a bolt11 carries
-    // its own. Anything else never leaves the device: the daemon would only
-    // answer `CantDo(InvalidInvoice)`, so that is the marker raised here.
-    use crate::api::types::PaymentDestination;
-    let (destination, amount_opt) = match crate::api::invoice::classify(&invoice_or_address) {
-        PaymentDestination::Bolt11(_) => (
-            crate::api::invoice::normalize(&invoice_or_address).to_string(),
-            None,
-        ),
-        PaymentDestination::LightningAddress(address) => {
-            (address, (amount_sats > 0).then_some(amount_sats))
-        }
-        PaymentDestination::Empty => {
-            return Err(anyhow::anyhow!("InvalidInvoice: invoice or address must not be empty"));
-        }
-        PaymentDestination::MalformedBolt11 | PaymentDestination::Unknown => {
-            return Err(anyhow::anyhow!(
-                "InvalidInvoice: neither a BOLT11 invoice nor a Lightning address"
-            ));
-        }
-    };
-    let is_address = destination.contains('@');
+    let (destination, amount_opt) = resolve_add_invoice_destination(&invoice_or_address, amount_sats)?;
+    let is_address = amount_opt.is_some() || destination.contains('@');
 
     let trade_index = get_trade_key_index(&order_id).await.ok_or_else(|| {
         log::warn!("[orders] send_invoice: no persisted trade key for order {order_id}");
@@ -1397,7 +1376,7 @@ pub async fn send_invoice(
         &mostro_pubkey,
         &order_id,
         trade_index,
-        &invoice_or_address,
+        &destination,
         amount_opt,
         request_id,
     )
@@ -1986,6 +1965,32 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     );
     Ok(())
 }
+
+/// What `send_invoice` publishes for the buyer's input, decided by the one
+/// classifier (`api::invoice`): a bolt11 goes as itself, normalized (scheme
+/// stripped, whitespace trimmed) and with no amount — it carries its own; a
+/// Lightning address goes lower-cased with the trade amount the daemon needs
+/// to resolve it. Anything else never leaves the device: the daemon would
+/// only answer `CantDo(InvalidInvoice)`, so that marker is raised here — the
+/// marker alone, the prose is Dart's.
+fn resolve_add_invoice_destination(
+    input: &str,
+    amount_sats: u64,
+) -> Result<(String, Option<u64>)> {
+    use crate::api::types::PaymentDestination;
+    match crate::api::invoice::classify(input) {
+        PaymentDestination::Bolt11(_) => {
+            Ok((crate::api::invoice::normalize(input).to_string(), None))
+        }
+        PaymentDestination::LightningAddress(address) => {
+            Ok((address, (amount_sats > 0).then_some(amount_sats)))
+        }
+        PaymentDestination::Empty
+        | PaymentDestination::MalformedBolt11
+        | PaymentDestination::Unknown => Err(anyhow::anyhow!("InvalidInvoice")),
+    }
+}
+
 
 /// The local side of a cancel request, applied once it is published.
 ///
@@ -7745,6 +7750,32 @@ mod tests {
     /// action implies — the take interception consumes the message before
     /// the status-sync arms run, so an empty status would persist the trade
     /// as Pending even though the daemon already advanced it.
+    #[test]
+    fn send_invoice_publishes_the_normalized_destination() {
+        // A bolt11: scheme and whitespace stripped, case kept, no amount.
+        let (dest, amount) = resolve_add_invoice_destination(
+            &format!("  lightning:{} \n", crate::api::invoice::test_vectors::COFFEE),
+            999,
+        )
+        .expect("a bolt11 is accepted");
+        assert_eq!(dest, crate::api::invoice::test_vectors::COFFEE);
+        assert_eq!(amount, None, "a bolt11 carries its own amount");
+
+        // An address: lower-cased, with the trade amount for the daemon.
+        let (dest, amount) =
+            resolve_add_invoice_destination(" Satoshi@Example.COM ", 999).expect("an address");
+        assert_eq!(dest, "satoshi@example.com");
+        assert_eq!(amount, Some(999));
+        let (_, none) = resolve_add_invoice_destination("satoshi@example.com", 0).unwrap();
+        assert_eq!(none, None, "no amount known yet: none is claimed");
+
+        // Anything else is refused with the marker alone.
+        for input in ["", "   ", "lnbc1short", "LNURL1DP68GURN", "hello"] {
+            let err = resolve_add_invoice_destination(input, 999).unwrap_err();
+            assert_eq!(err.to_string(), "InvalidInvoice", "{input:?}");
+        }
+    }
+
     #[test]
     fn classify_take_reply_derives_status_from_action_only_replies() {
         use mostro_core::message::Action;

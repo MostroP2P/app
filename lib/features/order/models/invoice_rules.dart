@@ -134,10 +134,12 @@ final class InvoiceCheckAddress extends InvoiceCheck {
   const InvoiceCheckAddress();
 }
 
-/// A BOLT11 invoice for [sats], unexpired.
+/// A BOLT11 invoice for [sats], unexpired. [expiresAt] (unix seconds) is
+/// when it stops being so — the screen re-judges it before then.
 final class InvoiceCheckValid extends InvoiceCheck {
-  const InvoiceCheckValid(this.sats);
+  const InvoiceCheckValid(this.sats, {this.expiresAt});
   final int sats;
+  final int? expiresAt;
 }
 
 enum InvoiceProblem {
@@ -191,7 +193,10 @@ InvoiceCheck invoiceCheckFromVerdict(
   InvoiceVerdict_Empty() => const InvoiceCheckNone(),
   InvoiceVerdict_Unverified() => const InvoiceCheckUnverified(),
   InvoiceVerdict_Address() => const InvoiceCheckAddress(),
-  InvoiceVerdict_Valid(:final sats) => InvoiceCheckValid(sats.toInt()),
+  InvoiceVerdict_Valid(:final sats, :final expiresAt) => InvoiceCheckValid(
+    sats.toInt(),
+    expiresAt: expiresAt.toInt(),
+  ),
   InvoiceVerdict_Rejected(
     :final problem,
     :final actualMsat,

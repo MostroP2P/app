@@ -187,7 +187,10 @@ pub(crate) fn check(
             None,
         );
     }
-    InvoiceVerdict::Valid { sats: expected }
+    InvoiceVerdict::Valid {
+        sats: expected,
+        expires_at: summary.expires_at,
+    }
 }
 
 /// A `Rejected` verdict with only the fields the problem's copy needs.
@@ -512,7 +515,13 @@ mod tests {
 
     #[test]
     fn accepts_an_unexpired_invoice_for_the_trade_amount() {
-        assert_eq!(verdict(bolt11(Some(250))), InvoiceVerdict::Valid { sats: 250 });
+        assert_eq!(
+            verdict(bolt11(Some(250))),
+            InvoiceVerdict::Valid {
+                sats: 250,
+                expires_at: NOW + 600
+            }
+        );
     }
 
     #[test]
@@ -560,14 +569,18 @@ mod tests {
             } => {}
             other => panic!("{other:?}"),
         }
+        let valid = InvoiceVerdict::Valid {
+            sats: 250,
+            expires_at: NOW + 600,
+        };
         assert_eq!(
             check(soon.clone(), Some(250), &[], Some(600), NOW),
-            InvoiceVerdict::Valid { sats: 250 },
+            valid,
             "exactly the window is enough"
         );
         assert_eq!(
             check(soon, Some(250), &[], None, NOW),
-            InvoiceVerdict::Valid { sats: 250 },
+            valid,
             "no window advertised, no rule"
         );
     }
@@ -591,20 +604,24 @@ mod tests {
 
     #[test]
     fn a_matching_or_unknown_node_network_does_not_block() {
+        let valid = InvoiceVerdict::Valid {
+            sats: 250,
+            expires_at: NOW + 600,
+        };
         let testnet3 = vec![" testnet3 ".to_string()];
         assert_eq!(
             check(on_network("testnet"), Some(250), &testnet3, None, NOW),
-            InvoiceVerdict::Valid { sats: 250 },
+            valid,
             "every testnet generation is lntb"
         );
         let many = vec!["mainnet".to_string(), "regtest".to_string()];
         assert_eq!(
             check(on_network("regtest"), Some(250), &many, None, NOW),
-            InvoiceVerdict::Valid { sats: 250 }
+            valid
         );
         assert_eq!(
             check(on_network("signet"), Some(250), &[], None, NOW),
-            InvoiceVerdict::Valid { sats: 250 },
+            valid,
             "a node that lists no network is not checked"
         );
     }

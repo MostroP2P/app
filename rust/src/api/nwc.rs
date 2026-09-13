@@ -137,10 +137,8 @@ pub async fn pay_invoice(bolt11: String) -> Result<PaymentResult> {
         crate::api::types::PaymentDestination::Bolt11(_) => {
             crate::api::invoice::normalize(&bolt11).to_string()
         }
-        crate::api::types::PaymentDestination::Empty => {
-            bail!("InvoiceInvalid: bolt11 must not be empty")
-        }
-        _ => bail!("InvoiceInvalid: not a BOLT11 invoice"),
+        // The marker alone; the prose is Dart's.
+        _ => bail!("InvoiceInvalid"),
     };
 
     let client = {

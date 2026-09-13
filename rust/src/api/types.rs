@@ -534,7 +534,10 @@ pub enum InvoiceVerdict {
     /// A Lightning address, resolved into an invoice on submission.
     Address,
     /// A BOLT11 invoice for exactly `sats`, unexpired, on the node's chain.
-    Valid { sats: u64 },
+    /// `expires_at` (unix seconds) lets the caller re-judge it before the
+    /// verdict goes stale: it stops being valid `min_remaining_secs` before
+    /// that moment.
+    Valid { sats: u64, expires_at: i64 },
     /// Refused. The optional fields carry what the copy needs to name.
     Rejected {
         problem: InvoiceProblem,

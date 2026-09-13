@@ -75,7 +75,8 @@ Future<void> _pump(
             (ref, id) async => _nowSeconds + left.inSeconds,
           ),
           invoiceCheckerProvider.overrideWithValue(
-            (request) async => const InvoiceCheckValid(250),
+            (request) async =>
+                InvoiceCheckValid(250, expiresAt: _nowSeconds + 3600),
           ),
           mostroNodeProvider.overrideWith((ref) async => null),
           activeNodeNameProvider.overrideWithValue('Bitcoin Bolivia'),

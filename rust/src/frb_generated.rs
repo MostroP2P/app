@@ -6469,7 +6469,11 @@ impl SseDecode for crate::api::types::InvoiceVerdict {
             }
             3 => {
                 let mut var_sats = <u64>::sse_decode(deserializer);
-                return crate::api::types::InvoiceVerdict::Valid { sats: var_sats };
+                let mut var_expiresAt = <i64>::sse_decode(deserializer);
+                return crate::api::types::InvoiceVerdict::Valid {
+                    sats: var_sats,
+                    expires_at: var_expiresAt,
+                };
             }
             4 => {
                 let mut var_problem = <crate::api::types::InvoiceProblem>::sse_decode(deserializer);
@@ -8887,9 +8891,12 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::InvoiceVerdict {
             crate::api::types::InvoiceVerdict::Empty => [0.into_dart()].into_dart(),
             crate::api::types::InvoiceVerdict::Unverified => [1.into_dart()].into_dart(),
             crate::api::types::InvoiceVerdict::Address => [2.into_dart()].into_dart(),
-            crate::api::types::InvoiceVerdict::Valid { sats } => {
-                [3.into_dart(), sats.into_into_dart().into_dart()].into_dart()
-            }
+            crate::api::types::InvoiceVerdict::Valid { sats, expires_at } => [
+                3.into_dart(),
+                sats.into_into_dart().into_dart(),
+                expires_at.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::api::types::InvoiceVerdict::Rejected {
                 problem,
                 actual_msat,
@@ -10411,9 +10418,10 @@ impl SseEncode for crate::api::types::InvoiceVerdict {
             crate::api::types::InvoiceVerdict::Address => {
                 <i32>::sse_encode(2, serializer);
             }
-            crate::api::types::InvoiceVerdict::Valid { sats } => {
+            crate::api::types::InvoiceVerdict::Valid { sats, expires_at } => {
                 <i32>::sse_encode(3, serializer);
                 <u64>::sse_encode(sats, serializer);
+                <i64>::sse_encode(expires_at, serializer);
             }
             crate::api::types::InvoiceVerdict::Rejected {
                 problem,

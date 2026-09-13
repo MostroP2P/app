@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 import 'package:mostro/src/rust/api/types.dart' show InvoiceVerdict;
 
@@ -106,10 +107,34 @@ void main() {
         isA<InvoiceCheckAddress>(),
       );
       final valid = invoiceCheckFromVerdict(
-        InvoiceVerdict.valid(sats: BigInt.from(250)),
+        InvoiceVerdict.valid(
+          sats: BigInt.from(250),
+          expiresAt: intToPlatformInt64(1700000600),
+        ),
       );
       expect(valid, isA<InvoiceCheckValid>());
       expect((valid as InvoiceCheckValid).sats, 250);
+      expect(valid.expiresAt, 1700000600);
+    });
+
+    test('maps every rejected problem', () {
+      for (final (wire, local) in [
+        (rust_types.InvoiceProblem.unrecognized, InvoiceProblem.unrecognized),
+        (rust_types.InvoiceProblem.malformed, InvoiceProblem.malformed),
+        (rust_types.InvoiceProblem.expired, InvoiceProblem.expired),
+        (rust_types.InvoiceProblem.wrongAmount, InvoiceProblem.wrongAmount),
+        (
+          rust_types.InvoiceProblem.expiresTooSoon,
+          InvoiceProblem.expiresTooSoon,
+        ),
+        (rust_types.InvoiceProblem.wrongNetwork, InvoiceProblem.wrongNetwork),
+      ]) {
+        final check = invoiceCheckFromVerdict(
+          InvoiceVerdict.rejected(problem: wire),
+        );
+        expect(check, isA<InvoiceCheckError>(), reason: '$wire');
+        expect((check as InvoiceCheckError).problem, local, reason: '$wire');
+      }
     });
 
     test('carries the fields each problem names', () {
