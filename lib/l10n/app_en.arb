@@ -267,10 +267,6 @@
   "@orderAlreadyTaken": {
     "description": "Error message when attempting to take an already-taken order"
   },
-  "bondRequired": "This node requires an anti-abuse bond, which is not supported yet",
-  "@bondRequired": {
-    "description": "Error shown when the Mostro node asks for an anti-abuse bond before accepting the order — the app does not support bonds yet"
-  },
   "nodeProtocolUnsupported": "This Mostro node uses a protocol version this app does not support. Pick another node in Settings, or check for an app update",
   "@nodeProtocolUnsupported": {
     "description": "Error shown when the selected Mostro node advertises a protocol version this v2-native client does not speak, so it would never read the request"
@@ -779,10 +775,6 @@
   "@nodeBondNone": {
     "description": "Trust row of a node card: the node requires no bond"
   },
-  "nodeBondUnsupported": "Bond: not supported",
-  "@nodeBondUnsupported": {
-    "description": "Trust row of a node card: the node requires a bond this app cannot post"
-  },
   "nodeStatusOnline": "Online · {count, plural, =1{1 order} other{{count} orders}}",
   "@nodeStatusOnline": {
     "description": "Availability line of a node card",
@@ -828,10 +820,6 @@
   "nodePubkeyCopied": "Key copied",
   "@nodePubkeyCopied": {
     "description": "Snackbar after tapping a node's public key"
-  },
-  "nodeNotSelectableBond": "This node requires a bond, which this app does not support yet",
-  "@nodeNotSelectableBond": {
-    "description": "Snackbar when tapping a node card that requires a bond this app cannot post"
   },
   "nodeNotSelectableOffline": "This node is not responding",
   "@nodeNotSelectableOffline": {
@@ -3833,6 +3821,16 @@
   "@tradeListChipExpired": {"description": "Status chip: the order expired"},
   "tradeVerbAddInvoice": "Add invoice",
   "@tradeVerbAddInvoice": {"description": "Action on a trade card; opens the add-invoice step"},
+  "tradeVerbPayBond": "Pay deposit",
+  "@tradeVerbPayBond": {"description": "Trade list verb / trade detail primary action: pay the anti-abuse deposit that parks the take"},
+  "tradeHeadlineWaitingBond": "Lock your deposit to continue",
+  "@tradeHeadlineWaitingBond": {"description": "Trade detail headline while the taker's anti-abuse deposit is unpaid"},
+  "tradeInstructionWaitingBond": "The node holds this take until the refundable deposit is paid. The order stays open to others meanwhile.",
+  "@tradeInstructionWaitingBond": {"description": "Trade detail body while the taker's anti-abuse deposit is unpaid"},
+  "takeOrderBondNotice": "This node asks takers to lock a refundable deposit first; it comes back when the trade ends honestly.",
+  "@takeOrderBondNotice": {"description": "Take screen note on a bond-enabled node when no estimate is available"},
+  "takeOrderBondNoticeEstimate": "This node asks takers to lock a refundable deposit of ≈ {sats} sats first; it comes back when the trade ends honestly.",
+  "@takeOrderBondNoticeEstimate": {"description": "Take screen note on a bond-enabled node with the core's estimate; sats is a formatted figure", "placeholders": {"sats": {"type": "String"}}},
   "tradeVerbPayInvoice": "Pay invoice",
   "@tradeVerbPayInvoice": {"description": "Action on a trade card; opens the hold-invoice payment step"},
   "tradeVerbSendPayment": "Send payment",
@@ -3875,6 +3873,8 @@
   "@chatContextBuyClosed": {"description": "Which trade a conversation belongs to, once it has closed; amount is formatted", "placeholders": {"amount": {"type": "String"}, "currency": {"type": "String"}}},
   "chatTurnAddInvoice": "your turn to add the invoice",
   "@chatTurnAddInvoice": {"description": "After the trade context in a conversation row: the user must add their invoice"},
+  "chatTurnPayBond": "your turn to pay the deposit",
+  "@chatTurnPayBond": {"description": "After the trade context: the user must pay the anti-abuse deposit"},
   "chatTurnPayInvoice": "your turn to pay the invoice",
   "@chatTurnPayInvoice": {"description": "After the trade context: the user must pay the hold invoice"},
   "chatTurnSendPayment": "your turn to pay",

@@ -76,7 +76,7 @@ MostroNodeStats _stats(
     },
   ),
   bondRequired: bondRequired,
-  bondPct: null,
+  bondPct: bondRequired == true ? 2 : null,
   ordersByFiat: [
     for (final e in orders.entries)
       FiatOrderCount(fiatCode: e.key, count: e.value),
@@ -368,7 +368,7 @@ void main() {
       });
     });
 
-    testWidgets('a node that requires a bond is not selectable', (
+    testWidgets('a node that requires a bond is selectable and says so', (
       tester,
     ) async {
       await withClock(Clock.fixed(_now), () async {
@@ -384,16 +384,11 @@ void main() {
             ),
           },
         );
-        expect(find.text('Bond: not supported'), findsOneWidget);
+        expect(find.text('Bond 2%'), findsOneWidget);
+        expect(find.text('Bond: not supported'), findsNothing);
         await tester.tap(find.text('Kmbalache 🇨🇺'));
         await _settleSelection(tester);
-        expect(notifier.selected, isEmpty);
-        expect(
-          find.text(
-            'This node requires a bond, which this app does not support yet',
-          ),
-          findsOneWidget,
-        );
+        expect(notifier.selected, [_cubaPubkey]);
       });
     });
 

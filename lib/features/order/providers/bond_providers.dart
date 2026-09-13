@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mostro/features/order/models/bond_rules.dart';
+import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' show TradeInfo;
 
@@ -53,3 +54,17 @@ final bondExplainerOpenProvider = NotifierProvider<BondExplainerNotifier, bool>(
 final requestBondInvoiceAgainProvider = Provider<
   Future<TradeInfo> Function(String orderId)
 >((ref) => (orderId) => orders_api.requestBondInvoiceAgain(orderId: orderId));
+
+/// The core's estimate of the bond the active node would ask for an order of
+/// [sats] (`max(pct × amount, floor)`, docs/ANTI_ABUSE_BOND.md §3.4), or null
+/// when the node's policy is unknown or not enabled. A warning figure only:
+/// the daemon sends the exact bolt11.
+final bondEstimateProvider = FutureProvider.autoDispose.family<int?, int>((
+  ref,
+  sats,
+) async {
+  final estimate = await bond_api.estimateBondSats(
+    orderAmountSats: BigInt.from(sats),
+  );
+  return estimate?.toInt();
+});

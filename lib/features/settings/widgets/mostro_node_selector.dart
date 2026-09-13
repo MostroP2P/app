@@ -148,7 +148,6 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
   void _onBlocked(NodeBlocker blocker) {
     final l10n = AppLocalizations.of(context);
     _snack(switch (blocker) {
-      NodeBlocker.bondUnsupported => l10n.nodeNotSelectableBond,
       NodeBlocker.unreachable => l10n.nodeNotSelectableOffline,
     });
   }
