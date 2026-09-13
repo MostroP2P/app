@@ -1173,6 +1173,11 @@ pub async fn take_order(
     if amount_sats.is_some() {
         order_info.amount_sats = amount_sats;
     }
+    // A range order is taken at one amount: the row remembers it, so a
+    // same-take re-request (request_bond_invoice_again) sends the same one.
+    if fiat_amount.is_some() {
+        order_info.fiat_amount = fiat_amount;
+    }
 
     // The anti-abuse bond (docs/ANTI_ABUSE_BOND.md §6.1): the daemon parks
     // the take until this bolt11 is paid. Its expiry is the invoice's own —
@@ -1971,11 +1976,22 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
         trade_index,
     )
     .await?;
-    publish_event_json(&event_json).await?;
-    // Remembered — only once the cancel actually left the device — so a
-    // `canceled` that follows during the bond window reads as the user's
-    // own, not as a lost lock race (bond_cancel_reason).
-    note_user_cancel(&order_id);
+    // During the taker's bond window the daemon's `canceled` has causes the
+    // wire does not name (bond_cancel_reason), so the client's own cancel is
+    // remembered — only for that window, only once the cancel actually left
+    // the device, and under the order's guard so the dispatcher cannot
+    // consume the note between the publish and its insertion.
+    let bond_guard = if trade_is_waiting_bond(&order_id).await {
+        Some(lock_order(&order_id).await)
+    } else {
+        None
+    };
+    let published = publish_event_json(&event_json).await;
+    if bond_guard.is_some() && published.is_ok() {
+        note_user_cancel(&order_id);
+    }
+    drop(bond_guard);
+    published?;
 
     apply_local_cancel(&order_id).await;
 
@@ -1988,6 +2004,19 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     );
     Ok(())
 }
+
+/// Whether the local row for `order_id` is a taker mid-bond.
+async fn trade_is_waiting_bond(order_id: &str) -> bool {
+    let Some(db) = crate::db::app_db::db() else {
+        return false;
+    };
+    matches!(
+        db.get_trade_by_order_id(order_id).await,
+        Ok(Some(trade))
+            if trade.order.status == crate::api::types::OrderStatus::WaitingTakerBond
+    )
+}
+
 
 /// The local side of a cancel request, applied once it is published.
 ///
@@ -3577,7 +3606,7 @@ async fn dispatch_mostro_message(
                 .or_else(|| so.as_ref().and_then(|o| u64::try_from(o.amount).ok()))
                 .or_else(|| trade.bond.as_ref().map(|b| b.amount_sats))
                 .unwrap_or(0);
-            let mut bond = bond_requested(
+            let bond = bond_requested(
                 crate::api::types::BondRole::Taker,
                 crate::mostro::pending::BondRequest {
                     amount_sats,
@@ -3590,7 +3619,21 @@ async fn dispatch_mostro_message(
                     log::debug!("[orders] PayBondInvoice for order={order_id}: same bolt11, no-op");
                     return;
                 }
-                bond.requested_at = existing.requested_at;
+                // The row's `requested_at` is the high-water mark of the
+                // bolt11 it holds. The global feed replays history and its
+                // dedup window is per event id, so an older, different
+                // invoice can arrive after a newer one: it must not replace
+                // it — and with it the expiry the sweep would then act on.
+                if bond_refresh_is_stale(existing, event_ts) {
+                    crate::api::logging::blog_info(
+                        "orders",
+                        format!(
+                            "PayBondInvoice order={} older than the bolt11 held — ignored",
+                            crate::api::logging::short_id(&order_id),
+                        ),
+                    );
+                    return;
+                }
             }
             persist_bond(&order_id, &bond).await;
             emit_trade_update(&order_id, crate::api::types::OrderStatus::WaitingTakerBond);
@@ -3602,6 +3645,15 @@ async fn dispatch_mostro_message(
 }
 
 // ── Anti-abuse bond (docs/ANTI_ABUSE_BOND.md, Phase 1) ─────────────────────
+
+/// Whether a bond bolt11 dated `event_ts` is older than the one the row
+/// already holds. `requested_at` is written from the daemon's own event time
+/// on a refresh and from the local clock on the take, so the comparison
+/// tolerates the transport's clock skew.
+fn bond_refresh_is_stale(existing: &crate::api::types::BondInfo, event_ts: i64) -> bool {
+    event_ts.saturating_add(crate::nostr::transport::MAX_CLOCK_SKEW_SECS as i64)
+        < existing.requested_at
+}
 
 /// Whether an unpaid bond's bolt11 has lapsed. An undecodable invoice has
 /// no known expiry and never lapses locally, and a bond already inferred
@@ -3754,17 +3806,16 @@ fn take_user_cancel(order_id: &str) -> bool {
 /// (docs/ANTI_ABUSE_BOND.md §6.1): the client's own cancel, the maker's
 /// (wire status `canceled`), or a lost lock race (the order is `in-progress`
 /// for its winner, or still `pending` for everyone else). `None` when the
-/// book has nothing to say.
+/// local book has nothing to say — never a relay query from here.
 async fn bond_cancel_reason(order_id: &str) -> Option<crate::api::types::TradeUpdateReason> {
     use crate::api::types::{OrderStatus as S, TradeUpdateReason as R};
     if take_user_cancel(order_id) {
         return Some(R::UserCanceled);
     }
-    let wire = match order_book().get_order(order_id).await.map(|o| o.status) {
-        Some(status) => Some(status),
-        None => fetch_public_order_status(order_id).await,
-    };
-    match wire {
+    // The local book only: this runs under the order's guard inside the
+    // dispatcher, and a relay round trip there would hold every other
+    // message for the order. With nothing local the copy stays neutral.
+    match order_book().get_order(order_id).await.map(|o| o.status) {
         Some(S::Canceled | S::CanceledByAdmin | S::Expired) => Some(R::MakerCanceled),
         Some(S::Pending | S::InProgress) => Some(R::BondLostRace),
         _ => None,
@@ -3866,7 +3917,8 @@ pub async fn request_bond_invoice_again(
         })) => {
             // The daemon moved on without a bond: the trade flow will tell
             // the row what it is now; nothing to refresh here.
-            return Err(anyhow::anyhow!("NotWaitingBond: daemon replied {action:?}"));
+            log::info!("[orders] request_bond_invoice_again: daemon replied {action:?}, no bond");
+            return Err(anyhow::anyhow!("NotWaitingBond"));
         }
         Ok(Ok(Wake {
             reply: DaemonReply::Rejected { message, .. },
@@ -3890,10 +3942,9 @@ pub async fn request_bond_invoice_again(
     {
         return Ok(trade);
     }
-    let mut bond = bond_requested(BondRole::Taker, request, crate::rt::unix_now());
-    if let Some(existing) = &trade.bond {
-        bond.requested_at = existing.requested_at;
-    }
+    // `requested_at` is the high-water mark of the bolt11 held (see the
+    // PayBondInvoice arm): a refresh from here advances it too.
+    let bond = bond_requested(BondRole::Taker, request, crate::rt::unix_now());
     persist_bond(&order_id, &bond).await;
     emit_trade_update(&order_id, OrderStatus::WaitingTakerBond);
     let mut updated = trade;
@@ -12155,6 +12206,53 @@ mod tests {
             drain_updates(&mut rx, &order_id).is_empty(),
             "same bolt11: nothing to say"
         );
+    }
+
+    /// The global feed replays history: an older, different bolt11 arriving
+    /// after the one the row holds must not replace it (nor its expiry).
+    #[tokio::test]
+    async fn an_older_pay_bond_invoice_does_not_replace_a_newer_one() {
+        use mostro_core::message::{Action, Payload};
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut row = bonded_taker_row(&order_id, "lnbc1newer", None);
+        row.bond.as_mut().unwrap().requested_at = 5_000;
+        db.save_trade(&row).await.unwrap();
+        let mut rx = trade_updates_tx().subscribe();
+
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                Action::PayBondInvoice,
+                Some(Payload::PaymentRequest(None, BOND_BOLT11.to_string(), Some(1_200))),
+                1_000,
+            ),
+            "test-bond-stale",
+            "ff00ff46",
+            1,
+        )
+        .await;
+
+        let bond = db.get_trade_by_order_id(&order_id).await.unwrap().unwrap().bond.unwrap();
+        assert_eq!(bond.invoice.as_deref(), Some("lnbc1newer"));
+        assert_eq!(bond.requested_at, 5_000);
+        assert!(drain_updates(&mut rx, &order_id).is_empty());
+
+        // Within the transport's clock skew is not stale.
+        let held = bond.clone();
+        assert!(bond_refresh_is_stale(&held, 4_000));
+        assert!(!bond_refresh_is_stale(&held, 4_950));
+        assert!(!bond_refresh_is_stale(&held, 6_000));
+    }
+
+    /// With nothing about the order in the local book the cause is unknown:
+    /// neutral copy, and no relay query from under the dispatcher's guard.
+    #[tokio::test]
+    async fn a_canceled_with_no_local_book_entry_has_no_cause() {
+        order_book().clear().await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        assert_eq!(bond_cancel_reason(&order_id).await, None);
     }
 
     /// An unpaid bond past its bolt11 expiry is closed locally — the update
