@@ -13,10 +13,10 @@ use crate::config::active_mostro_pubkey;
 use crate::db::Storage;
 use crate::mostro::actions;
 use crate::mostro::pending::{
-    classify_take_reply, detach_request_waiter, may_reconcile_stored_id, pending_local_uuid_for,
-    pending_requests, purge_pending_request, remove_pending_request, take_matching_add_invoice,
-    take_matching_dispute, take_matching_request, take_matching_restore, take_matching_take,
-    DaemonReply, DisputeMatch, PendingRequest, PendingRequestKind, Wake,
+    claim_create_bond, classify_take_reply, detach_request_waiter, may_reconcile_stored_id,
+    pending_local_uuid_for, pending_requests, purge_pending_request, remove_pending_request,
+    take_matching_add_invoice, take_matching_dispute, take_matching_request, take_matching_restore,
+    take_matching_take, DaemonReply, DisputeMatch, PendingRequest, PendingRequestKind, Wake,
 };
 use crate::mostro::status::{
     add_invoice_sync, cancellation_wipes_history, is_hard_terminal, map_core_status,
@@ -831,6 +831,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
                 trade_index,
                 kind: PendingRequestKind::Create {
                     local_uuid: order.id.clone(),
+                    bond_requested: false,
                 },
                 tx: Some(conf_tx),
             },
@@ -877,7 +878,12 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
 
     // Resolve the daemon's verdict. The order only exists once the daemon
     // confirms it; a timeout means "no response", not an optimistic success.
-    let daemon_id = match confirmation {
+    // A bond node answers with `pay-bond-invoice` instead: the order has its
+    // UUID but stays unpublished until the maker's bond is paid
+    // (docs/ANTI_ABUSE_BOND.md §6.2); the dispatcher hands its per-order
+    // guard with that reply so the row below is written before anything
+    // else queued on the order runs.
+    let (daemon_id, maker_bond, _handed_guard) = match confirmation {
         Ok(Ok(Wake {
             reply: DaemonReply::Confirmed { daemon_id },
             ..
@@ -886,7 +892,21 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
                 "orders",
                 format!("create_order confirmed by daemon: {daemon_id}"),
             );
-            daemon_id
+            (daemon_id, None, None)
+        }
+        Ok(Ok(Wake {
+            reply: DaemonReply::BondRequested { daemon_id, bond },
+            order_guard,
+        })) => {
+            crate::api::logging::blog_info(
+                "orders",
+                format!(
+                    "create_order parked by daemon for the maker bond: {daemon_id} \
+                     bond={} sats",
+                    bond.amount_sats
+                ),
+            );
+            (daemon_id, Some(bond), order_guard)
         }
         Ok(Ok(Wake {
             reply: DaemonReply::Rejected { reason, message },
@@ -917,6 +937,10 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
     // `order_book()` — that public store is fed only by the daemon's Kind 38383
     // events. The maker sees it via My Trades (TradeInfo below) until it arrives.
     order.id = daemon_id;
+    let bond = maker_bond.map(|request| {
+        order.status = OrderStatus::WaitingMakerBond;
+        bond_requested(crate::api::types::BondRole::Maker, request, now)
+    });
 
     let maker_role = match order.kind {
         OrderKind::Sell => crate::api::types::TradeRole::Seller,
@@ -948,7 +972,7 @@ pub async fn create_order(params: NewOrderParams) -> Result<OrderInfo> {
         peer_reviews: None,
         peer_days: None,
         rated_at: None,
-        bond: None,
+        bond,
     };
     if let Some(db) = crate::db::app_db::db() {
         if let Err(e) = persist_trade_row(db, &trade).await {
@@ -1953,6 +1977,15 @@ async fn persist_late_create_confirmation(
 /// was taken.  Both parties must cancel for it to take effect; the Mostro daemon
 /// handles the cooperative-cancel state machine.
 pub async fn cancel_order(order_id: String) -> Result<()> {
+    // The daemon rejects a cancel while the maker's bond is outstanding
+    // (`NotAllowedByStatus`, docs/ANTI_ABUSE_BOND.md §2.8): the way out is
+    // `abandon_bonded_order`, a local wipe. Marker only, before anything is
+    // derived or published.
+    if waiting_bond_status(&order_id).await
+        == Some(crate::api::types::OrderStatus::WaitingMakerBond)
+    {
+        return Err(anyhow::anyhow!("BondCancelNotAllowed"));
+    }
     let trade_index = get_trade_key_index(&order_id)
         .await
         .ok_or_else(|| anyhow::anyhow!("no persisted trade key for order {order_id}"))?;
@@ -1972,7 +2005,9 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     // remembered — only for that window, only once the cancel actually left
     // the device, and under the order's guard so the dispatcher cannot
     // consume the note between the publish and its insertion.
-    let bond_guard = if trade_is_waiting_bond(&order_id).await {
+    let bond_guard = if waiting_bond_status(&order_id).await
+        == Some(crate::api::types::OrderStatus::WaitingTakerBond)
+    {
         Some(lock_order(&order_id).await)
     } else {
         None
@@ -1996,16 +2031,22 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
     Ok(())
 }
 
-/// Whether the local row for `order_id` is a taker mid-bond.
-async fn trade_is_waiting_bond(order_id: &str) -> bool {
-    let Some(db) = crate::db::app_db::db() else {
-        return false;
-    };
-    matches!(
-        db.get_trade_by_order_id(order_id).await,
+/// The bond window the local row for `order_id` is in, if any: the taker's
+/// (`WaitingTakerBond`) or the maker's (`WaitingMakerBond`).
+async fn waiting_bond_status(order_id: &str) -> Option<crate::api::types::OrderStatus> {
+    use crate::api::types::OrderStatus as S;
+    let db = crate::db::app_db::db()?;
+    match db.get_trade_by_order_id(order_id).await {
         Ok(Some(trade))
-            if trade.order.status == crate::api::types::OrderStatus::WaitingTakerBond
-    )
+            if matches!(
+                trade.order.status,
+                S::WaitingTakerBond | S::WaitingMakerBond
+            ) =>
+        {
+            Some(trade.order.status)
+        }
+        _ => None,
+    }
 }
 
 /// What `send_invoice` publishes for the buyer's input, decided by the one
@@ -2853,7 +2894,11 @@ async fn dispatch_mostro_message(
                     // subsequent maker actions (e.g. cancel) can find the key.
                     store_trade_key_index(&daemon_id, pending.trade_index).await;
 
-                    let PendingRequestKind::Create { local_uuid, .. } = pending.kind else {
+                    let PendingRequestKind::Create {
+                        local_uuid,
+                        bond_requested,
+                    } = pending.kind
+                    else {
                         // Unreachable in practice: take records are consumed
                         // by the pre-arm interception for every non-CantDo
                         // action, so only creates can arrive here.
@@ -2863,6 +2908,20 @@ async fn dispatch_mostro_message(
                         );
                         return;
                     };
+                    if bond_requested {
+                        // The maker paid the bond and the daemon published
+                        // the order (docs/ANTI_ABUSE_BOND.md §6.2): the row
+                        // persisted with the bond reply moves on. Never a
+                        // fresh row from this payload — that would drop the
+                        // bond.
+                        if !confirm_maker_bond(&daemon_id, &row_state, trade_index).await {
+                            crate::api::logging::blog_info("daemon-msg", format!(
+                                "NewOrder: bond confirmation for order={daemon_id} \
+                                 found no WaitingMakerBond row — ignored"
+                            ));
+                        }
+                        return;
+                    }
                     if let Some(tx) = pending.tx {
                         // create_order is still waiting — the caller handles
                         // UUID adoption and persistence.
@@ -2892,6 +2951,11 @@ async fn dispatch_mostro_message(
                         )
                         .await;
                     }
+                } else if confirm_maker_bond(&daemon_id, &row_state, trade_index).await {
+                    // No record (the app restarted while the maker's bond
+                    // was outstanding), but the persisted WaitingMakerBond
+                    // row of this very trade key says what this is
+                    // (docs/ANTI_ABUSE_BOND.md §6.2 fallback).
                 } else if adopt_range_remainder(
                     &daemon_id,
                     kind,
@@ -3590,6 +3654,22 @@ async fn dispatch_mostro_message(
                     return;
                 }
             };
+            // A pending create answered with a bond: the daemon holds the
+            // new order for the maker's deposit (docs/ANTI_ABUSE_BOND.md
+            // §6.2). Correlated by the create's nonce; the record stays for
+            // the `new-order` that follows the payment.
+            if let Some(claim) = claim_create_bond(trade_pubkey_hex, kind.request_id) {
+                handle_create_bond_reply(
+                    &order_id,
+                    kind,
+                    trade_pubkey_hex,
+                    claim,
+                    &mut order_guard,
+                    event_ts,
+                )
+                .await;
+                return;
+            }
             let Some(trade) = row_state.trade() else {
                 crate::api::logging::blog_info(
                     "orders",
@@ -3671,30 +3751,71 @@ fn bond_refresh_is_stale(existing: &crate::api::types::BondInfo, event_ts: i64) 
         < existing.requested_at
 }
 
-/// Whether an unpaid bond's bolt11 has lapsed. An undecodable invoice has
-/// no known expiry and never lapses locally, and a bond already inferred
-/// `Locked` is not unpaid.
-fn bond_expired(trade: &crate::api::types::TradeInfo, now: i64) -> bool {
-    trade.order.status == crate::api::types::OrderStatus::WaitingTakerBond
-        && trade
-            .bond
-            .as_ref()
-            // A paid bond never lapses: the lock and the status advance are
-            // two writes, and a row caught between them is a live trade.
-            .filter(|b| b.state == crate::api::types::BondState::Requested)
-            .and_then(|b| b.expires_at)
-            .is_some_and(|at| now > at)
+/// When an unpaid bond window ends locally, if it does. A taker's is the
+/// bolt11 expiry alone (undecodable: none, the row never lapses locally). A
+/// maker's is the earlier of the bolt11 expiry and the order's own
+/// `expires_at` — the daemon's pending-order expiry, which is what actually
+/// reaps an unpublished order upstream (docs/ANTI_ABUSE_BOND.md §6.2) — so a
+/// maker row with no decodable (or, after a fresh-device restore, no) bolt11
+/// still ends with the order. A bond already inferred `Locked` is not
+/// unpaid: the lock and the status advance are two writes, and a row caught
+/// between them is a live trade.
+fn bond_deadline(trade: &crate::api::types::TradeInfo) -> Option<i64> {
+    use crate::api::types::{BondState, OrderStatus};
+    let bond = trade.bond.as_ref();
+    if bond.is_some_and(|b| b.state != BondState::Requested) {
+        return None;
+    }
+    let invoice_expiry = bond.and_then(|b| b.expires_at);
+    match trade.order.status {
+        OrderStatus::WaitingTakerBond => invoice_expiry,
+        OrderStatus::WaitingMakerBond => match (invoice_expiry, trade.order.expires_at) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        },
+        _ => None,
+    }
 }
 
-/// Close a `WaitingTakerBond` row whose bond bolt11 expired unpaid: the
+/// Whether an unpaid bond's window has lapsed (see [`bond_deadline`]).
+fn bond_expired(trade: &crate::api::types::TradeInfo, now: i64) -> bool {
+    bond_deadline(trade).is_some_and(|at| now > at)
+}
+
+/// Close a bond-window row whose deposit went unpaid past its deadline: the
 /// update goes out first (after the wipe there is no row to poll), then the
-/// row is wiped like any never-active cancel — the order stays in the book
-/// only while the wire still says `pending`. Returns whether it acted.
+/// row is wiped like any never-active cancel — a taker's order stays in the
+/// book only while the wire still says `pending`; a maker's was never
+/// published. Returns whether it acted.
 async fn close_expired_bond_trade(trade: &crate::api::types::TradeInfo, now: i64) -> bool {
     if !bond_expired(trade, now) {
         return false;
     }
     let oid = trade.order.id.clone();
+    // Under the order's guard, on the row as it is now: a daemon message
+    // handled since the sweep listed the rows may have moved it on.
+    let _guard = lock_order(&oid).await;
+    let current = match crate::db::app_db::db() {
+        Some(db) => match db.get_trade_by_order_id(&oid).await {
+            Ok(Some(row)) => row,
+            _ => return false,
+        },
+        None => trade.clone(),
+    };
+    if !bond_expired(&current, now) {
+        return false;
+    }
+    // A maker's `new-order` acknowledgement can lag the payment (the app
+    // was offline, the relay is slow): if the public book already carries
+    // the order, the daemon published it — the bond locked, nothing
+    // expired. The lock is applied here rather than the row wiped; the
+    // late acknowledgement then finds a Pending row and leaves it alone.
+    if current.order.status == crate::api::types::OrderStatus::WaitingMakerBond
+        && maker_order_is_published(&oid).await
+    {
+        return !lock_maker_bond(&oid, &current, current.trade_key_index).await;
+    }
+    let trade = &current;
     emit_trade_update_with(
         &oid,
         crate::api::types::OrderStatus::Expired,
@@ -3710,6 +3831,226 @@ async fn close_expired_bond_trade(trade: &crate::api::types::TradeInfo, now: i64
             false
         }
     }
+}
+
+/// Whether the public book carries `order_id` as a live order: the positive
+/// signal that the daemon published a maker's order (only a paid bond gets
+/// one there). The local book only — the sweep runs this under the order's
+/// guard, and a relay round trip there would hold every message for it.
+async fn maker_order_is_published(order_id: &str) -> bool {
+    use crate::api::types::OrderStatus as S;
+    matches!(
+        order_book().get_order(order_id).await.map(|o| o.status),
+        Some(S::Pending | S::InProgress)
+    )
+}
+
+/// The maker's bond locked: the daemon published the order and confirmed the
+/// create with `new-order` (docs/ANTI_ABUSE_BOND.md §6.2). Acts only on this
+/// key's own `WaitingMakerBond` row — the trade index is the
+/// `(trade pubkey, order id)` match the restart fallback relies on — and
+/// moves it to `Pending` with the bond `Locked`. Returns whether it acted.
+async fn confirm_maker_bond(order_id: &str, row_state: &RowState, trade_index: u32) -> bool {
+    match row_state.trade() {
+        Some(trade) => lock_maker_bond(order_id, trade, trade_index).await,
+        None => false,
+    }
+}
+
+/// [`confirm_maker_bond`] on a row already in hand.
+async fn lock_maker_bond(
+    order_id: &str,
+    trade: &crate::api::types::TradeInfo,
+    trade_index: u32,
+) -> bool {
+    use crate::api::types::{BondState, OrderStatus};
+    if trade.order.status != OrderStatus::WaitingMakerBond
+        || !trade.order.is_mine
+        || trade.trade_key_index != trade_index
+    {
+        return false;
+    }
+    if let Some(existing) = &trade.bond {
+        if existing.state == BondState::Requested {
+            let mut bond = existing.clone();
+            bond.state = BondState::Locked;
+            bond.locked_at = Some(crate::rt::unix_now());
+            persist_bond(order_id, &bond).await;
+        }
+    }
+    if let Some(db) = crate::db::app_db::db() {
+        if let Err(e) = db
+            .update_trade_fields(order_id, Some(OrderStatus::Pending), None, None)
+            .await
+        {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "maker bond confirmation not persisted for order={}: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+        }
+    }
+    crate::api::logging::blog_info(
+        "orders",
+        format!(
+            "maker bond locked, order published order={}",
+            crate::api::logging::short_id(order_id),
+        ),
+    );
+    emit_trade_update(order_id, OrderStatus::Pending);
+    true
+}
+
+/// The `pay-bond-invoice` that answers a pending create: bind the daemon's
+/// id to the attempt's key, then hand the bond to the waiting `create_order`
+/// along with this dispatcher's guard (as a take's reply is handed), so the
+/// maker row is written before anything else queued on the order runs. After
+/// the 10 s timeout the caller already returned `NoDaemonResponse` and
+/// persisted nothing: the row is written here from the payload's order when
+/// it carries one, so the parked order still reaches My Trades.
+async fn handle_create_bond_reply(
+    order_id: &str,
+    kind: &mostro_core::message::MessageKind,
+    trade_pubkey_hex: &str,
+    claim: crate::mostro::pending::CreateBondClaim,
+    order_guard: &mut Option<tokio::sync::OwnedMutexGuard<()>>,
+    event_ts: i64,
+) {
+    let Some(mostro_core::message::Payload::PaymentRequest(so, invoice, amount)) = &kind.payload
+    else {
+        log::warn!("[orders] daemon-msg PayBondInvoice for a create is not a PaymentRequest");
+        return;
+    };
+    store_trade_key_index(order_id, claim.trade_index).await;
+    let request = crate::mostro::pending::BondRequest {
+        amount_sats: amount
+            .and_then(|a| u64::try_from(a).ok())
+            .or_else(|| so.as_ref().and_then(|o| u64::try_from(o.amount).ok()))
+            .unwrap_or(0),
+        invoice: invoice.clone(),
+    };
+    if let Some(tx) = claim.tx {
+        crate::api::logging::blog_info(
+            "daemon-msg",
+            format!(
+                "PayBondInvoice: maker bond for create local={} daemon={}",
+                claim.local_uuid,
+                crate::api::logging::short_id(order_id),
+            ),
+        );
+        let _ = tx.send(Wake {
+            reply: DaemonReply::BondRequested {
+                daemon_id: order_id.to_string(),
+                bond: request,
+            },
+            order_guard: order_guard.take(),
+        });
+        return;
+    }
+    let Some(order) = so.as_ref() else {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!(
+                "late maker bond for order={} carries no order — nothing to persist",
+                crate::api::logging::short_id(order_id),
+            ),
+        );
+        return;
+    };
+    let role = match order.kind {
+        Some(mostro_core::order::Kind::Sell) => TradeRole::Seller,
+        Some(mostro_core::order::Kind::Buy) => TradeRole::Buyer,
+        None => return,
+    };
+    let Some(mut trade) = trade_row_from_small_order(
+        order_id,
+        order,
+        role,
+        true,
+        claim.trade_index,
+        String::new(),
+        trade_pubkey_hex,
+        OrderStatus::WaitingMakerBond,
+    ) else {
+        return;
+    };
+    // The wire's `PaymentRequest` amount is the bond (docs/ANTI_ABUSE_BOND.md
+    // §3, the `pay-bond-invoice` contract), never the order's sats: the
+    // create request priced the order, and a market order has no fixed sats
+    // until it is taken. The generic row builder read it as the order amount.
+    trade.order.amount_sats = None;
+    trade.bond = Some(bond_requested(
+        crate::api::types::BondRole::Maker,
+        request,
+        event_ts,
+    ));
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    if let Err(e) = persist_trade_row(db, &trade).await {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!("late maker bond not persisted for order={order_id}: {e}"),
+        );
+        return;
+    }
+    crate::api::logging::blog_info(
+        "orders",
+        format!(
+            "late maker bond persisted order={} trade_index={}",
+            crate::api::logging::short_id(order_id),
+            claim.trade_index,
+        ),
+    );
+    emit_trade_update(order_id, OrderStatus::WaitingMakerBond);
+}
+
+/// Walk away from a maker bond: the daemon refuses a cancel during the
+/// window and expires the unpaid order on its own, so the client only wipes
+/// its side (docs/ANTI_ABUSE_BOND.md §6.2). Nothing was published and
+/// nothing was charged. The update goes out first (after the wipe there is
+/// no row to poll); the create's pending record goes with the row so a
+/// `new-order` for it can no longer be read as a bond lock.
+pub(crate) async fn abandon_maker_bond(order_id: &str) -> Result<()> {
+    let oid = order_id.to_string();
+    // The guard first, then the row: a `new-order` handled between the
+    // caller's look and this point locks the bond and publishes the order,
+    // which is then a live trade nobody abandons.
+    let _guard = lock_order(&oid).await;
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    let trade = db
+        .get_trade_by_order_id(&oid)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("TradeNotFound"))?;
+    if trade.order.status != crate::api::types::OrderStatus::WaitingMakerBond
+        || !trade.order.is_mine
+        || trade
+            .bond
+            .as_ref()
+            .is_some_and(|b| b.role != crate::api::types::BondRole::Maker)
+    {
+        return Err(anyhow::anyhow!("NotWaitingBond"));
+    }
+    let now = crate::rt::unix_now();
+    emit_trade_update_with(
+        &oid,
+        crate::api::types::OrderStatus::Canceled,
+        Some(crate::api::types::TradeUpdateReason::UserCanceled),
+    );
+    wipe_never_active_trade(&oid, false, now, trade.trade_key_index).await?;
+    if let Ok(keys) = crate::api::identity::get_active_trade_keys(trade.trade_key_index).await {
+        purge_pending_request(&keys.public_key().to_hex());
+    }
+    crate::api::logging::blog_info(
+        "orders",
+        format!(
+            "maker bond abandoned, order={} wiped",
+            crate::api::logging::short_id(&oid),
+        ),
+    );
+    Ok(())
 }
 
 /// A freshly requested bond: the bolt11 as sent, its expiry decoded from the
@@ -5323,11 +5664,15 @@ async fn run_stale_sweep_once() {
     let now = crate::rt::unix_now();
     let (mut examined, mut wiped, mut resynced) = (0usize, 0usize, 0usize);
     for trade in trades {
-        // An unpaid taker bond past its bolt11 expiry: the daemon says
-        // nothing, so the row is closed here — update first, then wipe — and
-        // the order stays in the book only while the wire still says
-        // `pending` (docs/ANTI_ABUSE_BOND.md §6.1).
-        if trade.order.status == crate::api::types::OrderStatus::WaitingTakerBond {
+        // An unpaid bond past its deadline (a taker's bolt11 expiry, a
+        // maker's bolt11 or order expiry): the daemon says nothing, so the
+        // row is closed here — update first, then wipe
+        // (docs/ANTI_ABUSE_BOND.md §6.1, §6.2).
+        if matches!(
+            trade.order.status,
+            crate::api::types::OrderStatus::WaitingTakerBond
+                | crate::api::types::OrderStatus::WaitingMakerBond
+        ) {
             if close_expired_bond_trade(&trade, now).await {
                 wiped += 1;
             }
@@ -7844,6 +8189,7 @@ mod tests {
                 trade_index: 3,
                 kind: PendingRequestKind::Create {
                     local_uuid: format!("local-{key}"),
+                    bond_requested: false,
                 },
                 tx: Some(tx),
             },
@@ -12323,6 +12669,510 @@ mod tests {
         );
     }
 
+    /// A maker's row parked on its bond, as `create_order` persists it.
+    fn bonded_maker_row(
+        order_id: &str,
+        invoice: Option<&str>,
+        expires_at: Option<i64>,
+        order_expires_at: Option<i64>,
+        trade_index: u32,
+    ) -> crate::api::types::TradeInfo {
+        let mut trade = seam_trade_row(order_id, crate::api::types::OrderStatus::WaitingMakerBond);
+        trade.order.is_mine = true;
+        trade.order.expires_at = order_expires_at;
+        trade.role = TradeRole::Seller;
+        trade.trade_key_index = trade_index;
+        trade.bond = invoice.map(|invoice| crate::api::types::BondInfo {
+            role: crate::api::types::BondRole::Maker,
+            amount_sats: 1_200,
+            invoice: Some(invoice.to_string()),
+            state: crate::api::types::BondState::Requested,
+            requested_at: 1,
+            expires_at,
+            locked_at: None,
+        });
+        trade
+    }
+
+    fn correlated_message(
+        order_uuid: uuid::Uuid,
+        request_id: u64,
+        action: mostro_core::message::Action,
+        payload: Option<mostro_core::message::Payload>,
+        created_at: u64,
+    ) -> mostro_core::nip59::UnwrappedMessage {
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        mostro_core::nip59::UnwrappedMessage {
+            message: mostro_core::message::Message::new_order(
+                Some(order_uuid),
+                Some(request_id),
+                None,
+                action,
+                payload,
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::from(created_at),
+        }
+    }
+
+    fn pending_small_order(order_uuid: uuid::Uuid) -> mostro_core::order::SmallOrder {
+        mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(mostro_core::order::Status::Pending),
+            0,
+            "VES".to_string(),
+            None,
+            None,
+            100,
+            "PagoMovil".to_string(),
+            2,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    }
+
+    use mostro_core::message::{Action, Payload};
+
+    /// The small order a `pay-bond-invoice` carries: its `amount` is the bond.
+    fn bond_priced_small_order(
+        order_uuid: uuid::Uuid,
+        bond_sats: i64,
+    ) -> mostro_core::order::SmallOrder {
+        let mut so = pending_small_order(order_uuid);
+        so.amount = bond_sats;
+        so.status = Some(mostro_core::order::Status::WaitingMakerBond);
+        so
+    }
+
+    /// docs/ANTI_ABUSE_BOND.md §6.2: `pay-bond-invoice` answering a create
+    /// wakes the caller with the bond and the daemon's id, binds the id to
+    /// the attempt's key, and leaves the record — flagged — for the
+    /// `new-order` that follows the payment.
+    #[tokio::test]
+    async fn a_pay_bond_invoice_for_a_pending_create_hands_the_bond_to_the_maker() {
+        let _db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let key = "ff00ff61";
+        let (tx, rx) = tokio::sync::oneshot::channel::<Wake>();
+        pending_requests().lock().unwrap().insert(
+            key.to_string(),
+            PendingRequest {
+                request_id: 801,
+                trade_index: 21,
+                kind: PendingRequestKind::Create {
+                    local_uuid: "local-maker-bond".to_string(),
+                    bond_requested: false,
+                },
+                tx: Some(tx),
+            },
+        );
+
+        dispatch_mostro_message(
+            correlated_message(
+                order_uuid,
+                801,
+                Action::PayBondInvoice,
+                Some(Payload::PaymentRequest(
+                    None,
+                    BOND_BOLT11.to_string(),
+                    Some(1_200),
+                )),
+                1_000,
+            ),
+            "test-maker-bond-reply",
+            key,
+            21,
+        )
+        .await;
+
+        let wake = rx.await.expect("the create is woken");
+        match wake.reply {
+            DaemonReply::BondRequested { daemon_id, bond } => {
+                assert_eq!(daemon_id, order_id);
+                assert_eq!(bond.amount_sats, 1_200);
+                assert_eq!(bond.invoice, BOND_BOLT11);
+            }
+            _ => panic!("expected BondRequested"),
+        }
+        assert!(
+            wake.order_guard.is_some(),
+            "the guard travels with the reply"
+        );
+        assert_eq!(get_trade_key_index(&order_id).await, Some(21));
+        let pending = take_matching_request(key, Some(801)).expect("record kept for new-order");
+        assert!(matches!(
+            pending.kind,
+            PendingRequestKind::Create {
+                bond_requested: true,
+                ..
+            }
+        ));
+    }
+
+    /// The bond reply after the create timed out: the caller persisted
+    /// nothing, so the parked row is written from the payload's order.
+    #[tokio::test]
+    async fn a_late_maker_bond_persists_the_parked_row() {
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let key = "ff00ff62";
+        pending_requests().lock().unwrap().insert(
+            key.to_string(),
+            PendingRequest {
+                request_id: 802,
+                trade_index: 22,
+                kind: PendingRequestKind::Create {
+                    local_uuid: "local-maker-late".to_string(),
+                    bond_requested: false,
+                },
+                tx: None,
+            },
+        );
+        let mut rx = trade_updates_tx().subscribe();
+
+        dispatch_mostro_message(
+            correlated_message(
+                order_uuid,
+                802,
+                Action::PayBondInvoice,
+                Some(Payload::PaymentRequest(
+                    Some(bond_priced_small_order(order_uuid, 1_200)),
+                    BOND_BOLT11.to_string(),
+                    Some(1_200),
+                )),
+                1_000,
+            ),
+            "test-maker-bond-late",
+            key,
+            22,
+        )
+        .await;
+
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .unwrap()
+            .expect("row persisted");
+        assert!(row.order.is_mine);
+        assert_eq!(
+            row.order.status,
+            crate::api::types::OrderStatus::WaitingMakerBond
+        );
+        assert_eq!(row.trade_key_index, 22);
+        // The payload's amount is the bond: it never becomes the order's sats.
+        assert_eq!(row.order.amount_sats, None);
+        let bond = row.bond.expect("bond persisted");
+        assert_eq!(bond.role, crate::api::types::BondRole::Maker);
+        assert_eq!(bond.invoice.as_deref(), Some(BOND_BOLT11));
+        assert_eq!(bond.amount_sats, 1_200);
+        assert_eq!(
+            drain_updates(&mut rx, &order_id),
+            vec![crate::api::types::OrderStatus::WaitingMakerBond]
+        );
+        take_matching_request(key, Some(802));
+    }
+
+    /// The `new-order` on the create's nonce after the bond reply is the
+    /// lock: the parked row goes Pending with the bond Locked, and no fresh
+    /// row is written over it.
+    #[tokio::test]
+    async fn a_new_order_after_the_bond_reply_locks_the_maker_bond() {
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let key = "ff00ff63";
+        db.save_trade(&bonded_maker_row(
+            &order_id,
+            Some(BOND_BOLT11),
+            Some(9_000),
+            None,
+            23,
+        ))
+        .await
+        .unwrap();
+        pending_requests().lock().unwrap().insert(
+            key.to_string(),
+            PendingRequest {
+                request_id: 803,
+                trade_index: 23,
+                kind: PendingRequestKind::Create {
+                    local_uuid: "local-maker-lock".to_string(),
+                    bond_requested: true,
+                },
+                tx: None,
+            },
+        );
+        let mut rx = trade_updates_tx().subscribe();
+
+        dispatch_mostro_message(
+            correlated_message(
+                order_uuid,
+                803,
+                Action::NewOrder,
+                Some(Payload::Order(pending_small_order(order_uuid))),
+                2_000,
+            ),
+            "test-maker-bond-lock",
+            key,
+            23,
+        )
+        .await;
+
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .unwrap()
+            .expect("row kept");
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Pending);
+        let bond = row.bond.expect("the bond survives the confirmation");
+        assert_eq!(bond.state, crate::api::types::BondState::Locked);
+        assert!(bond.locked_at.is_some());
+        assert_eq!(bond.invoice.as_deref(), Some(BOND_BOLT11));
+        assert_eq!(
+            drain_updates(&mut rx, &order_id),
+            vec![crate::api::types::OrderStatus::Pending]
+        );
+        assert!(
+            take_matching_request(key, Some(803)).is_none(),
+            "record consumed"
+        );
+    }
+
+    /// After a restart the registry is empty: the persisted WaitingMakerBond
+    /// row of the same trade key is the match; another key's row is not.
+    #[tokio::test]
+    async fn a_new_order_with_no_record_confirms_the_persisted_maker_bond() {
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        db.save_trade(&bonded_maker_row(
+            &order_id,
+            Some(BOND_BOLT11),
+            None,
+            None,
+            24,
+        ))
+        .await
+        .unwrap();
+        let mut rx = trade_updates_tx().subscribe();
+
+        // A different generation of the key: not this row's confirmation.
+        dispatch_mostro_message(
+            correlated_message(
+                order_uuid,
+                901,
+                Action::NewOrder,
+                Some(Payload::Order(pending_small_order(order_uuid))),
+                2_000,
+            ),
+            "test-maker-bond-restart-other",
+            "ff00ff64",
+            25,
+        )
+        .await;
+        let row = db.get_trade_by_order_id(&order_id).await.unwrap().unwrap();
+        assert_eq!(
+            row.order.status,
+            crate::api::types::OrderStatus::WaitingMakerBond
+        );
+
+        dispatch_mostro_message(
+            correlated_message(
+                order_uuid,
+                902,
+                Action::NewOrder,
+                Some(Payload::Order(pending_small_order(order_uuid))),
+                2_001,
+            ),
+            "test-maker-bond-restart",
+            "ff00ff64",
+            24,
+        )
+        .await;
+        let row = db.get_trade_by_order_id(&order_id).await.unwrap().unwrap();
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Pending);
+        assert_eq!(
+            row.bond.map(|b| b.state),
+            Some(crate::api::types::BondState::Locked)
+        );
+        assert_eq!(
+            drain_updates(&mut rx, &order_id),
+            vec![crate::api::types::OrderStatus::Pending]
+        );
+    }
+
+    /// A maker's window ends with the earlier of the bolt11 and the order
+    /// expiry, and with the order alone when there is no decodable — or no —
+    /// bolt11; a taker's is the bolt11 alone; a locked bond never lapses.
+    #[test]
+    fn a_maker_bond_deadline_is_the_earlier_of_invoice_and_order_expiry() {
+        let id = uuid::Uuid::new_v4().to_string();
+        assert_eq!(
+            bond_deadline(&bonded_maker_row(
+                &id,
+                Some("lnbc1x"),
+                Some(1_000),
+                Some(900),
+                1
+            )),
+            Some(900)
+        );
+        assert_eq!(
+            bond_deadline(&bonded_maker_row(
+                &id,
+                Some("lnbc1x"),
+                Some(800),
+                Some(900),
+                1
+            )),
+            Some(800)
+        );
+        assert_eq!(
+            bond_deadline(&bonded_maker_row(&id, Some("lnbc1x"), None, Some(900), 1)),
+            Some(900)
+        );
+        assert_eq!(
+            bond_deadline(&bonded_maker_row(&id, None, None, Some(900), 1)),
+            Some(900)
+        );
+        assert_eq!(
+            bond_deadline(&bonded_maker_row(&id, None, None, None, 1)),
+            None
+        );
+        let mut locked = bonded_maker_row(&id, Some("lnbc1x"), Some(800), Some(900), 1);
+        locked.bond.as_mut().unwrap().state = crate::api::types::BondState::Locked;
+        assert_eq!(bond_deadline(&locked), None);
+        // A taker's row ignores the order expiry.
+        let mut taker = bonded_taker_row(&id, "lnbc1x", None);
+        taker.order.expires_at = Some(900);
+        assert_eq!(bond_deadline(&taker), None);
+    }
+
+    /// Abandon: the row is wiped, the update says the user walked away, and
+    /// a row that is not a maker's bond window is refused.
+    #[tokio::test]
+    async fn abandoning_a_maker_bond_wipes_the_row_and_says_so() {
+        let db = bond_test_db().await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        db.save_trade(&bonded_maker_row(
+            &order_id,
+            Some(BOND_BOLT11),
+            None,
+            None,
+            26,
+        ))
+        .await
+        .unwrap();
+        let mut rx = trade_updates_tx().subscribe();
+
+        crate::api::bond::abandon_bonded_order(order_id.clone())
+            .await
+            .expect("abandon succeeds");
+        assert!(db.get_trade_by_order_id(&order_id).await.unwrap().is_none());
+        assert_eq!(
+            drain_reasoned(&mut rx, &order_id),
+            vec![(
+                crate::api::types::OrderStatus::Canceled,
+                Some(crate::api::types::TradeUpdateReason::UserCanceled)
+            )]
+        );
+
+        let taker_id = uuid::Uuid::new_v4().to_string();
+        db.save_trade(&bonded_taker_row(&taker_id, BOND_BOLT11, None))
+            .await
+            .unwrap();
+        let err = crate::api::bond::abandon_bonded_order(taker_id)
+            .await
+            .expect_err("a taker cancels, never abandons");
+        assert_eq!(err.to_string(), "NotWaitingBond");
+        assert_eq!(
+            crate::api::bond::abandon_bonded_order(uuid::Uuid::new_v4().to_string())
+                .await
+                .expect_err("unknown row")
+                .to_string(),
+            "TradeNotFound"
+        );
+    }
+
+    /// The lock beat the abandon: a row that moved to Pending (the bond
+    /// locked, the order published) is a live trade, and the abandon —
+    /// decided on an older look at the row — must find it and refuse.
+    #[tokio::test]
+    async fn abandoning_after_the_bond_locked_refuses_and_keeps_the_row() {
+        let db = bond_test_db().await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let mut row = bonded_maker_row(&order_id, Some(BOND_BOLT11), None, None, 28);
+        db.save_trade(&row).await.unwrap();
+        // What a concurrent `new-order` leaves behind.
+        row.order.status = crate::api::types::OrderStatus::Pending;
+        row.bond.as_mut().unwrap().state = crate::api::types::BondState::Locked;
+        db.save_trade(&row).await.unwrap();
+        let mut rx = trade_updates_tx().subscribe();
+
+        let err = crate::api::bond::abandon_bonded_order(order_id.clone())
+            .await
+            .expect_err("a published order is not abandoned");
+        assert_eq!(err.to_string(), "NotWaitingBond");
+        let kept = db.get_trade_by_order_id(&order_id).await.unwrap().expect("row kept");
+        assert_eq!(kept.order.status, crate::api::types::OrderStatus::Pending);
+        assert!(drain_reasoned(&mut rx, &order_id).is_empty(), "no Canceled emitted");
+    }
+
+    /// A maker row past its deadline whose order the public book already
+    /// carries was paid, not abandoned: the sweep locks the bond instead of
+    /// wiping a live order (the `new-order` acknowledgement is late).
+    #[tokio::test]
+    async fn an_expired_maker_row_with_a_published_order_locks_instead_of_wiping() {
+        let db = bond_test_db().await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let row = bonded_maker_row(&order_id, Some(BOND_BOLT11), Some(1_000), None, 29);
+        db.save_trade(&row).await.unwrap();
+        let mut published = row.order.clone();
+        published.status = crate::api::types::OrderStatus::Pending;
+        order_book().upsert_order(published).await;
+        let mut rx = trade_updates_tx().subscribe();
+
+        assert!(!close_expired_bond_trade(&row, 1_001).await, "not wiped");
+        let kept = db.get_trade_by_order_id(&order_id).await.unwrap().expect("row kept");
+        assert_eq!(kept.order.status, crate::api::types::OrderStatus::Pending);
+        assert_eq!(
+            kept.bond.map(|b| b.state),
+            Some(crate::api::types::BondState::Locked)
+        );
+        assert_eq!(
+            drain_reasoned(&mut rx, &order_id),
+            vec![(crate::api::types::OrderStatus::Pending, None)]
+        );
+    }
+
+    /// The daemon rejects a cancel during the maker's bond window (§2.8):
+    /// the client raises the marker before deriving or publishing anything.
+    #[tokio::test]
+    async fn cancel_order_refuses_the_makers_bond_window() {
+        let db = bond_test_db().await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        db.save_trade(&bonded_maker_row(
+            &order_id,
+            Some(BOND_BOLT11),
+            None,
+            None,
+            27,
+        ))
+        .await
+        .unwrap();
+        let err = cancel_order(order_id).await.expect_err("refused locally");
+        assert_eq!(err.to_string(), "BondCancelNotAllowed");
+    }
+
     /// #394 step 2: a payload naming two strangers proves no role for the
     /// decrypting key — nothing is rebuilt, and the arm keeps today's
     /// warn-and-emit path for the never-written row.
@@ -12408,6 +13258,7 @@ mod tests {
                     trade_index: 14,
                     kind: PendingRequestKind::Create {
                         local_uuid: "local-uuid-late".to_string(),
+                        bond_requested: false,
                     },
                     tx: None,
                 },

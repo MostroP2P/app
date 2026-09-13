@@ -34,6 +34,19 @@ pub fn estimate_bond_sats(order_amount_sats: u64) -> Option<u64> {
     bond_policy::estimate_bond_sats(order_amount_sats, &policy)
 }
 
+// ── Maker bond ──────────────────────────────────────────────────────────────
+
+/// Walk away from an order parked at `WaitingMakerBond` without paying the
+/// bond (docs/ANTI_ABUSE_BOND.md §6.2). The daemon refuses a cancel in this
+/// window and reaps the unpaid order itself, so this only wipes the local
+/// row and emits `Canceled` with `UserCanceled`. Markers: `TradeNotFound`,
+/// `NotWaitingBond` when the row is not a maker's bond window.
+pub async fn abandon_bonded_order(order_id: String) -> Result<()> {
+    // Decided under the order's guard, on the row as it is then: a bond
+    // that locked meanwhile is a published order, which is refused.
+    crate::api::orders::abandon_maker_bond(&order_id).await
+}
+
 // ── Forfeiture notice ───────────────────────────────────────────────────────
 
 /// Buffered slash notices; a slash is rare, so a small buffer is ample.
