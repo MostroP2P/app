@@ -506,6 +506,80 @@ pub struct NymIdentity {
     pub color_hue: u16,
 }
 
+/// What a payment destination typed, pasted or scanned by the user turns out
+/// to be (`api::invoice::classify_payment_destination`). The one place that
+/// decides "is this an invoice or a Lightning address": the add-invoice
+/// screen, `send_invoice` and the NWC payer all ask it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PaymentDestination {
+    /// Nothing but whitespace (or a bare `lightning:` scheme).
+    Empty,
+    /// A well-formed, correctly signed BOLT11 invoice.
+    Bolt11(Bolt11Summary),
+    /// Starts like an invoice (`lnbc…` / `lntb…`) but does not decode: a
+    /// typo or a truncated copy.
+    MalformedBolt11,
+    /// `user@domain` (LUD-16), normalized to lower case.
+    LightningAddress(String),
+    /// Anything else — including an LNURL, which the submission path does
+    /// not resolve.
+    Unknown,
+}
+
+/// Why a buyer invoice would be refused, locally or by the daemon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum InvoiceProblem {
+    /// Neither an invoice nor a Lightning address.
+    Unrecognized,
+    /// Starts like an invoice but does not decode.
+    Malformed,
+    /// Decodes, but its amount is not the trade's.
+    WrongAmount,
+    /// Its expiry has already passed.
+    Expired,
+    /// Unexpired, but with less remaining lifetime than the node demands
+    /// (`invoice_expiration_window`): mostrod refuses it as invalid.
+    ExpiresTooSoon,
+    /// Decodes, but for another chain than the node's.
+    WrongNetwork,
+}
+
+/// The verdict on a buyer's payment destination before it is submitted
+/// (`api::invoice::check_buyer_invoice`). Mirrors what mostrod's
+/// `is_valid_invoice` will decide, so the user hears it here first.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum InvoiceVerdict {
+    /// Nothing typed: nothing to say and nothing to submit.
+    Empty,
+    /// Nothing to say locally — an open-amount invoice, or the trade amount
+    /// is not known yet — so submission is allowed and the daemon decides.
+    Unverified,
+    /// A Lightning address, resolved into an invoice on submission.
+    Address,
+    /// A BOLT11 invoice for exactly `sats`, unexpired, on the node's chain.
+    /// `expires_at` (unix seconds) lets the caller re-judge it before the
+    /// verdict goes stale: it stops being valid `min_remaining_secs` before
+    /// that moment. `u64`, not `i64`: an `i64` inside a bridge enum is a
+    /// Dart `int` in the generated union but a `BigInt` on the web, and
+    /// dart2js refuses the mismatch — a `u64` is a `BigInt` everywhere.
+    Valid { sats: u64, expires_at: u64 },
+    /// Refused. The optional fields carry what the copy needs to name.
+    Rejected {
+        problem: InvoiceProblem,
+        /// `WrongAmount`: what the invoice asks for, in msat (a sub-sat
+        /// remainder must not be rounded into a match).
+        actual_msat: Option<u64>,
+        /// `WrongAmount`: what the trade pays.
+        expected_sats: Option<u64>,
+        /// `WrongNetwork`: the invoice's chain, in LND naming.
+        invoice_network: Option<String>,
+        /// `WrongNetwork`: the node's chain, in LND naming.
+        node_network: Option<String>,
+        /// `ExpiresTooSoon`: the node's minimum remaining lifetime, seconds.
+        min_remaining_secs: Option<u64>,
+    },
+}
+
 /// What the add-invoice screen needs from a BOLT11 invoice to validate it
 /// before submission (see `api::invoice::decode_bolt11`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

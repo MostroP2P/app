@@ -6,26 +6,44 @@ import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show tradeInfoProvider;
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/invoice.dart' as invoice_api;
 
 /// mostrod's default `expiration_seconds`, used while the node has not
 /// advertised its own.
 const kDefaultInvoiceStepSeconds = 900;
 
-/// The local BOLT11 decoder behind a seam, so the add-invoice screen is
-/// testable without a live Rust core. Resolves to null for an input that is
-/// not a valid invoice; throws when the decoder itself cannot run.
-final invoiceDecoderProvider =
-    Provider<Future<DecodedInvoice?> Function(String)>(
-      (ref) => (input) async {
-        final summary = await invoice_api.decodeBolt11(invoice: input);
-        if (summary == null) return null;
-        return (
-          amountMsat: summary.amountMsat?.toInt(),
-          expiresAt: summary.expiresAt.toInt(),
-          network: summary.network,
-        );
-      },
+/// What the add-invoice screen asks about the buyer's input.
+typedef InvoiceCheckRequest =
+    ({
+      String input,
+      int? expectedSats,
+      List<String> nodeNetworks,
+      int? minRemainingSecs,
+      int now,
+    });
+
+/// The Rust core's invoice judgement behind a seam, so the add-invoice
+/// screen is testable without a live core. Throws when the core cannot
+/// run; the screen then leaves the input to the daemon.
+final invoiceCheckerProvider =
+    Provider<Future<InvoiceCheck> Function(InvoiceCheckRequest)>(
+      (ref) =>
+          (request) async => invoiceCheckFromVerdict(
+            await invoice_api.checkBuyerInvoice(
+              input: request.input,
+              expectedSats:
+                  request.expectedSats == null
+                      ? null
+                      : BigInt.from(request.expectedSats!),
+              nodeNetworks: request.nodeNetworks,
+              minRemainingSecs:
+                  request.minRemainingSecs == null
+                      ? null
+                      : BigInt.from(request.minRemainingSecs!),
+              now: intToPlatformInt64(request.now),
+            ),
+          ),
     );
 
 /// When the daemon moved the trade into its current step (unix seconds), or
