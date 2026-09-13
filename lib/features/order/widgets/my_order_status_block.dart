@@ -288,6 +288,9 @@ OrderStatusFamily statusFamily(OrderStatus status) => switch (status) {
 String statusLabel(AppLocalizations l10n, OrderStatus status) =>
     switch (status) {
       OrderStatus.pending => l10n.orderStatusWaitingForTaker,
+      // The maker's deposit is outstanding: not published yet
+      // (docs/ANTI_ABUSE_BOND.md §6.2).
+      OrderStatus.waitingMakerBond => l10n.orderStatusWaitingBond,
       OrderStatus.waitingBuyerInvoice => l10n.orderStatusTakenWaitingInvoice,
       OrderStatus.waitingPayment => l10n.orderStatusTakenWaitingPayment,
       OrderStatus.expired => l10n.orderStatusExpired,
@@ -304,6 +307,12 @@ String statusLabel(AppLocalizations l10n, OrderStatus status) =>
 
 /// Whether the maker can still cancel from here. Only a pending order: the
 /// daemon rejects `Action::Cancel` once a taker is in (the waiting states
-/// have their own cancellation flow, from the trade), and there is nothing
-/// to cancel once the order is dead.
+/// have their own cancellation flow, from the trade), during the maker's
+/// bond window (the pay-bond screen offers Abandon instead), and there is
+/// nothing to cancel once the order is dead.
 bool canCancelOrder(OrderStatus status) => status == OrderStatus.pending;
+
+/// Whether the order waits on the maker's own deposit: My Order offers the
+/// way to the pay-bond screen instead of Cancel.
+bool awaitsMakerBond(OrderStatus status) =>
+    status == OrderStatus.waitingMakerBond;

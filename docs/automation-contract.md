@@ -110,6 +110,15 @@ and `trade.cancel`.** While `order.status` reads `waiting-bond`
 (`docs/ANTI_ABUSE_BOND.md`), `trade.payBond` opens `/pay_bond/:orderId`; the
 My Trades row carries the same verb and files the trade under "your turn".
 
+**An order parked on the maker's own deposit is not published yet.** While
+`order.status` reads `waiting-bond` on `/my_order` (`docs/ANTI_ABUSE_BOND.md`
+§6.2), the screen offers `order.payBond` (`Pay deposit`), which opens
+`/pay_bond/:orderId`, and no `trade.cancel`: the daemon refuses a cancel in
+this window. On that screen `bond.cancel` reads `Don't publish the order` and
+drops the order locally (nothing was published, nothing charged); a taker's
+reads `Don't take the order` and is a daemon cancel. Once the deposit is
+paid the daemon publishes the order and `/my_order` reads `pending`.
+
 **The maker's own order ends on `order.confirm.home` (`Close`) and
 `trade.cancel`.** `trade.cancel` opens a confirmation sheet whose affirmative
 is `trade.cancel.confirm`; the button is absent once the order is expired,

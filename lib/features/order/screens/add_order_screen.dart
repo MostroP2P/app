@@ -341,15 +341,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       isRange: isRange,
       amounts: amounts,
     );
-    final makerBond = makerBondBlocks(
-      policy: node?.bondPolicy,
-      applyTo: node?.bondApplyTo,
-    );
-    if (_submitting ||
-        !valid ||
-        outOfRange != null ||
-        fiatOutOfRange != null ||
-        makerBond) {
+    if (_submitting || !valid || outOfRange != null || fiatOutOfRange != null) {
       return;
     }
     setState(() => _submitting = true);
@@ -376,6 +368,12 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       refreshTrades(ref);
 
       if (!mounted) return;
+      // A bond node parks the order behind the maker's deposit: it is not
+      // published until the bond is paid (docs/ANTI_ABUSE_BOND.md §6.2).
+      if (order.status == OrderStatus.waitingMakerBond) {
+        context.go(AppRoute.payBondPath(order.id));
+        return;
+      }
       context.go(AppRoute.myOrderPath(order.id));
     } catch (e) {
       if (!mounted) return;
@@ -433,10 +431,6 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
         ? rate / usdRate
         : null;
 
-    final makerBond = makerBondBlocks(
-      policy: node?.bondPolicy,
-      applyTo: node?.bondApplyTo,
-    );
     final isValid = _checkValid(
           methods: methods,
           isMarket: isMarket,
@@ -445,16 +439,21 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
           amounts: amounts,
         ) &&
         satsRangeError == null &&
-        fiatRangeError == null &&
-        !makerBond;
-    final rangeWarning = makerBond
-        ? l10n.createOrderMakerBondUnsupported
-        : _rangeWarning(
-            l10n: l10n,
-            satsRangeError: satsRangeError,
-            fiatRangeError: fiatRangeError,
-            fiatCode: fiatCode,
-          );
+        fiatRangeError == null;
+    final rangeWarning = _rangeWarning(
+      l10n: l10n,
+      satsRangeError: satsRangeError,
+      fiatRangeError: fiatRangeError,
+      fiatCode: fiatCode,
+    );
+    // A node that bonds makers asks for a deposit before publishing
+    // (docs/ANTI_ABUSE_BOND.md §6.2): said here, before the tap.
+    final bondNotice = makerBondApplies(
+          policy: node?.bondPolicy,
+          applyTo: node?.bondApplyTo,
+        )
+        ? l10n.createOrderBondNotice
+        : null;
 
     return Scaffold(
       backgroundColor: palette.bg,
@@ -546,6 +545,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
               )
             : null,
         error: rangeWarning,
+        notice: bondNotice,
         premiumFavour: premiumFavour(side, premium),
         canSubmit: isValid,
         isSubmitting: _submitting,

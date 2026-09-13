@@ -151,6 +151,10 @@ class AutomationIds {
   static const String orderCreateCancel = 'order.create.cancel';
   static const String orderConfirmHome = 'order.confirm.home';
 
+  /// My Order while the maker's anti-abuse deposit is outstanding: opens
+  /// the pay-bond screen.
+  static const String myOrderPayBond = 'order.payBond';
+
   /// Row of an order in the public order book.
   static String orderBookItem(String orderId) => 'order.book.item.$orderId';
 

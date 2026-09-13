@@ -6,7 +6,7 @@ library;
 import 'package:intl/intl.dart';
 
 import 'package:mostro/src/rust/api/types.dart'
-    show OrderKind, TradeRole, TradeUpdateReason;
+    show BondInfo, BondRole, OrderKind, TradeRole, TradeUpdateReason;
 
 /// What the bond is worth in the order's fiat at [rate] (fiat per BTC), or
 /// null without a usable rate. For the hero's context line only — the
@@ -39,6 +39,33 @@ bool bondWarnsTimeout(bool? policy) => policy ?? true;
 
 /// Whether the taker of an order of [kind] is buying sats.
 bool takerIsBuying(OrderKind kind) => kind == OrderKind.sell;
+
+/// Whether the user paying a bond for an order of [kind] is buying sats: a
+/// taker takes the other side of the order, a maker its own.
+bool bondPayerIsBuying(OrderKind kind, {required bool maker}) =>
+    maker ? kind == OrderKind.buy : takerIsBuying(kind);
+
+/// Whether the bond on this row is the maker's (docs/ANTI_ABUSE_BOND.md
+/// §6.2): the order is not published until it is paid, the daemon refuses a
+/// cancel, and the way out is a local abandon. Read from the bond's own
+/// role; a restored row without a bond falls back to ownership.
+bool bondIsMakers(BondInfo? bond, {required bool isMine}) =>
+    bond == null ? isMine : bond.role == BondRole.maker;
+
+/// When the bond window ends for the countdown, in unix seconds: a taker's
+/// bolt11 expiry; for a maker the earlier of the bolt11 expiry and the
+/// order's own expiry (the daemon reaps an unpublished order with its
+/// pending-order timeout, §6.2). Null when nothing is known.
+int? bondCountdownEnd({
+  required int? invoiceExpiresAt,
+  required int? orderExpiresAt,
+  required bool maker,
+}) {
+  if (!maker) return invoiceExpiresAt;
+  if (invoiceExpiresAt == null) return orderExpiresAt;
+  if (orderExpiresAt == null) return invoiceExpiresAt;
+  return invoiceExpiresAt < orderExpiresAt ? invoiceExpiresAt : orderExpiresAt;
+}
 
 /// Whether [role] means the taker pays a second hold invoice after the bond
 /// (a seller-as-taker locks the trade amount next; a buyer waits for the

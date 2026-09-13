@@ -137,11 +137,9 @@ void main() {
       expect(_publishButton(tester).onPressed, isNotNull);
     });
 
-    testWidgets('a node that bonds makers says so and still publishes', (
-      tester,
-    ) async {
-      // docs/ANTI_ABUSE_BOND.md §6.2: the deposit is asked before the tap;
-      // Publish lands on the pay-bond screen.
+    testWidgets('a node that bonds makers cannot publish yet', (tester) async {
+      // docs/ANTI_ABUSE_BOND.md Phase 2 owns the maker flow; until then the
+      // daemon would hold the order for a bond this form cannot pay.
       final container = await _pump(
         tester,
         node: const MostroInstance(
@@ -156,14 +154,14 @@ void main() {
       await tester.enterText(_amountField(), '5000');
       container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
       await tester.pumpAndSettle();
-      expect(_publishButton(tester).onPressed, isNotNull);
+      expect(_publishButton(tester).onPressed, isNull);
       expect(
-        find.textContaining('lock a refundable deposit before the order'),
+        find.textContaining('asks makers for a deposit'),
         findsOneWidget,
       );
     });
 
-    testWidgets('a node that bonds takers only says nothing about a deposit',
+    testWidgets('a node that bonds takers only publishes as before',
         (tester) async {
       final container = await _pump(
         tester,
@@ -180,7 +178,6 @@ void main() {
       container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
       await tester.pumpAndSettle();
       expect(_publishButton(tester).onPressed, isNotNull);
-      expect(find.textContaining('refundable deposit'), findsNothing);
     });
 
     testWidgets('previews a market sell with premium and the node expiry',

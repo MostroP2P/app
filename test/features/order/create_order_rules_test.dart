@@ -5,31 +5,34 @@ import 'package:mostro/features/about/models/mostro_instance.dart'
 import 'package:mostro/features/order/models/create_order_rules.dart';
 
 void main() {
-  group('makerBondBlocks', () {
-    test('blocks only an enabled policy that bonds makers', () {
+  group('makerBondApplies', () {
+    test('applies only to an enabled policy that bonds makers', () {
       expect(
-        makerBondBlocks(policy: BondPolicy.enabled, applyTo: BondApplyTo.make),
+        makerBondApplies(policy: BondPolicy.enabled, applyTo: BondApplyTo.make),
         isTrue,
       );
       expect(
-        makerBondBlocks(policy: BondPolicy.enabled, applyTo: BondApplyTo.both),
+        makerBondApplies(policy: BondPolicy.enabled, applyTo: BondApplyTo.both),
         isTrue,
       );
       expect(
-        makerBondBlocks(policy: BondPolicy.enabled, applyTo: BondApplyTo.take),
+        makerBondApplies(policy: BondPolicy.enabled, applyTo: BondApplyTo.take),
         isFalse,
       );
     });
     test('unknown, disabled or missing policy publishes as before', () {
       expect(
-        makerBondBlocks(policy: BondPolicy.disabled, applyTo: BondApplyTo.both),
+        makerBondApplies(
+          policy: BondPolicy.disabled,
+          applyTo: BondApplyTo.both,
+        ),
         isFalse,
       );
       expect(
-        makerBondBlocks(policy: BondPolicy.unsupported, applyTo: null),
+        makerBondApplies(policy: BondPolicy.unsupported, applyTo: null),
         isFalse,
       );
-      expect(makerBondBlocks(policy: null, applyTo: null), isFalse);
+      expect(makerBondApplies(policy: null, applyTo: null), isFalse);
     });
   });
 
