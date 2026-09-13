@@ -41,12 +41,46 @@ final tradeStatusLookupProvider =
       },
     );
 
-/// Reads the local user's role in a trade through the bridge; injectable so
-/// screens that must know whether they already participate can be tested
-/// without the Rust side.
+/// The local user's role in an order they still take part in
+/// ([participatingRole]), read through the bridge; injectable so screens that
+/// must know whether they already participate can be tested without the Rust
+/// side.
 final tradeRoleLookupProvider = Provider<Future<TradeRole?> Function(String)>(
-  (ref) => (orderId) => orders_api.getTradeRole(orderId: orderId),
+  (ref) =>
+      (orderId) async =>
+          participatingRole(await orders_api.listTrades(), orderId),
 );
+
+/// The role of the user's trade on [orderId] among [trades], or null when
+/// they no longer take part in it: no row at all, or only a take that has
+/// ended ([isEndedTake]).
+///
+/// Every row for the order is read, not just one: a database from before
+/// takes replaced their order's earlier row can hold two, and a live one
+/// among them still makes the user a participant.
+TradeRole? participatingRole(Iterable<TradeInfo> trades, String orderId) {
+  for (final trade in trades) {
+    if (trade.order.id == orderId && !isEndedTake(trade)) return trade.role;
+  }
+  return null;
+}
+
+/// Whether [trade] is a take whose row has ended, which leaves the user
+/// nothing to follow on its order.
+///
+/// A trade that truly ended leaves its order in a status mostrod never takes
+/// it out of: a take needs `Pending`, and only a waiting state goes back to
+/// it. So once the order can be taken again, such a row is what a take that
+/// never went active left behind: older builds marked it `Canceled` as soon
+/// as its cancel went out. Holding on to it sent the user to that dead trade
+/// instead of letting them take the order again (#434). Rust already takes
+/// over such a row: the confirmed take replaces every earlier row of its
+/// order.
+///
+/// Never a maker's row: its order is theirs, and the take screen is not
+/// where they manage it.
+bool isEndedTake(TradeInfo trade) =>
+    !trade.order.isMine && isTerminalTradeStatus(trade.order.status);
 
 /// Takes an order through the bridge; injectable so the take screen's
 /// outcomes (loading, already taken, rejected) can be tested without Rust.

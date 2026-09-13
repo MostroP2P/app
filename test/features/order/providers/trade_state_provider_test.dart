@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
+import '../../../support/fake_trades.dart';
 import '../../../support/provider_harness.dart';
 
 void main() {
@@ -105,6 +106,75 @@ void main() {
         ),
         OrderStatus.waitingPayment,
       );
+    });
+  });
+
+  group('participatingRole', () {
+    const orderId = 'order-x';
+
+    test('no row on the order is no role', () {
+      expect(participatingRole(const [], orderId), isNull);
+      expect(
+        participatingRole([fakeTrade(id: 'other')], orderId),
+        isNull,
+        reason: 'another order\'s row',
+      );
+    });
+
+    test('a take still open is a participant', () {
+      for (final status in OrderStatus.values.where(
+        (s) => !isTerminalTradeStatus(s),
+      )) {
+        expect(
+          participatingRole([
+            fakeTrade(
+              id: 'x',
+              orderId: orderId,
+              status: status,
+              role: TradeRole.seller,
+            ),
+          ], orderId),
+          TradeRole.seller,
+          reason: '$status',
+        );
+      }
+    });
+
+    test('a take that has ended is not', () {
+      for (final status in OrderStatus.values.where(isTerminalTradeStatus)) {
+        final ended = fakeTrade(id: 'x', orderId: orderId, status: status);
+        expect(isEndedTake(ended), isTrue, reason: '$status');
+        expect(participatingRole([ended], orderId), isNull, reason: '$status');
+      }
+    });
+
+    test("a maker's row always is, ended or not", () {
+      final maker = fakeTrade(
+        id: 'x',
+        orderId: orderId,
+        status: OrderStatus.canceled,
+        isMine: true,
+      );
+      expect(isEndedTake(maker), isFalse);
+      expect(participatingRole([maker], orderId), TradeRole.buyer);
+    });
+
+    test('an open row wins over an ended one on the same order', () {
+      // Databases from before a take replaced its order's earlier row can
+      // hold both, in either order.
+      final ended = fakeTrade(
+        id: 'ended',
+        orderId: orderId,
+        status: OrderStatus.canceled,
+      );
+      final open = fakeTrade(
+        id: 'open',
+        orderId: orderId,
+        status: OrderStatus.active,
+        role: TradeRole.seller,
+      );
+      expect(participatingRole([ended, open], orderId), TradeRole.seller);
+      expect(participatingRole([open, ended], orderId), TradeRole.seller);
     });
   });
 }

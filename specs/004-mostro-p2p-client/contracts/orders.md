@@ -763,3 +763,10 @@ trade through `shownTradeStatus`, where the trade row wins in two cases:
   `WaitingTakerBond`, whose order is still `pending` in public.
 
 Every other live status wins over an open row.
+
+The take screen sends a user who already takes part in the order to the
+trade instead of offering to take it again (`tradeRoleLookupProvider`,
+`participatingRole`). A take whose row has ended does not count: once its
+order can be taken again, such a row can only be what a take that never
+went active left behind, and `take_order` replaces it with the new take's
+row. A maker's row always counts, and so does any row still open.
