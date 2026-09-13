@@ -26,7 +26,16 @@ class BondConsequence {
 }
 
 /// A marker no translation contains, used to find where the bold part sits.
-const _kSplit = ' ';
+/// Not a space: every sentence has spaces of its own, and splitting on them
+/// would drop the prose between the first and last word.
+const kBondSplit = '\u0000';
+
+/// `(before, after)` of [sentence] around its placeholder, the placeholder
+/// resolved with [kBondSplit]. Exposed so the rich-text callers agree.
+(String, String) bondSentenceParts(String Function(String) sentence) {
+  final parts = sentence(kBondSplit).split(kBondSplit);
+  return (parts.first, parts.length > 1 ? parts.sublist(1).join() : '');
+}
 
 /// The three consequence rows in one card (padding 14 / 3, radius 18,
 /// hairline separators). Never a fourth: a justification is not a
@@ -68,7 +77,7 @@ class _ConsequenceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final book = OrderBookPalette.of(context);
-    final parts = row.sentence(_kSplit).split(_kSplit);
+    final (before, after) = bondSentenceParts(row.sentence);
     final body = TextStyle(fontSize: 12, height: 1.4, color: book.textBody);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 11),
@@ -85,7 +94,7 @@ class _ConsequenceRow extends StatelessWidget {
               TextSpan(
                 style: body,
                 children: [
-                  TextSpan(text: parts.first),
+                  TextSpan(text: before),
                   TextSpan(
                     text: row.boldPart,
                     style: TextStyle(
@@ -93,7 +102,7 @@ class _ConsequenceRow extends StatelessWidget {
                       color: row.color,
                     ),
                   ),
-                  if (parts.length > 1) TextSpan(text: parts.last),
+                  if (after.isNotEmpty) TextSpan(text: after),
                 ],
               ),
             ),
@@ -244,10 +253,14 @@ class BondAmountRow extends StatelessWidget {
     required this.sats,
     required this.remaining,
     required this.hours,
+    required this.unit,
   });
 
   final String label;
   final int sats;
+
+  /// The localized `sats` unit label.
+  final String unit;
   final Duration? remaining;
   final String Function(String hours, String minutes) hours;
 
@@ -288,7 +301,7 @@ class BondAmountRow extends StatelessWidget {
                         ),
                       ),
                       TextSpan(
-                        text: ' sats',
+                        text: ' $unit',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,

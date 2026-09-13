@@ -19,6 +19,16 @@ void main() {
     });
   });
 
+  group('bondWarnsTimeout', () {
+    test('follows the node policy once known', () {
+      expect(bondWarnsTimeout(true), isTrue);
+      expect(bondWarnsTimeout(false), isFalse);
+    });
+    test('warns while the policy is unknown', () {
+      expect(bondWarnsTimeout(null), isTrue);
+    });
+  });
+
   group('bondSharePercent', () {
     test('renders the node fraction as a percentage without a trailing .0', () {
       expect(bondSharePercent(0.02), '2');
@@ -28,6 +38,8 @@ void main() {
     test('is null when the node advertises none', () {
       expect(bondSharePercent(null), isNull);
       expect(bondSharePercent(-0.1), isNull);
+      // Finite as a fraction, infinite once scaled: omitted, not a throw.
+      expect(bondSharePercent(1e308), isNull);
       expect(bondSharePercent(double.infinity), isNull);
     });
   });

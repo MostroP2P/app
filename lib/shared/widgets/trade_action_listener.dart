@@ -90,7 +90,9 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
       final actionable = switch (update.status) {
         OrderStatus.waitingBuyerInvoice => role == TradeRole.buyer,
         OrderStatus.waitingPayment => role == TradeRole.seller,
-        OrderStatus.waitingTakerBond => true,
+        // Whichever side, but only for a trade this device knows: without
+        // a row the pay-bond screen has nothing to load.
+        OrderStatus.waitingTakerBond => role != null,
         _ => false,
       };
       if (!actionable || !mounted) return;

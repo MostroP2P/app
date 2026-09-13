@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
+import 'package:mostro/features/about/models/mostro_instance.dart' as instance;
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
@@ -31,6 +33,8 @@ Future<void> _pump(
   WidgetTester tester, {
   required TradeInfo trade,
   bool explainerOpen = false,
+  bool walletConnected = false,
+  bool? slashOnTimeout,
   Future<TradeInfo> Function(String)? requestAgain,
 }) async {
   SharedPreferences.setMockInitialValues({
@@ -39,12 +43,21 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        isWalletConnectedProvider.overrideWithValue(false),
+        isWalletConnectedProvider.overrideWithValue(walletConnected),
         tradeInfoProvider.overrideWith((ref, id) async => trade),
         tradeUpdatesProvider.overrideWith(
           (ref) => const Stream<TradeUpdate>.empty(),
         ),
-        mostroNodeProvider.overrideWith((ref) async => null),
+        mostroNodeProvider.overrideWith(
+          (ref) async =>
+              slashOnTimeout == null
+                  ? null
+                  : instance.MostroInstance(
+                    pubKey: 'node',
+                    bondPolicy: instance.BondPolicy.enabled,
+                    bondSlashOnWaitingTimeout: slashOnTimeout,
+                  ),
+        ),
         exchangeRateProvider.overrideWith((ref, code) async => null),
         if (requestAgain != null)
           requestBondInvoiceAgainProvider.overrideWithValue(requestAgain),
@@ -66,26 +79,71 @@ void main() {
   testWidgets('14a: the amount first, the three consequences, the wallet', (
     tester,
   ) async {
-    await _pump(tester, trade: fakeTrade(bond: _bond()));
+    await _pump(tester, trade: fakeTrade(bond: _bond()), slashOnTimeout: false);
 
     expect(find.text('1648'), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
+    // Whole sentences: the bold part is spliced into the l10n message and
+    // the prose on both sides of it must survive.
     expect(
-      find.textContaining('held in your wallet', findRichText: true),
+      find.text(
+        'The sats stay held in your wallet, they are not spent',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(
-      find.textContaining('it is released on its own', findRichText: true),
+      find.text(
+        'If the trade ends well, it is released on its own',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(
-      find.textContaining('you lose it', findRichText: true),
+      find.text(
+        'You only lose it if there is a dispute and you lose it',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
     expect(find.text('Open in my wallet'), findsOneWidget);
     expect(find.text('Copy'), findsOneWidget);
     expect(find.text("Don't take the order"), findsOneWidget);
     expect(find.text('Read the documentation'), findsNothing);
+  });
+
+  testWidgets('with no node status the timeout warning stands', (tester) async {
+    await _pump(tester, trade: fakeTrade(bond: _bond()), slashOnTimeout: null);
+    expect(
+      find.textContaining('let a step time out', findRichText: true),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a node that does not slash on timeout says so', (tester) async {
+    await _pump(tester, trade: fakeTrade(bond: _bond()), slashOnTimeout: false);
+    expect(
+      find.textContaining('let a step time out', findRichText: true),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a connected wallet pays inside the same disclosures', (
+    tester,
+  ) async {
+    await _pump(tester, trade: fakeTrade(bond: _bond()), walletConnected: true);
+    expect(find.byType(NwcPaymentWidget), findsOneWidget);
+    expect(find.text('Pay with Wallet'), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(
+      find.text(
+        'The sats stay held in your wallet, they are not spent',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text("Don't take the order"), findsOneWidget);
+    expect(find.text('Open in my wallet'), findsNothing);
   });
 
   testWidgets('14b: opening the explainer hides the QR and copy / share', (
@@ -99,6 +157,15 @@ void main() {
     expect(find.byType(QrImageView), findsNothing);
     expect(find.text('Copy'), findsNothing);
     expect(find.text('Read the documentation'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'It is a hold invoice: your wallet reserves the sats without sending '
+        'them; when the trade completes, the reservation is cancelled on its '
+        'own.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
     expect(find.text('You buy 100 USD'), findsOneWidget);
     expect(find.text('Open in my wallet'), findsOneWidget);
     expect(find.text("Don't take the order"), findsOneWidget);

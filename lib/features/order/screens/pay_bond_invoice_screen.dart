@@ -278,25 +278,6 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     final amountSats = bond.amountSats.toInt();
     if (invoice.isEmpty) return _missingInvoice(l10n, appBar);
 
-    final isWalletConnected = ref.watch(isWalletConnectedProvider);
-    if (isWalletConnected && !_manualMode) {
-      return Scaffold(
-        backgroundColor: book.bg,
-        appBar: appBar,
-        body: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Center(
-            child: NwcPaymentWidget(
-              bolt11: invoice,
-              amountSats: amountSats,
-              onPaymentSuccess: _onPaymentDetected,
-              onFallbackToManual: () => setState(() => _manualMode = true),
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       backgroundColor: book.bg,
       appBar: appBar,
@@ -338,8 +319,11 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
               formatBondFiat(l10n.localeName, fiat, trade.order.fiatCode),
             );
     // The timeout consequence is the node's policy; the dispute one always
-    // applies (docs/ANTI_ABUSE_BOND.md §8.2).
-    final slashOnTimeout = node?.bondSlashOnWaitingTimeout ?? false;
+    // applies (docs/ANTI_ABUSE_BOND.md §8.2). Unknown policy warns.
+    final slashOnTimeout = bondWarnsTimeout(node?.bondSlashOnWaitingTimeout);
+    // A connected wallet pays the bolt11 itself; the disclosures around it
+    // (refundable, consequences, countdown, cancel) stay where they are.
+    final nwc = ref.watch(isWalletConnectedProvider) && !_manualMode;
 
     return LayoutBuilder(
       builder:
@@ -364,6 +348,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                         sats: amountSats,
                         remaining: remaining,
                         hours: l10n.invoiceCountdownHours,
+                        unit: l10n.satsUnitLabel,
                       )
                     else ...[
                       InvoiceHeroCard(
@@ -414,7 +399,15 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                     ],
                     const Spacer(),
                     const SizedBox(height: 16),
-                    ..._footer(l10n, invoice, open: open),
+                    if (nwc)
+                      ..._nwcFooter(
+                        l10n,
+                        invoice,
+                        amountSats: amountSats,
+                        open: open,
+                      )
+                    else
+                      ..._footer(l10n, invoice, open: open),
                   ],
                 ),
               ),
@@ -456,14 +449,14 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       fontWeight: FontWeight.w600,
       color: OrderBookPalette.of(context).textPrimary,
     );
-    final hold = l10n.bondWhyHold(' ').split(' ');
+    final (before, after) = bondSentenceParts(l10n.bondWhyHold);
     return [
       TextSpan(text: l10n.bondWhyCustody),
       TextSpan(
         children: [
-          TextSpan(text: hold.first),
+          TextSpan(text: before),
           TextSpan(text: 'hold', style: bold),
-          if (hold.length > 1) TextSpan(text: hold.last),
+          if (after.isNotEmpty) TextSpan(text: after),
         ],
       ),
       TextSpan(
@@ -580,6 +573,33 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       InvoiceCancelLink(
         label: l10n.bondDontTake,
         // Nothing is committed yet: not a destructive action.
+        danger: false,
+        onPressed: _canceling ? null : _cancel,
+      ).withAutomationId(AutomationIds.bondCancel),
+    ];
+  }
+
+  /// The wallet pays: one button, the fallback to manual payment lives in
+  /// the widget, the cancel link stays. When the QR card is hidden (14b)
+  /// the widget's readout carries the bolt11 for automation instead.
+  List<Widget> _nwcFooter(
+    AppLocalizations l10n,
+    String invoice, {
+    required int amountSats,
+    required bool open,
+  }) {
+    if (_waiting) return _footer(l10n, invoice, open: open);
+    return [
+      NwcPaymentWidget(
+        bolt11: invoice,
+        amountSats: amountSats,
+        invoiceAutomationId: open ? AutomationIds.bondInvoiceText : null,
+        onPaymentSuccess: _onPaymentDetected,
+        onFallbackToManual: () => setState(() => _manualMode = true),
+      ),
+      const SizedBox(height: 4),
+      InvoiceCancelLink(
+        label: l10n.bondDontTake,
         danger: false,
         onPressed: _canceling ? null : _cancel,
       ).withAutomationId(AutomationIds.bondCancel),

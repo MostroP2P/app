@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/about/models/mostro_instance.dart' as instance;
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
@@ -60,7 +61,14 @@ Future<void> _pump(
           tradeUpdatesProvider.overrideWith(
             (ref) => const Stream<TradeUpdate>.empty(),
           ),
-          mostroNodeProvider.overrideWith((ref) async => null),
+          // The handoff's default: a node that slashes on disputes only.
+          mostroNodeProvider.overrideWith(
+            (ref) async => const instance.MostroInstance(
+              pubKey: 'node',
+              bondPolicy: instance.BondPolicy.enabled,
+              bondSlashOnWaitingTimeout: false,
+            ),
+          ),
           // 1 648 sats at 125 000 000 ARS / BTC = 2 060 ARS.
           exchangeRateProvider.overrideWith((ref, code) async => 125000000.0),
         ],

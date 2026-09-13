@@ -16,8 +16,13 @@ class BondExplainerNotifier extends Notifier<bool> {
 
   final Future<SharedPreferences> Function() _prefs;
 
+  /// Set once the user changed the state: a stored value that lands later
+  /// must not undo that choice.
+  bool _touched = false;
+
   @override
   bool build() {
+    _touched = false;
     _load();
     return true;
   }
@@ -25,6 +30,7 @@ class BondExplainerNotifier extends Notifier<bool> {
   Future<void> _load() async {
     try {
       final prefs = await _prefs();
+      if (_touched) return;
       state = bondExplainerOpens(stored: prefs.getBool(kBondExplainerOpenKey));
     } catch (_) {
       // No durable preference: the default stands.
@@ -32,6 +38,7 @@ class BondExplainerNotifier extends Notifier<bool> {
   }
 
   Future<void> set(bool open) async {
+    _touched = true;
     state = open;
     try {
       final prefs = await _prefs();

@@ -23,9 +23,19 @@ double? bondFiatEquivalent({required int sats, required double? rate}) {
 String? bondSharePercent(double? fraction) {
   if (fraction == null || !fraction.isFinite || fraction < 0) return null;
   final pct = fraction * 100;
+  // The node parser lets any finite fraction through; scaled, it can
+  // overflow (1e308 × 100), and rounding infinity throws.
+  if (!pct.isFinite) return null;
   if (pct == pct.roundToDouble()) return pct.round().toString();
   return pct.toStringAsFixed(1).replaceFirst(RegExp(r'\.?0+$'), '');
 }
+
+/// Whether the screen warns that a missed step can cost the bond. [policy]
+/// is the node's `bond_slash_on_waiting_timeout`, null while the node's
+/// status is still loading or could not be fetched: then the stricter
+/// warning stands, since the user is about to lock sats and the softer copy
+/// would claim a safety the node may not offer (docs/ANTI_ABUSE_BOND.md §8.2).
+bool bondWarnsTimeout(bool? policy) => policy ?? true;
 
 /// Whether the taker of an order of [kind] is buying sats.
 bool takerIsBuying(OrderKind kind) => kind == OrderKind.sell;
