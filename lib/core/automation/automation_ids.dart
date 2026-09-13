@@ -48,7 +48,6 @@ class AutomationIds {
   // readout would put the seed phrase in the accessibility tree, where any
   // accessibility service on the device can read it, and no Mortsom scenario
   // needs it: identities are generated in the app, never transcribed.
-  static const String keysPublicKey = 'keys.public_key';
 
   // Settings
   static const String settingsMostroNode = 'settings.mostro_node';

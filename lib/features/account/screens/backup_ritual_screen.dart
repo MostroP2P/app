@@ -4,87 +4,68 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/backup_palette.dart';
 import 'package:mostro/core/services/identity_service.dart';
+import 'package:mostro/features/account/models/backup_rules.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
+import 'package:mostro/features/account/widgets/backup_widgets.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 
-/// Fallback decoy words for the verification step, used only in the
-/// (degenerate) case where the mnemonic itself does not contain enough
-/// distinct words to build a 4-option grid.
-const _fallbackDecoys = [
-  'mountain',
-  'river',
-  'orange',
-  'planet',
-  'silver',
-  'garden',
-  'rocket',
-  'candle',
-];
-
-/// 3-step backup ritual (pushed via Navigator from the trigger sheet):
+/// 3-step backup (`design_handoff_cuenta_respaldo`, 16a–16d), pushed from the
+/// 15c sheet:
 ///
-///   1. Show the 12 secret words (write them on paper).
-///   2. Verify 3 words at random.
-///   3. Done — backup confirmed and persisted.
+///   1. Write down the 12 words (16a).
+///   2. Tap 3 of them, asked at random (16b/16c).
+///   3. Done — the backup is confirmed and persisted (16d).
 ///
-/// The words live only in this screen's state and are discarded when the
-/// screen is left, restoring the masked behavior of the Account screen.
+/// `View words` goes back to step 1 keeping what was solved; only a second
+/// wrong pick on one word throws the round away (#223). The words live only
+/// in this screen's state and are dropped when it is left.
 class BackupRitualScreen extends ConsumerStatefulWidget {
-  const BackupRitualScreen({super.key, @visibleForTesting this.debugWords});
+  const BackupRitualScreen({
+    super.key,
+    @visibleForTesting this.debugWords,
+    @visibleForTesting this.debugChallenge,
+    @visibleForTesting this.debugRandom,
+  });
 
-  /// Test-only word source. When non-null, [_loadWords] uses these instead of
-  /// calling the Rust bridge, so widget tests can drive verification with a
-  /// known mnemonic. Never set in production.
+  /// Test-only word source. When non-null, the words come from here instead
+  /// of the Rust bridge. Never set in production.
   final List<String>? debugWords;
+
+  /// Test-only positions (0-based) the first round asks, so goldens show a
+  /// fixed challenge. Never set in production.
+  final List<int>? debugChallenge;
+
+  /// Test-only seed for the option order. Never set in production.
+  final math.Random? debugRandom;
 
   @override
   ConsumerState<BackupRitualScreen> createState() => _BackupRitualScreenState();
 }
 
 class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
-  final _random = math.Random();
+  late final math.Random _random = widget.debugRandom ?? math.Random();
 
   int _step = 0;
   List<String>? _words;
 
-  // ── Verification state ──
-  /// The 3 challenged word positions (0-based, sorted ascending).
-  List<int> _challenge = const [];
+  /// The verification round; kept while the user reviews the words.
+  BackupVerification? _round;
+  bool _confirming = false;
 
-  /// User answers per challenge slot; null = not answered yet.
-  List<String?> _filled = [null, null, null];
-
-  /// Index into [_challenge] of the slot currently being answered.
-  int _activeSlot = 0;
-
-  /// 4 shuffled options for the active slot.
-  List<String> _options = const [];
-
-  /// Option the user last tapped incorrectly (cleared on next tap).
-  String? _wrongPick;
-
-  /// Wrong-pick counter for the word currently being verified. Reset to 0 on
-  /// each correct pick, so it counts misses on the word in front of the user.
-  /// A second wrong pick on the same word sends them back to the 12 words and
-  /// restarts verification, so a single slot can't be solved by tapping every
-  /// option in turn (#223).
-  int _failCount = 0;
-
-  /// Test-only: the correct word for the slot currently being verified, or null
-  /// if verification isn't active. Lets widget tests tap the right/wrong option
-  /// deterministically despite the randomised challenge. Never used in prod UI.
+  /// Test-only: the correct word for the slot being verified, or null when no
+  /// slot is open. Lets widget tests tap the right or a wrong option despite
+  /// the randomised challenge. Never used in production UI.
   @visibleForTesting
   String? get debugCorrectWordForActiveSlot {
-    if (_words == null ||
-        _challenge.isEmpty ||
-        _activeSlot >= _challenge.length) {
-      return null;
-    }
-    return _words![_challenge[_activeSlot]];
+    final words = _words;
+    final round = _round;
+    final slot = round?.activeSlot;
+    if (words == null || round == null || slot == null) return null;
+    return words[round.challenge[slot]];
   }
-
-  bool _confirming = false;
 
   @override
   void initState() {
@@ -94,9 +75,15 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
 
   @override
   void dispose() {
-    // Drop the mnemonic from memory as soon as the ritual is left.
+    // Drop the mnemonic from memory as soon as the flow is left.
     _words = null;
     super.dispose();
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _loadWords() async {
@@ -105,13 +92,7 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
           widget.debugWords ?? await IdentityService.getMnemonicWords();
       if (!mounted) return;
       if (words.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).noIdentityFoundMessage,
-            ),
-          ),
-        );
+        _showMessage(AppLocalizations.of(context).noIdentityFoundMessage);
         Navigator.of(context).pop();
         return;
       }
@@ -120,97 +101,48 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
       // Never log the words themselves; the error alone is safe.
       debugPrint('[backup-ritual] failed to load words: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context).failedToLoadSecretWordsMessage,
-          ),
-        ),
-      );
+      _showMessage(AppLocalizations.of(context).failedToLoadSecretWordsMessage);
       Navigator.of(context).pop();
     }
   }
 
-  // ── Challenge generation ────────────────────────────────────────────────
-
-  void _startVerification() {
+  void _toVerify() {
     final words = _words;
     if (words == null) return;
-    final indices = <int>{};
-    while (indices.length < 3 && indices.length < words.length) {
-      indices.add(_random.nextInt(words.length));
-    }
+    final challenge = widget.debugChallenge;
     setState(() {
-      _challenge = indices.toList()..sort();
-      _filled = [null, null, null];
-      _activeSlot = 0;
-      _wrongPick = null;
-      _failCount = 0;
-      _options = _buildOptions(_challenge[0]);
+      _round ??=
+          challenge == null
+              ? BackupVerification.start(words, _random)
+              : BackupVerification.forChallenge(words, challenge, _random);
       _step = 1;
     });
   }
 
-  List<String> _buildOptions(int wordIndex) {
-    final words = _words!;
-    final correct = words[wordIndex];
-    final decoys = <String>{};
-    final pool = List<String>.of(words)..shuffle(_random);
-    for (final w in pool) {
-      if (decoys.length == 3) break;
-      if (w != correct) decoys.add(w);
-    }
-    // Degenerate mnemonics (repeated words) — pad from a static pool.
-    for (final w in _fallbackDecoys) {
-      if (decoys.length == 3) break;
-      if (w != correct) decoys.add(w);
-    }
-    return [correct, ...decoys]..shuffle(_random);
-  }
+  void _reviewWords() => setState(() => _step = 0);
 
-  void _onOptionTap(String word) {
+  void _onPick(String word) {
     final words = _words;
-    if (words == null || _activeSlot >= _challenge.length) return;
-    final correct = words[_challenge[_activeSlot]];
-    if (word == correct) {
+    final round = _round;
+    if (words == null || round == null) return;
+    final (next, outcome) = round.pick(words, word, _random);
+    if (outcome == BackupPickOutcome.restart) {
+      // Second wrong pick on this word: don't let the user grind through the
+      // options by elimination. Back to the words, and a fresh round (#223).
       setState(() {
-        _filled[_activeSlot] = word;
-        _wrongPick = null;
-        _failCount = 0; // correct pick — reset the per-word miss budget
-        final next = _filled.indexWhere((w) => w == null);
-        if (next != -1) {
-          _activeSlot = next;
-          _options = _buildOptions(_challenge[next]);
-        } else {
-          _activeSlot = _challenge.length; // all done
-          _options = const [];
-        }
+        _round = null;
+        _step = 0;
       });
-    } else {
-      setState(() => _failCount++);
-      if (_failCount >= 2) {
-        // Second wrong pick on this word: don't let the user grind through the
-        // options by elimination. Send them back to the 12 words to review,
-        // then restart verification from scratch (#223).
-        _backToWords();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).backupRitualSecondFailureMessage,
-            ),
-          ),
-        );
-      } else {
-        setState(() => _wrongPick = word);
-      }
+      _showMessage(
+        AppLocalizations.of(context).backupRitualSecondFailureMessage,
+      );
+      return;
     }
+    setState(() => _round = next);
   }
-
-  bool get _allCorrect =>
-      _challenge.isNotEmpty && _filled.every((w) => w != null);
 
   Future<void> _confirm() async {
-    if (!_allCorrect || _confirming) return;
+    if (!(_round?.isComplete ?? false) || _confirming) return;
     setState(() => _confirming = true);
     try {
       await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
@@ -219,12 +151,8 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
     } catch (e) {
       debugPrint('[backup-ritual] confirm error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context).failedToSaveBackupStatusMessage,
-            ),
-          ),
+        _showMessage(
+          AppLocalizations.of(context).failedToSaveBackupStatusMessage,
         );
       }
     } finally {
@@ -232,27 +160,10 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
     }
   }
 
-  void _backToWords() {
-    setState(() {
-      _step = 0;
-      _challenge = const [];
-      _filled = [null, null, null];
-      _activeSlot = 0;
-      _options = const [];
-      _wrongPick = null;
-      _failCount = 0; // round is over — the next one starts clean
-    });
-  }
-
   // ── Build ───────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final elevated = colors?.backgroundElevated ?? const Color(0xFF2A2D35);
-
     final l10n = AppLocalizations.of(context);
     final title = switch (_step) {
       0 => l10n.backupRitualStep1Title,
@@ -260,40 +171,42 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
       _ => l10n.backupRitualStep3Title,
     };
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title, style: const TextStyle(fontSize: 15)),
-        automaticallyImplyLeading: false,
-        leading: _step == 2
-            ? null
-            : BackButton(
-                onPressed: () {
-                  if (_step == 1) {
-                    _backToWords();
-                  } else {
-                    Navigator.of(context).pop();
-                  }
-                },
-              ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.xl,
-          ),
+    return PopScope(
+      // System back while verifying reviews the words, like the arrow does.
+      canPop: _step != 1,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _reviewWords();
+      },
+      child: Scaffold(
+        backgroundColor: OrderBookPalette.of(context).bg,
+        appBar: redesignAppBar(
+          context,
+          title: title,
+          onBack: switch (_step) {
+            0 => () => Navigator.of(context).pop(),
+            1 => _reviewWords,
+            _ => null,
+          },
+        ),
+        body: SafeArea(
+          top: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _ProgressBar(step: _step, green: green, elevated: elevated),
-              const SizedBox(height: AppSpacing.md),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  redesignSidePadding,
+                  0,
+                  redesignSidePadding,
+                  14,
+                ),
+                child: BackupProgressBar(step: _step),
+              ),
               Expanded(
                 child: switch (_step) {
-                  0 => _buildShowWords(theme, colors),
-                  1 => _buildVerify(theme, colors),
-                  _ => _buildDone(theme, colors),
+                  0 => _buildWriteDown(l10n),
+                  1 => _buildVerify(l10n),
+                  _ => _buildDone(l10n),
                 },
               ),
             ],
@@ -303,471 +216,251 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
     );
   }
 
-  // ── Step 1: show words ──────────────────────────────────────────────────
+  // ── 16a · Write down ────────────────────────────────────────────────────
 
-  Widget _buildShowWords(ThemeData theme, AppColors? colors) {
-    final l10n = AppLocalizations.of(context);
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
-    final elevated = colors?.backgroundElevated ?? const Color(0xFF2A2D35);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    final textSubtle = colors?.textSubtle ?? const Color(0xFF9A9A9C);
-    final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
-
+  Widget _buildWriteDown(AppLocalizations l10n) {
     final words = _words;
-    if (words == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return _ScrollableStep(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Amber warning card
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.md,
-          ),
-          decoration: BoxDecoration(
-            color: amber.withValues(alpha: 0.12),
-            border: Border.all(color: amber.withValues(alpha: 0.27)),
-            borderRadius: BorderRadius.circular(AppRadius.card),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.warning_amber_rounded, color: amber, size: 20),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    text: l10n.backupRitualWarningTitle,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                    children: [
-                      TextSpan(
-                        text: l10n.backupRitualWarningBody,
-                        style: const TextStyle(fontWeight: FontWeight.w400),
-                      ),
-                    ],
-                  ),
-                  style: theme.textTheme.bodySmall!
-                      .copyWith(color: amber, height: 1.5),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Words grid card
-        Container(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-          ),
-          child: Column(
-            children: [
-              for (var row = 0; row < (words.length + 1) ~/ 2; row++) ...[
-                if (row > 0) const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    for (var col = 0; col < 2; col++) ...[
-                      if (col > 0) const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: row * 2 + col < words.length
-                            ? _WordCell(
-                                index: row * 2 + col,
-                                word: words[row * 2 + col],
-                                background: elevated,
-                                indexColor: textSubtle,
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-              const SizedBox(height: AppSpacing.md),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppSpacing.sm + 2),
-                decoration: BoxDecoration(
-                  color: elevated,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.visibility_off_outlined,
-                        size: 14, color: textSec),
-                    const SizedBox(width: AppSpacing.xs),
-                    Flexible(
-                      child: Text(
-                        l10n.wordsHiddenOnLeaveNote,
-                        style: theme.textTheme.bodySmall!
-                            .copyWith(color: textSec, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const Spacer(),
-
-        FilledButton.icon(
-          onPressed: _startVerification,
-          icon: Text(
-            l10n.wroteThemDownVerifyButton,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          label: const Icon(Icons.arrow_forward, size: 18),
-          style: FilledButton.styleFrom(
-            backgroundColor: green,
-            foregroundColor: Colors.black,
-            minimumSize: const Size.fromHeight(54),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-        ),
-        ],
+    if (words == null) return const Center(child: CircularProgressIndicator());
+    return BackupFillViewport(
+      blocks: [const _WriteDownWarning(), _WordsCard(words: words)],
+      footer: BackupPrimaryButton(
+        label: l10n.wroteThemDownVerifyButton,
+        trailing: Icons.arrow_forward_rounded,
+        onPressed: _toVerify,
       ),
     );
   }
 
-  // ── Step 2: verify ──────────────────────────────────────────────────────
+  // ── 16b / 16c · Verify ──────────────────────────────────────────────────
 
-  Widget _buildVerify(ThemeData theme, AppColors? colors) {
-    final l10n = AppLocalizations.of(context);
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
-    final elevated = colors?.backgroundElevated ?? const Color(0xFF2A2D35);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    final textSubtle = colors?.textSubtle ?? const Color(0xFF9A9A9C);
-    final textDisabled = colors?.textDisabled ?? const Color(0xFF6C757D);
-    final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+  Widget _buildVerify(AppLocalizations l10n) {
+    final round = _round;
+    if (round == null) return const SizedBox.shrink();
+    final book = OrderBookPalette.of(context);
+    final slot = round.activeSlot;
 
-    final hasActiveSlot = _activeSlot < _challenge.length;
-
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            l10n.tapCorrectWordsTitle,
-            style: theme.textTheme.titleLarge!
-                .copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            l10n.verifyInstructionsBody,
-            style:
-                theme.textTheme.bodySmall!.copyWith(color: textSec, height: 1.5),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Slot rows
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(AppRadius.card),
-            ),
-            child: Column(
-              children: [
-                for (var i = 0; i < _challenge.length; i++) ...[
-                  if (i > 0) const SizedBox(height: AppSpacing.sm),
-                  _SlotRow(
-                    wordNumber: _challenge[i] + 1,
-                    value: _filled[i],
-                    isActive: i == _activeSlot,
-                    green: green,
-                    elevated: elevated,
-                    textSubtle: textSubtle,
-                    borderColor: textDisabled,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Options for the active slot
-          if (hasActiveSlot) ...[
+    return BackupFillViewport(
+      gap: 14,
+      blocks: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              l10n.optionsForWordLabel(_challenge[_activeSlot] + 1),
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: textSubtle,
-                fontSize: 12,
-                letterSpacing: 1,
+              l10n.tapCorrectWordsTitle,
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+                color: book.textPrimary,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            for (var row = 0; row < (_options.length + 1) ~/ 2; row++) ...[
-              if (row > 0) const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  for (var col = 0; col < 2; col++) ...[
-                    if (col > 0) const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: row * 2 + col < _options.length
-                          ? _OptionButton(
-                              word: _options[row * 2 + col],
-                              isWrong: _options[row * 2 + col] == _wrongPick,
-                              cardBg: cardBg,
-                              red: red,
-                              borderColor: textDisabled.withValues(alpha: 0.4),
-                              onTap: () =>
-                                  _onOptionTap(_options[row * 2 + col]),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ],
-                ],
+            const SizedBox(height: 6),
+            Text(
+              l10n.verifyInstructionsBody,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: book.textSecondary,
               ),
-            ],
-            if (_wrongPick != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                l10n.wrongPickMessage,
-                style: theme.textTheme.bodySmall!
-                    .copyWith(color: red, fontSize: 12),
-              ),
-            ],
-          ] else ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.check_circle_outline, size: 16, color: green),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  l10n.allWordsCorrectMessage,
-                  style: theme.textTheme.bodySmall!.copyWith(color: green),
-                ),
-              ],
             ),
           ],
-          const SizedBox(height: AppSpacing.xl),
-
-          // Footer
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _backToWords,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: textSec,
-                    side: BorderSide(color: textDisabled),
-                    minimumSize: const Size.fromHeight(50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.card),
-                    ),
-                  ),
-                  child: Text(
-                    l10n.showWordsAgainButton,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _allCorrect && !_confirming ? _confirm : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: green,
-                    foregroundColor: Colors.black,
-                    disabledBackgroundColor: elevated,
-                    disabledForegroundColor: textDisabled,
-                    minimumSize: const Size.fromHeight(50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.card),
-                    ),
-                  ),
-                  child: _confirming
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          l10n.confirmButtonLabel,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                ),
-              ),
-            ],
+        ),
+        _SlotsCard(round: round, activeSlot: slot),
+        if (slot != null)
+          _OptionsBlock(
+            label: l10n.optionsForWordLabel(round.challenge[slot] + 1),
+            options: round.options,
+            wrongPick: round.wrongPick,
+            onPick: _onPick,
+          )
+        else
+          const _AllCorrectLine(),
+      ],
+      footer: Row(
+        children: [
+          _ReviewWordsButton(onPressed: _reviewWords),
+          const SizedBox(width: 9),
+          Expanded(
+            child: BackupPrimaryButton(
+              label: l10n.confirmButtonLabel,
+              loading: _confirming,
+              onPressed: round.isComplete ? _confirm : null,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ── Step 3: done ────────────────────────────────────────────────────────
+  // ── 16d · Done ──────────────────────────────────────────────────────────
 
-  Widget _buildDone(ThemeData theme, AppColors? colors) {
-    final l10n = AppLocalizations.of(context);
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-
-    return _ScrollableStep(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-        const Spacer(),
+  Widget _buildDone(AppLocalizations l10n) {
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    return BackupFillViewport(
+      gap: 18,
+      centered: true,
+      blocks: [
         Center(
           child: Container(
-            width: 112,
-            height: 112,
+            width: 92,
+            height: 92,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: green.withValues(alpha: 0.15),
+              color: pal.doneFill,
             ),
-            child: Icon(Icons.check_rounded, size: 64, color: green),
+            child: Icon(Icons.check_rounded, size: 44, color: pal.accent),
           ),
         ),
-        const SizedBox(height: AppSpacing.xl),
         Text(
           l10n.accountBackedUpTitle,
           textAlign: TextAlign.center,
-          style:
-              theme.textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            color: book.textPrimary,
+          ),
         ),
-        const SizedBox(height: AppSpacing.sm),
         Text(
           l10n.accountBackedUpBody,
           textAlign: TextAlign.center,
-          style:
-              theme.textTheme.bodyMedium!.copyWith(color: textSec, height: 1.5),
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.55,
+            color: book.textSecondary,
+          ),
         ),
-        const Spacer(),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          style: FilledButton.styleFrom(
-            backgroundColor: green,
-            foregroundColor: Colors.black,
-            minimumSize: const Size.fromHeight(54),
-            textStyle:
-                const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+      ],
+      footer: BackupPrimaryButton(
+        label: l10n.done,
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+    );
+  }
+}
+
+// ── 16a pieces ────────────────────────────────────────────────────────────────
+
+class _WriteDownWarning extends StatelessWidget {
+  const _WriteDownWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = BackupPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: pal.amberFill,
+        border: Border.all(color: pal.amberBorder),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 17, color: pal.amber),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: l10n.backupRitualWarningTitle,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: pal.amberTitle,
+                ),
+                children: [
+                  TextSpan(
+                    text: l10n.backupRitualWarningBody,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w400,
+                      color: pal.amberText,
+                    ),
+                  ),
+                ],
+              ),
+              style: const TextStyle(fontSize: 12.5, height: 1.5),
             ),
           ),
-          child: Text(l10n.done),
-        ),
         ],
       ),
     );
   }
 }
 
-// ── Internal widgets ──────────────────────────────────────────────────────────
+class _WordsCard extends StatelessWidget {
+  const _WordsCard({required this.words});
 
-/// Makes a step body scrollable on small screens while still letting
-/// [Spacer]s push the CTA to the bottom on tall screens.
-class _ScrollableStep extends StatelessWidget {
-  const _ScrollableStep({required this.child});
-
-  final Widget child;
+  final List<String> words;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: IntrinsicHeight(child: child),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ProgressBar extends StatelessWidget {
-  const _ProgressBar({
-    required this.step,
-    required this.green,
-    required this.elevated,
-  });
-
-  final int step;
-  final Color green;
-  final Color elevated;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < 3; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
-          Expanded(
-            child: Container(
-              height: 4,
-              decoration: BoxDecoration(
-                color: i <= step ? green : elevated,
-                borderRadius: BorderRadius.circular(2),
-              ),
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: book.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          BackupWordGrid(words: words, large: true),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            decoration: BoxDecoration(
+              color: pal.noteFill,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.visibility_off_outlined,
+                  size: 14,
+                  color: book.textTertiary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    AppLocalizations.of(context).wordsHiddenOnLeaveNote,
+                    style: TextStyle(fontSize: 12, color: book.textSecondary),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
-      ],
+      ),
     );
   }
 }
 
-class _WordCell extends StatelessWidget {
-  const _WordCell({
-    required this.index,
-    required this.word,
-    required this.background,
-    required this.indexColor,
-  });
+// ── 16b / 16c pieces ──────────────────────────────────────────────────────────
 
-  final int index;
-  final String word;
-  final Color background;
-  final Color indexColor;
+class _SlotsCard extends StatelessWidget {
+  const _SlotsCard({required this.round, required this.activeSlot});
+
+  final BackupVerification round;
+  final int? activeSlot;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(10),
+        color: OrderBookPalette.of(context).surface,
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Text(
-            (index + 1).toString().padLeft(2, '0'),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 11,
-              color: indexColor,
+          for (var i = 0; i < round.challenge.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _SlotRow(
+              wordNumber: round.challenge[i] + 1,
+              value: round.answers[i],
+              active: i == activeSlot,
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              word,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -778,112 +471,253 @@ class _SlotRow extends StatelessWidget {
   const _SlotRow({
     required this.wordNumber,
     required this.value,
-    required this.isActive,
-    required this.green,
-    required this.elevated,
-    required this.textSubtle,
-    required this.borderColor,
+    required this.active,
   });
 
   /// 1-based position of the word in the mnemonic.
   final int wordNumber;
   final String? value;
-  final bool isActive;
-  final Color green;
-  final Color elevated;
-  final Color textSubtle;
-  final Color borderColor;
+  final bool active;
+
+  /// Fixed so `Word #12` never wraps onto a second line.
+  static const _labelWidth = 76.0;
 
   @override
   Widget build(BuildContext context) {
-    final filled = value != null;
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    final solved = value != null;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: filled ? green.withValues(alpha: 0.12) : elevated,
+        color:
+            solved
+                ? pal.slotDoneFill
+                : active
+                ? pal.slotActiveFill
+                : pal.slotFill,
         border: Border.all(
-          color: filled
-              ? green.withValues(alpha: 0.4)
-              : isActive
-                  ? green.withValues(alpha: 0.5)
-                  : borderColor.withValues(alpha: 0.4),
+          width: 1.5,
+          color:
+              solved
+                  ? pal.slotDoneBorder
+                  : active
+                  ? pal.accent
+                  : Colors.transparent,
         ),
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
           SizedBox(
-            width: 64,
+            width: _labelWidth,
             child: Text(
               AppLocalizations.of(context).wordNumberLabel(wordNumber),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
               style: TextStyle(
-                fontFamily: 'monospace',
+                fontFamily: AppFonts.figures,
                 fontSize: 12,
-                color: textSubtle,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              value ?? '—',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: filled ? green : textSubtle,
+                color: book.textSecondary,
               ),
             ),
           ),
-          if (filled) Icon(Icons.check, size: 18, color: green),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 21,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child:
+                    solved
+                        ? Text(
+                          value!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: AppFonts.figures,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: book.limeInk,
+                          ),
+                        )
+                        : Container(width: 16, height: 1.5, color: pal.muted),
+              ),
+            ),
+          ),
+          if (solved) Icon(Icons.check_rounded, size: 16, color: pal.accent),
         ],
       ),
     );
   }
 }
 
-class _OptionButton extends StatelessWidget {
-  const _OptionButton({
+class _OptionsBlock extends StatelessWidget {
+  const _OptionsBlock({
+    required this.label,
+    required this.options,
+    required this.wrongPick,
+    required this.onPick,
+  });
+
+  final String label;
+  final List<String> options;
+  final String? wrongPick;
+  final ValueChanged<String> onPick;
+
+  static const _gap = 9.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    final rows = (options.length + 1) ~/ 2;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.5,
+            letterSpacing: 1.05,
+            color: book.textTertiary,
+          ),
+        ),
+        for (var r = 0; r < rows; r++) ...[
+          const SizedBox(height: _gap),
+          Row(
+            children: [
+              for (var c = 0; c < 2; c++) ...[
+                if (c > 0) const SizedBox(width: _gap),
+                Expanded(
+                  child:
+                      r * 2 + c < options.length
+                          ? _OptionTile(
+                            word: options[r * 2 + c],
+                            wrong: options[r * 2 + c] == wrongPick,
+                            onTap: () => onPick(options[r * 2 + c]),
+                          )
+                          : const SizedBox.shrink(),
+                ),
+              ],
+            ],
+          ),
+        ],
+        if (wrongPick != null) ...[
+          const SizedBox(height: _gap),
+          Text(
+            AppLocalizations.of(context).wrongPickMessage,
+            style: TextStyle(fontSize: 12, color: pal.wrong),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  const _OptionTile({
     required this.word,
-    required this.isWrong,
-    required this.cardBg,
-    required this.red,
-    required this.borderColor,
+    required this.wrong,
     required this.onTap,
   });
 
   final String word;
-  final bool isWrong;
-  final Color cardBg;
-  final Color red;
-  final Color borderColor;
+  final bool wrong;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+      side: BorderSide(color: wrong ? pal.wrong : pal.optionBorder),
+    );
     return Material(
-      color: cardBg,
-      borderRadius: BorderRadius.circular(AppRadius.card),
+      color: pal.optionFill,
+      shape: shape,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          decoration: BoxDecoration(
-            border: Border.all(color: isWrong ? red : borderColor),
-            borderRadius: BorderRadius.circular(AppRadius.card),
-          ),
+        customBorder: shape,
+        child: Padding(
+          padding: const EdgeInsets.all(15),
           child: Text(
             word,
             textAlign: TextAlign.center,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontFamily: 'monospace',
+              fontFamily: AppFonts.figures,
               fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: isWrong ? red : null,
+              fontWeight: FontWeight.w500,
+              color: book.textStrong,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AllCorrectLine extends StatelessWidget {
+  const _AllCorrectLine();
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = BackupPalette.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.check_circle_outline_rounded, size: 15, color: pal.accent),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            AppLocalizations.of(context).allWordsCorrectMessage,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: OrderBookPalette.of(context).limeInk,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// `View words`: back to 16a, keeping what was solved.
+class _ReviewWordsButton extends StatelessWidget {
+  const _ReviewWordsButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.visibility_outlined, size: 15),
+      label: Text(
+        AppLocalizations.of(context).reviewWordsButton,
+        maxLines: 1,
+        softWrap: false,
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: book.textMuted,
+        side: BorderSide(color: pal.secondaryBorder),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+        minimumSize: const Size(0, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(
+          fontFamily: AppFonts.ui,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

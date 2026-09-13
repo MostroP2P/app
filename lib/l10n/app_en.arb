@@ -361,23 +361,15 @@
   "@secretWordsTitle": {
     "description": "Section title for the mnemonic backup card"
   },
-  "toRestoreYourAccount": "To restore your account",
-  "@toRestoreYourAccount": {
-    "description": "Subtitle under the secret words section heading"
-  },
   "privacyCardTitle": "Privacy",
   "@privacyCardTitle": {
     "description": "Section title for the privacy settings card"
-  },
-  "controlPrivacySettings": "Control your privacy settings",
-  "@controlPrivacySettings": {
-    "description": "Subtitle under the privacy section heading"
   },
   "reputationMode": "Reputation Mode",
   "@reputationMode": {
     "description": "Label for reputation privacy mode option"
   },
-  "reputationModeSubtitle": "Standard privacy with reputation",
+  "reputationModeSubtitle": "Your trades count toward your public reputation",
   "@reputationModeSubtitle": {
     "description": "Subtitle for reputation mode option"
   },
@@ -385,7 +377,7 @@
   "@fullPrivacyMode": {
     "description": "Label for full privacy mode option"
   },
-  "fullPrivacyModeSubtitle": "Maximum anonymity",
+  "fullPrivacyModeSubtitle": "Each trade uses a new identity, no reputation",
   "@fullPrivacyModeSubtitle": {
     "description": "Subtitle for full privacy mode option"
   },
@@ -433,9 +425,9 @@
   "@hideButtonLabel": {
     "description": "Button label to hide sensitive information"
   },
-  "showButtonLabel": "Show",
-  "@showButtonLabel": {
-    "description": "Button label to reveal sensitive information"
+  "showWordsButton": "Show words",
+  "@showWordsButton": {
+    "description": "Account: reveals the 12 masked secret words"
   },
   "settingsScreenTitle": "Settings",
   "@settingsScreenTitle": {
@@ -1029,10 +1021,6 @@
   "@relayRemoveFailed": {
     "description": "SnackBar message shown when removing a relay fails"
   },
-  "backupConfirmCheckbox": "I have written down my words and backed them up securely",
-  "@backupConfirmCheckbox": {
-    "description": "Label for the backup confirmation checkbox on the Account screen"
-  },
   "backupRitualSecondFailureMessage": "That was incorrect again. Please review and back up your secret words, then verify from the start.",
   "@backupRitualSecondFailureMessage": {
     "description": "Shown when the user picks a wrong word a second time during backup verification; sends them back to review the words and restart verification"
@@ -1442,14 +1430,6 @@
   "@failedToLoadSecretWordsMessage": {
     "description": "Snackbar shown when loading the secret words fails on the Account screen"
   },
-  "failedToConfirmBackupMessage": "Failed to confirm backup. Please try again.",
-  "@failedToConfirmBackupMessage": {
-    "description": "Snackbar shown when confirming the backup fails on the Account screen"
-  },
-  "secretWordsInfoContent": "Your 12 secret words are the only way to recover your account. Back them up in a safe place — never share them with anyone.",
-  "@secretWordsInfoContent": {
-    "description": "Body of the Secret Words info dialog on the Account screen"
-  },
   "privacyModesInfoTitle": "Privacy Modes",
   "@privacyModesInfoTitle": {
     "description": "Title of the privacy modes info dialog on the Account screen"
@@ -1526,7 +1506,7 @@
   "@backupRitualWarningBody": {
     "description": "Body of the warning card on the show-words step"
   },
-  "wordsHiddenOnLeaveNote": "These words will be hidden when you leave this screen",
+  "wordsHiddenOnLeaveNote": "They will be hidden when you leave this screen",
   "@wordsHiddenOnLeaveNote": {
     "description": "Note reminding the user the words are hidden when leaving the ritual"
   },
@@ -1555,13 +1535,13 @@
   "@wrongPickMessage": {
     "description": "Error shown when the user taps a wrong verification option"
   },
-  "allWordsCorrectMessage": "All 3 words correct!",
+  "allWordsCorrectMessage": "All 3 words correct",
   "@allWordsCorrectMessage": {
     "description": "Success message shown when all challenged words are verified"
   },
-  "showWordsAgainButton": "Show words again",
-  "@showWordsAgainButton": {
-    "description": "Button that returns from verification to the show-words step"
+  "reviewWordsButton": "View words",
+  "@reviewWordsButton": {
+    "description": "Backup verification: back to the 12 words without losing solved slots"
   },
   "accountBackedUpTitle": "Your account is backed up",
   "@accountBackedUpTitle": {
@@ -1604,9 +1584,9 @@
   "@backupNowButton": {
     "description": "Primary button in the backup trigger sheet"
   },
-  "remindMeTomorrowButton": "Remind me tomorrow",
-  "@remindMeTomorrowButton": {
-    "description": "Ghost button in the backup trigger sheet that snoozes the reminder"
+  "backupLaterButton": "I'll do it later",
+  "@backupLaterButton": {
+    "description": "Link in the backup sheet that closes it; the banner stays on Account"
   },
   "nwcConnectionFailedMessage": "Connection failed. Please check your NWC URI and try again.",
   "@nwcConnectionFailedMessage": {
