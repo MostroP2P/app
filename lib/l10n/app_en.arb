@@ -3965,6 +3965,8 @@
   "@orderStatusWaitingBond": {"description": "My Order status while the maker's anti-abuse deposit is outstanding"},
   "bondCancelNotAllowed": "This order can't be cancelled while its deposit is pending. Drop it from the deposit screen instead.",
   "@bondCancelNotAllowed": {"description": "Error for the BondCancelNotAllowed marker"},
+  "createOrderBondNoticeEstimate": "This node asks you to lock a refundable deposit of ≈ {sats} sats before the order is published; it comes back when the trade ends honestly.",
+  "@createOrderBondNoticeEstimate": {"description": "Create-order preview notice on a maker-bond node with the core estimate; sats is a formatted figure", "placeholders": {"sats": {"type": "String"}}},
   "createOrderBondNotice": "This node asks you to lock a refundable deposit before the order is published; it comes back when the trade ends honestly.",
   "@createOrderBondNotice": {"description": "Create-order preview notice on a node whose bond applies to makers"},
   "bondDontTake": "Don't take the order",

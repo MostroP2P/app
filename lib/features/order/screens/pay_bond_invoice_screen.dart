@@ -61,6 +61,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
   bool _requesting = false;
   bool _manualMode = false;
   bool _navigated = false;
+  bool _sweptExpired = false;
   bool _noWalletApp = false;
   Timer? _copiedTimer;
 
@@ -301,7 +302,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    if (trade == null || bond == null) {
+    if (trade == null) {
       return Scaffold(
         backgroundColor: book.bg,
         appBar: appBar,
@@ -309,9 +310,13 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       );
     }
 
-    final invoice = bond.invoice ?? '';
+    // A row restored on a fresh device carries no bond at all, not just no
+    // bolt11 (docs/ANTI_ABUSE_BOND.md §6.5): the same missing-invoice state.
+    final invoice = bond?.invoice ?? '';
+    if (bond == null || invoice.isEmpty) {
+      return _missingInvoice(l10n, appBar, maker: maker);
+    }
     final amountSats = bond.amountSats.toInt();
-    if (invoice.isEmpty) return _missingInvoice(l10n, appBar, maker: maker);
 
     return Scaffold(
       backgroundColor: book.bg,
@@ -695,11 +700,28 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     );
   }
 
+  Future<void> _closeExpiredWindow() async {
+    try {
+      final closed = await ref.read(closeExpiredBondWindowProvider)(
+        widget.orderId,
+      );
+      if (closed && mounted) refreshTrades(ref);
+    } catch (e) {
+      debugPrint('[PayBondInvoiceScreen] expiry sweep failed: $e');
+    }
+  }
+
   /// The window ran out unpaid: a taker's order went back to the book, a
   /// maker's was never published (the core wipes the row either way); a way
   /// back, never a dead QR.
-  Widget _expired(AppLocalizations l10n, {required bool maker}) =>
-      InvoiceTimeUpView(
+  Widget _expired(AppLocalizations l10n, {required bool maker}) {
+    // The core closes the window on its next sweep; asking it now keeps the
+    // row from lingering as "pay deposit" in My Trades until then.
+    if (!_sweptExpired) {
+      _sweptExpired = true;
+      unawaited(_closeExpiredWindow());
+    }
+    return InvoiceTimeUpView(
         title: l10n.bondExpiredTitle,
         body: maker ? l10n.bondExpiredBodyMaker : l10n.bondExpiredBody,
         actionLabel: l10n.invoiceBackToBook,
@@ -709,4 +731,5 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
           context.go(AppRoute.home);
         },
       );
+  }
 }

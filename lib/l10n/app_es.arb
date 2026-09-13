@@ -1022,6 +1022,7 @@
   "bondExpiredNoticeMaker": "La factura del depósito expiró; la orden no se publicó",
   "orderStatusWaitingBond": "Esperando tu depósito — aún no publicada",
   "bondCancelNotAllowed": "Esta orden no se puede cancelar mientras su depósito esté pendiente. Descártala desde la pantalla del depósito.",
+  "createOrderBondNoticeEstimate": "Este nodo te pide bloquear un depósito reembolsable de ≈ {sats} sats antes de publicar la orden; vuelve al terminar la operación de buena fe.",
   "createOrderBondNotice": "Este nodo te pide bloquear un depósito reembolsable antes de publicar la orden; vuelve al terminar la operación de buena fe.",
   "bondDontTake": "No tomar la orden",
   "bondLockedNowEscrow": "Depósito bloqueado. Ahora bloquea el monto de la operación.",

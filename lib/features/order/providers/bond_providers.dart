@@ -70,6 +70,14 @@ final abandonBondedOrderProvider =
       (ref) => (orderId) => bond_api.abandonBondedOrder(orderId: orderId),
     );
 
+/// The core's on-demand expiry of one bond window (what its periodic sweep
+/// would do next): called when the pay-bond countdown ends so the row does
+/// not linger as "pay deposit" in the lists.
+final closeExpiredBondWindowProvider =
+    Provider<Future<bool> Function(String orderId)>(
+      (ref) => (orderId) => bond_api.closeExpiredBondWindow(orderId: orderId),
+    );
+
 /// The core's estimate of the bond the active node would ask for an order of
 /// [sats] (`max(pct × amount, floor)`, docs/ANTI_ABUSE_BOND.md §3.4), or null
 /// when the node's policy is unknown or not enabled. A warning figure only:
