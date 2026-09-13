@@ -558,6 +558,15 @@ impl Storage for IndexedDbStorage {
         .await
     }
 
+    async fn update_trade_bond(
+        &self,
+        order_id: &str,
+        bond: &crate::api::types::BondInfo,
+    ) -> Result<()> {
+        self.patch_trade_by_order_id(order_id, |doc| trade_json::set_bond(doc, bond))
+            .await
+    }
+
     async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
         self.patch_trade_by_order_id(order_id, |doc| trade_json::mark_rated(doc, rated_at))
             .await

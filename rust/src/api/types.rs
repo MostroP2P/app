@@ -402,6 +402,29 @@ pub struct BondPolicyInfo {
 pub struct TradeUpdate {
     pub order_id: String,
     pub status: OrderStatus,
+    /// Why the status changed, when the wire action alone is ambiguous
+    /// (`docs/ANTI_ABUSE_BOND.md` §6.1). `None` from every emitter that has
+    /// nothing to add.
+    #[serde(default)]
+    pub reason: Option<TradeUpdateReason>,
+}
+
+/// The cause behind a `TradeUpdate` whose wire action carries none.
+///
+/// A daemon `canceled` during the taker's bond window means one of three
+/// things and the message does not say which; the local order book and the
+/// pending-cancel registry do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum TradeUpdateReason {
+    /// This client sent the cancel itself.
+    UserCanceled,
+    /// The maker cancelled the order (its wire status is `canceled`).
+    MakerCanceled,
+    /// Another taker locked their bond first: the order left the `pending`
+    /// bucket (or is still there for someone else to take).
+    BondLostRace,
+    /// The bond bolt11 expired unpaid; the local row was closed.
+    BondExpired,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

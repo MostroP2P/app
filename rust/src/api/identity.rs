@@ -779,6 +779,14 @@ mod tests {
         ) -> Result<()> {
             unimplemented!()
         }
+        async fn update_trade_bond(
+            &self,
+            _order_id: &str,
+            _bond: &crate::api::types::BondInfo,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+
         async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
             unimplemented!()
         }

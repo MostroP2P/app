@@ -277,6 +277,15 @@ pub trait Storage: Send + Sync {
         days: u32,
     ) -> Result<()>;
 
+    /// Replace the anti-abuse bond attached to a trade (`$.bond`), keeping
+    /// every other field. Used for the bond's own transitions — requested,
+    /// re-requested, locked, released — which move no other trade field.
+    async fn update_trade_bond(
+        &self,
+        order_id: &str,
+        bond: &crate::api::types::BondInfo,
+    ) -> Result<()>;
+
     /// Set the durable "local user rated this trade" marker (`rated_at`, unix
     /// seconds) on the trade identified by `order.id` (issue #339). Written
     /// after `submit_rating` publishes so the rated state and the
