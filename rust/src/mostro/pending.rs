@@ -116,6 +116,10 @@ pub(crate) enum PendingRequestKind {
     Take,
     /// A buyer's add-invoice awaiting the daemon's acknowledgement.
     AddInvoice,
+    /// An `add-bond-invoice` reply (the payout claim's bolt11) awaiting the
+    /// daemon's `bond-invoice-accepted` or `CantDo`
+    /// (docs/ANTI_ABUSE_BOND.md §6.4).
+    BondClaimSubmit,
     /// A session-restore awaiting the daemon's RestoreData reply. Correlated
     /// by trade pubkey, not request_id (the RestoreSession message carries
     /// no request_id — see mostro-core Message::new_restore).
@@ -369,6 +373,26 @@ pub(crate) fn take_matching_add_invoice(
         Some(p)
             if request_id_matches(p.request_id, got)
                 && matches!(p.kind, PendingRequestKind::AddInvoice) =>
+        {
+            map.remove(trade_pubkey_hex)
+        }
+        _ => None,
+    }
+}
+
+/// Remove and return the pending request for `trade_pubkey_hex` only when it
+/// is a `BondClaimSubmit` and `got` echoes its nonce. Like an add-invoice,
+/// the consumed message still flows through the per-action arms — the
+/// acknowledgement is also the claim's phase change.
+pub(crate) fn take_matching_claim_submit(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(p)
+            if request_id_matches(p.request_id, got)
+                && matches!(p.kind, PendingRequestKind::BondClaimSubmit) =>
         {
             map.remove(trade_pubkey_hex)
         }

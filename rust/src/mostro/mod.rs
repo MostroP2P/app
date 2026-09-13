@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod bond_claims;
 pub mod bond_policy;
 pub mod escrow_mode;
 pub mod fsm;

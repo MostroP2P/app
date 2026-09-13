@@ -2509,8 +2509,14 @@ async fn dispatch_mostro_message(
     // active Mostro pubkey. The event signature is verified inside
     // `unwrap_incoming`, so `sender` is the cryptographically authoritative
     // origin.
+    let sender_hex = sender.to_hex();
     match nostr_sdk::prelude::PublicKey::from_hex(&crate::config::active_mostro_pubkey()) {
         Ok(expected) if expected == sender => {}
+        // A node that issued a still-open payout claim may speak to this
+        // client about claims only (docs/ANTI_ABUSE_BOND.md §6.4); every
+        // other action from a non-active node is refused as before.
+        Ok(_) if crate::mostro::bond_claims::is_claim_node(&sender_hex)
+            && is_claim_action(&msg) => {}
         Ok(expected) => {
             crate::api::logging::blog_warn(
                 "daemon-msg",
@@ -2776,6 +2782,17 @@ async fn dispatch_mostro_message(
                 );
             }
             return;
+        }
+
+        // A payout claim's acknowledgement (`bond-invoice-accepted`)
+        // unblocks the waiting submission and falls through to its arm,
+        // which records the phase (docs/ANTI_ABUSE_BOND.md §6.4).
+        if let Some(pending) =
+            crate::mostro::pending::take_matching_claim_submit(trade_pubkey_hex, kind.request_id)
+        {
+            if let Some(tx) = pending.tx {
+                let _ = tx.send(Wake::from(DaemonReply::Acknowledged));
+            }
         }
 
         // An add-invoice reply doubles as a status update
@@ -3582,6 +3599,57 @@ async fn dispatch_mostro_message(
                 ));
             }
         }
+        Action::AddBondInvoice => {
+            // The daemon asks the winning counterparty for a bolt11 for its
+            // share of a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4). The
+            // `PaymentRequest` shape is our own reply echoed back: ignored.
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] daemon-msg AddBondInvoice has no order id");
+                    return;
+                }
+            };
+            let Some(mostro_core::message::Payload::BondPayoutRequest(req)) = &kind.payload else {
+                log::debug!("[orders] AddBondInvoice for order={order_id} without a payout request — our echo, ignored");
+                return;
+            };
+            let amount_sats = match u64::try_from(req.order.amount) {
+                Ok(v) if v > 0 => v,
+                _ => {
+                    log::warn!(
+                        "[orders] daemon-msg AddBondInvoice: invalid share {} for order={order_id}, ignoring",
+                        req.order.amount
+                    );
+                    return;
+                }
+            };
+            let request = crate::mostro::bond_claims::PayoutRequest {
+                order_id: order_id.clone(),
+                node_pubkey: sender_hex.clone(),
+                amount_sats,
+                slashed_at: req.slashed_at,
+                fiat_code: req.order.fiat_code.clone(),
+                fiat_amount: (req.order.fiat_amount != 0).then_some(req.order.fiat_amount as f64),
+                payment_method: req.order.payment_method.clone(),
+            };
+            apply_payout_request(request).await;
+        }
+        Action::BondInvoiceAccepted | Action::BondPayoutCompleted => {
+            let order_id = match &kind.id {
+                Some(id) => id.to_string(),
+                None => {
+                    log::warn!("[orders] daemon-msg {:?} has no order id", kind.action);
+                    return;
+                }
+            };
+            let phase = if kind.action == Action::BondInvoiceAccepted {
+                crate::api::types::BondClaimPhase::Acknowledged
+            } else {
+                crate::api::types::BondClaimPhase::Completed
+            };
+            advance_claim_phase(&sender_hex, &order_id, phase).await;
+        }
         Action::BondSlashed => {
             let order_id = match &kind.id {
                 Some(id) => id.to_string(),
@@ -3738,6 +3806,124 @@ async fn dispatch_mostro_message(
             log::debug!("[orders] daemon-msg unhandled action={action:?}");
         }
     }
+}
+
+// ── Payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ─────────────────────────────
+
+/// Whether a daemon message is claim traffic — the only thing a non-active
+/// node with an open claim may say to this client.
+fn is_claim_action(msg: &mostro_core::message::Message) -> bool {
+    use mostro_core::message::Action;
+    matches!(
+        msg.get_inner_message_kind().action,
+        Action::AddBondInvoice
+            | Action::BondInvoiceAccepted
+            | Action::BondPayoutCompleted
+            | Action::CantDo
+    )
+}
+
+/// The trade key index bound to `order_id`, for the claim submission.
+pub(crate) async fn trade_key_index_of(order_id: &str) -> Option<u32> {
+    get_trade_key_index(order_id).await
+}
+
+/// Apply an `add-bond-invoice` to the claim store per the §6.4 table and
+/// tell the user when it is news.
+async fn apply_payout_request(request: crate::mostro::bond_claims::PayoutRequest) {
+    use crate::mostro::bond_claims::{upsert_claim, ClaimNotice};
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    let stored = db
+        .get_bond_claim(&request.node_pubkey, &request.order_id)
+        .await
+        .ok()
+        .flatten();
+    let window_days = crate::mostro::bond_policy::get_for(&request.node_pubkey)
+        .and_then(|p| p.payout_claim_window_days);
+    let now = crate::rt::unix_now();
+    let (claim, notice) = upsert_claim(stored.as_ref(), &request, window_days, now);
+    let Some(claim) = claim else {
+        log::debug!(
+            "[orders] AddBondInvoice for order={}: no change ({:?})",
+            request.order_id,
+            stored.map(|c| c.phase)
+        );
+        return;
+    };
+    if let Err(e) = crate::api::bond::persist_claim(&claim).await {
+        crate::api::logging::blog_warn(
+            "bond",
+            format!(
+                "claim not persisted for order={}: {e}",
+                crate::api::logging::short_id(&request.order_id)
+            ),
+        );
+        return;
+    }
+    crate::api::logging::blog_info(
+        "bond",
+        format!(
+            "payout claim {:?} order={} share={} deadline={} notice={notice:?}",
+            claim.phase,
+            crate::api::logging::short_id(&request.order_id),
+            claim.amount_sats,
+            claim.deadline_at,
+        ),
+    );
+    if notice.is_some() || claim.phase == crate::api::types::BondClaimPhase::Expired {
+        crate::api::bond::emit_claim_update(&request.order_id, claim.phase);
+    }
+    let _ = ClaimNotice::New; // the kind of notice travels with the phase for now
+}
+
+/// `bond-invoice-accepted` / `bond-payout-completed`: the claim this node
+/// issued for the order moves on. A phase already reached, or a claim this
+/// client never had, changes nothing.
+async fn advance_claim_phase(
+    node_pubkey: &str,
+    order_id: &str,
+    phase: crate::api::types::BondClaimPhase,
+) {
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    let Ok(Some(claim)) = db.get_bond_claim(node_pubkey, order_id).await else {
+        log::info!("[orders] {phase:?} for order={order_id} with no claim from this node — ignored");
+        return;
+    };
+    let rank = |p: crate::api::types::BondClaimPhase| match p {
+        crate::api::types::BondClaimPhase::Pending => 0,
+        crate::api::types::BondClaimPhase::Submitted => 1,
+        crate::api::types::BondClaimPhase::Acknowledged => 2,
+        crate::api::types::BondClaimPhase::Completed => 3,
+        crate::api::types::BondClaimPhase::Expired => 4,
+    };
+    if claim.phase == phase
+        || (claim.phase == crate::api::types::BondClaimPhase::Completed)
+        || (rank(claim.phase) > rank(phase) && claim.phase != crate::api::types::BondClaimPhase::Expired)
+    {
+        return;
+    }
+    let mut next = claim.clone();
+    next.phase = phase;
+    next.updated_at = crate::rt::unix_now();
+    if let Err(e) = crate::api::bond::persist_claim(&next).await {
+        crate::api::logging::blog_warn(
+            "bond",
+            format!("claim phase not persisted for order={order_id}: {e}"),
+        );
+        return;
+    }
+    crate::api::logging::blog_info(
+        "bond",
+        format!(
+            "payout claim {phase:?} order={}",
+            crate::api::logging::short_id(order_id)
+        ),
+    );
+    crate::api::bond::emit_claim_update(order_id, phase);
 }
 
 // ── Anti-abuse bond (docs/ANTI_ABUSE_BOND.md, Phase 1) ─────────────────────
@@ -5359,7 +5545,7 @@ fn release_single_order_task(order_id: &str, generation: u64) -> bool {
 ///
 /// Returns an error if the pool is not initialised, the JSON is malformed,
 /// or the relay client reports a publish error.
-async fn publish_event_json(event_json: &str) -> Result<()> {
+pub(crate) async fn publish_event_json(event_json: &str) -> Result<()> {
     let pool =
         crate::api::nostr::get_pool().map_err(|_| anyhow::anyhow!("RelayPoolNotInitialized"))?;
     let event: nostr_sdk::prelude::Event =
@@ -6031,9 +6217,20 @@ async fn replace_global_dm_filter(
         return Ok(());
     }
     let p_count = trade_pubkeys.len();
+    // The active node, plus every node holding an open payout claim: its
+    // `add-bond-invoice` retries and acknowledgements must keep arriving
+    // after a node switch (docs/ANTI_ABUSE_BOND.md §6.4).
+    let mut authors = vec![mostro_pubkey];
+    for hex in crate::mostro::bond_claims::claim_node_pubkeys() {
+        if let Ok(pk) = nostr_sdk::prelude::PublicKey::from_hex(&hex) {
+            if pk != mostro_pubkey {
+                authors.push(pk);
+            }
+        }
+    }
     let dm_filter = nostr_sdk::prelude::Filter::new()
         .kind(nostr_sdk::prelude::Kind::PrivateDirectMessage)
-        .author(mostro_pubkey)
+        .authors(authors)
         .pubkeys(trade_pubkeys);
     replace_subscription(client, mostro_dm_subscription_id(), dm_filter).await?;
     crate::api::logging::blog_info(
@@ -6154,7 +6351,7 @@ pub(crate) async fn ensure_global_dm_coverage(keys: &nostr_sdk::prelude::Keys, t
 /// Re-issue the bulk Kind-14 subscription with the current coverage set.
 /// Same stable id, so the relay replaces the filter in place. No-op before
 /// the pool exists — startup seeds the map and subscribes moments later.
-async fn resubscribe_global_dm_filter() {
+pub(crate) async fn resubscribe_global_dm_filter() {
     let Ok(pool) = crate::api::nostr::get_pool() else {
         return;
     };
@@ -6482,6 +6679,9 @@ async fn _run_order_subscription() {
     // resubscribe_global_dm_filter rebuilds the relay filter from it alone.
     // Unseeded, every previous session's trade is undecryptable and falls
     // off the filter on the session's first create or take.
+    // Nodes with open payout claims join the daemon filter's authors
+    // (docs/ANTI_ABUSE_BOND.md §6.4); read before the filter is built.
+    crate::api::bond::refresh_claim_nodes().await;
     let trade_pubkeys = seed_global_dm_coverage().await;
     crate::api::logging::blog_info(
         "orders",
@@ -6525,8 +6725,11 @@ async fn _run_order_subscription() {
                 // ── Kind 14 NIP-44 Mostro reply: decrypt and dispatch ──
                 if event.kind == nostr_sdk::prelude::Kind::PrivateDirectMessage {
                     // Disambiguate from NIP-17 peer chat (also kind 14): only
-                    // the active node may author a Mostro reply.
-                    if event.pubkey != active_mostro {
+                    // the active node may author a Mostro reply — or a node
+                    // still owed a payout claim's traffic (§6.4).
+                    if event.pubkey != active_mostro
+                        && !crate::mostro::bond_claims::is_claim_node(&event.pubkey.to_hex())
+                    {
                         continue;
                     }
                     if let Some(recipient) = resolve_dm_recipient(&event).await {
@@ -13174,6 +13377,273 @@ mod tests {
         .unwrap();
         let err = cancel_order(order_id).await.expect_err("refused locally");
         assert_eq!(err.to_string(), "BondCancelNotAllowed");
+    }
+
+    fn payout_request_message(
+        order_uuid: uuid::Uuid,
+        sender_hex: &str,
+        share: i64,
+        slashed_at: i64,
+    ) -> mostro_core::nip59::UnwrappedMessage {
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(sender_hex).expect("valid pubkey");
+        let mut order = pending_small_order(order_uuid);
+        order.amount = share;
+        order.status = None;
+        mostro_core::nip59::UnwrappedMessage {
+            message: mostro_core::message::Message::new_order(
+                Some(order_uuid),
+                None,
+                None,
+                Action::AddBondInvoice,
+                Some(Payload::BondPayoutRequest(
+                    mostro_core::message::BondPayoutRequest { order, slashed_at },
+                )),
+            ),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::from(slashed_at as u64 + 10),
+        }
+    }
+
+    fn claim_message(
+        order_uuid: uuid::Uuid,
+        sender_hex: &str,
+        action: Action,
+    ) -> mostro_core::nip59::UnwrappedMessage {
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(sender_hex).expect("valid pubkey");
+        mostro_core::nip59::UnwrappedMessage {
+            message: mostro_core::message::Message::new_order(Some(order_uuid), None, None, action, None),
+            signature: None,
+            sender,
+            identity: sender,
+            created_at: nostr_sdk::prelude::Timestamp::from(5_000u64),
+        }
+    }
+
+    fn drain_claims(
+        rx: &mut broadcast::Receiver<crate::api::types::BondClaimUpdate>,
+        order_id: &str,
+    ) -> Vec<crate::api::types::BondClaimPhase> {
+        let mut seen = Vec::new();
+        while let Ok(update) = rx.try_recv() {
+            if update.order_id == order_id {
+                seen.push(update.phase);
+            }
+        }
+        seen
+    }
+
+    /// docs/ANTI_ABUSE_BOND.md §6.4: the first `add-bond-invoice` creates a
+    /// Pending claim keyed by the issuing node, with the share and the frozen
+    /// deadline, and tells the user; the cadence retry changes nothing; the
+    /// acknowledgement and the payout move the phase on.
+    #[tokio::test]
+    async fn a_payout_request_creates_a_claim_and_the_acks_advance_it() {
+        let db = bond_test_db().await;
+        let node = active_mostro_pubkey();
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut rx = crate::api::bond::subscribe_claim_updates();
+        let slashed_at = crate::rt::unix_now() - 60;
+
+        dispatch_mostro_message(
+            payout_request_message(order_uuid, &node, 1_500, slashed_at),
+            "test-claim-new",
+            "ff00ff71",
+            31,
+        )
+        .await;
+        let claim = db.get_bond_claim(&node, &order_id).await.unwrap().expect("claim persisted");
+        assert_eq!(claim.phase, crate::api::types::BondClaimPhase::Pending);
+        assert_eq!(claim.amount_sats, 1_500);
+        assert_eq!(claim.slashed_at, slashed_at);
+        assert_eq!(claim.deadline_at, slashed_at + 15 * 86_400, "default window");
+        assert_eq!(claim.fiat_code, "VES");
+        assert!(crate::mostro::bond_claims::is_claim_node(&node));
+
+        // The cadence retry: same request, nothing changes, nothing said.
+        dispatch_mostro_message(
+            payout_request_message(order_uuid, &node, 1_500, slashed_at),
+            "test-claim-retry",
+            "ff00ff71",
+            31,
+        )
+        .await;
+        let again = db.get_bond_claim(&node, &order_id).await.unwrap().unwrap();
+        assert_eq!(again, claim);
+
+        dispatch_mostro_message(
+            claim_message(order_uuid, &node, Action::BondInvoiceAccepted),
+            "test-claim-ack",
+            "ff00ff71",
+            31,
+        )
+        .await;
+        assert_eq!(
+            db.get_bond_claim(&node, &order_id).await.unwrap().unwrap().phase,
+            crate::api::types::BondClaimPhase::Acknowledged
+        );
+        dispatch_mostro_message(
+            claim_message(order_uuid, &node, Action::BondPayoutCompleted),
+            "test-claim-paid",
+            "ff00ff71",
+            31,
+        )
+        .await;
+        assert_eq!(
+            db.get_bond_claim(&node, &order_id).await.unwrap().unwrap().phase,
+            crate::api::types::BondClaimPhase::Completed
+        );
+        assert_eq!(
+            drain_claims(&mut rx, &order_id),
+            vec![
+                crate::api::types::BondClaimPhase::Pending,
+                crate::api::types::BondClaimPhase::Acknowledged,
+                crate::api::types::BondClaimPhase::Completed,
+            ]
+        );
+        // A paid claim keeps its node off the filter.
+        assert!(!crate::mostro::bond_claims::is_claim_node(&node) || {
+            // unless another test's open claim on the same node is live
+            db.list_bond_claims().await.unwrap().iter().any(|c| c.node_pubkey == node && !c.phase.is_terminal())
+        });
+    }
+
+    /// Our own reply (`PaymentRequest` shape) echoed back is not a request.
+    #[tokio::test]
+    async fn an_echoed_add_bond_invoice_reply_creates_no_claim() {
+        let db = bond_test_db().await;
+        let node = active_mostro_pubkey();
+        let order_uuid = uuid::Uuid::new_v4();
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                Action::AddBondInvoice,
+                Some(Payload::PaymentRequest(None, BOND_BOLT11.to_string(), None)),
+                5_000,
+            ),
+            "test-claim-echo",
+            "ff00ff72",
+            32,
+        )
+        .await;
+        assert!(db.get_bond_claim(&node, &order_uuid.to_string()).await.unwrap().is_none());
+    }
+
+    /// After a node switch the issuing node is not the active one: its claim
+    /// traffic is still handled (the claim knows its node), while any other
+    /// action from it is refused as before.
+    #[tokio::test]
+    async fn a_non_active_node_with_an_open_claim_may_only_talk_claims() {
+        let db = bond_test_db().await;
+        let other = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let slashed_at = crate::rt::unix_now() - 60;
+
+        // Not (yet) a claim node: refused at the door.
+        dispatch_mostro_message(
+            payout_request_message(order_uuid, &other, 900, slashed_at),
+            "test-claim-foreign-refused",
+            "ff00ff73",
+            33,
+        )
+        .await;
+        assert!(db.get_bond_claim(&other, &order_id).await.unwrap().is_none());
+
+        // The claim was issued while `other` was active; the user switched.
+        let seeded = crate::mostro::bond_claims::PayoutRequest {
+            order_id: order_id.clone(),
+            node_pubkey: other.clone(),
+            amount_sats: 900,
+            slashed_at,
+            fiat_code: "VES".into(),
+            fiat_amount: None,
+            payment_method: "PagoMovil".into(),
+        };
+        let (claim, _) = crate::mostro::bond_claims::upsert_claim(None, &seeded, None, slashed_at + 1);
+        crate::api::bond::persist_claim(&claim.unwrap()).await.unwrap();
+        assert!(crate::mostro::bond_claims::is_claim_node(&other));
+
+        dispatch_mostro_message(
+            claim_message(order_uuid, &other, Action::BondInvoiceAccepted),
+            "test-claim-foreign-ack",
+            "ff00ff73",
+            33,
+        )
+        .await;
+        assert_eq!(
+            db.get_bond_claim(&other, &order_id).await.unwrap().unwrap().phase,
+            crate::api::types::BondClaimPhase::Acknowledged
+        );
+
+        // Anything else from that node is not its business.
+        db.save_trade(&bonded_maker_row(&order_id, Some(BOND_BOLT11), None, None, 33))
+            .await
+            .unwrap();
+        dispatch_mostro_message(
+            claim_message(order_uuid, &other, Action::Canceled),
+            "test-claim-foreign-cancel",
+            "ff00ff73",
+            33,
+        )
+        .await;
+        assert!(
+            db.get_trade_by_order_id(&order_id).await.unwrap().is_some(),
+            "a non-claim action from a non-active node touches nothing"
+        );
+        db.delete_bond_claim(&other, &order_id).await.unwrap();
+        crate::api::bond::refresh_claim_nodes().await;
+    }
+
+    /// The submission's markers, without a relay: an empty or wrong-amount
+    /// invoice never leaves the device, and a claim past its window expires.
+    #[tokio::test]
+    async fn a_claim_submission_validates_before_publishing() {
+        let _db = bond_test_db().await;
+        let node = active_mostro_pubkey();
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let err = crate::api::bond::submit_bond_payout_invoice(order_id.clone(), "  ".into())
+            .await
+            .expect_err("empty");
+        assert_eq!(err.to_string(), "InvalidInvoice");
+        let err = crate::api::bond::submit_bond_payout_invoice(order_id.clone(), "lnbc1x".into())
+            .await
+            .expect_err("no claim");
+        assert_eq!(err.to_string(), "ClaimNotFound");
+
+        let request = crate::mostro::bond_claims::PayoutRequest {
+            order_id: order_id.clone(),
+            node_pubkey: node.clone(),
+            amount_sats: 1_500,
+            slashed_at: 1_000,
+            fiat_code: "VES".into(),
+            fiat_amount: None,
+            payment_method: "PagoMovil".into(),
+        };
+        // Past its (frozen) deadline: the submission expires it instead.
+        let (claim, _) = crate::mostro::bond_claims::upsert_claim(None, &request, None, 2_000);
+        crate::api::bond::persist_claim(&claim.unwrap()).await.unwrap();
+        let mut rx = crate::api::bond::subscribe_claim_updates();
+        let err = crate::api::bond::submit_bond_payout_invoice(order_id.clone(), "lnbc1x".into())
+            .await
+            .expect_err("expired");
+        assert_eq!(err.to_string(), "BondClaimExpired");
+        assert_eq!(drain_claims(&mut rx, &order_id), vec![crate::api::types::BondClaimPhase::Expired]);
+
+        // A live claim with a decodable bolt11 for another amount.
+        let mut live = request.clone();
+        live.amount_sats = 1_500; // BOND_BOLT11 is for 2 500 µBTC = 250 000 sats
+        live.slashed_at = crate::rt::unix_now();
+        let (claim, _) = crate::mostro::bond_claims::upsert_claim(None, &live, None, live.slashed_at);
+        crate::api::bond::persist_claim(&claim.unwrap()).await.unwrap();
+        let err = crate::api::bond::submit_bond_payout_invoice(order_id.clone(), BOND_BOLT11.into())
+            .await
+            .expect_err("wrong amount");
+        assert_eq!(err.to_string(), "InvoiceAmountMismatch");
+        _db.delete_bond_claim(&node, &order_id).await.unwrap();
+        crate::api::bond::refresh_claim_nodes().await;
     }
 
     /// #394 step 2: a payload naming two strangers proves no role for the
