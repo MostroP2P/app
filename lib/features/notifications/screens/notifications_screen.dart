@@ -224,6 +224,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         n.disputeId != null
             ? context.push(AppRoute.disputeDetailsPath(n.disputeId!))
             : noId();
+      case NotificationType.bondClaim:
+        n.orderId != null
+            ? context.push(AppRoute.bondPayoutPath(n.orderId!))
+            : noId();
       default:
         n.orderId != null
             ? context.push(AppRoute.tradeDetailPath(n.orderId!))
@@ -431,6 +435,7 @@ class _TypeIcon extends StatelessWidget {
       NotificationType.invoiceRequest => (Icons.description, Colors.green),
       NotificationType.orderTaken => (Icons.add_circle_outline, Colors.green),
       NotificationType.bondSlashed => (Icons.money_off, Colors.red),
+      NotificationType.bondClaim => (Icons.savings_outlined, Colors.orange),
     };
     return Icon(icon, color: color, size: 22);
   }

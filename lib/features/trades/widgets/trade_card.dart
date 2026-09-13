@@ -65,6 +65,10 @@ class TradeCard extends ConsumerWidget {
                   child: Row(
                     children: [
                       TradeListChip(label: row.state.chip),
+                      if (row.claimBadge != TradeClaimBadge.none) ...[
+                        const SizedBox(width: 6),
+                        _ClaimBadge(badge: row.claimBadge),
+                      ],
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -106,6 +110,8 @@ class TradeCard extends ConsumerWidget {
   /// Where the card opens: the maker's pending order and the maker's own
   /// Lightning step keep their screens; everything else is the trade screen.
   String _route() {
+    // A claim with no trade behind it has nothing to open but the claim.
+    if (row.claimOnly) return AppRoute.bondPayoutPath(row.orderId);
     if (row.isMaker) {
       if (row.status == OrderStatus.pending) {
         return AppRoute.myOrderPath(row.orderId);
@@ -125,6 +131,7 @@ class TradeCard extends ConsumerWidget {
   String _verbRoute() => switch (row.state.verb) {
     TradeRowVerb.addInvoice => AppRoute.addInvoicePath(row.orderId),
     TradeRowVerb.payBond => AppRoute.payBondPath(row.orderId),
+    TradeRowVerb.claimPayout => AppRoute.bondPayoutPath(row.orderId),
     TradeRowVerb.payInvoice => AppRoute.payInvoicePath(row.orderId),
     _ => AppRoute.tradeDetailPath(row.orderId),
   };
@@ -133,6 +140,7 @@ class TradeCard extends ConsumerWidget {
       switch (verb) {
         TradeRowVerb.addInvoice => l10n.tradeVerbAddInvoice,
         TradeRowVerb.payBond => l10n.tradeVerbPayBond,
+        TradeRowVerb.claimPayout => l10n.tradeVerbClaimPayout,
         TradeRowVerb.payInvoice => l10n.tradeVerbPayInvoice,
         TradeRowVerb.sendPayment => l10n.tradeVerbSendPayment,
         TradeRowVerb.releaseSats => l10n.tradeVerbReleaseSats,
@@ -333,6 +341,50 @@ class _Verb extends StatelessWidget {
             const SizedBox(width: 2),
             Icon(Icons.chevron_right_rounded, size: 13, color: book.limeIcon),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The payout badge next to the chip (docs/ANTI_ABUSE_BOND.md §8.3): the
+/// dispute family's colours, since a claim only exists after a dispute or a
+/// timeout went the user's way.
+class _ClaimBadge extends StatelessWidget {
+  const _ClaimBadge({required this.badge});
+
+  final TradeClaimBadge badge;
+
+  static String text(TradeClaimBadge badge, AppLocalizations l10n) =>
+      switch (badge) {
+        TradeClaimBadge.payoutPending => l10n.tradeBadgePayoutPending,
+        TradeClaimBadge.payoutInProgress => l10n.tradeBadgePayoutInProgress,
+        TradeClaimBadge.payoutPaid => l10n.tradeBadgePayoutPaid,
+        TradeClaimBadge.none => '',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = ActivityPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    final (bg, border, ink) =
+        badge == TradeClaimBadge.payoutPaid
+            ? (pal.chipDoneBg, pal.chipDoneBorder, pal.chipDoneInk)
+            : (pal.chipDisputeBg, pal.chipDisputeBorder, pal.chipDisputeInk);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        text(badge, l10n).toUpperCase(),
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+          color: ink,
         ),
       ),
     );

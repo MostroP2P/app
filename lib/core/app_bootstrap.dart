@@ -28,8 +28,9 @@ import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show SlashCause, BondSlashedEvent;
+    show BondClaimPhase, BondClaimUpdate, BondSlashedEvent, SlashCause;
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
@@ -164,6 +165,7 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   // Tokio broadcast channel buffers any notice arriving during startup rather
   // than dropping it (a receiver must exist at send time).
   final bondSlashedStream = await bond_api.onBondSlashed();
+  final bondClaimStream = await bond_api.onBondClaimUpdated();
 
   // Initialize the Nostr relay pool. `null` means the compiled-in defaults
   // (config.rs); a non-empty seed list replaces them entirely.
@@ -203,6 +205,7 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   }
 
   _consumeBondSlashed(bondSlashedStream, container);
+  _consumeBondClaims(bondClaimStream, container);
 
   runApp(
     UncontrolledProviderScope(container: container, child: const MostroApp()),
@@ -307,6 +310,46 @@ void _consumeBondSlashed(
             );
       } catch (e, st) {
         debugPrint('[bond-slashed] failed to record notice: $e\n$st');
+      }
+    }
+  });
+}
+
+/// Turns the core's claim phase changes into notifications
+/// (docs/ANTI_ABUSE_BOND.md §8.5): a share to claim (a new claim or a
+/// re-prompt), and a payout received. Runs for the process lifetime.
+void _consumeBondClaims(
+  bond_api.BondClaimStream stream,
+  ProviderContainer container,
+) {
+  Future.microtask(() async {
+    while (true) {
+      final BondClaimUpdate update;
+      try {
+        update = await stream.next();
+      } catch (e, st) {
+        debugPrint('[bond-claim] stream closed: $e\n$st');
+        break;
+      }
+      if (update.phase != BondClaimPhase.pending &&
+          update.phase != BondClaimPhase.completed) {
+        continue;
+      }
+      try {
+        final claim = await bond_api.getBondClaim(orderId: update.orderId);
+        if (claim == null) continue;
+        await container
+            .read(notificationsProvider.notifier)
+            .addIfNew(
+              NotificationModel.bondClaim(
+                orderId: update.orderId,
+                amountSats: claim.amountSats.toInt(),
+                completed: update.phase == BondClaimPhase.completed,
+                updatedAt: platformInt64ToInt(claim.updatedAt),
+              ),
+            );
+      } catch (e, st) {
+        debugPrint('[bond-claim] failed to record notice: $e\n$st');
       }
     }
   });

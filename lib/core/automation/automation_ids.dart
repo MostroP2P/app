@@ -182,6 +182,11 @@ class AutomationIds {
   static const String orderStatus = 'order.status';
   static const String tradePayInvoice = 'trade.payInvoice';
   static const String tradePayBond = 'trade.payBond';
+
+  /// Readout: the payout claim banner on the trade detail, labelled with the
+  /// claim's phase (docs/ANTI_ABUSE_BOND.md §8.3); absent without a claim.
+  static const String tradeBondClaim = 'trade.bondClaim';
+  static const String tradeBondClaimOpen = 'trade.bondClaim.open';
   static const String tradeAddInvoice = 'trade.addInvoice';
   static const String tradeFiatSent = 'trade.fiatSent';
   static const String tradeRelease = 'trade.release';
