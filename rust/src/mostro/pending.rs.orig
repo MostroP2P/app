@@ -23,14 +23,6 @@ use std::sync::OnceLock;
 pub(crate) enum DaemonReply {
     /// Daemon accepted the order and assigned a UUID (create flow).
     Confirmed { daemon_id: String },
-    /// Daemon parked the new order behind the maker's anti-abuse bond
-    /// (`pay-bond-invoice` on a create, docs/ANTI_ABUSE_BOND.md §6.2): the
-    /// order has its UUID but is not published until `bond` is paid. The
-    /// create record stays registered for the `new-order` that follows.
-    BondRequested {
-        daemon_id: String,
-        bond: BondRequest,
-    },
     /// Daemon accepted the take (take flow). Unlike a create, the take's
     /// first reply varies by role and daemon config (add-invoice,
     /// pay-invoice, a direct progression message, …), so the reply carries
@@ -106,11 +98,6 @@ pub(crate) enum PendingRequestKind {
         /// daemon assigned the real one. Bridged to the daemon UUID on
         /// confirmation.
         local_uuid: String,
-        /// The daemon answered this create with `pay-bond-invoice` and is
-        /// holding the order for the maker's bond: the eventual `new-order`
-        /// is a bond confirmation, not a fresh order to persist
-        /// (docs/ANTI_ABUSE_BOND.md §6.2).
-        bond_requested: bool,
     },
     /// A take-buy / take-sell awaiting the daemon's first reply.
     Take,
@@ -294,45 +281,6 @@ pub(crate) fn pending_local_uuid_for(trade_pubkey_hex: &str) -> Option<String> {
             PendingRequestKind::Create { local_uuid, .. } => Some(local_uuid.clone()),
             _ => None,
         })
-}
-
-/// What [`claim_create_bond`] hands the `pay-bond-invoice` arm: the create's
-/// waiter (if still listening) and the correlation state it needs.
-pub(crate) struct CreateBondClaim {
-    pub(crate) tx: Option<tokio::sync::oneshot::Sender<Wake>>,
-    pub(crate) trade_index: u32,
-    pub(crate) local_uuid: String,
-}
-
-/// Claim the `pay-bond-invoice` reply to a pending create, when `got` echoes
-/// its nonce. The record is **kept**: the daemon holds the order for the
-/// maker's bond and confirms it with a `new-order` on the same nonce once
-/// the bond is paid (docs/ANTI_ABUSE_BOND.md §6.2), so only the waiter is
-/// detached, and the record is marked so that confirmation is read as a
-/// bond lock rather than a fresh order. A second claim (the daemon's
-/// re-send) finds no waiter and marks nothing new.
-pub(crate) fn claim_create_bond(
-    trade_pubkey_hex: &str,
-    got: Option<u64>,
-) -> Option<CreateBondClaim> {
-    let mut map = pending_requests().lock().ok()?;
-    let entry = map.get_mut(trade_pubkey_hex)?;
-    if !request_id_matches(entry.request_id, got) {
-        return None;
-    }
-    let PendingRequestKind::Create {
-        local_uuid,
-        bond_requested,
-    } = &mut entry.kind
-    else {
-        return None;
-    };
-    *bond_requested = true;
-    Some(CreateBondClaim {
-        tx: entry.tx.take(),
-        trade_index: entry.trade_index,
-        local_uuid: local_uuid.clone(),
-    })
 }
 
 /// Remove and return the pending request for `trade_pubkey_hex` only when it
@@ -626,45 +574,11 @@ mod tests {
                 trade_index: 3,
                 kind: PendingRequestKind::Create {
                     local_uuid: format!("local-{key}"),
-                    bond_requested: false,
                 },
                 tx: Some(tx),
             },
         );
         rx
-    }
-
-    /// A maker bond: the bond reply detaches the create's waiter and marks
-    /// the record, which stays for the daemon's later `new-order`; the
-    /// nonce gate and the kind gate both hold.
-    #[tokio::test]
-    async fn claim_create_bond_keeps_the_record_marked() {
-        let key = "create-bond-key";
-        let _rx = insert_pending_create(key, 61);
-        assert!(claim_create_bond(key, None).is_none());
-        assert!(claim_create_bond(key, Some(60)).is_none());
-
-        let claim = claim_create_bond(key, Some(61)).expect("the nonce matches");
-        assert!(claim.tx.is_some(), "the waiter goes with the first claim");
-        assert_eq!(claim.trade_index, 3);
-        assert_eq!(claim.local_uuid, "local-create-bond-key");
-
-        // The record survives, flagged, waiterless.
-        let again = claim_create_bond(key, Some(61)).expect("still registered");
-        assert!(again.tx.is_none());
-        let pending = take_matching_request(key, Some(61)).expect("record kept");
-        assert!(matches!(
-            pending.kind,
-            PendingRequestKind::Create {
-                bond_requested: true,
-                ..
-            }
-        ));
-
-        // A take record is never a create.
-        let _rx = insert_pending_take("take-bond-key", 62);
-        assert!(claim_create_bond("take-bond-key", Some(62)).is_none());
-        take_matching_take("take-bond-key", Some(62));
     }
 
     fn local_uuid_of(pending: &PendingRequest) -> &str {
@@ -1142,7 +1056,6 @@ mod tests {
                     trade_index: 3,
                     kind: PendingRequestKind::Create {
                         local_uuid: "uuid".to_string(),
-                        bond_requested: false,
                     },
                     tx: None,
                 },

@@ -12,6 +12,7 @@ use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::api::types::{BondPolicyInfo, BondSlashedEvent, OrderStatus, SlashCause};
+use crate::db::Storage;
 use crate::mostro::bond_policy;
 
 // ── Node policy ─────────────────────────────────────────────────────────────
@@ -32,6 +33,25 @@ pub fn get_bond_policy() -> Option<BondPolicyInfo> {
 pub fn estimate_bond_sats(order_amount_sats: u64) -> Option<u64> {
     let policy = get_bond_policy()?;
     bond_policy::estimate_bond_sats(order_amount_sats, &policy)
+}
+
+// ── Maker bond ──────────────────────────────────────────────────────────────
+
+/// Walk away from an order parked at `WaitingMakerBond` without paying the
+/// bond (docs/ANTI_ABUSE_BOND.md §6.2). The daemon refuses a cancel in this
+/// window and reaps the unpaid order itself, so this only wipes the local
+/// row and emits `Canceled` with `UserCanceled`. Markers: `TradeNotFound`,
+/// `NotWaitingBond` when the row is not a maker's bond window.
+pub async fn abandon_bonded_order(order_id: String) -> Result<()> {
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    let trade = db
+        .get_trade_by_order_id(&order_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("TradeNotFound"))?;
+    if trade.order.status != OrderStatus::WaitingMakerBond || !trade.order.is_mine {
+        bail!("NotWaitingBond");
+    }
+    crate::api::orders::abandon_maker_bond(&trade).await
 }
 
 // ── Forfeiture notice ───────────────────────────────────────────────────────
