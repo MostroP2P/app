@@ -2,9 +2,73 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show BondInfo, BondRole, BondState, OrderKind, TradeRole, TradeUpdateReason;
+    show
+        BondClaimPhase,
+        BondInfo,
+        BondRole,
+        BondState,
+        OrderKind,
+        TradeRole,
+        TradeUpdateReason;
 
 void main() {
+  group('payout claim rules (docs/ANTI_ABUSE_BOND.md §6.4)', () {
+    test('only a pending claim inside its window accepts an invoice', () {
+      expect(
+        bondClaimAcceptsInvoice(
+          phase: BondClaimPhase.pending,
+          deadlineAt: 100,
+          now: 50,
+        ),
+        isTrue,
+      );
+      expect(
+        bondClaimAcceptsInvoice(
+          phase: BondClaimPhase.pending,
+          deadlineAt: 100,
+          now: 101,
+        ),
+        isFalse,
+      );
+      expect(
+        bondClaimAcceptsInvoice(
+          phase: BondClaimPhase.submitted,
+          deadlineAt: 100,
+          now: 50,
+        ),
+        isFalse,
+      );
+    });
+    test('open means pending in the window, submitted or acknowledged', () {
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.pending, deadlineAt: 100, now: 50),
+        isTrue,
+      );
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.pending, deadlineAt: 100, now: 101),
+        isFalse,
+      );
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.acknowledged, deadlineAt: 100, now: 500),
+        isTrue,
+      );
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.completed, deadlineAt: 100, now: 50),
+        isFalse,
+      );
+    });
+    test('the clock turns a pending claim past its window into expired', () {
+      expect(
+        bondClaimEffectivePhase(phase: BondClaimPhase.pending, deadlineAt: 100, now: 101),
+        BondClaimPhase.expired,
+      );
+      expect(
+        bondClaimEffectivePhase(phase: BondClaimPhase.submitted, deadlineAt: 100, now: 101),
+        BondClaimPhase.submitted,
+      );
+    });
+  });
+
   BondInfo bond(BondRole role) => BondInfo(
     role: role,
     amountSats: BigInt.from(1000),

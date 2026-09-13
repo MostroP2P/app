@@ -12,6 +12,25 @@ import 'package:mostro/l10n/app_localizations_en.dart';
 void main() {
   final l10n = AppLocalizationsEn();
 
+  test('maps the payout claim markers', () {
+    expect(
+      localizedDaemonError(l10n, 'InvoiceAmountMismatch', fallback: 'x'),
+      l10n.bondClaimErrorAmount,
+    );
+    expect(
+      localizedDaemonError(l10n, 'BondClaimExpired', fallback: 'x'),
+      l10n.bondClaimErrorExpired,
+    );
+    expect(
+      localizedDaemonError(l10n, 'BondClaimRejected', fallback: 'x'),
+      l10n.bondClaimErrorRejected,
+    );
+    expect(
+      localizedDaemonError(l10n, 'ClaimNotClaimable', fallback: 'x'),
+      l10n.bondClaimErrorNotClaimable,
+    );
+  });
+
   test('maps the maker bond cancel marker', () {
     expect(
       localizedDaemonError(l10n, 'BondCancelNotAllowed', fallback: 'x'),
