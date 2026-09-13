@@ -182,18 +182,39 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     );
   }
 
-  /// A new or imported identity is, by definition, not backed up: re-arm the
-  /// reminder, clear the backed-up flag and mask whatever was revealed.
-  Future<void> _resetBackupState() async {
-    ref.read(sessionProvider.notifier).clearSession();
-    await ref.read(backupReminderProvider.notifier).showBackupReminder();
-    await ref.read(backupCompletedProvider.notifier).reset();
-    if (!mounted) return;
+  /// A new or imported identity is, by definition, not backed up: mask the
+  /// old words, re-arm the reminder and clear the backed-up flag, then go
+  /// home. The identity has already been replaced when this runs, so a reset
+  /// that fails is reported as a backup-status failure, not as a failed
+  /// generation or import, and never keeps the other reset from running.
+  Future<void> _finishIdentitySwap(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
     _copiedTimer?.cancel();
     setState(() {
       _words = null;
       _copied = false;
     });
+    ref.read(sessionProvider.notifier).clearSession();
+    final reminder = ref.read(backupReminderProvider.notifier);
+    final completed = ref.read(backupCompletedProvider.notifier);
+
+    var resetFailed = false;
+    for (final reset in [reminder.showBackupReminder, completed.reset]) {
+      try {
+        await reset();
+      } catch (e) {
+        debugPrint('[account] backup state reset error: $e');
+        resetFailed = true;
+      }
+    }
+
+    if (!context.mounted) return;
+    if (resetFailed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.failedToSaveBackupStatusMessage)),
+      );
+    }
+    context.go(AppRoute.home);
   }
 
   void _confirmGenerateNewUser(BuildContext context) {
@@ -217,10 +238,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     // written before old data is cleared, so there is no window
                     // where the user is left without a valid identity.
                     await IdentityService.regenerate();
-                    await _resetBackupState();
-                    // Only navigate once the new identity exists.
-                    if (!context.mounted) return;
-                    context.go(AppRoute.home);
                   } catch (e) {
                     debugPrint('[account] generateNewUser error: $e');
                     if (!context.mounted) return;
@@ -233,7 +250,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                         ),
                       ),
                     );
+                    return;
                   }
+                  // Only reset and navigate once the new identity exists.
+                  if (!context.mounted) return;
+                  await _finishIdentitySwap(context);
                 },
                 child: Text(l10n.continueButtonLabel),
               ).withAutomationId(AutomationIds.keysGenerateConfirm),
@@ -256,9 +277,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     final l10n = AppLocalizations.of(context);
     try {
       await IdentityService.importAndStore(words);
-      await _resetBackupState();
-      if (!context.mounted) return;
-      context.go(AppRoute.home);
     } catch (e) {
       debugPrint('[account] importIdentity error: $e');
       if (!context.mounted) return;
@@ -269,7 +287,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           ),
         ),
       );
+      return;
     }
+    if (!context.mounted) return;
+    await _finishIdentitySwap(context);
   }
 
   void _confirmRefresh(BuildContext context) {

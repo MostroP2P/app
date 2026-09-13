@@ -143,10 +143,15 @@ class _BackupRitualScreenState extends ConsumerState<BackupRitualScreen> {
 
   Future<void> _confirm() async {
     if (!(_round?.isComplete ?? false) || _confirming) return;
+    // Read both notifiers up front: the user can still review the words and
+    // leave while this awaits, and `ref` is unusable once the state is gone —
+    // the backup would be persisted but never marked completed in memory.
+    final reminder = ref.read(backupReminderProvider.notifier);
+    final completed = ref.read(backupCompletedProvider.notifier);
     setState(() => _confirming = true);
     try {
-      await ref.read(backupReminderProvider.notifier).confirmBackupComplete();
-      await ref.read(backupCompletedProvider.notifier).markCompleted();
+      await reminder.confirmBackupComplete();
+      await completed.markCompleted();
       if (mounted) setState(() => _step = 2);
     } catch (e) {
       debugPrint('[backup-ritual] confirm error: $e');

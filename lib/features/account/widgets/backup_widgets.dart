@@ -214,12 +214,17 @@ class BackupPrimaryButton extends StatelessWidget {
       ),
       child:
           loading
-              ? SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: book.onLime,
+              // The spinner replaces the label on screen, not for assistive
+              // technology: the button keeps its name while it is busy.
+              ? Semantics(
+                label: label,
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: book.onLime,
+                  ),
                 ),
               )
               : Row(
