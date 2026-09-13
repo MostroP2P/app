@@ -210,6 +210,13 @@ class AutomationIds {
   static const String invoiceError = 'invoice.error';
   static const String invoiceCancel = 'invoice.cancel';
   static const String payInvoiceText = 'pay.invoice.text';
+
+  // Anti-abuse bond (docs/ANTI_ABUSE_BOND.md, handoff 14a/14b)
+  /// Readout: the bond bolt11, otherwise only drawn as a QR code.
+  static const String bondInvoiceText = 'bond.invoice.text';
+  static const String bondOrderId = 'bond.order_id';
+  static const String bondExplainer = 'bond.explainer';
+  static const String bondCancel = 'bond.cancel';
   static const String payOrderId = 'pay.order_id';
   static const String payNwc = 'pay.nwc';
   static const String payCancel = 'pay.cancel';

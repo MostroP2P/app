@@ -149,7 +149,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
     setState(() => _cta = TakeOrderCta.loading);
     try {
-      await ref.read(takeOrderActionProvider)(
+      final trade = await ref.read(takeOrderActionProvider)(
         orderId: widget.orderId,
         role: widget.isBuying ? TradeRole.buyer : TradeRole.seller,
         fiatAmount: _selectedAmount,
@@ -166,7 +166,12 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       // Straight to the Lightning step. The stack is rebuilt with the trade
       // detail as its base so back/close from the invoice screen lands on
       // the trade, never back here offering an already-taken order (#268).
-      if (widget.isBuying) {
+      // The node asks for an anti-abuse bond first: the Lightning step of
+      // the trade only opens once it locks (docs/ANTI_ABUSE_BOND.md §6.1).
+      if (trade.order.status == OrderStatus.waitingTakerBond) {
+        context.go(AppRoute.tradeDetailPath(widget.orderId));
+        context.push(AppRoute.payBondPath(widget.orderId));
+      } else if (widget.isBuying) {
         // With a default LN address Mostro pays it directly and the buyer
         // skips the add-invoice step.
         final settings = await settings_api.getSettings();
@@ -256,14 +261,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       appBar: orderDetailAppBar(
         context,
         title: widget.isBuying ? l10n.tabBuyBtc : l10n.tabSellBtc,
-        onBack: () => context.canPop() ? context.pop() : context.go(AppRoute.home),
+        onBack:
+            () => context.canPop() ? context.pop() : context.go(AppRoute.home),
         trailing: ValueListenableBuilder<Duration>(
           valueListenable: _remaining,
           builder:
-              (context, remaining, _) => _Countdown(
-                remaining: remaining,
-                isClosed: isUnavailable,
-              ),
+              (context, remaining, _) =>
+                  _Countdown(remaining: remaining, isClosed: isUnavailable),
         ),
       ),
       body: ListView(
@@ -500,7 +504,11 @@ class _AmountBlock extends ConsumerWidget {
     OrderCardFormats formats,
     OrderBookPalette book,
   ) {
-    final style = TextStyle(fontSize: 11, height: 1.5, color: book.textTertiary);
+    final style = TextStyle(
+      fontSize: 11,
+      height: 1.5,
+      color: book.textTertiary,
+    );
     if (order.hasFixedSats) {
       final sats = l10n.satsAmount(
         formats.decimal.format(order.amountSats!.toInt()),
