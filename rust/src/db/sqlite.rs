@@ -684,6 +684,23 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn update_trade_bond(
+        &self,
+        order_id: &str,
+        bond: &crate::api::types::BondInfo,
+    ) -> Result<()> {
+        // json(?) so the object is stored as JSON, not as a string.
+        let sql = "UPDATE trades SET data = json_set(\
+             data, '$.bond', json(?)) \
+             WHERE json_extract(data, '$.order.id') = ?";
+        sqlx::query(sql)
+            .bind(serde_json::to_string(bond)?)
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
         // Bind via json(?) so SQLite stores the timestamp as a JSON number, not
         // a string — a string would fail to deserialize back into Option<i64>.

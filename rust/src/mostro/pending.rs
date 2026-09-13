@@ -36,6 +36,9 @@ pub(crate) enum DaemonReply {
         amount_sats: Option<u64>,
         /// Hold invoice bolt11 (seller taking a buy order), when present.
         hold_invoice: Option<String>,
+        /// The anti-abuse bond the daemon asks for before the trade flow
+        /// starts (`pay-bond-invoice`). `None` on nodes without bonds.
+        bond: Option<BondRequest>,
     },
     /// Daemon acknowledged an add-invoice. The reply doubles as a status
     /// update processed by the per-action arms; the caller only needs the
@@ -52,6 +55,14 @@ pub(crate) enum DaemonReply {
     /// disputes. Correlated by trade pubkey (RestoreSession carries no
     /// request_id) — see take_matching_restore.
     Restored(mostro_core::message::RestoreSessionInfo),
+}
+
+/// The bond bolt11 a `pay-bond-invoice` carries: `amount_sats` is the
+/// **bond**, never the order's amount, and must not seed it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BondRequest {
+    pub(crate) amount_sats: u64,
+    pub(crate) invoice: String,
 }
 
 /// What travels over a pending request's waiter channel: the daemon's reply,
@@ -426,19 +437,46 @@ pub(crate) fn roll_back_dispute_request(trade_pubkey_hex: &str, request_id: u64)
 /// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload), or a
 /// direct progression message when an invoice was pre-attached — so
 /// classification goes by payload shape rather than by enumerating actions
-/// (the pattern MostriX uses). `pay-bond-invoice` maps to a stable
-/// `BondRequired` rejection: anti-abuse bonds are not supported yet, and an
-/// honest error beats a fake trade or a silent timeout.
+/// (the pattern MostriX uses). `pay-bond-invoice` is the anti-abuse bond:
+/// an acceptance parked at `WaitingTakerBond` (docs/ANTI_ABUSE_BOND.md).
 pub(crate) fn classify_take_reply(
     action: &mostro_core::message::Action,
     payload: &Option<mostro_core::message::Payload>,
 ) -> DaemonReply {
     use mostro_core::message::{Action, Payload};
 
+    // The anti-abuse bond (docs/ANTI_ABUSE_BOND.md §6.1): the take was
+    // accepted, but the daemon parks it at WaitingTakerBond until this
+    // bolt11 is paid. Its amount is the bond, not the order's, so neither
+    // `amount_sats` nor `hold_invoice` is seeded from it.
     if matches!(action, Action::PayBondInvoice) {
-        return DaemonReply::Rejected {
-            reason: "BondRequired".to_string(),
-            message: "BondRequired".to_string(),
+        return match payload {
+            Some(Payload::PaymentRequest(small_order, invoice, amount)) => {
+                let bond_sats = amount
+                    .and_then(|a| u64::try_from(a).ok())
+                    .or_else(|| {
+                        small_order
+                            .as_ref()
+                            .and_then(|so| u64::try_from(so.amount).ok())
+                    })
+                    .unwrap_or(0);
+                DaemonReply::TakeAccepted {
+                    action: action.clone(),
+                    status: Some(crate::api::types::OrderStatus::WaitingTakerBond),
+                    amount_sats: None,
+                    hold_invoice: None,
+                    bond: Some(BondRequest {
+                        amount_sats: bond_sats,
+                        invoice: invoice.clone(),
+                    }),
+                }
+            }
+            // The wire contract requires a PaymentRequest; anything else is
+            // not a bond the user could pay.
+            _ => DaemonReply::Rejected {
+                reason: "InvalidBondInvoice".to_string(),
+                message: "InvalidBondInvoice".to_string(),
+            },
         };
     }
 
@@ -461,6 +499,7 @@ pub(crate) fn classify_take_reply(
                     .or_else(|| status_for_action(action)),
                 amount_sats,
                 hold_invoice: Some(invoice.clone()),
+                bond: None,
             }
         }
         Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
@@ -475,6 +514,7 @@ pub(crate) fn classify_take_reply(
                 None
             },
             hold_invoice: None,
+            bond: None,
         },
         // Action-only progression reply (payload absent or of another shape):
         // still a genuine acceptance. The take interception consumes the
@@ -487,6 +527,7 @@ pub(crate) fn classify_take_reply(
             status: status_for_action(action),
             amount_sats: None,
             hold_invoice: None,
+            bond: None,
         },
     }
 }
@@ -792,7 +833,7 @@ mod tests {
 
     /// `classify_take_reply` goes by payload shape: `PaymentRequest` carries
     /// the hold invoice (seller flow), `Order` carries the calculated sats
-    /// (buyer flow), `pay-bond-invoice` maps to a stable BondRequired
+    /// (buyer flow), `pay-bond-invoice` is an acceptance parked at WaitingTakerBond
     /// rejection, and action-only replies are still acceptances.
     #[test]
     fn classify_take_reply_maps_payload_shapes() {
@@ -857,12 +898,57 @@ mod tests {
             _ => panic!("expected TakeAccepted"),
         }
 
-        // Anti-abuse bond: not supported — stable rejection marker.
-        match classify_take_reply(&Action::PayBondInvoice, &None) {
-            DaemonReply::Rejected { reason, message } => {
-                assert_eq!(reason, "BondRequired");
-                assert_eq!(message, "BondRequired");
+        // Anti-abuse bond (docs/ANTI_ABUSE_BOND.md §6.1): accepted, parked
+        // at WaitingTakerBond, and the bond amount seeds neither the order
+        // amount nor the hold invoice.
+        let so = small_order_with(Status::Pending, 1_000);
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(
+                Some(so),
+                "lnbc10u1bond".into(),
+                None,
+            )),
+        ) {
+            DaemonReply::TakeAccepted {
+                status,
+                amount_sats,
+                hold_invoice,
+                bond,
+                ..
+            } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert_eq!(amount_sats, None);
+                assert_eq!(hold_invoice, None);
+                assert_eq!(
+                    bond,
+                    Some(BondRequest {
+                        amount_sats: 1_000,
+                        invoice: "lnbc10u1bond".into()
+                    })
+                );
             }
+            _ => panic!("expected TakeAccepted"),
+        }
+        // The explicit amount field wins over the embedded order.
+        let so = small_order_with(Status::Pending, 1_000);
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(
+                Some(so),
+                "lnbc10u1bond".into(),
+                Some(1_200),
+            )),
+        ) {
+            DaemonReply::TakeAccepted { bond: Some(b), .. } => assert_eq!(b.amount_sats, 1_200),
+            _ => panic!("expected TakeAccepted with a bond"),
+        }
+        // A bond message without a bolt11 is not a bond the user could pay.
+        match classify_take_reply(&Action::PayBondInvoice, &None) {
+            DaemonReply::Rejected { reason, .. } => assert_eq!(reason, "InvalidBondInvoice"),
             _ => panic!("expected Rejected"),
         }
 
