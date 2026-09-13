@@ -3929,6 +3929,8 @@
   "@invoiceErrorWrongAmount": {"description": "13a validation error: the invoice amount differs from the trade's", "placeholders": {"actual": {"type": "String"}, "expected": {"type": "String"}}},
   "invoiceErrorExpired": "The invoice has already expired",
   "@invoiceErrorExpired": {"description": "13a validation error: the invoice expiry has passed"},
+  "invoiceErrorExpiresTooSoon": "The invoice expires in less than {minutes} minutes, the node needs more time to pay it",
+  "@invoiceErrorExpiresTooSoon": {"description": "13a validation error: the invoice is unexpired but has less lifetime left than the node's invoice_expiration_window", "placeholders": {"minutes": {"type": "String"}}},
   "invoiceErrorMalformed": "This invoice is incomplete or mistyped",
   "@invoiceErrorMalformed": {"description": "13a validation error: starts like an invoice but does not decode"},
   "invoiceErrorUnrecognized": "Not an invoice (lnbc…) or a Lightning address (user@domain)",

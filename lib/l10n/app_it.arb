@@ -1001,6 +1001,7 @@
   "invoiceValidInvoice": "Fattura valida · {sats} sats",
   "invoiceErrorWrongAmount": "La fattura è di {actual} sats, devono essere {expected}",
   "invoiceErrorExpired": "La fattura è già scaduta",
+  "invoiceErrorExpiresTooSoon": "La fattura scade tra meno di {minutes} minuti, il nodo ha bisogno di più tempo per pagarla",
   "invoiceErrorMalformed": "Questa fattura è incompleta o copiata male",
   "invoiceErrorUnrecognized": "Non è una fattura (lnbc…) né un indirizzo Lightning (utente@dominio)",
   "invoiceSellerLabel": "Venditore",
