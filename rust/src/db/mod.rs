@@ -304,4 +304,22 @@ pub trait Storage: Send + Sync {
         order_id: &str,
         counterparty_pubkey: &str,
     ) -> Result<()>;
+
+    // ── Bond payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ───────────────────
+
+    /// Insert or replace the claim keyed by its `(node_pubkey, order_id)`.
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()>;
+
+    /// The claim a node issued for an order, if any.
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>>;
+
+    /// Every claim, most recently changed first.
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>>;
+
+    /// Remove one claim. No-op when absent.
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()>;
 }

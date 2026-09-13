@@ -701,6 +701,60 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()> {
+        let data = serde_json::to_string(claim)?;
+        sqlx::query(
+            "INSERT OR REPLACE INTO bond_claims \
+             (id, node_pubkey, data, phase, deadline_at, updated_at) \
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(claim.storage_id())
+        .bind(&claim.node_pubkey)
+        .bind(&data)
+        .bind(format!("{:?}", claim.phase))
+        .bind(claim.deadline_at)
+        .bind(claim.updated_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT data FROM bond_claims WHERE id = ?")
+                .bind(crate::api::types::bond_claim_key(node_pubkey, order_id))
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(data,)| serde_json::from_str(&data)).transpose()?)
+    }
+
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>> {
+        let rows: Vec<(String, String)> =
+            sqlx::query_as("SELECT id, data FROM bond_claims ORDER BY updated_at DESC")
+                .fetch_all(&self.pool)
+                .await?;
+        let mut claims = Vec::with_capacity(rows.len());
+        for (id, data) in rows {
+            match serde_json::from_str::<crate::api::types::BondClaim>(&data) {
+                Ok(claim) => claims.push(claim),
+                Err(e) => log::warn!("[db] skipping bond claim {id}: deserialization failed: {e}"),
+            }
+        }
+        Ok(claims)
+    }
+
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM bond_claims WHERE id = ?")
+            .bind(crate::api::types::bond_claim_key(node_pubkey, order_id))
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
         // Bind via json(?) so SQLite stores the timestamp as a JSON number, not
         // a string — a string would fail to deserialize back into Option<i64>.
@@ -750,6 +804,60 @@ mod tests {
         static COUNTER: AtomicU32 = AtomicU32::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!("mostro_test_{}_{n}.db", std::process::id()))
+    }
+
+    fn claim(node: &str, order: &str, phase: crate::api::types::BondClaimPhase, updated_at: i64)
+        -> crate::api::types::BondClaim {
+        crate::api::types::BondClaim {
+            order_id: order.to_string(),
+            node_pubkey: node.to_string(),
+            amount_sats: 1_500,
+            slashed_at: 1_000,
+            deadline_at: 1_000 + 15 * 86_400,
+            phase,
+            submitted_invoice: None,
+            fiat_code: "VES".to_string(),
+            fiat_amount: Some(100.0),
+            payment_method: "PagoMovil".to_string(),
+            updated_at,
+        }
+    }
+
+    /// docs/ANTI_ABUSE_BOND.md §7.3: a claim round-trips whole, keyed by
+    /// `(node, order)`, so the same order slashed on two nodes is two claims
+    /// and a save on an existing key replaces it.
+    #[tokio::test]
+    async fn bond_claims_round_trip_keyed_by_node_and_order() {
+        use crate::api::types::BondClaimPhase;
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let a = claim("node-a", "order-1", BondClaimPhase::Pending, 10);
+        let b = claim("node-b", "order-1", BondClaimPhase::Acknowledged, 20);
+        storage.save_bond_claim(&a).await.unwrap();
+        storage.save_bond_claim(&b).await.unwrap();
+
+        assert_eq!(storage.get_bond_claim("node-a", "order-1").await.unwrap(), Some(a.clone()));
+        assert_eq!(storage.get_bond_claim("node-b", "order-1").await.unwrap(), Some(b.clone()));
+        assert_eq!(storage.get_bond_claim("node-a", "order-2").await.unwrap(), None);
+
+        // Newest change first.
+        let listed = storage.list_bond_claims().await.unwrap();
+        assert_eq!(listed, vec![b.clone(), a.clone()]);
+
+        // Same key: replaced, not duplicated.
+        let mut a2 = a.clone();
+        a2.phase = BondClaimPhase::Submitted;
+        a2.submitted_invoice = Some("lnbc1x".to_string());
+        a2.updated_at = 30;
+        storage.save_bond_claim(&a2).await.unwrap();
+        let listed = storage.list_bond_claims().await.unwrap();
+        assert_eq!(listed, vec![a2.clone(), b.clone()]);
+
+        // Delete removes only the matching key; absent keys are a no-op.
+        storage.delete_bond_claim("node-a", "order-1").await.unwrap();
+        storage.delete_bond_claim("node-a", "order-1").await.unwrap();
+        assert_eq!(storage.list_bond_claims().await.unwrap(), vec![b]);
     }
 
     /// A status sync that matches no row used to be indistinguishable from one

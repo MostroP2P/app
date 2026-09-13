@@ -27,7 +27,7 @@ use crate::db::{trade_json, web_lock, Storage};
 use crate::queue::outbox::QueuedMessage;
 
 /// Bumped when a store is added; `open_db` creates whatever is missing.
-const DB_VERSION: u32 = 3;
+const DB_VERSION: u32 = 4;
 const MESSAGES_STORE: &str = "messages";
 const SETTINGS_STORE: &str = "settings";
 const TRADES_STORE: &str = "trades";
@@ -36,13 +36,14 @@ const ORDERS_STORE: &str = "orders";
 const RELAYS_STORE: &str = "relays";
 const IDENTITY_STORE: &str = "identity";
 const OUTBOX_STORE: &str = "queued_messages";
+const BOND_CLAIMS_STORE: &str = "bond_claims";
 /// The single identity document's key, mirroring SQLite's `id = 1` row.
 const IDENTITY_KEY: &str = "1";
 /// Origin-wide lock names (see [`web_lock`]): one per store whose documents
 /// are read, changed and written back as a whole.
 const TRADES_LOCK: &str = "mostro:db:trades";
 const OUTBOX_LOCK: &str = "mostro:db:queued_messages";
-const ALL_STORES: [&str; 8] = [
+const ALL_STORES: [&str; 9] = [
     MESSAGES_STORE,
     SETTINGS_STORE,
     TRADES_STORE,
@@ -51,6 +52,7 @@ const ALL_STORES: [&str; 8] = [
     RELAYS_STORE,
     IDENTITY_STORE,
     OUTBOX_STORE,
+    BOND_CLAIMS_STORE,
 ];
 
 /// Map an opaque JS-side error into an `anyhow` error the trait can carry.
@@ -580,6 +582,55 @@ impl Storage for IndexedDbStorage {
         self.patch_trade_by_order_id(order_id, |doc| {
             trade_json::set_counterparty(doc, counterparty_pubkey)
         })
+        .await
+    }
+
+    // ── Bond payout claims — whole-document, keyed by node:order ────────────
+
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()> {
+        let json = serde_json::to_string(claim)?;
+        self.put_string(BOND_CLAIMS_STORE, &claim.storage_id(), &json)
+            .await
+    }
+
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>> {
+        Ok(self
+            .get_string(
+                BOND_CLAIMS_STORE,
+                &crate::api::types::bond_claim_key(node_pubkey, order_id),
+            )
+            .await?
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?)
+    }
+
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>> {
+        let mut claims: Vec<crate::api::types::BondClaim> = self
+            .get_all_strings(BOND_CLAIMS_STORE)
+            .await?
+            .into_iter()
+            .filter_map(|json| match serde_json::from_str(&json) {
+                Ok(claim) => Some(claim),
+                Err(e) => {
+                    log::warn!("[db] skipping bond claim: deserialization failed: {e}");
+                    None
+                }
+            })
+            .collect();
+        // Same order as SQLite: most recently changed first.
+        claims.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        Ok(claims)
+    }
+
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()> {
+        self.delete_key(
+            BOND_CLAIMS_STORE,
+            &crate::api::types::bond_claim_key(node_pubkey, order_id),
+        )
         .await
     }
 }

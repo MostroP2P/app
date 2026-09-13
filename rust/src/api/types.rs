@@ -741,6 +741,79 @@ pub struct BondSlashedEvent {
     pub cause: SlashCause,
 }
 
+/// Where a payout claim stands (docs/ANTI_ABUSE_BOND.md §6.4): the daemon
+/// asked for an invoice, the user sent one, the daemon accepted it, the
+/// share was paid — or the claim window closed first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum BondClaimPhase {
+    /// `add-bond-invoice` received, no invoice sent (or the daemon re-prompted).
+    Pending,
+    /// The user's bolt11 was published; the daemon has not answered yet.
+    Submitted,
+    /// `bond-invoice-accepted`: the payout is in progress.
+    Acknowledged,
+    /// `bond-payout-completed`: the share was paid.
+    Completed,
+    /// The claim window closed unclaimed.
+    Expired,
+}
+
+impl BondClaimPhase {
+    /// A phase nothing follows: the daemon stops retrying and the kind-14
+    /// filter no longer needs the issuing node for this claim.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, BondClaimPhase::Completed | BondClaimPhase::Expired)
+    }
+}
+
+/// The counterparty's share of a slashed bond this user may claim
+/// (docs/ANTI_ABUSE_BOND.md §6.4, §7.1). Independent of the trade row: the
+/// winner's trade may be completed, cancelled or wiped by the time the
+/// daemon asks for an invoice. Keyed by `(node_pubkey, order_id)`: the user
+/// can switch nodes while a claim is open, and the submission always
+/// addresses the daemon that issued it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BondClaim {
+    pub order_id: String,
+    /// The daemon that issued the claim; the submission target.
+    pub node_pubkey: String,
+    /// The share on offer, in satoshis; the invoice must be for exactly this.
+    pub amount_sats: u64,
+    /// Unix seconds when the daemon slashed the bond, from the request.
+    pub slashed_at: i64,
+    /// `slashed_at + claim window`, frozen when the claim is first persisted:
+    /// a later policy change cannot move a deadline the user was shown.
+    pub deadline_at: i64,
+    pub phase: BondClaimPhase,
+    /// The bolt11 sent, kept so the screen can show it while the daemon answers.
+    pub submitted_invoice: Option<String>,
+    /// Display only, from the request's order.
+    pub fiat_code: String,
+    pub fiat_amount: Option<f64>,
+    pub payment_method: String,
+    /// Unix seconds of the last change, the list's sort key.
+    pub updated_at: i64,
+}
+
+impl BondClaim {
+    /// The storage key: `<node_pubkey>:<order_id>`.
+    pub fn storage_id(&self) -> String {
+        bond_claim_key(&self.node_pubkey, &self.order_id)
+    }
+}
+
+/// The `bond_claims` key for a node / order pair.
+pub fn bond_claim_key(node_pubkey: &str, order_id: &str) -> String {
+    format!("{node_pubkey}:{order_id}")
+}
+
+/// A claim's phase changed (new claim, submission, ack, payout, expiry).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BondClaimUpdate {
+    pub order_id: String,
+    pub phase: BondClaimPhase,
+}
+
 /// Connected wallet information returned by `connect_wallet` and `get_wallet`.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NwcWalletInfo {
