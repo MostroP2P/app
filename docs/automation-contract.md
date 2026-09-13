@@ -58,6 +58,8 @@ fails the build when an identifier is declared and attached to nothing.
 | `wallet.connection` | `connected` or `disconnected`. |
 | `pay.invoice.text` | The hold invoice (`bolt11`), which is otherwise only drawn as a QR code or paid directly by the wallet. |
 | `pay.order_id` | The exact order ID shown in the seller invoice screen's app bar, including while its invoice is loading. |
+| `bond.invoice.text` | The anti-abuse bond bolt11 (`docs/ANTI_ABUSE_BOND.md`), otherwise only drawn as a QR code or paid by the wallet. |
+| `bond.order_id` | The exact order ID shown in the pay-bond screen's app bar. |
 | `invoice.nwc.text` | The buyer invoice NWC generated, for payment correlation. |
 | `invoice.error` | The reason the daemon refused the last submitted buyer invoice. Present only after a rejection, until the next submission; the manual form stays open behind it. In the wallet-generated (NWC) branch, which has no form, the readout comes with `invoice.manual` so the buyer can switch to manual entry. |
 | `settings.relays.item.<url>` | The relay's URL. |

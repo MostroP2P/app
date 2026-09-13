@@ -67,9 +67,12 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
 
   Future<void> _handle(TradeUpdate update) async {
     final destination = switch (update.status) {
-      OrderStatus.waitingBuyerInvoice =>
-        AppRoute.addInvoicePath(update.orderId),
+      OrderStatus.waitingBuyerInvoice => AppRoute.addInvoicePath(
+        update.orderId,
+      ),
       OrderStatus.waitingPayment => AppRoute.payInvoicePath(update.orderId),
+      // The anti-abuse bond: only ever the taker's row, whichever side.
+      OrderStatus.waitingTakerBond => AppRoute.payBondPath(update.orderId),
       _ => null,
     };
     if (destination == null) return;
@@ -87,6 +90,7 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
       final actionable = switch (update.status) {
         OrderStatus.waitingBuyerInvoice => role == TradeRole.buyer,
         OrderStatus.waitingPayment => role == TradeRole.seller,
+        OrderStatus.waitingTakerBond => true,
         _ => false,
       };
       if (!actionable || !mounted) return;
@@ -99,7 +103,8 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
       (widget.navigate ?? _routerNavigate)(destination);
     } catch (e, st) {
       debugPrint(
-          '[TradeActionListener] failed to handle ${update.orderId}: $e\n$st');
+        '[TradeActionListener] failed to handle ${update.orderId}: $e\n$st',
+      );
     } finally {
       _inFlight.remove(key);
     }

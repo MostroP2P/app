@@ -6,6 +6,7 @@ import 'package:mostro/features/home/screens/home_screen.dart';
 import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/add_order_screen.dart';
+import 'package:mostro/features/order/screens/pay_bond_invoice_screen.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/my_order_screen.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
@@ -36,6 +37,7 @@ abstract final class AppRoute {
   static const takeSell = '/take_sell/:orderId';
   static const takeBuy = '/take_buy/:orderId';
   static const payInvoice = '/pay_invoice/:orderId';
+  static const payBond = '/pay_bond/:orderId';
   static const addInvoice = '/add_invoice/:orderId';
   static const tradeDetail = '/trade_detail/:orderId';
   static const chatList = '/chat_list';
@@ -55,19 +57,18 @@ abstract final class AppRoute {
   static const disputeChat = '/dispute_chat/:disputeId';
 
   /// Build a path with a single [id] substituted for the `:orderId` segment.
-  static String tradeDetailPath(String orderId) =>
-      '/trade_detail/$orderId';
+  static String tradeDetailPath(String orderId) => '/trade_detail/$orderId';
   static String myOrderPath(String orderId) => '/my_order/$orderId';
   static String takeSellPath(String orderId) => '/take_sell/$orderId';
   static String takeBuyPath(String orderId) => '/take_buy/$orderId';
   static String payInvoicePath(String orderId) => '/pay_invoice/$orderId';
+  static String payBondPath(String orderId) => '/pay_bond/$orderId';
   static String addInvoicePath(String orderId) => '/add_invoice/$orderId';
   static String chatRoomPath(String orderId) => '/chat_room/$orderId';
   static String rateUserPath(String orderId) => '/rate_user/$orderId';
   static String disputeDetailsPath(String disputeId) =>
       '/dispute_details/$disputeId';
-  static String disputeChatPath(String disputeId) =>
-      '/dispute_chat/$disputeId';
+  static String disputeChatPath(String disputeId) => '/dispute_chat/$disputeId';
 }
 
 // ── Router ─────────────────────────────────────────────────────────────────────
@@ -109,14 +110,8 @@ final GoRouter appRouter = GoRouter(
       path: AppRoute.walkthrough,
       builder: (_, __) => const WalkthroughScreen(),
     ),
-    GoRoute(
-      path: AppRoute.home,
-      builder: (_, __) => const HomeScreen(),
-    ),
-    GoRoute(
-      path: AppRoute.orderBook,
-      builder: (_, __) => const TradesScreen(),
-    ),
+    GoRoute(path: AppRoute.home, builder: (_, __) => const HomeScreen()),
+    GoRoute(path: AppRoute.orderBook, builder: (_, __) => const TradesScreen()),
     GoRoute(
       path: AppRoute.addOrder,
       builder: (context, state) {
@@ -126,41 +121,51 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.myOrder,
-      builder: (context, state) => MyOrderScreen(
-        orderId: state.pathParameters['orderId']!,
-      ),
+      builder:
+          (context, state) =>
+              MyOrderScreen(orderId: state.pathParameters['orderId']!),
     ),
     GoRoute(
       path: AppRoute.takeSell,
-      builder: (context, state) => TakeOrderScreen(
-        orderId: state.pathParameters['orderId']!,
-        isBuying: true, // taker is buying BTC (taking a sell order)
-      ),
+      builder:
+          (context, state) => TakeOrderScreen(
+            orderId: state.pathParameters['orderId']!,
+            isBuying: true, // taker is buying BTC (taking a sell order)
+          ),
     ),
     GoRoute(
       path: AppRoute.takeBuy,
-      builder: (context, state) => TakeOrderScreen(
-        orderId: state.pathParameters['orderId']!,
-        isBuying: false, // taker is selling BTC (taking a buy order)
-      ),
+      builder:
+          (context, state) => TakeOrderScreen(
+            orderId: state.pathParameters['orderId']!,
+            isBuying: false, // taker is selling BTC (taking a buy order)
+          ),
     ),
     GoRoute(
       path: AppRoute.payInvoice,
-      builder: (context, state) => PayLightningInvoiceScreen(
-        orderId: state.pathParameters['orderId']!,
-      ),
+      builder:
+          (context, state) => PayLightningInvoiceScreen(
+            orderId: state.pathParameters['orderId']!,
+          ),
+    ),
+    GoRoute(
+      path: AppRoute.payBond,
+      builder:
+          (context, state) =>
+              PayBondInvoiceScreen(orderId: state.pathParameters['orderId']!),
     ),
     GoRoute(
       path: AppRoute.addInvoice,
-      builder: (context, state) => AddLightningInvoiceScreen(
-        orderId: state.pathParameters['orderId']!,
-      ),
+      builder:
+          (context, state) => AddLightningInvoiceScreen(
+            orderId: state.pathParameters['orderId']!,
+          ),
     ),
     GoRoute(
       path: AppRoute.tradeDetail,
-      builder: (context, state) => TradeDetailScreen(
-        orderId: state.pathParameters['orderId']!,
-      ),
+      builder:
+          (context, state) =>
+              TradeDetailScreen(orderId: state.pathParameters['orderId']!),
     ),
     GoRoute(
       path: AppRoute.chatList,
@@ -168,9 +173,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.chatRoom,
-      builder: (context, state) => ChatRoomScreen(
-        orderId: state.pathParameters['orderId']!,
-      ),
+      builder:
+          (context, state) =>
+              ChatRoomScreen(orderId: state.pathParameters['orderId']!),
     ),
     GoRoute(
       path: AppRoute.keyManagement,
@@ -194,10 +199,7 @@ final GoRouter appRouter = GoRouter(
       path: AppRoute.notifications,
       builder: (_, __) => const NotificationsScreen(),
     ),
-    GoRoute(
-      path: AppRoute.relays,
-      builder: (_, __) => const RelaysScreen(),
-    ),
+    GoRoute(path: AppRoute.relays, builder: (_, __) => const RelaysScreen()),
     // One screen with two states (handoff 10c), so both paths reach it: the
     // settings row picks by connection state and old deep links still work.
     GoRoute(
@@ -210,30 +212,26 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoute.rateUser,
-      builder: (context, state) => RateCounterpartScreen(
-        orderId: state.pathParameters['orderId']!,
-      ),
+      builder:
+          (context, state) =>
+              RateCounterpartScreen(orderId: state.pathParameters['orderId']!),
     ),
     GoRoute(
       path: AppRoute.disputeDetails,
-      builder: (context, state) => DisputeChatScreen(
-        disputeId: state.pathParameters['disputeId']!,
-      ),
+      builder:
+          (context, state) =>
+              DisputeChatScreen(disputeId: state.pathParameters['disputeId']!),
     ),
     GoRoute(
       path: AppRoute.notificationSettings,
       builder: (_, __) => const NotificationSettingsScreen(),
     ),
-    GoRoute(
-      path: AppRoute.logs,
-      builder: (_, __) => const LogReportScreen(),
-    ),
+    GoRoute(path: AppRoute.logs, builder: (_, __) => const LogReportScreen()),
     GoRoute(
       path: AppRoute.disputeChat,
-      builder: (context, state) => DisputeChatScreen(
-        disputeId: state.pathParameters['disputeId']!,
-      ),
+      builder:
+          (context, state) =>
+              DisputeChatScreen(disputeId: state.pathParameters['disputeId']!),
     ),
   ],
 );
-
