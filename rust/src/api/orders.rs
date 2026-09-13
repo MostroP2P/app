@@ -3787,7 +3787,10 @@ fn bond_expired(trade: &crate::api::types::TradeInfo, now: i64) -> bool {
 /// row is wiped like any never-active cancel — a taker's order stays in the
 /// book only while the wire still says `pending`; a maker's was never
 /// published. Returns whether it acted.
-async fn close_expired_bond_trade(trade: &crate::api::types::TradeInfo, now: i64) -> bool {
+pub(crate) async fn close_expired_bond_trade(
+    trade: &crate::api::types::TradeInfo,
+    now: i64,
+) -> bool {
     if !bond_expired(trade, now) {
         return false;
     }

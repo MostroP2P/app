@@ -29,6 +29,7 @@ import 'package:mostro/features/trades/widgets/trade_completed_card.dart';
 import 'package:mostro/features/trades/widgets/trade_countdown.dart';
 import 'package:mostro/features/trades/widgets/trade_step_block.dart';
 import 'package:mostro/features/trades/widgets/trade_timeline.dart';
+import 'package:mostro/features/order/models/bond_rules.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/counterpart_reputation_row.dart';
@@ -194,6 +195,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
 
   Future<void> _cancelOrder(TradeStatus status) async {
     final l10n = AppLocalizations.of(context);
+    // A maker parked on their own deposit cannot cancel (the daemon refuses
+    // it, docs/ANTI_ABUSE_BOND.md §2.8): the way out is the local abandon
+    // the pay-bond screen offers, so send them there.
+    if (status == TradeStatus.waitingBond) {
+      final trade = ref.read(tradeInfoProvider(widget.orderId)).valueOrNull;
+      if (trade != null &&
+          bondIsMakers(trade.bond, isMine: trade.order.isMine)) {
+        await context.push(AppRoute.payBondPath(widget.orderId));
+        return;
+      }
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder:

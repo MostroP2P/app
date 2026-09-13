@@ -9,13 +9,11 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 
 // ── Maker bond gate ───────────────────────────────────────────────────────────
 
-/// Whether the form must refuse to publish on this node for now: the node
-/// bonds makers (`bond_apply_to = make | both`) and the create flow does not
-/// yet consume the daemon's `PayBondInvoice` reply (docs/ANTI_ABUSE_BOND.md
-/// Phase 2, T2.3). Publishing would only time out while the daemon holds
-/// the order unpublished. Unknown or disabled policy, or a takers-only bond,
-/// publishes as before.
-bool makerBondBlocks({
+/// Whether this node asks the maker for a deposit before publishing
+/// (`bond_apply_to = make | both`, docs/ANTI_ABUSE_BOND.md §6.2): the form
+/// says so before the tap, and Publish lands on the pay-bond screen. Unknown
+/// or disabled policy, or a takers-only bond, publishes as before.
+bool makerBondApplies({
   required BondPolicy? policy,
   required BondApplyTo? applyTo,
 }) =>

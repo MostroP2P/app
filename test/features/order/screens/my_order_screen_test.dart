@@ -252,6 +252,26 @@ void main() {
       });
     });
 
+    testWidgets('names the maker bond window and offers the deposit screen', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(status: OrderStatus.waitingMakerBond),
+          liveStatus: OrderStatus.waitingMakerBond,
+        );
+        expect(
+          find.text('Waiting for your deposit — not published yet'),
+          findsOneWidget,
+        );
+        expect(_byId(AutomationIds.myOrderPayBond), findsOneWidget);
+        expect(find.text('Pay deposit'), findsOneWidget);
+        // The daemon refuses a cancel during the bond window.
+        expect(find.text('Cancel'), findsNothing);
+      });
+    });
+
     testWidgets('reads expired without a Cancel button', (tester) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(

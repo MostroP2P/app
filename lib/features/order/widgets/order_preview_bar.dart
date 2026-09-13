@@ -20,6 +20,7 @@ class OrderPreviewBar extends StatelessWidget {
     super.key,
     required this.fragments,
     required this.error,
+    this.notice,
     required this.premiumFavour,
     required this.canSubmit,
     required this.isSubmitting,
@@ -30,6 +31,10 @@ class OrderPreviewBar extends StatelessWidget {
   /// The sentence, or null while there is no amount to describe.
   final List<PreviewFragment>? fragments;
   final String? error;
+
+  /// A sentence worth reading before the tap that is not an error (the
+  /// node's maker deposit); shown under the preview line.
+  final String? notice;
 
   /// Colours the premium fragment with the same rule as the premium block.
   final PremiumFavour premiumFavour;
@@ -66,6 +71,22 @@ class OrderPreviewBar extends StatelessWidget {
                   child: _line(context, palette, create, l10n),
                 ),
               ),
+              if (notice case final notice? when error == null) ...[
+                const SizedBox(height: 6),
+                _IconLine(
+                  key: const ValueKey('preview-notice'),
+                  icon: Icons.shield_outlined,
+                  iconColor: palette.textFaint,
+                  child: Text(
+                    notice,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.5,
+                      color: palette.textTertiary,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -95,9 +116,10 @@ class OrderPreviewBar extends StatelessWidget {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: canSubmit && !isSubmitting
-                            ? create.ctaShadow
-                            : const [],
+                        boxShadow:
+                            canSubmit && !isSubmitting
+                                ? create.ctaShadow
+                                : const [],
                       ),
                       child: FilledButton(
                         onPressed: canSubmit && !isSubmitting ? onSubmit : null,
@@ -116,16 +138,17 @@ class OrderPreviewBar extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        child: isSubmitting
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: palette.onLime,
-                                ),
-                              )
-                            : Text(l10n.publishOrder),
+                        child:
+                            isSubmitting
+                                ? SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: palette.onLime,
+                                  ),
+                                )
+                                : Text(l10n.publishOrder),
                       ),
                     ).withAutomationId(AutomationIds.orderCreateSubmit),
                   ),

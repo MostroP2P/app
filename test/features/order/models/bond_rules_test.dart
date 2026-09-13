@@ -1,9 +1,93 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show OrderKind, TradeRole, TradeUpdateReason;
+    show BondInfo, BondRole, BondState, OrderKind, TradeRole, TradeUpdateReason;
 
 void main() {
+  BondInfo bond(BondRole role) => BondInfo(
+    role: role,
+    amountSats: BigInt.from(1000),
+    invoice: 'lnbc1x',
+    state: BondState.requested,
+    requestedAt: intToPlatformInt64(1),
+    expiresAt: null,
+    lockedAt: null,
+  );
+
+  group('bondIsMakers', () {
+    test('reads the bond role, and ownership when there is no bond', () {
+      expect(bondIsMakers(bond(BondRole.maker), isMine: true), isTrue);
+      expect(bondIsMakers(bond(BondRole.taker), isMine: false), isFalse);
+      expect(bondIsMakers(null, isMine: true), isTrue);
+      expect(bondIsMakers(null, isMine: false), isFalse);
+    });
+  });
+
+  group('bondPayerIsBuying', () {
+    test('a maker takes their own side, a taker the other', () {
+      expect(bondPayerIsBuying(OrderKind.buy, maker: true), isTrue);
+      expect(bondPayerIsBuying(OrderKind.sell, maker: true), isFalse);
+      expect(bondPayerIsBuying(OrderKind.sell, maker: false), isTrue);
+      expect(bondPayerIsBuying(OrderKind.buy, maker: false), isFalse);
+    });
+  });
+
+  group('bondCountdownEnd', () {
+    test('a taker counts the bolt11 alone', () {
+      expect(
+        bondCountdownEnd(
+          invoiceExpiresAt: 900,
+          orderExpiresAt: 500,
+          maker: false,
+        ),
+        900,
+      );
+      expect(
+        bondCountdownEnd(
+          invoiceExpiresAt: null,
+          orderExpiresAt: 500,
+          maker: false,
+        ),
+        isNull,
+      );
+    });
+    test('a maker counts the earlier of the bolt11 and the order', () {
+      expect(
+        bondCountdownEnd(
+          invoiceExpiresAt: 900,
+          orderExpiresAt: 500,
+          maker: true,
+        ),
+        500,
+      );
+      expect(
+        bondCountdownEnd(
+          invoiceExpiresAt: 400,
+          orderExpiresAt: 500,
+          maker: true,
+        ),
+        400,
+      );
+      expect(
+        bondCountdownEnd(
+          invoiceExpiresAt: null,
+          orderExpiresAt: 500,
+          maker: true,
+        ),
+        500,
+      );
+      expect(
+        bondCountdownEnd(
+          invoiceExpiresAt: null,
+          orderExpiresAt: null,
+          maker: true,
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('bondFiatEquivalent', () {
     test('converts sats at a fiat-per-BTC rate', () {
       expect(

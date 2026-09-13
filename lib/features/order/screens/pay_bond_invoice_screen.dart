@@ -61,6 +61,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
   bool _requesting = false;
   bool _manualMode = false;
   bool _navigated = false;
+  bool _sweptExpired = false;
   bool _noWalletApp = false;
   Timer? _copiedTimer;
 
@@ -75,17 +76,29 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     setState(() => _waiting = true);
   }
 
-  /// "Don't take the order": nothing is committed yet, so no confirmation —
-  /// the daemon releases this taker's bond and the order stays in the book.
-  Future<void> _cancel() async {
+  /// Walk away: nothing is committed yet, so no confirmation. A taker
+  /// cancels — the daemon releases the bond and the order stays in the book.
+  /// A maker abandons — the daemon refuses a cancel during its bond window
+  /// (docs/ANTI_ABUSE_BOND.md §6.2), so the row is wiped locally: the order
+  /// was never published and nothing was charged.
+  Future<void> _cancel({required bool maker}) async {
     if (_canceling) return;
     final l10n = AppLocalizations.of(context);
     setState(() => _canceling = true);
     try {
-      await orders_api.cancelOrder(orderId: widget.orderId);
+      if (maker) {
+        await ref.read(abandonBondedOrderProvider)(widget.orderId);
+      } else {
+        await orders_api.cancelOrder(orderId: widget.orderId);
+      }
       if (!mounted) return;
       _navigated = true;
       refreshTrades(ref);
+      if (maker) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.bondAbandoned)));
+      }
       context.go(AppRoute.home);
     } catch (e) {
       if (!mounted) return;
@@ -174,8 +187,14 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
 
   /// What a `canceled` / `expired` during the bond window means, by the cause
   /// the core attached — never "taken by another user" when it cannot know.
-  String? _cancelMessage(AppLocalizations l10n, TradeUpdate update) {
-    if (update.status == OrderStatus.expired) return l10n.bondExpiredNotice;
+  String? _cancelMessage(
+    AppLocalizations l10n,
+    TradeUpdate update, {
+    required bool maker,
+  }) {
+    if (update.status == OrderStatus.expired) {
+      return maker ? l10n.bondExpiredNoticeMaker : l10n.bondExpiredNotice;
+    }
     return switch (bondCancelCopy(update.reason)) {
       BondCancelCopy.lostRace => l10n.bondLostRace,
       BondCancelCopy.makerCanceled => l10n.bondMakerCanceled,
@@ -184,7 +203,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     };
   }
 
-  void _listen(AppLocalizations l10n, TradeRole? role) {
+  void _listen(AppLocalizations l10n, TradeRole? role, {required bool maker}) {
     ref.listen<AsyncValue<TradeUpdate>>(tradeUpdatesProvider, (prev, next) {
       final update = next.valueOrNull;
       if (update == null || _navigated || !mounted) return;
@@ -192,16 +211,24 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       switch (update.status) {
         case OrderStatus.waitingTakerBond:
         case OrderStatus.waitingMakerBond:
-        case OrderStatus.pending:
         case OrderStatus.inProgress:
           break;
+        // A maker's bond locked: the daemon published the order, which now
+        // waits for a taker on My Order (docs/ANTI_ABUSE_BOND.md §6.2). For
+        // a taker `pending` is the book's word for the order and says
+        // nothing about the bond.
+        case OrderStatus.pending:
+          if (!maker) break;
+          _navigated = true;
+          refreshTrades(ref);
+          context.go(AppRoute.myOrderPath(widget.orderId));
         case OrderStatus.canceled:
         case OrderStatus.cooperativelyCanceled:
         case OrderStatus.canceledByAdmin:
         case OrderStatus.expired:
           _navigated = true;
           refreshTrades(ref);
-          final message = _cancelMessage(l10n, update);
+          final message = _cancelMessage(l10n, update, maker: maker);
           if (message != null) {
             ScaffoldMessenger.of(
               context,
@@ -244,11 +271,20 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     final tradeAsync = ref.watch(tradeInfoProvider(widget.orderId));
     final trade = tradeAsync.valueOrNull;
     final bond = trade?.bond;
-    final expiresAt = bond?.expiresAt;
+    final maker = bondIsMakers(bond, isMine: trade?.order.isMine ?? false);
+    final orderExpiresAt = trade?.order.expiresAt;
     trackInvoiceDeadline(
-      expiresAt == null ? null : platformInt64ToInt(expiresAt),
+      bondCountdownEnd(
+        invoiceExpiresAt:
+            bond?.expiresAt == null
+                ? null
+                : platformInt64ToInt(bond!.expiresAt!),
+        orderExpiresAt:
+            orderExpiresAt == null ? null : platformInt64ToInt(orderExpiresAt),
+        maker: maker,
+      ),
     );
-    _listen(l10n, trade?.role);
+    _listen(l10n, trade?.role, maker: maker);
 
     final canPop = Navigator.of(context).canPop();
     final appBar = InvoiceAppBar(
@@ -266,7 +302,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    if (trade == null || bond == null) {
+    if (trade == null) {
       return Scaffold(
         backgroundColor: book.bg,
         appBar: appBar,
@@ -274,9 +310,13 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       );
     }
 
-    final invoice = bond.invoice ?? '';
+    // A row restored on a fresh device carries no bond at all, not just no
+    // bolt11 (docs/ANTI_ABUSE_BOND.md §6.5): the same missing-invoice state.
+    final invoice = bond?.invoice ?? '';
+    if (bond == null || invoice.isEmpty) {
+      return _missingInvoice(l10n, appBar, maker: maker);
+    }
     final amountSats = bond.amountSats.toInt();
-    if (invoice.isEmpty) return _missingInvoice(l10n, appBar);
 
     return Scaffold(
       backgroundColor: book.bg,
@@ -286,7 +326,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
         builder:
             (context, remaining, _) =>
                 remaining == Duration.zero && !_waiting
-                    ? _expired(l10n)
+                    ? _expired(l10n, maker: maker)
                     : _payable(
                       l10n,
                       trade: trade,
@@ -294,6 +334,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                       invoice: invoice,
                       amountSats: amountSats,
                       remaining: remaining,
+                      maker: maker,
                     ),
       ),
     );
@@ -306,6 +347,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     required String invoice,
     required int amountSats,
     required Duration? remaining,
+    required bool maker,
   }) {
     final open = ref.watch(bondExplainerOpenProvider);
     final node = ref.watch(mostroNodeProvider).valueOrNull;
@@ -366,7 +408,10 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                         const SizedBox(height: 11),
                         InvoiceTimeBand(
                           remaining: remaining,
-                          sentence: l10n.bondReleasesIn,
+                          sentence:
+                              maker
+                                  ? l10n.bondPublishesIn
+                                  : l10n.bondReleasesIn,
                           hours: l10n.invoiceCountdownHours,
                         ),
                       ],
@@ -394,7 +439,12 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                       ),
                       const SizedBox(height: 11),
                       InvoiceCounterpartCard(
-                        rows: _context(l10n, trade, node?.bondAmountPct),
+                        rows: _context(
+                          l10n,
+                          trade,
+                          node?.bondAmountPct,
+                          maker: maker,
+                        ),
                       ),
                     ],
                     const Spacer(),
@@ -405,9 +455,10 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                         invoice,
                         amountSats: amountSats,
                         open: open,
+                        maker: maker,
                       )
                     else
-                      ..._footer(l10n, invoice, open: open),
+                      ..._footer(l10n, invoice, open: open, maker: maker),
                   ],
                 ),
               ),
@@ -468,10 +519,11 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
   List<InvoiceCardRow> _context(
     AppLocalizations l10n,
     TradeInfo trade,
-    double? bondAmountPct,
-  ) {
+    double? bondAmountPct, {
+    required bool maker,
+  }) {
     final fiat = formatInvoiceFiat(l10n, trade);
-    final buying = takerIsBuying(trade.order.kind);
+    final buying = bondPayerIsBuying(trade.order.kind, maker: maker);
     final share = bondSharePercent(bondAmountPct);
     return [
       if (fiat != null)
@@ -510,10 +562,20 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     ),
   );
 
+  /// The way out of the window: a taker's cancel, a maker's abandon.
+  Widget _leaveLink(AppLocalizations l10n, {required bool maker}) =>
+      InvoiceCancelLink(
+        label: maker ? l10n.bondDontPublish : l10n.bondDontTake,
+        // Nothing is committed yet: not a destructive action.
+        danger: false,
+        onPressed: _canceling ? null : () => _cancel(maker: maker),
+      ).withAutomationId(AutomationIds.bondCancel);
+
   List<Widget> _footer(
     AppLocalizations l10n,
     String invoice, {
     required bool open,
+    required bool maker,
   }) {
     final book = OrderBookPalette.of(context);
     if (_waiting) {
@@ -570,12 +632,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       // 14b hides copy / share: whoever is reading is not scanning.
       if (!open) ...[const SizedBox(height: 9), secondaries],
       const SizedBox(height: 4),
-      InvoiceCancelLink(
-        label: l10n.bondDontTake,
-        // Nothing is committed yet: not a destructive action.
-        danger: false,
-        onPressed: _canceling ? null : _cancel,
-      ).withAutomationId(AutomationIds.bondCancel),
+      _leaveLink(l10n, maker: maker),
     ];
   }
 
@@ -587,8 +644,9 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     String invoice, {
     required int amountSats,
     required bool open,
+    required bool maker,
   }) {
-    if (_waiting) return _footer(l10n, invoice, open: open);
+    if (_waiting) return _footer(l10n, invoice, open: open, maker: maker);
     return [
       NwcPaymentWidget(
         bolt11: invoice,
@@ -598,17 +656,19 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
         onFallbackToManual: () => setState(() => _manualMode = true),
       ),
       const SizedBox(height: 4),
-      InvoiceCancelLink(
-        label: l10n.bondDontTake,
-        danger: false,
-        onPressed: _canceling ? null : _cancel,
-      ).withAutomationId(AutomationIds.bondCancel),
+      _leaveLink(l10n, maker: maker),
     ];
   }
 
   /// A row without its bolt11: restored on a fresh device. The daemon
-  /// answers a retake from the same key with the same invoice.
-  Widget _missingInvoice(AppLocalizations l10n, PreferredSizeWidget appBar) {
+  /// answers a taker's retake from the same key with the same invoice; a
+  /// maker has no such re-request upstream (docs/ANTI_ABUSE_BOND.md §6.5),
+  /// so that order can only be abandoned or left to expire.
+  Widget _missingInvoice(
+    AppLocalizations l10n,
+    PreferredSizeWidget appBar, {
+    required bool maker,
+  }) {
     final book = OrderBookPalette.of(context);
     return Scaffold(
       backgroundColor: book.bg,
@@ -620,39 +680,56 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              l10n.bondInvoiceMissing,
+              maker ? l10n.bondInvoiceMissingMaker : l10n.bondInvoiceMissing,
               textAlign: TextAlign.center,
               style: TextStyle(color: book.textSecondary),
             ),
             const SizedBox(height: 16),
-            InvoicePrimaryButton(
-              icon: Icons.refresh,
-              label: l10n.bondRequestAgain,
-              busy: _requesting,
-              onPressed: _requesting ? null : _requestAgain,
-            ),
+            if (!maker)
+              InvoicePrimaryButton(
+                icon: Icons.refresh,
+                label: l10n.bondRequestAgain,
+                busy: _requesting,
+                onPressed: _requesting ? null : _requestAgain,
+              ),
             const SizedBox(height: 4),
-            InvoiceCancelLink(
-              label: l10n.bondDontTake,
-              danger: false,
-              onPressed: _canceling ? null : _cancel,
-            ),
+            _leaveLink(l10n, maker: maker),
           ],
         ),
       ),
     );
   }
 
-  /// The bolt11 ran out unpaid: the order went back to the book (the core
-  /// wipes the row); a way back, never a dead QR.
-  Widget _expired(AppLocalizations l10n) => InvoiceTimeUpView(
-    title: l10n.bondExpiredTitle,
-    body: l10n.bondExpiredBody,
-    actionLabel: l10n.invoiceBackToBook,
-    onAction: () {
-      _navigated = true;
-      refreshTrades(ref);
-      context.go(AppRoute.home);
-    },
-  );
+  Future<void> _closeExpiredWindow() async {
+    try {
+      final closed = await ref.read(closeExpiredBondWindowProvider)(
+        widget.orderId,
+      );
+      if (closed && mounted) refreshTrades(ref);
+    } catch (e) {
+      debugPrint('[PayBondInvoiceScreen] expiry sweep failed: $e');
+    }
+  }
+
+  /// The window ran out unpaid: a taker's order went back to the book, a
+  /// maker's was never published (the core wipes the row either way); a way
+  /// back, never a dead QR.
+  Widget _expired(AppLocalizations l10n, {required bool maker}) {
+    // The core closes the window on its next sweep; asking it now keeps the
+    // row from lingering as "pay deposit" in My Trades until then.
+    if (!_sweptExpired) {
+      _sweptExpired = true;
+      unawaited(_closeExpiredWindow());
+    }
+    return InvoiceTimeUpView(
+        title: l10n.bondExpiredTitle,
+        body: maker ? l10n.bondExpiredBodyMaker : l10n.bondExpiredBody,
+        actionLabel: l10n.invoiceBackToBook,
+        onAction: () {
+          _navigated = true;
+          refreshTrades(ref);
+          context.go(AppRoute.home);
+        },
+      );
+  }
 }

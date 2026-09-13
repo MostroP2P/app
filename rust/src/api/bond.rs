@@ -12,6 +12,7 @@ use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::api::types::{BondPolicyInfo, BondSlashedEvent, OrderStatus, SlashCause};
+use crate::db::Storage;
 use crate::mostro::bond_policy;
 
 // ── Node policy ─────────────────────────────────────────────────────────────
@@ -45,6 +46,19 @@ pub async fn abandon_bonded_order(order_id: String) -> Result<()> {
     // Decided under the order's guard, on the row as it is then: a bond
     // that locked meanwhile is a published order, which is refused.
     crate::api::orders::abandon_maker_bond(&order_id).await
+}
+
+/// Close the bond window of `order_id` now if its deadline passed unpaid —
+/// what the periodic sweep would do on its next pass. The pay-bond screen
+/// calls it when its countdown ends, so a row does not linger as "pay
+/// deposit" in My Trades for up to a sweep interval. Returns whether the
+/// row was closed; a paid, published or still-live window is left alone.
+pub async fn close_expired_bond_window(order_id: String) -> Result<bool> {
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    let Some(trade) = db.get_trade_by_order_id(&order_id).await? else {
+        return Ok(false);
+    };
+    Ok(crate::api::orders::close_expired_bond_trade(&trade, crate::rt::unix_now()).await)
 }
 
 // ── Forfeiture notice ───────────────────────────────────────────────────────

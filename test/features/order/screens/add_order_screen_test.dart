@@ -7,6 +7,7 @@ import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/features/about/models/mostro_instance.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/order_side_provider.dart';
 import 'package:mostro/features/order/providers/payment_methods_provider.dart';
@@ -33,6 +34,7 @@ Future<ProviderContainer> _pump(
   String orderType = 'sell',
   Locale locale = const Locale('en'),
   MostroInstance node = _node,
+  int? bondEstimate,
 }) async {
   tester.view.physicalSize = const Size(400, 1600);
   tester.view.devicePixelRatio = 1.0;
@@ -40,6 +42,7 @@ Future<ProviderContainer> _pump(
   final container = createContainer(
     overrides: [
       mostroNodeProvider.overrideWith((ref) async => node),
+      bondEstimateProvider.overrideWith((ref, sats) async => bondEstimate),
       exchangeRateProvider.overrideWith(
         (ref, code) async => switch (code) {
           'USD' => 100000.0,
@@ -137,9 +140,11 @@ void main() {
       expect(_publishButton(tester).onPressed, isNotNull);
     });
 
-    testWidgets('a node that bonds makers cannot publish yet', (tester) async {
-      // docs/ANTI_ABUSE_BOND.md Phase 2 owns the maker flow; until then the
-      // daemon would hold the order for a bond this form cannot pay.
+    testWidgets('a node that bonds makers says so and still publishes', (
+      tester,
+    ) async {
+      // docs/ANTI_ABUSE_BOND.md §6.2: the deposit is asked before the tap;
+      // Publish lands on the pay-bond screen.
       final container = await _pump(
         tester,
         node: const MostroInstance(
@@ -154,14 +159,37 @@ void main() {
       await tester.enterText(_amountField(), '5000');
       container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
       await tester.pumpAndSettle();
-      expect(_publishButton(tester).onPressed, isNull);
+      expect(_publishButton(tester).onPressed, isNotNull);
       expect(
-        find.textContaining('asks makers for a deposit'),
+        find.textContaining('lock a refundable deposit before the order'),
         findsOneWidget,
       );
     });
 
-    testWidgets('a node that bonds takers only publishes as before',
+    testWidgets('names the estimated deposit once the amount is known',
+        (tester) async {
+      final container = await _pump(
+        tester,
+        node: const MostroInstance(
+          pubKey: 'npub-test',
+          minOrderAmount: 100,
+          maxOrderAmount: 100000000,
+          expirationHours: 24,
+          bondPolicy: BondPolicy.enabled,
+          bondApplyTo: BondApplyTo.make,
+        ),
+        bondEstimate: 1500,
+      );
+      await tester.enterText(_amountField(), '5000');
+      container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('refundable deposit of ≈ 1,500 sats'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a node that bonds takers only says nothing about a deposit',
         (tester) async {
       final container = await _pump(
         tester,
@@ -178,6 +206,7 @@ void main() {
       container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
       await tester.pumpAndSettle();
       expect(_publishButton(tester).onPressed, isNotNull);
+      expect(find.textContaining('refundable deposit'), findsNothing);
     });
 
     testWidgets('previews a market sell with premium and the node expiry',

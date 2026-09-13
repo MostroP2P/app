@@ -40,6 +40,11 @@ String localizedDaemonError(
       raw.contains('invalid Lightning invoice')) {
     return l10n.invoiceRejected;
   }
+  // A cancel during the maker's bond window: the daemon would refuse it
+  // (docs/ANTI_ABUSE_BOND.md §2.8); the pay-bond screen offers Abandon.
+  if (raw.contains('BondCancelNotAllowed')) {
+    return l10n.bondCancelNotAllowed;
+  }
   // The daemon never answered within the reply window.
   if (raw.contains('NoDaemonResponse')) {
     return l10n.sessionTimeoutMessage;

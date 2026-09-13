@@ -95,6 +95,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
       return;
     }
     final shouldNavigate = switch (liveStatus) {
+      // The maker's own bond window: this screen names it and offers the
+      // pay-bond screen; it is not a trade.
+      OrderStatus.waitingMakerBond ||
       OrderStatus.waitingBuyerInvoice ||
       OrderStatus.waitingPayment ||
       OrderStatus.expired ||
@@ -222,7 +225,17 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
                 onPressed: _close,
               ).withAutomationId(AutomationIds.orderConfirmHome),
             ),
-            if (canCancelOrder(status)) ...[
+            if (awaitsMakerBond(status)) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 12,
+                child: OrderPrimaryButton(
+                  label: l10n.tradeVerbPayBond,
+                  onPressed:
+                      () => context.push(AppRoute.payBondPath(widget.orderId)),
+                ).withAutomationId(AutomationIds.myOrderPayBond),
+              ),
+            ] else if (canCancelOrder(status)) ...[
               const SizedBox(width: 10),
               Expanded(
                 flex: 10,
