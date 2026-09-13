@@ -2,7 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:clock/clock.dart';
+
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/trades/models/trades_list_rules.dart';
@@ -30,6 +33,8 @@ class TradeRow {
     required this.paymentMethod,
     required this.startedAt,
     required this.peerHandle,
+    this.claimBadge = TradeClaimBadge.none,
+    this.claimOnly = false,
   });
 
   final String orderId;
@@ -57,6 +62,12 @@ class TradeRow {
   /// Null until the counterparty is known (the trade has not gone active)
   /// or while its pseudonym resolves.
   final String? peerHandle;
+
+  /// The payout claim on this order, if any (docs/ANTI_ABUSE_BOND.md §8.3).
+  final TradeClaimBadge claimBadge;
+
+  /// Built from the claim store alone: the trade row is gone.
+  final bool claimOnly;
 }
 
 const _terminal = {
@@ -81,12 +92,69 @@ const _successes = {
 /// terminal one would open a watcher per closed trade for nothing.
 final tradeRowsProvider = Provider<AsyncValue<List<TradeRow>>>((ref) {
   final canRate = !ref.watch(privacyModeProvider);
+  // Claims live in their own store: a trade with one carries its badge, a
+  // claim whose trade row is gone renders a row of its own (§8.3). A claim
+  // store that has not answered yet, or failed, shows the trades as they
+  // are.
+  final claims = ref.watch(bondClaimsProvider).valueOrNull ?? const [];
+  final now = clock.now().millisecondsSinceEpoch ~/ 1000;
+  final badges = <String, TradeClaimBadge>{
+    for (final claim in claims)
+      claim.orderId: tradeClaimBadge(
+        phase: claim.phase,
+        deadlineAt: platformInt64ToInt(claim.deadlineAt),
+        now: now,
+      ),
+  };
   return ref.watch(rawTradesProvider).whenData((trades) {
-    return [for (final trade in trades) _row(ref, trade, canRate: canRate)];
+    final rows = [
+      for (final trade in trades)
+        _row(
+          ref,
+          trade,
+          canRate: canRate,
+          claimBadge: badges[trade.order.id] ?? TradeClaimBadge.none,
+        ),
+    ];
+    final held = {for (final row in rows) row.orderId};
+    for (final claim in claims) {
+      if (held.contains(claim.orderId)) continue;
+      final badge = badges[claim.orderId] ?? TradeClaimBadge.none;
+      if (badge == TradeClaimBadge.none) continue;
+      rows.add(_claimRow(claim, badge));
+    }
+    return rows;
   });
 });
 
-TradeRow _row(Ref ref, rust_types.TradeInfo trade, {required bool canRate}) {
+/// A row for a claim with no trade behind it (§8.3): what the request said
+/// about the order, closed, with the claim's badge.
+TradeRow _claimRow(rust_types.BondClaim claim, TradeClaimBadge badge) =>
+    TradeRow(
+      orderId: claim.orderId,
+      status: rust_types.OrderStatus.canceled,
+      state: claimOnlyRowState(badge),
+      isSelling: false,
+      isMaker: false,
+      fiatAmount: claim.fiatAmount,
+      fiatAmountMin: null,
+      fiatAmountMax: null,
+      fiatCode: claim.fiatCode,
+      premium: 0,
+      amountSats: null,
+      paymentMethod: claim.paymentMethod,
+      startedAt: platformInt64ToInt(claim.slashedAt),
+      peerHandle: null,
+      claimBadge: badge,
+      claimOnly: true,
+    );
+
+TradeRow _row(
+  Ref ref,
+  rust_types.TradeInfo trade, {
+  required bool canRate,
+  required TradeClaimBadge claimBadge,
+}) {
   final order = trade.order;
   final persisted = order.status;
   final status =
@@ -101,11 +169,14 @@ TradeRow _row(Ref ref, rust_types.TradeInfo trade, {required bool canRate}) {
   return TradeRow(
     orderId: order.id,
     status: status,
-    state: TradeRowState.of(
-      status: status,
-      isBuyer: !isSelling,
-      ratedByMe: ratedByMe,
-      canRate: canRate,
+    state: applyClaimBadge(
+      TradeRowState.of(
+        status: status,
+        isBuyer: !isSelling,
+        ratedByMe: ratedByMe,
+        canRate: canRate,
+      ),
+      claimBadge,
     ),
     isSelling: isSelling,
     isMaker: order.isMine,
@@ -121,6 +192,7 @@ TradeRow _row(Ref ref, rust_types.TradeInfo trade, {required bool canRate}) {
         peer.isEmpty
             ? null
             : ref.watch(peerNymProvider(peer)).valueOrNull?.pseudonym,
+    claimBadge: claimBadge,
   );
 }
 

@@ -122,6 +122,14 @@ drops the order locally (nothing was published, nothing charged); a taker's
 reads `Don't take the order` and is a daemon cancel. Once the deposit is
 paid the daemon publishes the order and `/my_order` reads `pending`.
 
+**A claimable share reaches the user from three places.** The trade detail
+carries `trade.bondClaim` (labelled with the claim's phase) with
+`trade.bondClaim.open` while the claim is pending or in progress; the My
+Trades row shows a `Payout pending` / `Payout in progress` / `Payout paid`
+badge next to its chip, a pending one files the row under *Your turn* with the
+verb `Claim payout`, and a claim whose trade row is gone renders a row of its
+own; a notification (`bond.claim` type) opens the claim screen.
+
 **Claiming a slashed bond's share happens on `/bond_payout/:orderId`.**
 While `bond.claim.status` reads `pending`, the screen offers `bond.claim.text`
 (the bolt11 field, paste and scan) and `bond.claim.submit` (`Send invoice`),

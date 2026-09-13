@@ -194,6 +194,7 @@ String? chatContextLine(TradeRow? trade, AppLocalizations l10n, String locale) {
   final where = switch (trade.state.verb) {
     TradeRowVerb.addInvoice => l10n.chatTurnAddInvoice,
     TradeRowVerb.payBond => l10n.chatTurnPayBond,
+    TradeRowVerb.claimPayout => l10n.chatTurnClaimPayout,
     TradeRowVerb.payInvoice => l10n.chatTurnPayInvoice,
     TradeRowVerb.sendPayment => l10n.chatTurnSendPayment,
     TradeRowVerb.releaseSats => l10n.chatTurnRelease,

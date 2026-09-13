@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/trades/models/trades_list_rules.dart';
 import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/shared/providers/peer_nym_provider.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,9 +22,11 @@ import '../../../support/provider_harness.dart';
 ProviderContainer _container(
   List<TradeInfo> trades, {
   Map<String, OrderStatus> live = const {},
+  List<BondClaim> claims = const [],
 }) => createContainer(
   overrides: [
     rawTradesProvider.overrideWith((ref) async => trades),
+    bondClaimsProvider.overrideWith((ref) async => claims),
     for (final t in trades)
       tradeStatusProvider(
         t.order.id,
@@ -46,8 +50,63 @@ Future<List<TradeRow>> _rows(ProviderContainer container) async {
   return container.read(tradeRowsProvider).value!;
 }
 
+BondClaim _claim(String orderId, BondClaimPhase phase) => BondClaim(
+  orderId: orderId,
+  nodePubkey: 'node-a',
+  amountSats: BigInt.from(1500),
+  slashedAt: intToPlatformInt64(500),
+  // Far in the future: the clock never expires it in a test.
+  deadlineAt: intToPlatformInt64(4102444800),
+  phase: phase,
+  submittedInvoice: null,
+  fiatCode: 'VES',
+  fiatAmount: 100,
+  paymentMethod: 'PagoMovil',
+  updatedAt: intToPlatformInt64(600),
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  group('payout claims in the rows (docs/ANTI_ABUSE_BOND.md §8.3)', () {
+    test('a trade with a pending claim carries the badge and the verb',
+        () async {
+      final c = _container(
+        [fakeTrade(id: 'a', status: OrderStatus.canceled)],
+        claims: [_claim('order-a', BondClaimPhase.pending)],
+      );
+      final row = (await _rows(c)).single;
+      expect(row.claimBadge, TradeClaimBadge.payoutPending);
+      expect(row.claimOnly, isFalse);
+      expect(row.state.group, TradeGroup.needsAction);
+      expect(row.state.verb, TradeRowVerb.claimPayout);
+    });
+
+    test('a claim whose trade row is gone renders a row of its own',
+        () async {
+      final c = _container(
+        [fakeTrade(id: 'a', status: OrderStatus.success)],
+        claims: [_claim('order-gone', BondClaimPhase.acknowledged)],
+      );
+      final rows = await _rows(c);
+      expect(rows.map((r) => r.orderId), ['order-a', 'order-gone']);
+      final claimRow = rows.last;
+      expect(claimRow.claimOnly, isTrue);
+      expect(claimRow.claimBadge, TradeClaimBadge.payoutInProgress);
+      expect(claimRow.fiatCode, 'VES');
+      expect(claimRow.paymentMethod, 'PagoMovil');
+      expect(claimRow.startedAt, 500);
+      expect(claimRow.state.group, TradeGroup.closed);
+    });
+
+    test('an expired claim adds nothing', () async {
+      final c = _container(
+        const [],
+        claims: [_claim('order-x', BondClaimPhase.expired)],
+      );
+      expect(await _rows(c), isEmpty);
+    });
+  });
 
   group('tradeRowsProvider', () {
     test('the live status wins over the persisted one', () async {
