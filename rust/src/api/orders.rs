@@ -1971,10 +1971,11 @@ pub async fn cancel_order(order_id: String) -> Result<()> {
         trade_index,
     )
     .await?;
-    // Remembered so a `canceled` that follows during the bond window reads
-    // as the user's own, not as a lost lock race (bond_cancel_reason).
-    note_user_cancel(&order_id);
     publish_event_json(&event_json).await?;
+    // Remembered — only once the cancel actually left the device — so a
+    // `canceled` that follows during the bond window reads as the user's
+    // own, not as a lost lock race (bond_cancel_reason).
+    note_user_cancel(&order_id);
 
     apply_local_cancel(&order_id).await;
 
@@ -3502,15 +3503,21 @@ async fn dispatch_mostro_message(
                     return;
                 }
             };
-            let status = match crate::db::app_db::db() {
-                Some(db) => db
-                    .get_trade_by_order_id(&order_id)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|t| t.order.status),
+            let trade = match crate::db::app_db::db() {
+                Some(db) => db.get_trade_by_order_id(&order_id).await.ok().flatten(),
                 None => None,
             };
+            let status = trade.as_ref().map(|t| t.order.status.clone());
+            // The resolution message (`canceled`, `admin-*`) arrived first and
+            // provisionally marked the bond Released; this notice is the
+            // truth and must win on the durable row (§2.4).
+            if let Some(bond) = trade.as_ref().and_then(|t| t.bond.as_ref()) {
+                if bond.state != crate::api::types::BondState::Slashed {
+                    let mut slashed = bond.clone();
+                    slashed.state = crate::api::types::BondState::Slashed;
+                    persist_bond(&order_id, &slashed).await;
+                }
+            }
             let cause = crate::api::bond::infer_slash_cause(status.as_ref());
             log::info!(
                 "[orders] daemon-msg BondSlashed: order={order_id} amount={amount_sats} cause={cause:?}"
@@ -3597,12 +3604,16 @@ async fn dispatch_mostro_message(
 // ── Anti-abuse bond (docs/ANTI_ABUSE_BOND.md, Phase 1) ─────────────────────
 
 /// Whether an unpaid bond's bolt11 has lapsed. An undecodable invoice has
-/// no known expiry and never lapses locally.
+/// no known expiry and never lapses locally, and a bond already inferred
+/// `Locked` is not unpaid.
 fn bond_expired(trade: &crate::api::types::TradeInfo, now: i64) -> bool {
     trade.order.status == crate::api::types::OrderStatus::WaitingTakerBond
         && trade
             .bond
             .as_ref()
+            // A paid bond never lapses: the lock and the status advance are
+            // two writes, and a row caught between them is a live trade.
+            .filter(|b| b.state == crate::api::types::BondState::Requested)
             .and_then(|b| b.expires_at)
             .is_some_and(|at| now > at)
 }
@@ -3841,11 +3852,14 @@ pub async fn request_bond_invoice_again(
     if !matches!(reply, Ok(Ok(_))) {
         detach_request_waiter(&trade_pk_hex, request_id);
     }
-    let request = match reply {
+    // The dispatcher hands the per-order guard with the reply so nothing
+    // queued on the order can land between this reply and the persistence
+    // below: held until the refreshed bond is written.
+    let (request, _order_guard) = match reply {
         Ok(Ok(Wake {
             reply: DaemonReply::TakeAccepted { bond: Some(bond), .. },
-            ..
-        })) => bond,
+            order_guard,
+        })) => (bond, order_guard),
         Ok(Ok(Wake {
             reply: DaemonReply::TakeAccepted { action, .. },
             ..
@@ -3860,6 +3874,22 @@ pub async fn request_bond_invoice_again(
         })) => return Err(anyhow::anyhow!("{message}")),
         _ => return Err(anyhow::anyhow!("NoDaemonResponse")),
     };
+    // Under the guard: the row as it is now, not as it was before the
+    // round trip. A message handled before the reply may have moved it on
+    // (the bond locked, the trade started) — then there is nothing to
+    // refresh and the current row is the answer.
+    let trade = db
+        .get_trade_by_order_id(&order_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("TradeNotFound"))?;
+    if trade.order.status != OrderStatus::WaitingTakerBond
+        || trade
+            .bond
+            .as_ref()
+            .is_some_and(|b| b.state != BondState::Requested)
+    {
+        return Ok(trade);
+    }
     let mut bond = bond_requested(BondRole::Taker, request, crate::rt::unix_now());
     if let Some(existing) = &trade.bond {
         bond.requested_at = existing.requested_at;
@@ -11837,6 +11867,78 @@ mod tests {
         assert_eq!(opaque.expires_at, None);
         let row = bonded_taker_row("x", "lnbc1garbage", None);
         assert!(!bond_expired(&row, i64::MAX), "no known expiry never lapses");
+
+        // A bond inferred locked is paid: the row is a live trade caught
+        // between the bond write and the status write, never an expiry.
+        let mut locked = bonded_taker_row("x", BOND_BOLT11, Some(1_000));
+        assert!(bond_expired(&locked, 1_001));
+        locked.bond.as_mut().unwrap().state = crate::api::types::BondState::Locked;
+        assert!(!bond_expired(&locked, i64::MAX), "a paid bond never lapses");
+    }
+
+    /// The resolution message lands first and provisionally releases the
+    /// bond; the `bond-slashed` notice that follows is the truth and must
+    /// win on the durable row.
+    #[tokio::test]
+    async fn a_slash_notice_overrides_the_provisional_release() {
+        use mostro_core::message::{Action, Payload};
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut row = bonded_taker_row(&order_id, BOND_BOLT11, None);
+        row.order.status = crate::api::types::OrderStatus::Dispute;
+        row.bond.as_mut().unwrap().state = crate::api::types::BondState::Locked;
+        db.save_trade(&row).await.unwrap();
+
+        dispatch_mostro_message(
+            daemon_message(order_uuid, Action::AdminCanceled, None, 2_000),
+            "test-bond-slash",
+            "ff00ff45",
+            1,
+        )
+        .await;
+        let after_resolution = db.get_trade_by_order_id(&order_id).await.unwrap().unwrap();
+        assert_eq!(
+            after_resolution.bond.as_ref().map(|b| b.state),
+            Some(crate::api::types::BondState::Released),
+            "provisional: no slash notice yet"
+        );
+
+        let so = mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            None,
+            1_000,
+            "USD".to_string(),
+            None,
+            None,
+            100,
+            "Bank".to_string(),
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        dispatch_mostro_message(
+            daemon_message(order_uuid, Action::BondSlashed, Some(Payload::Order(so)), 2_001),
+            "test-bond-slash",
+            "ff00ff45",
+            1,
+        )
+        .await;
+        let after_notice = db.get_trade_by_order_id(&order_id).await.unwrap().unwrap();
+        assert_eq!(
+            after_notice.bond.as_ref().map(|b| b.state),
+            Some(crate::api::types::BondState::Slashed)
+        );
+        assert_eq!(
+            after_notice.order.status,
+            crate::api::types::OrderStatus::CanceledByAdmin,
+            "the notice never touches the trade's own status"
+        );
+        assert_eq!(after_notice.order.amount_sats, None, "nor its amount");
     }
 
     /// The daemon sends no "bond locked": the first trade-flow message is
