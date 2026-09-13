@@ -105,6 +105,11 @@ navigates away on its own. Taking a range order asks its amount in a dialog
 (`order.take.amount`, `order.take.amount.confirm`) right after
 `order.take.confirm`; a fixed order never shows the dialog.
 
+**A take parked on the anti-abuse bond offers `trade.payBond` (`Pay deposit`)
+and `trade.cancel`.** While `order.status` reads `waiting-bond`
+(`docs/ANTI_ABUSE_BOND.md`), `trade.payBond` opens `/pay_bond/:orderId`; the
+My Trades row carries the same verb and files the trade under "your turn".
+
 **The maker's own order ends on `order.confirm.home` (`Close`) and
 `trade.cancel`.** `trade.cancel` opens a confirmation sheet whose affirmative
 is `trade.cancel.confirm`; the button is absent once the order is expired,

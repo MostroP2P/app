@@ -187,23 +187,21 @@ void main() {
   });
 }
 
-/// Phase 0 of `docs/ANTI_ABUSE_BOND.md`: the bond window offers no daemon
-/// action yet. `waitingBond` merges the taker and maker waits, and the daemon
-/// rejects a maker's cancel during its bond (§2.8), so a Cancel here would be
-/// an action guaranteed to fail for one of the two sides. Phase 1 tells them
-/// apart with the pay-bond screen.
+/// `docs/ANTI_ABUSE_BOND.md` Phase 1: the bond window is the user's turn —
+/// pay the deposit — and a taker may still back out (the daemon releases
+/// their bond). The maker variant (no cancel) is Phase 2.
 void bondWindowTests() {
   group('waiting for the anti-abuse bond', () {
     for (final isBuyer in [true, false]) {
-      test('no primary and no secondary action (isBuyer: $isBuyer)', () {
+      test('pay the deposit, or back out (isBuyer: $isBuyer)', () {
         final v = TradeView.of(
           status: TradeStatus.waitingBond,
           isBuyer: isBuyer,
           canRate: true,
         );
-        expect(v.chip, TradeChip.waiting);
-        expect(v.primary, TradePrimaryAction.none);
-        expect(v.secondary, isEmpty);
+        expect(v.chip, TradeChip.yourTurn);
+        expect(v.primary, TradePrimaryAction.payBond);
+        expect(v.secondary, [TradeSecondaryAction.cancel]);
         expect(v.showsChat, isFalse);
         expect(v.timer, TradeTimerOwner.none);
       });

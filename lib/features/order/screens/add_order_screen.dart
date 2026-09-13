@@ -341,7 +341,15 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       isRange: isRange,
       amounts: amounts,
     );
-    if (_submitting || !valid || outOfRange != null || fiatOutOfRange != null) {
+    final makerBond = makerBondBlocks(
+      policy: node?.bondPolicy,
+      applyTo: node?.bondApplyTo,
+    );
+    if (_submitting ||
+        !valid ||
+        outOfRange != null ||
+        fiatOutOfRange != null ||
+        makerBond) {
       return;
     }
     setState(() => _submitting = true);
@@ -425,6 +433,10 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
         ? rate / usdRate
         : null;
 
+    final makerBond = makerBondBlocks(
+      policy: node?.bondPolicy,
+      applyTo: node?.bondApplyTo,
+    );
     final isValid = _checkValid(
           methods: methods,
           isMarket: isMarket,
@@ -433,13 +445,16 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
           amounts: amounts,
         ) &&
         satsRangeError == null &&
-        fiatRangeError == null;
-    final rangeWarning = _rangeWarning(
-      l10n: l10n,
-      satsRangeError: satsRangeError,
-      fiatRangeError: fiatRangeError,
-      fiatCode: fiatCode,
-    );
+        fiatRangeError == null &&
+        !makerBond;
+    final rangeWarning = makerBond
+        ? l10n.createOrderMakerBondUnsupported
+        : _rangeWarning(
+            l10n: l10n,
+            satsRangeError: satsRangeError,
+            fiatRangeError: fiatRangeError,
+            fiatCode: fiatCode,
+          );
 
     return Scaffold(
       backgroundColor: palette.bg,

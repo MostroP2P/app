@@ -177,6 +177,7 @@ class AutomationIds {
   static const String orderId = 'order.id';
   static const String orderStatus = 'order.status';
   static const String tradePayInvoice = 'trade.payInvoice';
+  static const String tradePayBond = 'trade.payBond';
   static const String tradeAddInvoice = 'trade.addInvoice';
   static const String tradeFiatSent = 'trade.fiatSent';
   static const String tradeRelease = 'trade.release';

@@ -780,7 +780,14 @@ class _TrustRow extends StatelessWidget {
     };
 
     final (String? bond, Color bondColor) = switch (s?.bondRequired) {
-      true => (l10n.nodeBondUnsupported, pal.warnInk),
+      // A bond node is a node this client can trade on (docs/ANTI_ABUSE_BOND.md);
+      // the row says what it costs, not that it is refused.
+      true => (
+        s?.bondPct == null
+            ? l10n.nodeBondNone
+            : l10n.nodeBondPct(_bondPct(s!.bondPct!)),
+        book.textSecondary,
+      ),
       false => (l10n.nodeBondNone, book.textSecondary),
       null => (null, book.textSecondary),
     };
@@ -819,3 +826,9 @@ class _TrustRow extends StatelessWidget {
     return (host == null || host.isEmpty) ? url : host;
   }
 }
+
+/// `2` / `1.5`: the node's bond percentage without a trailing `.0`.
+String _bondPct(double pct) =>
+    pct == pct.roundToDouble()
+        ? pct.round().toString()
+        : pct.toStringAsFixed(1);

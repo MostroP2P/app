@@ -32,13 +32,14 @@ Future<ProviderContainer> _pump(
   WidgetTester tester, {
   String orderType = 'sell',
   Locale locale = const Locale('en'),
+  MostroInstance node = _node,
 }) async {
   tester.view.physicalSize = const Size(400, 1600);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
   final container = createContainer(
     overrides: [
-      mostroNodeProvider.overrideWith((ref) async => _node),
+      mostroNodeProvider.overrideWith((ref) async => node),
       exchangeRateProvider.overrideWith(
         (ref, code) async => switch (code) {
           'USD' => 100000.0,
@@ -131,6 +132,49 @@ void main() {
       await tester.pumpAndSettle();
       expect(_publishButton(tester).onPressed, isNull);
 
+      container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
+      await tester.pumpAndSettle();
+      expect(_publishButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('a node that bonds makers cannot publish yet', (tester) async {
+      // docs/ANTI_ABUSE_BOND.md Phase 2 owns the maker flow; until then the
+      // daemon would hold the order for a bond this form cannot pay.
+      final container = await _pump(
+        tester,
+        node: const MostroInstance(
+          pubKey: 'npub-test',
+          minOrderAmount: 100,
+          maxOrderAmount: 100000000,
+          expirationHours: 24,
+          bondPolicy: BondPolicy.enabled,
+          bondApplyTo: BondApplyTo.both,
+        ),
+      );
+      await tester.enterText(_amountField(), '5000');
+      container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
+      await tester.pumpAndSettle();
+      expect(_publishButton(tester).onPressed, isNull);
+      expect(
+        find.textContaining('asks makers for a deposit'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a node that bonds takers only publishes as before',
+        (tester) async {
+      final container = await _pump(
+        tester,
+        node: const MostroInstance(
+          pubKey: 'npub-test',
+          minOrderAmount: 100,
+          maxOrderAmount: 100000000,
+          expirationHours: 24,
+          bondPolicy: BondPolicy.enabled,
+          bondApplyTo: BondApplyTo.take,
+        ),
+      );
+      await tester.enterText(_amountField(), '5000');
       container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
       await tester.pumpAndSettle();
       expect(_publishButton(tester).onPressed, isNotNull);

@@ -20,6 +20,8 @@ void main() {
     // that moves the trade (handoff 8): the list promises what it keeps.
     for (final (status, isBuyer, verb) in [
       (OrderStatus.waitingBuyerInvoice, true, TradeRowVerb.addInvoice),
+      (OrderStatus.waitingTakerBond, true, TradeRowVerb.payBond),
+      (OrderStatus.waitingTakerBond, false, TradeRowVerb.payBond),
       (OrderStatus.waitingPayment, false, TradeRowVerb.payInvoice),
       (OrderStatus.active, true, TradeRowVerb.sendPayment),
       (OrderStatus.fiatSent, false, TradeRowVerb.releaseSats),

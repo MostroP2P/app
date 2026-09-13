@@ -36,6 +36,7 @@ enum TradeChipLabel {
 enum TradeRowVerb {
   none,
   addInvoice,
+  payBond,
   payInvoice,
   sendPayment,
   releaseSats,
@@ -87,6 +88,7 @@ class TradeRowState {
 
     final verb = switch (view.primary) {
       TradePrimaryAction.addInvoice => TradeRowVerb.addInvoice,
+      TradePrimaryAction.payBond => TradeRowVerb.payBond,
       TradePrimaryAction.payHoldInvoice => TradeRowVerb.payInvoice,
       TradePrimaryAction.fiatSent => TradeRowVerb.sendPayment,
       TradePrimaryAction.release => TradeRowVerb.releaseSats,
@@ -113,8 +115,8 @@ class TradeRowState {
       TradeStatus.waitingInvoice => (inProgress, TradeChipLabel.waitingInvoice),
       // The buyer waits for the seller to lock the sats.
       TradeStatus.waitingPayment => (inProgress, TradeChipLabel.waitingPayment),
-      // `waitingBond` gets its own chip and verb with the pay-bond screen
-      // (docs/ANTI_ABUSE_BOND.md Phase 1); until then it reads as in progress.
+      // `waitingBond` never reaches here: it always carries the pay-bond
+      // verb above (docs/ANTI_ABUSE_BOND.md §6.1).
       TradeStatus.loading ||
       TradeStatus.inProgress ||
       TradeStatus.waitingBond => (inProgress, TradeChipLabel.inProgress),

@@ -89,11 +89,10 @@ bool? acceptsMyFiat(MostroNodeStats stats, String? myFiat) {
 /// Why a card cannot be selected, if it cannot. Stats still loading (or
 /// failed) never block a selection: missing data is shown as `—`, not as a
 /// verdict.
-enum NodeBlocker { bondUnsupported, unreachable }
+enum NodeBlocker { unreachable }
 
 NodeBlocker? blockerOf(MostroNodeStats? stats, String? myFiat, DateTime now) {
   if (stats == null) return null;
-  if (stats.bondRequired == true) return NodeBlocker.bondUnsupported;
   if (availabilityOf(stats, myFiat, now) == NodeAvailability.unreachable) {
     return NodeBlocker.unreachable;
   }

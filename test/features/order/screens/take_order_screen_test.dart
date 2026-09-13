@@ -8,7 +8,10 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_detail_palette.dart';
+import 'package:mostro/features/about/models/mostro_instance.dart' as instance;
+import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
@@ -27,11 +30,12 @@ const _book = OrderBookPalette.dark;
 /// Pumps the take-order screen over a book fed by [books], with the node's
 /// rate and the (absent) trade role stubbed. 1 000 ARS is 1 000 sats at
 /// the stubbed rate, so the estimates are easy to read.
-typedef _Take = Future<TradeInfo> Function({
-  required String orderId,
-  required TradeRole role,
-  double? fiatAmount,
-});
+typedef _Take =
+    Future<TradeInfo> Function({
+      required String orderId,
+      required TradeRole role,
+      double? fiatAmount,
+    });
 
 Future<StreamController<List<OrderItem>>> _pump(
   WidgetTester tester, {
@@ -39,6 +43,8 @@ Future<StreamController<List<OrderItem>>> _pump(
   bool isBuying = true,
   double? rate = 100000000,
   _Take? take,
+  instance.MostroInstance? node,
+  int? bondEstimate,
 }) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
@@ -54,6 +60,8 @@ Future<StreamController<List<OrderItem>>> _pump(
       tradeRoleLookupProvider.overrideWithValue((_) async => null),
       if (take != null) takeOrderActionProvider.overrideWithValue(take),
       exchangeRateProvider.overrideWith((ref, code) async => rate),
+      mostroNodeProvider.overrideWith((ref) async => node),
+      bondEstimateProvider.overrideWith((ref, sats) async => bondEstimate),
       fiatCurrenciesProvider.overrideWith(
         (ref) async => const [
           FiatCurrency(code: 'ARS', name: 'Argentine Peso', flag: '🇦🇷'),
@@ -136,7 +144,10 @@ void main() {
         expect(find.text('Mercado Pago'), findsOneWidget);
         expect(find.text('3m ago'), findsOneWidget);
         expect(find.text('09150348…99b5'), findsOneWidget);
-        expect(find.textContaining('the seller locks the sats'), findsOneWidget);
+        expect(
+          find.textContaining('the seller locks the sats'),
+          findsOneWidget,
+        );
         expect(find.text('Take order'), findsOneWidget);
         expect(find.text('Close'), findsNothing);
       });
@@ -221,8 +232,9 @@ void main() {
   });
 
   group('TakeOrderScreen selling BTC', () {
-    testWidgets('names the buyer and what the taker hands over',
-        (tester) async {
+    testWidgets('names the buyer and what the taker hands over', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(tester, order: _order(kind: 'buy'), isBuying: false);
 
@@ -239,15 +251,15 @@ void main() {
   group('TakeOrderScreen taking', () {
     final en = AppLocalizationsEn();
 
-    testWidgets('shows Taking… on a lime tint while the relay answers',
-        (tester) async {
+    testWidgets('shows Taking… on a lime tint while the relay answers', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         final reply = Completer<TradeInfo>();
         await _pump(
           tester,
           order: _order(),
-          take: ({required orderId, required role, fiatAmount}) =>
-              reply.future,
+          take: ({required orderId, required role, fiatAmount}) => reply.future,
         );
 
         await tester.tap(find.text('Take order'));
@@ -261,14 +273,16 @@ void main() {
       });
     });
 
-    testWidgets('dies in place when the daemon says it was already taken',
-        (tester) async {
+    testWidgets('dies in place when the daemon says it was already taken', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(
           tester,
           order: _order(),
-          take: ({required orderId, required role, fiatAmount}) async =>
-              throw Exception('AnyhowException(OrderAlreadyTaken)'),
+          take:
+              ({required orderId, required role, fiatAmount}) async =>
+                  throw Exception('AnyhowException(OrderAlreadyTaken)'),
         );
 
         await tester.tap(find.text('Take order'));
@@ -280,32 +294,74 @@ void main() {
       });
     });
 
-    testWidgets('explains an unsupported bond and keeps the button',
-        (tester) async {
+    testWidgets('warns about the deposit on a node that bonds takers', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(
           tester,
           order: _order(),
-          take: ({required orderId, required role, fiatAmount}) async =>
-              throw Exception('AnyhowException(BondRequired)'),
+          node: const instance.MostroInstance(
+            pubKey: 'node',
+            bondPolicy: instance.BondPolicy.enabled,
+            bondApplyTo: instance.BondApplyTo.take,
+          ),
+          bondEstimate: 1500,
         );
-
-        await tester.tap(find.text('Take order'));
-        await tester.pumpAndSettle();
-
-        expect(find.text(en.bondRequired), findsOneWidget);
+        expect(
+          find.textContaining(en.takeOrderBondNoticeEstimate('1,500')),
+          findsOneWidget,
+        );
         expect(find.text('Take order'), findsOneWidget);
       });
     });
 
-    testWidgets('maps a daemon timeout through the shared error table',
-        (tester) async {
+    testWidgets('names the deposit without a figure when none is estimable', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(
           tester,
           order: _order(),
-          take: ({required orderId, required role, fiatAmount}) async =>
-              throw Exception('AnyhowException(NoDaemonResponse)'),
+          node: const instance.MostroInstance(
+            pubKey: 'node',
+            bondPolicy: instance.BondPolicy.enabled,
+            bondApplyTo: instance.BondApplyTo.both,
+          ),
+        );
+        expect(find.textContaining(en.takeOrderBondNotice), findsOneWidget);
+      });
+    });
+
+    testWidgets(
+      'says nothing about a deposit when the node bonds makers only',
+      (tester) async {
+        await withClock(Clock.fixed(kFakeNow), () async {
+          await _pump(
+            tester,
+            order: _order(),
+            node: const instance.MostroInstance(
+              pubKey: 'node',
+              bondPolicy: instance.BondPolicy.enabled,
+              bondApplyTo: instance.BondApplyTo.make,
+            ),
+            bondEstimate: 1500,
+          );
+          expect(find.textContaining('deposit'), findsNothing);
+        });
+      },
+    );
+
+    testWidgets('maps a daemon timeout through the shared error table', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(),
+          take:
+              ({required orderId, required role, fiatAmount}) async =>
+                  throw Exception('AnyhowException(NoDaemonResponse)'),
         );
 
         await tester.tap(find.text('Take order'));

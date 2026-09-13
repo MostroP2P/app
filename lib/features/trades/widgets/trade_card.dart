@@ -124,6 +124,7 @@ class TradeCard extends ConsumerWidget {
   /// screens, the rest are the trade screen's primary button.
   String _verbRoute() => switch (row.state.verb) {
     TradeRowVerb.addInvoice => AppRoute.addInvoicePath(row.orderId),
+    TradeRowVerb.payBond => AppRoute.payBondPath(row.orderId),
     TradeRowVerb.payInvoice => AppRoute.payInvoicePath(row.orderId),
     _ => AppRoute.tradeDetailPath(row.orderId),
   };
@@ -131,6 +132,7 @@ class TradeCard extends ConsumerWidget {
   static String verbText(TradeRowVerb verb, AppLocalizations l10n) =>
       switch (verb) {
         TradeRowVerb.addInvoice => l10n.tradeVerbAddInvoice,
+        TradeRowVerb.payBond => l10n.tradeVerbPayBond,
         TradeRowVerb.payInvoice => l10n.tradeVerbPayInvoice,
         TradeRowVerb.sendPayment => l10n.tradeVerbSendPayment,
         TradeRowVerb.releaseSats => l10n.tradeVerbReleaseSats,
