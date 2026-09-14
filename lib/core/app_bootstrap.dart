@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,12 +10,16 @@ import 'package:mostro/core/storage/db_location.dart';
 import 'package:mostro/core/storage/app_data_dir.dart'
     if (dart.library.html) 'package:mostro/core/storage/app_data_dir_web.dart';
 import 'package:mostro/core/app.dart';
+import 'package:mostro/core/font_licenses.dart';
 import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/core/startup_failure.dart';
 import 'package:mostro/core/startup_sequence.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/core/test_environment.dart';
+import 'package:mostro/core/lifecycle/app_lifecycle_service.dart';
+import 'package:mostro/core/lifecycle/resume_resync.dart';
 import 'package:mostro/core/web/bridge_probe.dart';
+import 'package:mostro/core/web/store_probe.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
@@ -29,9 +34,12 @@ import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show SlashCause, BondSlashedEvent;
+    show BondClaimPhase, BondClaimUpdate, BondSlashedEvent, SlashCause;
 import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart'
+    show rawTradesProvider;
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
 /// Starts the application.
@@ -79,29 +87,34 @@ Future<void> _startup(
   StartupSequence startup, {
   List<String> seedRelays = const [],
 }) async {
+  // The bundled fonts ship under the SIL Open Font License, which allows it
+  // only alongside their notices; this adds them to Flutter's licence page.
+  // It registers a loader rather than reading the files, and a failure leaves
+  // that page two entries short — no reason to stop the app from opening.
+  await startup.optional('registering font licences', () async {
+    registerFontLicenses();
+  });
+
   // Push notifications only — the app trades, chats and settles without them.
   //
-  // The one optional step that handles anything itself: this repo ships a
-  // placeholder Firebase config, so every run throws UnsupportedError here.
-  // That is an expected state, not a failure, and letting it reach the helper
-  // would make every single run log a "failed" nobody reads by the time it
-  // means something. Caught below and reported as what it is; everything else
-  // falls through to the helper.
+  // The one optional step that handles anything itself: there is no Firebase
+  // configuration for Linux, so `DefaultFirebaseOptions.currentPlatform` throws
+  // UnsupportedError there on every run (web, Android, iOS, macOS and Windows
+  // return options; see lib/firebase_options.dart). That is an expected state
+  // on Linux rather than a failure, and letting it reach the helper would log
+  // a "failed" on every Linux launch. Caught below and reported as what it is;
+  // everything else falls through to the helper.
   await startup.optional('setting up notifications', () async {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
     } on UnsupportedError catch (e) {
-      // The placeholder config, which is an expected state rather than a
-      // failure. Swallowed here so it does not reach the helper's generic
-      // "failed" line, which every run would then log for nothing.
       debugPrint(
-        '[startup] Firebase not configured — push notifications disabled: $e',
+        '[startup] Firebase not configured for this platform — push '
+        'notifications disabled: $e',
       );
     }
-    // Anything else — a third-party JS SDK's config, network or internals —
-    // falls through to the helper and is reported as the degradation it is.
   });
 
   await startup.required('loading the engine', RustLib.init);
@@ -140,8 +153,8 @@ Future<void> _startup(
   // without it the session is memory-only — trade keys and roles do not
   // survive a restart — but orders still browse and relay messages still
   // arrive, and every Rust caller handles a missing database. Runs on the web
-  // too: since #408 that is where web persistence lives, so skipping it there
-  // would quietly take out every feature built on top of it.
+  // too: since #408 that is where web persistence lives. With this step
+  // broken, a trade taken in Chrome is gone after a reload.
   await startup.optional('opening the local database', () async {
     final location = databaseLocation(
       isWeb: kIsWeb,
@@ -183,7 +196,18 @@ Future<void> _startup(
     // capability fetch already resolves against them. Nothing can have written
     // them in a release build (docs/cashu/README.md §4.3).
     await escrow_api.rehydrateEscrowOverrides();
+    // A Mortsom build may ask the daemon for a short order expiry; set
+    // before any order can be created.
+    final orderExpiry = TestEnvironment.orderExpirySecs;
+    if (orderExpiry != null) {
+      await settings_api.setTestOrderExpiry(secs: BigInt.from(orderExpiry));
+      debugPrint('[main] Mortsom build: orders expire after ${orderExpiry}s');
+    }
     markBridgeReady();
+    // Only when the smoke test asks (SMOKE_BOND_STORE=1), and not awaited:
+    // it seeds bond rows and checks they come back through the bridge — see
+    // lib/core/web/store_probe.dart. A normal launch skips it entirely.
+    if (kIsWeb && storeProbeRequested()) unawaited(publishStoreProbe());
   } catch (e) {
     debugPrint('[main] rehydrate active Mostro node failed: $e');
     markBridgeFailed(e);
@@ -227,14 +251,28 @@ Future<void> _startup(
   await startup.optional('subscribing to bond notices', () async {
     bondSlashedStream = await bond_api.onBondSlashed();
   });
+  // The other side of a slash: a share of a confiscated bond that is yours to
+  // claim, and the payout arriving. Optional for the same reason as the line
+  // above, and a claim missed here is not lost — My Trades and the trade
+  // detail read claims from the core, not from this stream.
+  bond_api.BondClaimStream? bondClaimStream;
+  await startup.optional('subscribing to bond claim updates', () async {
+    bondClaimStream = await bond_api.onBondClaimUpdated();
+  });
 
   // Initialize the Nostr relay pool. `null` means the compiled-in defaults
   // (config.rs); a non-empty seed list replaces them entirely.
   // This must happen before any Nostr/order API calls.
-  // Optional because the app already knows how to be disconnected: it shows
-  // connection state, and Settings can switch node or edit the relay list. An
-  // app that opens offline can be fixed from inside; one that does not open
-  // cannot be fixed at all.
+  // Optional — measured with this step forced to fail. The app opens, and the
+  // secret words can still be viewed and backed up: they come from secure
+  // storage, not from relays, and that is the one thing worth keeping
+  // reachable when the network cannot start.
+  //
+  // Nothing that needs relays works, though. Adding a relay in Settings fails,
+  // because the relay API goes through a pool that never started; the order
+  // book spins with no message, and My Trades shows empty although the trades
+  // are stored. Those screens have no "disconnected" state yet — that is what
+  // makes this degradation confusing, not the decision to open.
   await startup.optional('connecting to the network', () async {
     await nostr_api.initialize(relays: seedRelays.isEmpty ? null : seedRelays);
   });
@@ -285,6 +323,15 @@ Future<void> _startup(
 
     final slashed = bondSlashedStream;
     if (slashed != null) _consumeBondSlashed(slashed, container);
+    final claims = bondClaimStream;
+    if (claims != null) _consumeBondClaims(claims, container);
+
+    // Resume = resync in Rust, then re-hydrate every notifier from the bridge
+    // (issue #308, docs/PUSH_NOTIFICATIONS.md §10). Attached before runApp so
+    // the first suspension is observed too.
+    AppLifecycleService(
+      onResume: ResumeResync(container: container).run,
+    ).attach();
     return container;
   });
 
@@ -375,6 +422,11 @@ void _consumeBondSlashed(
         break;
       }
       try {
+        // The core wrote `bond.state = Slashed` on the row; the cached
+        // trades still carry the provisional `Released` from the
+        // resolution that preceded the notice. Re-read so the durable
+        // notice on the trade detail appears now, not on the next refresh.
+        container.invalidate(rawTradesProvider);
         // Only stable data is stored; the copy is localized at render time.
         await container
             .read(notificationsProvider.notifier)
@@ -391,6 +443,53 @@ void _consumeBondSlashed(
             );
       } catch (e, st) {
         debugPrint('[bond-slashed] failed to record notice: $e\n$st');
+      }
+    }
+  });
+}
+
+/// Turns the core's claim phase changes into notifications
+/// (docs/ANTI_ABUSE_BOND.md §8.5): a share to claim (a new claim or a
+/// re-prompt), and a payout received. Runs for the process lifetime.
+void _consumeBondClaims(
+  bond_api.BondClaimStream stream,
+  ProviderContainer container,
+) {
+  Future.microtask(() async {
+    while (true) {
+      final BondClaimUpdate update;
+      try {
+        update = await stream.next();
+      } catch (e, st) {
+        debugPrint('[bond-claim] stream closed: $e\n$st');
+        break;
+      }
+      if (update.phase != BondClaimPhase.pending &&
+          update.phase != BondClaimPhase.completed) {
+        continue;
+      }
+      try {
+        // The claim the update names, never another node's claim for the
+        // same order that happens to be open.
+        final claim = await bond_api.getBondClaimFrom(
+          nodePubkey: update.nodePubkey,
+          orderId: update.orderId,
+        );
+        if (claim == null) continue;
+        await container
+            .read(notificationsProvider.notifier)
+            .addIfNew(
+              NotificationModel.bondClaim(
+                orderId: update.orderId,
+                nodePubkey: claim.nodePubkey,
+                slashedAt: platformInt64ToInt(claim.slashedAt),
+                amountSats: claim.amountSats.toInt(),
+                completed: update.phase == BondClaimPhase.completed,
+                updatedAt: platformInt64ToInt(claim.updatedAt),
+              ),
+            );
+      } catch (e, st) {
+        debugPrint('[bond-claim] failed to record notice: $e\n$st');
       }
     }
   });

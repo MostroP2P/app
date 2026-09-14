@@ -35,6 +35,15 @@ pub enum OrderStatus {
     CompletedByAdmin,
     Dispute,
     InProgress,
+    /// The taker's anti-abuse bond is outstanding: the daemon matched the
+    /// take but the trade flow has not started. Publicly the order is still
+    /// `pending` (NIP-69 bucket), so it stays takeable by others until a bond
+    /// locks. See `docs/ANTI_ABUSE_BOND.md` §2.7.
+    WaitingTakerBond,
+    /// The maker's anti-abuse bond is outstanding: the order exists on the
+    /// daemon but has **no** kind 38383 event yet and is invisible in the
+    /// order book until the bond locks. See `docs/ANTI_ABUSE_BOND.md` §2.8.
+    WaitingMakerBond,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -120,6 +129,71 @@ pub enum ConnectionState {
     Online,
     Offline,
     Reconnecting,
+}
+
+/// The device token's platform, as the push server wants it
+/// (docs/PUSH_NOTIFICATIONS.md §3.1, §3.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PushPlatform {
+    Android,
+    Ios,
+    Web,
+}
+
+impl PushPlatform {
+    /// The wire value of `platform`.
+    pub fn as_wire(&self) -> &'static str {
+        match self {
+            PushPlatform::Android => "android",
+            PushPlatform::Ios => "ios",
+            PushPlatform::Web => "web",
+        }
+    }
+
+    pub fn from_wire(value: &str) -> Option<Self> {
+        match value {
+            "android" => Some(PushPlatform::Android),
+            "ios" => Some(PushPlatform::Ios),
+            "web" => Some(PushPlatform::Web),
+            _ => None,
+        }
+    }
+}
+
+/// What the notification settings screen shows about push registration
+/// (docs/PUSH_NOTIFICATIONS.md §8.1, §9.1). Capability (can this platform
+/// push at all) and permission are Dart's to know; this is the token and
+/// what the server holds.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PushStatus {
+    /// The master toggle.
+    pub enabled: bool,
+    /// A device token is held (Dart handed one over).
+    pub has_token: bool,
+    /// Trade pubkeys the server currently holds a token for.
+    pub registered: u32,
+    /// Trade pubkeys that should be registered right now.
+    pub wanted: u32,
+    /// Unix seconds of the most recent accepted registration.
+    pub last_success_at: Option<i64>,
+    /// Stable marker of the last failure, never prose: `PushServerUnreachable`,
+    /// `PushRateLimited`, `PushNodeRefused`, `PushBadRequest`.
+    pub last_error: Option<String>,
+    /// Unix seconds until which the operator's `403` for the active node
+    /// keeps its keys unregistered; `None` when not refused.
+    pub node_refused_until: Option<i64>,
+}
+
+/// What one `resync` pass found and did (docs/PUSH_NOTIFICATIONS.md §10).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ResyncOutcome {
+    /// The pool reported `Online` once the reconnect nudge settled.
+    pub online: bool,
+    /// Queued outgoing events published by this pass.
+    pub flushed: u32,
+    /// This call did no work of its own: a pass that was already running
+    /// when it arrived finished meanwhile, and its result is what it reports.
+    pub coalesced: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -286,6 +360,100 @@ pub struct TradeInfo {
     /// deserializable.
     #[serde(default)]
     pub rated_at: Option<i64>,
+    /// Anti-abuse bond attached to this trade, when the node required one
+    /// (`docs/ANTI_ABUSE_BOND.md` §7.1). `None` on nodes without bonds and
+    /// on rows written before the field existed (`#[serde(default)]`).
+    #[serde(default)]
+    pub bond: Option<BondInfo>,
+}
+
+/// Who posted the bond — a *posting-timing* role, not the buyer/seller side
+/// (`docs/ANTI_ABUSE_BOND.md` §2.3).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum BondRole {
+    Maker,
+    Taker,
+}
+
+/// Client-side view of a bond's lifecycle. The daemon owns the real state
+/// machine; this mirrors what the client can observe from the wire.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum BondState {
+    /// `pay-bond-invoice` received; the bolt11 has not been paid.
+    Requested,
+    /// Paid. Inferred from the first trade-flow message after the request —
+    /// the daemon sends no explicit "bond locked" message.
+    Locked,
+    /// The trade ended without a slash notice: the HTLC was cancelled and the
+    /// sats never left the user's wallet.
+    Released,
+    /// `bond-slashed` received for this order.
+    Slashed,
+}
+
+/// The bond the daemon asked this user to lock for one trade.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BondInfo {
+    pub role: BondRole,
+    /// Bond amount in satoshis, as sent by the daemon (never computed here).
+    pub amount_sats: u64,
+    /// The bond bolt11. Persisted so a restart lands back on the pay screen;
+    /// `None` only after a fresh-device restore, which carries no invoice.
+    pub invoice: Option<String>,
+    pub state: BondState,
+    /// Unix seconds when `pay-bond-invoice` was received.
+    pub requested_at: i64,
+    /// Unix seconds when the bolt11 stops being payable, decoded from the
+    /// invoice itself. `None` when it could not be decoded — then no local
+    /// expiry runs.
+    pub expires_at: Option<i64>,
+    /// Unix seconds when the bond was inferred locked.
+    pub locked_at: Option<i64>,
+}
+
+/// Whether the active node enforces anti-abuse bonds. Three states on
+/// purpose: an old daemon that publishes no `bond_enabled` tag is
+/// `Unsupported`, which is not the same as a node that turned the feature off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum BondPolicy {
+    /// No `bond_enabled` tag: the daemon predates the feature.
+    #[default]
+    Unsupported,
+    /// `bond_enabled = false`.
+    Disabled,
+    /// `bond_enabled = true`; the other fields of [`BondPolicyInfo`] are live.
+    Enabled,
+}
+
+/// Which side of a trade must lock a bond (`bond_apply_to` tag).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum BondApplyTo {
+    /// Only the taker, at take time.
+    Take,
+    /// Only the maker, before the order is published.
+    Make,
+    /// Both sides.
+    Both,
+}
+
+/// The bond policy a node advertises in its kind 38385 info event
+/// (`docs/ANTI_ABUSE_BOND.md` §3.4). Every parameter is `None` unless
+/// `policy == Enabled` **and** the tag parsed within its valid range, so a
+/// consumer can key off nullability alone.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct BondPolicyInfo {
+    pub policy: BondPolicy,
+    pub apply_to: Option<BondApplyTo>,
+    /// `bond_amount_pct` as the wire **fraction** (`0.01` = 1 %), `>= 0`.
+    pub amount_pct: Option<f64>,
+    /// `bond_base_amount_sats`: floor of the bond, in sats.
+    pub base_amount_sats: Option<u64>,
+    /// Whether a missed waiting-state timeout can slash a bond on this node.
+    pub slash_on_waiting_timeout: Option<bool>,
+    /// Fraction of a slashed bond the node keeps, in `[0, 1]`.
+    pub slash_node_share_pct: Option<f64>,
+    /// Days the winning counterparty has, from the slash, to claim its share.
+    pub payout_claim_window_days: Option<u32>,
 }
 
 /// A trade lifecycle change pushed from Rust so the UI does not have to poll
@@ -299,6 +467,29 @@ pub struct TradeInfo {
 pub struct TradeUpdate {
     pub order_id: String,
     pub status: OrderStatus,
+    /// Why the status changed, when the wire action alone is ambiguous
+    /// (`docs/ANTI_ABUSE_BOND.md` §6.1). `None` from every emitter that has
+    /// nothing to add.
+    #[serde(default)]
+    pub reason: Option<TradeUpdateReason>,
+}
+
+/// The cause behind a `TradeUpdate` whose wire action carries none.
+///
+/// A daemon `canceled` during the taker's bond window means one of three
+/// things and the message does not say which; the local order book and the
+/// pending-cancel registry do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum TradeUpdateReason {
+    /// This client sent the cancel itself.
+    UserCanceled,
+    /// The maker cancelled the order (its wire status is `canceled`).
+    MakerCanceled,
+    /// Another taker locked their bond first: the order left the `pending`
+    /// bucket (or is still there for someone else to take).
+    BondLostRace,
+    /// The bond bolt11 expired unpaid; the local row was closed.
+    BondExpired,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -380,6 +571,95 @@ pub struct NymIdentity {
     pub color_hue: u16,
 }
 
+/// What a payment destination typed, pasted or scanned by the user turns out
+/// to be (`api::invoice::classify_payment_destination`). The one place that
+/// decides "is this an invoice or a Lightning address": the add-invoice
+/// screen, `send_invoice` and the NWC payer all ask it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PaymentDestination {
+    /// Nothing but whitespace (or a bare `lightning:` scheme).
+    Empty,
+    /// A well-formed, correctly signed BOLT11 invoice.
+    Bolt11(Bolt11Summary),
+    /// Starts like an invoice (`lnbc…` / `lntb…`) but does not decode: a
+    /// typo or a truncated copy.
+    MalformedBolt11,
+    /// `user@domain` (LUD-16), normalized to lower case.
+    LightningAddress(String),
+    /// Anything else — including an LNURL, which the submission path does
+    /// not resolve.
+    Unknown,
+}
+
+/// Why a buyer invoice would be refused, locally or by the daemon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum InvoiceProblem {
+    /// Neither an invoice nor a Lightning address.
+    Unrecognized,
+    /// Starts like an invoice but does not decode.
+    Malformed,
+    /// Decodes, but its amount is not the trade's.
+    WrongAmount,
+    /// Its expiry has already passed.
+    Expired,
+    /// Unexpired, but with less remaining lifetime than the node demands
+    /// (`invoice_expiration_window`): mostrod refuses it as invalid.
+    ExpiresTooSoon,
+    /// Decodes, but for another chain than the node's.
+    WrongNetwork,
+}
+
+/// The verdict on a buyer's payment destination before it is submitted
+/// (`api::invoice::check_buyer_invoice`). Mirrors what mostrod's
+/// `is_valid_invoice` will decide, so the user hears it here first.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum InvoiceVerdict {
+    /// Nothing typed: nothing to say and nothing to submit.
+    Empty,
+    /// Nothing to say locally — an open-amount invoice, or the trade amount
+    /// is not known yet — so submission is allowed and the daemon decides.
+    Unverified,
+    /// A Lightning address, resolved into an invoice on submission.
+    Address,
+    /// A BOLT11 invoice for exactly `sats`, unexpired, on the node's chain.
+    /// `expires_at` (unix seconds) lets the caller re-judge it before the
+    /// verdict goes stale: it stops being valid `min_remaining_secs` before
+    /// that moment. `u64`, not `i64`: an `i64` inside a bridge enum is a
+    /// Dart `int` in the generated union but a `BigInt` on the web, and
+    /// dart2js refuses the mismatch — a `u64` is a `BigInt` everywhere.
+    Valid { sats: u64, expires_at: u64 },
+    /// Refused. The optional fields carry what the copy needs to name.
+    Rejected {
+        problem: InvoiceProblem,
+        /// `WrongAmount`: what the invoice asks for, in msat (a sub-sat
+        /// remainder must not be rounded into a match).
+        actual_msat: Option<u64>,
+        /// `WrongAmount`: what the trade pays.
+        expected_sats: Option<u64>,
+        /// `WrongNetwork`: the invoice's chain, in LND naming.
+        invoice_network: Option<String>,
+        /// `WrongNetwork`: the node's chain, in LND naming.
+        node_network: Option<String>,
+        /// `ExpiresTooSoon`: the node's minimum remaining lifetime, seconds.
+        min_remaining_secs: Option<u64>,
+    },
+}
+
+/// What the add-invoice screen needs from a BOLT11 invoice to validate it
+/// before submission (see `api::invoice::decode_bolt11`).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Bolt11Summary {
+    /// Millisatoshis, or `None` for an invoice that leaves the amount open.
+    /// Kept in msat so a sub-sat remainder is never rounded into a match.
+    pub amount_msat: Option<u64>,
+    /// Unix seconds after which the invoice can no longer be paid.
+    pub expires_at: i64,
+    /// The chain the invoice is for, in LND's naming (`mainnet`, `testnet`,
+    /// `regtest`, `signet`, `simnet`) so it compares against the node's
+    /// `lnd_networks`.
+    pub network: String,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LogEntry {
     pub id: u32,
@@ -405,11 +685,12 @@ pub struct AppState {
 
 /// Mostro daemon node information (name, version, fees, limits, currencies).
 ///
-/// Intentionally retained though currently unused: the active node's *identity*
-/// is just its pubkey (see `set_active_mostro_node`), while this richer record
-/// is the metadata model for the M5 multi-Mostro node registry — populated from
-/// the node's kind 0 / 38385 events. Kept here so M5 builds on a stable type
-/// instead of re-deriving it.
+/// Intentionally retained though currently unused: this models the daemon's
+/// kind 38385 *instance status*, which today reaches the UI as raw tags
+/// (`fetch_mostro_instance_tags`) parsed on the Dart side. The node registry
+/// shipped on [`MostroNodeEntry`] (operator profile from kind 0) instead;
+/// this stays as the Rust-side model for whenever that 38385 parsing moves
+/// behind the bridge.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MostroNodeInfo {
     pub pubkey: String,
@@ -432,6 +713,34 @@ pub struct MostroNodeInfo {
 
 fn default_expiration_hours() -> u32 {
     24
+}
+
+/// One entry of the Mostro node registry shown in Settings → Mostro Node.
+///
+/// Identity (pubkey) and trust/region come from the compiled-in registry or
+/// user additions; display metadata (name, picture, about, website) comes from
+/// the node operator's Nostr kind 0 event and may lag or be absent. Distinct
+/// from [`MostroNodeInfo`], which models the daemon's kind 38385 instance
+/// status rather than the operator's profile.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MostroNodeEntry {
+    /// Node pubkey, 64-char lowercase hex.
+    pub pubkey: String,
+    /// Region label (flag emoji + place name) for trusted nodes, `None` for
+    /// user-added ones.
+    pub region: Option<String>,
+    /// `true` when the entry comes from the compiled-in trusted registry.
+    pub is_trusted: bool,
+    /// `true` when this is the currently active node.
+    pub is_active: bool,
+    /// Display name: user-given (custom nodes) or from kind 0 metadata.
+    pub name: Option<String>,
+    /// Avatar URL from kind 0 metadata (https only; anything else is dropped).
+    pub picture: Option<String>,
+    /// Operator description from kind 0 metadata.
+    pub about: Option<String>,
+    /// Website URL from kind 0 metadata.
+    pub website: Option<String>,
 }
 
 fn default_expiration_seconds() -> u32 {
@@ -495,6 +804,88 @@ pub struct BondSlashedEvent {
     pub payment_method: String,
     /// Inferred cause (timeout vs dispute).
     pub cause: SlashCause,
+}
+
+/// Where a payout claim stands (docs/ANTI_ABUSE_BOND.md §6.4): the daemon
+/// asked for an invoice, the user sent one, the daemon accepted it, the
+/// share was paid — or the claim window closed first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum BondClaimPhase {
+    /// `add-bond-invoice` received, no invoice sent (or the daemon re-prompted).
+    Pending,
+    /// The user's bolt11 was published; the daemon has not answered yet.
+    Submitted,
+    /// `bond-invoice-accepted`: the payout is in progress.
+    Acknowledged,
+    /// `bond-payout-completed`: the share was paid.
+    Completed,
+    /// The claim window closed unclaimed.
+    Expired,
+}
+
+impl BondClaimPhase {
+    /// A phase nothing follows: the daemon stops retrying and the kind-14
+    /// filter no longer needs the issuing node for this claim.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, BondClaimPhase::Completed | BondClaimPhase::Expired)
+    }
+}
+
+/// The counterparty's share of a slashed bond this user may claim
+/// (docs/ANTI_ABUSE_BOND.md §6.4, §7.1). Independent of the trade row: the
+/// winner's trade may be completed, cancelled or wiped by the time the
+/// daemon asks for an invoice. Keyed by `(node_pubkey, order_id)`: the user
+/// can switch nodes while a claim is open, and the submission always
+/// addresses the daemon that issued it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BondClaim {
+    pub order_id: String,
+    /// The daemon that issued the claim; the submission target.
+    pub node_pubkey: String,
+    /// The trade key index the daemon addressed the request to: the slashed
+    /// attempt's key, which the reply must come from even when the order was
+    /// retaken on a newer key since. `None` only for a claim stored before it
+    /// was recorded; the order's current key is used then.
+    #[serde(default)]
+    pub trade_index: Option<u32>,
+    /// The share on offer, in satoshis; the invoice must be for exactly this.
+    pub amount_sats: u64,
+    /// Unix seconds when the daemon slashed the bond, from the request.
+    pub slashed_at: i64,
+    /// `slashed_at + claim window`, frozen when the claim is first persisted:
+    /// a later policy change cannot move a deadline the user was shown.
+    pub deadline_at: i64,
+    pub phase: BondClaimPhase,
+    /// The bolt11 sent, kept so the screen can show it while the daemon answers.
+    pub submitted_invoice: Option<String>,
+    /// Display only, from the request's order.
+    pub fiat_code: String,
+    pub fiat_amount: Option<f64>,
+    pub payment_method: String,
+    /// Unix seconds of the last change, the list's sort key.
+    pub updated_at: i64,
+}
+
+impl BondClaim {
+    /// The storage key: `<node_pubkey>:<order_id>`.
+    pub fn storage_id(&self) -> String {
+        bond_claim_key(&self.node_pubkey, &self.order_id)
+    }
+}
+
+/// The `bond_claims` key for a node / order pair.
+pub fn bond_claim_key(node_pubkey: &str, order_id: &str) -> String {
+    format!("{node_pubkey}:{order_id}")
+}
+
+/// A claim's phase changed (new claim, submission, ack, payout, expiry).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BondClaimUpdate {
+    pub order_id: String,
+    /// The node that issued the claim: two nodes can hold a claim for the
+    /// same order, and a consumer must read the one that changed.
+    pub node_pubkey: String,
+    pub phase: BondClaimPhase,
 }
 
 /// Connected wallet information returned by `connect_wallet` and `get_wallet`.

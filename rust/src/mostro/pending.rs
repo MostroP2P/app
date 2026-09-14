@@ -23,6 +23,14 @@ use std::sync::OnceLock;
 pub(crate) enum DaemonReply {
     /// Daemon accepted the order and assigned a UUID (create flow).
     Confirmed { daemon_id: String },
+    /// Daemon parked the new order behind the maker's anti-abuse bond
+    /// (`pay-bond-invoice` on a create, docs/ANTI_ABUSE_BOND.md §6.2): the
+    /// order has its UUID but is not published until `bond` is paid. The
+    /// create record stays registered for the `new-order` that follows.
+    BondRequested {
+        daemon_id: String,
+        bond: BondRequest,
+    },
     /// Daemon accepted the take (take flow). Unlike a create, the take's
     /// first reply varies by role and daemon config (add-invoice,
     /// pay-invoice, a direct progression message, …), so the reply carries
@@ -36,6 +44,9 @@ pub(crate) enum DaemonReply {
         amount_sats: Option<u64>,
         /// Hold invoice bolt11 (seller taking a buy order), when present.
         hold_invoice: Option<String>,
+        /// The anti-abuse bond the daemon asks for before the trade flow
+        /// starts (`pay-bond-invoice`). `None` on nodes without bonds.
+        bond: Option<BondRequest>,
     },
     /// Daemon acknowledged an add-invoice. The reply doubles as a status
     /// update processed by the per-action arms; the caller only needs the
@@ -52,6 +63,14 @@ pub(crate) enum DaemonReply {
     /// disputes. Correlated by trade pubkey (RestoreSession carries no
     /// request_id) — see take_matching_restore.
     Restored(mostro_core::message::RestoreSessionInfo),
+}
+
+/// The bond bolt11 a `pay-bond-invoice` carries: `amount_sats` is the
+/// **bond**, never the order's amount, and must not seed it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BondRequest {
+    pub(crate) amount_sats: u64,
+    pub(crate) invoice: String,
 }
 
 /// What travels over a pending request's waiter channel: the daemon's reply,
@@ -87,16 +106,20 @@ pub(crate) enum PendingRequestKind {
         /// daemon assigned the real one. Bridged to the daemon UUID on
         /// confirmation.
         local_uuid: String,
-        /// Content fingerprint (see `order_content_key`) — lets the Kind
-        /// 38383 subscription find this record when the daemon's public
-        /// event arrives (that event carries neither our trade pubkey nor a
-        /// request_id).
-        content_key: String,
+        /// The daemon answered this create with `pay-bond-invoice` and is
+        /// holding the order for the maker's bond: the eventual `new-order`
+        /// is a bond confirmation, not a fresh order to persist
+        /// (docs/ANTI_ABUSE_BOND.md §6.2).
+        bond_requested: bool,
     },
     /// A take-buy / take-sell awaiting the daemon's first reply.
     Take,
     /// A buyer's add-invoice awaiting the daemon's acknowledgement.
     AddInvoice,
+    /// An `add-bond-invoice` reply (the payout claim's bolt11) awaiting the
+    /// daemon's `bond-invoice-accepted` or `CantDo`
+    /// (docs/ANTI_ABUSE_BOND.md §6.4).
+    BondClaimSubmit,
     /// A session-restore awaiting the daemon's RestoreData reply. Correlated
     /// by trade pubkey, not request_id (the RestoreSession message carries
     /// no request_id — see mostro-core Message::new_restore).
@@ -223,27 +246,6 @@ pub(crate) fn take_matching_request(
     }
 }
 
-/// Remove and return the pending create whose content fingerprint equals
-/// `content_key` — used by the Kind 38383 subscription to bridge the local
-/// UUID once the daemon's public event arrives. Records with a live waiter
-/// (`tx` is `Some`) are left alone: the in-flight `create_order` call owns
-/// the reconciliation and must still find its record when the kind-14
-/// acknowledgement lands.
-pub(crate) fn take_pending_create_by_content_key(content_key: &str) -> Option<PendingRequest> {
-    let mut map = pending_requests().lock().ok()?;
-    let key = map
-        .iter()
-        .find(|(_, p)| {
-            p.tx.is_none()
-                && matches!(
-                    &p.kind,
-                    PendingRequestKind::Create { content_key: ck, .. } if ck == content_key
-                )
-        })
-        .map(|(k, _)| k.clone())?;
-    map.remove(&key)
-}
-
 /// Detach the waiter channel from the pending request for `trade_pubkey_hex`,
 /// leaving the record itself in place — but only when `request_id` still
 /// identifies this caller's own attempt. Called on the 10s timeout: the
@@ -298,6 +300,45 @@ pub(crate) fn pending_local_uuid_for(trade_pubkey_hex: &str) -> Option<String> {
         })
 }
 
+/// What [`claim_create_bond`] hands the `pay-bond-invoice` arm: the create's
+/// waiter (if still listening) and the correlation state it needs.
+pub(crate) struct CreateBondClaim {
+    pub(crate) tx: Option<tokio::sync::oneshot::Sender<Wake>>,
+    pub(crate) trade_index: u32,
+    pub(crate) local_uuid: String,
+}
+
+/// Claim the `pay-bond-invoice` reply to a pending create, when `got` echoes
+/// its nonce. The record is **kept**: the daemon holds the order for the
+/// maker's bond and confirms it with a `new-order` on the same nonce once
+/// the bond is paid (docs/ANTI_ABUSE_BOND.md §6.2), so only the waiter is
+/// detached, and the record is marked so that confirmation is read as a
+/// bond lock rather than a fresh order. A second claim (the daemon's
+/// re-send) finds no waiter and marks nothing new.
+pub(crate) fn claim_create_bond(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<CreateBondClaim> {
+    let mut map = pending_requests().lock().ok()?;
+    let entry = map.get_mut(trade_pubkey_hex)?;
+    if !request_id_matches(entry.request_id, got) {
+        return None;
+    }
+    let PendingRequestKind::Create {
+        local_uuid,
+        bond_requested,
+    } = &mut entry.kind
+    else {
+        return None;
+    };
+    *bond_requested = true;
+    Some(CreateBondClaim {
+        tx: entry.tx.take(),
+        trade_index: entry.trade_index,
+        local_uuid: local_uuid.clone(),
+    })
+}
+
 /// Remove and return the pending request for `trade_pubkey_hex` only when it
 /// is a `Take` and `got` echoes its nonce. Creates are left in place for the
 /// `NewOrder` arm — a create's only success reply is `NewOrder`, while a
@@ -332,6 +373,26 @@ pub(crate) fn take_matching_add_invoice(
         Some(p)
             if request_id_matches(p.request_id, got)
                 && matches!(p.kind, PendingRequestKind::AddInvoice) =>
+        {
+            map.remove(trade_pubkey_hex)
+        }
+        _ => None,
+    }
+}
+
+/// Remove and return the pending request for `trade_pubkey_hex` only when it
+/// is a `BondClaimSubmit` and `got` echoes its nonce. Like an add-invoice,
+/// the consumed message still flows through the per-action arms — the
+/// acknowledgement is also the claim's phase change.
+pub(crate) fn take_matching_claim_submit(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(p)
+            if request_id_matches(p.request_id, got)
+                && matches!(p.kind, PendingRequestKind::BondClaimSubmit) =>
         {
             map.remove(trade_pubkey_hex)
         }
@@ -452,19 +513,46 @@ pub(crate) fn roll_back_dispute_request(trade_pubkey_hex: &str, request_id: u64)
 /// `pay-invoice` (seller, hold invoice in a `PaymentRequest` payload), or a
 /// direct progression message when an invoice was pre-attached — so
 /// classification goes by payload shape rather than by enumerating actions
-/// (the pattern MostriX uses). `pay-bond-invoice` maps to a stable
-/// `BondRequired` rejection: anti-abuse bonds are not supported yet, and an
-/// honest error beats a fake trade or a silent timeout.
+/// (the pattern MostriX uses). `pay-bond-invoice` is the anti-abuse bond:
+/// an acceptance parked at `WaitingTakerBond` (docs/ANTI_ABUSE_BOND.md).
 pub(crate) fn classify_take_reply(
     action: &mostro_core::message::Action,
     payload: &Option<mostro_core::message::Payload>,
 ) -> DaemonReply {
     use mostro_core::message::{Action, Payload};
 
+    // The anti-abuse bond (docs/ANTI_ABUSE_BOND.md §6.1): the take was
+    // accepted, but the daemon parks it at WaitingTakerBond until this
+    // bolt11 is paid. Its amount is the bond, not the order's, so neither
+    // `amount_sats` nor `hold_invoice` is seeded from it.
     if matches!(action, Action::PayBondInvoice) {
-        return DaemonReply::Rejected {
-            reason: "BondRequired".to_string(),
-            message: "BondRequired".to_string(),
+        return match payload {
+            Some(Payload::PaymentRequest(small_order, invoice, amount)) => {
+                let bond_sats = amount
+                    .and_then(|a| u64::try_from(a).ok())
+                    .or_else(|| {
+                        small_order
+                            .as_ref()
+                            .and_then(|so| u64::try_from(so.amount).ok())
+                    })
+                    .unwrap_or(0);
+                DaemonReply::TakeAccepted {
+                    action: action.clone(),
+                    status: Some(crate::api::types::OrderStatus::WaitingTakerBond),
+                    amount_sats: None,
+                    hold_invoice: None,
+                    bond: Some(BondRequest {
+                        amount_sats: bond_sats,
+                        invoice: invoice.clone(),
+                    }),
+                }
+            }
+            // The wire contract requires a PaymentRequest; anything else is
+            // not a bond the user could pay.
+            _ => DaemonReply::Rejected {
+                reason: "InvalidBondInvoice".to_string(),
+                message: "InvalidBondInvoice".to_string(),
+            },
         };
     }
 
@@ -487,6 +575,7 @@ pub(crate) fn classify_take_reply(
                     .or_else(|| status_for_action(action)),
                 amount_sats,
                 hold_invoice: Some(invoice.clone()),
+                bond: None,
             }
         }
         Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
@@ -501,6 +590,7 @@ pub(crate) fn classify_take_reply(
                 None
             },
             hold_invoice: None,
+            bond: None,
         },
         // Action-only progression reply (payload absent or of another shape):
         // still a genuine acceptance. The take interception consumes the
@@ -513,6 +603,7 @@ pub(crate) fn classify_take_reply(
             status: status_for_action(action),
             amount_sats: None,
             hold_invoice: None,
+            bond: None,
         },
     }
 }
@@ -532,33 +623,6 @@ pub(crate) fn may_reconcile_stored_id(
     stored_id != incoming_id && pending_local_uuid == Some(stored_id)
 }
 
-/// Build a stable content key for a maker order.
-///
-/// The key is stored in `TRADE_KEY_MAP` at creation time (prefixed with
-/// `"content:"` so it never collides with real UUIDs).  On cold start the
-/// relay subscription can compute the same key from an incoming Kind 38383
-/// event and look up the trade index, restoring `is_mine = true` without
-/// needing the daemon's acknowledgement.
-pub(crate) fn order_content_key(
-    kind: &crate::api::types::OrderKind,
-    fiat_code: &str,
-    fiat_amount: Option<f64>,
-    fiat_amount_min: Option<f64>,
-    fiat_amount_max: Option<f64>,
-    payment_method: &str,
-) -> String {
-    let amount = match (fiat_amount, fiat_amount_min, fiat_amount_max) {
-        (Some(a), _, _) => format!("f{}", a as i64),
-        (_, Some(mn), Some(mx)) => format!("r{}:{}", mn as i64, mx as i64),
-        _ => "?".to_string(),
-    };
-    let k = match kind {
-        crate::api::types::OrderKind::Buy => "buy",
-        crate::api::types::OrderKind::Sell => "sell",
-    };
-    format!("content:{k}:{fiat_code}:{amount}:{payment_method}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -574,30 +638,6 @@ mod tests {
         assert!(!request_id_matches(42, None));
     }
 
-    /// The content key is what lets a cold-started client recognise its own
-    /// maker order from the daemon's public event, which carries neither the
-    /// trade pubkey nor a request_id. Range and fixed orders must not collide.
-    #[test]
-    fn the_content_key_separates_range_from_fixed_orders() {
-        use crate::api::types::OrderKind;
-        let fixed = order_content_key(&OrderKind::Buy, "EUR", Some(100.0), None, None, "SEPA");
-        let range = order_content_key(
-            &OrderKind::Buy,
-            "EUR",
-            None,
-            Some(10.0),
-            Some(100.0),
-            "SEPA",
-        );
-        assert_ne!(fixed, range);
-        assert!(fixed.starts_with("content:buy:EUR:"));
-        // The prefix keeps these out of the UUID keyspace they share a map with.
-        assert!(range.starts_with("content:"));
-        // Kind is part of the identity: a buy and a sell are different orders.
-        let sell = order_content_key(&OrderKind::Sell, "EUR", Some(100.0), None, None, "SEPA");
-        assert_ne!(fixed, sell);
-    }
-
     fn insert_pending_create(
         key: &str,
         request_id: u64,
@@ -610,12 +650,45 @@ mod tests {
                 trade_index: 3,
                 kind: PendingRequestKind::Create {
                     local_uuid: format!("local-{key}"),
-                    content_key: format!("content:{key}"),
+                    bond_requested: false,
                 },
                 tx: Some(tx),
             },
         );
         rx
+    }
+
+    /// A maker bond: the bond reply detaches the create's waiter and marks
+    /// the record, which stays for the daemon's later `new-order`; the
+    /// nonce gate and the kind gate both hold.
+    #[tokio::test]
+    async fn claim_create_bond_keeps_the_record_marked() {
+        let key = "create-bond-key";
+        let _rx = insert_pending_create(key, 61);
+        assert!(claim_create_bond(key, None).is_none());
+        assert!(claim_create_bond(key, Some(60)).is_none());
+
+        let claim = claim_create_bond(key, Some(61)).expect("the nonce matches");
+        assert!(claim.tx.is_some(), "the waiter goes with the first claim");
+        assert_eq!(claim.trade_index, 3);
+        assert_eq!(claim.local_uuid, "local-create-bond-key");
+
+        // The record survives, flagged, waiterless.
+        let again = claim_create_bond(key, Some(61)).expect("still registered");
+        assert!(again.tx.is_none());
+        let pending = take_matching_request(key, Some(61)).expect("record kept");
+        assert!(matches!(
+            pending.kind,
+            PendingRequestKind::Create {
+                bond_requested: true,
+                ..
+            }
+        ));
+
+        // A take record is never a create.
+        let _rx = insert_pending_take("take-bond-key", 62);
+        assert!(claim_create_bond("take-bond-key", Some(62)).is_none());
+        take_matching_take("take-bond-key", Some(62));
     }
 
     fn local_uuid_of(pending: &PendingRequest) -> &str {
@@ -870,7 +943,7 @@ mod tests {
 
     /// `classify_take_reply` goes by payload shape: `PaymentRequest` carries
     /// the hold invoice (seller flow), `Order` carries the calculated sats
-    /// (buyer flow), `pay-bond-invoice` maps to a stable BondRequired
+    /// (buyer flow), `pay-bond-invoice` is an acceptance parked at WaitingTakerBond
     /// rejection, and action-only replies are still acceptances.
     #[test]
     fn classify_take_reply_maps_payload_shapes() {
@@ -935,12 +1008,57 @@ mod tests {
             _ => panic!("expected TakeAccepted"),
         }
 
-        // Anti-abuse bond: not supported — stable rejection marker.
-        match classify_take_reply(&Action::PayBondInvoice, &None) {
-            DaemonReply::Rejected { reason, message } => {
-                assert_eq!(reason, "BondRequired");
-                assert_eq!(message, "BondRequired");
+        // Anti-abuse bond (docs/ANTI_ABUSE_BOND.md §6.1): accepted, parked
+        // at WaitingTakerBond, and the bond amount seeds neither the order
+        // amount nor the hold invoice.
+        let so = small_order_with(Status::Pending, 1_000);
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(
+                Some(so),
+                "lnbc10u1bond".into(),
+                None,
+            )),
+        ) {
+            DaemonReply::TakeAccepted {
+                status,
+                amount_sats,
+                hold_invoice,
+                bond,
+                ..
+            } => {
+                assert_eq!(
+                    status,
+                    Some(crate::api::types::OrderStatus::WaitingTakerBond)
+                );
+                assert_eq!(amount_sats, None);
+                assert_eq!(hold_invoice, None);
+                assert_eq!(
+                    bond,
+                    Some(BondRequest {
+                        amount_sats: 1_000,
+                        invoice: "lnbc10u1bond".into()
+                    })
+                );
             }
+            _ => panic!("expected TakeAccepted"),
+        }
+        // The explicit amount field wins over the embedded order.
+        let so = small_order_with(Status::Pending, 1_000);
+        match classify_take_reply(
+            &Action::PayBondInvoice,
+            &Some(Payload::PaymentRequest(
+                Some(so),
+                "lnbc10u1bond".into(),
+                Some(1_200),
+            )),
+        ) {
+            DaemonReply::TakeAccepted { bond: Some(b), .. } => assert_eq!(b.amount_sats, 1_200),
+            _ => panic!("expected TakeAccepted with a bond"),
+        }
+        // A bond message without a bolt11 is not a bond the user could pay.
+        match classify_take_reply(&Action::PayBondInvoice, &None) {
+            DaemonReply::Rejected { reason, .. } => assert_eq!(reason, "InvalidBondInvoice"),
             _ => panic!("expected Rejected"),
         }
 
@@ -1021,28 +1139,6 @@ mod tests {
         assert!(!may_reconcile_stored_id("local-1", "daemon-1", None));
     }
 
-    /// The Kind 38383 path matches by content fingerprint, but must leave
-    /// records with a live waiter alone — the in-flight create_order call owns
-    /// that reconciliation.
-    #[tokio::test]
-    async fn content_key_lookup_skips_live_waiters() {
-        let key = "test-content-key-pubkey";
-        let ck = format!("content:{key}");
-        let _rx = insert_pending_create(key, 31);
-
-        // Live waiter attached: the 38383 path must not consume the record.
-        assert!(take_pending_create_by_content_key(&ck).is_none());
-
-        // After the timeout detaches the waiter, the fingerprint match takes it.
-        detach_request_waiter(key, 31);
-        let pending = take_pending_create_by_content_key(&ck).expect("must match");
-        assert_eq!(local_uuid_of(&pending), format!("local-{key}"));
-        assert!(!pending_requests().lock().unwrap().contains_key(key));
-
-        // Unknown fingerprints never match anything.
-        assert!(take_pending_create_by_content_key("content:unknown").is_none());
-    }
-
     /// `take_matching_restore` returns and removes a pending RESTORE record for
     /// the given trade pubkey, and ignores non-RESTORE kinds — the nonce-gate
     /// asymmetry #215 relies on (RestoreSession carries no request_id).
@@ -1070,7 +1166,7 @@ mod tests {
                     trade_index: 3,
                     kind: PendingRequestKind::Create {
                         local_uuid: "uuid".to_string(),
-                        content_key: "ck".to_string(),
+                        bond_requested: false,
                     },
                     tx: None,
                 },

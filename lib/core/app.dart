@@ -66,11 +66,10 @@ class _MostroAppState extends ConsumerState<MostroApp> {
       // The banner sits outermost so the marker is present on every route,
       // including the ones the listeners push. It renders nothing unless the
       // app was started through lib/main_mortsom.dart.
-      builder: (context, child) => TestEnvironmentBanner(
-        child: NotificationListenerWidget(
-          child: TradeActionListener(child: child ?? const SizedBox.shrink()),
-        ),
-      ),
+      builder:
+          (context, child) => TestEnvironmentBanner(
+            child: TradeActionListener(child: child ?? const SizedBox.shrink()),
+          ),
     );
   }
 }

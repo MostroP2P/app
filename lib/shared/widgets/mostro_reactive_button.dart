@@ -21,6 +21,9 @@ class MostroReactiveButton extends StatefulWidget {
     this.icon,
     this.onError,
     this.outlined = false,
+    this.style,
+    this.progressColor,
+    this.iconSize = 18,
   });
 
   final String label;
@@ -30,6 +33,14 @@ class MostroReactiveButton extends StatefulWidget {
   final IconData? icon;
   final void Function(Object error)? onError;
   final bool outlined;
+
+  /// Replaces the [variant]-derived style entirely, for screens with their
+  /// own palette. The busy/success/cooldown behaviour is unchanged.
+  final ButtonStyle? style;
+
+  /// Colour of the busy spinner; defaults to the theme's progress colour.
+  final Color? progressColor;
+  final double iconSize;
 
   @override
   State<MostroReactiveButton> createState() => _MostroReactiveButtonState();
@@ -82,28 +93,32 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
     if (widget.outlined) {
       return OutlinedButton(
         onPressed: _state == _ButtonState.idle ? _handlePress : null,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: accent),
-          foregroundColor: accent,
-          minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.button),
-          ),
-        ),
+        style:
+            widget.style ??
+            OutlinedButton.styleFrom(
+              side: BorderSide(color: accent),
+              foregroundColor: accent,
+              minimumSize: const Size(0, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.button),
+              ),
+            ),
         child: _buildChild(),
       );
     }
 
     return FilledButton(
       onPressed: _state == _ButtonState.idle ? _handlePress : null,
-      style: FilledButton.styleFrom(
-        backgroundColor: accent,
-        foregroundColor: Colors.black,
-        minimumSize: const Size(0, 48),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.button),
-        ),
-      ),
+      style:
+          widget.style ??
+          FilledButton.styleFrom(
+            backgroundColor: accent,
+            foregroundColor: Colors.black,
+            minimumSize: const Size(0, 48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.button),
+            ),
+          ),
       child: _buildChild(),
     );
   }
@@ -114,10 +129,13 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
         return Semantics(
           label: AppLocalizations.of(context).loading,
           liveRegion: true,
-          child: const SizedBox(
+          child: SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: widget.progressColor,
+            ),
           ),
         );
       case _ButtonState.success:
@@ -146,7 +164,7 @@ class _MostroReactiveButtonState extends State<MostroReactiveButton> {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(widget.icon, size: 18),
+          Icon(widget.icon, size: widget.iconSize),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
             child: Text(

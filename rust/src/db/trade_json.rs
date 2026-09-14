@@ -64,6 +64,12 @@ pub(crate) fn set_peer_reputation(
     Ok(())
 }
 
+/// `$.bond = bond` as a JSON object.
+pub(crate) fn set_bond(trade: &mut Value, bond: &crate::api::types::BondInfo) -> Result<()> {
+    *field(trade, &["bond"])? = serde_json::to_value(bond)?;
+    Ok(())
+}
+
 /// `$.rated_at = rated_at` as a JSON number.
 pub(crate) fn mark_rated(trade: &mut Value, rated_at: i64) -> Result<()> {
     *field(trade, &["rated_at"])? = Value::from(rated_at);
@@ -157,6 +163,31 @@ mod tests {
         assert!(t["peer_rating"].is_f64());
         assert!(t["peer_reviews"].is_u64() && t["peer_days"].is_u64());
         assert!(t["rated_at"].is_i64());
+    }
+
+    #[test]
+    fn the_bond_is_replaced_whole_and_reads_back() {
+        let mut t = trade();
+        let bond = crate::api::types::BondInfo {
+            role: crate::api::types::BondRole::Taker,
+            amount_sats: 1_000,
+            invoice: Some("lnbc10u1...".into()),
+            state: crate::api::types::BondState::Requested,
+            requested_at: 1,
+            expires_at: Some(3_601),
+            locked_at: None,
+        };
+        set_bond(&mut t, &bond).unwrap();
+        let back: crate::api::types::BondInfo =
+            serde_json::from_value(t["bond"].clone()).unwrap();
+        assert_eq!(back, bond);
+        // A later transition replaces the object, it does not merge.
+        let mut locked = bond.clone();
+        locked.state = crate::api::types::BondState::Locked;
+        locked.locked_at = Some(2);
+        set_bond(&mut t, &locked).unwrap();
+        assert_eq!(t["bond"]["state"], "Locked");
+        assert_eq!(t["bond"]["locked_at"], 2);
     }
 
     #[test]

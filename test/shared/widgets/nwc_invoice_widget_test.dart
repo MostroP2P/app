@@ -60,7 +60,7 @@ void main() {
 
     expect(
       tester.getSemantics(find.byType(NwcInvoiceWidget)),
-      containsSemantics(
+      isSemantics(
         identifier: AutomationIds.invoiceNwcText,
         label: invoice,
       ),

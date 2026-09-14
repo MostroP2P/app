@@ -12,6 +12,40 @@ import 'package:mostro/l10n/app_localizations_en.dart';
 void main() {
   final l10n = AppLocalizationsEn();
 
+  test('maps the payout claim markers', () {
+    expect(
+      localizedDaemonError(l10n, 'InvoiceAmountMismatch', fallback: 'x'),
+      l10n.bondClaimErrorAmount,
+    );
+    expect(
+      localizedDaemonError(l10n, 'BondClaimExpired', fallback: 'x'),
+      l10n.bondClaimErrorExpired,
+    );
+    expect(
+      localizedDaemonError(l10n, 'BondClaimRejected', fallback: 'x'),
+      l10n.bondClaimErrorRejected,
+    );
+    expect(
+      localizedDaemonError(l10n, 'ClaimNotClaimable', fallback: 'x'),
+      l10n.bondClaimErrorNotClaimable,
+    );
+    expect(
+      localizedDaemonError(l10n, 'ClaimNotFound', fallback: 'x'),
+      l10n.bondClaimErrorNotClaimable,
+    );
+    expect(
+      localizedDaemonError(l10n, 'TradeKeyMissing', fallback: 'x'),
+      l10n.bondClaimErrorNoKey,
+    );
+  });
+
+  test('maps the maker bond cancel marker', () {
+    expect(
+      localizedDaemonError(l10n, 'BondCancelNotAllowed', fallback: 'x'),
+      l10n.bondCancelNotAllowed,
+    );
+  });
+
   test('maps the bare unsupported-protocol marker', () {
     expect(
       localizedDaemonError(l10n, 'UnsupportedNodeProtocol:1', fallback: 'x'),

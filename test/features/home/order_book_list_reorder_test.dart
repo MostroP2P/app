@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/features/home/widgets/order_book_list.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -67,7 +68,8 @@ void main() {
           expect(
             identical(before, after),
             isTrue,
-            reason: 'the element should have been moved to its new index, not '
+            reason:
+                'the element should have been moved to its new index, not '
                 'deactivated and re-inflated',
           );
         });
@@ -89,5 +91,64 @@ void main() {
         expect(find.byKey(const ValueKey('order-30')), findsOneWidget);
       });
     });
+  });
+
+  group('OrderBookList grid fits long cards at 200% text', () {
+    // Worst case for height: chips that wrap, two lines of payment methods,
+    // a reputation strip that wraps.
+    final orders = [
+      for (var i = 0; i < 4; i++)
+        fakeOrder(
+          id: 'order-$i',
+          fiatAmount: null,
+          fiatAmountMin: 100000,
+          fiatAmountMax: 2500000,
+          paymentMethod:
+              'SPEI, Retiro Cajero BBVA, Transferencia Banorte, '
+              'Depósito en efectivo, Mercado Pago',
+          rating: 4.78,
+          tradeCount: 1600,
+          daysActive: 2190,
+          isMine: i.isEven,
+          minutesAgo: i * 10,
+        ),
+    ];
+
+    for (final (columns, width) in [(2, 700.0), (3, 900.0)]) {
+      testWidgets('with $columns columns', (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        await withClock(Clock.fixed(kFakeNow), () async {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: buildDarkTheme(),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder:
+                  (context, child) => MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(textScaler: const TextScaler.linear(2)),
+                    child: child!,
+                  ),
+              home: Scaffold(
+                body: OrderBookList(
+                  orders: orders,
+                  currencyFlags: const {'USD': '🇺🇸'},
+                  reasons: const {'order-1': OrderReason.mostReputable},
+                  columns: columns,
+                  onOrderTap: (_) {},
+                ),
+              ),
+            ),
+          );
+        });
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(OrderListItem), findsWidgets);
+      });
+    }
   });
 }

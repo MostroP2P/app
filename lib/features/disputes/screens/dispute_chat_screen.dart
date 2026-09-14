@@ -3,6 +3,8 @@ import 'package:mostro/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/disputes/widgets/dispute_message_input.dart';
 import 'package:mostro/features/disputes/widgets/dispute_messages_list.dart';
@@ -77,7 +79,10 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
     if (dispute == null) {
       final l10n = AppLocalizations.of(context);
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.disputeScreenTitle)),
+        appBar: AppBar(
+          title: Text(l10n.disputeScreenTitle),
+          leading: const BackButton().withAutomationId(AutomationIds.appBarBack),
+        ),
         body: Center(child: Text(l10n.disputeNotFound)),
       );
     }
@@ -93,6 +98,9 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
       appBar: AppBar(
         title: _HeaderTitle(dispute: dispute, colors: colors),
         titleSpacing: 0,
+        // The dispute screen is pushed over the trade detail; automation
+        // leaves it the way it leaves every other screen (`appbar.back`).
+        leading: const BackButton().withAutomationId(AutomationIds.appBarBack),
       ),
       body: Column(
         children: [

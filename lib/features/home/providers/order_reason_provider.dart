@@ -2,40 +2,49 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 
-/// "Reason to pick" badge for an order book card (UX proposal #3).
+/// Highlight chip of an order-book card (order-book handoff, variant 4b).
 ///
 /// Each reason is awarded to at most one card in the visible list, and each
-/// card carries at most one reason. Priority when a card qualifies for
-/// several: best premium > most reputable > just published.
-enum OrderReason { bestPremium, mostReputable, justPublished }
+/// card carries at most one — a chip means something only because it is
+/// rare. Priority when a card qualifies for both: best premium.
+enum OrderReason {
+  /// The premium most in the taker's favour. The card also gets the
+  /// highlight border.
+  bestPremium,
 
-/// How recent an order must be to qualify as "Just published".
-const justPublishedWindow = Duration(minutes: 10);
+  /// The highest-rated maker among the other cards.
+  mostReputable,
+}
 
-/// Computes the reason badge for each order in [orders] (the currently
+/// Computes the highlight chip for each order in [orders] (the currently
 /// displayed, filtered list). Returns a map of order id -> reason.
 ///
 /// Rules (deterministic):
-/// - Best premium: the single order with the lowest premium. Ties broken by
-///   list position (first wins).
+/// - Best premium: the order with the highest
+///   [OrderItemTakerView.takerPremiumAdvantage] — the cheapest sell order on
+///   Buy BTC, the best-paying buy order on Sell BTC. Ties are broken by list
+///   position (first wins). Awarded only when that order beats at least one
+///   other: a lone order, or a list where every premium is equal, has no
+///   "best".
 /// - Most reputable: the order with the highest rating (must be > 0), ties
 ///   broken by higher tradeCount, then list position. Skips the card that
 ///   already won "best premium".
-/// - Just published: the most recently created order with
-///   createdAt < 10 minutes ago, among cards not already awarded.
-Map<String, OrderReason> computeOrderReasons(
-  List<OrderItem> orders, {
-  DateTime? now,
-}) {
+Map<String, OrderReason> computeOrderReasons(List<OrderItem> orders) {
   if (orders.isEmpty) return const {};
   final reasons = <String, OrderReason>{};
 
-  // Best premium — lowest premium in the visible list.
-  OrderItem best = orders.first;
+  // Best premium — most in the taker's favour, if it beats anything.
+  var best = orders.first;
+  var beatsAnother = false;
   for (final o in orders.skip(1)) {
-    if (o.premium < best.premium) best = o;
+    if (o.takerPremiumAdvantage > best.takerPremiumAdvantage) {
+      best = o;
+      beatsAnother = true;
+    } else if (o.takerPremiumAdvantage < best.takerPremiumAdvantage) {
+      beatsAnother = true;
+    }
   }
-  reasons[best.id] = OrderReason.bestPremium;
+  if (beatsAnother) reasons[best.id] = OrderReason.bestPremium;
 
   // Most reputable — highest rating (> 0), ties broken by tradeCount.
   OrderItem? reputable;
@@ -52,24 +61,10 @@ Map<String, OrderReason> computeOrderReasons(
     reasons[reputable.id] = OrderReason.mostReputable;
   }
 
-  // Just published — newest order created < 10 minutes ago.
-  final cutoff = (now ?? DateTime.now()).subtract(justPublishedWindow);
-  OrderItem? fresh;
-  for (final o in orders) {
-    if (reasons.containsKey(o.id)) continue;
-    if (!o.createdAt.isAfter(cutoff)) continue;
-    if (fresh == null || o.createdAt.isAfter(fresh.createdAt)) {
-      fresh = o;
-    }
-  }
-  if (fresh != null) {
-    reasons[fresh.id] = OrderReason.justPublished;
-  }
-
   return reasons;
 }
 
-/// Reason badges for the currently displayed (filtered) order list.
+/// Highlight chips for the currently displayed (filtered) order list.
 ///
 /// autoDispose for the same reason as [filteredOrdersProvider]: watching it
 /// from a provider that never disposes would keep the whole order-book

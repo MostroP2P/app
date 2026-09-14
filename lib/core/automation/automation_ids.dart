@@ -48,7 +48,6 @@ class AutomationIds {
   // readout would put the seed phrase in the accessibility tree, where any
   // accessibility service on the device can read it, and no Mortsom scenario
   // needs it: identities are generated in the app, never transcribed.
-  static const String keysPublicKey = 'keys.public_key';
 
   // Settings
   static const String settingsMostroNode = 'settings.mostro_node';
@@ -77,12 +76,22 @@ class AutomationIds {
 
   // Mostro node selector (bottom sheet)
   static const String nodeCustomPubkey = 'node.custom.pubkey';
-  static const String nodeUseDefault = 'node.use_default';
+  static const String nodeCustomName = 'node.custom.name';
   static const String nodeCustomConfirm = 'node.custom.confirm';
   static const String nodeCustomCancel = 'node.custom.cancel';
+  static const String nodeAddCustom = 'node.add_custom';
+  static const String nodeAddCustomCancel = 'node.add_custom.cancel';
+
+  /// Card of one node in the selector list. A user-added node is removed by
+  /// long-pressing its card (confirmation dialog), so there is no separate
+  /// delete control.
+  static String nodeItem(String pubkey) => 'node.item.$pubkey';
 
   // Wallet / NWC
-  static const String walletSettingsConnect = 'wallet.settings.connect';
+  //
+  // Handoff 10c folded the connect and settings screens into one, so there is
+  // no separate "connect from wallet settings" control any more: the single
+  // connect CTA is [walletNwcConnect].
   static const String walletSettingsDisconnect = 'wallet.settings.disconnect';
   static const String walletNwcUri = 'wallet.nwc.uri';
   static const String walletNwcPaste = 'wallet.nwc.paste';
@@ -107,12 +116,43 @@ class AutomationIds {
   static const String orderCreateCurrencySearch =
       'order.create.currency.search';
   static const String orderCreateFiatAmount = 'order.create.fiat_amount';
+  // The screen's own `Buy BTC | Sell BTC` control: the side can be switched
+  // after arriving from the order book's create button.
+  static const String orderCreateSideBuy = 'order.create.side.buy';
+  static const String orderCreateSideSell = 'order.create.side.sell';
+  // Range orders: the `Single | Range` control replaces the single amount
+  // with a min/max pair. [orderCreateRange] names the whole control; the two
+  // segments are addressable on their own.
+  static const String orderCreateRange = 'order.create.range';
+  static const String orderCreateAmountSingle = 'order.create.amount.single';
+  static const String orderCreateAmountRange = 'order.create.amount.range';
+  static const String orderCreateFiatMin = 'order.create.fiat_min';
+  static const String orderCreateFiatMax = 'order.create.fiat_max';
+  // Payment methods live on their own screen, opened by the `Add` chip. The
+  // free-text field is the one an automated driver can fill with an
+  // arbitrary method; `custom_add` turns it into a chip.
+  static const String orderCreatePaymentMethodAdd =
+      'order.create.payment_method.add';
+  static const String orderCreatePaymentMethodSearch =
+      'order.create.payment_method.search';
   static const String orderCreatePaymentMethod = 'order.create.payment_method';
+  static const String orderCreatePaymentMethodCustomAdd =
+      'order.create.payment_method.custom_add';
+  // `Market | Fixed` control, as a whole and per segment. Fixed is disabled
+  // while a range order is being written.
   static const String orderCreatePriceType = 'order.create.price_type';
+  static const String orderCreatePriceMarket = 'order.create.price.market';
+  static const String orderCreatePriceFixed = 'order.create.price.fixed';
+  // The premium figure; tapping it opens the numeric keyboard in place.
+  static const String orderCreatePremium = 'order.create.premium';
   static const String orderCreateSatsAmount = 'order.create.sats_amount';
   static const String orderCreateSubmit = 'order.create.submit';
   static const String orderCreateCancel = 'order.create.cancel';
   static const String orderConfirmHome = 'order.confirm.home';
+
+  /// My Order while the maker's anti-abuse deposit is outstanding: opens
+  /// the pay-bond screen.
+  static const String myOrderPayBond = 'order.payBond';
 
   /// Row of an order in the public order book.
   static String orderBookItem(String orderId) => 'order.book.item.$orderId';
@@ -126,16 +166,37 @@ class AutomationIds {
   static String orderCreateCurrencyOption(String code) =>
       'order.create.currency.$code';
 
+  /// One method in the payment-method picker. Methods carry spaces and
+  /// punctuation, which the identifier keeps verbatim.
+  static String orderCreatePaymentMethodOption(String method) =>
+      'order.create.payment_method.$method';
+
   // Take order — v2 asks the fiat amount on the same screen (range orders).
   static const String orderTakeAmount = 'order.take.amount';
   static const String orderTakeAmountConfirm = 'order.take.amount.confirm';
   static const String orderTakeConfirm = 'order.take.confirm';
-  static const String orderTakeClose = 'order.take.close';
 
   // Trade detail
   static const String orderId = 'order.id';
   static const String orderStatus = 'order.status';
   static const String tradePayInvoice = 'trade.payInvoice';
+  static const String tradePayBond = 'trade.payBond';
+
+  /// Readout: the payout claim banner on the trade detail, labelled with the
+  /// claim's phase (docs/ANTI_ABUSE_BOND.md §8.3); absent without a claim.
+  static const String tradeBondClaim = 'trade.bondClaim';
+
+  /// Readout: the durable slash notice on the trade detail, labelled with
+  /// the cause (`dispute` / `timeout`); absent unless this user's bond was
+  /// slashed.
+  static const String tradeBondSlashed = 'trade.bondSlashed';
+  static const String bondSlashedViewPolicy = 'bond.slashed.viewPolicy';
+
+  /// Present only while the slashed trade's row still exists (a timeout
+  /// slash wipes it): opens the trade detail.
+  static const String bondSlashedViewTrade = 'bond.slashed.viewTrade';
+  static const String bondSlashedClose = 'bond.slashed.close';
+  static const String tradeBondClaimOpen = 'trade.bondClaim.open';
   static const String tradeAddInvoice = 'trade.addInvoice';
   static const String tradeFiatSent = 'trade.fiatSent';
   static const String tradeRelease = 'trade.release';
@@ -147,6 +208,11 @@ class AutomationIds {
   static const String tradeRate = 'trade.rate';
   static const String tradeRateSubmit = 'trade.rate.submit';
   static const String tradeRateClose = 'trade.rate.close';
+  static const String tradeViewDispute = 'trade.dispute.view';
+  static const String tradeClose = 'trade.close';
+
+  /// Star [score] (1-5) on the rating screen.
+  static String tradeRateStar(int score) => 'trade.rate.star.$score';
 
   /// Row of a trade in the My Trades list.
   static String tradesItem(String orderId) => 'trades.item.$orderId';
@@ -158,8 +224,30 @@ class AutomationIds {
   static const String invoiceOrderId = 'invoice.order_id';
   static const String invoiceText = 'invoice.text';
   static const String invoiceSubmit = 'invoice.submit';
+
+  /// Readout: the daemon's reason for refusing the last submitted invoice.
+  /// Present only after a rejection, until the next submission.
+  static const String invoiceError = 'invoice.error';
   static const String invoiceCancel = 'invoice.cancel';
   static const String payInvoiceText = 'pay.invoice.text';
+
+  // Anti-abuse bond (docs/ANTI_ABUSE_BOND.md, handoff 14a/14b)
+  /// Readout: the bond bolt11, otherwise only drawn as a QR code.
+  static const String bondInvoiceText = 'bond.invoice.text';
+  static const String bondOrderId = 'bond.order_id';
+  static const String bondExplainer = 'bond.explainer';
+  static const String bondCancel = 'bond.cancel';
+
+  // Payout claim on a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4)
+  static const String bondClaimOrderId = 'bond.claim.order_id';
+  /// Readout: the share on offer, in sats.
+  static const String bondClaimAmount = 'bond.claim.amount';
+  /// Readout: the claim's phase (`pending`, `submitted`, `acknowledged`,
+  /// `completed`, `expired`), the clock applied.
+  static const String bondClaimStatus = 'bond.claim.status';
+  static const String bondClaimText = 'bond.claim.text';
+  static const String bondClaimSubmit = 'bond.claim.submit';
+  static const String bondClaimManual = 'bond.claim.manual';
   static const String payOrderId = 'pay.order_id';
   static const String payNwc = 'pay.nwc';
   static const String payCancel = 'pay.cancel';

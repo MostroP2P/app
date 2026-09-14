@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/chat/models/chat_list_rules.dart';
+import 'package:mostro/features/chat/providers/chat_list_provider.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/chat/widgets/info_panels.dart';
 import 'package:mostro/features/chat/widgets/message_bubble.dart';
@@ -534,11 +536,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 MediaQuery.of(context).viewInsets.bottom + AppSpacing.sm,
             top: AppSpacing.xs,
           ),
-          child: MessageInput(
-            onSendText: _onSend,
-            onAttachFile: _onAttach,
-            isAttaching: _isAttaching || _isSending,
-          ),
+          // A closed trade's conversation opens read-only (handoff 11b), and
+          // nothing is offered until the trade says which it is.
+          child: switch (ref.watch(chatRowStateProvider(widget.orderId))) {
+            ChatRowState(isReadOnly: true) => const _ClosedNotice(),
+            ChatRowState(canCompose: false) => const SizedBox.shrink(),
+            _ => MessageInput(
+                onSendText: _onSend,
+                onAttachFile: _onAttach,
+                isAttaching: _isAttaching || _isSending,
+              ),
+          },
         ),
       ],
     );
@@ -590,6 +598,43 @@ String _msgTypeStr(rust_types.MessageType t) => switch (t) {
       rust_types.MessageType.admin => 'admin',
       rust_types.MessageType.system => 'system',
     };
+
+// ── Closed notice ─────────────────────────────────────────────────────────────
+
+/// Stands in for the composer once the trade has ended: the conversation
+/// stays readable, and says why nothing can be sent.
+class _ClosedNotice extends StatelessWidget {
+  const _ClosedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: book.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: book.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline_rounded, size: 14, color: book.textTertiary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              AppLocalizations.of(context).chatClosedNotice,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: book.textTertiary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // ── AppBar title widget ───────────────────────────────────────────────────────
 

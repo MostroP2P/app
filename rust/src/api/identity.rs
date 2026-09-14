@@ -325,6 +325,10 @@ pub async fn delete_identity() -> Result<()> {
     *guard = None;
     drop(guard);
 
+    // The push server must stop waking this device for keys the user no
+    // longer holds; the registrations name pubkeys only, so no key is needed.
+    crate::api::push::unregister_all().await;
+
     // Clear the persisted trade key counter and per-order key mappings: both
     // belong to the deleted identity's derivation tree, and a new mnemonic
     // must start counting from zero instead of inheriting them. (If this
@@ -779,6 +783,14 @@ mod tests {
         ) -> Result<()> {
             unimplemented!()
         }
+        async fn update_trade_bond(
+            &self,
+            _order_id: &str,
+            _bond: &crate::api::types::BondInfo,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+
         async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
             unimplemented!()
         }
@@ -787,6 +799,22 @@ mod tests {
             _order_id: &str,
             _counterparty_pubkey: &str,
         ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_bond_claim(&self, _claim: &crate::api::types::BondClaim) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_bond_claim(
+            &self,
+            _node_pubkey: &str,
+            _order_id: &str,
+        ) -> Result<Option<crate::api::types::BondClaim>> {
+            unimplemented!()
+        }
+        async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>> {
+            unimplemented!()
+        }
+        async fn delete_bond_claim(&self, _node_pubkey: &str, _order_id: &str) -> Result<()> {
             unimplemented!()
         }
         async fn save_queued_message(

@@ -7,9 +7,9 @@ import 'package:mostro/features/home/widgets/order_list_item.dart';
 import '../../support/fake_orders.dart';
 import '../../support/golden_harness.dart';
 
-/// Fixed-amount and range order cards stacked, keyed for a tight golden.
-/// The first card is [OrderListItem.highlighted] so one golden pair covers
-/// both the glow ring and the plain hairline.
+/// A fixed-sats order and a market-price range order stacked, keyed for a
+/// tight golden. The first card is the best-premium one, so one golden pair
+/// covers both the highlight border and the plain hairline.
 Widget _gallery() {
   return Padding(
     key: const ValueKey('order-gallery'),
@@ -26,10 +26,12 @@ Widget _gallery() {
             paymentMethod: 'Wire, Revolut',
             premium: 2.5,
             rating: 4.8,
+            tradeCount: 16,
+            daysActive: 219,
+            amountSats: BigInt.from(4000),
             minutesAgo: 12,
           ),
           reason: OrderReason.bestPremium,
-          highlighted: true,
         ),
         const SizedBox(height: 8),
         OrderListItem(

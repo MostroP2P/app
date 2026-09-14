@@ -37,7 +37,20 @@ pub async fn new_order(
     params: &NewOrderParams,
     trade_index: u32,
     request_id: u64,
+    expires_at: Option<i64>,
 ) -> Result<String> {
+    let msg = new_order_message(params, trade_index, request_id, expires_at);
+    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
+/// The NewOrder message. `expires_at` is the unix time the maker asks the
+/// daemon to expire the untaken order at; `None` leaves it to the daemon.
+pub(crate) fn new_order_message(
+    params: &NewOrderParams,
+    trade_index: u32,
+    request_id: u64,
+    expires_at: Option<i64>,
+) -> Message {
     use mostro_core::order::{Kind, SmallOrder, Status};
 
     let kind = match params.kind {
@@ -65,18 +78,17 @@ pub async fn new_order(
         None,
         None,
         None,
-        None,
+        expires_at,
     );
 
     let payload = Some(Payload::Order(small_order));
-    let msg = Message::new_order(
+    Message::new_order(
         None,
         Some(request_id),
         Some(trade_index as i64),
         Action::NewOrder,
         payload,
-    );
-    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+    )
 }
 
 /// Build and wrap a TakeBuy MostroMessage.
@@ -145,16 +157,10 @@ pub async fn fiat_sent(
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    next_trade: Option<(String, u32)>,
 ) -> Result<String> {
-    simple_action(
-        identity_keys,
-        trade_keys,
-        mostro_pubkey,
-        order_id,
-        trade_index,
-        Action::FiatSent,
-    )
-    .await
+    let msg = action_message(order_id, trade_index, Action::FiatSent, next_trade)?;
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
 /// Build and wrap a Release MostroMessage.
@@ -164,16 +170,40 @@ pub async fn release(
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    next_trade: Option<(String, u32)>,
 ) -> Result<String> {
-    simple_action(
-        identity_keys,
-        trade_keys,
-        mostro_pubkey,
-        order_id,
-        trade_index,
-        Action::Release,
-    )
-    .await
+    let msg = release_message(order_id, trade_index, next_trade)?;
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
+/// The Release message. A range order's seller names the trade key the
+/// daemon must hand the remainder to (`NextTrade`): without it the daemon
+/// settles the trade but never publishes what is left of the range.
+pub(crate) fn release_message(
+    order_id: &str,
+    trade_index: u32,
+    next_trade: Option<(String, u32)>,
+) -> Result<Message> {
+    action_message(order_id, trade_index, Action::Release, next_trade)
+}
+
+/// An order action that may name the trade key for a range remainder: the
+/// seller's Release, or the buyer's FiatSent when the buyer made the range.
+pub(crate) fn action_message(
+    order_id: &str,
+    trade_index: u32,
+    action: Action,
+    next_trade: Option<(String, u32)>,
+) -> Result<Message> {
+    let id = Uuid::parse_str(order_id)?;
+    let payload = next_trade.map(|(pubkey, index)| Payload::NextTrade(pubkey, index));
+    Ok(Message::new_order(
+        Some(id),
+        None,
+        Some(trade_index as i64),
+        action,
+        payload,
+    ))
 }
 
 /// Build and wrap a Cancel MostroMessage.
@@ -243,6 +273,33 @@ pub async fn rate_user(
         payload,
     );
     wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
+/// Build and wrap the reply to `add-bond-invoice`: the bolt11 for the
+/// counterparty share of a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4).
+/// Same action as the request, told apart by the `PaymentRequest` payload;
+/// no amount travels — the invoice carries its own, for exactly the share.
+/// Addressed to `node_pubkey`, the daemon that issued the claim, which may
+/// not be the active node.
+pub async fn add_bond_invoice(
+    identity_keys: &Keys,
+    trade_keys: &Keys,
+    node_pubkey: &PublicKey,
+    order_id: &str,
+    trade_index: u32,
+    invoice: &str,
+    request_id: u64,
+) -> Result<String> {
+    let id = Uuid::parse_str(order_id)?;
+    let payload = Some(Payload::PaymentRequest(None, invoice.to_string(), None));
+    let msg = Message::new_order(
+        Some(id),
+        Some(request_id),
+        Some(trade_index as i64),
+        Action::AddBondInvoice,
+        payload,
+    );
+    wrap_message(identity_keys, trade_keys, node_pubkey, &msg).await
 }
 
 /// Build and wrap an AddInvoice MostroMessage (buyer submits Lightning invoice
@@ -463,6 +520,57 @@ pub async fn last_trade_index(
 mod tests {
     use super::*;
 
+    /// A new order carries the expiry the maker asks for, and none when the
+    /// daemon's default is wanted.
+    #[test]
+    fn a_new_order_carries_the_requested_expiry_only_when_given() {
+        let params = NewOrderParams {
+            kind: OrderKind::Sell,
+            fiat_amount: Some(10.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "USD".into(),
+            payment_method: "cash".into(),
+            premium: 0.0,
+            amount_sats: Some(1000),
+        };
+        let expiry_of = |msg: Message| match msg.get_inner_message_kind().payload.clone() {
+            Some(Payload::Order(order)) => order.expires_at,
+            other => panic!("not an order payload: {other:?}"),
+        };
+        assert_eq!(expiry_of(new_order_message(&params, 1, 7, None)), None);
+        assert_eq!(
+            expiry_of(new_order_message(&params, 1, 7, Some(1_800_000_600))),
+            Some(1_800_000_600)
+        );
+    }
+
+    /// The seller of a range order releases with the key the daemon must
+    /// assign the remainder to; an ordinary release carries no payload.
+    #[test]
+    fn release_names_the_next_trade_key_only_for_a_range_remainder() {
+        let id = Uuid::new_v4().to_string();
+        let plain = release_message(&id, 3, None).unwrap();
+        assert_eq!(plain.get_inner_message_kind().get_next_trade_key().unwrap(), None);
+
+        let with_next = release_message(&id, 3, Some(("ab".repeat(32), 4))).unwrap();
+        let kind = with_next.get_inner_message_kind();
+        assert_eq!(kind.action, Action::Release);
+        assert_eq!(
+            kind.get_next_trade_key().unwrap(),
+            Some(("ab".repeat(32), 4))
+        );
+
+        // The buyer who made a range names the key in fiat-sent instead.
+        let fiat = action_message(&id, 3, Action::FiatSent, Some(("cd".repeat(32), 5))).unwrap();
+        let kind = fiat.get_inner_message_kind();
+        assert_eq!(kind.action, Action::FiatSent);
+        assert_eq!(
+            kind.get_next_trade_key().unwrap(),
+            Some(("cd".repeat(32), 5))
+        );
+    }
+
     /// The NIP-13 target difficulty the event was mined at, read from its
     /// nonce tag (`["nonce", "<nonce>", "<target>"]`), or `None` when the
     /// event was not mined at all.
@@ -517,6 +625,7 @@ mod tests {
                 &sample_params(),
                 3,
                 42,
+                None,
             )
             .await
             .unwrap();
@@ -571,6 +680,7 @@ mod tests {
                 &mostro_pubkey,
                 "94486ae3-4083-4dfe-b543-53fe761025e9",
                 5,
+                None,
             ),
         )
         .await
@@ -621,6 +731,7 @@ mod tests {
             &params,
             3,
             42,
+            None,
         )
         .await
         .unwrap();

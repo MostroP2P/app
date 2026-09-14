@@ -5,8 +5,8 @@
 /// any active [`SettingsStream`] so the UI can react without polling.
 use anyhow::{bail, Result};
 use std::sync::OnceLock;
-use tokio::sync::{broadcast, RwLock};
 use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::{AppSettings, ThemeMode};
 use crate::db::Storage;
@@ -114,9 +114,7 @@ fn validate_lightning_address(address: &str) -> Result<()> {
             && labels.iter().all(|label| {
                 !label.is_empty()
                     && label.len() <= 63
-                    && label
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+                    && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
                     && !label.starts_with('-')
                     && !label.ends_with('-')
             });
@@ -182,6 +180,18 @@ pub async fn set_default_lightning_address(address: Option<String>) -> Result<()
 }
 
 /// Return the currently active Mostro node pubkey (override or default).
+/// Mortsom test environment only: every order this client creates asks
+/// the daemon to expire it `secs` after creation (`MORTSOM_ORDER_EXPIRY_SECS`),
+/// so a scenario about the daemon's pending-order clock does not wait out
+/// the daemon's hour-granular default. `None` restores that default. The
+/// daemon caps the value by its `max_expiration_days`.
+pub fn set_test_order_expiry(secs: Option<u64>) {
+    // Bounded so `now + secs` stays a valid unix time: a value past
+    // `i64::MAX` would wrap the requested expiry into the past.
+    let bounded = secs.filter(|s| *s > 0 && i64::try_from(*s).is_ok());
+    crate::config::set_order_expiry_override(bounded);
+}
+
 pub fn get_mostro_pubkey() -> String {
     crate::config::active_mostro_pubkey()
 }
@@ -197,14 +207,33 @@ pub fn get_mostro_pubkey() -> String {
 ///
 /// **Errors**: `InvalidPubkey` if `pubkey` is not a valid 64-char hex key.
 pub async fn set_active_mostro_node(pubkey: String) -> Result<()> {
+    // Lowercase before persisting: the node registry compares pubkeys as
+    // lowercase hex, and an uppercase active key would read as unknown there
+    // (auto-imported duplicate, never flagged active, undeletable).
+    let pubkey = pubkey.to_lowercase();
     nostr_sdk::prelude::PublicKey::from_hex(&pubkey)
         .map_err(|e| anyhow::anyhow!("InvalidPubkey: {e}"))?;
+    let previous = crate::config::active_mostro_pubkey();
 
-    if let Some(db) = crate::db::app_db::db() {
-        db.save_active_mostro_pubkey(&pubkey).await?;
+    {
+        // Same lock as the node registry: without it, a concurrent
+        // remove_custom_mostro_node could pass its is-active check and then
+        // save a list missing the key this call is about to activate.
+        let _guard = crate::api::nodes::registry_lock().lock().await;
+        if let Some(db) = crate::db::app_db::db() {
+            db.save_active_mostro_pubkey(&pubkey).await?;
+        }
+        crate::config::set_active_mostro_pubkey(Some(pubkey.clone()));
     }
-    crate::config::set_active_mostro_pubkey(Some(pubkey));
+    // Before the refresh drops the previous node's cached policy: a node the
+    // user traded on may still owe them a payout claim (§6.4).
+    if !previous.eq_ignore_ascii_case(&pubkey) {
+        crate::api::bond::retain_previous_node(&previous).await;
+    }
     crate::api::orders::refresh_subscriptions_for_active_node().await;
+    // Selecting a node is the user's "try again" for a push-server refusal
+    // of that node (docs/PUSH_NOTIFICATIONS.md §7.1).
+    crate::api::push::clear_node_refusal(&pubkey).await;
     Ok(())
 }
 
@@ -338,7 +367,9 @@ mod tests {
     #[tokio::test]
     async fn set_default_fiat_code_valid() {
         let _g = settings_lock().lock().unwrap();
-        set_default_fiat_code(Some("USD".to_string())).await.unwrap();
+        set_default_fiat_code(Some("USD".to_string()))
+            .await
+            .unwrap();
         let s = get_settings().await.unwrap();
         assert_eq!(s.default_fiat_code.as_deref(), Some("USD"));
         set_default_fiat_code(None).await.unwrap();
@@ -355,7 +386,9 @@ mod tests {
     #[tokio::test]
     async fn set_default_fiat_code_none_clears() {
         let _g = settings_lock().lock().unwrap();
-        set_default_fiat_code(Some("EUR".to_string())).await.unwrap();
+        set_default_fiat_code(Some("EUR".to_string()))
+            .await
+            .unwrap();
         set_default_fiat_code(None).await.unwrap();
         let s = get_settings().await.unwrap();
         assert!(s.default_fiat_code.is_none());
@@ -381,6 +414,18 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("InvalidLightningAddress"));
+    }
+
+    #[tokio::test]
+    async fn set_active_mostro_node_normalizes_to_lowercase() {
+        let _g = settings_lock().lock().unwrap();
+        // The node registry compares pubkeys as lowercase hex; an uppercase
+        // active key would read as unknown there.
+        let upper = crate::config::DEFAULT_MOSTRO_PUBKEY.to_uppercase();
+        set_active_mostro_node(upper).await.unwrap();
+        assert_eq!(get_mostro_pubkey(), crate::config::DEFAULT_MOSTRO_PUBKEY);
+        // Restore the compiled-in default.
+        crate::config::set_active_mostro_pubkey(None);
     }
 
     #[tokio::test]

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<!--
+  Store read-back control: does in JavaScript what the app does through the
+  Rust bridge with SMOKE_BOND_STORE=1. It opens the "mostro" IndexedDB
+  database with the stores the seed writes to, marks the bridge ready, then
+  reads every claim and every bonded trade and publishes their summary as
+  window.mostroStoreProbe, using the Dart enum names the app publishes.
+
+  On the first load the stores are empty. smoke.mjs seeds them and reloads,
+  so the probe the check reads comes from the seeded rows. This is what makes
+  a failure of store-probe-empty mean "the comparison caught it" rather than
+  "seeding never worked".
+
+  Like the app, it publishes only when window.mostroStoreProbeRequested is
+  set, so a pass also proves smoke.mjs asks for the probe on every load.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="data:," />
+    <title>smoke fixture — store probe</title>
+  </head>
+  <body>
+    <flutter-view></flutter-view>
+    <script>
+      const dartName = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+      const request = (req) =>
+        new Promise((ok, fail) => {
+          req.onsuccess = () => ok(req.result);
+          req.onerror = () => fail(req.error);
+        });
+
+      (async () => {
+        const open = indexedDB.open('mostro', 4);
+        open.onupgradeneeded = () => {
+          for (const store of ['bond_claims', 'trades', 'trade_keys']) {
+            if (!open.result.objectStoreNames.contains(store)) {
+              open.result.createObjectStore(store);
+            }
+          }
+        };
+        const db = await request(open);
+        window.mostroBridgeReady = true;
+        if (window.mostroStoreProbeRequested !== true) {
+          db.close();
+          return;
+        }
+
+        const readAll = (store) =>
+          request(db.transaction(store).objectStore(store).getAll());
+        const claims = (await readAll('bond_claims')).map(JSON.parse);
+        const trades = (await readAll('trades')).map(JSON.parse);
+        db.close();
+
+        window.mostroStoreProbe = JSON.stringify({
+          claims: claims.map((c) => ({ orderId: c.order_id, phase: dartName(c.phase) })),
+          trades: trades
+            .filter((t) => t.bond)
+            .map((t) => ({
+              id: t.id,
+              status: dartName(t.order.status),
+              bondState: dartName(t.bond.state),
+            })),
+        });
+      })().catch((e) => {
+        window.mostroStoreProbeError = String(e);
+      });
+    </script>
+  </body>
+</html>

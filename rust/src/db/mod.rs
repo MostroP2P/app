@@ -24,6 +24,37 @@ pub mod settings_keys {
     /// [`super::Storage::save_active_mostro_pubkey`] accessor.
     pub const ACTIVE_MOSTRO_PUBKEY: &str = "active_mostro_pubkey";
 
+    /// Nodes the user switched away from that may still send a payout claim,
+    /// JSON map of pubkey (hex) → unix seconds until which they stay on the
+    /// kind-14 filter (docs/ANTI_ABUSE_BOND.md §6.4).
+    pub const BOND_CLAIM_RETAINED_NODES: &str = "bond_claim_retained_nodes";
+
+    // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────
+
+    /// The master toggle, `"true"` / `"false"`; absent reads as enabled.
+    pub const PUSH_ENABLED: &str = "push_enabled";
+    /// The device token Dart last handed over, so a restart can unregister
+    /// before the device hands one over again.
+    pub const PUSH_TOKEN: &str = "push_token";
+    /// The platform of [`PUSH_TOKEN`]: `android`, `ios` or `web`.
+    pub const PUSH_PLATFORM: &str = "push_platform";
+    /// Every trade pubkey registered with the push server, JSON map of
+    /// pubkey (hex) → [`crate::mostro::push::PushRegistration`].
+    pub const PUSH_REGISTRATIONS: &str = "push_registrations";
+    /// Nodes the push server operator refused, JSON map of node (hex) →
+    /// unix seconds of the `403`; each entry clears per §7.1.
+    pub const PUSH_NODE_REFUSALS: &str = "push_node_refusals";
+
+    /// User-added Mostro nodes, JSON array of `crate::api::nodes::CustomNode`.
+    /// The trusted registry is compiled in (`crate::config::TRUSTED_MOSTRO_NODES`);
+    /// only user additions are persisted.
+    pub const CUSTOM_MOSTRO_NODES: &str = "custom_mostro_nodes";
+
+    /// Cached kind 0 display metadata for known Mostro nodes, JSON map of
+    /// pubkey (hex) → `crate::api::nodes::NodeMetadata`. Refreshed opportunistically
+    /// by `refresh_mostro_node_metadata`; stale entries are acceptable.
+    pub const MOSTRO_NODE_METADATA: &str = "mostro_node_metadata";
+
     /// Developer escrow-mode override — `"auto"` or `"force_cashu"`.
     /// See [`crate::mostro::escrow_mode::EscrowModeOverride`].
     pub const ESCROW_MODE_OVERRIDE: &str = "escrow_mode_override";
@@ -89,6 +120,41 @@ pub mod settings_keys {
     /// One tiny row per order ever traded, like the chat cursor.
     pub fn status_cursor(order_id: &str) -> String {
         format!("{STATUS_CURSOR_PREFIX}{order_id}")
+    }
+
+    /// Per-order start of the current invoice step (`<status>:<unix secs>`,
+    /// node clock), written only by the AddInvoice / PayInvoice arms. Unlike
+    /// [`status_cursor`], later messages for the same step never advance it,
+    /// so the invoice screens' countdown cannot be pushed out.
+    pub fn invoice_step_start(order_id: &str) -> String {
+        format!("invoice_step_start:{order_id}")
+    }
+
+    /// Per-order tombstone marking the trade row as deleted **on purpose** —
+    /// by the pre-active cancel wipe (`cancellation_wipes_history`) or by the
+    /// stale sweeper — so a daemon message for an order with no row can tell
+    /// "removed deliberately" (replay noise, drop it) from "never persisted"
+    /// (a confirmation timeout, where the message is the only recovery signal
+    /// there is). Full key is `trade_wiped:<order_id>`; build it with
+    /// [`trade_wiped`]. See issue #394.
+    ///
+    /// The value is `<wiped_at>:<trade_index>`. `wiped_at` is the wipe's unix
+    /// timestamp (decimal): the Canceled event's `created_at` where an event
+    /// drove the wipe, the local clock in the sweeper, which acts on public
+    /// book state and has no event — never compare it against the status
+    /// cursor, whose timestamps come from a different rule. `trade_index` is
+    /// the dead row's trade key index: the tombstone covers that generation
+    /// and older, so a later take of the same order — a different trade —
+    /// classifies `NeverWritten` and stays recoverable (`tombstone_covers`,
+    /// review round 2).
+    ///
+    /// Cleared whenever a trade row is (re)created for the order id — a
+    /// canceled order can be legitimately re-taken (`persist_trade_row`).
+    pub const TRADE_WIPED_PREFIX: &str = "trade_wiped:";
+
+    /// Build the settings key marking `order_id`'s trade row as wiped.
+    pub fn trade_wiped(order_id: &str) -> String {
+        format!("{TRADE_WIPED_PREFIX}{order_id}")
     }
 }
 
@@ -232,6 +298,15 @@ pub trait Storage: Send + Sync {
         days: u32,
     ) -> Result<()>;
 
+    /// Replace the anti-abuse bond attached to a trade (`$.bond`), keeping
+    /// every other field. Used for the bond's own transitions — requested,
+    /// re-requested, locked, released — which move no other trade field.
+    async fn update_trade_bond(
+        &self,
+        order_id: &str,
+        bond: &crate::api::types::BondInfo,
+    ) -> Result<()>;
+
     /// Set the durable "local user rated this trade" marker (`rated_at`, unix
     /// seconds) on the trade identified by `order.id` (issue #339). Written
     /// after `submit_rating` publishes so the rated state and the
@@ -250,4 +325,22 @@ pub trait Storage: Send + Sync {
         order_id: &str,
         counterparty_pubkey: &str,
     ) -> Result<()>;
+
+    // ── Bond payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ───────────────────
+
+    /// Insert or replace the claim keyed by its `(node_pubkey, order_id)`.
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()>;
+
+    /// The claim a node issued for an order, if any.
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>>;
+
+    /// Every claim, most recently changed first.
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>>;
+
+    /// Remove one claim. No-op when absent.
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()>;
 }

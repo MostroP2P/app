@@ -51,14 +51,21 @@ fails the build when an identifier is declared and attached to nothing.
 
 | Identifier | Value |
 |---|---|
-| `order.status` | The kebab-case name of `TradeStatus`: `loading`, `pending`, `waiting-invoice`, `waiting-payment`, `in-progress`, `active`, `fiat-sent`, `payout-pending`, `completed`, `cancelled`, `disputed`, `pending-rating`, `rated`. Never the localized pill copy. |
+| `order.status` | The kebab-case name of `TradeStatus`: `loading`, `pending`, `waiting-invoice`, `waiting-payment`, `waiting-bond`, `in-progress`, `active`, `fiat-sent`, `payout-pending`, `completed`, `cancelled`, `disputed`, `pending-rating`, `rated`. Never the localized chip copy. `waiting-bond` is the anti-abuse bond window (`docs/ANTI_ABUSE_BOND.md`): the daemon is waiting for the user's bond bolt11 before the trade flow starts. |
 | `order.id` | The full order id, where the visible text is shortened. |
 | `keys.public_key` | The identity's full public key. |
 | `settings.mostro_node.pubkey` | The active daemon's full public key, where the visible subtitle is truncated. |
 | `wallet.connection` | `connected` or `disconnected`. |
 | `pay.invoice.text` | The hold invoice (`bolt11`), which is otherwise only drawn as a QR code or paid directly by the wallet. |
 | `pay.order_id` | The exact order ID shown in the seller invoice screen's app bar, including while its invoice is loading. |
+| `bond.invoice.text` | The anti-abuse bond bolt11 (`docs/ANTI_ABUSE_BOND.md`), otherwise only drawn as a QR code or paid by the wallet. |
+| `bond.order_id` | The exact order ID shown in the pay-bond screen's app bar. |
+| `bond.claim.amount` | The share of a slashed bond on offer to this user, in sats (`docs/ANTI_ABUSE_BOND.md` §6.4). |
+| `bond.claim.status` | The claim's phase as the screen renders it: `pending`, `submitted`, `acknowledged`, `completed`, `expired` (a pending claim past its window reads `expired`). |
+| `bond.claim.order_id` | The exact order ID shown in the claim screen's app bar. |
+| `trade.bondSlashed` | The durable line on the trade detail once this user's own bond was slashed, labelled with the cause (`dispute` / `timeout`); absent otherwise. |
 | `invoice.nwc.text` | The buyer invoice NWC generated, for payment correlation. |
+| `invoice.error` | The reason the daemon refused the last submitted buyer invoice. Present only after a rejection, until the next submission; the manual form stays open behind it. In the wallet-generated (NWC) branch, which has no form, the readout comes with `invoice.manual` so the buyer can switch to manual entry. |
 | `settings.relays.item.<url>` | The relay's URL. |
 
 There is deliberately **no** identifier for the seed phrase. A stable readout
@@ -71,6 +78,87 @@ service on the device can read it, and no scenario needs it.
 `order.book.tab.buy` is the "Buy BTC" tab — which lists *sell* orders, because
 the taker is buying. A driver that wants a side picks the tab that lists it.
 This matches the classic app.
+
+**The order form starts on market price, and a range locks it there.**
+The form's switches are segmented controls with both options always visible.
+`order.create.price_type` names the `Market | Fixed` control as a whole; its
+segments are `order.create.price.market` and `order.create.price.fixed`, and a
+driver taps a segment, not the control. The sats field
+(`order.create.sats_amount`) exists only on fixed. Likewise
+`order.create.range` names the `Single | Range` control, with segments
+`order.create.amount.single` and `order.create.amount.range`; range swaps the
+single `order.create.fiat_amount` for `order.create.fiat_min` and
+`order.create.fiat_max`, and disables the fixed segment: the protocol prices a
+range at market only. The side can be switched on the form too
+(`order.create.side.buy`, `order.create.side.sell`); it starts on the side the
+order-book button was tapped with. The premium figure
+(`order.create.premium`) opens a numeric field in place when tapped.
+
+**Payment methods are chosen on their own screen.** `order.create.payment_method.add`
+on the form opens it. There, `order.create.payment_method.search` narrows the
+per-currency list, `order.create.payment_method.<method>` toggles one method,
+and the free-text field `order.create.payment_method` plus
+`order.create.payment_method.custom_add` turn an arbitrary method into a chip.
+Going back keeps every choice; the form shows them as chips.
+
+**The take-order screen has one action.** `order.take.confirm` is `Take order`;
+there is no close button — `appbar.back` returns to the book. Once the order
+is taken by someone else or expires while the screen is open, the same node
+stays but reads as disabled (`No longer available`); the screen never
+navigates away on its own. Taking a range order asks its amount in a dialog
+(`order.take.amount`, `order.take.amount.confirm`) right after
+`order.take.confirm`; a fixed order never shows the dialog.
+
+**A take parked on the anti-abuse bond offers `trade.payBond` (`Pay deposit`)
+and `trade.cancel`.** While `order.status` reads `waiting-bond`
+(`docs/ANTI_ABUSE_BOND.md`), `trade.payBond` opens `/pay_bond/:orderId`; the
+My Trades row carries the same verb and files the trade under "your turn".
+
+**An order parked on the maker's own deposit is not published yet.** While
+`order.status` reads `waiting-bond` on `/my_order` (`docs/ANTI_ABUSE_BOND.md`
+§6.2), the screen offers `order.payBond` (`Pay deposit`), which opens
+`/pay_bond/:orderId`, and no `trade.cancel`: the daemon refuses a cancel in
+this window. On that screen `bond.cancel` reads `Don't publish the order` and
+drops the order locally (nothing was published, nothing charged); a taker's
+reads `Don't take the order` and is a daemon cancel. Once the deposit is
+paid the daemon publishes the order and `/my_order` reads `pending`.
+
+**A slashed bond is explained on tap.** Tapping a bond-slashed notification opens a
+dialog with the cause, the amount and the order; `bond.slashed.viewPolicy` (`View policy`)
+leads to the About screen, `bond.slashed.viewTrade` (`View trade`) opens the trade
+detail and is present only while the trade row still exists (a timeout slash wipes
+it), `bond.slashed.close` dismisses it. The trade keeps `trade.bondSlashed`
+afterwards.
+
+**A claimable share reaches the user from three places.** The trade detail
+carries `trade.bondClaim` (labelled with the claim's phase) with
+`trade.bondClaim.open` while the claim is pending or in progress; the My
+Trades row shows a `Payout pending` / `Payout in progress` / `Payout paid`
+badge next to its chip, a pending one files the row under *Your turn* with the
+verb `Claim payout`, and a claim whose trade row is gone renders a row of its
+own; a notification (`bond.claim` type) opens the claim screen.
+
+**Claiming a slashed bond's share happens on `/bond_payout/:orderId`.**
+While `bond.claim.status` reads `pending`, the screen offers `bond.claim.text`
+(the bolt11 field, paste and scan) and `bond.claim.submit` (`Send invoice`),
+or — with a wallet connected — the same NWC widget the add-invoice screen
+uses, with `bond.claim.manual` as the way to the field. The invoice must be
+for exactly `bond.claim.amount`; a refused submission keeps the form and
+states the reason. Every other phase is read-only.
+
+**The maker's own order ends on `order.confirm.home` (`Close`) and
+`trade.cancel`.** `trade.cancel` opens a confirmation sheet whose affirmative
+is `trade.cancel.confirm`; the button is absent once the order is expired,
+cancelled or completed.
+
+**Rating is one star and a submit, on the trade itself.** After a successful
+trade the completed card of the trade detail carries `trade.rate.star.<n>` for
+each of its five stars, `trade.rate.submit` (enabled once a star is chosen) and
+`trade.rate.close`. Submitting stays on the same trade, whose `order.status`
+then reads `rated`; `trade.rate.close` then closes it. The standalone rating
+screen (`/rate_user/:orderId`, reached from a notification) keeps the same
+identifiers. A disputed trade offers `trade.dispute.view`; a cancelled one
+`trade.close`.
 
 **A pending order you created opens on `/my_order`, not `/trade_detail`.**
 Both screens therefore expose `order.status` and `order.id`, in the same
@@ -102,6 +190,7 @@ What the test environment changes:
 | Marker | A red `TEST ENVIRONMENT · Mortsom` banner is shown on every screen, carrying `env.marker`. The harness refuses to run against a build without it. |
 | Node | `MOSTRO_PUB_KEY` selects the daemon under test, applied before the relay pool starts and only when no node was ever chosen — so a restart keeps whatever the run picked through the UI. Without it the first subscriptions would target the production node, which cannot decrypt them, and the app would look silently idle. A malformed key is ignored rather than passed to the bridge. |
 | Startup | Missing `MORTSOM_RELAYS` fails at startup naming the define, instead of starting against the public relays and passing a test that never reached the daemon under test. |
+| Order expiry | `MORTSOM_ORDER_EXPIRY_SECS` (optional) makes every order this build creates ask the daemon to expire it that many seconds after creation, the way the protocol lets any maker do; the daemon caps it by its `max_expiration_days`. Without it the daemon's own default applies (an hour), which is what a scenario about the daemon's pending-order clock cannot wait out. Ignored outside the test environment. |
 
 Both entry points go through `bootstrapAndRun` in `lib/core/app_bootstrap.dart`,
 so a test build and a production build differ only in what they pass, never in
@@ -138,6 +227,19 @@ directories. XDG isolation alone does not isolate FlutterSecureStorage.
 `payout-pending` is nonterminal: the seller escrow has settled but the buyer payout has not yet been confirmed. Continue observing until the protocol status is `OrderStatus::Success`; only then may the UI expose `pending-rating` or completion. A released escrow alone never authorizes rating or a completed-trade assertion.
 
 
+### Buyer payout failure
+
+The daemon settles the seller's escrow at release and then pays the buyer's invoice. When that payment
+fails it retries on its own schedule (`payment_attempts` every `payment_retries_interval`); the first
+failure reaches the buyer as `payment-failed`, which changes nothing on screen: the trade stays
+`payout-pending`. Once the retries are exhausted the daemon asks the buyer for a new invoice with an
+`add-invoice` whose order still reads `settled-hold-invoice`. The app treats that message exactly as the
+first request for an invoice: the trade shows `waiting-invoice`, the add-invoice screen opens for the
+buyer and `trade.addInvoice` is offered on the trade detail. The replacement goes through the same manual
+form (or the NWC generator when a wallet is connected); the daemon's `invoice-updated` returns the trade to
+`payout-pending`, and `completed` follows only when the daemon publishes `success`. A rejected replacement is
+reported through `invoice.error` like any other rejection.
+
 ### Manual buyer invoice readouts
 
 `invoice.amount` exposes the positive unsigned number of sats requested by the daemon, alongside the
@@ -158,5 +260,4 @@ subsequent state assertions read its normal status. Both invoice screens expose 
 ordinary BackButton when navigation can pop; this action never invokes the order-cancellation control.
 
 The release action stays on trade detail while payment finalizes. An early rating notification or direct
-rating route also waits for final success. The historical order-preset selector still categorizes settled
-escrow as a successful preset; auditing that unrelated history surface is a follow-up.
+rating route also waits for final success.

@@ -1,6 +1,6 @@
 /// Database schema version. Currently unused at runtime — kept as a reference
 /// for future migration logic (e.g. ALTER TABLE guards or schema-diff checks).
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
 
 /// One-off rebuild for databases created while `messages` still carried a
 /// foreign key to `trades(id)` (schema v2). SQLite cannot drop a FK in place,
@@ -116,4 +116,18 @@ CREATE TABLE IF NOT EXISTS trade_keys (
     order_id        TEXT PRIMARY KEY,
     key_index       INTEGER NOT NULL
 );
+
+-- Payout claims on slashed bonds (docs/ANTI_ABUSE_BOND.md §6.4, §7.3).
+-- Independent of `trades`: the winner's row may be gone by the time the
+-- daemon asks for an invoice. Keyed by the issuing node and the order,
+-- since the user can switch nodes while a claim is open.
+CREATE TABLE IF NOT EXISTS bond_claims (
+    id              TEXT PRIMARY KEY NOT NULL,   -- "<node_pubkey>:<order_id>"
+    node_pubkey     TEXT NOT NULL,
+    data            TEXT NOT NULL,               -- JSON-serialised BondClaim
+    phase           TEXT NOT NULL,
+    deadline_at     INTEGER NOT NULL,
+    updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bond_claims_node ON bond_claims(node_pubkey, phase);
 "#;

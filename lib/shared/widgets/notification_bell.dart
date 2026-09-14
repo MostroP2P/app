@@ -15,8 +15,29 @@ import 'package:mostro/l10n/app_localizations.dart';
 ///   2. **Gold pill badge** — backup done; shows unread notification count.
 ///
 /// A left-right shake animation plays whenever any indicator is active.
+///
+/// The optional styling lets a redesigned screen match its mock (the order
+/// book sets a 22-dp glyph and a ringed dot); screens that pass nothing keep
+/// the original look.
 class NotificationBell extends ConsumerStatefulWidget {
-  const NotificationBell({super.key});
+  const NotificationBell({
+    super.key,
+    this.iconColor,
+    this.iconSize = 24,
+    this.dotColor,
+    this.dotRingColor,
+  });
+
+  /// Glyph colour; the ambient icon theme when null.
+  final Color? iconColor;
+  final double iconSize;
+
+  /// Backup-reminder dot colour; the theme's destructive red when null.
+  final Color? dotColor;
+
+  /// When set, the dot is drawn 7 dp with a 1.5-dp ring of this colour — the
+  /// page background — so it reads as cut out of the glyph.
+  final Color? dotRingColor;
 
   @override
   ConsumerState<NotificationBell> createState() => _NotificationBellState();
@@ -94,13 +115,20 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              const Icon(Icons.notifications_outlined, size: 24),
+              Icon(
+                Icons.notifications_outlined,
+                size: widget.iconSize,
+                color: widget.iconColor,
+              ),
               if (isActive)
                 Positioned(
                   top: -2,
                   right: -2,
                   child: backupActive
-                      ? const _RedDot()
+                      ? _RedDot(
+                          color: widget.dotColor,
+                          ringColor: widget.dotRingColor,
+                        )
                       : _CountBadge(count: unreadCount),
                 ),
             ],
@@ -112,17 +140,24 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
 }
 
 class _RedDot extends StatelessWidget {
-  const _RedDot();
+  const _RedDot({this.color, this.ringColor});
+
+  final Color? color;
+  final Color? ringColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
+    final ringColor = this.ringColor;
+    final size = ringColor == null ? 8.0 : 7 + 2 * 1.5;
     return Container(
-      width: 8,
-      height: 8,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        color: colors?.destructiveRed ?? const Color(0xFFD84D4D),
+        color: color ?? colors?.destructiveRed ?? const Color(0xFFD84D4D),
         shape: BoxShape.circle,
+        border:
+            ringColor == null ? null : Border.all(color: ringColor, width: 1.5),
       ),
     );
   }

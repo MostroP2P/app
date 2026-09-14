@@ -16,6 +16,8 @@ enum NotificationType {
   invoiceRequest,
   orderTaken,
   bondSlashed,
+  /// A slashed bond's share is claimable, or was paid (docs/ANTI_ABUSE_BOND.md §8.5).
+  bondClaim,
 }
 
 class NotificationModel {
@@ -190,6 +192,34 @@ class NotificationModel {
     );
   }
 
+  /// A payout claim to act on, or one that was paid. [id] is stable per
+  /// claim — the issuing node and the slash anchor, not just the order: a
+  /// later slash, or another node, is another claim — and per phase, so the
+  /// daemon's cadence retries never add a second record; a re-prompt
+  /// carries a fresh [updatedAt] and does.
+  factory NotificationModel.bondClaim({
+    required String orderId,
+    required String nodePubkey,
+    required int slashedAt,
+    required int amountSats,
+    required bool completed,
+    required int updatedAt,
+  }) {
+    final claimId = 'bond-claim-$orderId-$nodePubkey-$slashedAt';
+    return NotificationModel(
+      id: completed ? '$claimId-completed' : '$claimId-pending-$updatedAt',
+      type: NotificationType.bondClaim,
+      title: '',
+      message: '',
+      timestamp: DateTime.now(),
+      orderId: orderId,
+      detail: {
+        _bondAmountKey: '$amountSats',
+        _claimStateKey: completed ? _claimStatePaid : _claimStatePending,
+      },
+    );
+  }
+
   factory NotificationModel.backupReminder() {
     return NotificationModel(
       id: const Uuid().v4(),
@@ -210,16 +240,39 @@ class NotificationModel {
   static const _bondPaymentMethodKey = 'paymentMethod';
   static const _bondCauseDispute = 'dispute';
   static const _bondCauseTimeout = 'timeout';
+  static const _claimStateKey = 'claim';
+  static const _claimStatePending = 'pending';
+  static const _claimStatePaid = 'paid';
 
   bool get _isBondSlashed => type == NotificationType.bondSlashed;
 
-  /// Title for display, localized at render time for bond-slashed notices and
+  /// The sats the daemon reported forfeited in a bond-slashed notice — the
+  /// slice actually lost, which for a partially filled range order is less
+  /// than the bond locked (docs/ANTI_ABUSE_BOND.md §2.8). Null for other
+  /// types or a record without it.
+  int? get bondSlashedAmountSats =>
+      _isBondSlashed ? int.tryParse(detail?[_bondAmountKey] ?? '') : null;
+  bool get _isBondClaim => type == NotificationType.bondClaim;
+  bool get _claimPaid => detail?[_claimStateKey] == _claimStatePaid;
+
+  /// Title for display, localized at render time for bond notices and
   /// falling back to the stored [title] for other types.
-  String resolvedTitle(AppLocalizations l10n) =>
-      _isBondSlashed ? l10n.bondSlashedTitle : title;
+  String resolvedTitle(AppLocalizations l10n) {
+    if (_isBondSlashed) return l10n.bondSlashedTitle;
+    if (_isBondClaim) {
+      return _claimPaid ? l10n.bondClaimPaidTitle : l10n.bondClaimNewTitle;
+    }
+    return title;
+  }
 
   /// Message for display (see [resolvedTitle]).
   String resolvedMessage(AppLocalizations l10n) {
+    if (_isBondClaim) {
+      final amount = detail?[_bondAmountKey] ?? '0';
+      return _claimPaid
+          ? l10n.bondClaimPaidMessage(amount)
+          : l10n.bondClaimNewMessage(amount);
+    }
     if (!_isBondSlashed) return message;
     final amount = detail?[_bondAmountKey] ?? '0';
     final id = orderId ?? '';

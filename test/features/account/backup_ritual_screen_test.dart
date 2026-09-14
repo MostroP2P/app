@@ -7,8 +7,18 @@ import 'package:mostro/features/account/screens/backup_ritual_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
 const _words = <String>[
-  'abandon', 'ability', 'able', 'about', 'above', 'absent',
-  'absorb', 'abstract', 'absurd', 'abuse', 'access', 'accident',
+  'abandon',
+  'ability',
+  'able',
+  'about',
+  'above',
+  'absent',
+  'absorb',
+  'abstract',
+  'absurd',
+  'abuse',
+  'access',
+  'accident',
 ];
 
 Future<void> _pumpRitual(WidgetTester tester) async {
@@ -66,8 +76,9 @@ void main() {
     l10n = await AppLocalizations.delegate.load(const Locale('en'));
   });
 
-  testWidgets('first wrong pick keeps the user on step 2 with feedback',
-      (tester) async {
+  testWidgets('first wrong pick keeps the user on step 2 with feedback', (
+    tester,
+  ) async {
     await _pumpRitual(tester);
     await _goToVerify(tester, l10n);
     expect(find.text(l10n.tapCorrectWordsTitle), findsOneWidget);
@@ -80,51 +91,79 @@ void main() {
   });
 
   testWidgets(
-      'second wrong pick on the same word returns to step 1 with the SnackBar',
-      (tester) async {
-    await _pumpRitual(tester);
-    await _goToVerify(tester, l10n);
+    'second wrong pick on the same word returns to step 1 with the SnackBar',
+    (tester) async {
+      await _pumpRitual(tester);
+      await _goToVerify(tester, l10n);
 
-    await tester.tap(_aWrongOption(tester));
-    await tester.pumpAndSettle();
-    expect(find.text(l10n.tapCorrectWordsTitle), findsOneWidget);
+      await tester.tap(_aWrongOption(tester));
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.tapCorrectWordsTitle), findsOneWidget);
 
-    await tester.tap(_aWrongOption(tester));
-    await tester.pump();
+      await tester.tap(_aWrongOption(tester));
+      await tester.pump();
 
-    expect(find.text(l10n.backupRitualStep1Title), findsOneWidget);
-    expect(find.text(l10n.backupRitualSecondFailureMessage), findsOneWidget);
-  });
+      expect(find.text(l10n.backupRitualStep1Title), findsOneWidget);
+      expect(find.text(l10n.backupRitualSecondFailureMessage), findsOneWidget);
+    },
+  );
 
   testWidgets(
-      'after restarting verification, one wrong pick is tolerated again',
-      (tester) async {
+    'after restarting verification, one wrong pick is tolerated again',
+    (tester) async {
+      await _pumpRitual(tester);
+      await _goToVerify(tester, l10n);
+
+      await tester.tap(_aWrongOption(tester));
+      await tester.pumpAndSettle();
+      await tester.tap(_aWrongOption(tester));
+      await tester.pump();
+      expect(find.text(l10n.backupRitualStep1Title), findsOneWidget);
+
+      // The failure SnackBar sits at the bottom over the verify button; clear it
+      // so it can't intercept the restart tap.
+      ScaffoldMessenger.of(
+        tester.element(find.byType(BackupRitualScreen)),
+      ).clearSnackBars();
+      await tester.pumpAndSettle();
+
+      await _goToVerify(tester, l10n);
+      expect(find.text(l10n.tapCorrectWordsTitle), findsOneWidget);
+
+      await tester.tap(_aWrongOption(tester));
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.tapCorrectWordsTitle), findsOneWidget);
+      expect(find.text(l10n.backupRitualStep1Title), findsNothing);
+    },
+  );
+
+  testWidgets('View words keeps the slots already solved', (tester) async {
     await _pumpRitual(tester);
     await _goToVerify(tester, l10n);
-
-    await tester.tap(_aWrongOption(tester));
+    final first = _correctWord(tester);
+    await tester.tap(find.widgetWithText(InkWell, first).first);
     await tester.pumpAndSettle();
-    await tester.tap(_aWrongOption(tester));
-    await tester.pump();
+    final second = _correctWord(tester);
+
+    await tester.tap(find.text(l10n.reviewWordsButton));
+    await tester.pumpAndSettle();
     expect(find.text(l10n.backupRitualStep1Title), findsOneWidget);
-
-    // The failure SnackBar sits at the bottom over the verify button; clear it
-    // so it can't intercept the restart tap.
-    ScaffoldMessenger.of(tester.element(find.byType(BackupRitualScreen)))
-        .clearSnackBars();
-    await tester.pumpAndSettle();
-
     await _goToVerify(tester, l10n);
-    expect(find.text(l10n.tapCorrectWordsTitle), findsOneWidget);
 
-    await tester.tap(_aWrongOption(tester));
-    await tester.pumpAndSettle();
     expect(find.text(l10n.tapCorrectWordsTitle), findsOneWidget);
-    expect(find.text(l10n.backupRitualStep1Title), findsNothing);
+    expect(_correctWord(tester), second, reason: 'same round, next slot');
+    // The solved word may come back as a decoy, so count solved slots by
+    // their check rather than by text.
+    expect(
+      find.byIcon(Icons.check_rounded),
+      findsOneWidget,
+      reason: 'solved slot kept',
+    );
   });
 
-  testWidgets('answering all three words correctly confirms the backup',
-      (tester) async {
+  testWidgets('answering all three words correctly confirms the backup', (
+    tester,
+  ) async {
     await _pumpRitual(tester);
     await _goToVerify(tester, l10n);
 

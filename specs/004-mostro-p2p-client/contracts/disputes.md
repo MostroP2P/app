@@ -161,7 +161,10 @@ dispute chat has no UI: `chat_room_screen.dart` renders only peer messages and
 `send_message` has no channel parameter, so the solver can be read but not
 written to. What lands today is the re-armed listener: solver messages arrive
 and persist as `MessageType::Admin`. Repopulating the dispute screen and the
-admin chat are the tracked follow-ups.
+admin chat are the tracked follow-ups. So is one-tap delivery of the P2P
+shared key to the solver (#415): Rust will send it over this channel behind an
+explicit confirmation in the UI, and the key is never exposed to Dart; that
+function and the `Dispute` state it adds are specified when it lands.
 
 **Platform limitation (web)**: persistence is native-only today. The Flutter
 shell does not call `init_db` on web, and the IndexedDB store's `list_trades`

@@ -48,24 +48,26 @@ void main() {
       expect(shimAt, lessThan(bootstrapAt));
     });
 
-    test('loads the locale sanitizer between the shim and flutter_bootstrap.js',
-        () {
-      // Arrange
-      final html = indexHtml.readAsStringSync();
+    test(
+      'loads the locale sanitizer between the shim and flutter_bootstrap.js',
+      () {
+        // Arrange
+        final html = indexHtml.readAsStringSync();
 
-      // Act
-      final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
-      final sanitizerAt = html.indexOf('<!-- locale-sanitizer');
-      final bootstrapAt = html.indexOf('flutter_bootstrap.js');
+        // Act
+        final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
+        final sanitizerAt = html.indexOf('<!-- locale-sanitizer');
+        final bootstrapAt = html.indexOf('flutter_bootstrap.js');
 
-      // Assert — the sanitizer must rewrite navigator.language(s) before the
-      // engine reads them during CanvasKit bootstrap, or an unparseable
-      // browser locale throws out of it and the page stays blank (#227). It
-      // still comes after the shim, which reloads the page to gain isolation.
-      expect(sanitizerAt, greaterThanOrEqualTo(0));
-      expect(shimAt, lessThan(sanitizerAt));
-      expect(sanitizerAt, lessThan(bootstrapAt));
-    });
+        // Assert — the sanitizer must rewrite navigator.language(s) before the
+        // engine reads them during CanvasKit bootstrap, or an unparseable
+        // browser locale throws out of it and the page stays blank (#227). It
+        // still comes after the shim, which reloads the page to gain isolation.
+        expect(sanitizerAt, greaterThanOrEqualTo(0));
+        expect(shimAt, lessThan(sanitizerAt));
+        expect(sanitizerAt, lessThan(bootstrapAt));
+      },
+    );
   });
 
   group('vendored coi-serviceworker', () {
@@ -213,7 +215,13 @@ void main() {
       // fixtures are the executable form of issue #154's "fail on any console
       // error" requirement.
       expect(selftest.existsSync(), isTrue);
-      for (final fixture in ['healthy', 'console-error', 'page-error']) {
+      for (final fixture in [
+        'healthy',
+        'console-error',
+        'page-error',
+        'store-probe',
+        'store-probe-empty',
+      ]) {
         expect(
           File('test/web/smoke/fixtures/$fixture/index.html').existsSync(),
           isTrue,
@@ -237,11 +245,41 @@ void main() {
     });
   });
 
+  group('bond store read-back', () {
+    test('Dart, the smoke test and CI agree on the probe and the seed', () {
+      // Arrange — the check only runs when CI opts in, reads a flag Dart
+      // writes, and seeds the database Dart opens. A rename on any one side
+      // turns it into a timeout that reads as a broken bundle, or into a
+      // check that never runs.
+      final dart =
+          File('lib/core/web/store_probe_signal_web.dart').readAsStringSync();
+      final location =
+          File('lib/core/storage/db_location.dart').readAsStringSync();
+      final js = smoke.readAsStringSync();
+      final seed = File('test/web/smoke/seed/bond_store.json');
+      final yaml = webBuild.readAsStringSync();
+
+      // Act / Assert
+      expect(dart, contains(storeProbeFlag));
+      expect(js, contains(storeProbeFlag));
+      // Production publishes nothing unless the page asks, so the request
+      // flag must match too, or the check times out on a healthy bundle.
+      expect(dart, contains(storeProbeRequestFlag));
+      expect(js, contains(storeProbeRequestFlag));
+      expect(js, contains('SMOKE_BOND_STORE'));
+      expect(yaml, contains('SMOKE_BOND_STORE: "1"'));
+      expect(seed.existsSync(), isTrue);
+      expect(seed.readAsStringSync(), contains('"database": "mostro"'));
+      expect(location, contains("webDatabaseName = 'mostro'"));
+    });
+  });
+
   group('bridge readiness probe', () {
     test('Dart and the smoke test agree on the flag name', () {
       // Arrange — the probe is the only positive signal that the Rust bridge
       // survived; a rename on one side would silently never be awaited.
-      final dart = File('lib/core/web/bridge_probe_web.dart').readAsStringSync();
+      final dart =
+          File('lib/core/web/bridge_probe_web.dart').readAsStringSync();
       final js = smoke.readAsStringSync();
 
       // Act / Assert
@@ -254,3 +292,11 @@ void main() {
 /// The `window` property `main()` sets once a real Rust bridge call has
 /// returned on web, and that the headless smoke test waits for.
 const bridgeReadyFlag = 'mostroBridgeReady';
+
+/// The `window` property the web build sets to what it read back from the
+/// persistent store, and that the smoke test compares with its seed.
+const storeProbeFlag = 'mostroStoreProbe';
+
+/// The `window` property the smoke test sets before the page loads to ask the
+/// web build for the store read-back.
+const storeProbeRequestFlag = 'mostroStoreProbeRequested';

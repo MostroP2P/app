@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
 use cdk::amount::SplitTarget;
-use cdk::nuts::{CurrencyUnit, Token};
+use cdk::nuts::nut10::SpendingConditions;
+use cdk::nuts::{CurrencyUnit, Proof, Token};
 use cdk::wallet::{ReceiveOptions, SendMemo, SendOptions, Wallet};
 use cdk::Amount;
 use cdk_sqlite::WalletSqliteDatabase;
@@ -150,6 +151,28 @@ impl CashuWallet {
         &self.mint_url
     }
 
+    /// The underlying `cdk` wallet, for the escrow primitives in
+    /// [`super::escrow`]. Crate-internal: everything outside this module goes
+    /// through the methods above, so mint access stays in one place.
+    pub(crate) fn inner(&self) -> &Wallet {
+        &self.inner
+    }
+
+    /// The proofs inside a token.
+    ///
+    /// Needs the mint's keysets — a v4 token identifies its keyset by id — so
+    /// this cannot be a free function on the token alone.
+    pub(crate) async fn proofs_of(&self, token: &Token) -> Result<Vec<Proof>> {
+        let keysets = self
+            .inner
+            .load_mint_keysets()
+            .await
+            .map_err(|e| anyhow!("CashuMintUnreachable: {e}"))?;
+        token
+            .proofs(&keysets)
+            .map_err(|e| anyhow!("InvalidEscrowToken: unreadable proofs ({e})"))
+    }
+
     /// What the mint advertised at connect time.
     pub fn capabilities(&self) -> &MintCapabilities {
         &self.capabilities
@@ -212,12 +235,32 @@ impl CashuWallet {
     /// its proofs reserved: reclaiming *that* is `revoke_send`, which arrives
     /// with the rest of reconciliation in phase C10 —
     /// [`Self::sweep_spent_proofs`] does not do it and does not claim to. The
-    /// one case handled here is the send that fails on the way out, below.
+    /// one case handled here is the send that fails on the way out, in
+    /// [`Self::send_with_conditions`].
     ///
     /// **Errors** (stable markers): `CashuAmountZero`, `CashuSendFailed` (the
     /// send failed and the proofs are back), `CashuSendUnresolved` (the send
     /// failed and the proofs could *not* be confirmed back).
     pub async fn create_token(&self, amount_sats: u64) -> Result<String> {
+        self.send_with_conditions(amount_sats, None).await
+    }
+
+    /// Swap `amount_sats` of wallet proofs into a token, optionally locked to
+    /// `conditions` (NUT-11). `None` is a plain send; the escrow primitives in
+    /// [`super::escrow`] pass the 2-of-3.
+    ///
+    /// One implementation for both because the failure path is the subtle
+    /// part and must not drift: a `confirm` that fails after `prepare_send`
+    /// leaves the whole amount reserved and invisible unless it is revoked
+    /// here, and for an escrow that amount is the whole trade.
+    ///
+    /// **Errors** (stable markers): `CashuAmountZero`, `CashuSendFailed`,
+    /// `CashuSendUnresolved` — see [`Self::create_token`].
+    pub(crate) async fn send_with_conditions(
+        &self,
+        amount_sats: u64,
+        conditions: Option<SpendingConditions>,
+    ) -> Result<String> {
         if amount_sats == 0 {
             bail!("CashuAmountZero");
         }
@@ -227,6 +270,7 @@ impl CashuWallet {
             .prepare_send(
                 Amount::from(amount_sats),
                 SendOptions {
+                    conditions,
                     amount_split_target: SplitTarget::default(),
                     ..Default::default()
                 },

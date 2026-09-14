@@ -8,6 +8,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/features/notifications/widgets/bond_slashed_dialog.dart';
 import 'package:mostro/features/notifications/widgets/notification_group_card.dart';
 import 'package:mostro/features/notifications/widgets/system_notification_banner.dart';
 
@@ -224,6 +225,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         n.disputeId != null
             ? context.push(AppRoute.disputeDetailsPath(n.disputeId!))
             : noId();
+      case NotificationType.bondClaim:
+        n.orderId != null
+            ? context.push(AppRoute.bondPayoutPath(n.orderId!))
+            : noId();
+      case NotificationType.bondSlashed:
+        BondSlashedDialog.show(context, n);
       default:
         n.orderId != null
             ? context.push(AppRoute.tradeDetailPath(n.orderId!))
@@ -431,6 +438,7 @@ class _TypeIcon extends StatelessWidget {
       NotificationType.invoiceRequest => (Icons.description, Colors.green),
       NotificationType.orderTaken => (Icons.add_circle_outline, Colors.green),
       NotificationType.bondSlashed => (Icons.money_off, Colors.red),
+      NotificationType.bondClaim => (Icons.savings_outlined, Colors.orange),
     };
     return Icon(icon, color: color, size: 22);
   }

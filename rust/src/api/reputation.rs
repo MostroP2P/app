@@ -602,6 +602,7 @@ mod tests {
             peer_reviews: None,
             peer_days: None,
             rated_at: None,
+            bond: None,
         };
         db.save_trade(&trade).await.unwrap();
 

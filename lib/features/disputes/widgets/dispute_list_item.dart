@@ -1,145 +1,121 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:mostro/core/activity_palette.dart';
 import 'package:mostro/core/app_routes.dart';
-import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/order_book_palette.dart';
+import 'package:mostro/features/chat/models/chat_list_rules.dart';
+import 'package:mostro/features/chat/widgets/chat_list_item.dart'
+    show ChatAvatar;
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
+import 'package:mostro/features/trades/models/trades_list_rules.dart';
+import 'package:mostro/features/trades/widgets/trade_card.dart'
+    show relativeTimeLabel;
+import 'package:mostro/features/trades/widgets/trade_list_chip.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/widgets/status_chip.dart';
 
-/// A single row in the disputes list.
-///
-/// Layout:
-/// ⚠️  Order dispute                          [Status chip] ● (unread dot)
-///     truncated-order-uuid
-///     "You opened this dispute" / resolution text
+/// One dispute of the Disputes segment (handoff 11b): the conversation row's
+/// structure, with the coral `En disputa` chip and who opened it and when.
 class DisputeListItem extends ConsumerWidget {
-  const DisputeListItem({super.key, required this.dispute});
+  const DisputeListItem({
+    super.key,
+    required this.dispute,
+    this.isLast = false,
+  });
 
   final DisputeItem dispute;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
-    final textTheme = Theme.of(context).textTheme;
+    final book = OrderBookPalette.of(context);
+    final pal = ActivityPalette.of(context);
     final l10n = AppLocalizations.of(context);
-
-    final (statusBg, statusFg, statusLabel) = _statusChip(dispute.status, l10n);
-    final truncatedId = dispute.tradeId.length > 16
-        ? '${dispute.tradeId.substring(0, 16)}…'
-        : dispute.tradeId;
+    final locale = Localizations.localeOf(context).toString();
+    final open = dispute.status != DisputeStatus.resolved;
+    final handle = dispute.peerHandle ?? l10n.orderDispute;
+    final opened = relativeTimeLabel(
+      relativeTime(
+        DateTime.fromMillisecondsSinceEpoch(dispute.openedAt * 1000),
+        now: clock.now(),
+      ),
+      l10n,
+      locale,
+    );
+    final contextLine =
+        open
+            ? (dispute.initiatedByMe
+                ? l10n.disputeOpenedByYou(opened)
+                : l10n.disputeOpenedByPeer(opened))
+            : dispute.localizedDescription(l10n);
 
     return InkWell(
       onTap: () {
+        HapticFeedback.selectionClick();
         ref.read(disputeNotifierProvider.notifier).markRead(dispute.id);
         context.push(AppRoute.disputeDetailsPath(dispute.id));
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border:
+              isLast ? null : Border(bottom: BorderSide(color: pal.rowDivider)),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Warning icon ────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.only(top: 2, right: AppSpacing.md),
-              child: Icon(
-                Icons.warning_amber_rounded,
-                size: 24,
-                color: colors.badgeGold,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ChatAvatar(
+                initial: handle,
+                tone: open ? ChatAvatarTone.waiting : ChatAvatarTone.closed,
+                showsActiveDot: false,
+                dispute: open,
               ),
-            ),
-
-            // ── Main content ────────────────────────────────────────────
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title + status chip
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          AppLocalizations.of(context).orderDispute,
-                          style: textTheme.bodyLarge?.copyWith(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.bold,
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            handle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: book.textPrimary,
+                            ),
                           ),
                         ),
-                      ),
-                      StatusChip(
-                        label: statusLabel,
-                        background: statusBg,
-                        foreground: statusFg,
-                      ),
-                      if (!dispute.isRead) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: colors.destructiveRed,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
+                        if (!dispute.isRead)
+                          CircleAvatar(radius: 4, backgroundColor: pal.badgeBg),
                       ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      contextLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: book.textTertiary),
+                    ),
+                    if (open) ...[
+                      const SizedBox(height: 6),
+                      const TradeListChip(label: TradeChipLabel.dispute),
                     ],
-                  ),
-                  const SizedBox(height: 2),
-
-                  // Truncated order ID
-                  Text(
-                    truncatedId,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colors.textSubtle,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-
-                  // Description
-                  Text(
-                    dispute.localizedDescription(l10n),
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
-  }
-
-  static (Color, Color, String) _statusChip(
-    DisputeStatus status,
-    AppLocalizations l10n,
-  ) {
-    return switch (status) {
-      DisputeStatus.open => (
-        AppColors.statusPending.$1,
-        AppColors.statusPending.$2,
-        l10n.disputeInitiated,
-      ),
-      DisputeStatus.inReview => (
-        AppColors.statusActive.$1,
-        AppColors.statusActive.$2,
-        l10n.disputeInProgress,
-      ),
-      DisputeStatus.resolved => (
-        AppColors.statusInactive.$1,
-        AppColors.statusInactive.$2,
-        l10n.disputeStatusClosed,
-      ),
-    };
   }
 }
 
@@ -152,12 +128,14 @@ extension DisputeItemL10n on DisputeItem {
   String localizedDescription(AppLocalizations l10n) {
     if (status == DisputeStatus.resolved) {
       return switch (resolution) {
-        DisputeResolution.fundsToBuyer => isSelling
-            ? l10n.disputeDescResolvedBuyerFavour
-            : l10n.disputeDescResolvedYourFavour,
-        DisputeResolution.fundsToSeller => isSelling
-            ? l10n.disputeDescResolvedYourFavour
-            : l10n.disputeDescResolvedSellerFavour,
+        DisputeResolution.fundsToBuyer =>
+          isSelling
+              ? l10n.disputeDescResolvedBuyerFavour
+              : l10n.disputeDescResolvedYourFavour,
+        DisputeResolution.fundsToSeller =>
+          isSelling
+              ? l10n.disputeDescResolvedYourFavour
+              : l10n.disputeDescResolvedSellerFavour,
         DisputeResolution.cooperativeCancel =>
           l10n.disputeDescCooperativeCancel,
         null => l10n.disputeDescResolved,

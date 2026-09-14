@@ -23,20 +23,17 @@ double contrastRatio(Color fg, Color bg) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/// Composites [fg] at [alpha] over opaque [bg] — how translucent pill fills
-/// actually render on screen.
-Color composite(Color fg, double alpha, Color bg) {
-  double mix(double f, double b) => f * alpha + b * (1 - alpha);
+/// Flattens a possibly-translucent [fill] over opaque [surface] — how the
+/// translucent chips, tabs and scrim actually render on screen.
+Color flatten(Color fill, Color surface) {
+  double mix(double f, double b) => f * fill.a + b * (1 - fill.a);
   return Color.from(
     alpha: 1,
-    red: mix(fg.r, bg.r),
-    green: mix(fg.g, bg.g),
-    blue: mix(fg.b, bg.b),
+    red: mix(fill.r, surface.r),
+    green: mix(fill.g, surface.g),
+    blue: mix(fill.b, surface.b),
   );
 }
-
-/// Flattens a possibly-translucent fill color over [surface].
-Color flatten(Color fill, Color surface) => composite(fill, fill.a, surface);
 
 const _aa = 4.5;
 
@@ -49,58 +46,105 @@ void _expectAA(String label, Color fg, Color bg) {
   );
 }
 
-/// Locks the Order Book legibility contract: every text role must meet
-/// WCAG AA (4.5:1) on the actual composited surface it renders on.
+/// Locks the order-book legibility contract: every text role must meet WCAG
+/// AA (4.5:1) on the actual composited surface it renders on.
 void main() {
   for (final (mode, pal) in [
     ('dark', OrderBookPalette.dark),
     ('light', OrderBookPalette.light),
   ]) {
     group('OrderBookPalette.$mode contrast', () {
-      test('body text roles on their surfaces', () {
-        _expectAA('$mode textPrimary/bgCard', pal.textPrimary, pal.bgCard);
+      final tabTrack = flatten(pal.tabTrack, pal.bg);
+      final inset = flatten(pal.inset, pal.surface);
+
+      test('tabs, filter row and bottom bar', () {
         _expectAA(
-            '$mode textPrimary/bgElevated', pal.textPrimary, pal.bgElevated);
-        _expectAA('$mode textSecondary/bgCard', pal.textSecondary, pal.bgCard);
+          '$mode active tab',
+          pal.limeInk,
+          flatten(pal.tabActiveFill, tabTrack),
+        );
+        _expectAA('$mode inactive tab', pal.textSecondary, tabTrack);
         _expectAA(
-            '$mode textSecondary/bgElevated', pal.textSecondary, pal.bgElevated);
-        _expectAA('$mode textSecondary/bg', pal.textSecondary, pal.bg);
-        // Empty/error state copy renders on the list well behind the cards.
-        _expectAA('$mode textSecondary/bgWell', pal.textSecondary, pal.bgWell);
-        // Timestamps, "Market price", the sort caption, and separators.
-        _expectAA('$mode textTertiary/bgCard', pal.textTertiary, pal.bgCard);
-        _expectAA('$mode textTertiary/bg', pal.textTertiary, pal.bg);
-        _expectAA('$mode textTertiary/bgWell', pal.textTertiary, pal.bgWell);
+          '$mode filter chip',
+          pal.textStrong,
+          flatten(pal.chipFill, pal.bg),
+        );
+        _expectAA('$mode order count', pal.textTertiary, pal.bg);
+        _expectAA('$mode sort caption', pal.sortLabel, pal.bg);
+        _expectAA('$mode active destination', pal.limeText, pal.surfaceNav);
+        _expectAA(
+          '$mode inactive destination',
+          pal.textTertiary,
+          pal.surfaceNav,
+        );
       });
 
-      test('reason pills on their fills', () {
-        _expectAA(
-            '$mode green/greenDim', pal.green, flatten(pal.greenDim, pal.bgCard));
-        _expectAA(
-            '$mode gold/goldDim', pal.gold, flatten(pal.goldDim, pal.bgCard));
-        _expectAA(
-            '$mode blue/blueFill', pal.blue, flatten(pal.blueFill, pal.bgCard));
-      });
-
-      test('premium pills on their 13% fills over the card', () {
+      test('card text on the card', () {
         for (final (name, color) in [
-          ('green', pal.green),
-          ('amber', pal.amber),
-          ('red', pal.red),
+          ('amount', pal.textPrimary),
+          ('amount caption', pal.textTertiary),
+          ('sats figure', pal.limeInk),
+          ('time and premium caption', pal.textFaint),
+          ('payment methods', pal.textMuted),
+          ('premium in the taker favour', pal.limeText),
+          ('premium up to 3 points against', pal.premiumMid),
+          ('premium beyond 3 points against', pal.premiumHigh),
         ]) {
-          _expectAA('$mode premium $name pill', color,
-              composite(color, 0.13, pal.bgCard));
+          _expectAA('$mode $name', color, pal.surface);
+        }
+        _expectAA(
+          '$mode currency chip',
+          pal.textStrong,
+          flatten(pal.currencyChipFill, pal.surface),
+        );
+      });
+
+      test('chips on their fills', () {
+        _expectAA(
+          '$mode best-premium chip',
+          pal.limeInk,
+          flatten(pal.bestChipFill, pal.surface),
+        );
+        _expectAA(
+          '$mode most-reputable chip',
+          pal.yellowInk,
+          flatten(pal.reputableChipFill, pal.surface),
+        );
+        _expectAA(
+          '$mode own-order chip',
+          pal.textSecondary,
+          flatten(pal.currencyChipFill, pal.surface),
+        );
+      });
+
+      test('reputation strip on its inset', () {
+        for (final (name, color) in [
+          ('base text', pal.textSecondary),
+          ('rating', pal.textStrong),
+          ('figures', pal.textBody),
+          ('"New"', pal.textNew),
+        ]) {
+          _expectAA('$mode reputation $name', color, inset);
         }
       });
 
-      test('active tab label on the page background', () {
-        _expectAA('$mode green tab/bg', pal.green, pal.bg);
+      test('create-order menu', () {
+        _expectAA('$mode Buy label', pal.onLime, pal.lime);
+        _expectAA('$mode Sell label', pal.onSell, pal.sell);
+        for (final (name, under) in [('page', pal.bg), ('card', pal.surface)]) {
+          _expectAA(
+            '$mode dismiss hint over the $name',
+            pal.scrimText,
+            flatten(pal.scrim, under),
+          );
+        }
+      });
+
+      test('empty and error states on the page', () {
+        _expectAA('$mode empty title', pal.textBody, pal.bg);
+        _expectAA('$mode empty line', pal.textSecondary, pal.bg);
+        _expectAA('$mode clear filters', pal.limeText, pal.bg);
       });
     });
   }
-
-  test('light inactive tab label meets AA (interactive control)', () {
-    _expectAA('light tabInactive/bg', OrderBookPalette.light.tabInactive,
-        OrderBookPalette.light.bg);
-  });
 }

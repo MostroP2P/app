@@ -1,0 +1,115 @@
+{
+  "$comment": "Rows smoke.mjs writes into the web build's IndexedDB before reloading the page, and the values the app must read back through the Rust bridge (SMOKE_BOND_STORE=1, docs/ANTI_ABUSE_BOND.md T5.1). Each document is stored the way rust/src/db/indexeddb.rs stores it: the serde JSON of the Rust type, as a string. rust/src/api/bond.rs decodes this file in a unit test, so a field rename breaks cargo test rather than a CI browser run.",
+  "database": "mostro",
+  "stores": {
+    "bond_claims": {
+      "82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390:7c1b6f0e-5d2a-4b8e-9f3a-1c2d3e4f5a60": {
+        "order_id": "7c1b6f0e-5d2a-4b8e-9f3a-1c2d3e4f5a60",
+        "node_pubkey": "82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390",
+        "trade_index": 3,
+        "amount_sats": 1200,
+        "slashed_at": 1780000000,
+        "deadline_at": 4102444800,
+        "phase": "Pending",
+        "submitted_invoice": null,
+        "fiat_code": "USD",
+        "fiat_amount": 50.0,
+        "payment_method": "bank transfer",
+        "updated_at": 1780000000
+      }
+    },
+    "trades": {
+      "2b8f4c1a-6e3d-4a7b-8c9d-0e1f2a3b4c5d": {
+        "id": "2b8f4c1a-6e3d-4a7b-8c9d-0e1f2a3b4c5d",
+        "order": {
+          "id": "2b8f4c1a-6e3d-4a7b-8c9d-0e1f2a3b4c5d",
+          "kind": "Sell",
+          "status": "WaitingTakerBond",
+          "amount_sats": 100000,
+          "fiat_amount": 60.0,
+          "fiat_amount_min": null,
+          "fiat_amount_max": null,
+          "fiat_code": "USD",
+          "payment_method": "bank transfer",
+          "premium": 0.0,
+          "creator_pubkey": "82fa8cb978b43c79b2156585bac2c011176a21d2aead6d9f7c575c005be88390",
+          "created_at": 1780000000,
+          "expires_at": null,
+          "is_mine": false
+        },
+        "role": "Buyer",
+        "counterparty_pubkey": "",
+        "current_step": { "Buyer": "OrderTaken" },
+        "hold_invoice": null,
+        "buyer_invoice": null,
+        "trade_key_index": 5,
+        "cooperative_cancel_state": null,
+        "timeout_at": null,
+        "started_at": 1780000100,
+        "completed_at": null,
+        "outcome": null,
+        "bond": {
+          "role": "Taker",
+          "amount_sats": 1000,
+          "invoice": null,
+          "state": "Requested",
+          "requested_at": 1780000100,
+          "expires_at": null,
+          "locked_at": null
+        }
+      },
+      "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a": {
+        "id": "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a",
+        "order": {
+          "id": "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a",
+          "kind": "Buy",
+          "status": "WaitingMakerBond",
+          "amount_sats": 50000,
+          "fiat_amount": 30.0,
+          "fiat_amount_min": null,
+          "fiat_amount_max": null,
+          "fiat_code": "EUR",
+          "payment_method": "SEPA",
+          "premium": 1.0,
+          "creator_pubkey": "",
+          "created_at": 1780000200,
+          "expires_at": null,
+          "is_mine": true
+        },
+        "role": "Buyer",
+        "counterparty_pubkey": "",
+        "current_step": { "Buyer": "OrderTaken" },
+        "hold_invoice": null,
+        "buyer_invoice": null,
+        "trade_key_index": 6,
+        "cooperative_cancel_state": null,
+        "timeout_at": null,
+        "started_at": 1780000200,
+        "completed_at": null,
+        "outcome": null,
+        "bond": {
+          "role": "Maker",
+          "amount_sats": 500,
+          "invoice": null,
+          "state": "Requested",
+          "requested_at": 1780000200,
+          "expires_at": null,
+          "locked_at": null
+        }
+      }
+    },
+    "trade_keys": {
+      "2b8f4c1a-6e3d-4a7b-8c9d-0e1f2a3b4c5d": "5",
+      "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a": "6"
+    }
+  },
+  "expect": {
+    "claims": [
+      { "orderId": "7c1b6f0e-5d2a-4b8e-9f3a-1c2d3e4f5a60", "phase": "pending" }
+    ],
+    "trades": [
+      { "id": "2b8f4c1a-6e3d-4a7b-8c9d-0e1f2a3b4c5d", "status": "waitingTakerBond", "bondState": "requested" },
+      { "id": "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a", "status": "waitingMakerBond", "bondState": "requested" }
+    ]
+  }
+}

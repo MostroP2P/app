@@ -24,6 +24,8 @@ class TestEnvironment {
       String.fromEnvironment('MORTSOM_RELAYS', defaultValue: '');
   static const String _mostroPubkeyDefine =
       String.fromEnvironment('MOSTRO_PUB_KEY', defaultValue: '');
+  static const int _orderExpiryDefine =
+      int.fromEnvironment('MORTSOM_ORDER_EXPIRY_SECS', defaultValue: 0);
 
   static bool _armed = false;
 
@@ -61,6 +63,13 @@ class TestEnvironment {
   /// unreachable, never quietly succeed against a public one.
   static List<String> get seedRelays =>
       enabled ? parseRelays(_relaysDefine) : const [];
+
+  /// Seconds after creation every order made by this build asks the daemon
+  /// to expire it at (`MORTSOM_ORDER_EXPIRY_SECS`), so a scenario about the
+  /// daemon's pending-order clock does not wait out its hour-granular
+  /// default. Null when unset, non-positive, or outside the test environment.
+  static int? get orderExpirySecs =>
+      enabled && _orderExpiryDefine > 0 ? _orderExpiryDefine : null;
 
   /// Parses a comma-separated relay list, trimming and dropping blanks.
   @visibleForTesting

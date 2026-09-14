@@ -18,10 +18,11 @@ import 'package:mostro/features/notifications/providers/sembast_factory_io.dart'
 
 class SembastNotificationsStore {
   SembastNotificationsStore({DatabaseFactory? factory, String? path})
-      : _factoryOverride = factory,
-        _pathOverride = path;
+    : _factoryOverride = factory,
+      _pathOverride = path;
 
   static const _dbName = 'notifications.db';
+
   /// The int-keyed store this feature shipped with.
   static const _legacyStoreName = 'notifications';
 
@@ -37,6 +38,7 @@ class SembastNotificationsStore {
 
   Database? _db;
   Completer<Database>? _opening;
+
   /// Keyed by notification id. Before this, the store used auto-incrementing
   /// integer keys and every write looked its record up with a `Finder` — a
   /// full-store scan per save, and O(n) scans for an O(n) bulk update.
@@ -103,7 +105,9 @@ class SembastNotificationsStore {
     final db = await _open();
     final records = await _store.find(db);
     return records
-        .map((r) => NotificationModel.fromJson(Map<String, dynamic>.from(r.value)))
+        .map(
+          (r) => NotificationModel.fromJson(Map<String, dynamic>.from(r.value)),
+        )
         .toList();
   }
 
@@ -126,7 +130,10 @@ class SembastNotificationsStore {
     });
   }
 
-  Future<void> _upsert(DatabaseClient client, NotificationModel notification) async {
+  Future<void> _upsert(
+    DatabaseClient client,
+    NotificationModel notification,
+  ) async {
     final json = Map<String, Object?>.from(notification.toJson())
       ..removeWhere((_, v) => v == null);
     await _store.record(notification.id).put(client, json);
@@ -142,7 +149,8 @@ class SembastNotificationsStore {
   Future<bool> saveIfUnprocessed(NotificationModel notification) async {
     final db = await _open();
     return db.transaction((txn) async {
-      final already = await _processed.record(notification.id).get(txn) ?? false;
+      final already =
+          await _processed.record(notification.id).get(txn) ?? false;
       if (already) return false;
       await _processed.record(notification.id).put(txn, true);
       await _upsert(txn, notification);
@@ -185,14 +193,14 @@ final sembastNotificationsStoreProvider = Provider<SembastNotificationsStore>(
 /// one record and preserves the user's read/delete state. Single source of
 /// truth for the list, the bell, and every producer (listeners and push path).
 final notificationsProvider =
-    StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
-  (ref) {
-    final store = ref.watch(sembastNotificationsStoreProvider);
-    final notifier = NotificationsNotifier(store: store);
-    notifier.loadInitialData();
-    return notifier;
-  },
-);
+    StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>((
+      ref,
+    ) {
+      final store = ref.watch(sembastNotificationsStoreProvider);
+      final notifier = NotificationsNotifier(store: store);
+      notifier.loadInitialData();
+      return notifier;
+    });
 
 /// Count of unread notifications.
 final unreadNotificationCountProvider = Provider<int>(
@@ -206,25 +214,51 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
 
   final SembastNotificationsStore? store;
 
+  /// Ids deleted while a load was reading the store. The snapshot the load
+  /// returns still holds them, so the merge must not bring them back.
+  final Set<String> _deletedDuringLoad = {};
+
+  /// Loads in flight; deletions are only tracked while this is non-zero.
+  int _loadsInFlight = 0;
+
+  /// Set by [deleteAll] while a load is in flight: the whole snapshot that
+  /// load returns predates the wipe and is discarded.
+  bool _wipedDuringLoad = false;
+
   /// Load persisted notifications into state. Called once on construction
-  /// when a [store] is provided.
+  /// when a [store] is provided, and again on every resume (the resync
+  /// hydration, lib/core/lifecycle/resume_resync.dart).
   ///
   /// Merges the persisted snapshot with whatever is already in state, keyed by
   /// id, so a delayed load never drops (or overwrites with a stale copy) a
   /// notification added live while the load was in flight. Records added this
-  /// session win on conflict.
+  /// session win on conflict. A record the user deleted while the load was
+  /// reading is not resurrected: [delete] and [deleteAll] note the removal,
+  /// and the merge skips it.
   Future<void> loadInitialData() async {
     if (store == null) return;
+    _loadsInFlight++;
     try {
       final loaded = await store!.loadAll();
-      final byId = {for (final n in loaded) n.id: n};
+      if (_wipedDuringLoad) return;
+      final byId = {
+        for (final n in loaded)
+          if (!_deletedDuringLoad.contains(n.id)) n.id: n,
+      };
       for (final n in state) {
         byId[n.id] = n;
       }
-      state = byId.values.toList()
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      state =
+          byId.values.toList()
+            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to load from Sembast: $e');
+    } finally {
+      _loadsInFlight--;
+      if (_loadsInFlight == 0) {
+        _deletedDuringLoad.clear();
+        _wipedDuringLoad = false;
+      }
     }
   }
 
@@ -293,6 +327,7 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
   }
 
   Future<void> delete(String id) async {
+    if (_loadsInFlight > 0) _deletedDuringLoad.add(id);
     state = state.where((n) => n.id != id).toList();
     try {
       await store?.deleteRecord(id);
@@ -302,6 +337,7 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
   }
 
   Future<void> deleteAll() async {
+    if (_loadsInFlight > 0) _wipedDuringLoad = true;
     state = [];
     try {
       await store?.deleteAll();
@@ -340,3 +376,11 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
     add(notification);
   }
 }
+
+// ── Hydration (resume) ────────────────────────────────────────────────────────
+
+/// Merge the persisted notifications back into state — the cold-start load,
+/// which keeps whatever was added live. The cards themselves come from the
+/// Rust streams the resync replays, deduplicated by `addIfNew`.
+Future<void> hydrateNotifications(ProviderContainer container) =>
+    container.read(notificationsProvider.notifier).loadInitialData();

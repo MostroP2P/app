@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# installed by scripts/setup-hooks.sh — edit .githooks/, then re-run it
 # Shared body for the post-merge and post-checkout hooks.
 #
 # lib/src/rust/ and lib/l10n/app_localizations*.dart are gitignored, so a pull that

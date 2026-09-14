@@ -23,14 +23,14 @@ class ChatRoomState {
     this.lastMessageIsOwn = false,
     this.lastMessageAt = 0,
     this.unreadCount = 0,
-  })  : assert(
-          peerIconIndex >= 0 && peerIconIndex <= 36,
-          'peerIconIndex must be 0–36, got $peerIconIndex',
-        ),
-        assert(
-          peerColorHue >= 0 && peerColorHue <= 359,
-          'peerColorHue must be 0–359, got $peerColorHue',
-        );
+  }) : assert(
+         peerIconIndex >= 0 && peerIconIndex <= 36,
+         'peerIconIndex must be 0–36, got $peerIconIndex',
+       ),
+       assert(
+         peerColorHue >= 0 && peerColorHue <= 359,
+         'peerColorHue must be 0–359, got $peerColorHue',
+       );
 
   /// The trade / order ID that identifies this chat room.
   final String orderId;
@@ -85,9 +85,10 @@ class ChatRoomState {
       peerIconIndex: peerIconIndex ?? this.peerIconIndex,
       peerColorHue: peerColorHue ?? this.peerColorHue,
       isSelling: isSelling ?? this.isSelling,
-      lastMessage: identical(lastMessage, _noChange)
-          ? this.lastMessage
-          : lastMessage as String?,
+      lastMessage:
+          identical(lastMessage, _noChange)
+              ? this.lastMessage
+              : lastMessage as String?,
       lastMessageIsOwn: lastMessageIsOwn ?? this.lastMessageIsOwn,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       unreadCount: unreadCount ?? this.unreadCount,
@@ -131,6 +132,49 @@ class ChatRoomsNotifier extends StateNotifier<List<ChatRoomState>> {
     }
   }
 
+  /// Upsert a room read from storage without rolling back a live one.
+  ///
+  /// A snapshot is built room by room, and a message folded into a room after
+  /// its own history was read but before the whole list is ready is newer
+  /// than what the snapshot holds for it. Such a room keeps its live preview,
+  /// time and unread count; a snapshot at or past the live room's time, and a
+  /// room the list does not have yet, are taken as read.
+  void upsertIfNewer(ChatRoomState room) {
+    final existing = state.indexWhere((r) => r.orderId == room.orderId);
+    if (existing >= 0 && state[existing].lastMessageAt > room.lastMessageAt) {
+      return;
+    }
+    upsertRoom(room);
+  }
+
+  /// Folds a message that arrived for [orderId] into its room's preview,
+  /// time and unread count, so the list stays live without a reload.
+  ///
+  /// Only the buyer<->seller channel counts (dispute traffic shares the
+  /// order key), a message at or before the preview already shown is ignored
+  /// — the open room folds the same message in too — and only a message
+  /// from the counterparty that is not read raises the count.
+  void foldIncoming(String orderId, rust_types.ChatMessage msg) {
+    if (msg.messageType != rust_types.MessageType.peer) return;
+    final index = state.indexWhere((r) => r.orderId == orderId);
+    if (index < 0) return;
+    final room = state[index];
+    final at = msg.createdAt.toInt();
+    if (at < room.lastMessageAt ||
+        (at == room.lastMessageAt && msg.content == room.lastMessage)) {
+      return;
+    }
+    final updated = [...state];
+    updated[index] = room.copyWith(
+      lastMessage: msg.content,
+      lastMessageIsOwn: msg.isMine,
+      lastMessageAt: at,
+      unreadCount:
+          msg.isMine || msg.isRead ? room.unreadCount : room.unreadCount + 1,
+    );
+    state = updated;
+  }
+
   /// Mark all messages in a room as read (zero unread count).
   void markRead(String orderId) {
     state = [
@@ -152,8 +196,8 @@ class ChatRoomsNotifier extends StateNotifier<List<ChatRoomState>> {
 /// Sorted order is provided by [sortedChatRoomsProvider].
 final chatRoomsNotifierProvider =
     StateNotifierProvider<ChatRoomsNotifier, List<ChatRoomState>>(
-  (_) => ChatRoomsNotifier(),
-);
+      (_) => ChatRoomsNotifier(),
+    );
 
 /// Chat rooms sorted by [ChatRoomState.lastMessageAt] descending (newest first).
 final sortedChatRoomsProvider = Provider<List<ChatRoomState>>((ref) {
@@ -174,8 +218,7 @@ final chatCountProvider = Provider<int>((ref) {
 /// Maps orderId → last-read unix timestamp (seconds).
 ///
 /// In-memory only. Sembast persistence deferred to a future phase.
-final chatReadStatusProvider =
-    StateProvider<Map<String, int>>((_) => const {});
+final chatReadStatusProvider = StateProvider<Map<String, int>>((_) => const {});
 
 // ── Trade → ChatRoom bridge ───────────────────────────────────────────────────
 
@@ -183,9 +226,7 @@ final chatReadStatusProvider =
 ///
 /// Returns `null` when [TradeInfo.counterpartyPubkey] is empty — meaning the
 /// peer identity has not been exchanged yet and there is no chat room to show.
-Future<ChatRoomState?> tradeInfoToChatRoom(
-  rust_types.TradeInfo trade,
-) async {
+Future<ChatRoomState?> tradeInfoToChatRoom(rust_types.TradeInfo trade) async {
   final peerPubkey = trade.counterpartyPubkey;
   if (peerPubkey.isEmpty) return null;
 
@@ -210,9 +251,10 @@ Future<ChatRoomState?> tradeInfoToChatRoom(
     // Peer messages only: the room preview and unread badge describe the
     // buyer<->seller conversation, not the dispute channel that shares the
     // order key (PR #254 review).
-    msgs = (await messages_api.getMessages(tradeId: trade.order.id))
-        .where((m) => m.messageType == rust_types.MessageType.peer)
-        .toList();
+    msgs =
+        (await messages_api.getMessages(
+          tradeId: trade.order.id,
+        )).where((m) => m.messageType == rust_types.MessageType.peer).toList();
   } catch (_) {
     msgs = const [];
   }
@@ -240,16 +282,15 @@ Future<ChatRoomState?> tradeInfoToChatRoom(
 /// FutureProvider that converts the full trade list into [ChatRoomState]s.
 ///
 /// Only trades with a known peer pubkey are included. Sorted newest-message first.
-final chatRoomsFromTradesProvider =
-    FutureProvider<List<ChatRoomState>>((ref) async {
+final chatRoomsFromTradesProvider = FutureProvider<List<ChatRoomState>>((
+  ref,
+) async {
   final trades = await ref.watch(rawTradesProvider.future);
 
   // Resolve all rooms concurrently — each call does async I/O (NymIdentity
   // lookup + message history fetch) so parallel execution is significantly
   // faster than the previous sequential await loop.
-  final results = await Future.wait(
-    trades.map((t) => tradeInfoToChatRoom(t)),
-  );
+  final results = await Future.wait(trades.map((t) => tradeInfoToChatRoom(t)));
   final rooms = results.whereType<ChatRoomState>().toList();
 
   rooms.sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
@@ -260,26 +301,40 @@ final chatRoomsFromTradesProvider =
 ///
 /// Used by [ChatRoomScreen] to update its local list in real-time without
 /// polling.
-final incomingMessageProvider =
-    StreamProvider.autoDispose.family<rust_types.ChatMessage, String>(
-  (ref, tradeId) async* {
-    final stream = await messages_api.onNewMessage(tradeId: tradeId);
-    while (true) {
-      final msg = await stream.next();
-      if (msg == null) break;
-      yield msg;
-    }
-  },
-);
+final incomingMessageProvider = StreamProvider.autoDispose
+    .family<rust_types.ChatMessage, String>((ref, tradeId) async* {
+      final stream = await messages_api.onNewMessage(tradeId: tradeId);
+      while (true) {
+        final msg = await stream.next();
+        if (msg == null) break;
+        yield msg;
+      }
+    });
 
 /// FutureProvider that loads the full message history for a trade once.
 ///
 /// [ChatRoomScreen] seeds its local state from this, then appends live
 /// updates via [incomingMessageProvider].
-final messageHistoryProvider =
-    FutureProvider.autoDispose.family<List<rust_types.ChatMessage>, String>(
-  // Peer messages only — this feeds the peer chat room (PR #254 review).
-  (ref, tradeId) async => (await messages_api.getMessages(tradeId: tradeId))
-      .where((m) => m.messageType == rust_types.MessageType.peer)
-      .toList(),
-);
+final messageHistoryProvider = FutureProvider.autoDispose
+    .family<List<rust_types.ChatMessage>, String>(
+      // Peer messages only — this feeds the peer chat room (PR #254 review).
+      (ref, tradeId) async =>
+          (await messages_api.getMessages(tradeId: tradeId))
+              .where((m) => m.messageType == rust_types.MessageType.peer)
+              .toList(),
+    );
+
+// ── Hydration (resume) ────────────────────────────────────────────────────────
+
+/// Rebuild the chat rooms from the trade list and the persisted messages —
+/// the same path `ChatRoomsScreen` runs on init — and merge them in, so a room
+/// added or updated live while the fetch ran survives. Assumes the trade list was
+/// hydrated first (`defaultHydrators` orders it so).
+Future<void> hydrateChatRooms(ProviderContainer container) async {
+  container.invalidate(chatRoomsFromTradesProvider);
+  final rooms = await container.read(chatRoomsFromTradesProvider.future);
+  final notifier = container.read(chatRoomsNotifierProvider.notifier);
+  for (final room in rooms) {
+    notifier.upsertIfNewer(room);
+  }
+}

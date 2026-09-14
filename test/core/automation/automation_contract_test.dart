@@ -69,7 +69,7 @@ void main() {
       // accessibility bridge exposes as a `resource-id`.
       expect(
         tester.getSemantics(find.byType(ElevatedButton)),
-        containsSemantics(
+        isSemantics(
           identifier: AutomationIds.orderCreateSubmit,
           label: 'Submit',
           isButton: true,
@@ -96,7 +96,7 @@ void main() {
       // which changes with the locale.
       expect(
         tester.getSemantics(find.text('Esperando pago…')),
-        containsSemantics(
+        isSemantics(
           identifier: AutomationIds.orderStatus,
           label: 'waiting-payment',
         ),
@@ -130,7 +130,7 @@ void main() {
       // automation could no longer choose which relay to remove.
       expect(
         tester.getSemantics(find.byType(IconButton)),
-        containsSemantics(
+        isSemantics(
           identifier:
               AutomationIds.settingsRelayDelete('ws://10.0.2.2:7000'),
           hasTapAction: true,
@@ -199,6 +199,15 @@ void main() {
       expect(TestEnvironment.enabled, isFalse);
       expect(TestEnvironment.seedRelays, isEmpty);
       expect(TestEnvironment.allowInsecureRelays, isFalse);
+    });
+
+    test('asks for an order expiry only when the define is set', () {
+      // The define is absent in this test build, so nothing is asked for
+      // whether or not the environment is armed.
+      TestEnvironment.arm();
+      expect(TestEnvironment.orderExpirySecs, isNull);
+      TestEnvironment.disarm();
+      expect(TestEnvironment.orderExpirySecs, isNull);
     });
 
     test('parses a relay seed list, trimming and dropping blanks', () {

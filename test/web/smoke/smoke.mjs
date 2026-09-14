@@ -10,6 +10,7 @@
 //   1. the page is cross-origin isolated  (no SharedArrayBuffer → no wasm threads)
 //   2. the Flutter engine mounted         (the view element exists)
 //   3. a Rust bridge call returned        (the FRB worker pool survived)
+//  3b. seeded bond rows read back         (opt-in: SMOKE_BOND_STORE=1)
 //   4. nothing errored along the way      (console + uncaught page errors)
 //   5. every asset the page asked for was served (catches --base-href breakage)
 //
@@ -130,6 +131,45 @@ function serveBundle(misses) {
   });
 }
 
+/**
+ * Runs in the page: writes each seeded document into its store as a string,
+ * which is how rust/src/db/indexeddb.rs stores them. Returns true, or why it
+ * could not.
+ *
+ * Opens the database without a version, so it never triggers an upgrade of
+ * its own: the stores must already exist, created by the app's first load.
+ * A bundle that no longer creates them fails here, with the store it lacks.
+ */
+async function seedStores({ database, stores }) {
+  const request = (req) =>
+    new Promise((ok, fail) => {
+      req.onsuccess = () => ok(req.result);
+      req.onerror = () => fail(req.error);
+    });
+  const db = await request(indexedDB.open(database));
+  try {
+    const names = Object.keys(stores);
+    const absent = names.filter((name) => !db.objectStoreNames.contains(name));
+    if (absent.length) {
+      return `database "${database}" (version ${db.version}) has no ${absent.join(', ')} store`;
+    }
+    const tx = db.transaction(names, 'readwrite');
+    for (const [name, docs] of Object.entries(stores)) {
+      for (const [key, doc] of Object.entries(docs)) {
+        tx.objectStore(name).put(typeof doc === 'string' ? doc : JSON.stringify(doc), key);
+      }
+    }
+    await new Promise((ok, fail) => {
+      tx.oncomplete = ok;
+      tx.onerror = () => fail(tx.error);
+      tx.onabort = () => fail(tx.error);
+    });
+    return true;
+  } finally {
+    db.close();
+  }
+}
+
 async function main() {
   // Fail with a useful message rather than 404-ing every asset.
   await readFile(join(BUNDLE_DIR, 'index.html')).catch(() => {
@@ -165,12 +205,55 @@ async function main() {
     // after it — hence the 'en-US' default. web-build.yml also runs this
     // script once with SMOKE_LOCALE=C: a regression guard for issue #227,
     // fixed by the locale sanitizer in web/index.html. The pin stays for
-    // determinism; it is no longer load-bearing for that bug.
+    // determinism; it is no longer load-bearing for that bug. The other broken
+    // tags cannot be delivered this way — see SMOKE_NAVIGATOR_LANGUAGES below.
     //
     // `??`, not `||`: the empty string is one of the broken tags this guards
     // against, and `||` would silently turn SMOKE_LOCALE='' into 'en-US' —
     // the one case the knob exists for, passing green without testing it.
     const page = await browser.newPage({ locale: process.env.SMOKE_LOCALE ?? 'en-US' });
+
+    // The app reads its bond rows back only when asked (step 3b). An init
+    // script, so the request is in place before the app starts, on the first
+    // load and again on the reload.
+    if (process.env.SMOKE_BOND_STORE === '1') {
+      await page.addInitScript(() => {
+        globalThis.mostroStoreProbeRequested = true;
+      });
+    }
+
+    // SMOKE_LOCALE goes through Playwright, which normalizes the tag before the
+    // page sees it: 'en_US' arrives as 'en-US' and '' falls back to the system
+    // locale, so only 'C' survives the trip. That is a limit of that option,
+    // not of the browser — an init script runs inside the page, before any of
+    // its own scripts, so it can hand the engine a tag Playwright would never
+    // deliver. Comma-separated, used verbatim; unset means "do not touch",
+    // which is every run except the locale matrix in web-build.yml.
+    //
+    // `!== undefined`, not a truthiness check: SMOKE_NAVIGATOR_LANGUAGES=''
+    // is the empty-tag case, one of the broken ones this exists to cover.
+    //
+    // `configurable: true` is load-bearing, but not as a false-green guard.
+    // The sanitizer bails out when either property is already locked down
+    // (#370 review), so a non-configurable shadow makes it skip the very path
+    // under test — the engine then gets the raw tag and the positive run
+    // *fails*, with the same `Incorrect locale information provided` a real
+    // regression produces. Measured both ways on `C` and `C,es-AR` (#406
+    // review). What this flag prevents is a red matrix that reads as a broken
+    // sanitizer when it is really a broken harness.
+    const forcedLanguages = process.env.SMOKE_NAVIGATOR_LANGUAGES;
+    if (forcedLanguages !== undefined) {
+      await page.addInitScript((langs) => {
+        Object.defineProperty(navigator, 'languages', {
+          get: () => langs,
+          configurable: true,
+        });
+        Object.defineProperty(navigator, 'language', {
+          get: () => langs[0] ?? '',
+          configurable: true,
+        });
+      }, forcedLanguages.split(','));
+    }
 
     const record = (origin, text) => {
       (isIgnorable(text) ? ignored : errors).push(`[${origin}] ${text}`);
@@ -248,6 +331,28 @@ async function main() {
       .catch(() => fail('the Flutter view never mounted'));
     console.log('✓ Flutter view mounted');
 
+    // 2b. The sanitizer left the locale it was supposed to leave.
+    //
+    //     Opt-in, and only meaningful alongside SMOKE_NAVIGATOR_LANGUAGES.
+    //     "The view mounted" is enough for a tag with no valid part — the page
+    //     could not have booted unless the sanitizer replaced it. It is not
+    //     enough for a mixed list: with "C,es-AR" a sanitizer that dropped the
+    //     whole list for the fallback boots exactly as happily as one that
+    //     kept "es-AR", and the user silently loses their language. Only
+    //     reading the result back tells those two apart.
+    if (process.env.SMOKE_EXPECT_LANGUAGES !== undefined) {
+      const expected = process.env.SMOKE_EXPECT_LANGUAGES;
+      const actual = (
+        await page.evaluate(() => Array.from(navigator.languages ?? []))
+      ).join(',');
+      if (actual !== expected) {
+        await fail(
+          `navigator.languages is "${actual}", expected "${expected}"`,
+        );
+      }
+      console.log(`✓ locale sanitized to [${actual}]`);
+    }
+
     // 3. The Rust bridge answered. Poll for either outcome so a broken bridge
     //    fails immediately with its reason instead of timing out silently.
     await page
@@ -267,6 +372,65 @@ async function main() {
     const bridgeError = await page.evaluate(() => globalThis.mostroBridgeError);
     if (bridgeError) await fail(`Rust bridge call failed: ${bridgeError}`);
     console.log('✓ Rust bridge call returned');
+
+    // 3b. Bond rows survive the persistent store (docs/ANTI_ABUSE_BOND.md T5.1).
+    //
+    //     Opt-in: only the release bundle has a store to read. A bridge that
+    //     answers says nothing about IndexedDB, and the bond rows in it — a
+    //     payout claim, trades parked at WaitingTakerBond / WaitingMakerBond —
+    //     reach the UI only through a serde decode in the wasm core and an FRB
+    //     decode in Dart. A build that breaks either one shows an empty My
+    //     Trades and logs nothing this script would catch.
+    //
+    //     So seed the rows into the database the first load created, reload so
+    //     the app reads them at startup, and compare what it publishes
+    //     (lib/core/web/store_probe.dart) with what was seeded. The seed file is
+    //     decoded by a Rust unit test too, so it cannot drift from the types.
+    if (process.env.SMOKE_BOND_STORE === '1') {
+      const seed = JSON.parse(await readFile(join(here, 'seed', 'bond_store.json'), 'utf8'));
+      const seeded = await page
+        .evaluate(seedStores, { database: seed.database, stores: seed.stores })
+        .catch((err) => `seeding threw: ${err.message}`);
+      if (seeded !== true) await fail(`could not seed the bond rows: ${seeded}`);
+
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+      await page
+        .waitForFunction(
+          // The bridge error too: the reloaded page publishes no probe when
+          // its bridge call fails, and that should fail now, with its reason,
+          // rather than as a probe timeout after the whole budget.
+          () =>
+            typeof globalThis.mostroStoreProbe === 'string' ||
+            typeof globalThis.mostroStoreProbeError === 'string' ||
+            typeof globalThis.mostroBridgeError === 'string',
+          undefined,
+          { timeout: TIMEOUT_MS },
+        )
+        .catch(() => fail('the app never published what it read from the store (mostroStoreProbe)'));
+      const reloadBridgeError = await page.evaluate(() => globalThis.mostroBridgeError);
+      if (reloadBridgeError) {
+        await fail(`Rust bridge call failed after the reload: ${reloadBridgeError}`);
+      }
+      const probeError = await page.evaluate(() => globalThis.mostroStoreProbeError);
+      if (probeError) await fail(`reading the bond rows back failed: ${probeError}`);
+
+      const probe = JSON.parse(await page.evaluate(() => globalThis.mostroStoreProbe));
+      const same = (want, got) => Object.entries(want).every(([k, v]) => got[k] === v);
+      const missing = [
+        ...seed.expect.claims.filter((want) => !probe.claims.some((got) => same(want, got))),
+        ...seed.expect.trades.filter((want) => !probe.trades.some((got) => same(want, got))),
+      ];
+      if (missing.length) {
+        await fail(
+          `seeded bond rows were not read back: ${JSON.stringify(missing)}\n` +
+            `  the app read: ${JSON.stringify(probe)}`,
+        );
+      }
+      console.log(
+        `✓ bond rows read back (${seed.expect.claims.length} claim, ` +
+          `${seed.expect.trades.length} trades)`,
+      );
+    }
 
     // 4/5. Anything the page complained about, and anything it asked for that
     //      this server could not serve.

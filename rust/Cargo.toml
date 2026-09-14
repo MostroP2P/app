@@ -1,6 +1,7 @@
 [package]
 name = "rust"
 version = "2.0.0"
+license = "AGPL-3.0-or-later"
 edition = "2021"
 
 [lib]
@@ -68,6 +69,11 @@ k256 = { version = "0.13", features = ["ecdh", "arithmetic"] }
 bip32 = "0.5"
 bip39 = { version = "2", features = ["all-languages", "rand"] }
 
+# BOLT11 decoding for the add-invoice screen's live validation (amount and
+# expiry). Already in the native tree through cdk; on wasm its heavy
+# dependency, `bitcoin`, already comes in through mostro-core.
+lightning-invoice = "0.34"
+
 # Native-only: SQLite + tokio do NOT compile to WASM
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
@@ -111,3 +117,8 @@ getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] 
 # wasm32-unknown-unknown refuses to *link* until the final crate names a time
 # provider (see `rt::browser_clock`). Not caught by `cargo check`.
 universal-time = { version = "0.3", default-features = false }
+
+# Tests only: `MockRelay` (an in-process relay) is behind nostr-sdk's
+# `local-relay` feature. Native only — it pulls in `tokio/net`.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+nostr-sdk = { version = "0.45", default-features = false, features = ["local-relay"] }

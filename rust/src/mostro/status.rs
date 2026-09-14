@@ -28,6 +28,10 @@ pub(crate) fn status_for_action(action: &mostro_core::message::Action) -> Option
     use mostro_core::message::Action;
     match action {
         Action::AddInvoice => Some(OrderStatus::WaitingBuyerInvoice),
+        // The daemon parks a taken order while its taker's bond is unpaid.
+        // (A maker bond arrives on the create request and is classified
+        // there, not by this table.)
+        Action::PayBondInvoice => Some(OrderStatus::WaitingTakerBond),
         Action::WaitingSellerToPay => Some(OrderStatus::WaitingPayment),
         Action::WaitingBuyerInvoice => Some(OrderStatus::WaitingBuyerInvoice),
         Action::BuyerTookOrder
@@ -37,6 +41,10 @@ pub(crate) fn status_for_action(action: &mostro_core::message::Action) -> Option
         Action::HoldInvoicePaymentSettled | Action::Released => {
             Some(OrderStatus::SettledHoldInvoice)
         }
+        // The daemon accepted a replacement payout invoice after a failed
+        // payout: the escrow is still settled and the payout is pending
+        // again on the new invoice.
+        Action::InvoiceUpdated => Some(OrderStatus::SettledHoldInvoice),
         Action::PurchaseCompleted => Some(OrderStatus::Success),
         Action::HoldInvoicePaymentCanceled => Some(OrderStatus::Canceled),
         Action::CooperativeCancelAccepted => Some(OrderStatus::CooperativelyCanceled),
@@ -76,10 +84,10 @@ pub(crate) fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStat
         S::SettledByAdmin => OrderStatus::SettledByAdmin,
         S::CompletedByAdmin => OrderStatus::CompletedByAdmin,
         S::Dispute => OrderStatus::Dispute,
-        // Anti-abuse bond is out of scope; these statuses have no local
-        // OrderStatus mapping. No wildcard, so future Status variants keep
-        // forcing this match to be revisited.
-        S::WaitingTakerBond | S::WaitingMakerBond => return None,
+        // No wildcard, so a future upstream Status variant keeps forcing this
+        // match to be revisited instead of silently reading as nothing.
+        S::WaitingTakerBond => OrderStatus::WaitingTakerBond,
+        S::WaitingMakerBond => OrderStatus::WaitingMakerBond,
     })
 }
 
@@ -133,7 +141,13 @@ pub(crate) fn wire_status_applies(local: Option<&OrderStatus>, wire: &OrderStatu
 pub(crate) fn cancellation_wipes_history(status: &OrderStatus) -> bool {
     matches!(
         status,
-        OrderStatus::Pending | OrderStatus::WaitingBuyerInvoice | OrderStatus::WaitingPayment
+        OrderStatus::Pending
+            | OrderStatus::WaitingBuyerInvoice
+            | OrderStatus::WaitingPayment
+            // A bond window precedes the trade flow entirely: no peer, no
+            // chat, no escrow — nothing to keep as history.
+            | OrderStatus::WaitingTakerBond
+            | OrderStatus::WaitingMakerBond
     )
 }
 
@@ -148,10 +162,17 @@ pub(crate) fn add_invoice_sync(
 ) -> Option<(OrderStatus, Option<u64>)> {
     match payload {
         Some(mostro_core::message::Payload::Order(so)) => {
-            let status = so
-                .status
-                .and_then(map_core_status)
-                .unwrap_or(OrderStatus::WaitingBuyerInvoice);
+            let status = match so.status.and_then(map_core_status) {
+                // After exhausting its payout retries the daemon asks the
+                // buyer for a new invoice while the order itself still reads
+                // `settled-hold-invoice` (mostro `check_failure_retries`). The
+                // message is a request for action, so the trade must show
+                // the buyer that an invoice is wanted, exactly as a first
+                // `add-invoice` does; keeping the settled status would hide
+                // the request and strand the payout.
+                Some(OrderStatus::SettledHoldInvoice) | None => OrderStatus::WaitingBuyerInvoice,
+                Some(status) => status,
+            };
             let amount = if so.amount > 0 {
                 Some(so.amount as u64)
             } else {
@@ -211,6 +232,37 @@ mod tests {
         assert_eq!(status_for_action(&Action::PaymentFailed), None);
     }
 
+    /// A replacement payout invoice the daemon accepted puts the trade back
+    /// where it was before the failed payout: escrow settled, payout
+    /// pending. Anything else would leave the buyer looking at
+    /// `waiting-invoice` after the daemon already took the invoice.
+    #[test]
+    fn an_accepted_replacement_invoice_returns_the_trade_to_payout_pending() {
+        use mostro_core::message::Action;
+        assert_eq!(
+            status_for_action(&Action::InvoiceUpdated),
+            Some(OrderStatus::SettledHoldInvoice)
+        );
+    }
+
+    /// After its payout retries are exhausted the daemon asks the buyer for
+    /// a new invoice with an `add-invoice` whose order still reads
+    /// `settled-hold-invoice`. That message is a request for action: it must
+    /// move the trade to `WaitingBuyerInvoice`, which is what routes the buyer
+    /// to the add-invoice screen. Keeping `SettledHoldInvoice` would make the
+    /// request invisible and strand the payout.
+    #[test]
+    fn an_add_invoice_on_a_settled_escrow_asks_the_buyer_for_a_new_invoice() {
+        use mostro_core::message::Payload;
+        use mostro_core::order::Status;
+
+        let so = small_order_with(Status::SettledHoldInvoice, 990);
+        let (status, amount) =
+            add_invoice_sync(&Some(Payload::Order(so))).expect("Order payload must sync");
+        assert_eq!(status, crate::api::types::OrderStatus::WaitingBuyerInvoice);
+        assert_eq!(amount, Some(990));
+    }
+
     /// `SettledHoldInvoice` is terminal for status-sync purposes but not
     /// "hard" terminal: the escrow is settled and the payout may still be in
     /// flight, so history must survive it. Conflating the two would drop a
@@ -223,15 +275,38 @@ mod tests {
         assert!(is_hard_terminal(&OrderStatus::Canceled));
     }
 
-    /// The bond statuses have no local mapping on purpose, and `map_core_status`
-    /// matches exhaustively so a new upstream variant fails the build rather
-    /// than silently reading as something else.
+    /// The bond statuses map to their own local variants (PR-0 of
+    /// `docs/ANTI_ABUSE_BOND.md`), and `map_core_status` still matches
+    /// exhaustively so a new upstream variant fails the build rather than
+    /// silently reading as something else.
     #[test]
-    fn bond_statuses_map_to_nothing_rather_than_to_something_wrong() {
+    fn bond_statuses_map_to_their_local_variants() {
         use mostro_core::order::Status as S;
-        assert_eq!(map_core_status(S::WaitingTakerBond), None);
-        assert_eq!(map_core_status(S::WaitingMakerBond), None);
+        assert_eq!(
+            map_core_status(S::WaitingTakerBond),
+            Some(OrderStatus::WaitingTakerBond)
+        );
+        assert_eq!(
+            map_core_status(S::WaitingMakerBond),
+            Some(OrderStatus::WaitingMakerBond)
+        );
         assert_eq!(map_core_status(S::Active), Some(OrderStatus::Active));
+    }
+
+    /// A bond window is pre-trade: neither terminal nor hard-terminal, wiped
+    /// on cancel like the other never-active states, and `pay-bond-invoice`
+    /// is the action that opens it.
+    #[test]
+    fn bond_statuses_are_pre_trade_states() {
+        for s in [OrderStatus::WaitingTakerBond, OrderStatus::WaitingMakerBond] {
+            assert!(!is_terminal_status(&s), "{s:?} is not terminal");
+            assert!(!is_hard_terminal(&s), "{s:?} is not hard terminal");
+            assert!(cancellation_wipes_history(&s), "{s:?} must be wiped");
+        }
+        assert_eq!(
+            status_for_action(&mostro_core::message::Action::PayBondInvoice),
+            Some(OrderStatus::WaitingTakerBond)
+        );
     }
 
     /// Actions that carry no status change must return `None`, not a guess:
@@ -469,5 +544,135 @@ mod tests {
         ] {
             assert!(!cancellation_wipes_history(&s), "{s:?} must keep history");
         }
+    }
+
+    /// Every `Prefix.name` in `text`, in order — `TradeStatus.pending` → `pending`.
+    fn dotted_names<'a>(text: &'a str, prefix: &str) -> Vec<&'a str> {
+        text.split(prefix)
+            .skip(1)
+            .map(|rest| {
+                let end = rest
+                    .find(|c: char| !c.is_ascii_alphanumeric())
+                    .unwrap_or(rest.len());
+                &rest[..end]
+            })
+            .collect()
+    }
+
+    /// The trade screen keeps its own copy of this predicate,
+    /// `_cancelEndsTrade` in `trade_detail_screen.dart`: it picks the cancel
+    /// dialog's copy and decides whether the screen leaves after a cancel.
+    /// Asking Rust instead would be the bridge's first synchronous call. So
+    /// this pins the two together, reading the Dart source: add or drop a
+    /// status here and this fails, instead of the dialog promising an
+    /// immediate cancel that the daemon runs as a cooperative request, or the
+    /// screen staying open on a trade that was wiped.
+    #[test]
+    fn the_trade_screen_copy_of_cancellation_wipes_history_matches() {
+        use crate::api::types::OrderStatus as S;
+        use std::collections::{BTreeMap, BTreeSet};
+
+        let all = [
+            S::Pending,
+            S::WaitingBuyerInvoice,
+            S::WaitingPayment,
+            S::Active,
+            S::FiatSent,
+            S::SettledHoldInvoice,
+            S::Success,
+            S::Canceled,
+            S::Expired,
+            S::CooperativelyCanceled,
+            S::CanceledByAdmin,
+            S::SettledByAdmin,
+            S::CompletedByAdmin,
+            S::Dispute,
+            S::InProgress,
+            S::WaitingTakerBond,
+            S::WaitingMakerBond,
+        ];
+        // Exhaustive on purpose: a new status fails to compile here, which is
+        // the reminder to add it to `all` above.
+        for s in &all {
+            match s {
+                S::Pending
+                | S::WaitingBuyerInvoice
+                | S::WaitingPayment
+                | S::Active
+                | S::FiatSent
+                | S::SettledHoldInvoice
+                | S::Success
+                | S::Canceled
+                | S::Expired
+                | S::CooperativelyCanceled
+                | S::CanceledByAdmin
+                | S::SettledByAdmin
+                | S::CompletedByAdmin
+                | S::Dispute
+                | S::InProgress
+                | S::WaitingTakerBond
+                | S::WaitingMakerBond => {}
+            }
+        }
+        // The Dart name flutter_rust_bridge gives each variant: lower camel case.
+        let dart_order_status = |s: &S| {
+            let debug = format!("{s:?}");
+            let mut chars = debug.chars();
+            let first = chars.next().expect("a variant name");
+            format!("{}{}", first.to_ascii_lowercase(), chars.as_str())
+        };
+
+        // The screen's `OrderStatus` → `TradeStatus` mapping, read from source.
+        let mapping_src = include_str!("../../../lib/features/trades/models/trade_status.dart");
+        let body = mapping_src
+            .split("TradeStatus tradeStatusFromOrderStatus(OrderStatus s) => switch (s) {")
+            .nth(1)
+            .and_then(|rest| rest.split("};").next())
+            .expect("tradeStatusFromOrderStatus's switch in trade_status.dart");
+        let mut to_trade_status = BTreeMap::new();
+        for arm in body.split(',') {
+            let Some((statuses, trade)) = arm.split_once("=>") else {
+                continue;
+            };
+            let trade = dotted_names(trade, "TradeStatus.")
+                .first()
+                .copied()
+                .expect("an arm maps to a TradeStatus");
+            for status in dotted_names(statuses, "OrderStatus.") {
+                to_trade_status.insert(status.to_string(), trade);
+            }
+        }
+
+        // The screen's set, read from source.
+        let screen_src =
+            include_str!("../../../lib/features/trades/screens/trade_detail_screen.dart");
+        let set = screen_src
+            .split("static bool _cancelEndsTrade(TradeStatus status) => const {")
+            .nth(1)
+            .and_then(|rest| rest.split("}.contains(status)").next())
+            .expect("_cancelEndsTrade's set in trade_detail_screen.dart");
+        let listed: BTreeSet<&str> = dotted_names(set, "TradeStatus.").into_iter().collect();
+
+        let mut expected = BTreeSet::new();
+        for s in &all {
+            let name = dart_order_status(s);
+            let trade = *to_trade_status
+                .get(&name)
+                .unwrap_or_else(|| panic!("trade_status.dart maps no OrderStatus.{name}"));
+            if cancellation_wipes_history(s) {
+                expected.insert(trade);
+            } else {
+                assert!(
+                    !listed.contains(trade),
+                    "{s:?} keeps its history, yet the screen treats TradeStatus.{trade} \
+                     as ending the trade"
+                );
+            }
+        }
+        assert_eq!(
+            listed, expected,
+            "_cancelEndsTrade in trade_detail_screen.dart must list exactly the \
+             TradeStatus values of the statuses cancellation_wipes_history wipes"
+        );
     }
 }

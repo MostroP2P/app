@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
 /// Interactive 5-star rating selector.
@@ -50,7 +52,7 @@ class StarRating extends StatelessWidget {
             color: isFilled ? filledColor : emptyColor,
             size: starSize,
           ),
-        );
+        ).withAutomationId(AutomationIds.tradeRateStar(starNumber));
       }),
     );
   }
