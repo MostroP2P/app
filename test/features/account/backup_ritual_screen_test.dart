@@ -44,7 +44,7 @@ Future<void> _pumpRitual(WidgetTester tester) async {
               resetConfirmed: () async {},
             )),
       ],
-      child: MaterialApp(
+      child: const MaterialApp(
         locale: Locale('en'),
         localizationsDelegates: [
           AppLocalizations.delegate,
