@@ -1,10 +1,14 @@
+import 'dart:async';
+
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mostro/features/order/models/bond_rules.dart';
 import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
-import 'package:mostro/src/rust/api/types.dart' show TradeInfo;
+import 'package:mostro/src/rust/api/types.dart'
+    show BondClaim, BondClaimUpdate, TradeInfo;
 
 const kBondExplainerOpenKey = 'bond_explainer_open';
 
@@ -91,3 +95,61 @@ final bondEstimateProvider = FutureProvider.autoDispose.family<int?, int>((
   );
   return estimate?.toInt();
 });
+
+// ── Payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ─────────────────────────────
+
+/// Claim phase changes pushed by the core (new claim, submission, ack,
+/// payout, expiry). Screens filter by `orderId`.
+final bondClaimUpdatesProvider = StreamProvider.autoDispose<BondClaimUpdate>((
+  ref,
+) async* {
+  final stream = await bond_api.onBondClaimUpdated();
+  while (true) {
+    yield await stream.next();
+  }
+});
+
+/// The claim for one order, re-read on every claim update for it.
+final bondClaimProvider = FutureProvider.autoDispose.family<BondClaim?, String>(
+  (ref, orderId) async {
+    ref.listen(bondClaimUpdatesProvider, (_, next) {
+      if (next.valueOrNull?.orderId == orderId) ref.invalidateSelf();
+    });
+    final claim = await bond_api.getBondClaim(orderId: orderId);
+    _reReadAtNextDeadline(ref, [if (claim != null) claim]);
+    return claim;
+  },
+);
+
+/// Re-run the provider when the nearest pending claim passes its window:
+/// nothing else rebuilds a settled trade screen or list at that moment.
+void _reReadAtNextDeadline(Ref ref, List<BondClaim> claims) {
+  final delay = nextClaimDeadlineDelay(
+    claims,
+    clock.now().millisecondsSinceEpoch ~/ 1000,
+  );
+  if (delay == null) return;
+  final timer = Timer(delay, ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+}
+
+/// Every claim, most recently changed first.
+final bondClaimsProvider = FutureProvider.autoDispose<List<BondClaim>>((
+  ref,
+) async {
+  ref.listen(bondClaimUpdatesProvider, (_, _) => ref.invalidateSelf());
+  final claims = await bond_api.listBondClaims();
+  _reReadAtNextDeadline(ref, claims);
+  return claims;
+});
+
+/// The submission behind a seam: publish the bolt11 for a claim's share to
+/// the node that issued it.
+final submitBondPayoutInvoiceProvider =
+    Provider<Future<void> Function(String orderId, String invoice)>(
+      (ref) =>
+          (orderId, invoice) => bond_api.submitBondPayoutInvoice(
+            orderId: orderId,
+            invoice: invoice,
+          ),
+    );

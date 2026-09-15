@@ -52,6 +52,22 @@ class IdentityService {
     }
   }
 
+  /// When the current identity was created or imported, or null when unknown
+  /// (an install older than the timestamp, or unreadable storage).
+  ///
+  /// Read fresh on every call: an import rewrites it mid-session, and the
+  /// history replay that follows must read as the past (issue #474).
+  static Future<DateTime?> createdAt() async {
+    try {
+      final millis = int.tryParse(await _storage.read(key: _kCreatedAt) ?? '');
+      if (millis == null || millis <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(millis);
+    } catch (e) {
+      debugPrint('[identity] createdAt($_kCreatedAt) error: $e');
+      return null;
+    }
+  }
+
   /// Decide what to write to secure storage for an [incoming] consumed trade
   /// key index, given the [current] stored raw value. Returns null when the
   /// write should be skipped.

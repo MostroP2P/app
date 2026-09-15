@@ -6,6 +6,7 @@ import 'package:mostro/features/home/screens/home_screen.dart';
 import 'package:mostro/features/notifications/screens/notifications_screen.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/add_order_screen.dart';
+import 'package:mostro/features/order/screens/bond_payout_invoice_screen.dart';
 import 'package:mostro/features/order/screens/pay_bond_invoice_screen.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/my_order_screen.dart';
@@ -38,6 +39,7 @@ abstract final class AppRoute {
   static const takeBuy = '/take_buy/:orderId';
   static const payInvoice = '/pay_invoice/:orderId';
   static const payBond = '/pay_bond/:orderId';
+  static const bondPayout = '/bond_payout/:orderId';
   static const addInvoice = '/add_invoice/:orderId';
   static const tradeDetail = '/trade_detail/:orderId';
   static const chatList = '/chat_list';
@@ -63,6 +65,7 @@ abstract final class AppRoute {
   static String takeBuyPath(String orderId) => '/take_buy/$orderId';
   static String payInvoicePath(String orderId) => '/pay_invoice/$orderId';
   static String payBondPath(String orderId) => '/pay_bond/$orderId';
+  static String bondPayoutPath(String orderId) => '/bond_payout/$orderId';
   static String addInvoicePath(String orderId) => '/add_invoice/$orderId';
   static String chatRoomPath(String orderId) => '/chat_room/$orderId';
   static String rateUserPath(String orderId) => '/rate_user/$orderId';
@@ -153,6 +156,13 @@ final GoRouter appRouter = GoRouter(
       builder:
           (context, state) =>
               PayBondInvoiceScreen(orderId: state.pathParameters['orderId']!),
+    ),
+    GoRoute(
+      path: AppRoute.bondPayout,
+      builder:
+          (context, state) => BondPayoutInvoiceScreen(
+            orderId: state.pathParameters['orderId']!,
+          ),
     ),
     GoRoute(
       path: AppRoute.addInvoice,

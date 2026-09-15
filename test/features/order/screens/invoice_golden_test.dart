@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
@@ -30,6 +31,9 @@ const _holdInvoice =
     'zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7'
     'enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp5';
 
+/// Long enough to overflow the three lines of 17b.
+final _receiveInvoice = _holdInvoice.replaceFirst('lnbc2520n', 'lnbc2500n');
+
 TradeInfo _trade({required BigInt sats, String? holdInvoice}) => fakeTrade(
   id: _id,
   status: OrderStatus.waitingPayment,
@@ -52,6 +56,16 @@ Future<void> _pump(
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
+  // Something is on the clipboard, so 17a offers `Paste`.
+  final messenger = tester.binding.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async =>
+        call.method == 'Clipboard.hasStrings' ? {'value': true} : null,
+  );
+  addTearDown(
+    () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+  );
 
   await withClock(Clock.fixed(_now), () async {
     await tester.pumpWidget(
@@ -97,6 +111,13 @@ Future<void> _pump(
           locale: const Locale('es'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          // Reduced motion holds the empty field's pulse at its peak, so the
+          // frame is deterministic and the tree settles.
+          builder:
+              (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(disableAnimations: true),
+                child: child!,
+              ),
           home: screen,
         ),
       ),
@@ -110,6 +131,20 @@ void main() {
     ('dark', Brightness.dark),
     ('light', Brightness.light),
   ]) {
+    testWidgets('17a_empty · $name', (tester) async {
+      await _pump(
+        tester,
+        const AddLightningInvoiceScreen(orderId: _id),
+        trade: _trade(sats: BigInt.from(250)),
+        left: const Duration(minutes: 14, seconds: 38),
+        brightness: brightness,
+      );
+      await expectLater(
+        find.byType(AddLightningInvoiceScreen),
+        matchesGoldenFile('goldens/invoice_13a_empty_$name.png'),
+      );
+    });
+
     testWidgets('13a_receive · $name', (tester) async {
       await _pump(
         tester,
@@ -119,9 +154,11 @@ void main() {
         brightness: brightness,
       );
       await withClock(Clock.fixed(_now), () async {
-        await tester.enterText(find.byType(TextField), 'lnbc2500n1pvjluez…');
+        await tester.enterText(find.byType(TextField), _receiveInvoice);
         // Past the validation debounce.
         await tester.pump(const Duration(milliseconds: 400));
+        // Idle again (17b): the invoice shows cut to three lines.
+        FocusManager.instance.primaryFocus?.unfocus();
         await tester.pumpAndSettle();
       });
       await expectLater(

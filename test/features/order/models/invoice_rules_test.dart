@@ -199,6 +199,17 @@ void main() {
         'satoshi@example.com',
       );
     });
+
+    test(
+      'drops the line breaks and spaces an invoice copied from mail has',
+      () {
+        expect(
+          normalizeInvoiceInput('lightning:lnbc1850n1p\r\n  qqqsyq\tcyq5'),
+          'lnbc1850n1pqqqsyqcyq5',
+        );
+        expect(normalizeInvoiceInput('lightning: lnbc1 abc'), 'lnbc1abc');
+      },
+    );
   });
 
   group('counterpartStars', () {

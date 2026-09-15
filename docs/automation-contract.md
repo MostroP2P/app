@@ -60,6 +60,10 @@ fails the build when an identifier is declared and attached to nothing.
 | `pay.order_id` | The exact order ID shown in the seller invoice screen's app bar, including while its invoice is loading. |
 | `bond.invoice.text` | The anti-abuse bond bolt11 (`docs/ANTI_ABUSE_BOND.md`), otherwise only drawn as a QR code or paid by the wallet. |
 | `bond.order_id` | The exact order ID shown in the pay-bond screen's app bar. |
+| `bond.claim.amount` | The share of a slashed bond on offer to this user, in sats (`docs/ANTI_ABUSE_BOND.md` §6.4). |
+| `bond.claim.status` | The claim's phase as the screen renders it: `pending`, `submitted`, `acknowledged`, `completed`, `expired` (a pending claim past its window reads `expired`). |
+| `bond.claim.order_id` | The exact order ID shown in the claim screen's app bar. |
+| `trade.bondSlashed` | The durable line on the trade detail once this user's own bond was slashed, labelled with the cause (`dispute` / `timeout`); absent otherwise. |
 | `invoice.nwc.text` | The buyer invoice NWC generated, for payment correlation. |
 | `invoice.error` | The reason the daemon refused the last submitted buyer invoice. Present only after a rejection, until the next submission; the manual form stays open behind it. In the wallet-generated (NWC) branch, which has no form, the readout comes with `invoice.manual` so the buyer can switch to manual entry. |
 | `settings.relays.item.<url>` | The relay's URL. |
@@ -85,7 +89,10 @@ driver taps a segment, not the control. The sats field
 `order.create.amount.single` and `order.create.amount.range`; range swaps the
 single `order.create.fiat_amount` for `order.create.fiat_min` and
 `order.create.fiat_max`, and disables the fixed segment: the protocol prices a
-range at market only. The side can be switched on the form too
+range at market only. `order.create.fiat_amount` names the amount's text field
+alone; the currency selector drawn inside the same row is its own node
+(`order.create.currency`), never merged into the field's. Both the form and the
+payment-method screen leave through `appbar.back`. The side can be switched on the form too
 (`order.create.side.buy`, `order.create.side.sell`); it starts on the side the
 order-book button was tapped with. The premium figure
 (`order.create.premium`) opens a numeric field in place when tapped.
@@ -118,6 +125,29 @@ this window. On that screen `bond.cancel` reads `Don't publish the order` and
 drops the order locally (nothing was published, nothing charged); a taker's
 reads `Don't take the order` and is a daemon cancel. Once the deposit is
 paid the daemon publishes the order and `/my_order` reads `pending`.
+
+**A slashed bond is explained on tap.** Tapping a bond-slashed notification opens a
+dialog with the cause, the amount and the order; `bond.slashed.viewPolicy` (`View policy`)
+leads to the About screen, `bond.slashed.viewTrade` (`View trade`) opens the trade
+detail and is present only while the trade row still exists (a timeout slash wipes
+it), `bond.slashed.close` dismisses it. The trade keeps `trade.bondSlashed`
+afterwards.
+
+**A claimable share reaches the user from three places.** The trade detail
+carries `trade.bondClaim` (labelled with the claim's phase) with
+`trade.bondClaim.open` while the claim is pending or in progress; the My
+Trades row shows a `Payout pending` / `Payout in progress` / `Payout paid`
+badge next to its chip, a pending one files the row under *Your turn* with the
+verb `Claim payout`, and a claim whose trade row is gone renders a row of its
+own; a notification (`bond.claim` type) opens the claim screen.
+
+**Claiming a slashed bond's share happens on `/bond_payout/:orderId`.**
+While `bond.claim.status` reads `pending`, the screen offers `bond.claim.text`
+(the bolt11 field, paste and scan) and `bond.claim.submit` (`Send invoice`),
+or — with a wallet connected — the same NWC widget the add-invoice screen
+uses, with `bond.claim.manual` as the way to the field. The invoice must be
+for exactly `bond.claim.amount`; a refused submission keeps the form and
+states the reason. Every other phase is read-only.
 
 **The maker's own order ends on `order.confirm.home` (`Close`) and
 `trade.cancel`.** `trade.cancel` opens a confirmation sheet whose affirmative

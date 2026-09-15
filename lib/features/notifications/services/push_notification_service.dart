@@ -1,24 +1,27 @@
-import 'dart:convert';
-import 'dart:math' as math;
-
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:mostro/features/notifications/models/notification_model.dart';
-import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/features/notifications/services/device_token.dart';
+import 'package:mostro/features/notifications/services/local_notifications.dart';
+import 'package:mostro/features/notifications/services/push_background_handler.dart';
+import 'package:mostro/features/notifications/services/push_refresh_job.dart';
+import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
+import 'package:mostro/features/notifications/services/token_handoff.dart';
+import 'package:mostro/src/rust/api/push.dart' as push_api;
+import 'package:mostro/src/rust/api/types.dart';
 
-// Background message handler — must be a top-level function.
-@pragma('vm:entry-point')
-Future<void> _backgroundMessageHandler(RemoteMessage message) async {
-  debugPrint('[push] background message: ${message.messageId}');
-}
-
-/// Push notification service — platform-gated FCM (Android/iOS) + Web Push.
+/// The device side of push notifications: Firebase, the OS permission, and
+/// the device token, which is handed to Rust and nothing else.
+///
+/// Everything after the token — which trade pubkeys the push server holds
+/// it for, when they are re-sent, what is let go on opt-out — is Rust's
+/// (`rust/src/api/push.rs`, docs/PUSH_NOTIFICATIONS.md §7.1). This class
+/// decides nothing about registration; it reports the token, and the token's
+/// platform, and that is all the push server ever learns from Dart.
 class PushNotificationService {
   PushNotificationService._();
 
@@ -26,28 +29,62 @@ class PushNotificationService {
 
   FirebaseMessaging? _fcmInstance;
   FirebaseMessaging get _fcm => _fcmInstance ??= FirebaseMessaging.instance;
-  String? _token;
-  bool _initialized = false;
 
   /// Guards [initialize] against a second run attaching duplicate listeners.
   bool _initStarted = false;
+  Future<void> _deviceTail = Future.value();
 
-  /// Kept from the first [initialize] so [retryInitialize] can pass it on.
-  ProviderContainer? _container;
-  SharedPreferences? _cachedPrefs;
-  final Set<String> _registeredTradePubkeys = {};
+  /// Startup and permission recovery also acquire tokens, so they share the
+  /// same device queue as the master toggle's release/reacquire operations.
+  Future<void> _serialize(Future<void> Function() operation) {
+    final result = _deviceTail.then((_) => operation());
+    _deviceTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return result;
+  }
 
-  // Push server base URL — update when the Mostro push server is deployed.
-  static const _pushServerUrl = 'https://push.mostro.network';
+  /// Push is off in Settings: no token is handed to Rust until [reacquire].
+  /// Without this, FCM regenerating a deleted token (or a refresh) would
+  /// give Rust a token the user let go.
+  bool _released = false;
 
-  Future<void> initialize({ProviderContainer? container}) async {
-    _container = container ?? _container;
-    if (!_isSupported) return;
-    // Steps 4, 5 and 7 below attach stream listeners that are never
-    // cancelled, so a second run would double every foreground notification
-    // and every token re-registration. This is a separate flag from
-    // `_initialized`, which means "there is a token to delete" and must stay
-    // false on the paths that bail out below.
+  /// Token delivery is suspended until the OS permission has been checked.
+  /// Kept separate from opt-out so a later permission grant can retry.
+  bool _permissionDenied = true;
+
+  /// Test seam — production pushes on the global [appRouter].
+  @visibleForTesting
+  void Function(String destination)? navigate;
+
+  /// The bridge hand-over, with its retry while storage is not ready.
+  final TokenHandoff _handoff = TokenHandoff(
+    setToken:
+        (token, platform) =>
+            push_api.setPushToken(token: token, platform: platform),
+  );
+
+  /// Whether this platform can receive a push at all: a capability, decided
+  /// here and read by Settings as its first branch (§9.1). Not "a token was
+  /// obtained" — a denied permission also yields no token and must show the
+  /// denied banner, not unsupported copy.
+  ///
+  /// Web is a capability the browser has, but the push server does not
+  /// accept a web platform yet (§3.5), so it reads as unsupported until
+  /// that lands (T4.5).
+  bool get isSupported => platformFor(kIsWeb, defaultTargetPlatform) != null;
+
+  Future<void> initialize({ProviderContainer? container}) {
+    return _serialize(_initialize);
+  }
+
+  Future<void> _initialize() async {
+    if (!isSupported) return;
+    // Steps below attach stream listeners that are never cancelled, so a
+    // second run would double every token hand-over. This is a separate
+    // flag from "a token was obtained" and must stay false on the paths
+    // that bail out below, so a later grant can run this again.
     if (_initStarted) return;
     _initStarted = true;
 
@@ -56,185 +93,231 @@ class PushNotificationService {
       _fcmInstance = FirebaseMessaging.instance;
     } catch (e) {
       debugPrint('[push] Firebase not available: $e');
-      return;
-    }
-
-    // 1. Request permission (required on iOS, shows dialog; Android 13+ also).
-    final settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('[push] permission denied');
-      // Nothing is attached yet, so a later grant may run this again.
       _initStarted = false;
       return;
     }
 
-    // 2. Register background message handler.
-    FirebaseMessaging.onBackgroundMessage(_backgroundMessageHandler);
+    // 0. The channel the server's visible push names, with the importance
+    //    the app wants (§3.2). Before the permission: the channel needs none.
+    //    Its tap callback covers the chat-wake notice the app renders itself.
+    // 1. Request permission (required on iOS, shows dialog; Android 13+ also).
+    //    A failure here happens before any listener is attached, so the run
+    //    is undone and [retryInitialize] can start it again.
+    final NotificationSettings settings;
+    try {
+      await ensurePushNotificationChannel(onTap: _openNotifications);
+      settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    } catch (e) {
+      debugPrint('[push] setup failed before listeners, retryable: $e');
+      _initStarted = false;
+      return;
+    }
+    if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      debugPrint('[push] permission denied');
+      // Nothing is attached yet, so a later grant may run this again.
+      _initStarted = false;
+      await _suspendForPermission();
+      return;
+    }
 
-    // 3. Get initial FCM token.
-    // TODO: Replace 'YOUR_VAPID_KEY' with the real VAPID key from Firebase console.
+    // Apply the saved preference before a refresh listener can deliver any
+    // token. An opt-out that happened during this await must stay in force.
+    if (!await _enabledInRust()) _released = true;
+
+    // 2. Register the display-only background handler.
+    FirebaseMessaging.onBackgroundMessage(pushBackgroundHandler);
+
+    // 3. Hand the token to Rust — on every refresh, and now. The refresh
+    //    listener is attached first: a rotation that lands while the first
+    //    hand-over is in flight must not be missed. Not awaited: on iOS the
+    //    token waits for APNs (fetchDeviceToken), and nothing below needs it.
+    //    The acquisition still checks the permission and the opt-out first.
+    _fcm.onTokenRefresh.listen((token) {
+      _handOver(token);
+    });
+    if (!_released) unawaited(_acquireIfAllowed());
+
+    // 4. Foreground messages carry nothing to act on (§2.3): the foreground
+    //    subscription already delivers the event and the in-app card. The
+    //    one useful thing a push says while the app is up is that the
+    //    relays had something for us — if the pool is not connected, that
+    //    is a reason to reconnect now rather than on its own backoff.
+    FirebaseMessaging.onMessage.listen((message) {
+      debugPrint('[push] foreground message: ${message.data['type']}');
+      unawaited(_nudgeIfOffline());
+    });
+
+    // 5. A tap on the OS notification. There is no payload to route on
+    //    (§2.3): the app opens on Notifications, where the resync's in-app
+    //    cards say what the wake was about. Warm (the app was in the
+    //    background) and cold (the tap launched it) alike.
+    FirebaseMessaging.onMessageOpenedApp.listen((_) => _openNotifications());
+    //    The chat-wake notice is the app's own, so FCM sees neither tap.
+    final launch = await _fcm.getInitialMessage();
+    if (launch != null || await launchedFromLocalNotification()) {
+      _openNotifications();
+    }
+
+    // 5. The refresh that outlives the process: the OS re-POSTs the
+    //    registrations Rust mirrored, every 12 h, app running or not.
+    await schedulePushRefresh();
+  }
+
+  Future<void> _nudgeIfOffline() async {
+    try {
+      final state = await nostr_api.getConnectionState();
+      if (state == ConnectionState.online) return;
+      final outcome = await nostr_api.resync();
+      debugPrint('[push] foreground nudge: online=${outcome.online}');
+    } catch (e) {
+      debugPrint('[push] foreground nudge failed: $e');
+    }
+  }
+
+  void _openNotifications() {
+    final go = navigate ?? (destination) => appRouter.push(destination);
+    try {
+      go(AppRoute.notifications);
+    } catch (e) {
+      debugPrint('[push] could not open notifications: $e');
+    }
+  }
+
+  Future<void> _handOverToken() async {
+    // TODO(#133): the real VAPID key, once the push server accepts web.
     const vapidKey = 'YOUR_VAPID_KEY';
     if (kIsWeb && vapidKey == 'YOUR_VAPID_KEY') {
-      debugPrint(
-        '[push] WARNING: VAPID key not configured — skipping web token',
-      );
-    } else {
-      try {
-        _token = await _fcm.getToken(vapidKey: kIsWeb ? vapidKey : null);
-        debugPrint('[push] FCM token acquired (${_token?.length ?? 0} chars)');
-      } catch (e) {
-        debugPrint('[push] FCM getToken failed: $e');
-      }
+      debugPrint('[push] VAPID key not configured — skipping web token');
+      return;
     }
-
-    // 4. Handle foreground messages — create in-app notification.
-    FirebaseMessaging.onMessage.listen((message) {
-      _handleForeground(message, container: container);
-    });
-
-    // 5. Handle notification tap when app was in background (not terminated).
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      _handleTap(message);
-    });
-
-    // 6. Handle notification tap when app was terminated.
-    final initial = await _fcm.getInitialMessage();
-    if (initial != null) _handleTap(initial);
-
-    // 7. Listen for token refresh.
-    _fcm.onTokenRefresh.listen((newToken) {
-      _token = newToken;
-      reRegisterAllTokens();
-    });
-
-    // 8. Cache SharedPreferences for synchronous notification gating.
-    _cachedPrefs = await SharedPreferences.getInstance();
-
-    _initialized = true;
-  }
-
-  void _handleForeground(
-    RemoteMessage message, {
-    ProviderContainer? container,
-  }) {
-    final data = message.data;
-    if (data.isEmpty) return;
-
-    final type = data['type'] as String?;
-    final orderId = data['orderId'] as String?;
-    final disputeId = data['disputeId'] as String?;
-
-    if (type == null) return;
-
-    // Respect per-type notification preferences.
-    if (!_isTypeEnabled(type)) return;
-
-    final notification = NotificationModel(
-      id: message.messageId ?? DateTime.now().toIso8601String(),
-      type: _typeFromString(type),
-      title: message.notification?.title ?? _defaultTitle(type),
-      message: message.notification?.body ?? _defaultBody(type, orderId),
-      timestamp: DateTime.now(),
-      orderId: orderId,
-      disputeId: disputeId,
-    );
-
-    container?.read(notificationsProvider.notifier).add(notification);
-  }
-
-  void _handleTap(RemoteMessage message) {
-    _pendingRoute = routeFromPayload(message.data);
-  }
-
-  String? _pendingRoute;
-
-  /// Consume and clear any pending deep-link route from a notification tap.
-  String? consumePendingRoute() {
-    final r = _pendingRoute;
-    _pendingRoute = null;
-    return r;
-  }
-
-  // ── Notification preferences gating ───────────────────────────────────────
-
-  /// Check if a notification type is enabled in user preferences.
-  /// Uses the same SharedPreferences keys as notification_settings_screen.dart.
-  bool _isTypeEnabled(String type) {
-    final prefs = _cachedPrefs;
-    if (prefs == null) return true; // allow until prefs are loaded
-    return switch (type) {
-      'tradeUpdate' ||
-      'orderTaken' => prefs.getBool('notify_trade_updates') ?? true,
-      'invoiceRequest' ||
-      'paymentReceived' => prefs.getBool('notify_payments') ?? true,
-      'dispute' => prefs.getBool('notify_disputes') ?? true,
-      _ => true,
-    };
-  }
-
-  // ── Token registration with push server ──────────────────────────────────
-
-  Future<void> registerToken(String tradePubkey) async {
-    if (!_isSupported || _token == null) return;
+    final String? token;
     try {
-      final response = await http.post(
-        Uri.parse('$_pushServerUrl/api/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'trade_pubkey': tradePubkey,
-          'token': _token,
-          'platform': _platform,
-        }),
+      token = await fetchDeviceToken(
+        waitsForApns: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+        getApnsToken: _fcm.getAPNSToken,
+        getToken: () => _fcm.getToken(vapidKey: kIsWeb ? vapidKey : null),
       );
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        _registeredTradePubkeys.add(tradePubkey);
-        debugPrint('[push] registered $tradePubkey');
-      } else {
-        debugPrint('[push] register failed: HTTP ${response.statusCode}');
-      }
     } catch (e) {
-      debugPrint('[push] register failed: $e');
+      debugPrint('[push] FCM getToken failed: $e');
+      return;
     }
+    if (token == null) return;
+    debugPrint('[push] FCM token acquired (${token.length} chars)');
+    await _handOver(token);
   }
 
-  Future<void> unregisterToken(String tradePubkey) async {
-    if (!_isSupported || _token == null) return;
+  Future<void> _handOver(String token) async {
+    if (_released || _permissionDenied) return;
+    final platform = platformFor(kIsWeb, defaultTargetPlatform);
+    if (platform == null) return;
+    await _handoff.offer(token, platform);
+  }
+
+  /// Runs [initialize] again after the user granted a permission they had
+  /// denied: the first run stopped before acquiring a token or attaching
+  /// listeners. Once a run has got past the permission step, only a token
+  /// Rust could not take yet is worth retrying.
+  Future<void> retryInitialize() => _serialize(_retryInitialize);
+
+  Future<void> _retryInitialize() async {
+    if (_initStarted) {
+      if (_released) return;
+      if (_permissionDenied) {
+        await _acquireIfAllowed();
+      } else {
+        await _handoff.retryPending();
+      }
+      return;
+    }
+    await _initialize();
+  }
+
+  /// The persisted master toggle. Unknown — storage not up yet — reads as
+  /// on: Rust gates every registration on the setting anyway, so handing a
+  /// token over to a disabled Rust registers nothing.
+  Future<bool> _enabledInRust() async {
     try {
-      final response = await http.post(
-        Uri.parse('$_pushServerUrl/api/unregister'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'trade_pubkey': tradePubkey, 'token': _token}),
-      );
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        _registeredTradePubkeys.remove(tradePubkey);
-      } else {
-        debugPrint('[push] unregister failed: HTTP ${response.statusCode}');
-      }
+      return (await push_api.getPushStatus()).enabled;
     } catch (e) {
-      debugPrint('[push] unregister failed: $e');
+      debugPrint('[push] push setting unavailable, assuming on: $e');
+      return true;
     }
   }
 
-  Future<void> reRegisterAllTokens() async {
-    for (final pubkey in Set.of(_registeredTradePubkeys)) {
-      await registerToken(pubkey);
-    }
+  /// Push turned off in Settings (docs/PUSH_NOTIFICATIONS.md §7.4). Rust has
+  /// already attempted to unregister everything. The device token goes too;
+  /// FCM stops minting one, and none reaches Rust until [reacquire].
+  Future<void> release() {
+    // Block handoffs immediately, including a getToken already in flight.
+    _released = true;
+    final discarded = _handoff.discard();
+    return _serialize(() async {
+      await discarded;
+      await _release();
+    });
   }
 
-  Future<void> unregisterAllTokens() async {
-    for (final pubkey in Set.of(_registeredTradePubkeys)) {
-      await unregisterToken(pubkey);
-    }
-    if (_initialized) {
+  Future<void> _release() async {
+    _released = true;
+    // A hand-over still in flight must land before Rust's token is cleared.
+    await _handoff.discard();
+    if (!isSupported) return;
+    try {
+      await _fcm.setAutoInitEnabled(false);
       await _fcm.deleteToken();
+    } catch (e) {
+      debugPrint('[push] device token not deleted: $e');
     }
+    await push_api.clearPushToken();
   }
 
-  // ── System permission ──────────────────────────────────────────────────────
+  /// Push turned back on: a fresh token for Rust to register the current
+  /// trades with. If the first [initialize] never got past the permission,
+  /// it runs now.
+  Future<void> reacquire() => _serialize(_reacquire);
+
+  Future<void> _reacquire() async {
+    if (!isSupported) return;
+    _released = false;
+    if (!_initStarted) {
+      await _initialize();
+      return;
+    }
+    await _acquireIfAllowed();
+  }
+
+  Future<void> _acquireIfAllowed() async {
+    if (_released) return;
+    // Gate refresh callbacks while the current permission is being read.
+    _permissionDenied = true;
+    if (await isSystemPermissionDenied()) {
+      await _suspendForPermission();
+      return;
+    }
+    if (_released) return;
+    _permissionDenied = false;
+    try {
+      await _fcm.setAutoInitEnabled(true);
+    } catch (e) {
+      debugPrint('[push] FCM auto-init not re-enabled: $e');
+    }
+    if (_released) return;
+    await _handOverToken();
+  }
+
+  Future<void> _suspendForPermission() async {
+    _permissionDenied = true;
+    await _handoff.discard();
+    try {
+      await push_api.clearPushToken();
+    } catch (e) {
+      debugPrint('[push] token not cleared after permission denial: $e');
+    }
+  }
 
   /// Whether the OS is refusing to show this app's notifications.
   ///
@@ -243,16 +326,8 @@ class PushNotificationService {
   /// Anything other than an explicit denial reads as false — a platform with
   /// no push (desktop), a build without Firebase, or a permission the user
   /// has not been asked for yet is not a setting for them to go and fix.
-  /// Runs [initialize] again after the user granted a permission they had
-  /// denied: the first run stopped before acquiring a token or attaching
-  /// listeners. A no-op once a run has got past the permission step.
-  Future<void> retryInitialize() async {
-    if (_initStarted) return;
-    await initialize(container: _container);
-  }
-
   Future<bool> isSystemPermissionDenied() async {
-    if (!_isSupported) return false;
+    if (!isSupported) return false;
     try {
       final settings = await _fcm.getNotificationSettings();
       return settings.authorizationStatus == AuthorizationStatus.denied;
@@ -261,113 +336,16 @@ class PushNotificationService {
       return false;
     }
   }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  bool get _isSupported => !_isDesktop;
-  bool get _isDesktop =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.macOS ||
-          defaultTargetPlatform == TargetPlatform.linux ||
-          defaultTargetPlatform == TargetPlatform.windows);
-
-  String get _platform {
-    if (kIsWeb) return 'web';
-    if (defaultTargetPlatform == TargetPlatform.android) return 'android';
-    if (defaultTargetPlatform == TargetPlatform.iOS) return 'ios';
-    return 'unknown';
-  }
-
-  NotificationType _typeFromString(String type) => switch (type) {
-    'tradeUpdate' => NotificationType.tradeUpdate,
-    'invoiceRequest' => NotificationType.invoiceRequest,
-    'paymentReceived' => NotificationType.paymentReceived,
-    'orderTaken' => NotificationType.orderTaken,
-    'dispute' => NotificationType.dispute,
-    _ => NotificationType.system,
-  };
-
-  String _defaultTitle(String type) => switch (type) {
-    'tradeUpdate' => 'Trade updated',
-    'invoiceRequest' => 'Invoice requested',
-    'paymentReceived' => 'Payment received',
-    'orderTaken' => 'Order taken',
-    'dispute' => 'Dispute opened',
-    _ => 'Mostro notification',
-  };
-
-  String _defaultBody(String type, String? orderId) {
-    final id =
-        orderId != null
-            ? ' for order ${orderId.substring(0, math.min(8, orderId.length))}'
-            : '';
-    return switch (type) {
-      'tradeUpdate' => 'Your trade status changed$id.',
-      'invoiceRequest' => 'Add your Lightning invoice$id.',
-      'paymentReceived' => 'You received a payment$id.',
-      'orderTaken' => 'Your order was taken$id.',
-      'dispute' => 'A dispute was opened$id.',
-      _ => 'You have a new notification.',
-    };
-  }
-
-  // ── Route resolution (DO NOT MODIFY) ───────────────────────────────────────
-
-  /// Validates that a push payload ID contains only safe characters
-  /// (alphanumeric, hyphens, underscores) to prevent route injection.
-  static final _validIdPattern = RegExp(r'^[a-zA-Z0-9\-_]+$');
-
-  bool _isValidId(String? id) =>
-      id != null && id.isNotEmpty && _validIdPattern.hasMatch(id);
-
-  /// Extract the GoRouter destination from a push payload.
-  ///
-  /// Payload keys: `type` (string), `orderId` (string?), `disputeId` (string?)
-  ///
-  /// Returns `null` if the payload type is unrecognised or the required ID
-  /// fails validation (alphanumeric + hyphens/underscores only).
-  String? routeFromPayload(Map<String, dynamic> payload) {
-    final type = payload['type'] as String?;
-    final orderId = payload['orderId'] as String?;
-    final disputeId = payload['disputeId'] as String?;
-
-    return switch (type) {
-      'tradeUpdate' when _isValidId(orderId) => '/trade_detail/$orderId',
-      'invoiceRequest' when _isValidId(orderId) => '/add_invoice/$orderId',
-      'paymentReceived' when _isValidId(orderId) => '/pay_invoice/$orderId',
-      'ratingReceived' when _isValidId(orderId) => '/rate_user/$orderId',
-      'orderTaken' when _isValidId(orderId) => '/add_invoice/$orderId',
-      'dispute' when _isValidId(disputeId) => '/dispute_details/$disputeId',
-      _ => null,
-    };
-  }
 }
 
-/// Widget that wires push-tap payloads to GoRouter.
-///
-/// Wrap around the app root so the navigator context is available.
-/// Consumes any pending route from a notification tap on app launch.
-class NotificationListenerWidget extends StatefulWidget {
-  const NotificationListenerWidget({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  State<NotificationListenerWidget> createState() =>
-      _NotificationListenerWidgetState();
-}
-
-class _NotificationListenerWidgetState
-    extends State<NotificationListenerWidget> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final route = PushNotificationService.instance.consumePendingRoute();
-      if (route != null && mounted) context.push(route);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
+/// The push server's platform for this build, or `null` where no push can
+/// be received: desktop has no transport, and web is held back until the
+/// server accepts it (docs/PUSH_NOTIFICATIONS.md §3.4, §3.5).
+PushPlatform? platformFor(bool isWeb, TargetPlatform platform) {
+  if (isWeb) return null;
+  return switch (platform) {
+    TargetPlatform.android => PushPlatform.android,
+    TargetPlatform.iOS => PushPlatform.ios,
+    _ => null,
+  };
 }

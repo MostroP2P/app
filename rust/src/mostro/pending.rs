@@ -116,6 +116,10 @@ pub(crate) enum PendingRequestKind {
     Take,
     /// A buyer's add-invoice awaiting the daemon's acknowledgement.
     AddInvoice,
+    /// An `add-bond-invoice` reply (the payout claim's bolt11) awaiting the
+    /// daemon's `bond-invoice-accepted` or `CantDo`
+    /// (docs/ANTI_ABUSE_BOND.md §6.4).
+    BondClaimSubmit,
     /// A session-restore awaiting the daemon's RestoreData reply. Correlated
     /// by trade pubkey, not request_id (the RestoreSession message carries
     /// no request_id — see mostro-core Message::new_restore).
@@ -137,7 +141,7 @@ pub(crate) enum PendingRequestKind {
         /// per outstanding attempt is not worth trading that correctness for.
         ///
         /// The record's own lifetime is not bounded in the common case:
-        /// [`purge_pending_request`] runs only when a per-trade daemon
+        /// [`purge_detached_pending_request`] runs only when a per-trade daemon
         /// subscription exits, and `open_dispute` starts none — a dispute on
         /// a trade loaded from the database after a restart is answered over
         /// the global feed — so the record can live for the whole process.
@@ -274,12 +278,23 @@ pub(crate) fn remove_pending_request(trade_pubkey_hex: &str, request_id: u64) {
     }
 }
 
-/// Drop whatever pending request remains for `trade_pubkey_hex`,
-/// unconditionally. Only for the end of the per-trade subscription's
-/// lifetime, when no reply can be delivered to any attempt on this key.
-pub(crate) fn purge_pending_request(trade_pubkey_hex: &str) {
+/// Drop the pending request remaining for `trade_pubkey_hex` — but only a
+/// *detached* one (`tx: None`: its 10 s timeout ran and no genuine late
+/// reply ever consumed it). Only for the end of the per-trade
+/// subscription's lifetime, when no reply can reach a timed-out attempt on
+/// this key anymore.
+///
+/// A record whose waiter is still attached is not dead state: its caller is
+/// mid-request — it registered the record *before* calling
+/// `subscribe_daemon_messages` (the create/take ordering) and may be parked
+/// on the subscription registry's lock at this very moment, about to
+/// subscribe from scratch. Purging it here would strand that caller with a
+/// `NoDaemonResponse` on a request the daemon accepted (PR #407 round 2).
+pub(crate) fn purge_detached_pending_request(trade_pubkey_hex: &str) {
     if let Ok(mut m) = pending_requests().lock() {
-        m.remove(trade_pubkey_hex);
+        if m.get(trade_pubkey_hex).is_some_and(|p| p.tx.is_none()) {
+            m.remove(trade_pubkey_hex);
+        }
     }
 }
 
@@ -369,6 +384,26 @@ pub(crate) fn take_matching_add_invoice(
         Some(p)
             if request_id_matches(p.request_id, got)
                 && matches!(p.kind, PendingRequestKind::AddInvoice) =>
+        {
+            map.remove(trade_pubkey_hex)
+        }
+        _ => None,
+    }
+}
+
+/// Remove and return the pending request for `trade_pubkey_hex` only when it
+/// is a `BondClaimSubmit` and `got` echoes its nonce. Like an add-invoice,
+/// the consumed message still flows through the per-action arms — the
+/// acknowledgement is also the claim's phase change.
+pub(crate) fn take_matching_claim_submit(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<PendingRequest> {
+    let mut map = pending_requests().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(p)
+            if request_id_matches(p.request_id, got)
+                && matches!(p.kind, PendingRequestKind::BondClaimSubmit) =>
         {
             map.remove(trade_pubkey_hex)
         }
@@ -1282,6 +1317,8 @@ mod tests {
             assert_eq!(superseded.len() as u64, total - 2);
         }
 
-        purge_pending_request(key);
+        // Direct cleanup: the surviving record still has its waiter attached,
+        // so the detached-only purge would (correctly) leave it in the map.
+        pending_requests().lock().unwrap().remove(key);
     }
 }

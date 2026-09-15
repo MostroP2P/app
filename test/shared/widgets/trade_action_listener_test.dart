@@ -49,7 +49,7 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(orderId: 'o1', status: OrderStatus.waitingPayment),
+      const TradeUpdate(orderId: 'o1', occurredAt: 0, status: OrderStatus.waitingPayment),
     );
     await tester.pump();
     await tester.pump();
@@ -67,7 +67,7 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(orderId: 'o1', status: OrderStatus.waitingBuyerInvoice),
+      const TradeUpdate(orderId: 'o1', occurredAt: 0, status: OrderStatus.waitingBuyerInvoice),
     );
     await tester.pump();
     await tester.pump();
@@ -85,7 +85,7 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(orderId: 'o1', status: OrderStatus.waitingTakerBond),
+      const TradeUpdate(orderId: 'o1', occurredAt: 0, status: OrderStatus.waitingTakerBond),
     );
     await tester.pump();
     await tester.pump();
@@ -105,7 +105,7 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(orderId: 'o1', status: OrderStatus.waitingTakerBond),
+      const TradeUpdate(orderId: 'o1', occurredAt: 0, status: OrderStatus.waitingTakerBond),
     );
     await tester.pump();
     await tester.pump();
@@ -121,7 +121,7 @@ void main() {
     await pumpListener(tester, resolveRole: (_) async => TradeRole.buyer);
 
     updates.add(
-      const TradeUpdate(orderId: 'o1', status: OrderStatus.waitingPayment),
+      const TradeUpdate(orderId: 'o1', occurredAt: 0, status: OrderStatus.waitingPayment),
     );
     await tester.pump();
     await tester.pump();
@@ -138,10 +138,10 @@ void main() {
     await pumpListener(tester, resolveRole: (_) => role.future);
 
     updates.add(
-      const TradeUpdate(orderId: 'o1', status: OrderStatus.waitingPayment),
+      const TradeUpdate(orderId: 'o1', occurredAt: 0, status: OrderStatus.waitingPayment),
     );
     await tester.pump();
-    updates.add(const TradeUpdate(orderId: 'o1', status: OrderStatus.active));
+    updates.add(const TradeUpdate(orderId: 'o1', occurredAt: 0, status: OrderStatus.active));
     await tester.pump();
 
     role.complete(TradeRole.seller);

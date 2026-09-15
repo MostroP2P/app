@@ -184,6 +184,7 @@ void main() {
     updates.add(const rust_types.TradeUpdate(
       orderId: _orderId,
       status: rust_types.OrderStatus.active,
+      occurredAt: 0,
     ));
     await tester.pump();
     await tester.pump();

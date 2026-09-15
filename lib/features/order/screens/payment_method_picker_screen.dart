@@ -40,9 +40,10 @@ class _PaymentMethodPickerScreenState
   void _toggle(String method) {
     final notifier = ref.read(selectedPaymentMethodsProvider.notifier);
     final current = notifier.state;
-    notifier.state = current.contains(method)
-        ? current.where((m) => m != method).toList()
-        : [...current, method];
+    notifier.state =
+        current.contains(method)
+            ? current.where((m) => m != method).toList()
+            : [...current, method];
   }
 
   void _removeCustom(String method) {
@@ -59,9 +60,9 @@ class _PaymentMethodPickerScreenState
     final fiatCode = ref.read(selectedFiatCodeProvider);
     final catalogue = ref.read(paymentMethodsForCurrencyProvider(fiatCode));
     final match = catalogue.cast<String?>().firstWhere(
-          (m) => m!.toLowerCase() == sanitized.toLowerCase(),
-          orElse: () => null,
-        );
+      (m) => m!.toLowerCase() == sanitized.toLowerCase(),
+      orElse: () => null,
+    );
     if (match != null) {
       if (!ref.read(selectedPaymentMethodsProvider).contains(match)) {
         _toggle(match);
@@ -87,9 +88,10 @@ class _PaymentMethodPickerScreenState
     final custom = ref.watch(customPaymentMethodsProvider);
 
     final query = _query.trim().toLowerCase();
-    final visible = query.isEmpty
-        ? catalogue
-        : catalogue.where((m) => m.toLowerCase().contains(query)).toList();
+    final visible =
+        query.isEmpty
+            ? catalogue
+            : catalogue.where((m) => m.toLowerCase().contains(query)).toList();
     final canAddCustom = sanitizeCustomMethod(_customDraft).isNotEmpty;
 
     return Scaffold(
@@ -102,7 +104,7 @@ class _PaymentMethodPickerScreenState
           icon: Icon(Icons.arrow_back, size: 22, color: palette.textBody),
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => Navigator.of(context).maybePop(),
-        ),
+        ).withAutomationId(AutomationIds.appBarBack),
         titleSpacing: 0,
         title: Text(
           l10n.paymentMethodsLabel,
@@ -133,7 +135,11 @@ class _PaymentMethodPickerScreenState
                 ),
                 hintText: l10n.paymentMethodSearchHint,
                 hintStyle: TextStyle(fontSize: 14, color: palette.textFaint),
-                prefixIcon: Icon(Icons.search, size: 18, color: palette.sortLabel),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 18,
+                  color: palette.sortLabel,
+                ),
               ),
               onChanged: (v) => setState(() => _query = v),
             ).withAutomationId(AutomationIds.orderCreatePaymentMethodSearch),

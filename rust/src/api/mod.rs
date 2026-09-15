@@ -11,6 +11,7 @@ pub mod nodes;
 pub mod nostr;
 pub mod nwc;
 pub mod orders;
+pub mod push;
 pub mod reputation;
 pub mod settings;
 pub mod types;

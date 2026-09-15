@@ -94,15 +94,18 @@ Duration invoiceCountdownTick(Duration remaining) {
 
 const _scheme = 'lightning:';
 
-/// [raw] without surrounding whitespace or a `lightning:` prefix, which QR
-/// codes and wallet shares often carry. Field tidying only: the Rust core
-/// normalizes again before it judges or sends anything.
+final _whitespace = RegExp(r'\s+');
+
+/// [raw] without any whitespace — an invoice copied from a mail arrives cut
+/// by line breaks — or a `lightning:` prefix, which QR codes and wallet
+/// shares often carry. Field tidying only: the Rust core normalizes again
+/// before it judges or sends anything.
 String normalizeInvoiceInput(String raw) {
-  final trimmed = raw.trim();
-  if (trimmed.toLowerCase().startsWith(_scheme)) {
-    return trimmed.substring(_scheme.length).trim();
+  final compact = raw.replaceAll(_whitespace, '');
+  if (compact.toLowerCase().startsWith(_scheme)) {
+    return compact.substring(_scheme.length);
   }
-  return trimmed;
+  return compact;
 }
 
 /// Verdict of the validation row under the invoice field, as the screen

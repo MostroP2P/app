@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/core/daemon_errors.dart';
@@ -403,7 +404,11 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       // A bond node parks the order behind the maker's deposit: it is not
       // published until the bond is paid (docs/ANTI_ABUSE_BOND.md §6.2).
       if (order.status == OrderStatus.waitingMakerBond) {
-        context.go(AppRoute.payBondPath(order.id));
+        // The order's own screen underneath, so the back arrow leaves the
+        // deposit for later (`order.payBond` reopens it) instead of
+        // leaving no way out but abandoning.
+        context.go(AppRoute.myOrderPath(order.id));
+        context.push(AppRoute.payBondPath(order.id));
         return;
       }
       context.go(AppRoute.myOrderPath(order.id));
@@ -505,7 +510,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
           icon: Icon(Icons.arrow_back, size: 22, color: palette.textBody),
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => context.pop(),
-        ),
+        ).withAutomationId(AutomationIds.appBarBack),
         titleSpacing: 0,
         title: Text(
           l10n.newOrderTitle,

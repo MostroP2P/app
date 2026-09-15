@@ -64,11 +64,15 @@ jobs:
         with:
           persist-credentials: false
 
-      # Rust toolchain is required by flutter_rust_bridge_codegen to generate
-      # the Dart bindings (lib/src/rust/ is gitignored and produced on the fly).
-      # Pinned to match the rust job (see note above).
+      # Rust toolchain is required by flutter_rust_bridge_codegen to regenerate
+      # the Dart bindings, so the drift check below can compare them with the committed lib/src/rust/.
+      # Pinned to match the rust job (see note above). rustfmt is not in the action's minimal
+      # profile; without it codegen writes rust/src/frb_generated.rs unformatted and the drift
+      # check reports the whole file.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          components: rustfmt
 
       - name: Cache cargo registry and target
         uses: Swatinem/rust-cache@v2
@@ -125,6 +129,20 @@ jobs:
             exit 1
           fi
           echo "All localization keys are translated across every locale."
+
+      # Generated code is committed (CONTRIBUTING.md → "Generated code"). The two steps
+      # above regenerated it from this PR's sources, so any difference means the PR changed
+      # rust/src/api/ or an .arb without committing the regenerated output.
+      - name: Check generated code is committed
+        run: |
+          paths=(lib/src/rust rust/src/frb_generated.rs lib/l10n)
+          if [ -n "$(git status --porcelain -- "${paths[@]}")" ]; then
+            echo "::error::Generated code is out of date. Run ./scripts/frb-generate.sh and flutter gen-l10n, then commit the result."
+            git status --short -- "${paths[@]}"
+            git diff --stat -- "${paths[@]}"
+            exit 1
+          fi
+          echo "Generated code matches the committed copy."
 
       - name: Analyze
         run: flutter analyze

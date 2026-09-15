@@ -106,8 +106,8 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      # lib/src/rust/ is gitignored and produced on the fly; without it the web
-      # build fails to compile. The script also verifies the FRB pins agree.
+      # lib/src/rust/ is committed, but the bundle is built from freshly generated
+      # bindings (ci.yml checks the two agree). The script also verifies the FRB pins agree.
       - name: Generate Rust bridge bindings
         run: ./scripts/frb-generate.sh
 
@@ -193,11 +193,15 @@ jobs:
 
       # Serves the release bundle cross-origin isolated under the production
       # sub-path, then asserts the page is isolated, the Flutter view mounted,
-      # a Rust bridge call returned, and nothing errored.
+      # a Rust bridge call returned, and nothing errored. SMOKE_BOND_STORE also
+      # seeds bond rows into IndexedDB, reloads, and checks the app reads them
+      # back (docs/ANTI_ABUSE_BOND.md T5.1). Only here: the locale runs below
+      # test the bootstrap, not the store.
       - name: Smoke test the release bundle (headless Chrome)
         working-directory: test/web/smoke
         env:
           BUNDLE_DIR: ${{ github.workspace }}/build/web
+          SMOKE_BOND_STORE: "1"
         run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs
       # Built once and reused by every negative control below. Copying the
       # built bundle and cutting the sanitizer out of its HTML — rather than

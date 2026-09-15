@@ -27,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Rust toolchain + FRB codegen are required because the golden widgets
-      # transitively import the generated bridge bindings (lib/src/rust/).
+      # Rust toolchain + FRB codegen regenerate the bridge bindings (lib/src/rust/)
+      # that the golden widgets transitively import, so they match the Rust sources.
       # Pinned to match the CI flutter job.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0

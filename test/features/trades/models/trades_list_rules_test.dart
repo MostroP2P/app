@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/trades/models/trades_list_rules.dart';
-import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
+import 'package:mostro/src/rust/api/types.dart' show BondClaimPhase, OrderStatus;
 
 TradeRowState _row(
   OrderStatus status, {
@@ -250,6 +250,44 @@ void main() {
       expect(relativeTime(monday, now: now), RelativeTime.weekday(monday));
       final old = DateTime(2026, 9, 1, 10, 0);
       expect(relativeTime(old, now: now), RelativeTime.date(old));
+    });
+  });
+
+  group('payout claim badge (docs/ANTI_ABUSE_BOND.md §8.3)', () {
+    test('follows the claim phase, the clock applied', () {
+      TradeClaimBadge badge(BondClaimPhase? phase, {int now = 50}) =>
+          tradeClaimBadge(phase: phase, deadlineAt: 100, now: now);
+      expect(badge(null), TradeClaimBadge.none);
+      expect(badge(BondClaimPhase.pending), TradeClaimBadge.payoutPending);
+      expect(badge(BondClaimPhase.pending, now: 101), TradeClaimBadge.none);
+      expect(badge(BondClaimPhase.submitted), TradeClaimBadge.payoutInProgress);
+      expect(
+        badge(BondClaimPhase.acknowledged),
+        TradeClaimBadge.payoutInProgress,
+      );
+      expect(badge(BondClaimPhase.completed), TradeClaimBadge.payoutPaid);
+      expect(badge(BondClaimPhase.expired), TradeClaimBadge.none);
+    });
+
+    test('a pending claim makes the row the user\'s turn with the claim verb',
+        () {
+      final closed = _row(OrderStatus.canceled);
+      final claimed = applyClaimBadge(closed, TradeClaimBadge.payoutPending);
+      expect(claimed.group, TradeGroup.needsAction);
+      expect(claimed.verb, TradeRowVerb.claimPayout);
+      expect(claimed.chip, closed.chip, reason: 'the trade keeps its chip');
+      expect(applyClaimBadge(closed, TradeClaimBadge.payoutPaid), closed);
+      expect(applyClaimBadge(closed, TradeClaimBadge.none), closed);
+    });
+
+    test('a claim without a trade renders a closed row with the badge', () {
+      final pending = claimOnlyRowState(TradeClaimBadge.payoutPending);
+      expect(pending.group, TradeGroup.needsAction);
+      expect(pending.chip, TradeChipLabel.cancelled);
+      expect(pending.verb, TradeRowVerb.claimPayout);
+      final paid = claimOnlyRowState(TradeClaimBadge.payoutPaid);
+      expect(paid.group, TradeGroup.closed);
+      expect(paid.verb, TradeRowVerb.none);
     });
   });
 

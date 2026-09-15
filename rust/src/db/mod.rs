@@ -24,6 +24,27 @@ pub mod settings_keys {
     /// [`super::Storage::save_active_mostro_pubkey`] accessor.
     pub const ACTIVE_MOSTRO_PUBKEY: &str = "active_mostro_pubkey";
 
+    /// Nodes the user switched away from that may still send a payout claim,
+    /// JSON map of pubkey (hex) → unix seconds until which they stay on the
+    /// kind-14 filter (docs/ANTI_ABUSE_BOND.md §6.4).
+    pub const BOND_CLAIM_RETAINED_NODES: &str = "bond_claim_retained_nodes";
+
+    // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────
+
+    /// The master toggle, `"true"` / `"false"`; absent reads as enabled.
+    pub const PUSH_ENABLED: &str = "push_enabled";
+    /// The device token Dart last handed over, so a restart can unregister
+    /// before the device hands one over again.
+    pub const PUSH_TOKEN: &str = "push_token";
+    /// The platform of [`PUSH_TOKEN`]: `android`, `ios` or `web`.
+    pub const PUSH_PLATFORM: &str = "push_platform";
+    /// Every trade pubkey registered with the push server, JSON map of
+    /// pubkey (hex) → [`crate::mostro::push::PushRegistration`].
+    pub const PUSH_REGISTRATIONS: &str = "push_registrations";
+    /// Nodes the push server operator refused, JSON map of node (hex) →
+    /// unix seconds of the `403`; each entry clears per §7.1.
+    pub const PUSH_NODE_REFUSALS: &str = "push_node_refusals";
+
     /// User-added Mostro nodes, JSON array of `crate::api::nodes::CustomNode`.
     /// The trusted registry is compiled in (`crate::config::TRUSTED_MOSTRO_NODES`);
     /// only user additions are persisted.
@@ -160,6 +181,9 @@ pub trait Storage: Send + Sync {
 
     async fn save_message(&self, msg: &crate::api::types::ChatMessage) -> Result<()>;
     async fn list_messages(&self, trade_id: &str) -> Result<Vec<crate::api::types::ChatMessage>>;
+    /// Unread messages across all trades, including closed or removed trades.
+    /// Notification recovery must not depend on a live chat subscription.
+    async fn list_unread_messages(&self) -> Result<Vec<crate::api::types::ChatMessage>>;
     async fn mark_messages_read(&self, trade_id: &str) -> Result<()>;
 
     /// `true` if a message with this id was already accepted and stored.
@@ -304,4 +328,22 @@ pub trait Storage: Send + Sync {
         order_id: &str,
         counterparty_pubkey: &str,
     ) -> Result<()>;
+
+    // ── Bond payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ───────────────────
+
+    /// Insert or replace the claim keyed by its `(node_pubkey, order_id)`.
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()>;
+
+    /// The claim a node issued for an order, if any.
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>>;
+
+    /// Every claim, most recently changed first.
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>>;
+
+    /// Remove one claim. No-op when absent.
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()>;
 }

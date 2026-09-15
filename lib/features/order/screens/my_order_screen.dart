@@ -18,6 +18,7 @@ import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/my_order_status_block.dart';
 import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/features/trades/widgets/bond_claim_banner.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
@@ -196,6 +197,10 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             status: status,
             onRanOut: () => setState(() => _ranOut = true),
           ),
+          // A taker slashed on the waiting-state timeout sends the order
+          // back here, pending, with the maker's share waiting: the
+          // claim is offered where the maker lands, as on the trade.
+          BondClaimBanner(orderId: widget.orderId),
           const SizedBox(height: orderDetailBlockGap),
           OrderDataCard(
             rows: [

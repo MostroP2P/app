@@ -275,6 +275,33 @@ pub async fn rate_user(
     wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
+/// Build and wrap the reply to `add-bond-invoice`: the bolt11 for the
+/// counterparty share of a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4).
+/// Same action as the request, told apart by the `PaymentRequest` payload;
+/// no amount travels — the invoice carries its own, for exactly the share.
+/// Addressed to `node_pubkey`, the daemon that issued the claim, which may
+/// not be the active node.
+pub async fn add_bond_invoice(
+    identity_keys: &Keys,
+    trade_keys: &Keys,
+    node_pubkey: &PublicKey,
+    order_id: &str,
+    trade_index: u32,
+    invoice: &str,
+    request_id: u64,
+) -> Result<String> {
+    let id = Uuid::parse_str(order_id)?;
+    let payload = Some(Payload::PaymentRequest(None, invoice.to_string(), None));
+    let msg = Message::new_order(
+        Some(id),
+        Some(request_id),
+        Some(trade_index as i64),
+        Action::AddBondInvoice,
+        payload,
+    );
+    wrap_message(identity_keys, trade_keys, node_pubkey, &msg).await
+}
+
 /// Build and wrap an AddInvoice MostroMessage (buyer submits Lightning invoice
 /// or LN address).
 ///

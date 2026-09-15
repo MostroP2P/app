@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +14,10 @@ import 'package:mostro/core/font_licenses.dart';
 import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/core/test_environment.dart';
+import 'package:mostro/core/lifecycle/app_lifecycle_service.dart';
+import 'package:mostro/core/lifecycle/resume_resync.dart';
 import 'package:mostro/core/web/bridge_probe.dart';
+import 'package:mostro/core/web/store_probe.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
@@ -28,10 +32,16 @@ import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/bond.dart' as bond_api;
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
+import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show SlashCause, BondSlashedEvent;
+    show BondClaimPhase, BondClaimUpdate, BondSlashedEvent, SlashCause;
 import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart'
+    show rawTradesProvider;
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/features/notifications/services/event_cards.dart';
+import 'package:mostro/core/app_routes.dart' show appRouter;
+import 'package:mostro/src/rust/api/messages.dart' as messages_api;
 
 /// Starts the application.
 ///
@@ -129,6 +139,10 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
       debugPrint('[main] Mortsom build: orders expire after ${orderExpiry}s');
     }
     markBridgeReady();
+    // Only when the smoke test asks (SMOKE_BOND_STORE=1), and not awaited:
+    // it seeds bond rows and checks they come back through the bridge — see
+    // lib/core/web/store_probe.dart. A normal launch skips it entirely.
+    if (kIsWeb && storeProbeRequested()) unawaited(publishStoreProbe());
   } catch (e) {
     debugPrint('[main] rehydrate active Mostro node failed: $e');
     markBridgeFailed(e);
@@ -164,6 +178,11 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   // Tokio broadcast channel buffers any notice arriving during startup rather
   // than dropping it (a receiver must exist at send time).
   final bondSlashedStream = await bond_api.onBondSlashed();
+  final bondClaimStream = await bond_api.onBondClaimUpdated();
+  // Same reason for the Notifications cards (issue #474): the startup replay
+  // of the node's history is what tells the user what happened while away.
+  final tradeUpdateStream = await orders_api.onTradeUpdated();
+  final chatMessageStream = await messages_api.onAnyNewMessage();
 
   // Initialize the Nostr relay pool. `null` means the compiled-in defaults
   // (config.rs); a non-empty seed list replaces them entirely.
@@ -203,6 +222,25 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   }
 
   _consumeBondSlashed(bondSlashedStream, container);
+  _consumeBondClaims(bondClaimStream, container);
+
+  final eventCards = EventCards(
+    notifications: () => container.read(notificationsProvider.notifier),
+    // Read from disk, not the prefs provider: its first load is async, and
+    // the startup replay must not slip cards past a toggle that is off.
+    isEnabled: (event) => prefs.getBool(event.prefsKey) ?? true,
+    identityCreatedAt: IdentityService.createdAt,
+    currentLocation: _currentLocation,
+  );
+  pumpEvents('trade-cards', tradeUpdateStream.next, eventCards.onTradeUpdate);
+  pumpEvents('chat-cards', chatMessageStream.next, eventCards.onChatMessage);
+
+  // Resume = resync in Rust, then re-hydrate every notifier from the bridge
+  // (issue #308, docs/PUSH_NOTIFICATIONS.md §10). Attached before runApp so
+  // the first suspension is observed too.
+  AppLifecycleService(
+    onResume: ResumeResync(container: container).run,
+  ).attach();
 
   runApp(
     UncontrolledProviderScope(container: container, child: const MostroApp()),
@@ -264,6 +302,18 @@ void _restoreNwcConnection(String nwcUri, ProviderContainer container) {
   });
 }
 
+/// The route on screen, or null before the router has one.
+String? _currentLocation() {
+  if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+    return null;
+  }
+  try {
+    return appRouter.routerDelegate.currentConfiguration.uri.toString();
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Consumes bond-slashed notices from [stream] and records an in-app
 /// notification for each. The tracked order is never touched here — the notice
 /// is informational, and the no-overwrite guard lives in the Rust dispatcher.
@@ -291,6 +341,11 @@ void _consumeBondSlashed(
         break;
       }
       try {
+        // The core wrote `bond.state = Slashed` on the row; the cached
+        // trades still carry the provisional `Released` from the
+        // resolution that preceded the notice. Re-read so the durable
+        // notice on the trade detail appears now, not on the next refresh.
+        container.invalidate(rawTradesProvider);
         // Only stable data is stored; the copy is localized at render time.
         await container
             .read(notificationsProvider.notifier)
@@ -307,6 +362,53 @@ void _consumeBondSlashed(
             );
       } catch (e, st) {
         debugPrint('[bond-slashed] failed to record notice: $e\n$st');
+      }
+    }
+  });
+}
+
+/// Turns the core's claim phase changes into notifications
+/// (docs/ANTI_ABUSE_BOND.md §8.5): a share to claim (a new claim or a
+/// re-prompt), and a payout received. Runs for the process lifetime.
+void _consumeBondClaims(
+  bond_api.BondClaimStream stream,
+  ProviderContainer container,
+) {
+  Future.microtask(() async {
+    while (true) {
+      final BondClaimUpdate update;
+      try {
+        update = await stream.next();
+      } catch (e, st) {
+        debugPrint('[bond-claim] stream closed: $e\n$st');
+        break;
+      }
+      if (update.phase != BondClaimPhase.pending &&
+          update.phase != BondClaimPhase.completed) {
+        continue;
+      }
+      try {
+        // The claim the update names, never another node's claim for the
+        // same order that happens to be open.
+        final claim = await bond_api.getBondClaimFrom(
+          nodePubkey: update.nodePubkey,
+          orderId: update.orderId,
+        );
+        if (claim == null) continue;
+        await container
+            .read(notificationsProvider.notifier)
+            .addIfNew(
+              NotificationModel.bondClaim(
+                orderId: update.orderId,
+                nodePubkey: claim.nodePubkey,
+                slashedAt: platformInt64ToInt(claim.slashedAt),
+                amountSats: claim.amountSats.toInt(),
+                completed: update.phase == BondClaimPhase.completed,
+                updatedAt: platformInt64ToInt(claim.updatedAt),
+              ),
+            );
+      } catch (e, st) {
+        debugPrint('[bond-claim] failed to record notice: $e\n$st');
       }
     }
   });

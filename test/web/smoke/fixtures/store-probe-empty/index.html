@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!--
+  Store read-back failure: the database and its stores exist, so seeding
+  succeeds, but the page publishes an empty probe, as an app would whose
+  decode silently dropped every seeded row. With SMOKE_BOND_STORE=1 this must
+  fail the run.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="data:," />
+    <title>smoke fixture — store probe, rows lost</title>
+  </head>
+  <body>
+    <flutter-view></flutter-view>
+    <script>
+      const open = indexedDB.open('mostro', 4);
+      open.onupgradeneeded = () => {
+        for (const store of ['bond_claims', 'trades', 'trade_keys']) {
+          if (!open.result.objectStoreNames.contains(store)) {
+            open.result.createObjectStore(store);
+          }
+        }
+      };
+      open.onsuccess = () => {
+        open.result.close();
+        window.mostroBridgeReady = true;
+        window.mostroStoreProbe = JSON.stringify({ claims: [], trades: [] });
+      };
+    </script>
+  </body>
+</html>

@@ -30,6 +30,8 @@ import 'package:mostro/features/trades/widgets/trade_countdown.dart';
 import 'package:mostro/features/trades/widgets/trade_step_block.dart';
 import 'package:mostro/features/trades/widgets/trade_timeline.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
+import 'package:mostro/features/trades/widgets/bond_claim_banner.dart';
+import 'package:mostro/features/trades/widgets/bond_slashed_notice.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/counterpart_reputation_row.dart';
@@ -561,6 +563,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen> {
                       ),
             ),
           ),
+          // The share of a slashed bond, when the daemon offered one
+          // (docs/ANTI_ABUSE_BOND.md §8.3); nothing otherwise.
+          BondClaimBanner(orderId: widget.orderId),
+          // The node slashed this user's own bond: a fact that outlives the
+          // notification (docs/ANTI_ABUSE_BOND.md §8.3).
+          BondSlashedNotice(orderId: widget.orderId),
           if (view.showsReputation && peerRating != null) ...[
             const SizedBox(height: 12),
             CounterpartReputationRow(

@@ -5,7 +5,9 @@ import 'package:mostro/features/order/models/order_detail_rules.dart'
     show estimateSats;
 import 'package:mostro/features/trades/models/trade_status.dart';
 import 'package:mostro/features/trades/models/trade_view.dart';
-import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
+import 'package:mostro/features/order/models/bond_rules.dart'
+    show bondClaimEffectivePhase;
+import 'package:mostro/src/rust/api/types.dart' show BondClaimPhase, OrderStatus;
 
 /// Pure rules of the My Trades list (handoff 11a): which group a trade sits
 /// in, what its one chip says, and which action the row promises. Kept free
@@ -37,11 +39,72 @@ enum TradeRowVerb {
   none,
   addInvoice,
   payBond,
+  /// The share of a slashed bond waits for the user's invoice
+  /// (docs/ANTI_ABUSE_BOND.md §6.4).
+  claimPayout,
   payInvoice,
   sendPayment,
   releaseSats,
   rate,
 }
+
+/// The payout badge a row carries next to its chip (docs/ANTI_ABUSE_BOND.md
+/// §8.3): the counterparty's slashed bond has a share for this user.
+enum TradeClaimBadge {
+  none,
+
+  /// A claim waits for the user's invoice.
+  payoutPending,
+
+  /// The invoice was sent, or the node accepted it and is paying.
+  payoutInProgress,
+
+  /// The share was paid.
+  payoutPaid,
+}
+
+/// The badge for a claim in [phase] with the clock applied; an expired
+/// claim, or none, shows nothing.
+TradeClaimBadge tradeClaimBadge({
+  required BondClaimPhase? phase,
+  required int deadlineAt,
+  required int now,
+}) {
+  if (phase == null) return TradeClaimBadge.none;
+  return switch (bondClaimEffectivePhase(
+    phase: phase,
+    deadlineAt: deadlineAt,
+    now: now,
+  )) {
+    BondClaimPhase.pending => TradeClaimBadge.payoutPending,
+    BondClaimPhase.submitted ||
+    BondClaimPhase.acknowledged => TradeClaimBadge.payoutInProgress,
+    BondClaimPhase.completed => TradeClaimBadge.payoutPaid,
+    BondClaimPhase.expired => TradeClaimBadge.none,
+  };
+}
+
+/// A row with a pending claim is the user's turn whatever the trade says:
+/// the verb opens the claim screen. Any other badge leaves the row alone.
+TradeRowState applyClaimBadge(TradeRowState base, TradeClaimBadge badge) =>
+    badge == TradeClaimBadge.payoutPending
+        ? TradeRowState(
+          group: TradeGroup.needsAction,
+          chip: base.chip,
+          verb: TradeRowVerb.claimPayout,
+        )
+        : base;
+
+/// The row a claim renders by itself when its trade row is gone (wiped or
+/// never held here): a closed trade with the claim's badge.
+TradeRowState claimOnlyRowState(TradeClaimBadge badge) => applyClaimBadge(
+  const TradeRowState(
+    group: TradeGroup.closed,
+    chip: TradeChipLabel.cancelled,
+    verb: TradeRowVerb.none,
+  ),
+  badge,
+);
 
 @immutable
 class TradeRowState {

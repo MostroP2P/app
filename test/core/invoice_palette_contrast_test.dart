@@ -49,6 +49,21 @@ void main() {
         _expectAA('error', pal.errorInk, flatten(pal.errorFill, page));
       });
 
+      test('invoice field prompt (17a / 17b)', () {
+        final prompt = flatten(pal.promptFill, page);
+        _expectAA('prompt label', pal.validInk, prompt);
+        _expectAA('filled label', book.textSecondary, card);
+        _expectAA('filled amount', pal.validInk, card);
+        _expectAA('placeholder', pal.placeholder, pal.textareaFill);
+        _expectAA('pasted value', book.textStrong, pal.textareaFill);
+        _expectAA('paste', pal.validInk, flatten(pal.pasteFill, prompt));
+        _expectAA(
+          'scan / replace',
+          pal.fieldActionInk,
+          flatten(pal.fieldActionFill, card),
+        );
+      });
+
       test('counterpart card and hold note', () {
         final subtle = flatten(pal.subtleFill, page);
         _expectAA('label', book.textSecondary, subtle);

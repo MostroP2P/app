@@ -149,6 +149,8 @@ class AmountSection extends ConsumerWidget {
           const SizedBox(height: 12),
           const CurrencyRowSelector(),
         ] else ...[
+          // The identifier names the field alone; the inline currency
+          // selector inside the row keeps its own.
           UnderlineAmountField(
             controller: amountController,
             hintText: '0',
@@ -156,7 +158,8 @@ class AmountSection extends ConsumerWidget {
             inputFormatters: formatters,
             trailing: const CurrencyInlineSelector(),
             onChanged: (_) => onChanged(),
-          ).withAutomationId(AutomationIds.orderCreateFiatAmount),
+            automationId: AutomationIds.orderCreateFiatAmount,
+          ),
           if (quickAmounts.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(

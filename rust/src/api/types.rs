@@ -131,6 +131,71 @@ pub enum ConnectionState {
     Reconnecting,
 }
 
+/// The device token's platform, as the push server wants it
+/// (docs/PUSH_NOTIFICATIONS.md §3.1, §3.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum PushPlatform {
+    Android,
+    Ios,
+    Web,
+}
+
+impl PushPlatform {
+    /// The wire value of `platform`.
+    pub fn as_wire(&self) -> &'static str {
+        match self {
+            PushPlatform::Android => "android",
+            PushPlatform::Ios => "ios",
+            PushPlatform::Web => "web",
+        }
+    }
+
+    pub fn from_wire(value: &str) -> Option<Self> {
+        match value {
+            "android" => Some(PushPlatform::Android),
+            "ios" => Some(PushPlatform::Ios),
+            "web" => Some(PushPlatform::Web),
+            _ => None,
+        }
+    }
+}
+
+/// What the notification settings screen shows about push registration
+/// (docs/PUSH_NOTIFICATIONS.md §8.1, §9.1). Capability (can this platform
+/// push at all) and permission are Dart's to know; this is the token and
+/// what the server holds.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PushStatus {
+    /// The master toggle.
+    pub enabled: bool,
+    /// A device token is held (Dart handed one over).
+    pub has_token: bool,
+    /// Trade pubkeys the server currently holds a token for.
+    pub registered: u32,
+    /// Trade pubkeys that should be registered right now.
+    pub wanted: u32,
+    /// Unix seconds of the most recent accepted registration.
+    pub last_success_at: Option<i64>,
+    /// Stable marker of the last failure, never prose: `PushServerUnreachable`,
+    /// `PushRateLimited`, `PushNodeRefused`, `PushBadRequest`.
+    pub last_error: Option<String>,
+    /// Unix seconds until which the operator's `403` for the active node
+    /// keeps its keys unregistered; `None` when not refused.
+    pub node_refused_until: Option<i64>,
+}
+
+/// What one `resync` pass found and did (docs/PUSH_NOTIFICATIONS.md §10).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ResyncOutcome {
+    /// The pool reported `Online` once the reconnect nudge settled.
+    pub online: bool,
+    /// Queued outgoing events published by this pass.
+    pub flushed: u32,
+    /// This call did no work of its own: a pass that was already running
+    /// when it arrived finished meanwhile, and its result is what it reports.
+    pub coalesced: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum QueuedMessageStatus {
     Pending,
@@ -407,6 +472,12 @@ pub struct TradeUpdate {
     /// nothing to add.
     #[serde(default)]
     pub reason: Option<TradeUpdateReason>,
+    /// When the change happened, in Unix seconds: the daemon message's own
+    /// `created_at` for a Kind 14 dispatch, the local clock for everything
+    /// else. A history replay after a restore re-emits old transitions, and
+    /// this is what tells them apart from new ones (issue #474).
+    #[serde(default)]
+    pub occurred_at: i64,
 }
 
 /// The cause behind a `TradeUpdate` whose wire action carries none.
@@ -745,6 +816,88 @@ pub struct BondSlashedEvent {
     pub payment_method: String,
     /// Inferred cause (timeout vs dispute).
     pub cause: SlashCause,
+}
+
+/// Where a payout claim stands (docs/ANTI_ABUSE_BOND.md §6.4): the daemon
+/// asked for an invoice, the user sent one, the daemon accepted it, the
+/// share was paid — or the claim window closed first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum BondClaimPhase {
+    /// `add-bond-invoice` received, no invoice sent (or the daemon re-prompted).
+    Pending,
+    /// The user's bolt11 was published; the daemon has not answered yet.
+    Submitted,
+    /// `bond-invoice-accepted`: the payout is in progress.
+    Acknowledged,
+    /// `bond-payout-completed`: the share was paid.
+    Completed,
+    /// The claim window closed unclaimed.
+    Expired,
+}
+
+impl BondClaimPhase {
+    /// A phase nothing follows: the daemon stops retrying and the kind-14
+    /// filter no longer needs the issuing node for this claim.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, BondClaimPhase::Completed | BondClaimPhase::Expired)
+    }
+}
+
+/// The counterparty's share of a slashed bond this user may claim
+/// (docs/ANTI_ABUSE_BOND.md §6.4, §7.1). Independent of the trade row: the
+/// winner's trade may be completed, cancelled or wiped by the time the
+/// daemon asks for an invoice. Keyed by `(node_pubkey, order_id)`: the user
+/// can switch nodes while a claim is open, and the submission always
+/// addresses the daemon that issued it.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BondClaim {
+    pub order_id: String,
+    /// The daemon that issued the claim; the submission target.
+    pub node_pubkey: String,
+    /// The trade key index the daemon addressed the request to: the slashed
+    /// attempt's key, which the reply must come from even when the order was
+    /// retaken on a newer key since. `None` only for a claim stored before it
+    /// was recorded; the order's current key is used then.
+    #[serde(default)]
+    pub trade_index: Option<u32>,
+    /// The share on offer, in satoshis; the invoice must be for exactly this.
+    pub amount_sats: u64,
+    /// Unix seconds when the daemon slashed the bond, from the request.
+    pub slashed_at: i64,
+    /// `slashed_at + claim window`, frozen when the claim is first persisted:
+    /// a later policy change cannot move a deadline the user was shown.
+    pub deadline_at: i64,
+    pub phase: BondClaimPhase,
+    /// The bolt11 sent, kept so the screen can show it while the daemon answers.
+    pub submitted_invoice: Option<String>,
+    /// Display only, from the request's order.
+    pub fiat_code: String,
+    pub fiat_amount: Option<f64>,
+    pub payment_method: String,
+    /// Unix seconds of the last change, the list's sort key.
+    pub updated_at: i64,
+}
+
+impl BondClaim {
+    /// The storage key: `<node_pubkey>:<order_id>`.
+    pub fn storage_id(&self) -> String {
+        bond_claim_key(&self.node_pubkey, &self.order_id)
+    }
+}
+
+/// The `bond_claims` key for a node / order pair.
+pub fn bond_claim_key(node_pubkey: &str, order_id: &str) -> String {
+    format!("{node_pubkey}:{order_id}")
+}
+
+/// A claim's phase changed (new claim, submission, ack, payout, expiry).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BondClaimUpdate {
+    pub order_id: String,
+    /// The node that issued the claim: two nodes can hold a claim for the
+    /// same order, and a consumer must read the one that changed.
+    pub node_pubkey: String,
+    pub phase: BondClaimPhase,
 }
 
 /// Connected wallet information returned by `connect_wallet` and `get_wallet`.

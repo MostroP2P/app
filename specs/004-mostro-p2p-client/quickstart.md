@@ -70,13 +70,13 @@ flutter run -d linux
 |------|---------|
 | `lib/` | Flutter/Dart UI shell |
 | `lib/features/` | One subdirectory per V1_FLOW_GUIDE.md feature group |
-| `lib/generated/` | Auto-generated bridge bindings — **do not edit** |
+| `lib/src/rust/` | Auto-generated bridge bindings — **do not edit** |
 | `rust/src/api/` | Public Rust API surface (what Flutter calls) |
 | `rust/src/mostro/` | Mostro protocol FSM and message actions |
 | `rust/src/crypto/` | BIP-39/BIP-32 key derivation, ECDH, file encryption |
 | `rust/src/nostr/` | Transport (NIP-44 Kind 14: daemon messages + chat envelope), relay pool, Kind 38383 events |
 | `assets/data/fiat.json` | Fiat currency and country flag data |
-| `assets/l10n/` | ARB localization files (EN, ES, IT, FR, DE) |
+| `lib/l10n/` | ARB localization files (EN, ES, IT, FR, DE) |
 
 ---
 
@@ -110,7 +110,7 @@ Run this whenever you add or change public functions in `rust/src/api/`:
 ./scripts/frb-generate.sh
 ```
 
-The wrapper verifies your codegen CLI matches the version pinned in `pubspec.yaml` before generating. The generated files live in `lib/src/rust/` and are gitignored — they are produced on the fly, locally and in CI, so there is nothing to commit.
+The wrapper verifies your codegen CLI matches the version pinned in `pubspec.yaml` before generating. The generated files live in `lib/src/rust/` (plus `rust/src/frb_generated.rs`) and are **committed**. Commit them together with the `rust/src/api/` change; CI fails when they drift. See `CONTRIBUTING.md` → "Generated code".
 
 ---
 

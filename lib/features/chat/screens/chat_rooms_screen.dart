@@ -49,11 +49,11 @@ class _ChatRoomsScreenState extends ConsumerState<ChatRoomsScreen> {
     try {
       final rooms = await ref.read(chatRoomsFromTradesProvider.future);
       if (!mounted) return;
-      // Upsert rather than replace: a room added concurrently by
-      // ChatRoomScreen.upsertRoom (a message landing mid-fetch) survives.
+      // Merge rather than replace: a room added or updated concurrently by
+      // ChatRoomScreen (a message landing mid-fetch) survives.
       final notifier = ref.read(chatRoomsNotifierProvider.notifier);
       for (final room in rooms) {
-        notifier.upsertRoom(room);
+        notifier.upsertIfNewer(room);
       }
     } catch (e) {
       debugPrint('[chat] syncRoomsFromTrades failed: $e');

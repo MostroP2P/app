@@ -7,7 +7,7 @@ use nostr_sdk::prelude::Event;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
-use crate::api::types::{ConnectionState, RelayInfo};
+use crate::api::types::{ConnectionState, RelayInfo, ResyncOutcome};
 use crate::db::Storage;
 use crate::nostr::relay_pool::RelayPool;
 use crate::queue::outbox;
@@ -356,6 +356,121 @@ pub async fn flush_message_queue() -> Result<u32> {
     Ok(sent)
 }
 
+// ── Resume resync ───────────────────────────────────────────────────────────
+
+/// How long a pass waits for the reconnect nudge before reporting the state
+/// it found. Long enough for a handshake on a woken radio; short enough that
+/// a resume with no network does not stall the UI behind it.
+const RESYNC_CONNECT_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Bring the core back in step with the relays after the process was
+/// suspended (docs/PUSH_NOTIFICATIONS.md §10, issue #308).
+///
+/// The OS freezes the process wholesale and the sockets die with it; the
+/// SDK reconnects on its own schedule, and nothing else re-checks that every
+/// subscription survived or that the outbox drained. One pass, in order:
+///
+/// 1. **Reconnect nudge.** `connect()` spawns a connection task for every
+///    relay that has none (a relay whose first attempt failed never got one)
+///    and is a no-op for the rest; the wait is bounded, and the pool's own
+///    state is what gets reported.
+/// 2. **Subscriptions.** The bulk kind-14 filter is re-issued under its stable
+///    id (the relay replaces it in place and replays the node's history; the
+///    per-order status cursors keep that replay in order), the order-book
+///    loop, the peer chats and the dispute chats are re-armed — each of them
+///    a no-op when its task is alive.
+/// 3. **Outbox.** Whatever was queued while offline is published.
+///
+/// Single-flight: concurrent calls coalesce onto the pass in progress and
+/// report its outcome rather than starting another (`coalesced = true`).
+/// Idempotent: a second pass over a healthy core changes nothing. Before the
+/// pool exists (startup, tests) it reports offline and does nothing.
+pub async fn resync() -> Result<ResyncOutcome> {
+    static STATE: ResyncState = ResyncState::new();
+    resync_with(&STATE, run_resync).await
+}
+
+/// The single-flight bookkeeping behind [`resync`], separate from the pass
+/// itself so the coalescing can be tested with a fake pass.
+pub(crate) struct ResyncState {
+    lock: tokio::sync::Mutex<()>,
+    generation: std::sync::atomic::AtomicU64,
+    last: std::sync::Mutex<Option<ResyncOutcome>>,
+}
+
+impl ResyncState {
+    pub(crate) const fn new() -> Self {
+        Self {
+            lock: tokio::sync::Mutex::const_new(()),
+            generation: std::sync::atomic::AtomicU64::new(0),
+            last: std::sync::Mutex::new(None),
+        }
+    }
+}
+
+pub(crate) async fn resync_with<F, Fut>(state: &ResyncState, run: F) -> Result<ResyncOutcome>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = ResyncOutcome>,
+{
+    use std::sync::atomic::Ordering;
+    let seen = state.generation.load(Ordering::Acquire);
+    let _guard = state.lock.lock().await;
+    if state.generation.load(Ordering::Acquire) != seen {
+        // A pass finished while this call waited for the lock: it started
+        // after the call was made, so its result is at least as fresh as a
+        // new pass would be, and a resume that fired twice costs one pass.
+        if let Some(last) = state.last.lock().ok().and_then(|l| l.clone()) {
+            return Ok(ResyncOutcome {
+                coalesced: true,
+                ..last
+            });
+        }
+    }
+    let outcome = run().await;
+    if let Ok(mut last) = state.last.lock() {
+        *last = Some(outcome.clone());
+    }
+    state.generation.fetch_add(1, Ordering::Release);
+    Ok(outcome)
+}
+
+async fn run_resync() -> ResyncOutcome {
+    let Ok(pool) = pool() else {
+        log::info!("[nostr] resync: no relay pool yet, nothing to do");
+        return ResyncOutcome {
+            online: false,
+            flushed: 0,
+            coalesced: false,
+        };
+    };
+    let client = pool.client();
+    client.connect().and_wait(RESYNC_CONNECT_WAIT).await;
+    let online = pool.connection_state().await == ConnectionState::Online;
+    log::info!("[nostr] resync: reconnect nudge settled, online={online}");
+
+    crate::api::orders::resubscribe_global_dm_filter().await;
+    crate::api::orders::subscribe_orders().await;
+    crate::api::messages::resubscribe_active_chats().await;
+    crate::api::disputes::resubscribe_active_dispute_chats().await;
+
+    let flushed = match flush_message_queue().await {
+        Ok(n) => n,
+        Err(e) => {
+            log::warn!("[nostr] resync: outbox flush failed: {e}");
+            0
+        }
+    };
+    // What the push server holds may have aged out while suspended.
+    crate::api::push::reconcile_push().await;
+    log::info!("[nostr] resync: done, online={online} flushed={flushed}");
+    ResyncOutcome {
+        online,
+        flushed,
+        coalesced: false,
+    }
+}
+
 // ── Streams ─────────────────────────────────────────────────────────────────
 
 /// Stream that emits when overall connection state changes.
@@ -662,6 +777,107 @@ fn default_relays() -> Vec<String> {
 #[allow(dead_code)]
 pub(crate) fn get_pool() -> Result<&'static Arc<RelayPool>> {
     pool()
+}
+
+#[cfg(test)]
+mod resync_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+
+    fn outcome(flushed: u32) -> ResyncOutcome {
+        ResyncOutcome {
+            online: true,
+            flushed,
+            coalesced: false,
+        }
+    }
+
+    /// Two calls in sequence are two passes: the second is not "the same
+    /// resume", and a healthy core makes it a no-op on its own.
+    #[tokio::test]
+    async fn sequential_calls_each_run_a_pass() {
+        let state = ResyncState::new();
+        let runs = Arc::new(AtomicU32::new(0));
+        for expected in 1..=2 {
+            let counter = runs.clone();
+            let out = resync_with(&state, || async move {
+                counter.fetch_add(1, Ordering::SeqCst);
+                outcome(0)
+            })
+            .await
+            .unwrap();
+            assert!(!out.coalesced);
+            assert_eq!(runs.load(Ordering::SeqCst), expected);
+        }
+    }
+
+    /// Calls that arrive while a pass is running do not start another: they
+    /// wait for it and report its outcome, marked as coalesced.
+    #[tokio::test]
+    async fn concurrent_calls_coalesce_onto_the_running_pass() {
+        let state = Arc::new(ResyncState::new());
+        let runs = Arc::new(AtomicU32::new(0));
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel::<()>();
+
+        let first = {
+            let state = state.clone();
+            let runs = runs.clone();
+            tokio::spawn(async move {
+                resync_with(&state, || async move {
+                    runs.fetch_add(1, Ordering::SeqCst);
+                    let _ = started_tx.send(());
+                    let _ = release_rx.await;
+                    outcome(3)
+                })
+                .await
+                .unwrap()
+            })
+        };
+        started_rx.await.unwrap();
+
+        let followers: Vec<_> = (0..3)
+            .map(|_| {
+                let state = state.clone();
+                let runs = runs.clone();
+                tokio::spawn(async move {
+                    resync_with(&state, || async move {
+                        runs.fetch_add(1, Ordering::SeqCst);
+                        outcome(99)
+                    })
+                    .await
+                    .unwrap()
+                })
+            })
+            .collect();
+        // Let the followers reach the lock before the first pass finishes.
+        tokio::task::yield_now().await;
+        release_tx.send(()).unwrap();
+
+        let first = first.await.unwrap();
+        assert_eq!(first, outcome(3));
+        for f in followers {
+            let out = f.await.unwrap();
+            assert!(out.coalesced, "a follower reports the running pass");
+            assert_eq!(out.flushed, 3, "and its outcome, not one of its own");
+        }
+        assert_eq!(runs.load(Ordering::SeqCst), 1, "one pass for four calls");
+    }
+
+    /// Before the pool exists there is nothing to reconnect, re-arm or flush.
+    #[tokio::test]
+    async fn without_a_pool_the_pass_reports_offline_and_touches_nothing() {
+        let out = run_resync().await;
+        assert_eq!(
+            out,
+            ResyncOutcome {
+                online: false,
+                flushed: 0,
+                coalesced: false
+            }
+        );
+    }
 }
 
 #[cfg(test)]

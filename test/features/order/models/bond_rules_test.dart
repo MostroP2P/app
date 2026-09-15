@@ -2,9 +2,133 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show BondInfo, BondRole, BondState, OrderKind, TradeRole, TradeUpdateReason;
+    show
+        BondClaim,
+        BondClaimPhase,
+        BondInfo,
+        BondRole,
+        BondState,
+        OrderKind,
+        TradeRole,
+        TradeUpdateReason;
 
 void main() {
+  group('claims per order and their next deadline', () {
+    BondClaim claim(
+      String order,
+      BondClaimPhase phase, {
+      String node = 'node-a',
+      int deadlineAt = 1000,
+    }) => BondClaim(
+      orderId: order,
+      nodePubkey: node,
+      tradeIndex: 1,
+      amountSats: BigInt.from(1500),
+      slashedAt: intToPlatformInt64(1),
+      deadlineAt: intToPlatformInt64(deadlineAt),
+      phase: phase,
+      submittedInvoice: null,
+      fiatCode: 'VES',
+      fiatAmount: null,
+      paymentMethod: 'PagoMovil',
+      updatedAt: intToPlatformInt64(1),
+    );
+
+    test('keeps the newest claim unless an older one is still open', () {
+      final newestClosed = claim('o', BondClaimPhase.expired, node: 'b');
+      final olderOpen = claim('o', BondClaimPhase.pending);
+      expect(
+        selectClaimsByOrder([newestClosed, olderOpen], 500)['o'],
+        olderOpen,
+      );
+      final newestOpen = claim('o', BondClaimPhase.acknowledged, node: 'b');
+      expect(
+        selectClaimsByOrder([newestOpen, olderOpen], 500)['o'],
+        newestOpen,
+      );
+      final bothClosed = claim('o', BondClaimPhase.completed);
+      expect(
+        selectClaimsByOrder([newestClosed, bothClosed], 500)['o'],
+        newestClosed,
+      );
+    });
+
+    test('the next re-read is just past the nearest pending deadline', () {
+      expect(
+        nextClaimDeadlineDelay([
+          claim('a', BondClaimPhase.pending, deadlineAt: 900),
+          claim('b', BondClaimPhase.pending, deadlineAt: 700),
+          claim('c', BondClaimPhase.submitted, deadlineAt: 600),
+        ], 500),
+        const Duration(seconds: 201),
+      );
+      expect(
+        nextClaimDeadlineDelay([
+          claim('a', BondClaimPhase.pending, deadlineAt: 400),
+        ], 500),
+        isNull,
+      );
+      expect(nextClaimDeadlineDelay(const [], 500), isNull);
+    });
+  });
+
+  group('payout claim rules (docs/ANTI_ABUSE_BOND.md §6.4)', () {
+    test('only a pending claim inside its window accepts an invoice', () {
+      expect(
+        bondClaimAcceptsInvoice(
+          phase: BondClaimPhase.pending,
+          deadlineAt: 100,
+          now: 50,
+        ),
+        isTrue,
+      );
+      expect(
+        bondClaimAcceptsInvoice(
+          phase: BondClaimPhase.pending,
+          deadlineAt: 100,
+          now: 101,
+        ),
+        isFalse,
+      );
+      expect(
+        bondClaimAcceptsInvoice(
+          phase: BondClaimPhase.submitted,
+          deadlineAt: 100,
+          now: 50,
+        ),
+        isFalse,
+      );
+    });
+    test('open means pending in the window, submitted or acknowledged', () {
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.pending, deadlineAt: 100, now: 50),
+        isTrue,
+      );
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.pending, deadlineAt: 100, now: 101),
+        isFalse,
+      );
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.acknowledged, deadlineAt: 100, now: 500),
+        isTrue,
+      );
+      expect(
+        bondClaimIsOpen(phase: BondClaimPhase.completed, deadlineAt: 100, now: 50),
+        isFalse,
+      );
+    });
+    test('the clock turns a pending claim past its window into expired', () {
+      expect(
+        bondClaimEffectivePhase(phase: BondClaimPhase.pending, deadlineAt: 100, now: 101),
+        BondClaimPhase.expired,
+      );
+      expect(
+        bondClaimEffectivePhase(phase: BondClaimPhase.submitted, deadlineAt: 100, now: 101),
+        BondClaimPhase.submitted,
+      );
+    });
+  });
+
   BondInfo bond(BondRole role) => BondInfo(
     role: role,
     amountSats: BigInt.from(1000),
