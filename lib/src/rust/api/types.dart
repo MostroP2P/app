@@ -972,12 +972,19 @@ class IdentityInfo {
   final int tradeKeyIndex;
   final PlatformInt64 createdAt;
 
+  /// Whether the user has confirmed a backup of the current identity's secret
+  /// words (issue #141 — persisted in the Rust identity record per Principle I).
+  /// `#[serde(default)]` so identities persisted before this field deserialize
+  /// as `false` — an unconfirmed backup, which correctly keeps the reminder armed.
+  final bool backupConfirmed;
+
   const IdentityInfo({
     required this.publicKey,
     this.displayName,
     required this.privacyMode,
     required this.tradeKeyIndex,
     required this.createdAt,
+    required this.backupConfirmed,
   });
 
   @override
@@ -986,7 +993,8 @@ class IdentityInfo {
       displayName.hashCode ^
       privacyMode.hashCode ^
       tradeKeyIndex.hashCode ^
-      createdAt.hashCode;
+      createdAt.hashCode ^
+      backupConfirmed.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -997,7 +1005,8 @@ class IdentityInfo {
           displayName == other.displayName &&
           privacyMode == other.privacyMode &&
           tradeKeyIndex == other.tradeKeyIndex &&
-          createdAt == other.createdAt;
+          createdAt == other.createdAt &&
+          backupConfirmed == other.backupConfirmed;
 }
 
 /// Why a buyer invoice would be refused, locally or by the daemon.
