@@ -40,10 +40,20 @@ Widget _app(Brightness brightness, Widget home, {required bool backedUp}) {
   final container = createContainer(
     overrides: [
       backupCompletedProvider.overrideWith(
-        (ref) => BackupCompletedNotifier(initialValue: backedUp),
+        (ref) => BackupCompletedNotifier(
+          initialValue: backedUp,
+          // Stub the Rust bridge: the confirm flow (16d) calls setBackupConfirmed,
+          // which throws under flutter_test with no runtime (#141).
+          getConfirmed: () async => backedUp,
+          setConfirmed: (_) async {},
+          resetConfirmed: () async {},
+        ),
       ),
       backupReminderProvider.overrideWith(
-        (ref) => BackupReminderNotifier(initialValue: !backedUp),
+        (ref) => BackupReminderNotifier(
+          initialValue: !backedUp,
+          resetConfirmed: () async {},
+        ),
       ),
       privacyModeProvider.overrideWith(
         (ref) => PrivacyModeNotifier(initialValue: false),
