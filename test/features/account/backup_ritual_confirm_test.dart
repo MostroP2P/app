@@ -53,7 +53,14 @@ void main() {
         overrides: [
           backupReminderProvider.overrideWith((ref) => _SlowReminder(gate)),
           backupCompletedProvider.overrideWith(
-            (ref) => BackupCompletedNotifier(initialValue: false),
+            (ref) => BackupCompletedNotifier(
+              initialValue: false,
+              // Fake the Rust bridge so markCompleted() doesn't hit a live
+              // runtime under flutter_test (#141).
+              getConfirmed: () async => false,
+              setConfirmed: (_) async {},
+              resetConfirmed: () async {},
+            ),
           ),
         ],
       );
