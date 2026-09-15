@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `current_bip39_seed`, `derive_trade_key_with`, `ensure_trade_key_index_at_least_with`, `ensure_trade_key_index_at_least`, `get_active_keys`, `get_active_trade_keys`, `get_transport_identity_keys`, `identity_lock`, `publish_index`, `reconcile_and_publish_to`, `reconcile_trade_key_index`, `require_durable_storage`, `trade_key_index_tx`
+// These functions are ignored because they are not marked as `pub`: `current_bip39_seed`, `derive_trade_key_with`, `ensure_trade_key_index_at_least_with`, `ensure_trade_key_index_at_least`, `get_active_keys`, `get_active_trade_keys`, `get_transport_identity_keys`, `identity_lock`, `publish_index`, `reconcile_and_publish_to`, `reconcile_trade_key_index`, `require_durable_storage`, `restore_backup_confirmed`, `set_backup_confirmed_with`, `trade_key_index_tx`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `IdentityState`, `RecoveryProgress`
 
 /// Subscribe to consumed trade-key indices. Flutter calls this once at startup
@@ -56,8 +56,29 @@ Future<IdentityInfo> importFromMnemonic({
   recover: recover,
 );
 
-/// Import identity from an nsec (bech32-encoded Nostr secret key).
-/// Note: nsec import produces a single key with no BIP-39 mnemonic backup.
+/// Read the current identity's backup-confirmed flag. `false` when no identity
+/// is loaded (an unconfirmed backup keeps the reminder armed), so this never
+/// fails on a missing identity (#141).
+Future<bool> getBackupConfirmed() =>
+    RustLib.instance.api.crateApiIdentityGetBackupConfirmed();
+
+/// Set the backup-confirmed flag and persist it to the identity record.
+///
+/// Persist-then-commit (the `trade_key_index` discipline, #217): build the
+/// updated record, save it, and only then commit in memory — so a save failure
+/// never reports a confirmed backup that did not reach disk. Since #408 the
+/// identity store is durable on every platform (SQLite native, IndexedDB web),
+/// so this path persists uniformly.
+Future<void> setBackupConfirmed({required bool confirmed}) => RustLib
+    .instance
+    .api
+    .crateApiIdentitySetBackupConfirmed(confirmed: confirmed);
+
+/// Clear the backup-confirmed flag, re-arming the reminder. Used when a new
+/// identity is generated (#141). A no-op when no identity is loaded.
+Future<void> resetBackupConfirmation() =>
+    RustLib.instance.api.crateApiIdentityResetBackupConfirmation();
+
 Future<IdentityInfo> importFromNsec({required String nsec}) =>
     RustLib.instance.api.crateApiIdentityImportFromNsec(nsec: nsec);
 

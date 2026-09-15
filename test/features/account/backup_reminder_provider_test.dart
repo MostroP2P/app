@@ -69,14 +69,22 @@ void main() {
         kBackupSnoozedUntilKey: _inFuture(const Duration(days: 1)),
       });
 
-      final notifier = BackupReminderNotifier();
+      var didReset = false;
+      final notifier = BackupReminderNotifier(
+        resetConfirmed: () async => didReset = true,
+      );
       await notifier.showBackupReminder();
 
       expect(notifier.state, isTrue);
+      // #141 review: re-arming the reminder clears the Rust backup-confirmed
+      // flag, so the badge and the ritual banner can never contradict.
+      expect(didReset, isTrue);
       final prefs = await _prefs();
       expect(prefs.getBool(kBackupReminderActiveKey), isTrue);
       expect(prefs.getBool(kBackupReminderDismissedKey), isFalse);
-      expect(prefs.getBool(kBackupCompletedKey), isFalse);
+      // #141 review: reminder notifier no longer writes the backup-confirmed
+      // flag; Rust owns it, so the seeded value is left untouched (not cleared).
+      expect(prefs.getBool(kBackupCompletedKey), isTrue);
       expect(prefs.getInt(kBackupSnoozedUntilKey), isNull);
     });
 
@@ -111,7 +119,10 @@ void main() {
       expect(notifier.state, isFalse);
       final prefs = await _prefs();
       expect(prefs.getBool(kBackupReminderDismissedKey), isTrue);
-      expect(prefs.getBool(kBackupCompletedKey), isTrue);
+      // #141 review: the reminder notifier no longer writes the backup-confirmed
+      // flag — Rust owns it (the screen calls markCompleted separately). Writing
+      // it here would let the badge and the ritual banner disagree.
+      expect(prefs.getBool(kBackupCompletedKey), isNull);
       expect(prefs.getInt(kBackupSnoozedUntilKey), isNull);
     });
 
@@ -128,47 +139,90 @@ void main() {
     });
   });
 
-  group('BackupCompletedNotifier', () {
-    test('load(): reads the explicit completed flag', () async {
-      SharedPreferences.setMockInitialValues({kBackupCompletedKey: true});
-
-      final notifier = BackupCompletedNotifier();
+  // BackupCompletedNotifier is backed by the Rust identity bridge on every
+  // platform since #141 (web is durable via IndexedDB since #408). Tests inject
+  // the three bridge calls so they run without a live Rust runtime.
+  group('BackupCompletedNotifier (Rust bridge, #141)', () {
+    test('load(): reads the confirmed flag from the bridge', () async {
+      SharedPreferences.setMockInitialValues({'backupCompletedMigratedToRust': true});
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => true,
+        setConfirmed: (_) async {},
+        resetConfirmed: () async {},
+      );
       await notifier.load();
-
       expect(notifier.state, isTrue);
     });
 
-    test('load(): legacy installs fall back to the dismissed flag', () async {
+    test('load(): migrates a legacy SharedPreferences flag into Rust once',
+        () async {
+      SharedPreferences.setMockInitialValues({kBackupCompletedKey: true});
+      var confirmed = false;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async => confirmed = false,
+      );
+      await notifier.load();
+      expect(confirmed, isTrue, reason: 'legacy flag copied into Rust');
+      expect(notifier.state, isTrue);
+      final prefs = await _prefs();
+      expect(prefs.getBool('backupCompletedMigratedToRust'), isTrue, reason: 'marker set');
+    });
+
+    test('load(): legacy dismissed-only install migrates as confirmed',
+        () async {
       SharedPreferences.setMockInitialValues({
         kBackupReminderDismissedKey: true,
       });
-
-      final notifier = BackupCompletedNotifier();
+      var confirmed = false;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => confirmed,
+        setConfirmed: (v) async => confirmed = v,
+        resetConfirmed: () async {},
+      );
       await notifier.load();
-
+      expect(confirmed, isTrue);
       expect(notifier.state, isTrue);
     });
 
-    test('markCompleted() persists and flips state on', () async {
-      SharedPreferences.setMockInitialValues({});
-
-      final notifier = BackupCompletedNotifier();
-      await notifier.markCompleted();
-
-      expect(notifier.state, isTrue);
-      final prefs = await _prefs();
-      expect(prefs.getBool(kBackupCompletedKey), isTrue);
-    });
-
-    test('reset() clears the backed-up flag', () async {
+    test('load(): concurrent calls run the migration write exactly once',
+        () async {
       SharedPreferences.setMockInitialValues({kBackupCompletedKey: true});
+      var setCount = 0;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => true,
+        setConfirmed: (_) async => setCount++,
+        resetConfirmed: () async {},
+      );
+      await Future.wait([notifier.load(), notifier.load()]);
+      expect(setCount, 1, reason: 'coalesced load migrates once');
+    });
 
-      final notifier = BackupCompletedNotifier();
+    test('markCompleted() writes true through the bridge', () async {
+      SharedPreferences.setMockInitialValues({'backupCompletedMigratedToRust': true});
+      bool? written;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => false,
+        setConfirmed: (v) async => written = v,
+        resetConfirmed: () async {},
+      );
+      await notifier.markCompleted();
+      expect(written, isTrue);
+      expect(notifier.state, isTrue);
+    });
+
+    test('reset() clears the flag through the bridge', () async {
+      SharedPreferences.setMockInitialValues({'backupCompletedMigratedToRust': true});
+      var didReset = false;
+      final notifier = BackupCompletedNotifier(
+        getConfirmed: () async => true,
+        setConfirmed: (_) async {},
+        resetConfirmed: () async => didReset = true,
+      );
       await notifier.reset();
-
+      expect(didReset, isTrue);
       expect(notifier.state, isFalse);
-      final prefs = await _prefs();
-      expect(prefs.getBool(kBackupCompletedKey), isFalse);
     });
   });
 }

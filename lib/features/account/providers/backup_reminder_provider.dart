@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 
 const kBackupReminderDismissedKey = 'backupReminderDismissed';
 const kBackupReminderActiveKey = 'backupReminderActive';
@@ -34,7 +36,11 @@ final backupCompletedProvider =
 class BackupReminderNotifier extends StateNotifier<bool> {
   /// When [initialValue] is provided the notifier starts with the correct
   /// state synchronously so the bell badge renders correctly on first frame.
-  BackupReminderNotifier({bool? initialValue}) : super(initialValue ?? false) {
+  BackupReminderNotifier({
+    bool? initialValue,
+    Future<void> Function()? resetConfirmed,
+  })  : _resetConfirmed = resetConfirmed ?? identity_api.resetBackupConfirmation,
+        super(initialValue ?? false) {
     if (initialValue == null) {
       load();
     } else {
@@ -44,6 +50,9 @@ class BackupReminderNotifier extends StateNotifier<bool> {
       if (initialValue) _reconcileSnooze();
     }
   }
+
+  /// Clears the Rust backup-confirmed flag, injected for testability.
+  final Future<void> Function() _resetConfirmed;
 
   bool _loaded = false;
 
@@ -83,8 +92,13 @@ class BackupReminderNotifier extends StateNotifier<bool> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(kBackupReminderActiveKey, true);
     await prefs.setBool(kBackupReminderDismissedKey, false);
-    await prefs.setBool(kBackupCompletedKey, false);
     await prefs.remove(kBackupSnoozedUntilKey);
+    // Re-arming the reminder means the user is NOT backed up, so clear the Rust
+    // flag too: the "Backed up" badge reads Rust, and without this a caller that
+    // re-arms the reminder without a paired reset (e.g. the walkthrough) would
+    // show the badge and the ritual banner at once (Catrya's #141 review). Rust
+    // owns the flag now; this notifier no longer writes the dead kBackupCompletedKey.
+    await _resetConfirmed();
     state = true;
   }
 
@@ -105,14 +119,32 @@ class BackupReminderNotifier extends StateNotifier<bool> {
   Future<void> confirmBackupComplete() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(kBackupReminderDismissedKey, true);
-    await prefs.setBool(kBackupCompletedKey, true);
+    // The backup-confirmed flag is written to Rust by markCompleted() at the
+    // call site; this notifier only dismisses the reminder (Rust owns the flag
+    // since #141).
     await prefs.remove(kBackupSnoozedUntilKey);
     state = false;
   }
 }
 
+/// One-time marker: the legacy SharedPreferences backup-completed flag has been
+/// copied into the Rust identity record. After this, Rust is the single source
+/// of truth on every platform (#141; web is durable via IndexedDB since #408).
+const _kMigratedKey = 'backupCompletedMigratedToRust';
+
 class BackupCompletedNotifier extends StateNotifier<bool> {
-  BackupCompletedNotifier({bool? initialValue}) : super(initialValue ?? false) {
+  /// The three bridge calls are injectable so the notifier is testable without a
+  /// live Rust runtime; they default to the real identity-bridge functions.
+  BackupCompletedNotifier({
+    bool? initialValue,
+    Future<bool> Function()? getConfirmed,
+    Future<void> Function(bool confirmed)? setConfirmed,
+    Future<void> Function()? resetConfirmed,
+  })  : _getConfirmed = getConfirmed ?? identity_api.getBackupConfirmed,
+        _setConfirmed = setConfirmed ??
+            ((confirmed) => identity_api.setBackupConfirmed(confirmed: confirmed)),
+        _resetConfirmed = resetConfirmed ?? identity_api.resetBackupConfirmation,
+        super(initialValue ?? false) {
     if (initialValue == null) {
       load();
     } else {
@@ -120,33 +152,60 @@ class BackupCompletedNotifier extends StateNotifier<bool> {
     }
   }
 
-  bool _loaded = false;
+  final Future<bool> Function() _getConfirmed;
+  final Future<void> Function(bool confirmed) _setConfirmed;
+  final Future<void> Function() _resetConfirmed;
 
-  Future<void> load() async {
+  bool _loaded = false;
+  Future<void>? _loading;
+
+  /// Coalesced: overlapping callers share one in-flight load so the one-time
+  /// migration runs its write exactly once.
+  Future<void> load() => _loading ??= _load().whenComplete(() => _loading = null);
+
+  Future<void> _load() async {
     if (_loaded) return;
-    final prefs = await SharedPreferences.getInstance();
-    // Legacy installs only have the dismissed flag, which was set exclusively
-    // by the explicit "I have written down my secret words" confirmation —
-    // treat it as a completed backup.
-    state = prefs.getBool(kBackupCompletedKey) ??
-        prefs.getBool(kBackupReminderDismissedKey) ??
-        false;
-    _loaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // One-time migration: copy the legacy SharedPreferences flag into Rust,
+      // then read from Rust exclusively. Runs on every platform — the store is
+      // durable everywhere since #408, so the marker is never burned against a
+      // write that evaporates.
+      if (prefs.getBool(_kMigratedKey) != true) {
+        // Legacy installs may only have the dismissed flag, set exclusively by
+        // the explicit "I wrote down my words" confirmation — treat it as done.
+        final legacy = prefs.getBool(kBackupCompletedKey) ??
+            prefs.getBool(kBackupReminderDismissedKey) ??
+            false;
+        if (legacy) {
+          await _setConfirmed(true);
+        }
+        await prefs.setBool(_kMigratedKey, true);
+      }
+      state = await _getConfirmed();
+      _loaded = true;
+    } catch (e) {
+      // The bridge threw (e.g. not yet initialised): fall back to unconfirmed so
+      // the reminder stays armed, and leave _loaded false so the next load()
+      // retries. (get_backup_confirmed returns Ok(false) rather than throwing
+      // when no identity is loaded, so that case does not reach here — #141 review.)
+      debugPrint('[backup] load() failed: $e');
+      state = false;
+    }
   }
 
-  /// Persist that the current identity has been backed up.
+  /// Persist that the current identity has been backed up (authoritative Rust
+  /// write). Throws on failure so the caller can keep the reminder armed.
   Future<void> markCompleted() async {
     await load();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(kBackupCompletedKey, true);
+    await _setConfirmed(true);
     state = true;
   }
 
   /// Clear the backed-up flag (new identity generated or imported).
   Future<void> reset() async {
     await load();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(kBackupCompletedKey, false);
+    await _resetConfirmed();
     state = false;
   }
 }
