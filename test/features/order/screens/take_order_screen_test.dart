@@ -273,6 +273,59 @@ void main() {
       });
     });
 
+    testWidgets('keeps Taking… while its own take moves the order on', (
+      tester,
+    ) async {
+      // Rust updates the order's book entry as soon as the daemon confirms
+      // the take, before `take_order` returns: that is this user's take, not
+      // the order going away (#454).
+      await withClock(Clock.fixed(kFakeNow), () async {
+        final reply = Completer<TradeInfo>();
+        final books = await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) => reply.future,
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        books.add([
+          fakeOrder(id: _id, status: OrderStatus.waitingBuyerInvoice),
+        ]);
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.text('Taking…'), findsOneWidget);
+        expect(find.text('No longer available'), findsNothing);
+        // Left unanswered on purpose: the screen is torn down while loading.
+      });
+    });
+
+    testWidgets('a failed take over an order that moved on reads unavailable', (
+      tester,
+    ) async {
+      // The in-flight hold lasts only as long as the take: once it fails,
+      // the book decides again, and here the order is gone from `pending`.
+      await withClock(Clock.fixed(kFakeNow), () async {
+        final reply = Completer<TradeInfo>();
+        final books = await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) => reply.future,
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        books.add([fakeOrder(id: _id, status: OrderStatus.inProgress)]);
+        await tester.pump();
+        reply.completeError(Exception('AnyhowException(NoDaemonResponse)'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Taking…'), findsNothing);
+        expect(find.text('No longer available'), findsOneWidget);
+      });
+    });
+
     testWidgets('dies in place when the daemon says it was already taken', (
       tester,
     ) async {
