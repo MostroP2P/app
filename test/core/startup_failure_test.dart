@@ -95,6 +95,26 @@ void main() {
       expect(shown.data!.length, lessThan(400));
     });
 
+    testWidgets('truncates by character, never inside an emoji', (
+      tester,
+    ) async {
+      // 299 single-unit chars then emoji: a cut by UTF-16 unit at 300 lands
+      // between the two halves of the first emoji.
+      await tester.pumpWidget(
+        StartupFailureApp(
+          step: 'loading the engine',
+          error: '${'x' * 299}${'😀' * 10}',
+        ),
+      );
+      final shown =
+          tester.widget<SelectableText>(find.byType(SelectableText)).data!;
+      expect(
+        shown,
+        '${'x' * 299}😀…',
+        reason: 'half an emoji renders as a replacement glyph',
+      );
+    });
+
     testWidgets('stays readable on a short screen instead of overflowing', (
       tester,
     ) async {
@@ -150,13 +170,155 @@ void main() {
           error: 'Bad state: wasm module missing',
         ),
       );
-      await tester.tap(find.text('Copy details'));
+      await tester.tap(find.byTooltip('Copy details'));
       await tester.pump();
 
       expect(copied, hasLength(1));
       expect(copied.single, contains('loading the engine'));
       expect(copied.single, contains('wasm module missing'));
       expect(find.text('Copied'), findsOneWidget);
+    });
+
+    testWidgets('says so when the copy fails instead of claiming it worked', (
+      tester,
+    ) async {
+      // On the web the clipboard write can be refused. "Copied" over an empty
+      // clipboard sends someone off to paste nothing.
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            throw PlatformException(code: 'denied');
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(
+        const StartupFailureApp(step: 'loading the engine', error: 'x'),
+      );
+      await tester.tap(find.byTooltip('Copy details'));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Copied'), findsNothing);
+      expect(find.textContaining('Could not copy'), findsOneWidget);
+    });
+
+    testWidgets('points to where to report and warns before clearing data', (
+      tester,
+    ) async {
+      // A copy with nowhere to paste it is a dead end, and clearing app data
+      // without the secret words loses the account (#405 review).
+      await tester.pumpWidget(const StartupFailureApp(step: 'starting up'));
+      expect(
+        find.textContaining('github.com/MostroP2P/app/issues'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('secret words'), findsOneWidget);
+    });
+
+    testWidgets('a second button copies where to report', (tester) async {
+      // Typing a URL off a failure screen, often on a phone, is where a report
+      // gets abandoned.
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(const StartupFailureApp(step: 'starting up'));
+      await tester.ensureVisible(find.byTooltip('Copy link'));
+      await tester.tap(find.byTooltip('Copy link'));
+      await tester.pump();
+
+      expect(copied, ['https://github.com/MostroP2P/app/issues']);
+      expect(find.text('Copied'), findsOneWidget);
+    });
+
+    testWidgets('each copy button sits to the right of what it copies, and '
+        'the warning is a footer', (tester) async {
+      tester.view.physicalSize = const Size(800, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(
+        const StartupFailureApp(step: 'loading the engine', error: 'boom'),
+      );
+
+      final cause = tester.getRect(find.text('boom'));
+      final copyDetails = tester.getRect(find.byTooltip('Copy details'));
+      expect(copyDetails.left, greaterThanOrEqualTo(cause.right));
+      expect(copyDetails.center.dy, closeTo(cause.center.dy, 24));
+
+      final link = tester.getRect(find.textContaining('github.com'));
+      final copyLink = tester.getRect(find.byTooltip('Copy link'));
+      expect(copyLink.left, greaterThanOrEqualTo(link.right));
+      expect(copyLink.center.dy, closeTo(link.center.dy, 24));
+
+      expect(
+        copyLink.left,
+        copyDetails.left,
+        reason: 'the copy buttons line up vertically',
+      );
+      expect(
+        cause.center.dx,
+        closeTo(400, 1),
+        reason: 'the text is centred on the screen, not text plus button',
+      );
+      expect(link.center.dx, closeTo(400, 1));
+      expect(
+        copyLink.left - link.right,
+        lessThan(8),
+        reason: 'the button sits beside the widest text, not at the edge',
+      );
+
+      // Checked on the style and the gap rather than the rendered title
+      // height: the test font is wider than the real one, so the title wraps
+      // here and its height says nothing about the size.
+      final titleText = tester.widget<Text>(
+        find.text('Mostro could not start'),
+      );
+      expect(
+        titleText.style!.fontSize,
+        26,
+        reason: 'the title is 30% larger than the base 20',
+      );
+      final title = tester.getRect(find.text('Mostro could not start'));
+      final sentence = tester.getRect(find.textContaining('It failed'));
+      expect(
+        sentence.top - title.bottom,
+        closeTo(12 + 26 * titleText.style!.height!, 0.5),
+        reason: 'one title line of air under the title, on top of the gap',
+      );
+
+      final footer = tester.getRect(find.textContaining('secret words'));
+      expect(
+        footer.top,
+        greaterThan(copyLink.bottom + 100),
+        reason: 'with room to spare the warning sits at the bottom',
+      );
+      expect(
+        footer.bottom,
+        greaterThan(1000 - 120),
+        reason: 'it is a footer, not the next paragraph',
+      );
     });
 
     testWidgets('renders without any app dependency', (tester) async {

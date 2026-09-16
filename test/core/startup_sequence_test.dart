@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/startup_sequence.dart';
 
@@ -7,7 +8,7 @@ void main() {
       final seq = StartupSequence();
       var reached = false;
 
-      await seq.optional('flaky', () async => throw StateError('boom'));
+      await seq.optional('flaky', () async => throw Exception('boom'));
       await seq.optional('next', () async => reached = true);
 
       expect(reached, isTrue, reason: 'a degraded step must not end startup');
@@ -47,10 +48,45 @@ void main() {
       expect(seq.currentStep, 'building the interface');
     });
 
+    test('optional reports a programming error loudly in debug, and '
+        'startup still continues', () async {
+      // An Error (TypeError, StateError, a failed assert) is a bug, not a
+      // missing environment: it must not pass as one more log line. But it
+      // must not stop startup either — a step that already fails this way on
+      // some platform would then block every debug run there (#405 review).
+      // Tests run in debug mode.
+      final reported = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = reported.add;
+      addTearDown(() => FlutterError.onError = previous);
+
+      final seq = StartupSequence();
+      var reached = false;
+      await seq.optional('flaky', () async => throw StateError('bug'));
+      await seq.optional('next', () async => reached = true);
+
+      expect(reported, hasLength(1), reason: 'the bug must be reported');
+      expect(reported.single.exception, isStateError);
+      expect(reached, isTrue, reason: 'startup must carry on past it');
+    });
+
+    test('optional does not report an environment failure as a bug', () async {
+      final reported = <FlutterErrorDetails>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = reported.add;
+      addTearDown(() => FlutterError.onError = previous);
+
+      await StartupSequence().optional(
+        'offline',
+        () async => throw Exception('no network'),
+      );
+      expect(reported, isEmpty);
+    });
+
     test('a failing optional step still names itself', () async {
       final seq = StartupSequence();
       await seq.optional('connecting to the network', () async {
-        throw StateError('offline');
+        throw Exception('offline');
       });
       expect(seq.currentStep, 'connecting to the network');
     });

@@ -60,9 +60,9 @@ flutter gen-l10n                            # after editing lib/l10n/*.arb
 - Static greps pass on a page that dies at runtime, so that workflow also runs
   **`test/web/smoke/smoke.mjs`**: it serves the release bundle cross-origin isolated under
   `/app/` and asserts in headless Chrome that the page is isolated, the Flutter view mounted,
-  a **Rust bridge call returned**, and nothing errored. The bridge signal comes from
-  `lib/core/web/bridge_probe.dart`, which `main()` sets after its first successful Rust call
-  (no-op off web) — rename that flag on one side only and the check silently never fires.
+  **startup finished** (so the Rust bridge answered), and nothing errored. The bridge signal comes from
+  `lib/core/web/bridge_probe.dart`, which startup sets once it has finished — not at the first
+  Rust call, or a later failure goes unseen — and the startup guard sets on failure (no-op off web) — rename that flag on one side only and the check silently never fires.
   The CI run also sets `SMOKE_BOND_STORE=1`: it seeds bond rows (`test/web/smoke/seed/`) into
   IndexedDB, reloads, and compares them with what `lib/core/web/store_probe.dart` read back.
 

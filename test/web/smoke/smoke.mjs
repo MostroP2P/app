@@ -9,7 +9,7 @@
 //
 //   1. the page is cross-origin isolated  (no SharedArrayBuffer → no wasm threads)
 //   2. the Flutter engine mounted         (the view element exists)
-//   3. a Rust bridge call returned        (the FRB worker pool survived)
+//   3. startup finished                   (Rust bridge answered, nothing fatal after it)
 //  3b. seeded bond rows read back         (opt-in: SMOKE_BOND_STORE=1)
 //   4. nothing errored along the way      (console + uncaught page errors)
 //   5. every asset the page asked for was served (catches --base-href breakage)
@@ -353,8 +353,10 @@ async function main() {
       console.log(`✓ locale sanitized to [${actual}]`);
     }
 
-    // 3. The Rust bridge answered. Poll for either outcome so a broken bridge
-    //    fails immediately with its reason instead of timing out silently.
+    // 3. Startup finished, which takes the Rust bridge answering. The app sets
+    //    the ready flag only at the very end, so a failure anywhere in startup
+    //    shows up here (#405). Poll for either outcome so a failure stops the
+    //    run immediately with its reason instead of timing out silently.
     await page
       .waitForFunction(
         () =>
@@ -365,13 +367,13 @@ async function main() {
       )
       .catch(() =>
         fail(
-          'no Rust bridge call completed — the FRB worker pool is probably dead ' +
+          'startup never finished — most often the FRB worker pool is dead ' +
             '(DataCloneError); check that web/pkg was built by scripts/build-web.sh',
         ),
       );
     const bridgeError = await page.evaluate(() => globalThis.mostroBridgeError);
-    if (bridgeError) await fail(`Rust bridge call failed: ${bridgeError}`);
-    console.log('✓ Rust bridge call returned');
+    if (bridgeError) await fail(`startup failed: ${bridgeError}`);
+    console.log('✓ startup finished (Rust bridge answered)');
 
     // 3b. Bond rows survive the persistent store (docs/ANTI_ABUSE_BOND.md T5.1).
     //
@@ -409,7 +411,7 @@ async function main() {
         .catch(() => fail('the app never published what it read from the store (mostroStoreProbe)'));
       const reloadBridgeError = await page.evaluate(() => globalThis.mostroBridgeError);
       if (reloadBridgeError) {
-        await fail(`Rust bridge call failed after the reload: ${reloadBridgeError}`);
+        await fail(`startup failed after the reload: ${reloadBridgeError}`);
       }
       const probeError = await page.evaluate(() => globalThis.mostroStoreProbeError);
       if (probeError) await fail(`reading the bond rows back failed: ${probeError}`);

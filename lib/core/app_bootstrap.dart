@@ -12,7 +12,6 @@ import 'package:mostro/core/storage/app_data_dir.dart'
 import 'package:mostro/core/app.dart';
 import 'package:mostro/core/font_licenses.dart';
 import 'package:mostro/core/mostro_defaults.dart';
-import 'package:mostro/core/startup_failure.dart';
 import 'package:mostro/core/startup_sequence.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/core/test_environment.dart';
@@ -59,28 +58,7 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   // render a screen that cannot render, so this one is honestly unguarded.
   WidgetsFlutterBinding.ensureInitialized();
 
-  final startup = StartupSequence();
-  try {
-    await _startup(startup, seedRelays: seedRelays);
-  } catch (e, st) {
-    // The failure surface calls runApp too, and that is the whole fix: without
-    // it an exception here means runApp never runs and Flutter paints nothing —
-    // the page is not broken, it is absent, with no message anywhere.
-    //
-    // #227 is the precedent that motivated this guard, not a case it covers:
-    // that crash fires inside the engine's own CanvasKitRenderer.initialize,
-    // before main() runs, which is why #370 fixed it in web/index.html and
-    // stated that no app-level try/catch could reach it.
-    debugPrint('[startup] fatal while ${startup.currentStep}: $e\n$st');
-    // The screen first: it is what a person is waiting for, and it is the whole
-    // point of this catch. Anything ahead of it that could throw would leave
-    // them with the blank page this exists to replace.
-    runApp(StartupFailureApp(step: startup.currentStep, error: e));
-    // Then CI. No-op off web; on web it hands test/web/smoke/smoke.mjs the
-    // cause, so the run stops with a reason instead of timing out waiting for
-    // a bridge that is never coming.
-    markBridgeFailed(e);
-  }
+  await runGuarded((startup) => _startup(startup, seedRelays: seedRelays));
 }
 
 Future<void> _startup(
@@ -156,11 +134,11 @@ Future<void> _startup(
   // too: since #408 that is where web persistence lives. With this step
   // broken, a trade taken in Chrome is gone after a reload.
   await startup.optional('opening the local database', () async {
-    final location = databaseLocation(
+    await openDatabase(
       isWeb: kIsWeb,
-      dataDir: kIsWeb ? null : await appDataDirPath(),
+      dataDir: appDataDirPath,
+      initDb: rust_api.initDb,
     );
-    await rust_api.initDb(path: location);
   });
 
   // Load the persisted active Mostro node into the Rust override before the
@@ -170,8 +148,9 @@ Future<void> _startup(
   // active node on launch.
   //
   // This is also the first call that proves the Rust bridge is alive end to
-  // end, so its outcome doubles as the web readiness probe CI waits on — see
-  // lib/core/web/bridge_probe.dart (no-op off web).
+  // end, so a failure here is reported to the web probe CI reads — see
+  // lib/core/web/bridge_probe.dart (no-op off web). Success is reported only
+  // at the end of startup, below.
   String activeMostroPubkey = defaultMostroPubkey;
   // Named here rather than through a helper: the catch below does more than
   // record the failure — it tells the web bridge probe, and CI reads that.
@@ -203,7 +182,6 @@ Future<void> _startup(
       await settings_api.setTestOrderExpiry(secs: BigInt.from(orderExpiry));
       debugPrint('[main] Mortsom build: orders expire after ${orderExpiry}s');
     }
-    markBridgeReady();
     // Only when the smoke test asks (SMOKE_BOND_STORE=1), and not awaited:
     // it seeds bond rows and checks they come back through the bridge — see
     // lib/core/web/store_probe.dart. A normal launch skips it entirely.
@@ -291,10 +269,11 @@ Future<void> _startup(
   // the name of whichever optional step finished last, so a failure here named
   // a step that had already succeeded (#405 review).
   //
-  // runApp stays outside the wrapper: the label is still 'building the
-  // interface' when it runs, so it is already covered, and the guard sits above
-  // both either way. Purely so this reads as one statement rather than a
-  // closure with the whole tail inside it.
+  // runApp stays outside the wrapper, still under the 'building the interface'
+  // label. The guard catches only what runApp throws at once: the first frame
+  // (MostroApp.build, the first provider reads, the router's initial redirect)
+  // is painted later, and a failure there bypasses the guard and the ready
+  // flag below alike. Tracked in its own issue.
   final container = await startup.required('building the interface', () async {
     // Logs every relay connection state change (debug builds only).
     _watchConnectionState();
@@ -338,6 +317,10 @@ Future<void> _startup(
   runApp(
     UncontrolledProviderScope(container: container, child: const MostroApp()),
   );
+  // Last, not at the first Rust call: the smoke test stops watching once this
+  // is set, so anything that failed after it went unseen (#405 review). A
+  // failure before here never reaches it and the guard reports the cause.
+  markBridgeReady();
 }
 
 /// Persists every consumed trade-key index reported by Rust.
