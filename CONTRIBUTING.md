@@ -62,25 +62,60 @@ Run the full verify before committing and before requesting review:
 
 - **Rust:** `cd rust && cargo fmt && cargo clippy && cargo test` — keep the tree `clippy`-clean.
 - **Dart:** `dart format .`, then `flutter analyze && flutter test` — keep it analyzer-warning-free.
-- **Bindings:** run `./scripts/frb-generate.sh` after any change to `rust/src/api/`. It refuses to generate when your local `flutter_rust_bridge_codegen` does not match the version pinned in `pubspec.yaml`, because a mismatched CLI produces bindings that fail to compile with an error that never mentions versions. The generated `lib/src/rust/` is gitignored and produced on the fly (locally and in CI) — do not commit it.
-- **Localization:** run `flutter gen-l10n` after editing `lib/l10n/*.arb`.
+- **Bindings:** run `./scripts/frb-generate.sh` after any change to `rust/src/api/`. It refuses to generate when your local `flutter_rust_bridge_codegen` does not match the version pinned in `pubspec.yaml`, because a mismatched CLI produces bindings that fail to compile with an error that never mentions versions. **Commit** what it generates, in the same commit as the `api/` change. See [Generated code](#generated-code).
+- **Localization:** run `flutter gen-l10n` after editing `lib/l10n/*.arb`, and commit the regenerated `lib/l10n/app_localizations*.dart`.
 
-### Git hooks
+The repository ships **no git hooks**. These checks run in CI on every pull request. Run them locally before you push.
 
-Install them once per clone:
+Clones that ran the old `scripts/setup-hooks.sh`, directly or through `frb-generate.sh`, still have its copies in `.git/hooks/`. Git does not remove those copies when the scripts leave the repository, so they keep regenerating code after pulls and running the old pre-commit checks. Remove them once per clone. This only deletes files that carry the installer's marker, so any hooks of your own stay:
 
 ```bash
-./scripts/setup-hooks.sh
+hooks="$(git rev-parse --git-common-dir)/hooks"
+grep -l 'installed by scripts/setup-hooks.sh' "$hooks"/* 2>/dev/null | xargs -r rm --
 ```
 
-That copies `.githooks/` into this clone's `.git/hooks/`. It is idempotent, it refreshes copies that have fallen behind, and it refuses rather than overwrites when a hook it did not install is already there or when you have pointed `core.hooksPath` somewhere of your own. `./scripts/frb-generate.sh` runs the installer too, so the first codegen in a fresh clone arms the hooks and later runs keep them current — `./scripts/setup-hooks.sh --check` tells you where a clone stands.
+### Generated code
 
-They are **copies, not `core.hooksPath=.githooks`**. Pointing that config at a tracked directory makes git run hook code from whatever ref is checked out, so `gh pr checkout` on an outside contributor's branch would execute their `post-checkout` script there and then, with no build and no run in between. `.git/hooks` is not tracked and no ref can write it, so checking out a hostile branch stays inert. The cost is that a hook edit reaches a clone only when the installer runs again, which codegen does anyway. If you have an older clone with `core.hooksPath=.githooks`, the installer clears it and migrates you.
+The flutter_rust_bridge bindings (`lib/src/rust/`, `rust/src/frb_generated.rs`) and the localizations (`lib/l10n/app_localizations*.dart`) are **committed**. A fresh clone, a `git pull` or a branch switch builds as-is, with nothing to regenerate first.
 
-What the hooks do:
+One rule keeps this safe: **generated files only change by regenerating them, in the same commit as the source change that caused it.** Never edit them by hand.
 
-- `pre-commit` runs the Rust and Dart checks above, plus the flutter_rust_bridge pin check, before each commit.
-- `post-merge` / `post-checkout` / `post-rewrite` regenerate the gitignored bindings and localizations whenever a pull, branch switch, or rebase touched `rust/src/api/`, `pubspec.yaml`, or an `.arb`. Without them, a pull leaves `lib/src/rust/` stale and the next build fails naming a Dart type that was never generated.
+| You changed | Run | Commit together |
+|---|---|---|
+| `rust/src/api/`, or the flutter_rust_bridge pin | `./scripts/frb-generate.sh` | the source + `lib/src/rust/` + `rust/src/frb_generated.rs` |
+| `lib/l10n/*.arb` | `flutter gen-l10n` | the `.arb` + `lib/l10n/app_localizations*.dart` |
+
+CI enforces this rule. The Flutter job regenerates both from the pull request's sources and fails with **"Generated code is out of date"** when the result differs from what the PR commits. To fix it, run both commands on your branch and commit the result. The files are marked `linguist-generated` in `.gitattributes`, so GitHub collapses them in PR diffs.
+
+#### Resolving conflicts in generated files
+
+Two branches that both touch `rust/src/api/` or an `.arb` also conflict in the generated files. **Never resolve those conflicts by hand.** A hand-merged file is output no generator produced, and it can compile while being wrong. Resolve the sources, then regenerate:
+
+1. **Resolve the sources first**: `rust/src/api/`, `lib/l10n/*.arb`, `pubspec.yaml`. Then `git add` them.
+2. **Take either side of the generated files.** They are about to be overwritten, so it does not matter which side:
+
+   ```bash
+   git checkout --theirs -- lib/src/rust rust/src/frb_generated.rs lib/l10n/app_localizations*.dart
+   ```
+
+   During a rebase, `--ours` and `--theirs` are swapped compared with a merge. That doesn't matter here either.
+3. **Regenerate from the resolved sources:**
+
+   ```bash
+   ./scripts/frb-generate.sh
+   flutter gen-l10n
+   ```
+
+4. **Stage and continue:**
+
+   ```bash
+   git add lib/src/rust rust/src/frb_generated.rs lib/l10n
+   git rebase --continue   # or `git commit` when merging
+   ```
+
+5. **Check the result** with `flutter analyze` before pushing. CI runs the same drift check.
+
+If a commit in the middle of a rebase can't be regenerated (for example, its Rust does not compile yet), take either side, finish the rebase, and regenerate once at the tip. Commit that as `chore: regenerate generated code`. CI checks the tip of the branch.
 
 ### Configure Git user name and email metadata
 

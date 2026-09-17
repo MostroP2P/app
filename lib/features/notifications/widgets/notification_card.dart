@@ -246,9 +246,8 @@ class _TypeIconCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, bg) = switch (type) {
-      NotificationType.ratingReceived ||
-      NotificationType.tradeUpdate =>
-        (Icons.star, Colors.amber),
+      NotificationType.ratingReceived => (Icons.star, Colors.amber),
+      NotificationType.tradeUpdate => (Icons.sync_alt, Colors.blue),
       NotificationType.paymentReceived ||
       NotificationType.payment =>
         (Icons.attach_money, Colors.blue),

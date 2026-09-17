@@ -472,6 +472,12 @@ pub struct TradeUpdate {
     /// nothing to add.
     #[serde(default)]
     pub reason: Option<TradeUpdateReason>,
+    /// When the change happened, in Unix seconds: the daemon message's own
+    /// `created_at` for a Kind 14 dispatch, the local clock for everything
+    /// else. A history replay after a restore re-emits old transitions, and
+    /// this is what tells them apart from new ones (issue #474).
+    #[serde(default)]
+    pub occurred_at: i64,
 }
 
 /// The cause behind a `TradeUpdate` whose wire action carries none.

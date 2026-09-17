@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/features/notifications/services/push_background_handler.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -44,16 +45,19 @@ class ResumeResync {
     Future<ResyncOutcome> Function()? resync,
     List<Hydrator>? hydrators,
     Stream<Object?> Function()? updates,
+    Future<bool> Function()? consumeWake,
     this.settleQuiet = const Duration(milliseconds: 1500),
     this.settleMax = const Duration(seconds: 10),
   }) : _resync = resync ?? nostr_api.resync,
        _hydrators = hydrators ?? defaultHydrators,
-       _updates = updates ?? _bridgeTradeUpdates;
+       _updates = updates ?? _bridgeTradeUpdates,
+       _consumeWake = consumeWake ?? consumeWakePending;
 
   final ProviderContainer container;
   final Future<ResyncOutcome> Function() _resync;
   final List<Hydrator> _hydrators;
   final Stream<Object?> Function() _updates;
+  final Future<bool> Function() _consumeWake;
 
   /// Replay is considered settled this long after its last trade update.
   final Duration settleQuiet;
@@ -66,6 +70,14 @@ class ResumeResync {
   /// settle, hydrate again. Awaiting it is optional; the lifecycle service
   /// does not.
   Future<void> run() async {
+    // Diagnostic only: the resync runs on every resume regardless. The flag
+    // says whether a push rang while the app was away, which is the one
+    // fact the display-only handler is allowed to leave behind.
+    try {
+      if (await _consumeWake()) debugPrint('[lifecycle] a push woke the app');
+    } catch (e) {
+      debugPrint('[lifecycle] wake flag unavailable: $e');
+    }
     try {
       final outcome = await _resync();
       debugPrint(

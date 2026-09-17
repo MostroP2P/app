@@ -77,6 +77,41 @@ are Dart's to know and are read separately (`PushNotificationService.isSupported
 Explicit trigger. Never fails: every outcome is logged and reflected in the
 status.
 
+## Peer wake
+
+Not a bridge call: `send_message` and `send_file` ring the counterparty
+themselves once the chat envelope reached the relays
+(`docs/PUSH_NOTIFICATIONS.md` §7.3). The envelope is `p`-tagged to
+`pub(K_conv)`, which the push server's listener cannot match, so the sender
+asks it to wake the peer's trade pubkey with `POST /api/notify`.
+
+- Not gated on this device's own push toggle: the peer's setting decides
+  what reaches them, and the server answers `202` either way.
+- Debounced per peer (10 s): a burst of messages costs one wake, far under
+  the server's 30/min per pubkey. Recorded before the request, so messages
+  sent while one is in flight do not each ring.
+- Fire-and-forget: spawned, never awaited by the send, never retried, never
+  a reason for the send to fail. A `400` is logged as a client bug.
+- Peer chat only. The dispute channel does not ring its solver, who is not a
+  push client.
+
+**Dispute chat MUST wake the disputant.** A solver's envelope is `p`-tagged to
+`pub(K_conv)` of (solver key, disputant's trade key), which the listener cannot
+match either, so the wake is the solver client's duty: after each message it
+sends in a dispute, `POST /api/notify` with the disputant's trade pubkey, under
+the rules above — the same sender-side wake this client performs for peer chat.
+Mostrix does not do it yet ([mostrix#177](https://github.com/MostroP2P/mostrix/issues/177),
+`docs/PUSH_NOTIFICATIONS.md` §7.3, §14 item 2): until it does, the requirement
+is unmet and a solver's message reaches a backgrounded disputant only on resume.
+Registering `pub(K_conv)` from this client instead is rejected (§7.3).
+- Not from the web build until the server answers CORS
+  (mostro-push-server#44).
+- No relay, no wake: an envelope every relay rejected (`send_event` is still
+  `Ok` with an empty success set) reached no one, so it rings nobody and
+  cannot debounce the wake of a retry that does land.
+- No reveal, no wake: before the peer reveal (#334) there is no peer pubkey
+  and the message stays local-only anyway.
+
 ## Streams
 
 ### on_push_status_changed() → Stream<PushStatus>

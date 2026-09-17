@@ -434,6 +434,38 @@ async function main() {
       );
     }
 
+    // 3c. The messaging worker is active on the isolated page
+    //     (docs/PUSH_NOTIFICATIONS.md T4.5). Opt-in: SMOKE_PUSH_WORKER=1.
+    //
+    //     A second service worker beside the isolation shim, registered
+    //     relative to the base path, loading the Firebase SDK from gstatic
+    //     under COEP. Each of those can fail on a page that is otherwise
+    //     healthy, and CI never asks for a token (no permission, no key), so
+    //     only the registration says the worker would work.
+    if (process.env.SMOKE_PUSH_WORKER === '1') {
+      const scope = new URL(`${BASE_PATH}firebase-cloud-messaging-push-scope`, url).href;
+      const state = await page
+        .evaluate(
+          async ({ scope, timeout }) => {
+            const deadline = Date.now() + timeout;
+            while (Date.now() < deadline) {
+              const registration = await navigator.serviceWorker.getRegistration(scope);
+              if (registration?.scope === scope && registration.active) return 'active';
+              await new Promise((ok) => setTimeout(ok, 250));
+            }
+            return 'never active';
+          },
+          { scope, timeout: TIMEOUT_MS },
+        )
+        .catch((err) => `unreadable (${err.message})`);
+      if (state !== 'active') await fail(`the messaging worker under ${scope} is ${state}`);
+      const stillIsolated = await page.evaluate(() => globalThis.crossOriginIsolated);
+      if (stillIsolated !== true) {
+        await fail('the page lost cross-origin isolation beside the messaging worker');
+      }
+      console.log('✓ messaging worker active, page still isolated');
+    }
+
     // 4/5. Anything the page complained about, and anything it asked for that
     //      this server could not serve.
     if (ignored.length) {

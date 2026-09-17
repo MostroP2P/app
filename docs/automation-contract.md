@@ -89,7 +89,10 @@ driver taps a segment, not the control. The sats field
 `order.create.amount.single` and `order.create.amount.range`; range swaps the
 single `order.create.fiat_amount` for `order.create.fiat_min` and
 `order.create.fiat_max`, and disables the fixed segment: the protocol prices a
-range at market only. The side can be switched on the form too
+range at market only. `order.create.fiat_amount` names the amount's text field
+alone; the currency selector drawn inside the same row is its own node
+(`order.create.currency`), never merged into the field's. Both the form and the
+payment-method screen leave through `appbar.back`. The side can be switched on the form too
 (`order.create.side.buy`, `order.create.side.sell`); it starts on the side the
 order-book button was tapped with. The premium figure
 (`order.create.premium`) opens a numeric field in place when tapped.

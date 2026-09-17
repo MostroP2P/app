@@ -159,6 +159,38 @@ void main() {
     );
   });
 
+  test(
+    'the wake flag is consumed first, and its failure blocks nothing',
+    () async {
+      final routine = ResumeResync(
+        container: container,
+        resync: () async {
+          calls.add('resync');
+          return ok;
+        },
+        hydrators: [hook('trades')],
+        updates: noUpdates,
+        consumeWake: () async {
+          calls.add('wake');
+          return true;
+        },
+      );
+
+      await routine.run();
+      expect(calls.take(2), ['wake', 'resync']);
+
+      calls.clear();
+      await ResumeResync(
+        container: container,
+        resync: () async => ok,
+        hydrators: [hook('trades')],
+        updates: noUpdates,
+        consumeWake: () async => throw StateError('no prefs'),
+      ).run();
+      expect(calls, ['trades', 'trades']);
+    },
+  );
+
   test('the default hook list covers every protocol-state notifier', () {
     // Trades first: chat rooms and disputes are read off the trade list.
     expect(defaultHydrators, hasLength(4));

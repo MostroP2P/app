@@ -43,6 +43,10 @@ class AutomationIds {
   static const String keysGenerateConfirm = 'keys.generate.confirm';
   static const String keysGenerateCancel = 'keys.generate.cancel';
   static const String keysImport = 'keys.import';
+
+  /// Readout: the identity's full public key, for a driver to prove the
+  /// identity it onboarded is the one the app still holds.
+  static const String keysPublicKey = 'keys.public_key';
   static const String keysSeedReveal = 'keys.seed.reveal';
   // There is deliberately no identifier for the mnemonic itself. A stable
   // readout would put the seed phrase in the accessibility tree, where any
@@ -223,6 +227,8 @@ class AutomationIds {
   static const String invoiceAmount = 'invoice.amount';
   static const String invoiceOrderId = 'invoice.order_id';
   static const String invoiceText = 'invoice.text';
+  static const String invoicePaste = 'invoice.paste';
+  static const String invoiceScan = 'invoice.scan';
   static const String invoiceSubmit = 'invoice.submit';
 
   /// Readout: the daemon's reason for refusing the last submitted invoice.
@@ -240,8 +246,10 @@ class AutomationIds {
 
   // Payout claim on a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4)
   static const String bondClaimOrderId = 'bond.claim.order_id';
+
   /// Readout: the share on offer, in sats.
   static const String bondClaimAmount = 'bond.claim.amount';
+
   /// Readout: the claim's phase (`pending`, `submitted`, `acknowledged`,
   /// `completed`, `expired`), the clock applied.
   static const String bondClaimStatus = 'bond.claim.status';

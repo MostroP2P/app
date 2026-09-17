@@ -64,11 +64,15 @@ jobs:
         with:
           persist-credentials: false
 
-      # Rust toolchain is required by flutter_rust_bridge_codegen to generate
-      # the Dart bindings (lib/src/rust/ is gitignored and produced on the fly).
-      # Pinned to match the rust job (see note above).
+      # Rust toolchain is required by flutter_rust_bridge_codegen to regenerate
+      # the Dart bindings, so the drift check below can compare them with the committed lib/src/rust/.
+      # Pinned to match the rust job (see note above). rustfmt is not in the action's minimal
+      # profile; without it codegen writes rust/src/frb_generated.rs unformatted and the drift
+      # check reports the whole file.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          components: rustfmt
 
       - name: Cache cargo registry and target
         uses: Swatinem/rust-cache@v2
@@ -126,6 +130,20 @@ jobs:
           fi
           echo "All localization keys are translated across every locale."
 
+      # Generated code is committed (CONTRIBUTING.md → "Generated code"). The two steps
+      # above regenerated it from this PR's sources, so any difference means the PR changed
+      # rust/src/api/ or an .arb without committing the regenerated output.
+      - name: Check generated code is committed
+        run: |
+          paths=(lib/src/rust rust/src/frb_generated.rs lib/l10n)
+          if [ -n "$(git status --porcelain -- "${paths[@]}")" ]; then
+            echo "::error::Generated code is out of date. Run ./scripts/frb-generate.sh and flutter gen-l10n, then commit the result."
+            git status --short -- "${paths[@]}"
+            git diff --stat -- "${paths[@]}"
+            exit 1
+          fi
+          echo "Generated code matches the committed copy."
+
       - name: Analyze
         run: flutter analyze
 
@@ -143,3 +161,54 @@ jobs:
     uses: ./.github/workflows/web-build.yml
     permissions:
       contents: read
+
+  # Nothing else compiles the iOS target. The Swift in ios/Runner/, the
+  # CocoaPods graph (Firebase, workmanager, the cargokit pod that builds the
+  # Rust core for aarch64-apple-ios) and project.pbxproj edits all pass analyze
+  # and test on Linux and only fail on a Mac — as a deployment target below a
+  # pod's minimum does, at `pod install`. A device build without signing
+  # catches them: CI holds no Apple certificate, so entitlements
+  # (aps-environment, the keychain group) are still only checked by a signed
+  # build on a device. The repository is public, so macOS minutes are not
+  # billed. test/ci/ios_build_workflow_test.dart keeps this job in place.
+  #
+  # macos-26, not macos-15: workmanager_apple compiles code that uses the iOS
+  # 26 SDK (BGContinuedProcessingTask), and each macOS image ships a single
+  # Xcode major — macos-15 has no iOS 26 SDK and fails in Swift compilation.
+  # Building on a Mac locally needs Xcode 26 for the same reason.
+  ios:
+    name: iOS (build, no codesign)
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # cargokit builds the Rust core through rustup with its default `stable`
+      # toolchain (the repo has no cargokit.yaml) and adds a missing target
+      # itself. Adding it here keeps that download out of the Xcode build phase,
+      # where a failure is much harder to read.
+      - name: Install Rust iOS target
+        run: rustup target add aarch64-apple-ios --toolchain stable
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'ios/Podfile') }}
+
+      # Debug compiles everything that can break here (Swift, pods, the Rust
+      # staticlib, the pbxproj) and skips the Dart AOT step of a release build.
+      - name: Build iOS app
+        run: flutter build ios --debug --no-codesign

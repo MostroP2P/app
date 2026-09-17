@@ -54,8 +54,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 (context) => [
                   PopupMenuItem(
                     value: _MenuAction.markAllRead,
-                    child:
-                        Text(AppLocalizations.of(context).markAllAsReadMenuItem),
+                    child: Text(
+                      AppLocalizations.of(context).markAllAsReadMenuItem,
+                    ),
                   ),
                   PopupMenuItem(
                     value: _MenuAction.clearAll,
@@ -110,7 +111,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     final disputeGroups =
         sortedGroups
-            .where((g) => g.any((n) => n.type == NotificationType.dispute))
+            .where((g) => g.any((n) => n.isDisputeNotification))
             .toList();
     final systemCount = systemItems.length + (backupActive ? 1 : 0);
 
@@ -206,10 +207,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     switch (n.type) {
       case NotificationType.ratingReceived:
-      case NotificationType.tradeUpdate:
         n.orderId != null
             ? context.push(AppRoute.rateUserPath(n.orderId!))
             : noId();
+      // A peer chat card opens that chat; the solver's opens the trade,
+      // like a trade status card (the default below).
+      case NotificationType.message
+          when n.orderId != null && !n.isSolverChatCard:
+        context.push(AppRoute.chatRoomPath(n.orderId!));
       case NotificationType.paymentReceived:
       case NotificationType.payment:
         n.orderId != null

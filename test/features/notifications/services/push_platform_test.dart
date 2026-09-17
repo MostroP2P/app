@@ -20,10 +20,32 @@ void main() {
       }
     });
 
-    test('web is held back until the server accepts it (T4.5)', () {
+    test('web is held back until web push is available (T4.5)', () {
       // A browser reports whatever host platform it runs on; `isWeb` wins.
       expect(platformFor(true, TargetPlatform.android), isNull);
       expect(platformFor(true, TargetPlatform.macOS), isNull);
+    });
+
+    test('web pushes as web once available, whatever the host OS', () {
+      expect(
+        platformFor(true, TargetPlatform.android, webPush: true),
+        PushPlatform.web,
+      );
+      expect(
+        platformFor(true, TargetPlatform.macOS, webPush: true),
+        PushPlatform.web,
+      );
+    });
+
+    test('web push availability means nothing off web', () {
+      expect(
+        platformFor(false, TargetPlatform.linux, webPush: true),
+        isNull,
+      );
+      expect(
+        platformFor(false, TargetPlatform.android, webPush: true),
+        PushPlatform.android,
+      );
     });
   });
 }

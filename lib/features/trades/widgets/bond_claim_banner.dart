@@ -139,6 +139,12 @@ class BondClaimBanner extends ConsumerWidget {
           ],
         ),
       ),
-    ).withAutomationId(AutomationIds.tradeBondClaim, label: phase.name);
+      // The card holds its own control (`trade.bondClaim.open`): merged, the
+      // button's identifier would vanish into the card's node.
+    ).withAutomationId(
+      AutomationIds.tradeBondClaim,
+      merge: false,
+      label: phase.name,
+    );
   }
 }

@@ -296,79 +296,86 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _showLightningAddressDialog(
     BuildContext context,
     WidgetRef ref,
-  ) async {
-    final controller = TextEditingController(
-      text: ref.read(settingsProvider).defaultLightningAddress ?? '',
-    );
-    String? errorText;
+  ) => showDialog<void>(
+    context: context,
+    builder: (_) => const _LightningAddressDialog(),
+  );
+}
 
-    await showDialog<void>(
-      context: context,
-      builder:
-          (ctx) => StatefulBuilder(
-            builder: (ctx, setDialogState) {
-              final l10n = AppLocalizations.of(ctx);
-              return AlertDialog(
-                title: Text(l10n.lightningAddressDialogTitle),
-                content: TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: l10n.lightningAddressHintText,
-                    errorText: errorText,
-                  ),
-                  onChanged: (_) {
-                    if (errorText != null) {
-                      setDialogState(() => errorText = null);
-                    }
-                  },
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      ref
-                          .read(settingsProvider.notifier)
-                          .setDefaultLightningAddress(null);
-                      Navigator.of(ctx).pop();
-                    },
-                    child: Text(l10n.clearButtonLabel),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: Text(l10n.cancel),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final input = controller.text.trim();
-                      if (input.isEmpty) {
-                        ref
-                            .read(settingsProvider.notifier)
-                            .setDefaultLightningAddress(null);
-                        Navigator.of(ctx).pop();
-                        return;
-                      }
-                      final parts = input.split('@');
-                      if (parts.length != 2 ||
-                          parts[0].isEmpty ||
-                          parts[1].isEmpty) {
-                        setDialogState(
-                          () => errorText = l10n.invalidLightningAddressFormat,
-                        );
-                        return;
-                      }
-                      ref
-                          .read(settingsProvider.notifier)
-                          .setDefaultLightningAddress(input);
-                      Navigator.of(ctx).pop();
-                    },
-                    child: Text(l10n.saveButtonLabel),
-                  ),
-                ],
-              );
-            },
-          ),
-    );
+/// Owns its [TextEditingController] so it is disposed with the dialog's
+/// element, not when `showDialog` resolves: that future completes on `pop`,
+/// while the TextField is still mounted for the exit animation. Disposing it
+/// there crashed the save (red screen, `_dependents.isEmpty`).
+class _LightningAddressDialog extends ConsumerStatefulWidget {
+  const _LightningAddressDialog();
 
-    controller.dispose();
+  @override
+  ConsumerState<_LightningAddressDialog> createState() =>
+      _LightningAddressDialogState();
+}
+
+class _LightningAddressDialogState
+    extends ConsumerState<_LightningAddressDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: ref.read(settingsProvider).defaultLightningAddress ?? '',
+  );
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _saveAndClose(String? address) {
+    ref.read(settingsProvider.notifier).setDefaultLightningAddress(address);
+    Navigator.of(context).pop();
+  }
+
+  void _onSave(AppLocalizations l10n) {
+    final input = _controller.text.trim();
+    if (input.isEmpty) {
+      _saveAndClose(null);
+      return;
+    }
+    final parts = input.split('@');
+    if (parts.length != 2 || parts[0].isEmpty || parts[1].isEmpty) {
+      setState(() => _errorText = l10n.invalidLightningAddressFormat);
+      return;
+    }
+    _saveAndClose(input);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l10n.lightningAddressDialogTitle),
+      content: TextField(
+        controller: _controller,
+        keyboardType: TextInputType.emailAddress,
+        decoration: InputDecoration(
+          hintText: l10n.lightningAddressHintText,
+          errorText: _errorText,
+        ),
+        onChanged: (_) {
+          if (_errorText != null) setState(() => _errorText = null);
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => _saveAndClose(null),
+          child: Text(l10n.clearButtonLabel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.cancel),
+        ),
+        TextButton(
+          onPressed: () => _onSave(l10n),
+          child: Text(l10n.saveButtonLabel),
+        ),
+      ],
+    );
   }
 }

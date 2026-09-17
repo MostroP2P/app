@@ -346,6 +346,24 @@ impl Storage for IndexedDbStorage {
         Ok(msgs)
     }
 
+    async fn list_unread_messages(&self) -> Result<Vec<ChatMessage>> {
+        let mut msgs: Vec<ChatMessage> = self
+            .get_all_strings(MESSAGES_STORE)
+            .await?
+            .into_iter()
+            .filter_map(|json| match serde_json::from_str::<ChatMessage>(&json) {
+                Ok(msg) => Some(msg),
+                Err(e) => {
+                    log::warn!("[db] skipping unread message: deserialization failed: {e}");
+                    None
+                }
+            })
+            .collect();
+        msgs.retain(|m| !m.is_read);
+        msgs.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+        Ok(msgs)
+    }
+
     async fn mark_messages_read(&self, trade_id: &str) -> Result<()> {
         let unread: Vec<ChatMessage> = self
             .list_messages(trade_id)

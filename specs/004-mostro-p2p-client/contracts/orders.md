@@ -328,6 +328,11 @@ Emits whenever the order list changes (new orders, status updates,
 expirations). Used to keep the UI order list in sync.
 
 ### on_trade_updated() → Stream<TradeUpdate>
+`occurred_at` is Unix seconds from the source daemon event, including
+recovery, republish, and peer-reputation refresh emissions. Locally initiated
+changes use the local clock. Notification consumers use this timestamp for
+presentation and the identity-import history cutoff; replay must never reset it.
+
 Push channel for daemon-driven trade lifecycle changes. Every status a
 Kind 14 dispatch arm syncs is emitted here after the in-memory book
 update and the DB persistence **attempt** — a DB write failure (or a
@@ -349,6 +354,8 @@ them before the dispatch arms run. Screens filter by `order_id`.
 TradeUpdate {
   order_id: String
   status: OrderStatus   # the status just persisted; Pending on maker resync
+  reason: TradeUpdateReason?  # optional cause for local/cancellation transitions
+  occurred_at: i64      # Unix seconds: daemon event time, or local action time
 }
 ```
 
@@ -428,6 +435,44 @@ Coverage invariants:
   high-water mark described under the status-sync rules, not by narrowing
   the filter. Only the ephemeral per-trade subscription carries a cutoff
   (`limit(0)`, live-only).
+
+### Per-trade watcher lifecycle (single owner, #325)
+
+The 30-minute per-trade receiver has, per trade key, exactly one owner,
+enforced by a registry in `nostr/subscriptions.rs`:
+
+- **One owner per trade key.** `subscribe_daemon_messages` claims the key
+  before any setup; a claim finding a live owner bounces — the relay-side
+  REQ and the pending-request record stay untouched — so re-arming a
+  covered key (the restore apply #218, the resume paths #291/#308) is
+  idempotent.
+- **A bounce is never backed by setup alone.** A claim advances
+  `Setup → Live` only once at least one relay accepted the REQ — the SDK
+  reports a subscribe every relay rejected as an `Ok`, and a rejected REQ
+  is dropped from the relay's registry, beyond reconnect resubscription's
+  reach, so it counts as a failed setup and releases the claim. A claim
+  landing mid-setup parks until the owner is Live (then bounces, against
+  a real REQ) or until that setup fails and releases (then takes over and
+  subscribes itself). A bounce is therefore always a promise of coverage
+  that exists.
+- **A bounce is a lease refresh**: it re-arms the owner's 30-minute idle
+  window, so the promised coverage lasts a full window from the bounce,
+  not whatever remained of the old one.
+- **Teardown is targeted and atomic.** The idle-timeout exit consults the
+  registry under its lock: re-armed → reset the timer and keep running;
+  otherwise unsubscribe that one trade's REQ and purge its pending record
+  while still holding the lock, so no concurrent claim can land between
+  the decision and the destruction. The purge spares a record whose
+  waiter is still attached: its caller registered it before claiming
+  (the create/take ordering) and may be parked on the registry, about to
+  subscribe from scratch — only a detached record (its 10 s timeout ran)
+  is dead state. Shutdown/closed-channel exits tear
+  down unconditionally — their receiver is dead — and post-reconnect
+  coverage belongs to the re-arm paths, not to the registry.
+- **An abandoned setup cannot wedge a key.** The claim is an RAII guard:
+  a setup that ends in neither mark-live nor release (a panic unwinding
+  it, a cancelled future) frees the claim on drop, so parked claims take
+  over instead of hanging every later take/create on that key.
 
 ### Inbound Kind 14 actions consumed by `dispatch_mostro_message`
 

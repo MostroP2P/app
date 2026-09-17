@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,14 +12,15 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
-import 'package:mostro/core/invoice_palette.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/invoice_clock.dart';
+import 'package:mostro/features/order/widgets/invoice_input_field.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
@@ -109,21 +111,44 @@ class _AddLightningInvoiceScreenState
   /// rather than being held for a bridge that is not there.
   bool _checkerAvailable = true;
 
+  /// Whether `Paste` is offered. Only whether the clipboard holds text is
+  /// asked, never its content: reading it would show the OS paste notice
+  /// on every visit. On web even that asks the browser for clipboard
+  /// permission, so the button is always there.
+  bool _clipboardHasText = kIsWeb;
+
+  /// Re-asks the clipboard when the buyer comes back from their wallet.
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     _focus.addListener(() => setState(() {}));
+    _lifecycle = AppLifecycleListener(onResume: _refreshClipboard);
+    _refreshClipboard();
     ref.listenManual<AsyncValue<int?>>(
       invoiceDeadlineProvider(widget.orderId),
       (_, next) => trackInvoiceDeadline(next.valueOrNull),
       fireImmediately: true,
     );
+    _prefillDefaultLightningAddress();
+  }
+
+  /// Starts the field with the Lightning address saved in Settings. Only a
+  /// suggestion: the buyer still presses send to agree to be paid there.
+  void _prefillDefaultLightningAddress() {
+    final address = normalizeInvoiceInput(
+      ref.read(settingsProvider).defaultLightningAddress ?? '',
+    );
+    if (address.isEmpty) return;
+    _setInput(address);
   }
 
   @override
   void dispose() {
     _checkTimer?.cancel();
     _expiryTimer?.cancel();
+    _lifecycle.dispose();
     _invoiceController.dispose();
     _focus.dispose();
     super.dispose();
@@ -407,6 +432,19 @@ class _AddLightningInvoiceScreenState
     invoiceOrAddress: invoice,
     amountSats: sats,
   );
+
+  Future<void> _refreshClipboard() async {
+    if (kIsWeb) return;
+    bool hasText;
+    try {
+      hasText = await Clipboard.hasStrings();
+    } catch (e) {
+      debugPrint('[AddLightningInvoiceScreen] clipboard unavailable: $e');
+      hasText = false;
+    }
+    if (!mounted || hasText == _clipboardHasText) return;
+    setState(() => _clipboardHasText = hasText);
+  }
 
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -697,7 +735,17 @@ class _AddLightningInvoiceScreenState
                         ),
                       ),
         ),
-        _invoiceField(l10n),
+        InvoiceInputField(
+          controller: _invoiceController,
+          focusNode: _focus,
+          onChanged: _onInputChanged,
+          onPaste: _clipboardHasText ? _paste : null,
+          onScan: _scan,
+          validSats: check is InvoiceCheckValid ? check.sats : null,
+          isValid: check is InvoiceCheckValid || check is InvoiceCheckAddress,
+          isAddress: check is InvoiceCheckAddress,
+          hasError: error != null || check is InvoiceCheckError,
+        ),
         if (error != null) ...[
           const SizedBox(height: 8),
           error,
@@ -727,92 +775,6 @@ class _AddLightningInvoiceScreenState
           onPressed: (_submitting || _canceling) ? null : _cancelOrder,
         ).withAutomationId(AutomationIds.invoiceCancel),
       ],
-    );
-  }
-
-  Widget _invoiceField(AppLocalizations l10n) {
-    final book = OrderBookPalette.of(context);
-    final pal = InvoicePalette.of(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      padding: const EdgeInsets.fromLTRB(16, 4, 4, 14),
-      decoration: BoxDecoration(
-        color: book.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _focus.hasFocus ? pal.fieldFocusBorder : pal.cardBorder,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.invoiceFieldLabel.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.66,
-                    color: book.textSecondary,
-                  ),
-                ),
-              ),
-              InvoiceIconAction(
-                icon: Icons.content_paste,
-                tooltip: l10n.pasteButtonLabel,
-                onPressed: _paste,
-              ),
-              InvoiceIconAction(
-                icon: Icons.qr_code_scanner,
-                tooltip: l10n.scanQrButtonLabel,
-                onPressed: _scan,
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: TextField(
-              controller: _invoiceController,
-              focusNode: _focus,
-              minLines: 1,
-              maxLines: 4,
-              autocorrect: false,
-              enableSuggestions: false,
-              enableIMEPersonalizedLearning: false,
-              keyboardType: TextInputType.visiblePassword,
-              cursorColor: book.lime,
-              cursorWidth: 1.5,
-              cursorHeight: 17,
-              decoration: InputDecoration(
-                // The value sits on the card itself: none of the theme's
-                // fill or underline.
-                isDense: true,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                hintText: l10n.invoiceFieldHint,
-                hintStyle: TextStyle(
-                  fontFamily: AppFonts.figures,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: book.textTertiary,
-                ),
-              ),
-              style: TextStyle(
-                fontFamily: AppFonts.figures,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: book.textPrimary,
-              ),
-              onChanged: (_) => _onInputChanged(),
-            ).withAutomationId(AutomationIds.invoiceText),
-          ),
-        ],
-      ),
     );
   }
 

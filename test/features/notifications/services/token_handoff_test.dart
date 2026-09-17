@@ -129,4 +129,47 @@ void main() {
     expect(h.pending, isNull);
     // The old token's timer was cancelled; firing it would be a no-op.
   });
+
+  test('discard drops a pending token so no retry hands it over', () async {
+    // Opt-out while a token is still waiting for storage: a retry that
+    // landed afterwards would give Rust a token the user just let go.
+    failures = [Exception('StorageUnavailable')];
+    final h = handoff();
+    await h.offer('t1', PushPlatform.android);
+    expect(h.pending, 't1');
+
+    await h.discard();
+    // The retry that was already scheduled fires, and hands nothing over.
+    await scheduler.fireNext();
+    await h.retryPending();
+
+    expect(h.pending, isNull);
+    expect(handed, isEmpty);
+  });
+
+  test('discard waits for a hand-over already in flight', () async {
+    // Opt-out clears Rust's token after discard: a set_push_token still
+    // running must land first, or it writes the token back.
+    final gate = Completer<void>();
+    final h = TokenHandoff(
+      setToken: (token, platform) async {
+        await gate.future;
+        handed.add('$token ${platform.name}');
+      },
+      delays: delays,
+      schedule: scheduler.schedule,
+    );
+    final offered = h.offer('t1', PushPlatform.android);
+    var discarded = false;
+    final discarding = h.discard().then((_) => discarded = true);
+
+    await Future<void>.delayed(Duration.zero);
+    expect(discarded, isFalse);
+
+    gate.complete();
+    await offered;
+    await discarding;
+    expect(discarded, isTrue);
+    expect(handed, ['t1 android']);
+  });
 }

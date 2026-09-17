@@ -68,6 +68,9 @@ pub(crate) trait PushServer {
         mostro_pubkey: &str,
     ) -> impl std::future::Future<Output = ServerOutcome>;
     fn unregister(&self, trade_pubkey: &str) -> impl std::future::Future<Output = ServerOutcome>;
+    // The web build does not wake peers yet (mostro-push-server#44).
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    fn notify(&self, trade_pubkey: &str) -> impl std::future::Future<Output = ServerOutcome>;
 }
 
 /// The real server over HTTPS. Nothing but the JSON bodies of §3.1 is ever
@@ -172,6 +175,14 @@ impl PushServer for HttpPushServer {
         )
         .await
     }
+
+    async fn notify(&self, trade_pubkey: &str) -> ServerOutcome {
+        Self::post(
+            "/api/notify",
+            serde_json::json!({ "trade_pubkey": trade_pubkey }),
+        )
+        .await
+    }
 }
 
 // ── Persisted state ─────────────────────────────────────────────────────────
@@ -250,6 +261,9 @@ fn write_mirror(state: &PushState) {
             (Some(token), true, false) => std::fs::write(
                 &path,
                 serde_json::json!({
+                    // The job cannot ask Rust for the URL; the mirror is the
+                    // single source of truth it re-POSTs from.
+                    "server_url": crate::config::push_server_url(),
                     "token": token,
                     "platform": state.platform.map(|p| p.as_wire()),
                     "registrations": live,
@@ -706,6 +720,111 @@ pub(crate) async fn unregister_all() {
     );
 }
 
+// ── Peer wake (docs/PUSH_NOTIFICATIONS.md §7.3) ─────────────────────────────
+
+/// What one wake attempt came to, for the log and the tests.
+#[flutter_rust_bridge::frb(ignore)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NotifyOutcome {
+    /// The server answered `202`: it will wake whoever it holds a token for,
+    /// which it never tells anyone.
+    Sent,
+    /// Another wake for the same peer went out less than
+    /// [`rules::NOTIFY_DEBOUNCE_SECS`] ago.
+    Debounced,
+    /// Not a 64-hex pubkey: nothing is sent.
+    InvalidPeer,
+    /// Any other answer. Never retried: the next message rings again.
+    NotDelivered,
+}
+
+/// Wake the counterparty after a chat message reached the relays.
+///
+/// The chat envelope is `p`-tagged to `pub(K_conv)`, which the push server's
+/// listener cannot match to any registration, so without this a backgrounded
+/// peer learns of the message only when they next open the app. The sender
+/// asks the server to ring the peer's trade pubkey instead (`/api/notify`).
+///
+/// - **Not gated on this device's own push toggle.** It is the peer's
+///   setting that decides whether anything reaches them; the server answers
+///   `202` either way and reveals nothing.
+/// - **Debounced per peer**, so a burst of short messages costs one wake and
+///   stays far under the server's 30/min per pubkey.
+/// - **Fire-and-forget**: spawned, so the send never waits on the push
+///   server, and a failure never fails the send.
+/// - **Peer chat only.** The dispute channel does not call this: its
+///   counterpart is a solver, not a push client (§7.3).
+/// - **Not from the web build** until the server answers CORS
+///   (mostro-push-server#44, T4.5): the browser would block the request.
+pub(crate) fn wake_peer(peer_trade_pubkey: &str) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = peer_trade_pubkey;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        if tokio::runtime::Handle::try_current().is_err() {
+            return;
+        }
+        let peer = peer_trade_pubkey.to_string();
+        crate::rt::spawn(async move {
+            let outcome = notify_peer_with(
+                &production_server(),
+                last_notify(),
+                &peer,
+                crate::rt::unix_now(),
+            )
+            .await;
+            log::debug!("[push] peer wake: {outcome:?}");
+        });
+    }
+}
+
+/// The wake, with its server, its debounce memory and its clock injected.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub(crate) async fn notify_peer_with(
+    server: &impl PushServer,
+    last_notify: &std::sync::Mutex<HashMap<String, i64>>,
+    peer_trade_pubkey: &str,
+    now: i64,
+) -> NotifyOutcome {
+    let peer = peer_trade_pubkey.to_lowercase();
+    if peer.len() != 64 || hex::decode(&peer).is_err() {
+        return NotifyOutcome::InvalidPeer;
+    }
+    {
+        let Ok(mut last) = last_notify.lock() else {
+            return NotifyOutcome::NotDelivered;
+        };
+        if !rules::notify_allowed(last.get(&peer).copied(), now) {
+            return NotifyOutcome::Debounced;
+        }
+        // Recorded before the request, not after: two messages sent while
+        // the first request is still in flight must not both ring.
+        last.insert(peer.clone(), now);
+        // Forget peers not heard from in a while, so the map stays small.
+        last.retain(|_, at| now - *at < 3600);
+    }
+    match server.notify(&peer).await {
+        ServerOutcome::Accepted => NotifyOutcome::Sent,
+        ServerOutcome::BadRequest(msg) => {
+            log::warn!("[push] peer wake rejected as malformed: {msg}");
+            NotifyOutcome::NotDelivered
+        }
+        other => {
+            log::info!("[push] peer wake not delivered: {other:?}");
+            NotifyOutcome::NotDelivered
+        }
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+fn last_notify() -> &'static std::sync::Mutex<HashMap<String, i64>> {
+    static LAST: std::sync::OnceLock<std::sync::Mutex<HashMap<String, i64>>> =
+        std::sync::OnceLock::new();
+    LAST.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
 // ── Status stream ───────────────────────────────────────────────────────────
 
 const STATUS_CHANNEL_CAPACITY: usize = 16;
@@ -803,6 +922,13 @@ mod tests {
                 .push(format!("unregister {trade_pubkey}"));
             self.next()
         }
+        async fn notify(&self, trade_pubkey: &str) -> ServerOutcome {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("notify {trade_pubkey}"));
+            self.next()
+        }
     }
 
     /// What production paths get under test: a server that is never there.
@@ -813,6 +939,9 @@ mod tests {
             ServerOutcome::Failed("no push server under test".into())
         }
         async fn unregister(&self, _: &str) -> ServerOutcome {
+            ServerOutcome::Failed("no push server under test".into())
+        }
+        async fn notify(&self, _: &str) -> ServerOutcome {
             ServerOutcome::Failed("no push server under test".into())
         }
     }
@@ -999,6 +1128,78 @@ mod tests {
         .await;
         assert!(!state.registrations.contains_key(K2));
         assert_eq!(server.calls().last().unwrap(), &format!("unregister {K2}"));
+    }
+
+    // ── Peer wake ────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn a_peer_wake_asks_the_server_once_then_debounces() {
+        let server = FakeServer::default();
+        let last = Mutex::new(HashMap::new());
+
+        let first = notify_peer_with(&server, &last, K1, NOW).await;
+        let burst = notify_peer_with(&server, &last, K1, NOW + 3).await;
+        let later = notify_peer_with(&server, &last, K1, NOW + rules::NOTIFY_DEBOUNCE_SECS).await;
+
+        assert_eq!(first, NotifyOutcome::Sent);
+        assert_eq!(burst, NotifyOutcome::Debounced, "a burst costs one wake");
+        assert_eq!(later, NotifyOutcome::Sent);
+        assert_eq!(
+            server.calls(),
+            vec![format!("notify {K1}"), format!("notify {K1}")]
+        );
+    }
+
+    #[tokio::test]
+    async fn the_debounce_is_per_peer() {
+        let server = FakeServer::default();
+        let last = Mutex::new(HashMap::new());
+
+        notify_peer_with(&server, &last, K1, NOW).await;
+        let other = notify_peer_with(&server, &last, K2, NOW + 1).await;
+
+        assert_eq!(other, NotifyOutcome::Sent);
+        assert_eq!(server.calls().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_peer_that_is_not_a_pubkey_is_never_sent() {
+        let server = FakeServer::default();
+        let last = Mutex::new(HashMap::new());
+
+        for bad in ["", "aabbccdd", &"zz".repeat(32), &"a".repeat(65)] {
+            assert_eq!(
+                notify_peer_with(&server, &last, bad, NOW).await,
+                NotifyOutcome::InvalidPeer,
+                "{bad:?}"
+            );
+        }
+        assert!(server.calls().is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_peer_is_lowercased_as_the_server_matches_it() {
+        let server = FakeServer::default();
+        let last = Mutex::new(HashMap::new());
+
+        notify_peer_with(&server, &last, &K1.to_uppercase().replace('1', "A"), NOW).await;
+
+        assert_eq!(server.calls(), vec![format!("notify {}", "a".repeat(64))]);
+    }
+
+    #[tokio::test]
+    async fn a_rejected_wake_is_not_retried_and_still_debounces() {
+        let server = FakeServer::answering(vec![ServerOutcome::BadRequest(
+            "Invalid trade_pubkey format".into(),
+        )]);
+        let last = Mutex::new(HashMap::new());
+
+        let rejected = notify_peer_with(&server, &last, K1, NOW).await;
+        let again = notify_peer_with(&server, &last, K1, NOW + 1).await;
+
+        assert_eq!(rejected, NotifyOutcome::NotDelivered);
+        assert_eq!(again, NotifyOutcome::Debounced);
+        assert_eq!(server.calls().len(), 1);
     }
 
     #[test]

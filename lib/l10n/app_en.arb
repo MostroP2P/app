@@ -1466,7 +1466,7 @@
       }
     }
   },
-  "chooseNotificationEventsSubtitle": "Choose which events trigger push notifications.",
+  "chooseNotificationEventsSubtitle": "Choose which events show a notification in the app.",
   "@chooseNotificationEventsSubtitle": {
     "description": "Subtitle on the notification settings screen"
   },
@@ -3270,9 +3270,80 @@
   "@openSystemSettingsAction": {
     "description": "Action of the denied-permission banner"
   },
-  "notificationsPrivacyFootnote": "Notifications carry no amounts and no counterparties: they only tell you there is something to see.",
+  "notificationsPrivacyFootnote": "Notifications carry no amounts and no counterparties. A push travels through Google's or Apple's servers and says only that there is something to see.",
   "@notificationsPrivacyFootnote": {
-    "description": "Footnote: what a push notification does not carry"
+    "description": "Footnote: what a push notification does not carry, and the one true sentence about how it travels. Must not claim the token is encrypted."
+  },
+  "pushMasterToggleTitle": "Push notifications",
+  "@pushMasterToggleTitle": {
+    "description": "Title of the master push toggle on the notification settings screen"
+  },
+  "pushMasterToggleSubtitle": "Wakes the app when a trade or chat message arrives. The notification itself carries nothing.",
+  "@pushMasterToggleSubtitle": {
+    "description": "Description under the master push toggle: a push is a content-free wake-up"
+  },
+  "pushStatusOff": "Off — nothing is registered with the push server",
+  "@pushStatusOff": {
+    "description": "Status line under the master push toggle when push is turned off"
+  },
+  "pushStatusCleanupPending": "{count, plural, =1{Off — removal of 1 push registration is pending} other{Off — removal of {count} push registrations is pending}}",
+  "@pushStatusCleanupPending": {
+    "description": "Push is off locally, but the server has not confirmed removing these registrations",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pushStatusNoToken": "Waiting for this device's push token",
+  "@pushStatusNoToken": {
+    "description": "Status line when push is on but the device has not produced a push token yet"
+  },
+  "pushStatusIdle": "On — no open trades to register",
+  "@pushStatusIdle": {
+    "description": "Status line when push is on, nothing failed, and there is no open trade to register"
+  },
+  "pushStatusRegistered": "{count, plural, =1{Registered for 1 trade} other{Registered for {count} trades}}",
+  "@pushStatusRegistered": {
+    "description": "Status line: how many open trades the push server holds this device's token for",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pushStatusLastRegistered": "last registered {ago}",
+  "@pushStatusLastRegistered": {
+    "description": "Appended to pushStatusRegistered after ' · '; {ago} is a relative time such as '3 h ago' or 'yesterday'",
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "pushStatusUnreachable": "Push server unreachable — retrying",
+  "@pushStatusUnreachable": {
+    "description": "Status line when the last registration attempt failed and will be retried"
+  },
+  "pushStatusNodeRefused": "This Mostro node is not accepted by the push server",
+  "@pushStatusNodeRefused": {
+    "description": "Status line when the push server operator refuses trades from the active Mostro node"
+  },
+  "pushStatusRateLimited": "Push request limit reached — retrying shortly",
+  "@pushStatusRateLimited": {
+    "description": "Status line when the push server asked the app to slow down"
+  },
+  "pushUnsupportedPlatform": "Push notifications are not available on this platform",
+  "@pushUnsupportedPlatform": {
+    "description": "Info row replacing the master push toggle on platforms that cannot receive a push (desktop, web for now)"
+  },
+  "pushToggleSaveFailed": "Could not change push notifications",
+  "@pushToggleSaveFailed": {
+    "description": "Snackbar when the master push toggle could not be saved"
+  },
+  "pushNewMessageBody": "You have a new message",
+  "@pushNewMessageBody": {
+    "description": "Body of the system notification shown when a peer's chat message wakes the app in the background. Content-free on purpose: it never names the trade, the peer or the message."
   },
   "notificationPrefSaveFailed": "Could not save that preference",
   "@notificationPrefSaveFailed": {
@@ -3752,6 +3823,20 @@
   "@invoiceFieldLabel": {"description": "13a invoice field header (rendered uppercase)"},
   "invoiceFieldHint": "lnbc… or user@domain",
   "@invoiceFieldHint": {"description": "13a invoice field placeholder: says it accepts both an invoice and an address"},
+  "invoiceFieldPromptLabel": "Paste your invoice here",
+  "@invoiceFieldPromptLabel": {"description": "17a label of the empty invoice field, in the imperative, so the buyer sees where to write"},
+  "invoiceFieldFilledLabel": "Lightning invoice",
+  "@invoiceFieldFilledLabel": {"description": "17b label of the invoice field once it holds something; also the title of the full-invoice sheet"},
+  "invoiceFieldAddressLabel": "Lightning address",
+  "@invoiceFieldAddressLabel": {"description": "17b label of the invoice field when it holds a valid Lightning address; also its screen reader label and the full-value sheet title"},
+  "invoiceScanButton": "Scan",
+  "@invoiceScanButton": {"description": "17a/17b button under the invoice field that scans a QR code"},
+  "invoiceReplaceButton": "Replace",
+  "@invoiceReplaceButton": {"description": "17b button that replaces the invoice with the clipboard content"},
+  "invoiceFieldSemantics": "Lightning invoice or address, required",
+  "@invoiceFieldSemantics": {"description": "Screen reader label of the invoice text field"},
+  "invoiceFilledSemantics": "Lightning invoice for {sats} sats",
+  "@invoiceFilledSemantics": {"description": "Screen reader label of the filled invoice field: the decoded amount, not the whole string", "placeholders": {"sats": {"type": "String"}}},
   "invoiceValidAddress": "Valid address · the invoice will be requested on sending",
   "@invoiceValidAddress": {"description": "13a validation row for a Lightning address or LNURL"},
   "invoiceValidInvoice": "Valid invoice · {sats} sats",
@@ -3799,5 +3884,79 @@
   "invoiceErrorWrongNetwork": "The invoice is for {invoice}, the node uses {node}",
   "@invoiceErrorWrongNetwork": {"description": "13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet", "placeholders": {"invoice": {"type": "String"}, "node": {"type": "String"}}},
   "invoiceCountdownHours": "{hours} h {minutes}",
-  "@invoiceCountdownHours": {"description": "Invoice time band countdown above one hour; hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence", "placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}}
+  "@invoiceCountdownHours": {"description": "Invoice time band countdown above one hour; hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence", "placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}},
+  "tradeCardWaitingBuyerInvoiceTitle": "Waiting for the buyer's invoice",
+  "@tradeCardWaitingBuyerInvoiceTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingBuyerInvoiceMessage": "The trade continues once the buyer adds a Lightning invoice.",
+  "@tradeCardWaitingBuyerInvoiceMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingPaymentTitle": "Waiting for the seller's payment",
+  "@tradeCardWaitingPaymentTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingPaymentMessage": "The trade continues once the seller pays the hold invoice.",
+  "@tradeCardWaitingPaymentMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingTakerBondTitle": "Bond payment pending",
+  "@tradeCardWaitingTakerBondTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingTakerBondMessage": "The taker's anti-abuse bond must be paid before the trade starts.",
+  "@tradeCardWaitingTakerBondMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardActiveTitle": "Trade active",
+  "@tradeCardActiveTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardActiveMessage": "The sats are locked. The buyer can now send the fiat payment.",
+  "@tradeCardActiveMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardFiatSentTitle": "Fiat marked as sent",
+  "@tradeCardFiatSentTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardFiatSentMessage": "The buyer marked the fiat payment as sent.",
+  "@tradeCardFiatSentMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledHoldInvoiceTitle": "Sats released",
+  "@tradeCardSettledHoldInvoiceTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledHoldInvoiceMessage": "The seller released the sats. The buyer's payout is on its way.",
+  "@tradeCardSettledHoldInvoiceMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSuccessTitle": "Trade completed",
+  "@tradeCardSuccessTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSuccessMessage": "The trade finished successfully.",
+  "@tradeCardSuccessMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledTitle": "Trade canceled",
+  "@tradeCardCanceledTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledMessage": "The trade was canceled.",
+  "@tradeCardCanceledMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardExpiredTitle": "Order expired",
+  "@tradeCardExpiredTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardExpiredMessage": "The order expired before the trade could continue.",
+  "@tradeCardExpiredMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCooperativelyCanceledTitle": "Trade canceled by agreement",
+  "@tradeCardCooperativelyCanceledTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCooperativelyCanceledMessage": "Both parties agreed to cancel the trade.",
+  "@tradeCardCooperativelyCanceledMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardDisputeTitle": "Dispute opened",
+  "@tradeCardDisputeTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardDisputeMessage": "A dispute was opened on this trade.",
+  "@tradeCardDisputeMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledByAdminTitle": "Canceled by the resolver",
+  "@tradeCardCanceledByAdminTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledByAdminMessage": "The dispute resolver canceled the trade.",
+  "@tradeCardCanceledByAdminMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledByAdminTitle": "Settled by the resolver",
+  "@tradeCardSettledByAdminTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledByAdminMessage": "The dispute resolver released the sats to the buyer.",
+  "@tradeCardSettledByAdminMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCompletedByAdminTitle": "Completed by the resolver",
+  "@tradeCardCompletedByAdminTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCompletedByAdminMessage": "The dispute resolver completed the trade.",
+  "@tradeCardCompletedByAdminMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardUpdatedTitle": "Trade updated",
+  "@tradeCardUpdatedTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardUpdatedMessage": "The status of this trade changed.",
+  "@tradeCardUpdatedMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledByMakerMessage": "The maker canceled the order.",
+  "@tradeCardCanceledByMakerMessage": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "tradeCardCanceledBondLostRaceMessage": "Another user took this order before the bond was paid.",
+  "@tradeCardCanceledBondLostRaceMessage": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "tradeCardCanceledBondExpiredMessage": "The bond invoice expired unpaid.",
+  "@tradeCardCanceledBondExpiredMessage": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "chatCardTitle": "New messages",
+  "@chatCardTitle": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "chatCardSolverTitle": "Messages from the resolver",
+  "@chatCardSolverTitle": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "chatCardMessage": "{count, plural, =1{1 new message from your trade partner} other{{count} new messages from your trade partner}}",
+  "@chatCardMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}},
+  "chatCardSolverMessage": "{count, plural, =1{1 new message from the dispute resolver} other{{count} new messages from the dispute resolver}}",
+  "@chatCardSolverMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}}
 }

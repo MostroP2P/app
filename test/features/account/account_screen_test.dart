@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/account/models/backup_rules.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
@@ -27,7 +31,28 @@ const _words = <String>[
   'trade',
 ];
 
-Future<void> _pumpAccount(WidgetTester tester, {required bool backedUp}) async {
+/// The label of the semantics node carrying [identifier]. `getSemantics`
+/// on the finder answers with the merged parent, whose label is empty; the
+/// readout's own node, a child of it, is the one a driver reads.
+String? _labelOf(WidgetTester tester, String identifier) {
+  String? found;
+  void walk(SemanticsNode node) {
+    if (node.identifier == identifier) found = node.label;
+    node.visitChildren((child) {
+      walk(child);
+      return found == null;
+    });
+  }
+
+  walk(tester.getSemantics(find.bySemanticsIdentifier(identifier)));
+  return found;
+}
+
+Future<void> _pumpAccount(
+  WidgetTester tester, {
+  required bool backedUp,
+  Future<String?> Function()? publicKey,
+}) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -50,7 +75,7 @@ Future<void> _pumpAccount(WidgetTester tester, {required bool backedUp}) async {
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const AccountScreen(debugWords: _words),
+        home: AccountScreen(debugWords: _words, debugPublicKey: publicKey),
       ),
     ),
   );
@@ -162,6 +187,54 @@ void main() {
       expect(copied, _words.join(' '));
       // Let the check turn back into the copy icon so no timer is left.
       await tester.pump(backupCopyFeedback);
+    });
+  });
+
+  group('keys.public_key readout (automation contract)', () {
+    const key =
+        'f00d000000000000000000000000000000000000000000000000000000000001';
+
+    testWidgets('carries the full key once it is loaded', (tester) async {
+      await _pumpAccount(tester, backedUp: true, publicKey: () async => key);
+
+      expect(_labelOf(tester, AutomationIds.keysPublicKey), key);
+    });
+
+    testWidgets('is absent until the key is loaded — never an empty label', (
+      tester,
+    ) async {
+      // A black-box driver that finds the identifier must read the key; one
+      // that could find it first with '' would make identity checks
+      // timing-dependent.
+      final loading = Completer<String?>();
+      await _pumpAccount(
+        tester,
+        backedUp: false,
+        publicKey: () => loading.future,
+      );
+
+      expect(
+        find.bySemanticsIdentifier(AutomationIds.keysPublicKey),
+        findsNothing,
+      );
+
+      loading.complete(key);
+      await tester.pumpAndSettle();
+      expect(
+        find.bySemanticsIdentifier(AutomationIds.keysPublicKey),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('does not move the visible cards', (tester) async {
+      // The readout sits over the viewport, outside its spaced block list.
+      await _pumpAccount(tester, backedUp: false, publicKey: () async => null);
+      final without = tester.getTopLeft(find.text(l10n.backupBannerTitle));
+
+      await _pumpAccount(tester, backedUp: false, publicKey: () async => key);
+      final with_ = tester.getTopLeft(find.text(l10n.backupBannerTitle));
+
+      expect(with_, without);
     });
   });
 }

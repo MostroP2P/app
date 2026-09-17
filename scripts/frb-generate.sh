@@ -3,8 +3,11 @@
 # does not match the version this repository pins.
 #
 # A mismatched CLI writes lib/src/rust/frb_generated.dart against a different API surface
-# than the resolved Dart package. Because that directory is gitignored, the result is a
-# build failure that names a Dart parameter and never mentions versions. See issue #205.
+# than the resolved Dart package. The result is a build failure that names a Dart parameter
+# and never mentions versions. See issue #205.
+#
+# The output is committed: commit it together with the rust/src/api/ change that caused it
+# (CONTRIBUTING.md → "Generated code"; ci.yml fails when it drifts).
 #
 # Usage:
 #   ./scripts/frb-generate.sh          verify, then generate
@@ -15,14 +18,6 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
-
-# Every developer runs this script at least once; piggy-back the hook install on it so a
-# fresh clone stops depending on someone remembering to do it, and so an edit to .githooks/
-# reaches clones that already have the copies. Never fatal — a clone that points
-# core.hooksPath elsewhere just gets told, on stderr, and codegen carries on.
-if [[ -z "${CI-}" ]]; then
-  ./scripts/setup-hooks.sh >/dev/null || true
-fi
 
 # pubspec.yaml is the single source of truth; every other declaration must agree with it.
 PUBSPEC='pubspec.yaml'

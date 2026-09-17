@@ -61,7 +61,34 @@ class TokenHandoff {
     return _attempt();
   }
 
-  Future<void> _attempt() async {
+  /// Forget the pending token and its retry: the user turned push off, and
+  /// a retry landing afterwards would hand Rust a token they just let go.
+  ///
+  /// The returned future completes once no hand-over is in flight, so a
+  /// caller can clear Rust's token after it: a `set_push_token` still
+  /// running would otherwise write the token back after the clear.
+  Future<void> discard() async {
+    _timer?.cancel();
+    _timer = null;
+    _pending = null;
+    _platform = null;
+    while (_inFlight != null) {
+      await _inFlight;
+    }
+  }
+
+  /// The bridge call currently running, if any.
+  Future<void>? _inFlight;
+
+  Future<void> _attempt() {
+    final attempt = _runAttempt();
+    _inFlight = attempt;
+    return attempt.whenComplete(() {
+      if (identical(_inFlight, attempt)) _inFlight = null;
+    });
+  }
+
+  Future<void> _runAttempt() async {
     final token = _pending;
     final platform = _platform;
     if (token == null || platform == null) return;

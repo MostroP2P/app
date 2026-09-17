@@ -92,6 +92,20 @@ const CASES = [
     env: { SMOKE_BOND_STORE: '1' },
     what: 'a page without the bond stores fails the run',
   },
+  // The messaging worker check (SMOKE_PUSH_WORKER=1), from both sides:
+  // push-worker registers one under the push scope, healthy registers none.
+  {
+    fixture: 'push-worker',
+    expected: 0,
+    env: { SMOKE_PUSH_WORKER: '1' },
+    what: 'an active messaging worker on an isolated page passes',
+  },
+  {
+    fixture: 'healthy',
+    expected: 1,
+    env: { SMOKE_PUSH_WORKER: '1' },
+    what: 'a page that never registers the messaging worker fails the run',
+  },
 ];
 
 let failures = 0;

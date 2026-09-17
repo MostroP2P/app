@@ -304,6 +304,24 @@ impl Storage for SqliteStorage {
             .collect()
     }
 
+    async fn list_unread_messages(&self) -> Result<Vec<ChatMessage>> {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id, data FROM messages WHERE is_read = 0 ORDER BY created_at ASC, id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, data)| match serde_json::from_str(&data) {
+                Ok(msg) => Some(msg),
+                Err(e) => {
+                    log::warn!("[db] skipping unread message {id}: deserialization failed: {e}");
+                    None
+                }
+            })
+            .collect())
+    }
+
     async fn message_exists(&self, id: &str) -> Result<bool> {
         let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM messages WHERE id = ?")
             .bind(id)
@@ -1393,6 +1411,48 @@ mod tests {
             .expect("order-a survives reopen");
         assert_eq!(a.counterparty_pubkey, "peer-a");
 
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn unread_notification_history_survives_restart_without_trade_rows() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        for (id, trade_id, is_read, created_at) in [
+            ("later", "removed-trade", false, 2),
+            ("read", "read-trade", true, 0),
+            ("earlier", "closed-trade", false, 1),
+        ] {
+            storage
+                .save_message(&ChatMessage {
+                    id: id.into(),
+                    trade_id: trade_id.into(),
+                    sender_pubkey: "peer".into(),
+                    content: "hello".into(),
+                    message_type: crate::api::types::MessageType::Peer,
+                    is_mine: false,
+                    is_read,
+                    has_attachment: false,
+                    attachment: None,
+                    created_at,
+                })
+                .await
+                .unwrap();
+        }
+        // One corrupt record must not block notification recovery for other trades.
+        sqlx::query("INSERT INTO messages (id, trade_id, data, is_read, created_at) VALUES ('corrupt', 'broken-trade', 'not-json', 0, 0)")
+            .execute(&storage.pool).await.unwrap();
+        drop(storage);
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        assert!(storage.list_trades().await.unwrap().is_empty());
+        let unread = storage.list_unread_messages().await.unwrap();
+        assert_eq!(
+            unread.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+            ["earlier", "later"]
+        );
+        storage.mark_messages_read("closed-trade").await.unwrap();
+        assert_eq!(storage.list_unread_messages().await.unwrap()[0].id, "later");
         drop(storage);
         let _ = std::fs::remove_file(&path);
     }

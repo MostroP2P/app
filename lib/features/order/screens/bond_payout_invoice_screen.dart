@@ -228,10 +228,11 @@ class _BondPayoutInvoiceScreenState
       appBar: appBar,
       // The phase readout sits beside the body, never around it: a merging
       // automation id would hide every control below from accessibility.
+      // It has a size: a zero-size box gets no semantics node on desktop.
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox.shrink().withAutomationId(
+          const SizedBox(width: 1, height: 1).withAutomationId(
             AutomationIds.bondClaimStatus,
             label: phase.name,
           ),

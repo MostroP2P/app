@@ -224,7 +224,7 @@ Mostro App uses a **split-architecture** model: all cryptography, protocol logic
 | Platform | Status |
 |----------|--------|
 | Android 5.0+ | Supported |
-| iOS 13+ | Supported |
+| iOS 14+ | Supported |
 | Web (PWA) | Supported (WASM) |
 | macOS 10.15+ | Supported |
 | Windows 10+ | Supported |
@@ -476,7 +476,7 @@ If you modify any `#[frb]`-annotated Rust function in `rust/src/api/`:
 
 This wraps `flutter_rust_bridge_codegen generate` and refuses to run when your local codegen CLI does not match the version pinned in `pubspec.yaml` — generating with a mismatched CLI produces bindings that fail to compile. Pass `--check` to verify without generating.
 
-> **Do not hand-edit** files under `lib/src/rust/` — they are auto-generated and will be overwritten on the next codegen run. They are gitignored and regenerated on the fly, both locally and in CI, so there is nothing to commit.
+> **Do not hand-edit** files under `lib/src/rust/` — they are auto-generated and will be overwritten on the next codegen run. They are **committed**: commit the regenerated files in the same commit as the `rust/src/api/` change, and CI fails if they drift. See [CONTRIBUTING.md → Generated code](CONTRIBUTING.md#generated-code), which also covers resolving conflicts in them.
 
 ---
 
@@ -577,7 +577,7 @@ Contributions are welcome. Please read this section before opening an issue or p
 
 ### Development Notes
 
-- **Bridge changes:** Any modification to `rust/src/api/` requires re-running `./scripts/frb-generate.sh`. The generated files are gitignored — there is nothing to commit.
+- **Bridge changes:** Any modification to `rust/src/api/` requires re-running `./scripts/frb-generate.sh` and committing the regenerated files with the change. For conflicts in them, see [CONTRIBUTING.md → Generated code](CONTRIBUTING.md#generated-code).
 - **Serde conventions:** `mostro-core` uses `#[serde(rename_all = "kebab-case")]` — all protocol status strings on the wire are kebab-case (e.g., `"waiting-buyer-invoice"`, `"fiat-sent"`, `"in-progress"`).
 - **`pub` vs `pub(crate)`:** Only types that must be exposed to the Dart bridge should be `pub`. Internal helpers and types wrapping `nostr-sdk` structs should be `pub(crate)` to prevent broken FRB stub generation.
 - **Key derivation:** Per-trade keys follow BIP-32 path `m/44'/1237'/38383'/0/N`. Never reuse the master identity key for trade-level messages.

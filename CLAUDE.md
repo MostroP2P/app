@@ -65,6 +65,14 @@ flutter gen-l10n                            # after editing lib/l10n/*.arb
   Rust call, or a later failure goes unseen — and the startup guard sets on failure (no-op off web) — rename that flag on one side only and the check silently never fires.
   The CI run also sets `SMOKE_BOND_STORE=1`: it seeds bond rows (`test/web/smoke/seed/`) into
   IndexedDB, reloads, and compares them with what `lib/core/web/store_probe.dart` read back.
+- **The FCM messaging worker is a second service worker**, `web/firebase-messaging-sw.js`,
+  registered from `web/index.html` and `web_push_web.dart` **relative to the base path** under
+  the scope `firebase-cloud-messaging-push-scope` — Firebase's default is the origin root, a 404
+  under `/app/`, and `firebase_messaging` 15 cannot take a worker path, so the token comes from
+  the JS SDK with that registration. Its Firebase config and SDK version are copies that
+  `pages_bundle_test.dart` holds equal to `firebase_options.dart` and `firebase_core_web`; CI
+  sets `SMOKE_PUSH_WORKER=1` to assert it activates without costing isolation. Web push stays
+  off until the build passes `PUSH_WEB_ENABLED` (docs/PUSH_NOTIFICATIONS.md T4.5).
 
 ## Code Style
 
@@ -102,24 +110,17 @@ bridged by flutter_rust_bridge.
   a mismatched CLI yields bindings that fail to compile, with an error that never mentions
   versions (see issue #205). `--check` verifies without generating.
 - FRB scans only `crate::api` → changes in `nostr/`, `crypto/`, `mostro/`, etc. need no regen.
-- **Regenerate after pulling, too — not just after your own edits.** `lib/src/rust/` and
-  `lib/l10n/app_localizations*.dart` are gitignored, so a `git pull` that brings in someone
-  else's `rust/src/api/` field or `.arb` key leaves your copies stale. CI regenerates both
-  before it analyses (`ci.yml` → `frb-generate.sh`, `flutter gen-l10n`), so green CI proves
-  nothing about your checkout. The failure is loud but misdirected — the analyzer blames
-  whatever *uses* the missing field, so a stale `TradeInfo` reads as a broken test helper
-  rather than as out-of-date bindings. If `flutter analyze` reports a field or l10n getter
-  that plainly exists in `rust/src/api/types.rs` or `lib/l10n/*.arb`, regenerate before
-  believing it. **Automate it:** `./scripts/setup-hooks.sh` copies `.githooks/` into this
-  clone's `.git/hooks/`, where `post-merge`/`post-checkout`/`post-rewrite` regenerate both
-  whenever the pull, branch switch, or rebase touched `rust/src/api/`, `pubspec.yaml`, or
-  an `.arb` (no-op otherwise). `frb-generate.sh` runs that installer itself, so the first
-  codegen in a clone arms the hooks and later codegen refreshes them;
-  `./scripts/setup-hooks.sh --check` reports the state without changing it.
-  **Copies, not `core.hooksPath=.githooks`:** pointing that config at a tracked directory
-  makes `git checkout` execute hook code from the ref being checked out, so
-  `gh pr checkout` on a contributor's branch would run their script. `.git/hooks` is not
-  tracked, so a hostile branch is inert. Edit `.githooks/` and re-run the installer.
+- **Generated code is committed:** `lib/src/rust/`, `rust/src/frb_generated.rs` and
+  `lib/l10n/app_localizations*.dart`. A pull or branch switch builds as-is. Regenerate in the
+  **same commit** as the `rust/src/api/` or `.arb` change that caused it. Never hand-edit or
+  hand-merge these files. `ci.yml` ("Check generated code is committed") regenerates both and
+  fails on any difference. The fix is to rerun `./scripts/frb-generate.sh` and
+  `flutter gen-l10n`, then commit the result.
+- **The repo ships no git hooks.** They used to regenerate the ignored copies after a pull.
+  Committing the output made them unnecessary, so don't reintroduce them.
+- **Conflicts in generated files:** resolve the sources first. Then take either side of the
+  generated files (`git checkout --theirs -- <paths>`), regenerate, stage and continue. Full
+  procedure: `CONTRIBUTING.md` → "Resolving conflicts in generated files".
 
 ## Transport (protocol v2)
 - **Daemon messages** (new-order, take, release, cancel, dispute, rate, invoice, restore):
@@ -202,5 +203,25 @@ bridged by flutter_rust_bridge.
 - **Push cannot carry bond events.** The push server only sees kind 14 p-tagged to a trade
   pubkey and sends a content-free wake-up, so no payload can name `add-bond-invoice` or
   `bond-payout-completed`. Bond notices are in-app, from the kind-14 subscription (§8.5).
+- **A push is a doorbell, never a courier** (`docs/PUSH_NOTIFICATIONS.md`). It carries a fixed
+  title and `data.type ∈ { trade_update, chat_wake }` — no event id, order or sender — so
+  nothing may route or decide on payload fields beyond `type`. What the wake was about comes
+  from `resync()` and the in-app cards.
+- **Push registration is Rust-owned and persisted.** Dart hands over the device token
+  (`set_push_token`); `rust/src/api/push.rs` decides which trade pubkeys the server holds it
+  for, persisted in `push_registrations`, so a restart, token refresh or opt-out acts on the
+  full set. Dart never chooses, holds or edits that set. The one Dart path that POSTs
+  `/api/register` is the OS-scheduled refresh (`push_refresh_job.dart`, T1.5): it replays
+  exactly what Rust mirrored to `push_mirror.json`, without the core, so registrations outlive
+  the server's 48 h TTL while the app stays closed. Keep it — it is required, not a violation.
+- **The FCM background handler is display-only.** `push_background_handler.dart` never touches
+  the Rust core, the database or protocol state (a test reads its imports); it sets
+  `push_wake_pending` and may show the content-free chat-wake notice. Every write happens on
+  resume, once, in the foreground core.
+- **Dispute chat must wake, and does not yet.** Same envelope and same mechanism as peer chat:
+  it is `p`-tagged to `pub(K_conv)`, which the push server cannot match, so the **sender** calls
+  `/api/notify`. For a solver's message the sender is mostrix, which does not yet
+  (mostrix#177). Don't make `wake_peer` ring the solver (not a push client), and don't register
+  `pub(K_conv)` with the push server as a workaround (§7.3 says why).
 
 <!-- MANUAL ADDITIONS END -->

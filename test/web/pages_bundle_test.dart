@@ -221,6 +221,7 @@ void main() {
         'page-error',
         'store-probe',
         'store-probe-empty',
+        'push-worker',
       ]) {
         expect(
           File('test/web/smoke/fixtures/$fixture/index.html').existsSync(),
@@ -274,6 +275,131 @@ void main() {
     });
   });
 
+  group('messaging service worker (docs/PUSH_NOTIFICATIONS.md T4.5)', () {
+    final worker = File('web/firebase-messaging-sw.js');
+    final logic = File('web/push_worker_logic.js');
+
+    test('index.html registers it, relative to the base path, after the shim',
+        () {
+      // Arrange
+      final html = indexHtml.readAsStringSync();
+
+      // Act
+      final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
+      final registerAt = html.indexOf("register('$messagingWorkerScript'");
+      final bootstrapAt = html.indexOf('flutter_bootstrap.js');
+
+      // Assert — Firebase's default is the origin root, which under /app/ is
+      // a 404; a relative URL resolves against <base href>. After the shim,
+      // which must stay the first script.
+      expect(registerAt, greaterThan(shimAt));
+      expect(registerAt, lessThan(bootstrapAt));
+      expect(html, contains("scope: '$messagingWorkerScope'"));
+      expect(html, isNot(contains("'/$messagingWorkerScript'")));
+    });
+
+    test('routes on no payload field and carries no placeholder config', () {
+      // Arrange
+      final js = worker.readAsStringSync() + logic.readAsStringSync();
+
+      // Act / Assert — the server's push carries nothing to route on (§2.3).
+      expect(js, isNot(contains('REPLACE_ME')));
+      expect(js, isNot(contains('routeFromPayload')));
+      expect(js, isNot(contains('orderId')));
+      expect(js, isNot(contains('disputeId')));
+    });
+
+    test('uses the web Firebase config firebase_options.dart ships', () {
+      // Arrange — the worker cannot import Dart, so the values are copied;
+      // this is what keeps the copy honest after a `flutterfire configure`.
+      final options = File('lib/firebase_options.dart').readAsStringSync();
+      final web = options.substring(
+        options.indexOf('FirebaseOptions web = FirebaseOptions('),
+        options.indexOf('FirebaseOptions android'),
+      );
+      final js = worker.readAsStringSync();
+
+      // Act
+      final values = RegExp(r"(apiKey|appId|messagingSenderId|projectId): '([^']+)'")
+          .allMatches(web)
+          .map((m) => (m.group(1)!, m.group(2)!))
+          .toList();
+
+      // Assert
+      expect(values, hasLength(4));
+      for (final (key, value) in values) {
+        expect(js, contains("$key: '$value'"), reason: key);
+      }
+    });
+
+    test('loads the Firebase JS SDK version the page itself loads', () {
+      // Arrange — firebase_core_web pins the SDK the page imports; a worker
+      // on another version is a second SDK talking to the same push scope.
+      final config = File('.dart_tool/package_config.json').readAsStringSync();
+      final root = RegExp(
+        r'"name": "firebase_core_web",\s*"rootUri": "file://([^"]+)"',
+      ).firstMatch(config)!.group(1)!;
+      final pinned = RegExp(r"supportedFirebaseJsSdkVersion = '([^']+)'")
+          .firstMatch(
+            File('$root/lib/src/firebase_sdk_version.dart').readAsStringSync(),
+          )!
+          .group(1)!;
+      final js = worker.readAsStringSync();
+
+      // Act
+      final imported = RegExp(r'firebasejs/([0-9.]+)/')
+          .allMatches(js)
+          .map((m) => m.group(1))
+          .toSet();
+
+      // Assert
+      expect(imported, {pinned});
+    });
+
+    test('shows the chat-wake notice in the app’s own words', () {
+      // Arrange — the Dart background handler uses the arb strings; the
+      // worker cannot, so it carries a copy for the five locales.
+      final js = logic.readAsStringSync();
+
+      // Act / Assert
+      for (final locale in ['en', 'es', 'fr', 'de', 'it']) {
+        final arb = File('lib/l10n/app_$locale.arb').readAsStringSync();
+        final body = RegExp(r'"pushNewMessageBody": "([^"]+)"')
+            .firstMatch(arb)!
+            .group(1)!;
+        expect(js, contains("$locale: '$body'"), reason: locale);
+      }
+    });
+
+    test('Dart, index.html, the smoke test and CI agree on the worker', () {
+      // Arrange — Dart registers the same script and scope index.html does;
+      // a mismatch is a second registration the token is never bound to.
+      final dart = File(
+        'lib/features/notifications/services/web_push_web.dart',
+      ).readAsStringSync();
+      final js = smoke.readAsStringSync();
+      final yaml = webBuild.readAsStringSync();
+
+      // Act / Assert
+      expect(dart, contains("'$messagingWorkerScript'"));
+      expect(dart, contains("'$messagingWorkerScope'"));
+      expect(js, contains(messagingWorkerScope));
+      expect(js, contains('SMOKE_PUSH_WORKER'));
+      expect(yaml, contains('SMOKE_PUSH_WORKER: "1"'));
+    });
+
+    test('CI builds with the VAPID define and keeps web push off', () {
+      // Arrange
+      final yaml = webBuild.readAsStringSync();
+
+      // Act / Assert — the key is public and set per repository (forks use
+      // their own); the flag flips only when the push server accepts web.
+      expect(yaml, contains('--dart-define=FCM_VAPID_KEY='));
+      expect(yaml, isNot(contains('PUSH_WEB_ENABLED')));
+      expect(yaml, contains('node --test test/web/push_worker/'));
+    });
+  });
+
   group('bridge readiness probe', () {
     test('Dart and the smoke test agree on the flag name', () {
       // Arrange — the probe is the only positive signal that the Rust bridge
@@ -300,3 +426,9 @@ const storeProbeFlag = 'mostroStoreProbe';
 /// The `window` property the smoke test sets before the page loads to ask the
 /// web build for the store read-back.
 const storeProbeRequestFlag = 'mostroStoreProbeRequested';
+
+/// The FCM service worker, relative to the base path.
+const messagingWorkerScript = 'firebase-messaging-sw.js';
+
+/// Its scope — Firebase's own default name, relative to the base path.
+const messagingWorkerScope = 'firebase-cloud-messaging-push-scope';

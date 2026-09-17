@@ -753,6 +753,9 @@ mod tests {
         ) -> Result<Vec<crate::api::types::ChatMessage>> {
             unimplemented!()
         }
+        async fn list_unread_messages(&self) -> Result<Vec<crate::api::types::ChatMessage>> {
+            unimplemented!()
+        }
         async fn mark_messages_read(&self, _trade_id: &str) -> Result<()> {
             unimplemented!()
         }

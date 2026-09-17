@@ -181,6 +181,9 @@ pub trait Storage: Send + Sync {
 
     async fn save_message(&self, msg: &crate::api::types::ChatMessage) -> Result<()>;
     async fn list_messages(&self, trade_id: &str) -> Result<Vec<crate::api::types::ChatMessage>>;
+    /// Unread messages across all trades, including closed or removed trades.
+    /// Notification recovery must not depend on a live chat subscription.
+    async fn list_unread_messages(&self) -> Result<Vec<crate::api::types::ChatMessage>>;
     async fn mark_messages_read(&self, trade_id: &str) -> Result<()>;
 
     /// `true` if a message with this id was already accepted and stored.

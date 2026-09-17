@@ -64,6 +64,10 @@ normative list):
   comes online.
 - Isolation: chat runs on its own task and bounded channels; it can never
   block the order state machine, the daemon transport, or a dispute.
+- Push wake: once a peer message or attachment pointer reached the relays,
+  the sender asks the push server to ring the counterparty's trade pubkey,
+  debounced per peer and fire-and-forget (`contracts/push.md`, *Peer wake*).
+  The dispute channel does not.
 
 ## Functions
 
@@ -109,6 +113,22 @@ Get total unread message count across all trades.
 
 ### on_new_message(trade_id: String) → Stream<ChatMessage>
 Emits when a new message is received for the specified trade.
+
+### on_any_new_message() → AnyMessageStream
+Incoming unread peer and solver messages across all trades for in-app notification
+cards. Delivery is **at least once**: the stream reconciles from persisted unread
+messages at startup, after broadcast lag, and every 60 seconds, even when no new
+relay message arrives. This recovers interrupted or failed Dart card writes without
+bypassing the protocol's durable message deduplication. Recovery includes messages
+whose trade no longer has a live subscription. Already-read messages and the user's
+own messages are excluded; cached read state is checked again before delivery.
+
+Dart atomically records the message id in its processed-event ledger with the card
+update, including events deliberately suppressed by preferences, identity cutoff,
+or an open chat. Repeated deliveries must preserve read/delete state. Card writes,
+reads and deletes commit and publish in invocation order. Mark-read operates on the
+latest persisted record even before UI hydration; a read during event processing
+suppresses that pending event, even if the user has since left the chat.
 
 ### on_unread_count_changed() → Stream<u32>
 Emits when the global unread message count changes.
