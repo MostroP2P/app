@@ -206,7 +206,7 @@ jobs:
 
       # Serves the release bundle cross-origin isolated under the production
       # sub-path, then asserts the page is isolated, the Flutter view mounted,
-      # a Rust bridge call returned, and nothing errored. SMOKE_BOND_STORE also
+      # startup finished (Rust bridge included), and nothing errored. SMOKE_BOND_STORE also
       # seeds bond rows into IndexedDB, reloads, and checks the app reads them
       # back (docs/ANTI_ABUSE_BOND.md T5.1). SMOKE_PUSH_WORKER checks the FCM
       # messaging worker activates beside the shim without costing isolation
