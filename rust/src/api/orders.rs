@@ -3323,7 +3323,7 @@ async fn dispatch_mostro_message(
             // request_id — so take_matching_restore skips the nonce gate.
             match &kind.payload {
                 Some(mostro_core::message::Payload::RestoreData(info)) => {
-                    if let Some(pending) = take_matching_restore(trade_pubkey_hex) {
+                    if let Some(pending) = take_matching_restore(trade_pubkey_hex, event_ts) {
                         if let Some(tx) = pending.tx {
                             let _ = tx.send(Wake::from(DaemonReply::Restored(info.clone())));
                             crate::api::logging::blog_info("daemon-msg", format!(
@@ -3967,7 +3967,7 @@ async fn dispatch_mostro_message(
             // request_id) still touches nothing and leaves the order record for
             // the genuine reply. For non-restore requests the nonce-gated
             // take_matching_request path is unchanged.
-            let matched = take_matching_restore(trade_pubkey_hex)
+            let matched = take_matching_restore(trade_pubkey_hex, event_ts)
                 .or_else(|| take_matching_request(trade_pubkey_hex, kind.request_id));
             if let Some(pending) = matched {
                 if let Some(tx) = pending.tx {
@@ -8171,7 +8171,9 @@ async fn resync_trade_key_index() -> Result<Option<u32>> {
 /// own error (e.g. `NoDaemonResponse`); the imported identity is untouched
 /// either way, and a later order still resyncs on `InvalidTradeIndex`.
 pub async fn recover_trades() -> Result<u32> {
-    let info = restore_session().await?;
+    // A reply can be lost to a relay that refused or closed the subscription
+    // waiting for it (#523); a second attempt has a fresh key and fresh REQs.
+    let info = crate::mostro::pending::retry_once_on_no_response(restore_session).await?;
     Ok((info.restore_orders.len() + info.restore_disputes.len()) as u32)
 }
 
@@ -8218,7 +8220,9 @@ pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInf
             PendingRequest {
                 request_id: 0,
                 trade_index,
-                kind: PendingRequestKind::Restore,
+                kind: PendingRequestKind::Restore {
+                    sent_at: crate::rt::unix_now(),
+                },
                 tx: Some(conf_tx),
             },
         );
@@ -9891,7 +9895,7 @@ mod tests {
             PendingRequest {
                 request_id: 0,
                 trade_index: 4,
-                kind: PendingRequestKind::Restore,
+                kind: PendingRequestKind::Restore { sent_at: 0 },
                 tx: Some(rtx),
             },
         );
@@ -9899,13 +9903,13 @@ mod tests {
         let _orx = insert_pending_create(order_key, 7);
 
         // take_matching_restore ignores the order record (wrong kind)...
-        assert!(take_matching_restore(order_key).is_none());
+        assert!(take_matching_restore(order_key, 0).is_none());
         assert!(pending_requests().lock().unwrap().contains_key(order_key));
         // ...and matches the restore record with no request_id involved.
-        let taken = take_matching_restore(restore_key).expect("restore must match");
-        assert!(matches!(taken.kind, PendingRequestKind::Restore));
+        let taken = take_matching_restore(restore_key, 0).expect("restore must match");
+        assert!(matches!(taken.kind, PendingRequestKind::Restore { .. }));
         // Consumed on take (the CantDo path removes it exactly once).
-        assert!(take_matching_restore(restore_key).is_none());
+        assert!(take_matching_restore(restore_key, 0).is_none());
 
         // Cleanup the order record so global state does not leak to other tests.
         let _ = take_matching_request(order_key, Some(7));

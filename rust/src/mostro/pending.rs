@@ -122,8 +122,12 @@ pub(crate) enum PendingRequestKind {
     BondClaimSubmit,
     /// A session-restore awaiting the daemon's RestoreData reply. Correlated
     /// by trade pubkey, not request_id (the RestoreSession message carries
-    /// no request_id — see mostro-core Message::new_restore).
-    Restore,
+    /// no request_id — see mostro-core Message::new_restore) — and by age:
+    /// see [`take_matching_restore`].
+    Restore {
+        /// When the request went out (unix seconds, local clock).
+        sent_at: i64,
+    },
     /// An open-dispute awaiting the daemon's `DisputeInitiatedByYou`.
     Dispute {
         /// Nonces of earlier open attempts on this same trade key that timed
@@ -207,15 +211,52 @@ fn request_id_matches(expected: u64, got: Option<u64>) -> bool {
     got == Some(expected)
 }
 
+/// How far behind the request a restore reply's timestamp may be and still
+/// count as its answer: room for a daemon clock behind ours.
+pub(crate) const RESTORE_REPLY_SKEW_SECS: i64 = 30;
+
 /// Remove and return the pending RESTORE request for `pubkey_hex`. Unlike
 /// `take_matching_request`, there is no request_id gate: the RestoreSession
-/// message carries no request_id, so the daemon's RestoreData reply is
-/// correlated purely by the trade pubkey it is addressed to.
-pub(crate) fn take_matching_restore(pubkey_hex: &str) -> Option<PendingRequest> {
+/// message carries no request_id, so the daemon's reply is correlated by the
+/// trade pubkey it is addressed to — and by its age. After a re-import the
+/// counter restarts, so the restore's key is one earlier imports already
+/// restored with, and the global feed replays their `RestoreData` and
+/// `CantDo` replies: one older than the request (`reply_ts`, the event's
+/// `created_at`) must not answer it.
+pub(crate) fn take_matching_restore(pubkey_hex: &str, reply_ts: i64) -> Option<PendingRequest> {
     let mut map = pending_requests().lock().ok()?;
     match map.get(pubkey_hex) {
-        Some(p) if matches!(p.kind, PendingRequestKind::Restore) => map.remove(pubkey_hex),
+        Some(PendingRequest {
+            kind: PendingRequestKind::Restore { sent_at },
+            ..
+        }) if reply_ts + RESTORE_REPLY_SKEW_SECS >= *sent_at => map.remove(pubkey_hex),
         _ => None,
+    }
+}
+
+/// The marker a request returns when the daemon did not answer in time.
+pub(crate) const NO_DAEMON_RESPONSE: &str = "NoDaemonResponse";
+
+/// Run [attempt] again, once, if the daemon did not answer the first time.
+///
+/// Meant for a restore: each attempt derives a fresh trade key and opens its
+/// own subscriptions, so a reply lost to a relay that refused or closed the
+/// first one (too many subscriptions) gets a second chance. Any other error,
+/// and a second silence, are returned as they are.
+pub(crate) async fn retry_once_on_no_response<T, A, F>(mut attempt: A) -> anyhow::Result<T>
+where
+    A: FnMut() -> F,
+    F: std::future::Future<Output = anyhow::Result<T>>,
+{
+    match attempt().await {
+        Err(e) if e.to_string() == NO_DAEMON_RESPONSE => {
+            crate::api::logging::blog_warn(
+                "restore",
+                "no daemon reply; retrying once on a fresh trade key".to_string(),
+            );
+            attempt().await
+        }
+        other => other,
     }
 }
 
@@ -782,7 +823,7 @@ mod tests {
             PendingRequest {
                 request_id: 0,
                 trade_index: 4,
-                kind: PendingRequestKind::Restore,
+                kind: PendingRequestKind::Restore { sent_at: 0 },
                 tx: Some(rtx),
             },
         );
@@ -790,16 +831,83 @@ mod tests {
         let _orx = insert_pending_create(order_key, 7);
 
         // take_matching_restore ignores the order record (wrong kind)...
-        assert!(take_matching_restore(order_key).is_none());
+        assert!(take_matching_restore(order_key, 0).is_none());
         assert!(pending_requests().lock().unwrap().contains_key(order_key));
         // ...and matches the restore record with no request_id involved.
-        let taken = take_matching_restore(restore_key).expect("restore must match");
-        assert!(matches!(taken.kind, PendingRequestKind::Restore));
+        let taken = take_matching_restore(restore_key, 0).expect("restore must match");
+        assert!(matches!(taken.kind, PendingRequestKind::Restore { .. }));
         // Consumed on take (the CantDo path removes it exactly once).
-        assert!(take_matching_restore(restore_key).is_none());
+        assert!(take_matching_restore(restore_key, 0).is_none());
 
         // Cleanup the order record so global state does not leak to other tests.
         let _ = take_matching_request(order_key, Some(7));
+    }
+
+    /// A restore is correlated by trade pubkey alone, and after a re-import
+    /// that pubkey is one earlier imports already restored with: the global
+    /// feed replays their replies. Only a reply no older than the request
+    /// (less a clock-skew margin) may resolve it; an old one leaves the
+    /// record for the genuine reply.
+    #[tokio::test]
+    async fn take_matching_restore_ignores_replies_older_than_the_request() {
+        let key = "test-restore-stale-pubkey";
+        let sent_at = 1_000_000;
+        let (tx, _rx) = tokio::sync::oneshot::channel::<Wake>();
+        pending_requests().lock().unwrap().insert(
+            key.to_string(),
+            PendingRequest {
+                request_id: 0,
+                trade_index: 1,
+                kind: PendingRequestKind::Restore { sent_at },
+                tx: Some(tx),
+            },
+        );
+
+        let stale = sent_at - RESTORE_REPLY_SKEW_SECS - 1;
+        assert!(take_matching_restore(key, stale).is_none());
+        assert!(pending_requests().lock().unwrap().contains_key(key));
+
+        // A daemon clock slightly behind ours still counts as this reply.
+        let skewed = sent_at - RESTORE_REPLY_SKEW_SECS;
+        assert!(take_matching_restore(key, skewed).is_some());
+    }
+
+    #[tokio::test]
+    async fn a_restore_without_reply_is_retried_once() {
+        let attempts = std::sync::atomic::AtomicUsize::new(0);
+        let result = retry_once_on_no_response(|| {
+            let n = attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            async move {
+                if n == 0 {
+                    Err(anyhow::anyhow!(NO_DAEMON_RESPONSE))
+                } else {
+                    Ok(3)
+                }
+            }
+        })
+        .await;
+        assert_eq!(result.unwrap(), 3);
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn a_restore_is_never_retried_twice_nor_after_a_real_error() {
+        let attempts = std::sync::atomic::AtomicUsize::new(0);
+        let silent: anyhow::Result<u32> = retry_once_on_no_response(|| {
+            attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            async { Err(anyhow::anyhow!(NO_DAEMON_RESPONSE)) }
+        })
+        .await;
+        assert_eq!(silent.unwrap_err().to_string(), NO_DAEMON_RESPONSE);
+        assert_eq!(attempts.swap(0, std::sync::atomic::Ordering::SeqCst), 2);
+
+        let refused: anyhow::Result<u32> = retry_once_on_no_response(|| {
+            attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            async { Err(anyhow::anyhow!("NotFound")) }
+        })
+        .await;
+        assert!(refused.is_err());
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
     /// A reply with a foreign or missing request_id must leave the record in
@@ -1258,7 +1366,7 @@ mod tests {
                 PendingRequest {
                     request_id: 0,
                     trade_index: 7,
-                    kind: PendingRequestKind::Restore,
+                    kind: PendingRequestKind::Restore { sent_at: 0 },
                     tx: None,
                 },
             );
@@ -1277,15 +1385,15 @@ mod tests {
         }
 
         // A non-RESTORE kind on other_key is never matched by take_matching_restore.
-        assert!(take_matching_restore(&other_key).is_none());
+        assert!(take_matching_restore(&other_key, 0).is_none());
 
         // The RESTORE record is returned...
-        let taken = take_matching_restore(&restore_key);
+        let taken = take_matching_restore(&restore_key, 0);
         assert!(taken.is_some());
-        assert!(matches!(taken.unwrap().kind, PendingRequestKind::Restore));
+        assert!(matches!(taken.unwrap().kind, PendingRequestKind::Restore { .. }));
 
         // ...and removed on take (second call finds nothing).
-        assert!(take_matching_restore(&restore_key).is_none());
+        assert!(take_matching_restore(&restore_key, 0).is_none());
 
         // Clean up the leftover non-restore record so we don't leak global state.
         remove_pending_request(&other_key, 9);
