@@ -7,9 +7,10 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `acquire`, `blog_debug`, `blog_info`, `blog_warn`, `bridge_log`, `buffer_entry`, `buffer`, `default_max_level`, `display_relay`, `forward_log`, `log_sender`, `max_level_for`, `platform_console`, `sanitize_relay_text`, `scrub_secrets`, `set_verbose_logging`, `short_id`, `short_tag`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BridgeLogger`, `ReentryGuard`
+// These functions are ignored because they are not marked as `pub`: `acquire`, `blog_debug`, `blog_info`, `blog_warn`, `bridge_log`, `buffer_entry`, `buffer`, `clear`, `default_max_level`, `display_relay`, `forward_log`, `is_relay_traffic`, `log_sender`, `max_level_for`, `newest_first`, `platform_console`, `push`, `sanitize_relay_text`, `scrub_secrets`, `set_verbose_logging`, `short_id`, `short_tag`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BridgeLogger`, `ReentryGuard`, `Rings`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `drop`, `enabled`, `flush`, `log`
+// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
 /// Install the log capture bridge. Called once from `init_app()`; until it
 /// runs, `log::` records go nowhere.
