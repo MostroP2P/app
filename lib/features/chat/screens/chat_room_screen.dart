@@ -11,6 +11,8 @@ import 'package:mostro/features/chat/widgets/info_panels.dart';
 import 'package:mostro/features/chat/widgets/message_bubble.dart';
 import 'package:mostro/features/chat/widgets/message_input.dart';
 import 'package:mostro/features/chat/widgets/trade_state_header.dart';
+import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
@@ -146,8 +148,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
-  Future<void> _markRead() =>
-      _markReadWith(ref.read(chatRoomsNotifierProvider.notifier));
+  Future<void> _markRead() async {
+    final notifications = ref.read(notificationsProvider.notifier);
+    // Record read intent before either storage call yields. The notifier can
+    // mark the persisted card even while its initial load is still pending.
+    final cardRead = notifications.markAsRead(
+      NotificationModel.chatCardId(widget.orderId, fromSolver: false),
+    );
+    await _markReadWith(ref.read(chatRoomsNotifierProvider.notifier));
+    await cardRead;
+  }
 
   /// [rooms] is passed in rather than read from `ref` so [_flushMarkRead]
   /// can run it from [dispose].
@@ -529,11 +539,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
         // Composition bar
         Padding(
-          padding: EdgeInsets.only(
+          padding: const EdgeInsets.only(
             left: AppSpacing.sm,
             right: AppSpacing.sm,
-            bottom:
-                MediaQuery.of(context).viewInsets.bottom + AppSpacing.sm,
+            bottom: AppSpacing.sm,
             top: AppSpacing.xs,
           ),
           // A closed trade's conversation opens read-only (handoff 11b), and
@@ -552,9 +561,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     );
 
     return Scaffold(
-      // Keyboard avoidance is handled manually via viewInsets.bottom padding
-      // on the composition bar so the BottomNavBar does not push content twice.
-      resizeToAvoidBottomInset: false,
+      // The Scaffold owns keyboard avoidance: the body ends at the taller of
+      // the keyboard and the BottomNavBar, never their sum, so the composer
+      // must not add viewInsets itself.
       appBar: AppBar(
         leading: const BackButton(),
         title: _AppBarTitle(room: room),

@@ -108,3 +108,13 @@ void refreshTrades(WidgetRef ref) => ref.invalidate(rawTradesProvider);
 final orderBookNotificationCountProvider = Provider<int>(
   (ref) => ref.watch(needsActionCountProvider),
 );
+
+// ── Hydration (resume) ────────────────────────────────────────────────────────
+
+/// Re-read the trade list from the bridge. The cold-start path is the same
+/// query, so this only drops the cache; every watcher refetches. Called by
+/// the resume routine after `resync()` (lib/core/lifecycle/resume_resync.dart).
+Future<void> hydrateTrades(ProviderContainer container) async {
+  container.invalidate(rawTradesProvider);
+  await container.read(rawTradesProvider.future);
+}

@@ -3,7 +3,7 @@
 ## Language
 
 - **Everything published to this repository must be written in English.** This includes code, code comments, identifiers, commit messages, branch names, PR titles and descriptions, review comments, issues, and documentation.
-- The **only** exception is user-facing UI copy, which is localized through Flutter l10n ARB files (`lib/l10n/app_{en,es,fr,de,it}.arb`); the source language there is still English (`app_en.arb`).
+- The **only** exception is user-facing UI copy, which is localized through Flutter l10n ARB files (`lib/l10n/app_{en,es,fr,de,it,nl}.arb`); the source language there is still English (`app_en.arb`).
 - Keep English as the default even when discussing changes informally — the public history of the project stays in one language.
 
 ## Project Structure & Module Organization
@@ -32,7 +32,7 @@ Rust is a **library** — there is no `cargo run`; the app is launched through F
 
 - `cd rust && cargo build` — build the Rust core.
 - `cd rust && cargo test && cargo clippy` — mandated verify for Rust (keep clippy warning-free).
-- `./scripts/frb-generate.sh` — regenerate the FRB bindings **after any change to `rust/src/api/`**. It refuses to run when your local codegen CLI does not match the version pinned in `pubspec.yaml`.
+- `./scripts/frb-generate.sh` — regenerate the FRB bindings **after any change to `rust/src/api/`**. It refuses to run when your local codegen CLI does not match the version pinned in `pubspec.yaml`. The output is **committed**: commit it together with the `api/` change.
 - `flutter pub get` — sync Dart dependencies after pulling or switching branches.
 - `flutter analyze && flutter test` — enforce lints and run the Dart suites; keep the tree warning-free.
 - `flutter gen-l10n` — regenerate `AppLocalizations` after editing `lib/l10n/*.arb`.
@@ -71,5 +71,5 @@ Rust is a **library** — there is no `cargo run`; the app is launched through F
   flutter test
   ```
 
-- **Generated code is not documentation to edit:** never hand-edit `lib/src/rust/`. Regenerate it with `./scripts/frb-generate.sh`.
+- **Generated code is not documentation to edit:** never hand-edit or hand-merge `lib/src/rust/` or `lib/l10n/app_localizations*.dart`. Regenerate them (`./scripts/frb-generate.sh`, `flutter gen-l10n`) and commit the result. For conflicts, see CONTRIBUTING.md → "Resolving conflicts in generated files".
 - Specs are a **living artifact** — update the matching spec/contract in `specs/` or `.specify/` as part of any behavior or contract change.

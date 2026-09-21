@@ -14,12 +14,14 @@ import 'package:mostro/shared/providers/nav_providers.dart';
 /// Badge count for the Chat tab. Will be wired to Rust bridge.
 final chatNotificationCountProvider = StateProvider<int>((_) => 0);
 
-const double _barHeight = 68;
+const double _barHeight = 76;
 
 /// Bottom navigation bar with 3 tabs: Order Book, My Trades, Chat.
 ///
-/// Order-book handoff 4b: 68 tall on the navigation surface under a hairline,
-/// each destination a 20-dp icon over a 10-dp label, lime when active.
+/// Order-book handoff 4b: on the navigation surface under a hairline, each
+/// destination a 20-dp icon over a 10-dp label, lime when active. The handoff's
+/// 68 tall with a 6-dp bottom inset left the content hugging the top edge, so
+/// the bar is 76 tall with the content centred between equal margins.
 class BottomNavBar extends ConsumerWidget {
   const BottomNavBar({super.key});
 
@@ -82,11 +84,13 @@ class BottomNavBar extends ConsumerWidget {
           border: Border(top: BorderSide(color: palette.navBorder)),
         ),
         child: Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom,
+          ),
           child: SizedBox(
             height: _barHeight,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
                   for (final (index, destination) in destinations.indexed)

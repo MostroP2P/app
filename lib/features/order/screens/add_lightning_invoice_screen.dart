@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,24 +12,45 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
-import 'package:mostro/core/invoice_palette.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/invoice_clock.dart';
+import 'package:mostro/features/order/widgets/invoice_input_field.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
 import 'package:mostro/shared/widgets/peer_reputation_card.dart';
 import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
+import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart'
     show OrderStatus, TradeInfo, TradeUpdate;
+
+/// Whether a trade in [status] no longer wants the buyer's invoice because it
+/// moved on: the daemon took one, and the trade screen is where it continues.
+///
+/// `settledHoldInvoice` is not over: after a failed payout the daemon asks
+/// for a new invoice while the order still reads settled — also after an
+/// admin settle, which mostrod records as `settled-hold-invoice` before
+/// paying, so the admin outcomes below are final. Cancellations end the step
+/// too, but leave for home with their own notice (`_listenForCancellation`).
+bool invoiceStepIsOver(OrderStatus status) => switch (status) {
+  OrderStatus.active ||
+  OrderStatus.fiatSent ||
+  OrderStatus.dispute ||
+  OrderStatus.success ||
+  OrderStatus.settledByAdmin ||
+  OrderStatus.completedByAdmin => true,
+  _ => false,
+};
 
 /// 13a · Receive your sats — Route `/add_invoice/:orderId`.
 ///
@@ -42,6 +64,7 @@ class AddLightningInvoiceScreen extends ConsumerStatefulWidget {
     this.amountSats,
     this.generateInvoice,
     this.submitInvoice,
+    this.recoverState,
   });
 
   final String orderId;
@@ -59,6 +82,11 @@ class AddLightningInvoiceScreen extends ConsumerStatefulWidget {
   @visibleForTesting
   final Future<void> Function(String orderId, String invoice, BigInt sats)?
   submitInvoice;
+
+  /// Test seam for the state recovery after a status rejection; production
+  /// runs the core's `resync()`, which replays the daemon's messages.
+  @visibleForTesting
+  final Future<void> Function()? recoverState;
 
   @override
   ConsumerState<AddLightningInvoiceScreen> createState() =>
@@ -109,21 +137,44 @@ class _AddLightningInvoiceScreenState
   /// rather than being held for a bridge that is not there.
   bool _checkerAvailable = true;
 
+  /// Whether `Paste` is offered. Only whether the clipboard holds text is
+  /// asked, never its content: reading it would show the OS paste notice
+  /// on every visit. On web even that asks the browser for clipboard
+  /// permission, so the button is always there.
+  bool _clipboardHasText = kIsWeb;
+
+  /// Re-asks the clipboard when the buyer comes back from their wallet.
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     _focus.addListener(() => setState(() {}));
+    _lifecycle = AppLifecycleListener(onResume: _refreshClipboard);
+    _refreshClipboard();
     ref.listenManual<AsyncValue<int?>>(
       invoiceDeadlineProvider(widget.orderId),
       (_, next) => trackInvoiceDeadline(next.valueOrNull),
       fireImmediately: true,
     );
+    _prefillDefaultLightningAddress();
+  }
+
+  /// Starts the field with the Lightning address saved in Settings. Only a
+  /// suggestion: the buyer still presses send to agree to be paid there.
+  void _prefillDefaultLightningAddress() {
+    final address = normalizeInvoiceInput(
+      ref.read(settingsProvider).defaultLightningAddress ?? '',
+    );
+    if (address.isEmpty) return;
+    _setInput(address);
   }
 
   @override
   void dispose() {
     _checkTimer?.cancel();
     _expiryTimer?.cancel();
+    _lifecycle.dispose();
     _invoiceController.dispose();
     _focus.dispose();
     super.dispose();
@@ -292,24 +343,24 @@ class _AddLightningInvoiceScreenState
     // cancel is in flight (review round 1).
     if (_submitting || _canceling) return;
     final l10n = AppLocalizations.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showMostroDialog<bool>(
       context: context,
       builder:
-          (ctx) => AlertDialog(
-            title: Text(l10n.cancelTradeDialogTitle),
+          (ctx) => MostroDialog(
+            title: l10n.cancelTradeDialogTitle,
             // This screen only exists before the trade goes active, where
             // mostrod cancels at once — no cooperative request.
-            content: Text(l10n.cancelTradeDialogContentNotStarted),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(l10n.noButtonLabel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(l10n.yesCancelButtonLabel),
-              ).withAutomationId(AutomationIds.tradeCancelConfirm),
-            ],
+            body: l10n.cancelTradeDialogContentNotStarted,
+            secondary: ModalAction(
+              label: l10n.noButtonLabel,
+              onPressed: () => Navigator.pop(ctx, false),
+            ),
+            primary: ModalAction(
+              label: l10n.yesCancelButtonLabel,
+              onPressed: () => Navigator.pop(ctx, true),
+              tone: ModalTone.destructive,
+              automationId: AutomationIds.tradeCancelConfirm,
+            ),
           ),
     );
     if (!mounted || confirmed != true) return;
@@ -372,7 +423,9 @@ class _AddLightningInvoiceScreenState
       final submit = widget.submitInvoice ?? _bridgeSubmit;
       await submit(widget.orderId, input, sats);
 
-      if (!mounted) return;
+      // The status listener may have left already on the same reply.
+      if (!mounted || _navigated) return;
+      _navigated = true;
       context.go(AppRoute.tradeDetailPath(widget.orderId));
     } catch (e) {
       if (!mounted) return;
@@ -384,17 +437,31 @@ class _AddLightningInvoiceScreenState
         r'^.*?AnyhowException\((.+)\)$',
       ).firstMatch(raw);
       final msg = anyhowMatch != null ? anyhowMatch.group(1)! : raw;
-      final display = localizedDaemonError(
-        AppLocalizations.of(context),
-        msg,
-        fallback: msg,
-      );
+      // The daemon no longer waits for an invoice while this screen does:
+      // a message was missed (typically the acknowledgement of an earlier
+      // submission that outran its reply window). Ask for it again; the
+      // status it carries is what takes the buyer off this screen.
+      final statusRejection = isStatusRejection(msg);
+      if (statusRejection) unawaited(_recoverState());
+      final l10n = AppLocalizations.of(context);
+      final display =
+          statusRejection
+              ? l10n.invoiceNoLongerExpected
+              : localizedDaemonError(l10n, msg, fallback: msg);
       setState(() => _lastError = display);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(display)));
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _recoverState() async {
+    try {
+      await (widget.recoverState ?? nostr_api.resync)();
+    } catch (e) {
+      debugPrint('[AddLightningInvoiceScreen] state recovery failed: $e');
     }
   }
 
@@ -407,6 +474,19 @@ class _AddLightningInvoiceScreenState
     invoiceOrAddress: invoice,
     amountSats: sats,
   );
+
+  Future<void> _refreshClipboard() async {
+    if (kIsWeb) return;
+    bool hasText;
+    try {
+      hasText = await Clipboard.hasStrings();
+    } catch (e) {
+      debugPrint('[AddLightningInvoiceScreen] clipboard unavailable: $e');
+      hasText = false;
+    }
+    if (!mounted || hasText == _clipboardHasText) return;
+    setState(() => _clipboardHasText = hasText);
+  }
 
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
@@ -494,6 +574,25 @@ class _AddLightningInvoiceScreenState
     });
   }
 
+  /// Leave for the trade once the order moves past the invoice step. The
+  /// submission's own reply is not enough to rely on: it is awaited for 10 s,
+  /// and an acknowledgement that arrives later — or is only recovered by a
+  /// replay — would otherwise leave the form asking for an invoice the daemon
+  /// rejects with `NotAllowedByStatus`.
+  void _listenForProgress() {
+    ref.listen<AsyncValue<OrderStatus>>(tradeStatusProvider(widget.orderId), (
+      prev,
+      next,
+    ) {
+      final status = next.valueOrNull;
+      if (status == null || _navigated || !mounted) return;
+      if (!invoiceStepIsOver(status)) return;
+      _navigated = true;
+      refreshTrades(ref);
+      context.go(AppRoute.tradeDetailPath(widget.orderId));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // The verdict depends on the node's metadata: rebuild — and so re-judge
@@ -512,6 +611,7 @@ class _AddLightningInvoiceScreenState
     );
 
     _listenForCancellation(l10n);
+    _listenForProgress();
 
     // Resolve sats: provider first (live polling), fall back to constructor param.
     final sats = _resolvedSats(ref);
@@ -697,7 +797,17 @@ class _AddLightningInvoiceScreenState
                         ),
                       ),
         ),
-        _invoiceField(l10n),
+        InvoiceInputField(
+          controller: _invoiceController,
+          focusNode: _focus,
+          onChanged: _onInputChanged,
+          onPaste: _clipboardHasText ? _paste : null,
+          onScan: _scan,
+          validSats: check is InvoiceCheckValid ? check.sats : null,
+          isValid: check is InvoiceCheckValid || check is InvoiceCheckAddress,
+          isAddress: check is InvoiceCheckAddress,
+          hasError: error != null || check is InvoiceCheckError,
+        ),
         if (error != null) ...[
           const SizedBox(height: 8),
           error,
@@ -727,92 +837,6 @@ class _AddLightningInvoiceScreenState
           onPressed: (_submitting || _canceling) ? null : _cancelOrder,
         ).withAutomationId(AutomationIds.invoiceCancel),
       ],
-    );
-  }
-
-  Widget _invoiceField(AppLocalizations l10n) {
-    final book = OrderBookPalette.of(context);
-    final pal = InvoicePalette.of(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      padding: const EdgeInsets.fromLTRB(16, 4, 4, 14),
-      decoration: BoxDecoration(
-        color: book.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _focus.hasFocus ? pal.fieldFocusBorder : pal.cardBorder,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.invoiceFieldLabel.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.66,
-                    color: book.textSecondary,
-                  ),
-                ),
-              ),
-              InvoiceIconAction(
-                icon: Icons.content_paste,
-                tooltip: l10n.pasteButtonLabel,
-                onPressed: _paste,
-              ),
-              InvoiceIconAction(
-                icon: Icons.qr_code_scanner,
-                tooltip: l10n.scanQrButtonLabel,
-                onPressed: _scan,
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: TextField(
-              controller: _invoiceController,
-              focusNode: _focus,
-              minLines: 1,
-              maxLines: 4,
-              autocorrect: false,
-              enableSuggestions: false,
-              enableIMEPersonalizedLearning: false,
-              keyboardType: TextInputType.visiblePassword,
-              cursorColor: book.lime,
-              cursorWidth: 1.5,
-              cursorHeight: 17,
-              decoration: InputDecoration(
-                // The value sits on the card itself: none of the theme's
-                // fill or underline.
-                isDense: true,
-                filled: false,
-                contentPadding: EdgeInsets.zero,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                hintText: l10n.invoiceFieldHint,
-                hintStyle: TextStyle(
-                  fontFamily: AppFonts.figures,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: book.textTertiary,
-                ),
-              ),
-              style: TextStyle(
-                fontFamily: AppFonts.figures,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: book.textPrimary,
-              ),
-              onChanged: (_) => _onInputChanged(),
-            ).withAutomationId(AutomationIds.invoiceText),
-          ),
-        ],
-      ),
     );
   }
 

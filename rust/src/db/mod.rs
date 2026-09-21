@@ -1,8 +1,6 @@
 pub mod app_db;
 #[cfg(target_arch = "wasm32")]
 pub mod indexeddb;
-#[cfg(target_arch = "wasm32")]
-pub mod web_lock;
 pub mod schema;
 pub mod seeds;
 #[cfg(not(target_arch = "wasm32"))]
@@ -11,6 +9,8 @@ pub mod sqlite;
 /// natively, where the trait implementation that calls it does not exist.
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod trade_json;
+#[cfg(target_arch = "wasm32")]
+pub mod web_lock;
 
 use anyhow::Result;
 
@@ -24,6 +24,27 @@ pub mod settings_keys {
     /// [`super::Storage::save_active_mostro_pubkey`] accessor.
     pub const ACTIVE_MOSTRO_PUBKEY: &str = "active_mostro_pubkey";
 
+    /// Nodes the user switched away from that may still send a payout claim,
+    /// JSON map of pubkey (hex) → unix seconds until which they stay on the
+    /// kind-14 filter (docs/ANTI_ABUSE_BOND.md §6.4).
+    pub const BOND_CLAIM_RETAINED_NODES: &str = "bond_claim_retained_nodes";
+
+    // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────
+
+    /// The master toggle, `"true"` / `"false"`; absent reads as enabled.
+    pub const PUSH_ENABLED: &str = "push_enabled";
+    /// The device token Dart last handed over, so a restart can unregister
+    /// before the device hands one over again.
+    pub const PUSH_TOKEN: &str = "push_token";
+    /// The platform of [`PUSH_TOKEN`]: `android`, `ios` or `web`.
+    pub const PUSH_PLATFORM: &str = "push_platform";
+    /// Every trade pubkey registered with the push server, JSON map of
+    /// pubkey (hex) → [`crate::mostro::push::PushRegistration`].
+    pub const PUSH_REGISTRATIONS: &str = "push_registrations";
+    /// Nodes the push server operator refused, JSON map of node (hex) →
+    /// unix seconds of the `403`; each entry clears per §7.1.
+    pub const PUSH_NODE_REFUSALS: &str = "push_node_refusals";
+
     /// User-added Mostro nodes, JSON array of `crate::api::nodes::CustomNode`.
     /// The trusted registry is compiled in (`crate::config::TRUSTED_MOSTRO_NODES`);
     /// only user additions are persisted.
@@ -33,6 +54,13 @@ pub mod settings_keys {
     /// pubkey (hex) → `crate::api::nodes::NodeMetadata`. Refreshed opportunistically
     /// by `refresh_mostro_node_metadata`; stale entries are acceptable.
     pub const MOSTRO_NODE_METADATA: &str = "mostro_node_metadata";
+
+    /// Cached kind 38385 instance events of known Mostro nodes, JSON map of
+    /// pubkey (hex) → `crate::api::node_stats::CachedNodeInfo` (the event's
+    /// `created_at` and raw tags). Lets the node selector paint fee, range,
+    /// currencies, custody and bond before any relay answers; refreshed at
+    /// startup and by every `fetch_mostro_node_stats`.
+    pub const MOSTRO_NODE_INFO: &str = "mostro_node_info";
 
     /// Developer escrow-mode override — `"auto"` or `"force_cashu"`.
     /// See [`crate::mostro::escrow_mode::EscrowModeOverride`].
@@ -101,12 +129,15 @@ pub mod settings_keys {
         format!("{STATUS_CURSOR_PREFIX}{order_id}")
     }
 
+    /// Prefix of [`invoice_step_start`] keys.
+    pub const INVOICE_STEP_PREFIX: &str = "invoice_step_start:";
+
     /// Per-order start of the current invoice step (`<status>:<unix secs>`,
     /// node clock), written only by the AddInvoice / PayInvoice arms. Unlike
     /// [`status_cursor`], later messages for the same step never advance it,
     /// so the invoice screens' countdown cannot be pushed out.
     pub fn invoice_step_start(order_id: &str) -> String {
-        format!("invoice_step_start:{order_id}")
+        format!("{INVOICE_STEP_PREFIX}{order_id}")
     }
 
     /// Per-order tombstone marking the trade row as deleted **on purpose** —
@@ -130,6 +161,20 @@ pub mod settings_keys {
     /// Cleared whenever a trade row is (re)created for the order id — a
     /// canceled order can be legitimately re-taken (`persist_trade_row`).
     pub const TRADE_WIPED_PREFIX: &str = "trade_wiped:";
+
+    /// Every per-order key family above, plus the one identity-scoped map.
+    /// All of it describes trades of the identity that wrote it, so
+    /// [`super::Storage::clear_identity_data`] drops it with the rows. What
+    /// is left in the store is device preference: the active node, custom
+    /// nodes, node caches, push token and toggle, developer overrides.
+    pub const IDENTITY_SCOPED_PREFIXES: [&str; 6] = [
+        CHAT_CURSOR_PREFIX,
+        DISPUTE_ADMIN_PREFIX,
+        DISPUTE_MINE_PREFIX,
+        STATUS_CURSOR_PREFIX,
+        INVOICE_STEP_PREFIX,
+        TRADE_WIPED_PREFIX,
+    ];
 
     /// Build the settings key marking `order_id`'s trade row as wiped.
     pub fn trade_wiped(order_id: &str) -> String {
@@ -160,6 +205,9 @@ pub trait Storage: Send + Sync {
 
     async fn save_message(&self, msg: &crate::api::types::ChatMessage) -> Result<()>;
     async fn list_messages(&self, trade_id: &str) -> Result<Vec<crate::api::types::ChatMessage>>;
+    /// Unread messages across all trades, including closed or removed trades.
+    /// Notification recovery must not depend on a live chat subscription.
+    async fn list_unread_messages(&self) -> Result<Vec<crate::api::types::ChatMessage>>;
     async fn mark_messages_read(&self, trade_id: &str) -> Result<()>;
 
     /// `true` if a message with this id was already accepted and stored.
@@ -208,6 +256,15 @@ pub trait Storage: Send + Sync {
     /// Delete ALL trade key entries. Used on identity deletion — the
     /// order→index mappings belong to the removed identity's derivation tree.
     async fn clear_trade_keys(&self) -> Result<()>;
+
+    /// Delete everything the current identity produced: trades, chat
+    /// messages, payout claims, the outbound queue, the cached order book
+    /// (its `is_mine` marks are the identity's) and the per-order settings
+    /// ([`settings_keys::IDENTITY_SCOPED_PREFIXES`] and the retained-nodes
+    /// map). Used on identity deletion, next to [`Self::clear_trade_keys`]:
+    /// a new user must start as on a fresh install (issue #533). Relays,
+    /// the node choice and preferences stay — they belong to the device.
+    async fn clear_identity_data(&self) -> Result<()>;
 
     // ── Settings / Mostro node ────────────────────────────────────────────────
 
@@ -293,6 +350,17 @@ pub trait Storage: Send + Sync {
     /// exists.
     async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()>;
 
+    /// Record who asked to cancel an active trade cooperatively
+    /// (`$.cooperative_cancel_state`) on the trade identified by `order.id`.
+    /// The status is left alone: the protocol has no cancel-requested status,
+    /// the trade goes on until the counterparty also cancels. No-op when no
+    /// matching trade exists.
+    async fn set_cooperative_cancel_state(
+        &self,
+        order_id: &str,
+        state: crate::api::types::CooperativeCancelState,
+    ) -> Result<()>;
+
     /// Persist the counterparty's trade pubkey on the trade identified by
     /// `order.id` (issue #334). Written when a daemon message reveals it, for
     /// both roles — the trade row is the durable peer record; the in-memory
@@ -304,4 +372,22 @@ pub trait Storage: Send + Sync {
         order_id: &str,
         counterparty_pubkey: &str,
     ) -> Result<()>;
+
+    // ── Bond payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ───────────────────
+
+    /// Insert or replace the claim keyed by its `(node_pubkey, order_id)`.
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()>;
+
+    /// The claim a node issued for an order, if any.
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>>;
+
+    /// Every claim, most recently changed first.
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>>;
+
+    /// Remove one claim. No-op when absent.
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()>;
 }

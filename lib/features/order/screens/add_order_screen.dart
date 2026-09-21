@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/core/daemon_errors.dart';
@@ -12,6 +13,9 @@ import 'package:mostro/features/about/models/mostro_instance.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/models/create_order_rules.dart';
+import 'package:mostro/features/order/models/order_detail_rules.dart'
+    show estimateSats;
+import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/order_side_provider.dart';
 import 'package:mostro/features/order/widgets/amount_section.dart';
@@ -187,6 +191,35 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
           _canonical(_maxController.text, symbols),
         ]
       : [_canonical(_amountController.text, symbols)];
+
+  /// The deposit notice with the core's estimate when the order's sats can
+  /// be told — fixed sats, or the fiat at the node's rate; a range is sized
+  /// on its maximum, as the daemon does (docs/ANTI_ABUSE_BOND.md §2.8) — and
+  /// without a figure otherwise. An estimate only: the daemon sends the bolt11.
+  String _bondNotice(
+    AppLocalizations l10n, {
+    required String locale,
+    required bool isMarket,
+    required String fixedSatsStr,
+    required List<String?> amounts,
+    required double? rate,
+    required double premium,
+  }) {
+    final sats = !isMarket && fixedSatsStr.isNotEmpty
+        ? int.tryParse(fixedSatsStr)
+        : estimateSats(
+            fiat: double.tryParse(amounts.last ?? '') ?? 0,
+            rate: rate,
+            premium: isMarket ? premium : 0,
+          );
+    final estimate = sats == null || sats <= 0
+        ? null
+        : ref.watch(bondEstimateProvider(sats)).valueOrNull;
+    if (estimate == null) return l10n.createOrderBondNotice;
+    return l10n.createOrderBondNoticeEstimate(
+      NumberFormat.decimalPattern(locale).format(estimate),
+    );
+  }
 
   /// [marketAmountsOutOfNodeRange] over whichever amount fields are in play.
   ({int minSats, int maxSats, FiatAmountLimits limits})? _fiatRangeError(
@@ -368,6 +401,16 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       refreshTrades(ref);
 
       if (!mounted) return;
+      // A bond node parks the order behind the maker's deposit: it is not
+      // published until the bond is paid (docs/ANTI_ABUSE_BOND.md §6.2).
+      if (order.status == OrderStatus.waitingMakerBond) {
+        // The order's own screen underneath, so the back arrow leaves the
+        // deposit for later (`order.payBond` reopens it) instead of
+        // leaving no way out but abandoning.
+        context.go(AppRoute.myOrderPath(order.id));
+        context.push(AppRoute.payBondPath(order.id));
+        return;
+      }
       context.go(AppRoute.myOrderPath(order.id));
     } catch (e) {
       if (!mounted) return;
@@ -440,6 +483,22 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       fiatRangeError: fiatRangeError,
       fiatCode: fiatCode,
     );
+    // A node that bonds makers asks for a deposit before publishing
+    // (docs/ANTI_ABUSE_BOND.md §6.2): said here, before the tap.
+    final bondNotice = makerBondApplies(
+          policy: node?.bondPolicy,
+          applyTo: node?.bondApplyTo,
+        )
+        ? _bondNotice(
+            l10n,
+            locale: locale,
+            isMarket: isMarket,
+            fixedSatsStr: fixedSatsStr,
+            amounts: amounts,
+            rate: rate,
+            premium: premium,
+          )
+        : null;
 
     return Scaffold(
       backgroundColor: palette.bg,
@@ -451,7 +510,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
           icon: Icon(Icons.arrow_back, size: 22, color: palette.textBody),
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           onPressed: () => context.pop(),
-        ),
+        ).withAutomationId(AutomationIds.appBarBack),
         titleSpacing: 0,
         title: Text(
           l10n.newOrderTitle,
@@ -531,6 +590,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
               )
             : null,
         error: rangeWarning,
+        notice: bondNotice,
         premiumFavour: premiumFavour(side, premium),
         canSubmit: isValid,
         isSubmitting: _submitting,

@@ -1,6 +1,6 @@
 # Anti-Abuse Bond — Client Implementation Spec & Phased Plan
 
-**Status:** Draft — planning document for epic [#145](https://github.com/MostroP2P/app/issues/145)
+**Status:** Implemented — every phase in §10 has landed (PR-5 closes epic [#145](https://github.com/MostroP2P/app/issues/145)); kept as the design reference for bond support in this client
 **Goal:** let this client trade against a `mostrod` node that requires an anti-abuse bond, on every side the node enforces it (taker, maker, or both), including the payout claim and the forfeiture notice
 **Audience:** contributors implementing bond support in this client (appv2), human and AI reviewers of the PRs that land it
 **Upstream reference:** [`MostroP2P/mostro` — `docs/ANTI_ABUSE_BOND.md`](https://github.com/MostroP2P/mostro/blob/main/docs/ANTI_ABUSE_BOND.md) (the daemon-side spec, the single source of truth for the protocol)
@@ -795,9 +795,20 @@ single Close button. Errors via `localizedDaemonError` with new markers.
 - `add-bond-invoice` (new claim): "You can claim N sats from a slashed bond" → claim
   screen.
 - `bond-payout-completed`: "Bond payout of N sats received".
-- Push notifications: routed through the existing push pipeline only if the trade
-  update path already produces pushes; otherwise deferred (tracked as an open item,
-  §13).
+- Push notifications: **not routed — the pipeline cannot carry these events** (T5.2,
+  verified in PR-5). The push server watches relays for kind 14 p-tagged to a
+  registered trade pubkey and sends a content-free wake-up (`contracts/nostr.md`,
+  `register_push_token`). It cannot decrypt the message, so no payload can say
+  `add-bond-invoice` or `bond-payout-completed`; the typed `type` / `orderId`
+  payloads `push_notification_service.dart` routes on have no producer for any
+  action today. Two more gaps stand in the way: nothing in the app registers a
+  trade pubkey with the server yet (`registerToken` has no caller), and a claim is
+  addressed to the slashed attempt's trade key, which may belong to a wiped trade.
+  Bond notices therefore come from the in-app notifications the kind-14
+  subscription feeds while the app runs. Background delivery belongs to the push
+  pipeline itself (a wake-up, then local fetch and decryption), and once that
+  exists bond actions need no routing of their own: they are decrypted and
+  dispatched like every other daemon message.
 
 ---
 
@@ -811,13 +822,14 @@ deletion, `#197`) **does not port**:
   `rust/src/api/orders.rs:5276`) for the life of the process, independently of the
   trade row. A trailing `bond-slashed` after a `canceled` wipe is still received and
   decrypted; the `BondSlashed` arm is already exempt from the row gates.
-- What must be **verified and tested** (task T4.2): after a **restart**, keys of wiped
-  trades are re-added to the global filter (the `trade_keys` table keeps
-  `(order_id, key_index)` and the wipe records `wiped_index`). If they are not, a
-  `bond-slashed` or `add-bond-invoice` arriving during the restart gap is lost until the
-  daemon's next retry (claims) or forever (slash notice). The fix, if needed, is to seed
-  the global filter from `trade_keys` at startup, bounded to keys used in the last
-  `bond_payout_claim_window_days` + margin.
+- **Verified (T4.2, PR-4a):** after a restart the coverage is seeded by deriving every
+  key up to the identity's `trade_key_index` (`build_trade_key_map`), independently of
+  the trade rows and of the `trade_keys` table, so a wiped trade's key is back on the
+  filter as soon as the pool starts; a `bond-slashed` for it is delivered and reaches
+  the notification layer (`a_slash_for_a_wiped_trade_is_still_delivered_after_a_reseed`).
+  No `trade_keys`-based seeding is needed. The one gap left is the restart window itself
+  (the process is down): a slash notice sent then is on the relays and comes in with the
+  global feed's history replay; a claim request comes in with the daemon's next retry.
 - **Claims survive everything** because they live in their own store and the daemon
   re-sends the request on a cadence until the deadline.
 - **Restore session** rebuilds bond statuses (§6.5). The pending-request registry is
@@ -961,6 +973,19 @@ between `add-bond-invoice` and the submission loses nothing.
 
 **PR-5** — T5.1 + T5.2 + T5.3 grouped: docs and test plumbing, no protocol change.
 
+What PR-5 found and did:
+
+- **T5.1** — the CI smoke run sets `SMOKE_BOND_STORE=1`. It seeds a `Pending` claim
+  and two trades, one at `WaitingTakerBond` and one at `WaitingMakerBond`, into the
+  IndexedDB database the first load created. It then reloads and requires the app to
+  read all three back through the bridge (`lib/core/web/store_probe.dart`). The seed
+  file is decoded by a Rust unit test, and the self-test holds the check down with a
+  passing fixture, one that loses the rows, and one without the stores.
+- **T5.2** — documented gap, not routing: see §8.5.
+- **T5.3** — `CLAUDE.md` gotchas, `specs/004` contracts and data model, this status
+  line, and 69 l10n keys no code referenced (none bond-related) removed from all five
+  locales.
+
 ### Issue mapping
 
 | Issue | Phase / PRs |
@@ -1059,29 +1084,31 @@ trades, the pre-take/pre-create estimate, and web parity of the claim store.
 
 ## 13. Open questions and assumptions to verify
 
-1. **Restart coverage of wiped trade keys** (§9, T4.2) — assumed to need work; verify
-   before PR-4b.
+1. **Restart coverage of wiped trade keys** (§9, T4.2). *Resolved in Phase 4:*
+   verified with a restart test; the result is recorded in §9.
 2. **Does `RestoreData` include `waiting-taker-bond` / `waiting-maker-bond` orders?**
-   Assumed yes (they are open orders on the daemon side). If the daemon filters them,
-   the local rows are the only record and the "request again" path is the recovery.
-3. **bolt11 decoder crate.** `lightning-invoice` (rust-lightning) is the candidate:
-   pure Rust, `no_std`-capable, builds for `wasm32-unknown-unknown`. Confirm it does
-   not drag a conflicting `secp256k1` / `bitcoin` version into the tree next to
-   `bip32` / `k256` before PR-1a; if it does, a minimal bech32 + tagged-field reader
-   for the `x` (expiry) and `c`/timestamp fields is acceptable (no signature check is
-   needed — the daemon is the trusted source of the invoice).
+   *Resolved in PR-4b:* the restore builds a bond-window row for every restored order
+   parked on a bond (`persist_restored_bond_rows`). If a daemon filters them out, no row
+   is created, and the local rows from before the restore stay the only record, with
+   "request again" as the recovery.
+3. **bolt11 decoder crate.** *Resolved in Phase 1:* `lightning-invoice` 0.34 is in the
+   tree (`rust/Cargo.toml`, `api/invoice.rs::decode_bolt11`) and builds for
+   `wasm32-unknown-unknown` in CI. No signature check is made; the daemon is the
+   trusted source of the invoice.
 7. **Upstream follow-ups to propose** (not blockers): ship `claim_window_days` or
    `deadline_at` inside `BondPayoutRequest` so the deadline is immutable end to end;
    an idempotent re-request for a maker bond bolt11 (or the bolt11 in `RestoreData`)
    so a fresh-device restore does not strand a `WaitingMakerBond` order; a cause field
    on `bond-slashed`.
-4. **Amount seeding for a seller-as-taker.** The existing `PayInvoice` arm seeds
-   `order.amount_sats` from the payload; confirm the `PayBondInvoice` payload's
-   `amount` (the bond) is never used for that seeding (T1.1 test).
-5. **Push pipeline capability** for data-only bond events (T5.2).
-6. **Concurrent-bond visibility**: after a lost race the local book must show the order
-   as available again only if the wire still says `pending`; the existing
-   `settle_after_lost_take` path is expected to cover this — confirm in T1.2 tests.
+4. **Amount seeding for a seller-as-taker.** *Resolved in Phase 1:* the
+   `PayBondInvoice` payload's `amount` is the bond and never seeds
+   `order.amount_sats`; `classify_take_reply` and the dispatch tests assert it.
+5. **Push pipeline capability** for data-only bond events (T5.2). *Resolved in PR-5:*
+   the pipeline is content-free by design, so it cannot carry them; see §8.5.
+6. **Concurrent-bond visibility.** *Resolved in Phase 1:* a `canceled` during the bond
+   window while the order is still public wipes the row, reports `BondLostRace`, and
+   leaves the order in the book
+   (`a_canceled_during_the_bond_window_reads_as_a_lost_race`).
 
 ---
 

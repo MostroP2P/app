@@ -1,0 +1,246 @@
+name: Release builds (desktop / iOS)
+
+# The Linux, Windows, macOS and iOS artifacts of a release, as a reusable
+# workflow with two callers (docs/RELEASING.md):
+#
+#   release.yml          a pushed tag — the artifacts are attached to the release
+#   release-dry-run.yml  a PR that touches these builds — same jobs, nothing published
+#
+# Nothing here can be compiled on a contributor's Linux box except the Linux job,
+# so the dry run is the only place a broken Windows, macOS or iOS build shows
+# before a release does. Edit the builds here, never in a caller, or the dry run
+# stops testing what ships. Asset names are a contract with
+# tool/release/downloads.dart (test/ci/release_workflow_test.dart).
+#
+# None of these builds is signed by a vendor certificate: the project holds no
+# Apple Developer ID and no Authenticode certificate. The release notes tell
+# users how each OS reacts to that.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag, used in the asset file names (vX.Y.Z)
+        required: true
+        type: string
+      version:
+        description: --build-name (X.Y.Z)
+        required: true
+        type: string
+      build_number:
+        description: --build-number
+        required: true
+        type: string
+      retention_days:
+        description: How long to keep the uploaded artifacts
+        required: false
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.41.9"
+  TAG: ${{ inputs.tag }}
+  VERSION: ${{ inputs.version }}
+  BUILD_NUMBER: ${{ inputs.build_number }}
+
+jobs:
+  # ubuntu-22.04, not -latest: a binary links against the glibc it was built
+  # with, and 22.04's 2.35 is the oldest still on a hosted runner — it keeps
+  # the bundle running on Debian 12 and other distributions older than 24.04.
+  linux:
+    name: Linux (x64 bundle)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # libsecret: flutter_secure_storage_linux, where the keys are stored.
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev libjsoncpp-dev
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build
+        run: |
+          flutter build linux --release \
+            --build-name "$VERSION" --build-number "$BUILD_NUMBER" \
+            --dart-define=GIT_COMMIT="$(git rev-parse HEAD)"
+
+      # The binary finds lib/ and data/ next to itself, so the archive holds
+      # the bundle's contents, not an extra top-level folder.
+      - name: Package
+        run: |
+          set -euo pipefail
+          test -x build/linux/x64/release/bundle/mostro
+          mkdir -p dist
+          tar -czf "dist/mostro-$TAG-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-linux
+          path: dist/*
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days }}
+
+  windows:
+    name: Windows (x64 zip)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      # firebase_core downloads the Firebase C++ SDK, whose CMakeLists.txt asks
+      # for a CMake older than 3.5. CMake 4 (on the runner) refuses that outright
+      # ("Compatibility with CMake < 3.5 has been removed") unless told the floor
+      # to assume; it reads this variable from the environment. Drop it once
+      # firebase_core ships an SDK with a current cmake_minimum_required.
+      - name: Build
+        shell: bash
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+        run: |
+          flutter build windows --release \
+            --build-name "$VERSION" --build-number "$BUILD_NUMBER" \
+            --dart-define=GIT_COMMIT="$(git rev-parse HEAD)"
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $release = "build/windows/x64/runner/Release"
+          if (-not (Test-Path "$release/mostro.exe")) { throw "mostro.exe was not built" }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "$release/*" -DestinationPath "dist/mostro-$env:TAG-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-windows
+          path: dist/*
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days }}
+
+  # macos-26 for the same reason as the iOS job in ci.yml: one Xcode major per
+  # image, and workmanager_apple needs the 26 SDK.
+  macos:
+    name: macOS (universal app)
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # A release build is universal; cargokit would add the missing target
+      # itself, inside the Xcode build phase, where a failure is hard to read.
+      - name: Install Rust macOS targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin --toolchain stable
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build
+        run: |
+          flutter build macos --release \
+            --build-name "$VERSION" --build-number "$BUILD_NUMBER" \
+            --dart-define=GIT_COMMIT="$(git rev-parse HEAD)"
+
+      # ditto, not zip: an .app is full of symlinks (Frameworks/*/Versions) and
+      # carries its ad-hoc signature in extended attributes; `zip -r` flattens
+      # the first and drops the second, and the app then fails to launch.
+      - name: Package
+        run: |
+          set -euo pipefail
+          app=build/macos/Build/Products/Release/mostro.app
+          test -d "$app"
+          lipo -archs "$app/Contents/MacOS/mostro"
+          codesign --verify --deep --strict "$app"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "$app" "dist/mostro-$TAG-macos-universal.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-macos
+          path: dist/*
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days }}
+
+  # Unsigned on purpose: there is no Apple certificate in CI (ci.yml's iOS job
+  # says why), so this is an .ipa for sideloading tools that re-sign it, not
+  # something iOS installs as it is. TestFlight needs a signed build and is a
+  # separate piece of work.
+  ios:
+    name: iOS (unsigned ipa)
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust iOS target
+        run: rustup target add aarch64-apple-ios --toolchain stable
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-name "$VERSION" --build-number "$BUILD_NUMBER" \
+            --dart-define=GIT_COMMIT="$(git rev-parse HEAD)"
+
+      # An .ipa is a zip with the app under Payload/. -y keeps the symlinks.
+      - name: Package
+        run: |
+          set -euo pipefail
+          test -d build/ios/iphoneos/Runner.app
+          mkdir -p dist package/Payload
+          cp -R build/ios/iphoneos/Runner.app package/Payload/
+          (cd package && zip -qry "../dist/mostro-$TAG-ios-unsigned.ipa" Payload)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-ios
+          path: dist/*
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days }}

@@ -35,6 +35,20 @@
   -->
   <script src="coi-serviceworker.min.js"></script>
 
+  <!--
+    FCM messaging worker (docs/PUSH_NOTIFICATIONS.md T4.5). Relative on purpose:
+    Firebase's default location is the origin root, a 404 under the /app/ base
+    path. Its own scope, so it never takes the isolation shim's. Inert until a
+    token is requested; the app registers the same script and scope for that.
+  -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('firebase-messaging-sw.js', { scope: 'firebase-cloud-messaging-push-scope' })
+        .catch(function (e) { console.warn('messaging worker not registered', e); });
+    }
+  </script>
+
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">

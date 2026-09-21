@@ -45,13 +45,23 @@ Future<void> _pump(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('shows the three short labels on a 68-tall bar', (tester) async {
+  testWidgets('shows the three short labels on a 76-tall bar', (tester) async {
     await _pump(tester);
 
     for (final label in ['Book', 'Trades', 'Chat']) {
       expect(find.text(label), findsOneWidget);
     }
-    expect(tester.getSize(find.byType(BottomNavBar)).height, 68);
+    expect(tester.getSize(find.byType(BottomNavBar)).height, 76);
+  });
+
+  testWidgets('centres icon and label vertically in the bar', (tester) async {
+    await _pump(tester);
+
+    final bar = tester.getRect(find.byType(BottomNavBar));
+    final icon = tester.getRect(find.byIcon(Icons.list_alt));
+    final label = tester.getRect(find.text('Book'));
+
+    expect(icon.top - bar.top, closeTo(bar.bottom - label.bottom, 1));
   });
 
   testWidgets('colours the active destination lime and the rest muted', (

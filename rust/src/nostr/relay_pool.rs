@@ -22,6 +22,16 @@ use crate::api::types::{ConnectionState, RelayInfo, RelaySource, RelayStatus};
 /// How often the background task polls each relay's SDK status (seconds).
 const STATUS_POLL_INTERVAL_SECS: u64 = 2;
 
+/// How often it looks while the pool has never been connected, and for how
+/// long. The first `Online` starts the order-book subscription, the outbox
+/// flush and the capability fetch, and a relay handshake is over in a few
+/// hundred milliseconds — at the steady interval the app sat connected but
+/// idle for up to two seconds of every cold start. Each look is four map
+/// reads, so the fast cadence is free; the window keeps a pool of unreachable
+/// relays from holding it forever.
+const STARTUP_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const STARTUP_POLL_WINDOW: Duration = Duration::from_secs(10);
+
 /// Shared relay pool state.
 pub struct RelayPool {
     client: Arc<Client>,
@@ -63,12 +73,12 @@ impl RelayPool {
 
         client.connect().await;
 
-        // Give the SDK a moment to initiate WebSocket handshakes before the
-        // first status poll.  Without this the initial broadcast is always
-        // Reconnecting (every relay is still in Pending/Connecting state).
-        crate::rt::time::sleep(Duration::from_millis(500)).await;
-
-        // Broadcast initial connection state after all relays are wired up.
+        // The initial state. It reads `Reconnecting` whatever the sockets are
+        // doing: `relays[].status` is written by the status monitor alone, and
+        // that has not run yet. (A 500 ms sleep used to sit here "so the
+        // handshakes can start" — it could not change the outcome, and every
+        // cold start paid for it before the first frame.) The monitor's
+        // start-up cadence is what reports the real state promptly.
         pool.broadcast_connection_state().await;
 
         pool.spawn_status_monitor();
@@ -258,8 +268,11 @@ impl RelayPool {
         let relay_tx = self.relay_tx.clone();
 
         crate::rt::spawn(async move {
+            let started = crate::rt::time::Instant::now();
+            let mut has_connected = false;
             loop {
-                crate::rt::time::sleep(Duration::from_secs(STATUS_POLL_INTERVAL_SECS)).await;
+                crate::rt::time::sleep(status_poll_interval(started.elapsed(), has_connected))
+                    .await;
 
                 let relay_urls: Vec<String> =
                     relays.read().await.iter().map(|r| r.url.clone()).collect();
@@ -296,6 +309,7 @@ impl RelayPool {
                             info.status = new_status;
                             if matches!(info.status, RelayStatus::Connected) {
                                 info.last_connected_at = Some(unix_now());
+                                has_connected = true;
                             }
                             any_changed = true;
                             let _ = relay_tx.send(info.clone());
@@ -314,6 +328,17 @@ impl RelayPool {
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
+
+/// How long the status monitor waits before its next look: the start-up
+/// cadence until a relay has connected or the start-up window ran out, the
+/// steady interval from then on.
+fn status_poll_interval(since_start: Duration, has_connected: bool) -> Duration {
+    if !has_connected && since_start < STARTUP_POLL_WINDOW {
+        STARTUP_POLL_INTERVAL
+    } else {
+        Duration::from_secs(STATUS_POLL_INTERVAL_SECS)
+    }
+}
 
 /// Derive the state from `relays` and send it on `tx` only if it differs
 /// from what was last sent.
@@ -418,6 +443,35 @@ use crate::rt::unix_now;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A relay handshake takes a few hundred milliseconds, and the first
+    /// `Online` is what starts the order-book subscription: waiting a whole
+    /// steady-state interval for the first look cost a cold start ~2 s.
+    #[test]
+    fn the_monitor_looks_often_until_the_pool_first_connects() {
+        assert_eq!(status_poll_interval(Duration::ZERO, false), STARTUP_POLL_INTERVAL);
+        assert_eq!(
+            status_poll_interval(STARTUP_POLL_WINDOW - Duration::from_millis(1), false),
+            STARTUP_POLL_INTERVAL
+        );
+    }
+
+    #[test]
+    fn the_monitor_settles_once_a_relay_has_connected() {
+        assert_eq!(
+            status_poll_interval(Duration::from_millis(300), true),
+            Duration::from_secs(STATUS_POLL_INTERVAL_SECS)
+        );
+    }
+
+    /// Unreachable relays must not keep the fast cadence up forever.
+    #[test]
+    fn the_monitor_settles_when_nothing_connects_within_the_window() {
+        assert_eq!(
+            status_poll_interval(STARTUP_POLL_WINDOW, false),
+            Duration::from_secs(STATUS_POLL_INTERVAL_SECS)
+        );
+    }
 
     /// One relay connecting and dropping while another stays connected
     /// changes a relay's status without changing the derived state.

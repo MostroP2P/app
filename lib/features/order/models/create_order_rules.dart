@@ -1,9 +1,24 @@
 import 'dart:math' as math;
 
+import 'package:mostro/features/about/models/mostro_instance.dart'
+    show BondApplyTo, BondPolicy;
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 
 /// Pure rules of the create-order form (handoff 5a/5b/5c). No Flutter here so
 /// every rule is unit-testable; the widgets only render what these return.
+
+// ── Maker bond gate ───────────────────────────────────────────────────────────
+
+/// Whether this node asks the maker for a deposit before publishing
+/// (`bond_apply_to = make | both`, docs/ANTI_ABUSE_BOND.md §6.2): the form
+/// says so before the tap, and Publish lands on the pay-bond screen. Unknown
+/// or disabled policy, or a takers-only bond, publishes as before.
+bool makerBondApplies({
+  required BondPolicy? policy,
+  required BondApplyTo? applyTo,
+}) =>
+    policy == BondPolicy.enabled &&
+    (applyTo == BondApplyTo.make || applyTo == BondApplyTo.both);
 
 // ── Premium colour rule ───────────────────────────────────────────────────────
 
@@ -140,20 +155,25 @@ List<PreviewFragment> previewFragments(String sentence) {
   var cursor = 0;
   for (final match in _markPattern.allMatches(sentence)) {
     if (match.start > cursor) {
-      fragments.add(PreviewFragment(
-        sentence.substring(cursor, match.start),
-        PreviewRole.text,
-      ));
+      fragments.add(
+        PreviewFragment(
+          sentence.substring(cursor, match.start),
+          PreviewRole.text,
+        ),
+      );
     }
-    final role = _roleCodes.entries
-        .firstWhere((entry) => entry.value == match.group(1))
-        .key;
+    final role =
+        _roleCodes.entries
+            .firstWhere((entry) => entry.value == match.group(1))
+            .key;
     final text = match.group(2)!;
     if (text.isNotEmpty) fragments.add(PreviewFragment(text, role));
     cursor = match.end;
   }
   if (cursor < sentence.length) {
-    fragments.add(PreviewFragment(sentence.substring(cursor), PreviewRole.text));
+    fragments.add(
+      PreviewFragment(sentence.substring(cursor), PreviewRole.text),
+    );
   }
   return fragments;
 }

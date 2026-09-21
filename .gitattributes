@@ -1,0 +1,6 @@
+# Generated code is committed (CONTRIBUTING.md → "Generated code"). Marking it generated
+# collapses it in GitHub PR diffs and keeps it out of language statistics. Never hand-merge
+# these files: resolve the sources, then regenerate.
+lib/src/rust/** linguist-generated=true
+rust/src/frb_generated.rs linguist-generated=true
+lib/l10n/app_localizations*.dart linguist-generated=true

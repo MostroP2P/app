@@ -19,10 +19,13 @@ const double redesignSidePadding = 18;
 /// [redesignSidePadding]: how much of that an action already carries depends
 /// on whether it is an `IconButton`, which pads itself by 8, or a bare
 /// widget, which pads by nothing.
+///
+/// A null [onBack] drops the arrow — a terminal step with nowhere to go back
+/// to (backup 16d) — and the title moves to the side padding.
 PreferredSizeWidget redesignAppBar(
   BuildContext context, {
   required String title,
-  required VoidCallback onBack,
+  required VoidCallback? onBack,
   List<Widget> actions = const [],
 }) {
   final book = OrderBookPalette.of(context);
@@ -30,12 +33,16 @@ PreferredSizeWidget redesignAppBar(
     backgroundColor: book.bg,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
-    leading: IconButton(
-      icon: Icon(Icons.arrow_back, size: 22, color: book.textBody),
-      tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-      onPressed: onBack,
-    ).withAutomationId(AutomationIds.appBarBack),
-    titleSpacing: 0,
+    automaticallyImplyLeading: false,
+    leading:
+        onBack == null
+            ? null
+            : IconButton(
+              icon: Icon(Icons.arrow_back, size: 22, color: book.textBody),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              onPressed: onBack,
+            ).withAutomationId(AutomationIds.appBarBack),
+    titleSpacing: onBack == null ? redesignSidePadding : 0,
     title: Text(
       title,
       style: TextStyle(

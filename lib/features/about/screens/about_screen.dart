@@ -17,6 +17,7 @@ import 'package:mostro/features/order/widgets/order_detail_cards.dart'
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart'
     show truncatePubkey;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 export 'package:mostro/features/about/providers/app_version_provider.dart'
     show appVersionProvider;
@@ -153,11 +154,11 @@ class AboutScreen extends ConsumerWidget {
 
   void _showLicenseDialog(BuildContext context, AppLocalizations l10n) {
     final book = OrderBookPalette.of(context);
-    showDialog<void>(
+    showMostroDialog<void>(
       context: context,
       builder:
-          (ctx) => AlertDialog(
-            title: Text(l10n.aboutLicenseDialogTitle),
+          (ctx) => MostroDialog(
+            title: l10n.aboutLicenseDialogTitle,
             content: SizedBox(
               width: double.maxFinite,
               height: 320,
@@ -173,12 +174,10 @@ class AboutScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(l10n.closeButtonLabel),
-              ),
-            ],
+            primary: ModalAction(
+              label: l10n.closeButtonLabel,
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
           ),
     );
   }

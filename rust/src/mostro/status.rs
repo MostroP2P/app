@@ -91,6 +91,24 @@ pub(crate) fn map_core_status(s: mostro_core::order::Status) -> Option<OrderStat
     })
 }
 
+/// Whether `action` is the admin verdict behind a plain terminal the
+/// public book already wrote. mostrod publishes an admin cancel as
+/// `canceled` and an admin settle as `success` on Kind 38383, and that
+/// event lands before the `admin-canceled` / `admin-settled` message. The
+/// message must still refine the row: the cause of a slashed bond and the
+/// dispute's history read from it (`infer_slash_cause`).
+pub(crate) fn admin_verdict_refines(
+    local: &OrderStatus,
+    action: &mostro_core::message::Action,
+) -> bool {
+    use mostro_core::message::Action;
+    matches!(
+        (local, action),
+        (OrderStatus::Canceled, Action::AdminCanceled)
+            | (OrderStatus::Success, Action::AdminSettled)
+    )
+}
+
 /// Statuses no daemon message may leave: mostrod never reopens a canceled
 /// or completed trade. `SettledHoldInvoice` and `Dispute` are deliberately
 /// NOT here — they still progress (to `Success` / admin resolutions).
@@ -428,6 +446,7 @@ mod tests {
                 rating: 4.375,
                 reviews: 4,
                 operating_days: 64,
+                since: None,
             }),
         });
         assert_eq!(peer_reputation(&Some(peer)), Some((4.375, 4, 64)));
@@ -446,6 +465,7 @@ mod tests {
                 rating: 0.0,
                 reviews: 0,
                 operating_days: 0,
+                since: None,
             }),
         });
         assert_eq!(peer_reputation(&Some(fresh)), Some((0.0, 0, 0)));
@@ -471,6 +491,7 @@ mod tests {
                     rating: 5.0,
                     reviews,
                     operating_days,
+                    since: None,
                 }),
             })
         };
@@ -526,6 +547,24 @@ mod tests {
 
     /// Only never-active trades are wiped on a daemon `canceled`; anything
     /// that progressed (or is ambiguous, like InProgress) keeps its history row.
+    #[test]
+    fn an_admin_verdict_refines_the_plain_terminal_the_book_wrote() {
+        use crate::api::types::OrderStatus as S;
+        use mostro_core::message::Action;
+        assert!(admin_verdict_refines(&S::Canceled, &Action::AdminCanceled));
+        assert!(admin_verdict_refines(&S::Success, &Action::AdminSettled));
+        assert!(!admin_verdict_refines(&S::Canceled, &Action::AdminSettled));
+        assert!(!admin_verdict_refines(&S::Success, &Action::AdminCanceled));
+        assert!(!admin_verdict_refines(
+            &S::CanceledByAdmin,
+            &Action::AdminCanceled
+        ));
+        assert!(!admin_verdict_refines(
+            &S::Canceled,
+            &Action::WaitingSellerToPay
+        ));
+    }
+
     #[test]
     fn cancellation_wipes_history_only_for_never_active_trades() {
         use crate::api::types::OrderStatus as S;

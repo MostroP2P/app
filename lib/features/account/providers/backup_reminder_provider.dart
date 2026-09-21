@@ -25,7 +25,8 @@ final backupReminderProvider =
 /// Whether the user has ever completed a backup of the current identity.
 ///
 /// Drives the "Backed up" badge on the Account screen. Reset when a new
-/// identity is generated or imported.
+/// identity is generated; set when one is imported, since an imported
+/// mnemonic is one the user already holds.
 final backupCompletedProvider =
     StateNotifierProvider<BackupCompletedNotifier, bool>(
   (ref) => BackupCompletedNotifier(),
@@ -72,10 +73,11 @@ class BackupReminderNotifier extends StateNotifier<bool> {
   }
 
   /// Activate the backup reminder badge. Called after the walkthrough
-  /// completes and whenever a new identity is generated or imported.
+  /// completes and whenever a new identity is generated.
   ///
   /// Re-arms the reminder even if a previous identity's backup was confirmed:
-  /// a fresh mnemonic is, by definition, not backed up yet.
+  /// a freshly generated mnemonic is, by definition, not backed up yet. An
+  /// imported one is the opposite case — see [markAlreadyBackedUp].
   Future<void> showBackupReminder() async {
     // Ensure load() has finished before writing so a pending load() can't
     // overwrite the state we are about to set.
@@ -98,6 +100,21 @@ class BackupReminderNotifier extends StateNotifier<bool> {
     final until = DateTime.now().add(const Duration(days: 1));
     await prefs.setInt(kBackupSnoozedUntilKey, until.millisecondsSinceEpoch);
     state = false;
+  }
+
+  /// The identity came from a mnemonic the user already holds (a seed
+  /// import): there is nothing left to back up, so the reminder must not
+  /// ring for it.
+  ///
+  /// Writes the same state a passed verification does, which also clears a
+  /// reminder armed earlier — by the walkthrough on first run, or by the
+  /// identity that was just replaced — rather than merely not arming a new
+  /// one.
+  Future<void> markAlreadyBackedUp() async {
+    // Same guard as showBackupReminder(): a load() still in flight would
+    // otherwise re-read the pre-import prefs and re-arm the badge.
+    await load();
+    await confirmBackupComplete();
   }
 
   /// Permanently dismiss the reminder. Called when the user confirms their
@@ -142,7 +159,7 @@ class BackupCompletedNotifier extends StateNotifier<bool> {
     state = true;
   }
 
-  /// Clear the backed-up flag (new identity generated or imported).
+  /// Clear the backed-up flag (new identity generated).
   Future<void> reset() async {
     await load();
     final prefs = await SharedPreferences.getInstance();

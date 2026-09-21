@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/trade_touch.dart' as touch_api;
 import 'package:mostro/src/rust/api/types.dart';
 
 /// Maps `orderId` → whether the local user is the buyer in that trade.
@@ -9,21 +12,108 @@ import 'package:mostro/src/rust/api/types.dart';
 /// [TradeDetailScreen] so those screens know the user's role.
 final tradeRoleProvider = StateProvider<Map<String, bool>>((ref) => const {});
 
-/// Poll `getOrder()` every 2 s until `amountSats` is non-null, then stop.
+/// How long a trade provider waits before re-reading state nothing touched.
 ///
-/// Returns `null` while waiting.  Useful for the add-invoice screen which
-/// needs the sats amount before it can submit a Lightning invoice.
+/// The safety net, not the mechanism. Rust rings [tradeTouchProvider] on every
+/// write to a trade's book entry or row, so a change reaches the screen at
+/// once; this only bounds the damage of a write path that forgot to ring. It
+/// used to be the mechanism — every provider here polled the bridge once or
+/// twice a second, from every screen (docs/OPTIMIZATION_PLAN.md PR 3.4).
+const tradeSafetyPollInterval = Duration(seconds: 30);
+
+/// The trade doorbell pushed from Rust (`api::trade_touch`): "this order's
+/// entry or row was written — read it again". It carries no status and drives
+/// no notice. A touch without an order id is a resync: the stream fell behind
+/// and every trade on screen must be re-read.
+final tradeTouchProvider = StreamProvider.autoDispose<TradeTouch>((ref) async* {
+  final stream = await touch_api.onTradeTouched();
+  while (true) {
+    final touch = await stream.next();
+    if (touch == null) break;
+    yield touch;
+  }
+});
+
+/// Reads the persisted trades through the bridge; injectable for tests.
+final tradeListReaderProvider = Provider<Future<List<TradeInfo>> Function()>(
+  (ref) => orders_api.listTrades,
+);
+
+/// Reads one order's book entry through the bridge; injectable for tests.
+final orderReaderProvider = Provider<Future<OrderInfo?> Function(String)>(
+  (ref) => (orderId) => orders_api.getOrder(orderId: orderId),
+);
+
+/// Emits what [read] returns — at once, again whenever [orderId] is touched
+/// (or a resync asks everyone to), and every [tradeSafetyPollInterval]
+/// besides — until a value [isFinal].
+///
+/// With [keepGoingOnError] a failed read is logged and retried on the next
+/// wake-up; without it the error ends the stream, so a screen can tell a
+/// broken status subscription from a slow one.
+Stream<T> _followTrade<T>(
+  Ref ref,
+  String orderId, {
+  required Future<T> Function() read,
+  required bool Function(T value) isFinal,
+  bool keepGoingOnError = false,
+}) async* {
+  var wake = Completer<void>();
+  Timer? poll;
+  var disposed = false;
+  void ring() {
+    if (!wake.isCompleted) wake.complete();
+  }
+
+  ref.listen<AsyncValue<TradeTouch>>(tradeTouchProvider, (_, next) {
+    if (next.hasError) {
+      // Without the doorbell this provider is down to its safety poll.
+      debugPrint('[trade-follow] touch stream failed: ${next.error}');
+    }
+    final touch = next.valueOrNull;
+    if (touch == null) return;
+    if (touch.orderId == null || touch.orderId == orderId) ring();
+  });
+  ref.onDispose(() {
+    disposed = true;
+    poll?.cancel();
+    ring();
+  });
+
+  while (!disposed) {
+    // Armed before the read: a touch landing while the read is in flight
+    // re-reads right after it instead of being lost.
+    wake = Completer<void>();
+    try {
+      final value = await read();
+      if (disposed) return;
+      yield value;
+      if (isFinal(value)) return;
+    } catch (e, st) {
+      if (!keepGoingOnError) rethrow;
+      debugPrint('[trade-follow] read failed for order=$orderId: $e\n$st');
+    }
+    poll = Timer(tradeSafetyPollInterval, ring);
+    await wake.future;
+    poll.cancel();
+  }
+}
+
+/// The trade's sats amount: `null` until the order has one, then done.
+///
+/// Useful for the add-invoice screen which needs the sats amount before it
+/// can submit a Lightning invoice.
 final tradeAmountProvider = StreamProvider.family.autoDispose<BigInt?, String>((
   ref,
   orderId,
-) async* {
-  while (true) {
-    final info = await orders_api.getOrder(orderId: orderId);
-    final sats = info?.amountSats;
-    yield sats;
-    if (sats != null) return; // done — no need to keep polling
-    await Future.delayed(const Duration(seconds: 2));
-  }
+) {
+  final readOrder = ref.watch(orderReaderProvider);
+  return _followTrade<BigInt?>(
+    ref,
+    orderId,
+    read: () async => (await readOrder(orderId))?.amountSats,
+    isFinal: (sats) => sats != null,
+  );
 });
 
 /// Reads current status through the bridge; injectable for polling tests.
@@ -75,31 +165,35 @@ final cancelOrderActionProvider = Provider<Future<void> Function(String)>(
   (ref) => (orderId) => orders_api.cancelOrder(orderId: orderId),
 );
 
-/// Live order status for a single trade, polled from the order book every 2 s.
+/// Live order status for a single trade: re-read the moment Rust touches
+/// the order, with [tradeSafetyPollInterval] as the net underneath.
 ///
-/// Starts with an immediate fetch (no initial delay) so the first emission
-/// reflects the real relay status. When the order is no longer in the in-memory
-/// order book (e.g. after cancellation), falls back to the persisted trade DB
-/// so terminal statuses like Canceled are reflected in the UI.
+/// The status is always read back, never taken from a pushed payload: a
+/// history replay re-emits old transitions (#474) and the lookup corrects for
+/// the bond window. The read is a local bridge call, so the change still
+/// lands within the frame.
+///
+/// Starts with an immediate fetch so the first emission reflects the real
+/// status. When the order is no longer in the in-memory order book (e.g. after
+/// cancellation), the lookup falls back to the persisted trade DB so terminal
+/// statuses like Canceled are reflected in the UI.
 final tradeStatusProvider = StreamProvider.family
-    .autoDispose<OrderStatus, String>((ref, orderId) async* {
+    .autoDispose<OrderStatus, String>((ref, orderId) {
       final lookup = ref.watch(tradeStatusLookupProvider);
-      while (true) {
-        final status = await lookup(orderId);
-        if (status != null) {
-          yield status;
-          if (_isTerminal(status)) return;
-        }
-        await Future.delayed(const Duration(seconds: 2));
-      }
+      return _followTrade<OrderStatus?>(
+        ref,
+        orderId,
+        read: () => lookup(orderId),
+        isFinal: (status) => status != null && _isTerminal(status),
+      ).where((status) => status != null).cast<OrderStatus>();
     });
 
 /// Trade lifecycle updates pushed from Rust (daemon-driven cancellations).
 ///
-/// Complements [tradeStatusProvider]'s polling, which cannot observe a
-/// cancellation anymore: a never-active trade is wiped from the DB on the
-/// daemon's Canceled, and after a timeout republish the order book reads
-/// `pending` again. Screens filter by `orderId`.
+/// The meaning [tradeStatusProvider] cannot give: a never-active trade is
+/// wiped from the DB on the daemon's Canceled, and after a timeout republish
+/// the order book reads `pending` again, so re-reading the status never shows
+/// the cancellation. Screens filter by `orderId`.
 final tradeUpdatesProvider = StreamProvider.autoDispose<TradeUpdate>((
   ref,
 ) async* {
@@ -141,47 +235,36 @@ final tradeRoleFromDbProvider = FutureProvider.family
       };
     });
 
-/// Poll `listTrades()` every 1 s until `holdInvoice` is non-null, then stop.
-///
-/// Returns `null` while waiting for the hold invoice to arrive from the
-/// Mostro node.  Used by [PayLightningInvoiceScreen] to display the invoice
-/// as soon as it becomes available, rather than relying on the one-shot
+/// The trade row for [orderId], re-read on every touch until it carries the
+/// hold invoice. A failed read is retried: the stream stays subscribed across
+/// reconnects and brief bridge failures.
+Stream<TradeInfo?> _followTradeRow(Ref ref, String orderId) {
+  final readTrades = ref.watch(tradeListReaderProvider);
+  return _followTrade<TradeInfo?>(
+    ref,
+    orderId,
+    read:
+        () async =>
+            (await readTrades())
+                .where((t) => t.order.id == orderId)
+                .firstOrNull,
+    isFinal: (trade) => trade?.holdInvoice != null,
+    keepGoingOnError: true,
+  );
+}
+
+/// The hold invoice, `null` while waiting for it to arrive from the Mostro
+/// node. Used by [PayLightningInvoiceScreen] to display the invoice as soon
+/// as it becomes available, rather than relying on the one-shot
 /// [tradeInfoProvider] which may return stale cached data.
 final tradeHoldInvoiceProvider = StreamProvider.family
-    .autoDispose<String?, String>((ref, orderId) async* {
-      while (true) {
-        try {
-          final trades = await orders_api.listTrades();
-          final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
-          yield trade?.holdInvoice;
-          if (trade?.holdInvoice != null) return;
-        } catch (e, st) {
-          // Transient DB/bridge error — log and keep polling so the stream
-          // stays subscribed across reconnects and brief failures.
-          debugPrint('[tradeHoldInvoiceProvider] listTrades failed: $e\n$st');
-        }
-        await Future.delayed(const Duration(seconds: 1));
-      }
-    });
+    .autoDispose<String?, String>(
+      (ref, orderId) =>
+          _followTradeRow(ref, orderId).map((trade) => trade?.holdInvoice),
+    );
 
-/// Poll `listTrades()` every 1 s until `holdInvoice` is non-null, then stop.
-///
-/// Returns the full [TradeInfo] when available.  Used by
+/// The full [TradeInfo] until it carries the hold invoice. Used by
 /// [PayLightningInvoiceScreen] to get both the hold invoice and the sats
 /// amount without relying on the cached [rawTradesProvider].
 final tradeInfoStreamProvider = StreamProvider.family
-    .autoDispose<TradeInfo?, String>((ref, orderId) async* {
-      while (true) {
-        try {
-          final trades = await orders_api.listTrades();
-          final trade = trades.where((t) => t.order.id == orderId).firstOrNull;
-          yield trade;
-          if (trade?.holdInvoice != null) return;
-        } catch (e, st) {
-          // Transient DB/bridge error — log and keep polling so the stream
-          // stays subscribed across reconnects and brief failures.
-          debugPrint('[tradeInfoStreamProvider] listTrades failed: $e\n$st');
-        }
-        await Future.delayed(const Duration(seconds: 1));
-      }
-    });
+    .autoDispose<TradeInfo?, String>(_followTradeRow);

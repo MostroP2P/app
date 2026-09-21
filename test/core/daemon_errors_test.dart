@@ -12,6 +12,40 @@ import 'package:mostro/l10n/app_localizations_en.dart';
 void main() {
   final l10n = AppLocalizationsEn();
 
+  test('maps the payout claim markers', () {
+    expect(
+      localizedDaemonError(l10n, 'InvoiceAmountMismatch', fallback: 'x'),
+      l10n.bondClaimErrorAmount,
+    );
+    expect(
+      localizedDaemonError(l10n, 'BondClaimExpired', fallback: 'x'),
+      l10n.bondClaimErrorExpired,
+    );
+    expect(
+      localizedDaemonError(l10n, 'BondClaimRejected', fallback: 'x'),
+      l10n.bondClaimErrorRejected,
+    );
+    expect(
+      localizedDaemonError(l10n, 'ClaimNotClaimable', fallback: 'x'),
+      l10n.bondClaimErrorNotClaimable,
+    );
+    expect(
+      localizedDaemonError(l10n, 'ClaimNotFound', fallback: 'x'),
+      l10n.bondClaimErrorNotClaimable,
+    );
+    expect(
+      localizedDaemonError(l10n, 'TradeKeyMissing', fallback: 'x'),
+      l10n.bondClaimErrorNoKey,
+    );
+  });
+
+  test('maps the maker bond cancel marker', () {
+    expect(
+      localizedDaemonError(l10n, 'BondCancelNotAllowed', fallback: 'x'),
+      l10n.bondCancelNotAllowed,
+    );
+  });
+
   test('maps the bare unsupported-protocol marker', () {
     expect(
       localizedDaemonError(l10n, 'UnsupportedNodeProtocol:1', fallback: 'x'),
@@ -75,6 +109,16 @@ void main() {
     );
   });
 
+  /// The order paths resync the trade-key counter and retry once on
+  /// `CantDo(InvalidTradeIndex)`; only a second refusal reaches the UI, as the
+  /// bare marker — never as the old "Order rejected by Mostro: …" prose.
+  test('maps the InvalidTradeIndex marker to the out-of-sync guidance', () {
+    expect(
+      localizedDaemonError(l10n, 'InvalidTradeIndex', fallback: 'x'),
+      l10n.invalidTradeIndexError,
+    );
+  });
+
   /// mostro-core 0.14.6 adds `CantDoReason::MaintenanceMode`: the node is
   /// draining and refuses new orders and takes. Rust emits the bare marker;
   /// some wrappers prepend their own context, so match it by substring like
@@ -91,6 +135,17 @@ void main() {
         fallback: 'x',
       ),
       l10n.mostroMaintenanceMode,
+    );
+  });
+
+  test('maps a refused duplicate invoice submission', () {
+    expect(
+      localizedDaemonError(
+        l10n,
+        'AnyhowException(InvoiceSubmitInFlight)',
+        fallback: 'x',
+      ),
+      l10n.invoiceSubmitInFlight,
     );
   });
 

@@ -8,6 +8,9 @@ enum TradeChip { none, waiting, active, yourTurn, dispute }
 enum TradePrimaryAction {
   none,
   addInvoice,
+
+  /// The anti-abuse deposit the node asks for before the trade starts.
+  payBond,
   payHoldInvoice,
   fiatSent,
   release,
@@ -84,11 +87,50 @@ class TradeView {
   bool get showsTimer => timer != TradeTimerOwner.none;
 
   /// [canRate] is false in privacy mode, where no rating can be sent: the
-  /// completed screen then only offers `Close`.
+  /// completed screen then only offers `Close`. [cancelRequested] is this
+  /// side's pending cooperative-cancel request (protocol `cancel.md`): the
+  /// trade goes on until the counterparty also cancels, and asking again is
+  /// not an action, so the bar drops `Cancel` and keeps the rest. Only while
+  /// the request can be open — `active` and `fiatSent`: the row keeps the
+  /// flag after a dispute takes over, where the seller's cancel is a
+  /// different action.
   static TradeView of({
     required TradeStatus status,
     required bool isBuyer,
     bool canRate = true,
+    bool cancelRequested = false,
+  }) {
+    final view = _of(status: status, isBuyer: isBuyer, canRate: canRate);
+    return cancelRequested && cancelRequestCanBeOpen(status)
+        ? view._withoutCancel()
+        : view;
+  }
+
+  /// The statuses a cooperative-cancel request is open in.
+  static bool cancelRequestCanBeOpen(TradeStatus status) =>
+      status == TradeStatus.active || status == TradeStatus.fiatSent;
+
+  TradeView _withoutCancel() => TradeView(
+    step: step,
+    chip: chip,
+    showsChat: showsChat,
+    showsReputation: showsReputation,
+    primary: primary,
+    secondary: [
+      for (final action in secondary)
+        if (action != TradeSecondaryAction.cancel) action,
+    ],
+    timer: timer,
+    note: note,
+    isCompleted: isCompleted,
+    showsReleaseWarning: showsReleaseWarning,
+    showsCloseLink: showsCloseLink,
+  );
+
+  static TradeView _of({
+    required TradeStatus status,
+    required bool isBuyer,
+    required bool canRate,
   }) {
     const cancelOnly = [TradeSecondaryAction.cancel];
     const cancelOrDispute = [
@@ -150,19 +192,17 @@ class TradeView {
           isCompleted: false,
         );
       case TradeStatus.waitingBond:
-        // The bond window precedes the trade flow. Its own view (pay the
-        // bond, countdown to the bolt11 expiry) comes with the pay-bond
-        // screen in docs/ANTI_ABUSE_BOND.md Phase 1, and only then can it
-        // tell the two sides apart: the daemon accepts a taker's cancel here
-        // but rejects a maker's (§2.8), and this status merges both. Until
-        // then no daemon action is offered at all.
+        // The bond window precedes the trade flow: the user owes the deposit
+        // (docs/ANTI_ABUSE_BOND.md §6.1). Phase 1 only ever parks a taker's
+        // row here, and the daemon accepts a taker's cancel during the
+        // window; the maker variant (no cancel, local abandon) is Phase 2.
         return const TradeView(
           step: 1,
-          chip: TradeChip.waiting,
+          chip: TradeChip.yourTurn,
           showsChat: false,
           showsReputation: false,
-          primary: TradePrimaryAction.none,
-          secondary: [],
+          primary: TradePrimaryAction.payBond,
+          secondary: cancelOnly,
           timer: TradeTimerOwner.none,
           note: TradeTimerNote.none,
           isCompleted: false,

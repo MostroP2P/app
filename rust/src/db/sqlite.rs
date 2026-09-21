@@ -304,6 +304,24 @@ impl Storage for SqliteStorage {
             .collect()
     }
 
+    async fn list_unread_messages(&self) -> Result<Vec<ChatMessage>> {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT id, data FROM messages WHERE is_read = 0 ORDER BY created_at ASC, id ASC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, data)| match serde_json::from_str(&data) {
+                Ok(msg) => Some(msg),
+                Err(e) => {
+                    log::warn!("[db] skipping unread message {id}: deserialization failed: {e}");
+                    None
+                }
+            })
+            .collect())
+    }
+
     async fn message_exists(&self, id: &str) -> Result<bool> {
         let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM messages WHERE id = ?")
             .bind(id)
@@ -496,6 +514,35 @@ impl Storage for SqliteStorage {
         sqlx::query("DELETE FROM trade_keys")
             .execute(&self.pool)
             .await?;
+        Ok(())
+    }
+
+    async fn clear_identity_data(&self) -> Result<()> {
+        // One transaction: a half-wiped database would show the new user
+        // some of the old one's rows, which is the bug this exists to close.
+        let mut tx = self.pool.begin().await?;
+        for delete in [
+            "DELETE FROM trades",
+            "DELETE FROM messages",
+            "DELETE FROM bond_claims",
+            "DELETE FROM queued_messages",
+            "DELETE FROM orders",
+        ] {
+            sqlx::query(delete).execute(&mut *tx).await?;
+        }
+        for prefix in settings_keys::IDENTITY_SCOPED_PREFIXES {
+            // `substr`, not LIKE: `_` in a prefix is a LIKE wildcard.
+            sqlx::query("DELETE FROM settings WHERE substr(key, 1, ?) = ?")
+                .bind(prefix.len() as i64)
+                .bind(prefix)
+                .execute(&mut *tx)
+                .await?;
+        }
+        sqlx::query("DELETE FROM settings WHERE key = ?")
+            .bind(settings_keys::BOND_CLAIM_RETAINED_NODES)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -701,6 +748,60 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()> {
+        let data = serde_json::to_string(claim)?;
+        sqlx::query(
+            "INSERT OR REPLACE INTO bond_claims \
+             (id, node_pubkey, data, phase, deadline_at, updated_at) \
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(claim.storage_id())
+        .bind(&claim.node_pubkey)
+        .bind(&data)
+        .bind(format!("{:?}", claim.phase))
+        .bind(claim.deadline_at)
+        .bind(claim.updated_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT data FROM bond_claims WHERE id = ?")
+                .bind(crate::api::types::bond_claim_key(node_pubkey, order_id))
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(data,)| serde_json::from_str(&data)).transpose()?)
+    }
+
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>> {
+        let rows: Vec<(String, String)> =
+            sqlx::query_as("SELECT id, data FROM bond_claims ORDER BY updated_at DESC")
+                .fetch_all(&self.pool)
+                .await?;
+        let mut claims = Vec::with_capacity(rows.len());
+        for (id, data) in rows {
+            match serde_json::from_str::<crate::api::types::BondClaim>(&data) {
+                Ok(claim) => claims.push(claim),
+                Err(e) => log::warn!("[db] skipping bond claim {id}: deserialization failed: {e}"),
+            }
+        }
+        Ok(claims)
+    }
+
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM bond_claims WHERE id = ?")
+            .bind(crate::api::types::bond_claim_key(node_pubkey, order_id))
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
         // Bind via json(?) so SQLite stores the timestamp as a JSON number, not
         // a string — a string would fail to deserialize back into Option<i64>.
@@ -709,6 +810,24 @@ impl Storage for SqliteStorage {
              WHERE json_extract(data, '$.order.id') = ?";
         sqlx::query(sql)
             .bind(rated_at.to_string())
+            .bind(order_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn set_cooperative_cancel_state(
+        &self,
+        order_id: &str,
+        state: crate::api::types::CooperativeCancelState,
+    ) -> Result<()> {
+        // Bound via json(?) so the variant lands as a JSON string, the shape
+        // serde reads back into Option<CooperativeCancelState>.
+        let sql = "UPDATE trades SET data = json_set(\
+             data, '$.cooperative_cancel_state', json(?)) \
+             WHERE json_extract(data, '$.order.id') = ?";
+        sqlx::query(sql)
+            .bind(serde_json::to_string(&state)?)
             .bind(order_id)
             .execute(&self.pool)
             .await?;
@@ -750,6 +869,61 @@ mod tests {
         static COUNTER: AtomicU32 = AtomicU32::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         std::env::temp_dir().join(format!("mostro_test_{}_{n}.db", std::process::id()))
+    }
+
+    fn claim(node: &str, order: &str, phase: crate::api::types::BondClaimPhase, updated_at: i64)
+        -> crate::api::types::BondClaim {
+        crate::api::types::BondClaim {
+            order_id: order.to_string(),
+            node_pubkey: node.to_string(),
+            trade_index: Some(3),
+            amount_sats: 1_500,
+            slashed_at: 1_000,
+            deadline_at: 1_000 + 15 * 86_400,
+            phase,
+            submitted_invoice: None,
+            fiat_code: "VES".to_string(),
+            fiat_amount: Some(100.0),
+            payment_method: "PagoMovil".to_string(),
+            updated_at,
+        }
+    }
+
+    /// docs/ANTI_ABUSE_BOND.md §7.3: a claim round-trips whole, keyed by
+    /// `(node, order)`, so the same order slashed on two nodes is two claims
+    /// and a save on an existing key replaces it.
+    #[tokio::test]
+    async fn bond_claims_round_trip_keyed_by_node_and_order() {
+        use crate::api::types::BondClaimPhase;
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        let a = claim("node-a", "order-1", BondClaimPhase::Pending, 10);
+        let b = claim("node-b", "order-1", BondClaimPhase::Acknowledged, 20);
+        storage.save_bond_claim(&a).await.unwrap();
+        storage.save_bond_claim(&b).await.unwrap();
+
+        assert_eq!(storage.get_bond_claim("node-a", "order-1").await.unwrap(), Some(a.clone()));
+        assert_eq!(storage.get_bond_claim("node-b", "order-1").await.unwrap(), Some(b.clone()));
+        assert_eq!(storage.get_bond_claim("node-a", "order-2").await.unwrap(), None);
+
+        // Newest change first.
+        let listed = storage.list_bond_claims().await.unwrap();
+        assert_eq!(listed, vec![b.clone(), a.clone()]);
+
+        // Same key: replaced, not duplicated.
+        let mut a2 = a.clone();
+        a2.phase = BondClaimPhase::Submitted;
+        a2.submitted_invoice = Some("lnbc1x".to_string());
+        a2.updated_at = 30;
+        storage.save_bond_claim(&a2).await.unwrap();
+        let listed = storage.list_bond_claims().await.unwrap();
+        assert_eq!(listed, vec![a2.clone(), b.clone()]);
+
+        // Delete removes only the matching key; absent keys are a no-op.
+        storage.delete_bond_claim("node-a", "order-1").await.unwrap();
+        storage.delete_bond_claim("node-a", "order-1").await.unwrap();
+        assert_eq!(storage.list_bond_claims().await.unwrap(), vec![b]);
     }
 
     /// A status sync that matches no row used to be indistinguishable from one
@@ -1173,6 +1347,80 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// The cooperative-cancel request lives inside the JSON document: written
+    /// with `json_set`, read back through serde, scoped to one order.
+    #[tokio::test]
+    async fn set_cooperative_cancel_state_round_trips_and_stays_scoped() {
+        use crate::api::types::*;
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        let trade = |id: &str, order_id: &str| TradeInfo {
+            id: id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Buy,
+                status: OrderStatus::Active,
+                amount_sats: Some(1),
+                fiat_amount: Some(1.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "maker".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+            bond: None,
+        };
+        storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
+        storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
+
+        storage
+            .set_cooperative_cancel_state("order-a", CooperativeCancelState::RequestedByPeer)
+            .await
+            .unwrap();
+
+        let a = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("order-a survives");
+        assert_eq!(
+            a.cooperative_cancel_state,
+            Some(CooperativeCancelState::RequestedByPeer)
+        );
+        let b = storage
+            .get_trade_by_order_id("order-b")
+            .await
+            .unwrap()
+            .expect("order-b survives");
+        assert_eq!(b.cooperative_cancel_state, None);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// The durable peer record (issue #334): the counterparty pubkey lands on
     /// the row matched by `order.id` for both roles (the taker's row id is a
     /// random UUID), overwrites a poisoned pre-fix value, survives reopen, and
@@ -1284,6 +1532,48 @@ mod tests {
             .expect("order-a survives reopen");
         assert_eq!(a.counterparty_pubkey, "peer-a");
 
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn unread_notification_history_survives_restart_without_trade_rows() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        for (id, trade_id, is_read, created_at) in [
+            ("later", "removed-trade", false, 2),
+            ("read", "read-trade", true, 0),
+            ("earlier", "closed-trade", false, 1),
+        ] {
+            storage
+                .save_message(&ChatMessage {
+                    id: id.into(),
+                    trade_id: trade_id.into(),
+                    sender_pubkey: "peer".into(),
+                    content: "hello".into(),
+                    message_type: crate::api::types::MessageType::Peer,
+                    is_mine: false,
+                    is_read,
+                    has_attachment: false,
+                    attachment: None,
+                    created_at,
+                })
+                .await
+                .unwrap();
+        }
+        // One corrupt record must not block notification recovery for other trades.
+        sqlx::query("INSERT INTO messages (id, trade_id, data, is_read, created_at) VALUES ('corrupt', 'broken-trade', 'not-json', 0, 0)")
+            .execute(&storage.pool).await.unwrap();
+        drop(storage);
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        assert!(storage.list_trades().await.unwrap().is_empty());
+        let unread = storage.list_unread_messages().await.unwrap();
+        assert_eq!(
+            unread.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+            ["earlier", "later"]
+        );
+        storage.mark_messages_read("closed-trade").await.unwrap();
+        assert_eq!(storage.list_unread_messages().await.unwrap()[0].id, "later");
         drop(storage);
         let _ = std::fs::remove_file(&path);
     }
@@ -1700,6 +1990,165 @@ mod tests {
         // Deleting again on empty tables is a no-op, not an error.
         storage.delete_identity().await.unwrap();
         storage.clear_trade_keys().await.unwrap();
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Issue #533: a new user must find the app as a fresh install leaves it.
+    /// Everything the identity produced goes; what belongs to the device —
+    /// relays, the node choice, preferences — stays.
+    #[tokio::test]
+    async fn clear_identity_data_wipes_the_identity_and_keeps_the_device() {
+        use crate::api::types::{
+            BuyerStep, MessageType, OrderKind, OrderStatus, TradeRole, TradeStep,
+        };
+        let path = temp_db_path();
+        let path_str = path.to_str().unwrap().to_string();
+        let storage = SqliteStorage::open(&path_str).await.unwrap();
+
+        let order = OrderInfo {
+            id: "order-a".into(),
+            kind: OrderKind::Sell,
+            status: OrderStatus::Active,
+            amount_sats: None,
+            fiat_amount: Some(100.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            fiat_code: "CUP".into(),
+            payment_method: "bank".into(),
+            premium: 0.0,
+            creator_pubkey: "maker".into(),
+            created_at: 1,
+            expires_at: None,
+            is_mine: true,
+            rating: 0.0,
+            total_reviews: 0,
+            days_active: 0,
+        };
+        storage.save_order(&order).await.unwrap();
+        storage
+            .save_trade(&TradeInfo {
+                id: "row-a".into(),
+                order: order.clone(),
+                role: TradeRole::Buyer,
+                counterparty_pubkey: String::new(),
+                current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+                hold_invoice: None,
+                buyer_invoice: None,
+                trade_key_index: 1,
+                cooperative_cancel_state: None,
+                timeout_at: None,
+                started_at: 1,
+                completed_at: None,
+                outcome: None,
+                peer_rating: None,
+                peer_reviews: None,
+                peer_days: None,
+                rated_at: None,
+                bond: None,
+            })
+            .await
+            .unwrap();
+        storage
+            .save_message(&ChatMessage {
+                id: "3f".repeat(32),
+                trade_id: "order-a".into(),
+                sender_pubkey: "peer".into(),
+                content: "hola".into(),
+                message_type: MessageType::Peer,
+                is_mine: false,
+                is_read: false,
+                has_attachment: false,
+                attachment: None,
+                created_at: 2,
+            })
+            .await
+            .unwrap();
+        storage
+            .save_bond_claim(&claim(
+                "node-a",
+                "order-a",
+                crate::api::types::BondClaimPhase::Pending,
+                10,
+            ))
+            .await
+            .unwrap();
+        storage
+            .save_queued_message(&QueuedMessage::new("{}".into(), 3))
+            .await
+            .unwrap();
+        for key in [
+            settings_keys::chat_cursor("order-a"),
+            settings_keys::dispute_admin("order-a"),
+            settings_keys::dispute_mine("order-a"),
+            settings_keys::status_cursor("order-a"),
+            settings_keys::invoice_step_start("order-a"),
+            settings_keys::trade_wiped("order-a"),
+            settings_keys::BOND_CLAIM_RETAINED_NODES.to_string(),
+        ] {
+            storage.set_setting(&key, "1").await.unwrap();
+        }
+        // The device's own.
+        storage
+            .save_active_mostro_pubkey("node-pubkey")
+            .await
+            .unwrap();
+        storage
+            .set_setting(settings_keys::CUSTOM_MOSTRO_NODES, "[]")
+            .await
+            .unwrap();
+        storage
+            .set_setting(settings_keys::PUSH_ENABLED, "false")
+            .await
+            .unwrap();
+
+        storage.clear_identity_data().await.unwrap();
+
+        assert!(storage.list_trades().await.unwrap().is_empty());
+        assert!(storage.list_orders().await.unwrap().is_empty());
+        assert!(storage.list_messages("order-a").await.unwrap().is_empty());
+        assert!(storage.list_bond_claims().await.unwrap().is_empty());
+        assert!(storage.list_queued_messages().await.unwrap().is_empty());
+        for key in [
+            settings_keys::chat_cursor("order-a"),
+            settings_keys::dispute_admin("order-a"),
+            settings_keys::dispute_mine("order-a"),
+            settings_keys::status_cursor("order-a"),
+            settings_keys::invoice_step_start("order-a"),
+            settings_keys::trade_wiped("order-a"),
+            settings_keys::BOND_CLAIM_RETAINED_NODES.to_string(),
+        ] {
+            assert_eq!(
+                storage.get_setting(&key).await.unwrap(),
+                None,
+                "{key} survived the wipe"
+            );
+        }
+
+        assert_eq!(
+            storage.get_active_mostro_pubkey().await.unwrap().as_deref(),
+            Some("node-pubkey")
+        );
+        assert_eq!(
+            storage
+                .get_setting(settings_keys::CUSTOM_MOSTRO_NODES)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("[]")
+        );
+        assert_eq!(
+            storage
+                .get_setting(settings_keys::PUSH_ENABLED)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("false")
+        );
+
+        // Wiping an already empty database is a no-op, not an error.
+        storage.clear_identity_data().await.unwrap();
 
         drop(storage);
         let _ = std::fs::remove_file(&path);

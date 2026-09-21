@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:mostro/core/automation/automation_id.dart';
 import 'package:flutter/services.dart';
 
 import 'package:mostro/core/app_theme.dart';
@@ -61,8 +63,9 @@ class ThousandsInputFormatter extends TextInputFormatter {
     final parts = text.split(decimalSeparator);
     final integer = parts.first.replaceFirst(RegExp(r'^0+(?=\d)'), '');
     final grouped = _group(integer);
-    final formatted =
-        parts.length > 1 ? '$grouped$decimalSeparator${parts[1]}' : grouped;
+    final formatted = parts.length > 1
+        ? '$grouped$decimalSeparator${parts[1]}'
+        : grouped;
 
     return TextEditingValue(
       text: formatted,
@@ -100,6 +103,7 @@ class UnderlineAmountField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.focusNode,
+    this.automationId,
   });
 
   final TextEditingController controller;
@@ -119,6 +123,12 @@ class UnderlineAmountField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final FocusNode? focusNode;
+
+  /// Automation identifier of the text field alone. A [trailing] control
+  /// keeps its own identifier: naming the whole row would merge both into
+  /// one semantics node carrying two identifiers, which a driver reading
+  /// the accessibility tree cannot tell apart, so neither would be found.
+  final String? automationId;
 
   @override
   State<UnderlineAmountField> createState() => _UnderlineAmountFieldState();
@@ -200,8 +210,8 @@ class _UnderlineAmountFieldState extends State<UnderlineAmountField> {
               color: widget.hasError
                   ? palette.error
                   : focused
-                      ? palette.fieldLabelFocus
-                      : palette.fieldLabel,
+                  ? palette.fieldLabelFocus
+                  : palette.fieldLabel,
             ),
             child: Text(label.toUpperCase()),
           ),
@@ -221,35 +231,38 @@ class _UnderlineAmountFieldState extends State<UnderlineAmountField> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: TextField(
-                  controller: widget.controller,
-                  focusNode: _focusNode,
-                  autofocus: widget.autofocus,
-                  keyboardType: widget.keyboardType,
-                  inputFormatters: widget.inputFormatters,
-                  textInputAction: widget.textInputAction,
-                  cursorColor: palette.fieldUnderlineFocus,
-                  style: TextStyle(
-                    fontFamily: AppFonts.figures,
-                    fontSize: widget.valueFontSize,
-                    fontWeight: FontWeight.w600,
-                    color: book.textPrimary,
-                    height: 1.2,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    isCollapsed: true,
-                    border: InputBorder.none,
-                    hintText: widget.hintText,
-                    hintStyle: TextStyle(
+                child: _named(
+                  widget.automationId,
+                  TextField(
+                    controller: widget.controller,
+                    focusNode: _focusNode,
+                    autofocus: widget.autofocus,
+                    keyboardType: widget.keyboardType,
+                    inputFormatters: widget.inputFormatters,
+                    textInputAction: widget.textInputAction,
+                    cursorColor: palette.fieldUnderlineFocus,
+                    style: TextStyle(
                       fontFamily: AppFonts.figures,
                       fontSize: widget.valueFontSize,
                       fontWeight: FontWeight.w600,
-                      color: book.textFaint,
+                      color: book.textPrimary,
+                      height: 1.2,
                     ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      isCollapsed: true,
+                      border: InputBorder.none,
+                      hintText: widget.hintText,
+                      hintStyle: TextStyle(
+                        fontFamily: AppFonts.figures,
+                        fontSize: widget.valueFontSize,
+                        fontWeight: FontWeight.w600,
+                        color: book.textFaint,
+                      ),
+                    ),
+                    onChanged: widget.onChanged,
+                    onSubmitted: widget.onSubmitted,
                   ),
-                  onChanged: widget.onChanged,
-                  onSubmitted: widget.onSubmitted,
                 ),
               ),
               if (widget.trailing != null) ...[
@@ -263,3 +276,7 @@ class _UnderlineAmountFieldState extends State<UnderlineAmountField> {
     );
   }
 }
+
+/// The field under its automation identifier, when it has one.
+Widget _named(String? id, Widget field) =>
+    id == null ? field : field.withAutomationId(id);

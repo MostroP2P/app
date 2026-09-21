@@ -171,13 +171,42 @@ bonds), `bond_pct` (only when required), `orders_by_fiat` and `total_orders`.
 Orders are counted by the app — never declared by the node — keeping only the
 newest version per (`author`, `d`), `pending`, and not past `expiration`.
 Best-effort like `refresh_mostro_node_metadata`: a node that answered nothing
-is an empty row (the UI shows it as unreachable), never a missing one. Nothing
-is persisted and the active-node order book is never touched. **Errors**:
-`InvalidPubkey`, or a failed relay query.
+is an empty row (the UI shows it as unreachable), never a missing one. The
+kind 38385 events it received refresh the node info cache (below), best effort
+and only on a change; order counts are never persisted and the active-node
+order book is never touched. **Errors**: `InvalidPubkey`, or a failed relay
+query.
 
-**Persistence**: `custom_mostro_nodes` (JSON array) and
-`mostro_node_metadata` (JSON map, pubkey → metadata) in the generic
-`settings` key-value table.
+### cached_mostro_node_stats(pubkeys: Vec<String>) → Vec<MostroNodeStats> (`api/node_stats.rs`)
+What the selector shows the moment it opens: one row per requested pubkey in
+request order, built from the persisted kind 38385 cache alone — no relay is
+asked. A node never seen is an empty row. These rows carry **no order count**
+(`total_orders == 0`, `latest_order_at == None` whatever the node's real book)
+and an `info_seen_at` as old as the cache, so the UI must not derive liquidity
+or availability from them: the card shows fee, range, currencies, custody and
+bond, keeps a skeleton on the order count, draws no availability line and never
+blocks the node. `fetch_mostro_node_stats` runs behind it and replaces the row.
+**Errors**: a failed storage read.
+
+### refresh_mostro_node_info_cache() → () (`api/node_stats.rs`)
+Startup warm-up, fired in the background by `app_bootstrap.dart` once the relay
+pool exists. Waits up to 5 s for the relay handshakes it races with, fetches
+the kind 38385 event of every registry node (trusted and user-added) in one
+query (10 s), and persists the newest valid one per node (`d` tag = author).
+"Newest" is NIP-01's order for a replaceable event: the greater `created_at`,
+and within one second the **lowest event id** — so which relay answers first
+never decides what is cached. The id is persisted with the entry; an entry
+written before it was kept yields a same-second tie to any event with an id.
+Nodes that did not answer keep their cached event; entries of nodes no longer
+in the registry are dropped. Node settings rarely change, which is why a cached
+copy is good enough to paint first. **Errors**: a failed relay query (the
+cache is then untouched); a failed cache write is logged and ignored.
+
+**Persistence**: `custom_mostro_nodes` (JSON array), `mostro_node_metadata`
+(JSON map, pubkey → metadata) and `mostro_node_info` (JSON map, pubkey →
+`{ created_at, tags }` — the raw tags of the node's newest kind 38385 event,
+parsed on read by the same code as a live event) in the generic `settings`
+key-value table.
 
 ---
 

@@ -16,6 +16,8 @@ TradeInfo fakeTrade({
   double? peerRating,
   int? peerReviews,
   int? peerDays,
+  BondInfo? bond,
+  CooperativeCancelState? cooperativeCancelState,
 }) {
   final order = OrderInfo(
     id: 'order-$id',
@@ -46,5 +48,7 @@ TradeInfo fakeTrade({
     peerRating: peerRating,
     peerReviews: peerReviews,
     peerDays: peerDays,
+    bond: bond,
+    cooperativeCancelState: cooperativeCancelState,
   );
 }

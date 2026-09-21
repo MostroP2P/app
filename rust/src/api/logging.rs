@@ -22,13 +22,55 @@ use crate::api::types::{LogEntry, LogLevel};
 /// Entries kept for [`recent_logs`] — a session's worth at `Info` level.
 const BUFFER_CAPACITY: usize = 1000;
 
+/// Relay traffic kept beside it (see [`is_relay_traffic`]): enough to see the
+/// last burst, too few to crowd anything else out (#522).
+const RELAY_TRAFFIC_CAPACITY: usize = 200;
+
 /// Lag tolerance for a slow live subscriber, not history.
 const BROADCAST_CAPACITY: usize = 512;
 
 // ── Shared state ─────────────────────────────────────────────────────────────
 
 static LOG_TX: OnceLock<broadcast::Sender<LogEntry>> = OnceLock::new();
-static BUFFER: OnceLock<Mutex<VecDeque<LogEntry>>> = OnceLock::new();
+static BUFFER: OnceLock<Mutex<Rings>> = OnceLock::new();
+
+/// The retained history: relay traffic in a ring of its own, so one replay
+/// burst — a line per kind-14 frame, per relay — cannot evict the rest
+/// (#522). Both sit under one lock, so ids stay ordered across them.
+#[flutter_rust_bridge::frb(ignore)]
+#[derive(Default)]
+struct Rings {
+    main: VecDeque<LogEntry>,
+    relay_traffic: VecDeque<LogEntry>,
+}
+
+impl Rings {
+    /// Append to the entry's ring, evicting that ring's oldest.
+    fn push(&mut self, level: log::Level, entry: LogEntry) {
+        let (ring, capacity) = if is_relay_traffic(level, &entry.tag) {
+            (&mut self.relay_traffic, RELAY_TRAFFIC_CAPACITY)
+        } else {
+            (&mut self.main, BUFFER_CAPACITY)
+        };
+        while ring.len() >= capacity {
+            ring.pop_front();
+        }
+        ring.push_back(entry);
+    }
+
+    /// Both rings merged, newest first.
+    fn newest_first(&self) -> Vec<LogEntry> {
+        let mut entries: Vec<LogEntry> =
+            self.main.iter().chain(self.relay_traffic.iter()).cloned().collect();
+        entries.sort_unstable_by_key(|e| std::cmp::Reverse(e.id));
+        entries
+    }
+
+    fn clear(&mut self) {
+        self.main.clear();
+        self.relay_traffic.clear();
+    }
+}
 
 /// Monotonic entry id — how a consumer merging [`recent_logs`] with the live
 /// stream drops the overlap.
@@ -38,8 +80,15 @@ fn log_sender() -> &'static broadcast::Sender<LogEntry> {
     LOG_TX.get_or_init(|| broadcast::channel(BROADCAST_CAPACITY).0)
 }
 
-fn buffer() -> &'static Mutex<VecDeque<LogEntry>> {
-    BUFFER.get_or_init(|| Mutex::new(VecDeque::with_capacity(BUFFER_CAPACITY)))
+fn buffer() -> &'static Mutex<Rings> {
+    BUFFER.get_or_init(|| Mutex::new(Rings::default()))
+}
+
+/// True for per-frame relay traffic: `relay` lines at `Debug` (`raw ev=…`,
+/// `eose sub=…`). Relay warnings — NOTICE, CLOSED, publish failures — are
+/// diagnostics and stay in the main history.
+fn is_relay_traffic(level: log::Level, tag: &str) -> bool {
+    level >= log::Level::Debug && tag == "relay"
 }
 
 // ── Installation and verbosity ───────────────────────────────────────────────
@@ -315,11 +364,8 @@ fn buffer_entry(level: log::Level, target: &str, message: &str) -> LogEntry {
         timestamp: crate::rt::unix_now(),
     };
 
-    if let Some(buf) = buf.as_mut() {
-        while buf.len() >= BUFFER_CAPACITY {
-            buf.pop_front();
-        }
-        buf.push_back(entry.clone());
+    if let Some(rings) = buf.as_mut() {
+        rings.push(level, entry.clone());
     }
 
     entry
@@ -391,15 +437,15 @@ pub fn on_log_entry() -> LogEntryStream {
 pub fn recent_logs() -> Vec<LogEntry> {
     buffer()
         .lock()
-        .map(|buf| buf.iter().rev().cloned().collect())
+        .map(|rings| rings.newest_first())
         .unwrap_or_default()
 }
 
 /// Drop the buffered history — log lines can name orders and counterparties,
 /// so anything that wipes the user's identity should call this too.
 pub fn clear_logs() {
-    if let Ok(mut buf) = buffer().lock() {
-        buf.clear();
+    if let Ok(mut rings) = buffer().lock() {
+        rings.clear();
     }
 }
 
@@ -609,11 +655,53 @@ mod tests {
         }
 
         let entries = recent_logs();
-        assert!(entries.len() <= BUFFER_CAPACITY);
+        assert!(entries.len() <= BUFFER_CAPACITY + RELAY_TRAFFIC_CAPACITY);
         assert!(
             entries.windows(2).all(|w| w[0].id > w[1].id),
             "recent_logs must be ordered newest first",
         );
+    }
+
+    /// #522: a reconnect replays the DM history and logs one `relay` DEBUG
+    /// line per frame. That traffic has its own, smaller ring, so a burst of
+    /// it can no longer evict the order and restore lines a report is for.
+    #[test]
+    fn relay_traffic_cannot_evict_the_rest_of_the_history() {
+        // A local history: the global one is shared with concurrent tests.
+        let mut rings = Rings::default();
+        let entry = |id: u32, level, tag: &str| LogEntry {
+            id,
+            level,
+            tag: tag.to_string(),
+            message: format!("{tag} {id}"),
+            timestamp: 0,
+        };
+        rings.push(log::Level::Info, entry(0, LogLevel::Info, "restore"));
+        let flood = (BUFFER_CAPACITY * 2) as u32;
+        for id in 1..=flood {
+            rings.push(log::Level::Debug, entry(id, LogLevel::Debug, "relay"));
+        }
+
+        let entries = rings.newest_first();
+        assert!(
+            entries.iter().any(|e| e.tag == "restore"),
+            "a relay burst evicted a restore line",
+        );
+        assert_eq!(entries.len(), 1 + RELAY_TRAFFIC_CAPACITY);
+        assert_eq!(entries[0].id, flood, "newest relay line first");
+        assert!(entries.windows(2).all(|w| w[0].id > w[1].id));
+
+        rings.clear();
+        assert!(rings.newest_first().is_empty());
+    }
+
+    /// Relay warnings (NOTICE, CLOSED) are diagnostics, not traffic: they
+    /// stay in the main history with everything else.
+    #[test]
+    fn only_relay_debug_lines_count_as_traffic() {
+        assert!(is_relay_traffic(log::Level::Debug, "relay"));
+        assert!(!is_relay_traffic(log::Level::Warn, "relay"));
+        assert!(!is_relay_traffic(log::Level::Debug, "orders"));
     }
 
     #[test]

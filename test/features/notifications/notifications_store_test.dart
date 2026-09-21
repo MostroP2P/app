@@ -48,6 +48,24 @@ void main() {
     expect((await store.loadAll()).map((n) => n.id), ['b']);
   });
 
+  // Issue #533. `deleteAll` is the user clearing their list: the ledger
+  // stays so a replay cannot resurrect a notice. `wipe` is an identity
+  // change: the ledger names the previous user's events and goes too.
+  test('deleteAll keeps the processed ledger, wipe drops it', () async {
+    final store = openStore();
+    await store.save(_note('a'));
+    await store.markProcessed('event-1');
+
+    await store.deleteAll();
+    expect(await store.loadAll(), isEmpty);
+    expect(await store.isProcessed('event-1'), isTrue);
+
+    await store.save(_note('b'));
+    await store.wipe();
+    expect(await store.loadAll(), isEmpty);
+    expect(await store.isProcessed('event-1'), isFalse);
+  });
+
   test('saveAll marks a whole batch read in one commit', () async {
     final store = openStore();
     for (final id in ['a', 'b', 'c']) {

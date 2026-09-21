@@ -3,6 +3,11 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- APNs, which FCM delivers iOS pushes through (docs/PUSH_NOTIFICATIONS.md
+         T4.4). "development" here; exporting with a distribution profile
+         (TestFlight, App Store) re-signs it as "production". -->
+    <key>aps-environment</key>
+    <string>development</string>
     <!-- Keychain access group for flutter_secure_storage (PIN, session data) -->
     <key>keychain-access-groups</key>
     <array>

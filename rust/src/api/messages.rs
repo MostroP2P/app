@@ -23,7 +23,7 @@
 /// Streams: `on_new_message(trade_id)`, `on_unread_count_changed()`,
 /// `on_attachment_progress(message_id)`.
 use anyhow::{anyhow, bail, Result};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{broadcast, RwLock};
 
@@ -230,6 +230,42 @@ impl MessageStore {
         store.get(trade_id).cloned().unwrap_or_default()
     }
 
+    /// Reconcile notification delivery from storage, independently of relay
+    /// dedup. Memory wins, including messages read since the DB query began.
+    async fn notification_backlog(&self) -> Result<VecDeque<ChatMessage>> {
+        let persisted = match crate::db::app_db::db() {
+            Some(db) => db.list_unread_messages().await?,
+            None => Vec::new(),
+        };
+        let mut by_id: HashMap<String, ChatMessage> =
+            persisted.into_iter().map(|m| (m.id.clone(), m)).collect();
+        for msg in self.messages.read().await.values().flatten() {
+            if notification_candidate(msg) {
+                by_id.insert(msg.id.clone(), msg.clone());
+            } else {
+                by_id.remove(&msg.id);
+            }
+        }
+        let mut unread: Vec<_> = by_id.into_values().filter(notification_candidate).collect();
+        unread.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+        Ok(unread.into())
+    }
+
+    /// A queued clone may have been read while Dart processed an earlier
+    /// event. Use the cache's fresh read flag before delivering it.
+    async fn notification_candidate_now(&self, mut msg: ChatMessage) -> Option<ChatMessage> {
+        if let Some(current) = self
+            .messages
+            .read()
+            .await
+            .get(&msg.trade_id)
+            .and_then(|messages| messages.iter().find(|m| m.id == msg.id))
+        {
+            msg = current.clone();
+        }
+        notification_candidate(&msg).then_some(msg)
+    }
+
     async fn mark_as_read(&self, trade_id: &str) {
         self.ensure_hydrated(trade_id).await;
         let mut store = self.messages.write().await;
@@ -246,6 +282,16 @@ impl MessageStore {
         }
         let unread = self.unread_count_inner().await;
         let _ = self.unread_tx.send(unread);
+    }
+
+    /// Drop every conversation held in memory and publish an unread count
+    /// of zero. `hydrated` goes too, so a later read of the same trade id
+    /// goes back to the database instead of trusting an emptied cache.
+    async fn clear(&self) {
+        self.messages.write().await.clear();
+        self.hydrated.write().await.clear();
+        self.non_durable.write().await.clear();
+        let _ = self.unread_tx.send(0);
     }
 
     async fn unread_count_inner(&self) -> u32 {
@@ -315,7 +361,23 @@ pub(crate) async fn publish_chat_payload_for(
     ctx: &ChatContext,
     payload: &str,
 ) -> Result<nostr_sdk::prelude::Event> {
-    publish_chat_payload(ctx, payload).await
+    publish_chat_payload(ctx, payload).await.map(|p| p.inner)
+}
+
+/// A chat envelope handed to the pool.
+struct PublishedChat {
+    /// The signed inner event: the message's durable identity.
+    inner: nostr_sdk::prelude::Event,
+    /// Whether at least one relay accepted the envelope. `send_event` returns
+    /// `Ok` even when every relay rejected it.
+    delivered: bool,
+}
+
+/// The peer to wake after a publish, if any: only an envelope some relay
+/// accepted is worth a wake. Waking for one that reached nobody rings the
+/// peer for nothing and debounces the wake of the retry that does land.
+fn peer_to_wake(delivered: bool, peer_hex: &str) -> Option<&str> {
+    delivered.then_some(peer_hex)
 }
 
 /// Record a message we just sent to the solver, mirroring what `send_message`
@@ -342,7 +404,7 @@ pub(crate) async fn store_outgoing_admin_message(
     let _ = message_store().add_message(msg).await;
 }
 
-async fn publish_chat_payload(ctx: &ChatContext, payload: &str) -> Result<nostr_sdk::prelude::Event> {
+async fn publish_chat_payload(ctx: &ChatContext, payload: &str) -> Result<PublishedChat> {
     let (outer, inner) =
         crate::nostr::transport::mostro_wrap(&ctx.trade_keys, &ctx.conv, &ctx.sign, payload)
             .await?;
@@ -375,7 +437,10 @@ async fn publish_chat_payload(ctx: &ChatContext, payload: &str) -> Result<nostr_
             ),
         );
     }
-    Ok(inner)
+    Ok(PublishedChat {
+        inner,
+        delivered: !output.success.is_empty(),
+    })
 }
 
 /// Send an encrypted text message to the trade counterparty.
@@ -433,9 +498,15 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
                             return Err(e);
                         }
                         Err(e) => log::warn!("[messages] send_message trade={trade_id}: {e}"),
-                        Ok(inner) => {
-                            id = inner.id.to_hex();
-                            created_at = inner.created_at.as_secs() as i64;
+                        Ok(published) => {
+                            id = published.inner.id.to_hex();
+                            created_at = published.inner.created_at.as_secs() as i64;
+                            // The envelope's `p` tag is `pub(K_conv)`, which
+                            // the push server cannot match: ask it to ring the
+                            // peer's trade key (docs/PUSH_NOTIFICATIONS.md §7.3).
+                            if let Some(peer) = peer_to_wake(published.delivered, peer_hex) {
+                                crate::api::push::wake_peer(peer);
+                            }
                         }
                     }
                 }
@@ -570,9 +641,12 @@ pub async fn send_file(
             Err(e) => log::warn!("[messages] send_file trade={trade_id}: {e}"),
             Ok(ctx) => match publish_chat_payload(&ctx, &payload).await {
                 Err(e) => log::warn!("[messages] send_file trade={trade_id}: {e}"),
-                Ok(inner) => {
-                    published_id = Some(inner.id.to_hex());
-                    msg_created_at = inner.created_at.as_secs() as i64;
+                Ok(published) => {
+                    published_id = Some(published.inner.id.to_hex());
+                    msg_created_at = published.inner.created_at.as_secs() as i64;
+                    if let Some(peer) = peer_to_wake(published.delivered, peer_hex) {
+                        crate::api::push::wake_peer(peer);
+                    }
                 }
             },
         }
@@ -723,6 +797,16 @@ pub async fn on_new_message(trade_id: String) -> Result<MessageStream> {
     Ok(MessageStream { rx, trade_id })
 }
 
+/// Incoming unread messages for notification cards, with at-least-once
+/// delivery. Replays durable unread history on startup, channel lag and
+/// every minute (including after resume), so a failed Dart persistence write
+/// or a crash between the Rust and Dart commits is retried without a relay.
+/// Consumers must deduplicate by message id, including deliberately suppressed
+/// messages. Per-screen consumers want [`on_new_message`] instead.
+pub async fn on_any_new_message() -> Result<AnyMessageStream> {
+    Ok(AnyMessageStream::new(message_store()))
+}
+
 /// Stream that emits the updated global unread count after any read/write.
 pub async fn on_unread_count_changed() -> Result<UnreadCountStream> {
     let rx = message_store().unread_tx.subscribe();
@@ -750,6 +834,74 @@ impl MessageStream {
                 Ok(_) => continue, // different trade
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(broadcast::error::RecvError::Closed) => return None,
+            }
+        }
+    }
+}
+
+fn notification_candidate(msg: &ChatMessage) -> bool {
+    !msg.is_mine && !msg.is_read && msg.message_type != MessageType::System
+}
+
+pub struct AnyMessageStream {
+    rx: broadcast::Receiver<ChatMessage>,
+    pending: VecDeque<ChatMessage>,
+    replay_at: crate::rt::time::Instant,
+}
+
+impl AnyMessageStream {
+    fn new(store: &MessageStore) -> Self {
+        Self {
+            rx: store.new_message_tx.subscribe(),
+            pending: VecDeque::new(),
+            replay_at: crate::rt::time::Instant::now(),
+        }
+    }
+
+    pub async fn next(&mut self) -> Option<ChatMessage> {
+        self.next_from(message_store()).await
+    }
+
+    async fn next_from(&mut self, store: &MessageStore) -> Option<ChatMessage> {
+        use crate::rt::time::{timeout, Duration, Instant};
+        loop {
+            if let Some(msg) = self.pending.pop_front() {
+                if let Some(msg) = store.notification_candidate_now(msg).await {
+                    return Some(msg);
+                }
+                continue;
+            }
+            if Instant::now() >= self.replay_at {
+                match store.notification_backlog().await {
+                    Ok(backlog) => self.pending = backlog,
+                    Err(e) => {
+                        log::warn!("[messages] notification recovery failed, will retry: {e}")
+                    }
+                }
+                self.replay_at = Instant::now() + Duration::from_secs(60);
+                if !self.pending.is_empty() {
+                    continue;
+                }
+            }
+            match timeout(
+                self.replay_at.saturating_duration_since(Instant::now()),
+                self.rx.recv(),
+            )
+            .await
+            {
+                Ok(Ok(msg)) => {
+                    if let Some(msg) = store.notification_candidate_now(msg).await {
+                        return Some(msg);
+                    }
+                }
+                Ok(Err(broadcast::error::RecvError::Lagged(n))) => {
+                    log::warn!(
+                        "[messages] notification stream lagged by {n}; recovering stored messages"
+                    );
+                    self.replay_at = Instant::now();
+                }
+                Ok(Err(broadcast::error::RecvError::Closed)) => return None,
+                Err(_) => {} // Retry durable unread messages, even without new traffic.
             }
         }
     }
@@ -834,7 +986,9 @@ async fn persist_decrypted_attachment(
     _file_name: &str,
     _data: &[u8],
 ) -> Result<String> {
-    Err(anyhow!("attachment download to disk is not supported on web"))
+    Err(anyhow!(
+        "attachment download to disk is not supported on web"
+    ))
 }
 
 fn is_supported_mime_type(mime: &str) -> bool {
@@ -883,8 +1037,14 @@ const MAX_STORED_BYTES_PER_TRADE: usize = 5 * 1024 * 1024;
 /// Subscription id for the chat envelope of one order — explicit so every
 /// exit path can unsubscribe and a lingering relay subscription never
 /// outlives its task.
-fn chat_subscription_id(channel: ChatChannel, order_id: &str) -> nostr_sdk::prelude::SubscriptionId {
-    nostr_sdk::prelude::SubscriptionId::new(format!("mostro-chat-{}{order_id}", channel.id_prefix()))
+fn chat_subscription_id(
+    channel: ChatChannel,
+    order_id: &str,
+) -> nostr_sdk::prelude::SubscriptionId {
+    nostr_sdk::prelude::SubscriptionId::new(format!(
+        "mostro-chat-{}{order_id}",
+        channel.id_prefix()
+    ))
 }
 
 /// Which conversation an envelope subscription serves.
@@ -935,17 +1095,106 @@ impl ChatChannel {
     fn cursor_key(self, order_id: &str) -> String {
         crate::db::settings_keys::chat_cursor(&format!("{}{order_id}", self.id_prefix()))
     }
-
 }
 
 /// Orders with a live chat task. Single-owner guard: the peer-reveal capture
 /// fires again on daemon replays and reconnect backfills, and a second task
 /// for the same order would double-process events and race on the cursor.
-static ACTIVE_CHATS: OnceLock<tokio::sync::Mutex<std::collections::HashSet<String>>> =
+static ACTIVE_CHATS: OnceLock<tokio::sync::Mutex<std::collections::HashMap<String, u64>>> =
     OnceLock::new();
 
-fn active_chats() -> &'static tokio::sync::Mutex<std::collections::HashSet<String>> {
-    ACTIVE_CHATS.get_or_init(|| tokio::sync::Mutex::new(std::collections::HashSet::new()))
+/// Live chat tasks, by guard key: the generation of the task that owns the
+/// chat's subscription. Presence alone is not ownership: after a stop, a
+/// replacement task can claim the same chat before the old one wakes, and the
+/// old one's cleanup must not release — or close the REQ of — its successor
+/// (PR #527 review). Same scheme as `single_order_tasks` in `orders.rs`.
+fn active_chats() -> &'static tokio::sync::Mutex<std::collections::HashMap<String, u64>> {
+    ACTIVE_CHATS.get_or_init(Default::default)
+}
+
+/// Source of chat task generations; strictly increasing.
+static CHAT_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Claim the chat for a new task: its generation, or `None` while another
+/// task owns it.
+async fn claim_chat(channel: ChatChannel, order_id: &str) -> Option<u64> {
+    let mut active = active_chats().lock().await;
+    let key = channel.guard_key(order_id);
+    if active.contains_key(&key) {
+        return None;
+    }
+    let generation = CHAT_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    active.insert(key, generation);
+    Some(generation)
+}
+
+/// Whether `generation` still owns the chat.
+async fn chat_is_current(channel: ChatChannel, order_id: &str, generation: u64) -> bool {
+    active_chats().lock().await.get(&channel.guard_key(order_id)) == Some(&generation)
+}
+
+/// Release `generation`'s claim, returning whether it still held it — only
+/// then does the task own the subscription it is about to close.
+async fn release_chat(channel: ChatChannel, order_id: &str, generation: u64) -> bool {
+    let mut active = active_chats().lock().await;
+    let key = channel.guard_key(order_id);
+    if active.get(&key) == Some(&generation) {
+        active.remove(&key);
+        true
+    } else {
+        false
+    }
+}
+
+/// Stop the chat subscriptions of a trade that is over (#523): release both
+/// channels' ownership and close their REQs, which otherwise stayed open for
+/// the rest of the session and counted against the relays' caps. A running
+/// task sees its ownership gone and exits at its next wake. Returns the
+/// channels that were running.
+pub(crate) async fn stop_chat_subscriptions(order_id: &str) -> Vec<ChatChannel> {
+    let stopped: Vec<ChatChannel> = {
+        let mut active = active_chats().lock().await;
+        [ChatChannel::Peer, ChatChannel::Dispute]
+            .into_iter()
+            .filter(|channel| active.remove(&channel.guard_key(order_id)).is_some())
+            .collect()
+    };
+    if !stopped.is_empty() {
+        if let Ok(pool) = crate::api::nostr::get_pool() {
+            let client = pool.client();
+            for channel in &stopped {
+                crate::nostr::live_subs::live_subs()
+                    .close(&client, &chat_subscription_id(*channel, order_id))
+                    .await;
+            }
+        }
+    }
+    stopped
+}
+
+/// Forget every conversation of the identity being deleted (issue #533):
+/// release each live chat task's claim, close its REQ, and empty the
+/// in-memory store, so the next user starts with no chats and an unread
+/// count of zero. The persisted rows go with `clear_identity_data`; a task
+/// still running sees its claim gone at its next wake and exits.
+pub(crate) async fn forget_identity_chats() {
+    let guard_keys: Vec<String> = active_chats()
+        .lock()
+        .await
+        .drain()
+        .map(|(key, _)| key)
+        .collect();
+    if let Ok(pool) = crate::api::nostr::get_pool() {
+        let client = pool.client();
+        for key in &guard_keys {
+            // Same shape as `chat_subscription_id`, whose suffix is the guard key.
+            let id = nostr_sdk::prelude::SubscriptionId::new(format!("mostro-chat-{key}"));
+            crate::nostr::live_subs::live_subs()
+                .close(&client, &id)
+                .await;
+        }
+    }
+    message_store().clear().await;
 }
 
 /// Bounded insert-only id set with FIFO eviction (outer-id LRU, step 5).
@@ -1098,29 +1347,37 @@ pub(crate) async fn subscribe_incoming_chat(
     sign: nostr_sdk::prelude::Keys,
 ) {
     // Single-owner guard: a second spawn for the same order is a no-op.
-    {
-        let mut active = active_chats().lock().await;
-        if !active.insert(channel.guard_key(&order_id)) {
-            log::debug!("[messages] chat task already active order={order_id}");
-            return;
-        }
-    }
+    let Some(generation) = claim_chat(channel, &order_id).await else {
+        log::debug!("[messages] chat task already active order={order_id}");
+        return;
+    };
 
-    run_chat_subscription(channel, &order_id, &trade_keys, &peer_pubkey, &conv, &sign).await;
+    run_chat_subscription(
+        channel,
+        &order_id,
+        generation,
+        &trade_keys,
+        &peer_pubkey,
+        &conv,
+        &sign,
+    )
+    .await;
 
     // Cleanup on every exit path: release ownership and drop the relay
-    // subscriptions so they never outlive the task.
-    active_chats().lock().await.remove(&channel.guard_key(&order_id));
+    // subscription so it never outlives the task — but only while this task
+    // still owns the chat. After a stop the REQ is already closed, and a
+    // replacement task may have re-opened it under the same id.
+    if !release_chat(channel, &order_id, generation).await {
+        log::debug!("[messages] chat task superseded order={order_id}");
+        return;
+    }
     if let Ok(pool) = crate::api::nostr::get_pool() {
         let client = pool.client();
-        // Unsubscribing a subscription that already went away is not an
-        // error worth surfacing: the loop is exiting either way.
-        if let Err(e) = client
-            .unsubscribe(&chat_subscription_id(channel, &order_id))
-            .await
-        {
-            log::debug!("[messages] unsubscribe on exit failed: {e}");
-        }
+        // Through the registry, or a reconnect repair would resurrect the
+        // REQ of a chat nobody listens to any more.
+        crate::nostr::live_subs::live_subs()
+            .close(&client, &chat_subscription_id(channel, &order_id))
+            .await;
     }
     log::debug!("[messages] incoming-chat subscription exiting order={order_id}");
 }
@@ -1198,6 +1455,7 @@ impl ChatRxState {
 async fn run_chat_subscription(
     channel: ChatChannel,
     order_id: &str,
+    generation: u64,
     trade_keys: &nostr_sdk::prelude::Keys,
     peer_pubkey: &nostr_sdk::prelude::PublicKey,
     conv: &nostr_sdk::prelude::Keys,
@@ -1233,19 +1491,31 @@ async fn run_chat_subscription(
     // and would otherwise be missed.
     let mut rx = client.notifications();
 
-    if let Err(e) = client.subscribe(filter).with_id(sub_id.clone()).await {
-        log::warn!("[messages] subscribe_incoming_chat subscribe failed: {e}");
-        return;
-    }
+    // `replace`, not a bare subscribe: issued while relays are still coming
+    // back (a resume), it must reach each of them as it connects.
+    let issued = match crate::nostr::live_subs::live_subs()
+        .replace(&client, sub_id.clone(), filter)
+        .await
+    {
+        Ok(issued) => issued,
+        Err(e) => {
+            log::warn!("[messages] subscribe_incoming_chat subscribe failed: {e}");
+            return;
+        }
+    };
 
     log::info!(
-        "[messages] incoming-chat subscription active order={order_id} author={} since={cursor}",
+        "[messages] incoming-chat subscription {issued:?} order={order_id} author={} since={cursor}",
         sign_pubkey.to_hex(),
     );
 
     let mut state = ChatRxState::new(channel, cursor);
 
     loop {
+        // The trade ended and `stop_chat_subscriptions` took the chat back.
+        if !chat_is_current(channel, order_id, generation).await {
+            return;
+        }
         match rx.next().await {
             Some(ClientNotification::Event {
                 subscription_id,
@@ -1253,8 +1523,17 @@ async fn run_chat_subscription(
                 ..
             }) => {
                 if subscription_id == sub_id {
-                    handle_chat_event(channel, order_id, &allowed_signers, conv, &sign_pubkey, &my_trade_pubkey, &event, &mut state)
-                        .await;
+                    handle_chat_event(
+                        channel,
+                        order_id,
+                        &allowed_signers,
+                        conv,
+                        &sign_pubkey,
+                        &my_trade_pubkey,
+                        &event,
+                        &mut state,
+                    )
+                    .await;
                 }
                 if state.flooded {
                     return;
@@ -1427,7 +1706,12 @@ pub(crate) async fn resubscribe_active_chats() {
         };
         log::info!("[messages] resubscribing chat order={order_id}");
         crate::rt::spawn(subscribe_incoming_chat(
-            ChatChannel::Peer, order_id, trade_keys, peer, conv, sign,
+            ChatChannel::Peer,
+            order_id,
+            trade_keys,
+            peer,
+            conv,
+            sign,
         ));
     }
 }
@@ -1559,7 +1843,138 @@ async fn rebuild_session(
 
 #[cfg(test)]
 mod tests {
+    fn notification_test_message(trade_id: &str, index: i64) -> ChatMessage {
+        ChatMessage {
+            id: format!("{trade_id}-{index}"),
+            trade_id: trade_id.into(),
+            sender_pubkey: "peer".into(),
+            content: "hello".into(),
+            message_type: MessageType::Peer,
+            is_mine: false,
+            is_read: false,
+            has_attachment: false,
+            attachment: None,
+            created_at: index,
+        }
+    }
+
+    /// Issue #533: a new user starts with no conversations and no unread
+    /// badge, whatever the previous one left in memory.
+    #[tokio::test]
+    async fn clearing_the_store_leaves_no_chats_and_no_unread_count() {
+        let store = MessageStore::new();
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let mut unread = store.unread_tx.subscribe();
+        store
+            .add_message(notification_test_message(&trade_id, 1))
+            .await;
+        assert_eq!(store.messages.read().await.len(), 1);
+        assert!(store.hydrated.read().await.contains(&trade_id));
+        assert_eq!(store.unread_count_inner().await, 1);
+
+        store.clear().await;
+
+        // Asserted on the maps `clear` owns, not through `get_messages`: that
+        // read re-hydrates from the process-wide database, where a parallel
+        // test may have had this message persisted. In the app the rows are
+        // wiped first, so the re-hydration `clear` allows finds nothing.
+        assert!(store.messages.read().await.is_empty());
+        assert!(store.hydrated.read().await.is_empty());
+        assert!(store.non_durable.read().await.is_empty());
+        assert_eq!(store.unread_count_inner().await, 0);
+        // The badge is pushed, not polled: the last value published is zero.
+        let mut last = None;
+        while let Ok(count) = unread.try_recv() {
+            last = Some(count);
+        }
+        assert_eq!(last, Some(0));
+    }
+
+    #[tokio::test]
+    async fn notification_stream_recovers_every_message_after_lag() {
+        let store = MessageStore::new();
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let mut stream = AnyMessageStream::new(&store);
+        // Exhaust startup reconciliation first, so this tests actual lag recovery.
+        stream.replay_at = crate::rt::time::Instant::now() + std::time::Duration::from_secs(60);
+        for i in 0..70 {
+            store
+                .add_message(notification_test_message(&trade_id, i))
+                .await;
+        }
+        let mut received = Vec::new();
+        while received.len() < 70 {
+            let msg =
+                tokio::time::timeout(std::time::Duration::from_secs(5), stream.next_from(&store))
+                    .await
+                    .unwrap()
+                    .unwrap();
+            if msg.trade_id == trade_id {
+                received.push(msg.created_at);
+            }
+        }
+        assert_eq!(received, (0..70).collect::<Vec<_>>());
+    }
+
+    #[tokio::test]
+    async fn notification_stream_retries_without_another_relay_message() {
+        let store = MessageStore::new();
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        store
+            .add_message(notification_test_message(&trade_id, 1))
+            .await;
+        // No receiver existed at send time. Startup still recovers the message.
+        let mut stream = AnyMessageStream::new(&store);
+        for _ in 0..2 {
+            loop {
+                let msg = tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    stream.next_from(&store),
+                )
+                .await
+                .unwrap()
+                .unwrap();
+                if msg.trade_id == trade_id {
+                    break;
+                }
+            }
+            // Simulate the recovery deadline after a failed Dart write.
+            stream.pending.clear();
+            stream.replay_at = crate::rt::time::Instant::now();
+        }
+    }
+
+    #[tokio::test]
+    async fn notification_stream_drops_queued_messages_read_since_snapshot() {
+        let store = MessageStore::new();
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let msg = notification_test_message(&trade_id, 1);
+        store.add_message(msg.clone()).await;
+        store.mark_as_read(&trade_id).await;
+        assert!(store.notification_candidate_now(msg).await.is_none());
+        assert!(!store
+            .notification_backlog()
+            .await
+            .unwrap()
+            .iter()
+            .any(|m| m.trade_id == trade_id));
+    }
+
     use super::*;
+
+    const PEER: &str = "aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11aa11";
+
+    #[test]
+    fn a_message_no_relay_accepted_wakes_nobody() {
+        // `send_message` and `send_file` both gate `wake_peer` on this: an
+        // empty `output.success` still comes back as `Ok` from the pool.
+        assert_eq!(peer_to_wake(false, PEER), None);
+    }
+
+    #[test]
+    fn a_message_some_relay_accepted_wakes_the_peer() {
+        assert_eq!(peer_to_wake(true, PEER), Some(PEER));
+    }
 
     #[test]
     fn the_two_channels_of_one_order_never_collide() {
@@ -1576,6 +1991,44 @@ mod tests {
             chat_subscription_id(ChatChannel::Peer, order),
             chat_subscription_id(ChatChannel::Dispute, order)
         );
+    }
+
+    /// Issue #474: the Notifications cards read one stream for every trade's
+    /// chat, where the per-trade stream drops all but one.
+    #[tokio::test]
+    async fn the_any_message_stream_carries_every_trade() {
+        let mut stream = on_any_new_message().await.unwrap();
+        let first = uuid::Uuid::new_v4().to_string();
+        let second = uuid::Uuid::new_v4().to_string();
+        for (index, trade_id) in [&first, &second].into_iter().enumerate() {
+            message_store()
+                .add_message(ChatMessage {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    trade_id: trade_id.clone(),
+                    sender_pubkey: "peer".into(),
+                    content: "hi".into(),
+                    message_type: MessageType::Peer,
+                    is_mine: false,
+                    is_read: false,
+                    has_attachment: false,
+                    attachment: None,
+                    created_at: index as i64 + 1,
+                })
+                .await;
+        }
+
+        // Parallel tests share the store, so only our two trades count.
+        let mut seen = Vec::new();
+        while seen.len() < 2 {
+            let msg = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+                .await
+                .expect("a message within 5s")
+                .expect("stream open");
+            if msg.trade_id == first || msg.trade_id == second {
+                seen.push(msg.trade_id);
+            }
+        }
+        assert_eq!(seen, vec![first, second]);
     }
 
     #[test]
@@ -1924,7 +2377,10 @@ mod tests {
         // misinterpreted.
         let (content, att) = parse_chat_payload(r#"{"type":"file","url":"x"}"#);
         assert_eq!(content, r#"{"type":"file","url":"x"}"#);
-        assert!(att.is_none(), "incomplete pointer must not become an attachment");
+        assert!(
+            att.is_none(),
+            "incomplete pointer must not become an attachment"
+        );
     }
 
     #[test]
@@ -1982,6 +2438,46 @@ mod tests {
         // An untouched trade has room.
         let other = uuid::Uuid::new_v4().to_string();
         assert!(!store.quota_exceeded(&other, 1024).await);
+    }
+
+    /// #523: a finished trade gives its chat REQs back. Stopping releases
+    /// both channels' ownership — the running tasks exit at their next wake —
+    /// and reports which were running; an order with no chat is a no-op.
+    #[tokio::test]
+    async fn stopping_a_finished_trades_chats_releases_both_channels() {
+        let order = format!("stop-{}", uuid::Uuid::new_v4());
+        let peer = claim_chat(ChatChannel::Peer, &order).await.expect("claim");
+        let dispute = claim_chat(ChatChannel::Dispute, &order).await.expect("claim");
+
+        let stopped = stop_chat_subscriptions(&order).await;
+
+        assert_eq!(stopped, vec![ChatChannel::Peer, ChatChannel::Dispute]);
+        assert!(!chat_is_current(ChatChannel::Peer, &order, peer).await);
+        assert!(!chat_is_current(ChatChannel::Dispute, &order, dispute).await);
+        assert!(stop_chat_subscriptions(&order).await.is_empty());
+    }
+
+    /// PR #527 review: stop, then a replacement task claims the same chat,
+    /// then the old task finally exits. The old task's cleanup must not take
+    /// the replacement's ownership (nor, therefore, close its REQ).
+    #[tokio::test]
+    async fn an_old_chat_task_cannot_release_its_replacement() {
+        let order = format!("swap-{}", uuid::Uuid::new_v4());
+        let old = claim_chat(ChatChannel::Peer, &order).await.expect("first claim");
+        // One owner at a time.
+        assert!(claim_chat(ChatChannel::Peer, &order).await.is_none());
+
+        stop_chat_subscriptions(&order).await;
+        let new = claim_chat(ChatChannel::Peer, &order).await.expect("replacement");
+        assert_ne!(old, new);
+
+        // The old task wakes: it is no longer current, and releasing reports
+        // that it owned nothing — so its cleanup leaves the REQ alone.
+        assert!(!chat_is_current(ChatChannel::Peer, &order, old).await);
+        assert!(!release_chat(ChatChannel::Peer, &order, old).await);
+        assert!(chat_is_current(ChatChannel::Peer, &order, new).await);
+
+        assert!(release_chat(ChatChannel::Peer, &order, new).await);
     }
 
     #[test]
@@ -2145,7 +2641,10 @@ mod tests {
         let trade_keys = nostr_sdk::prelude::Keys::generate();
         let trade = live_trade(&order_id, "not-a-pubkey", 1);
         assert!(rebuild_session(&trade, &trade_keys).await.is_none());
-        assert!(crate::mostro::session::session_manager().get_session(&order_id).await.is_none());
+        assert!(crate::mostro::session::session_manager()
+            .get_session(&order_id)
+            .await
+            .is_none());
     }
 
     /// The seam test for #381: `session_or_rebuild` is only useful if the
@@ -2163,10 +2662,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "claims the process-global app_db and identity — run with --ignored"]
     async fn send_message_rebuilds_session_from_trade_row() {
-        let db_path = std::env::temp_dir().join(format!(
-            "mostro-381-seam-test-{}.db",
-            uuid::Uuid::new_v4()
-        ));
+        let db_path =
+            std::env::temp_dir().join(format!("mostro-381-seam-test-{}.db", uuid::Uuid::new_v4()));
         crate::db::app_db::init_db(db_path.to_str().unwrap())
             .await
             .expect("init app db");
@@ -2195,7 +2692,10 @@ mod tests {
             .await
             .expect("save the post-reveal row");
         assert!(
-            crate::mostro::session::session_manager().get_session(&order_id).await.is_none(),
+            crate::mostro::session::session_manager()
+                .get_session(&order_id)
+                .await
+                .is_none(),
             "the restart shape: row persisted, session gone"
         );
 

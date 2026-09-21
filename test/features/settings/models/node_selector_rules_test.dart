@@ -134,7 +134,6 @@ void main() {
   group('dimFactorOf', () {
     test('blocked 55 %, currency mismatch 70 %, otherwise opaque', () {
       expect(dimFactorOf(NodeBlocker.unreachable, true), 0.55);
-      expect(dimFactorOf(NodeBlocker.bondUnsupported, false), 0.55);
       expect(dimFactorOf(null, false), 0.70);
       expect(dimFactorOf(null, true), 1.0);
       expect(dimFactorOf(null, null), 1.0);
@@ -142,15 +141,6 @@ void main() {
   });
 
   group('blockerOf', () {
-    test('bond required blocks even when online', () {
-      final s = _stats(
-        infoSeenAt: _now,
-        orders: {'ARS': 5},
-        bondRequired: true,
-      );
-      expect(blockerOf(s, 'ARS', _now), NodeBlocker.bondUnsupported);
-    });
-
     test('unreachable blocks', () {
       expect(blockerOf(_stats(), 'ARS', _now), NodeBlocker.unreachable);
     });
@@ -199,7 +189,7 @@ void main() {
   });
 
   group('currencyChips', () {
-    test('my currency first, capped at five, rest overflow', () {
+    test('my currency first, then every other one — never capped', () {
       final chips = currencyChips([
         'VES',
         'BRL',
@@ -210,14 +200,12 @@ void main() {
         'CLP',
         'PEN',
       ], 'ars');
-      expect(chips.shown, ['ARS', 'VES', 'BRL', 'EUR', 'COP']);
-      expect(chips.overflow, 3);
+      expect(chips, ['ARS', 'VES', 'BRL', 'EUR', 'COP', 'USD', 'CLP', 'PEN']);
     });
 
     test('unaccepted currency is not injected', () {
       final chips = currencyChips(['COP', 'VES'], 'ARS');
-      expect(chips.shown, ['COP', 'VES']);
-      expect(chips.overflow, 0);
+      expect(chips, ['COP', 'VES']);
     });
   });
 

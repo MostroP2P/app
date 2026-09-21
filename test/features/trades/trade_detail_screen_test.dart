@@ -15,6 +15,7 @@ import 'package:mostro/features/rate/screens/rate_counterpart_screen.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
+import 'package:mostro/features/trades/widgets/cancel_request_notice.dart';
 import 'package:mostro/features/trades/widgets/trade_chat_card.dart';
 import 'package:mostro/features/trades/widgets/trade_completed_card.dart';
 import 'package:mostro/features/trades/widgets/trade_step_block.dart';
@@ -52,11 +53,13 @@ Future<ProviderContainer> _pumpTradeDetail(
   bool ratingUnresolved = false,
   Future<RatingInfo?> Function()? ratingFetch,
   Locale locale = const Locale('en'),
+  List<TradeInfo>? trades,
 }) async {
   final container = createContainer(
     overrides: [
       if (releaseOrder != null)
         releaseOrderActionProvider.overrideWithValue(releaseOrder),
+      if (trades != null) rawTradesProvider.overrideWith((ref) async => trades),
       tradeRoleProvider.overrideWith((ref) => {orderId: isBuyer}),
       tradeStatusProvider(
         orderId,
@@ -326,6 +329,84 @@ void main() {
       expect(_outlinedButtonWithText(_en.openDisputeButton), findsOneWidget);
       expect(_outlinedButtonWithText(_en.releaseSatsButton), findsNothing);
       expect(find.text(_en.tradeTimerYouHave), findsOneWidget);
+    });
+  });
+
+  group('a cooperative cancel request is pending', () {
+    testWidgets('asked by me: the notice, no second Cancel, dispute stays', (
+      tester,
+    ) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-coop-me',
+        isBuyer: true,
+        status: OrderStatus.active,
+        trades: [
+          fakeTrade(
+            id: 'coop-me',
+            cooperativeCancelState: CooperativeCancelState.requestedByMe,
+          ),
+        ],
+      );
+
+      expect(find.byType(CancelRequestNotice), findsOneWidget);
+      expect(find.text(_en.tradeCancelRequestedByMeNotice), findsOneWidget);
+      expect(_outlinedButtonWithText(_en.cancel), findsNothing);
+      expect(_outlinedButtonWithText(_en.openDisputeButton), findsOneWidget);
+      // The trade goes on: the buyer can still mark the fiat as sent.
+      expect(_filledButtonWithText(_en.tradeFiatSentAction), findsOneWidget);
+    });
+
+    testWidgets('asked by the peer: the notice and Cancel reads Accept', (
+      tester,
+    ) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-coop-peer',
+        isBuyer: false,
+        status: OrderStatus.fiatSent,
+        trades: [
+          fakeTrade(
+            id: 'coop-peer',
+            status: OrderStatus.fiatSent,
+            cooperativeCancelState: CooperativeCancelState.requestedByPeer,
+          ),
+        ],
+      );
+
+      expect(find.text(_en.tradeCancelRequestedByPeerNotice), findsOneWidget);
+      expect(_outlinedButtonWithText(_en.acceptCancelButton), findsOneWidget);
+      expect(_outlinedButtonWithText(_en.cancel), findsNothing);
+      // The trade goes on: the seller can still release.
+      expect(
+        _filledButtonWithText(_en.confirmReleaseSatsButton),
+        findsOneWidget,
+      );
+
+      await tester.tap(_outlinedButtonWithText(_en.acceptCancelButton));
+      await _settle(tester);
+      // The dialog says what accepting does, not what a first request does.
+      expect(find.text(_en.cancelTradeDialogContentAccept), findsOneWidget);
+      expect(find.text(_en.cancelTradeDialogContent), findsNothing);
+    });
+
+    testWidgets('a settled trade shows no stale request', (tester) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-coop-done',
+        isBuyer: true,
+        status: OrderStatus.cooperativelyCanceled,
+        trades: [
+          fakeTrade(
+            id: 'coop-done',
+            status: OrderStatus.cooperativelyCanceled,
+            cooperativeCancelState: CooperativeCancelState.requestedByPeer,
+          ),
+        ],
+      );
+
+      expect(find.text(_en.tradeCancelRequestedByPeerNotice), findsNothing);
+      expect(find.text(_en.tradeCancelRequestedByMeNotice), findsNothing);
     });
   });
 

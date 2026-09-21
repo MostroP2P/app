@@ -106,8 +106,8 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      # lib/src/rust/ is gitignored and produced on the fly; without it the web
-      # build fails to compile. The script also verifies the FRB pins agree.
+      # lib/src/rust/ is committed, but the bundle is built from freshly generated
+      # bindings (ci.yml checks the two agree). The script also verifies the FRB pins agree.
       - name: Generate Rust bridge bindings
         run: ./scripts/frb-generate.sh
 
@@ -124,12 +124,20 @@ jobs:
       # register over the same scope as coi-serviceworker.min.js and evict the shim
       # that supplies the COOP/COEP headers, un-isolating the page. Offline caching
       # is the trade-off; cross-origin isolation is not optional here.
+      #
+      # FCM_VAPID_KEY is the Web Push public key of the repository's Firebase
+      # project (a repository variable, public by design; forks set their own).
+      # Web push itself stays off: its switch is not passed until the push server
+      # accepts web (docs/PUSH_NOTIFICATIONS.md §3.5, T4.5).
       - name: Build Flutter web
+        env:
+          FCM_VAPID_KEY: ${{ vars.FCM_VAPID_KEY }}
         run: |
           flutter build web \
             --release \
             --base-href "/${GITHUB_REPOSITORY#*/}/" \
-            --pwa-strategy=none
+            --pwa-strategy=none \
+            --dart-define=FCM_VAPID_KEY="${FCM_VAPID_KEY}"
 
       # Guard the two silent-blank-page failure modes: the isolation shim must be
       # in the bundle and referenced by index.html, and Flutter's service worker
@@ -191,13 +199,25 @@ jobs:
         working-directory: test/web/smoke
         run: node selftest.mjs
 
+      # The messaging worker's decisions — where a tap lands, what a chat wake
+      # shows — as plain functions under node. No browser, no build.
+      - name: Unit-test the messaging worker
+        run: node --test test/web/push_worker/push_worker_logic.test.mjs
+
       # Serves the release bundle cross-origin isolated under the production
       # sub-path, then asserts the page is isolated, the Flutter view mounted,
-      # a Rust bridge call returned, and nothing errored.
+      # a Rust bridge call returned, and nothing errored. SMOKE_BOND_STORE also
+      # seeds bond rows into IndexedDB, reloads, and checks the app reads them
+      # back (docs/ANTI_ABUSE_BOND.md T5.1). SMOKE_PUSH_WORKER checks the FCM
+      # messaging worker activates beside the shim without costing isolation
+      # (docs/PUSH_NOTIFICATIONS.md T4.5). Only here: the locale runs below test
+      # the bootstrap, not the store or the worker.
       - name: Smoke test the release bundle (headless Chrome)
         working-directory: test/web/smoke
         env:
           BUNDLE_DIR: ${{ github.workspace }}/build/web
+          SMOKE_BOND_STORE: "1"
+          SMOKE_PUSH_WORKER: "1"
         run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs
       # Built once and reused by every negative control below. Copying the
       # built bundle and cutting the sanitizer out of its HTML — rather than

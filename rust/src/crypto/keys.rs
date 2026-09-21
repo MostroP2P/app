@@ -10,7 +10,7 @@
 /// **DO NOT change the derivation path** — it is a protocol constant shared
 /// with Mostro daemon and other compliant clients.
 use anyhow::{anyhow, Result};
-use bip32::{DerivationPath, XPrv};
+use bip32::{ChildNumber, DerivationPath, XPrv};
 use bip39::Mnemonic;
 use nostr_sdk::prelude::{Keys, SecretKey};
 use zeroize::Zeroizing;
@@ -40,6 +40,31 @@ pub fn derive_trade_key(mnemonic_words: &[String], index: u32) -> Result<Keys> {
         return Err(anyhow!("index 0 is reserved for the identity key; use derive_master_key"));
     }
     derive_at_index(mnemonic_words, index)
+}
+
+/// Derive the trade keys at indexes `1..=up_to`, in index order.
+///
+/// Same keys as calling [`derive_trade_key`] per index, at a fraction of the
+/// cost: that path turns the words into a seed every time — 2048 rounds of
+/// PBKDF2 — and walks the four hardened levels again, so rebuilding the
+/// daemon-message key map at startup cost one PBKDF2 per trade the user ever
+/// made. Here the seed and the `m/44'/1237'/38383'/0` parent are computed
+/// once and each key is a single non-hardened child step.
+pub fn derive_trade_keys(mnemonic_words: &[String], up_to: u32) -> Result<Vec<Keys>> {
+    let seed = derive_bip39_seed(mnemonic_words)?;
+    let parent_path: DerivationPath = DERIVATION_PREFIX
+        .parse()
+        .map_err(|e| anyhow!("derivation path parse: {e}"))?;
+    let parent = XPrv::derive_from_path(seed.as_slice(), &parent_path)
+        .map_err(|e| anyhow!("BIP-32 derive error: {e}"))?;
+    (1..=up_to)
+        .map(|index| {
+            let child = ChildNumber::new(index, false)
+                .and_then(|n| parent.derive_child(n))
+                .map_err(|e| anyhow!("BIP-32 derive error at index {index}: {e}"))?;
+            keys_from_xprv(&child)
+        })
+        .collect()
 }
 
 /// Derive the raw BIP-39 seed from a mnemonic — the one place in this file that
@@ -76,6 +101,10 @@ fn derive_at_index(mnemonic_words: &[String], index: u32) -> Result<Keys> {
     let xprv = XPrv::derive_from_path(seed.as_slice(), &path)
         .map_err(|e| anyhow!("BIP-32 derive error: {e}"))?;
 
+    keys_from_xprv(&xprv)
+}
+
+fn keys_from_xprv(xprv: &XPrv) -> Result<Keys> {
     // k256 signing key → raw 32-byte secret
     let raw: [u8; 32] = xprv.private_key().to_bytes().into();
     let secret = SecretKey::from_slice(&raw).map_err(|e| anyhow!("invalid secret key: {e}"))?;
@@ -134,6 +163,39 @@ mod tests {
         // And an empty list is not a mnemonic either — an nsec-imported
         // identity stores no words.
         assert!(derive_master_key(&[]).is_err());
+    }
+
+    /// The batch is an optimisation, never a second definition of a trade
+    /// key: whatever it returns must be what the one-at-a-time path returns.
+    #[test]
+    fn a_batch_of_trade_keys_matches_deriving_each_one() {
+        // Arrange
+        let words = abandon_mnemonic();
+
+        // Act
+        let batch = derive_trade_keys(&words, 5).unwrap();
+
+        // Assert
+        assert_eq!(batch.len(), 5);
+        for (offset, keys) in batch.iter().enumerate() {
+            let index = offset as u32 + 1;
+            assert_eq!(
+                keys.public_key(),
+                derive_trade_key(&words, index).unwrap().public_key(),
+                "index {index}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_batch_up_to_index_zero_is_empty() {
+        assert!(derive_trade_keys(&abandon_mnemonic(), 0).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_batch_refuses_a_phrase_that_is_not_a_mnemonic() {
+        let err = derive_trade_keys(&[], 3).unwrap_err();
+        assert!(err.to_string().contains("invalid mnemonic"), "got {err}");
     }
 
     #[test]

@@ -22,6 +22,7 @@ import 'package:mostro/features/settings/widgets/language_selector.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/types.dart' show MostroNodeEntry;
 
@@ -264,29 +265,38 @@ class SettingsScreen extends ConsumerWidget {
 
   Future<void> _showThemeDialog(BuildContext context, WidgetRef ref) async {
     final current = ref.read(settingsProvider).themeMode;
-    await showDialog<void>(
+    await showMostroDialog<void>(
       context: context,
       builder:
-          (ctx) => SimpleDialog(
-            title: Text(AppLocalizations.of(ctx).appearanceDialogTitle),
-            children:
-                ThemeMode.values
-                    .map(
-                      (mode) => ListTile(
-                        title: Text(
-                          _themeLabel(AppLocalizations.of(ctx), mode),
+          (ctx) => MostroDialog(
+            title: AppLocalizations.of(ctx).appearanceDialogTitle,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:
+                  ThemeMode.values
+                      .map(
+                        (mode) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            _themeLabel(AppLocalizations.of(ctx), mode),
+                          ),
+                          trailing:
+                              mode == current
+                                  ? Icon(
+                                    Icons.check,
+                                    color: OrderBookPalette.of(ctx).lime,
+                                  )
+                                  : null,
+                          onTap: () {
+                            ref
+                                .read(settingsProvider.notifier)
+                                .setThemeMode(mode);
+                            Navigator.of(ctx).pop();
+                          },
                         ),
-                        trailing:
-                            mode == current ? const Icon(Icons.check) : null,
-                        onTap: () {
-                          ref
-                              .read(settingsProvider.notifier)
-                              .setThemeMode(mode);
-                          Navigator.of(ctx).pop();
-                        },
-                      ),
-                    )
-                    .toList(),
+                      )
+                      .toList(),
+            ),
           ),
     );
   }
@@ -296,79 +306,88 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _showLightningAddressDialog(
     BuildContext context,
     WidgetRef ref,
-  ) async {
-    final controller = TextEditingController(
-      text: ref.read(settingsProvider).defaultLightningAddress ?? '',
-    );
-    String? errorText;
+  ) => showMostroDialog<void>(
+    context: context,
+    builder: (_) => const _LightningAddressDialog(),
+  );
+}
 
-    await showDialog<void>(
-      context: context,
-      builder:
-          (ctx) => StatefulBuilder(
-            builder: (ctx, setDialogState) {
-              final l10n = AppLocalizations.of(ctx);
-              return AlertDialog(
-                title: Text(l10n.lightningAddressDialogTitle),
-                content: TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: l10n.lightningAddressHintText,
-                    errorText: errorText,
-                  ),
-                  onChanged: (_) {
-                    if (errorText != null) {
-                      setDialogState(() => errorText = null);
-                    }
-                  },
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      ref
-                          .read(settingsProvider.notifier)
-                          .setDefaultLightningAddress(null);
-                      Navigator.of(ctx).pop();
-                    },
-                    child: Text(l10n.clearButtonLabel),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: Text(l10n.cancel),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      final input = controller.text.trim();
-                      if (input.isEmpty) {
-                        ref
-                            .read(settingsProvider.notifier)
-                            .setDefaultLightningAddress(null);
-                        Navigator.of(ctx).pop();
-                        return;
-                      }
-                      final parts = input.split('@');
-                      if (parts.length != 2 ||
-                          parts[0].isEmpty ||
-                          parts[1].isEmpty) {
-                        setDialogState(
-                          () => errorText = l10n.invalidLightningAddressFormat,
-                        );
-                        return;
-                      }
-                      ref
-                          .read(settingsProvider.notifier)
-                          .setDefaultLightningAddress(input);
-                      Navigator.of(ctx).pop();
-                    },
-                    child: Text(l10n.saveButtonLabel),
-                  ),
-                ],
-              );
-            },
-          ),
-    );
+/// Owns its [TextEditingController] so it is disposed with the dialog's
+/// element, not when `showDialog` resolves: that future completes on `pop`,
+/// while the TextField is still mounted for the exit animation. Disposing it
+/// there crashed the save (red screen, `_dependents.isEmpty`).
+class _LightningAddressDialog extends ConsumerStatefulWidget {
+  const _LightningAddressDialog();
 
-    controller.dispose();
+  @override
+  ConsumerState<_LightningAddressDialog> createState() =>
+      _LightningAddressDialogState();
+}
+
+class _LightningAddressDialogState
+    extends ConsumerState<_LightningAddressDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: ref.read(settingsProvider).defaultLightningAddress ?? '',
+  );
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _saveAndClose(String? address) {
+    ref.read(settingsProvider.notifier).setDefaultLightningAddress(address);
+    Navigator.of(context).pop();
+  }
+
+  void _onSave(AppLocalizations l10n) {
+    final input = _controller.text.trim();
+    if (input.isEmpty) {
+      _saveAndClose(null);
+      return;
+    }
+    final parts = input.split('@');
+    if (parts.length != 2 || parts[0].isEmpty || parts[1].isEmpty) {
+      setState(() => _errorText = l10n.invalidLightningAddressFormat);
+      return;
+    }
+    _saveAndClose(input);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return MostroDialog(
+      title: l10n.lightningAddressDialogTitle,
+      content: TextField(
+        controller: _controller,
+        keyboardType: TextInputType.emailAddress,
+        decoration: InputDecoration(
+          hintText: l10n.lightningAddressHintText,
+          errorText: _errorText,
+        ),
+        onChanged: (_) {
+          if (_errorText != null) setState(() => _errorText = null);
+        },
+      ),
+      // Clearing the saved address is neither the answer nor the way out of
+      // this dialog, so it reads as a link rather than a third button.
+      links: [
+        ModalLink(
+          label: l10n.clearButtonLabel,
+          onPressed: () => _saveAndClose(null),
+        ),
+      ],
+      secondary: ModalAction(
+        label: l10n.cancel,
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      primary: ModalAction(
+        label: l10n.saveButtonLabel,
+        onPressed: () => _onSave(l10n),
+      ),
+    );
   }
 }

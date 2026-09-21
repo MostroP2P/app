@@ -54,6 +54,13 @@ void main() {
         _expectAA('sell ink', pal.sellInk, flatten(pal.sellActiveBg, track));
       });
 
+      test('payment-method picker, chosen row', () {
+        final bg = flatten(pal.pickerRowSelectedBg, book.bg);
+        _expectAA('chosen method', book.textPrimary, bg);
+        _expectAA('unchosen method', book.textBody, book.bg);
+        _expectAA('count line', book.textSecondary, book.surfaceNav);
+      });
+
       test('validation message on the bottom bar', () {
         _expectAA('error', pal.error, book.surfaceNav);
       });

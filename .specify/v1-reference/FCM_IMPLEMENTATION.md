@@ -1,5 +1,14 @@
 # FCM Implementation for MostroP2P Mobile
 
+> **Descriptive of v1** (`MostroP2P/mobile`). The v2 client does not follow
+> this design: registration is Rust-owned and persisted, the background
+> handler is display-only (it still runs in its own isolate, as FCM
+> requires, but never boots a second protocol stack: no Rust core, no
+> database, no decryption), the push carries nothing
+> to route on, and on protocol v2 the chat wake is the sender's duty — for
+> dispute chat that sender is the solver's client. See
+> `docs/PUSH_NOTIFICATIONS.md` — §13 compares the two item by item.
+
 ## MIP-05 Implementation Overview
 
 This implementation follows the **MIP-05 (Marmot Push Notifications)** specification for privacy-preserving push notifications. Below is an overview of which aspects are being implemented and why.

@@ -26,6 +26,19 @@ where
     wasm_bindgen_futures::spawn_local(future);
 }
 
+/// `Send` where tasks can move across threads, nothing on `wasm32` — the bound
+/// a generic helper needs on whatever it hands to [`spawn`], written once
+/// instead of as two `cfg`-split signatures.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send> MaybeSend for T {}
+
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T> MaybeSend for T {}
+
 /// Timer and clock primitives mirroring the subset of `std::time` / `tokio::time`
 /// used by the crate.
 ///

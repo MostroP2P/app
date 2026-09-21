@@ -89,11 +89,10 @@ bool? acceptsMyFiat(MostroNodeStats stats, String? myFiat) {
 /// Why a card cannot be selected, if it cannot. Stats still loading (or
 /// failed) never block a selection: missing data is shown as `—`, not as a
 /// verdict.
-enum NodeBlocker { bondUnsupported, unreachable }
+enum NodeBlocker { unreachable }
 
 NodeBlocker? blockerOf(MostroNodeStats? stats, String? myFiat, DateTime now) {
   if (stats == null) return null;
-  if (stats.bondRequired == true) return NodeBlocker.bondUnsupported;
   if (availabilityOf(stats, myFiat, now) == NodeAvailability.unreachable) {
     return NodeBlocker.unreachable;
   }
@@ -142,21 +141,16 @@ List<MostroNodeEntry> sortNodes(
 
 // ── Currency chips ────────────────────────────────────────────────────────────
 
-/// At most this many currency chips; the rest collapse into `+N`.
-const maxCurrencyChips = 5;
-
-typedef CurrencyChips = ({List<String> shown, int overflow});
-
-/// The user's currency first, then the node's order, capped at
-/// [maxCurrencyChips].
-CurrencyChips currencyChips(List<String> accepted, String? myFiat) {
+/// Every currency the node accepts, the user's first, then the node's order.
+///
+/// Never capped: the list is how a user checks whether a node serves their
+/// currency, so collapsing the tail into `+N` would hide exactly that.
+List<String> currencyChips(List<String> accepted, String? myFiat) {
   final mine = myFiat?.toUpperCase();
-  final ordered = <String>[
+  return [
     if (mine != null && accepted.contains(mine)) mine,
     ...accepted.where((c) => c != mine),
   ];
-  final shown = ordered.take(maxCurrencyChips).toList();
-  return (shown: shown, overflow: ordered.length - shown.length);
 }
 
 // ── Figures ───────────────────────────────────────────────────────────────────

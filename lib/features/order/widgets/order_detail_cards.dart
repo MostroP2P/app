@@ -8,6 +8,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_detail_palette.dart';
 import 'package:mostro/features/order/models/order_detail_rules.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 
 /// Building blocks shared by the maker's own-order screen (handoff 6a) and
@@ -267,37 +268,24 @@ class OrderPaymentMethodsRow extends StatelessWidget {
   Future<void> _showMethodsSheet(BuildContext context, List<String> methods) {
     final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
-    return showModalBottomSheet<void>(
+    return showMostroSheet<void>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: book.surface,
       builder:
-          (_) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(30, 0, 30, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    l10n.paymentMethodsSheetTitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: book.textPrimary,
+          (_) => MostroSheet(
+            title: l10n.paymentMethodsSheetTitle,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final method in methods)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      method,
+                      style: TextStyle(fontSize: 14, color: book.textBody),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  for (final method in methods)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Text(
-                        method,
-                        style: TextStyle(fontSize: 14, color: book.textBody),
-                      ),
-                    ),
-                ],
-              ),
+              ],
             ),
           ),
     );

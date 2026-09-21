@@ -1,9 +1,11 @@
 # Mostro Mobile v2 — Design System
 
-> ⚠️ **CRITICAL**: v2 must look like v1. This document contains exact visual specifications
-> extracted from v1 screenshots. Follow these specs precisely.
+> ⚠️ **CRITICAL**: v2 inherits v1's palette and vocabulary — it does not copy v1's screens.
+> This document holds the exact values extracted from v1 screenshots; they are the baseline
+> and the fallback. Where a v2 redesign has shipped, the redesign wins, and the code is the
+> specification (see §1.1).
 
-**Status:** Reference document from v1 screenshots + v2 additions
+**Status:** v1 baseline from screenshots + v2 additions; superseded in the redesigned areas
 **Visual Reference:** Screenshots from `https://github.com/MostroP2P/mobile/tree/main/assets/images/`
 
 ---
@@ -11,10 +13,31 @@
 ## 1. Core Principles
 
 ### 1.1 Visual Continuity
-v2 must be visually indistinguishable from v1. Same colors, same spacing, same feel.
+v2 must be **recognizable** as Mostro, not identical to v1. What carries over is the palette
+(the lime brand, the sell red, the dark backgrounds), the naming, and the information
+architecture: the same screens hold the same things in the same places, so a v1 user is never
+lost.
+
+The look itself is deliberately not the same. v2 is a redesign — more modern, more finished,
+and held to standards v1 was not: AA contrast on every text role, one radius and one button
+per job, light mode as a first-class theme. Put the two side by side and they are easy to
+tell apart, and that is the intent.
+
+So this document is the baseline, not the ceiling. Where a redesign has shipped, its own
+palette and components are the specification and this document defers to them:
+
+| Area | Where the truth lives |
+|---|---|
+| Order book, order detail, create order, trades, settings, account, backup | The per-feature palettes in `lib/core/*_palette.dart` (`OrderBookPalette` and friends), against the handoffs in `.specify/` |
+| Modals — every dialog and bottom sheet | `lib/shared/widgets/mostro_modal.dart` plus `dialogTheme` / `bottomSheetTheme` (#534); `test/features/shared/goldens/modal_gallery_*.png` shows them |
+
+Nothing below is licence to hardcode: §1.2 holds everywhere, redesign or not.
 
 ### 1.2 Single Source of Truth
-ALL colors must be defined in a central theme file. Zero hardcoded colors in widgets.
+ALL colors must be defined in the theme layer — `AppColors`, the per-feature palettes in
+`lib/core/*_palette.dart`, and the modal tokens the two surfaces read. Zero hardcoded colors
+in widgets. Which of those a widget reads is decided by its area (§1.1); that it reads one of
+them is not optional.
 
 ### 1.3 Semantic Naming
 Use names that describe purpose, not appearance:
@@ -32,19 +55,28 @@ Use names that describe purpose, not appearance:
 | 0 | backgroundDark | `#1B1E28` | (27, 30, 40) | Main screen background |
 | 1 | backgroundCard | `#1E2230` | (30, 34, 48) | Cards, elevated surfaces |
 | 2 | backgroundInput | `#252A3A` | (37, 42, 58) | Input fields, interactive |
-| 3 | backgroundElevated | `#2A2D35` | (42, 45, 53) | Modals, dialogs, message input |
+| 3 | backgroundElevated | `#2A2D35` | (42, 45, 53) | Message input (no longer modals — see below) |
+
+Since #534 every dialog and bottom sheet renders on `OrderBookPalette.surface` (`#1A2030`
+dark, `#FFFFFF` light) with the shared scrim `rgba(8, 11, 16, 0.82)`, applied through
+`dialogTheme` and `bottomSheetTheme` rather than per modal.
 
 ### 2.2 Brand & Action Colors
 
 | Name | Hex | RGB | Usage |
 |------|-----|-----|-------|
-| mostroGreen | `#8CC63F` | (140, 198, 63) | Primary brand, buy, success, FAB |
+| mostroGreen | `#92D64F` | (146, 214, 79) | Primary brand, buy, success, FAB |
 | mostroGreenBright | `#A5FF00` | (165, 255, 0) | Highlighted active states |
-| sellColor | `#FF8A8A` | (255, 138, 138) | Sell actions, negative |
+| sellColor | `#FF8A8A` | (255, 138, 138) | Sell actions, negative (the redesign's `sell` is `#FF8B8B` — one unit apart, not yet unified as the greens were) |
 | destructiveRed | `#D84D4D` | (216, 77, 77) | Cancel, dispute, errors |
 | purpleButton | `#8359C2` | (131, 89, 194) | Submit buttons, sent messages |
 | tealAccent | `#2DA69D` | (45, 166, 157) | "Taken by you" badge |
 | blueAccent | `#35485E` | (53, 72, 94) | "Active" badge background |
+
+`mostroGreen` was v1's `#8CC63F`; since #534 it **is** `OrderBookPalette.lime` `#92D64F`, so
+the app has one accent rather than two near-equal greens (a test holds them equal). Never
+write white on it: the readable pair is `lime` on `onLime` `#12161F` (10.6:1). White was
+2.05:1 and shipped on eight confirm buttons.
 
 ### 2.3 Text Colors
 
@@ -54,7 +86,7 @@ Use names that describe purpose, not appearance:
 | textSecondary | `#B0B3C6` | 100% | Labels, supporting text |
 | textSubtle | `#9A9A9C` | 100% | Timestamps, hints, placeholders |
 | textDisabled | `#6C757D` | 100% | Disabled states |
-| textLink | `#8CC63F` | 100% | Links, interactive text |
+| textLink | `#92D64F` | 100% | Links, interactive text (light mode: `#6A9E00` — 3.23:1 on white, under the 4.5:1 §11 asks for: #539) |
 
 ### 2.4 Chat Colors
 
@@ -155,12 +187,29 @@ Specs:
 
 | Type | Background | Text | Border Radius | Height | Padding |
 |------|------------|------|---------------|--------|---------|
-| Primary (Buy) | `#8CC63F` | white | 8px | 48px | 16px horizontal |
-| Primary (Sell) | `#FF8A8A` | white | 8px | 48px | 16px horizontal |
+| Primary (Buy) | `#92D64F` | `#12161F` | 8px | 48px | 16px horizontal |
+| Primary (Sell) | `#FF8A8A` | `#2A1015` | 8px | 48px | 16px horizontal |
 | Secondary | `#8359C2` | white | 8px | 48px | 16px horizontal |
 | Destructive | `#D84D4D` | white | 8px | 48px | 16px horizontal |
 | Ghost | transparent | textSecondary | 8px | 40px | 12px horizontal |
-| FAB | `#8CC63F` | white icon | 50% (circle) | 56px | centered |
+| FAB | `#92D64F` | dark icon | 50% (circle) | 56px | centered |
+
+These are **in-page** buttons. A button inside a modal is not styled here — it is a
+`ModalAction` handed to `MostroDialog` / `MostroSheet`, which owns its shape:
+
+| Role | Background | Text | Border Radius | Height |
+|------|------------|------|---------------|--------|
+| Primary (the answer) | `lime` `#92D64F` | `onLime` `#12161F` | `AppRadius.cta` (14px) | 48px |
+| Primary, destructive | `sell` | `onSell` | `AppRadius.cta` (14px) | 48px |
+| Secondary (the way out) | transparent, hairline border | `textBody` | `AppRadius.cta` (14px) | 48px |
+| Link (`ModalLink`) | none | `limeText` | — | — |
+
+The pair shares one row with the answer on the right, and stacks — answer on top — when
+neither label fits half the row, so a long German confirm or a large text scale never
+truncates a verb.
+
+The ink on a filled button is dark, not white, in both tables: white on either accent is
+around 2:1 and fails AA.
 
 ### 4.3 Input Fields
 
@@ -234,7 +283,8 @@ Specs:
 - Height: 64px
 - Icon size: 24px
 - Label: bodySmall
-- Active color: mostroGreen (#8CC63F)
+- Active color: mostroGreen (#92D64F) — dark mode only; on a light surface this is 1.76:1
+  (#539). `BottomNavigationBar` is unused in `lib/`: the redesign shell has its own nav.
 - Inactive color: textDisabled (#6C757D)
 - Border top: 1px solid backgroundCard
 
@@ -585,7 +635,7 @@ All colors in this document are for dark mode, which is the primary theme.
 | backgroundInput | `#252A3A` | `#EEEEEE` |
 | textPrimary | `#FFFFFF` | `#1A1A1A` |
 | textSecondary | `#B0B3C6` | `#666666` |
-| mostroGreen | `#8CC63F` | `#8CC63F` |
+| mostroGreen | `#92D64F` | `#92D64F` |
 | sellColor | `#FF8A8A` | `#FF8A8A` |
 
 ### 11.3 Implementation
@@ -623,7 +673,7 @@ Card:           #1E2230
 Input:          #252A3A
 Elevated:       #2A2D35
 
-Brand Green:    #8CC63F
+Brand Green:    #92D64F  (on #12161F, never white)
 Sell Red:       #FF8A8A
 Purple:         #8359C2
 Destructive:    #D84D4D
@@ -634,6 +684,9 @@ Text Subtle:    #9A9A9C
 
 Chat Sent:      #8359C2
 Chat Received:  #4B6349
+
+Modal surface:  #1A2030  (light: #FFFFFF)
+Modal scrim:    rgba(8, 11, 16, 0.82)
 
 SPACING
 ─────────────────────────
@@ -646,6 +699,8 @@ Cards: 12px
 Buttons: 8px
 Chips: 6px
 Bubbles: 16px
+Modals: 24px (AppRadius.modal)
+Modal actions: 14px (AppRadius.cta)
 
 TYPOGRAPHY
 ─────────────────────────

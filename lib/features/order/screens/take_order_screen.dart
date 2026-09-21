@@ -11,11 +11,14 @@ import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/core/order_detail_palette.dart';
+import 'package:mostro/features/about/models/mostro_instance.dart' as instance;
+import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart'
     show OrderCardFormats;
 import 'package:mostro/features/order/models/order_detail_rules.dart';
+import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/order_detail_cards.dart';
@@ -149,7 +152,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
 
     setState(() => _cta = TakeOrderCta.loading);
     try {
-      await ref.read(takeOrderActionProvider)(
+      final trade = await ref.read(takeOrderActionProvider)(
         orderId: widget.orderId,
         role: widget.isBuying ? TradeRole.buyer : TradeRole.seller,
         fiatAmount: _selectedAmount,
@@ -166,7 +169,12 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       // Straight to the Lightning step. The stack is rebuilt with the trade
       // detail as its base so back/close from the invoice screen lands on
       // the trade, never back here offering an already-taken order (#268).
-      if (widget.isBuying) {
+      // The node asks for an anti-abuse bond first: the Lightning step of
+      // the trade only opens once it locks (docs/ANTI_ABUSE_BOND.md §6.1).
+      if (trade.order.status == OrderStatus.waitingTakerBond) {
+        context.go(AppRoute.tradeDetailPath(widget.orderId));
+        context.push(AppRoute.payBondPath(widget.orderId));
+      } else if (widget.isBuying) {
         // With a default LN address Mostro pays it directly and the buyer
         // skips the add-invoice step.
         final settings = await settings_api.getSettings();
@@ -202,13 +210,42 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       showOrderDetailSnackBar(context, l10n.orderAlreadyTaken);
       return;
     }
-    // BondRequired is take-specific; every shared daemon marker (timeout,
-    // storage, node capability/protocol) maps centrally.
-    final display =
-        msg.contains('BondRequired')
-            ? l10n.bondRequired
-            : localizedDaemonError(l10n, msg, fallback: msg);
+    // Every shared daemon marker (timeout, storage, node capability /
+    // protocol) maps centrally.
+    final display = localizedDaemonError(l10n, msg, fallback: msg);
     showOrderDetailSnackBar(context, display);
+  }
+
+  /// What this node will ask the taker to lock before the trade starts
+  /// (docs/ANTI_ABUSE_BOND.md §8.1), or null when it asks nothing of takers.
+  /// The figure is the core's estimate (`estimate_bond_sats`), sized on the
+  /// order's sats when fixed or on the node's rate otherwise; without either
+  /// the note still says a deposit is due, just without a figure.
+  String? _bondNotice(AppLocalizations l10n, OrderItem order) {
+    final node = ref.watch(mostroNodeProvider).valueOrNull;
+    if (node == null || node.bondPolicy != instance.BondPolicy.enabled) {
+      return null;
+    }
+    if (node.bondApplyTo != instance.BondApplyTo.take &&
+        node.bondApplyTo != instance.BondApplyTo.both) {
+      return null;
+    }
+    final sats =
+        order.amountSats?.toInt() ??
+        estimateSats(
+          fiat: order.fiatAmount ?? order.fiatAmountMin ?? 0,
+          rate: ref.watch(exchangeRateProvider(order.fiatCode)).valueOrNull,
+          premium: order.premium,
+        );
+    final estimate =
+        sats == null || sats <= 0
+            ? null
+            : ref.watch(bondEstimateProvider(sats)).valueOrNull;
+    if (estimate == null) return l10n.takeOrderBondNotice;
+    final formats = OrderCardFormats.of(
+      Localizations.localeOf(context).toString(),
+    );
+    return l10n.takeOrderBondNoticeEstimate(formats.decimal.format(estimate));
   }
 
   @override
@@ -256,14 +293,13 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       appBar: orderDetailAppBar(
         context,
         title: widget.isBuying ? l10n.tabBuyBtc : l10n.tabSellBtc,
-        onBack: () => context.canPop() ? context.pop() : context.go(AppRoute.home),
+        onBack:
+            () => context.canPop() ? context.pop() : context.go(AppRoute.home),
         trailing: ValueListenableBuilder<Duration>(
           valueListenable: _remaining,
           builder:
-              (context, remaining, _) => _Countdown(
-                remaining: remaining,
-                isClosed: isUnavailable,
-              ),
+              (context, remaining, _) =>
+                  _Countdown(remaining: remaining, isClosed: isUnavailable),
         ),
       ),
       body: ListView(
@@ -322,9 +358,12 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    widget.isBuying
-                        ? l10n.takeOrderNoteBuyer
-                        : l10n.takeOrderNoteSeller,
+                    [
+                      widget.isBuying
+                          ? l10n.takeOrderNoteBuyer
+                          : l10n.takeOrderNoteSeller,
+                      _bondNotice(l10n, order),
+                    ].nonNulls.join(' '),
                     style: TextStyle(
                       fontSize: 11,
                       height: 1.5,
@@ -500,7 +539,11 @@ class _AmountBlock extends ConsumerWidget {
     OrderCardFormats formats,
     OrderBookPalette book,
   ) {
-    final style = TextStyle(fontSize: 11, height: 1.5, color: book.textTertiary);
+    final style = TextStyle(
+      fontSize: 11,
+      height: 1.5,
+      color: book.textTertiary,
+    );
     if (order.hasFixedSats) {
       final sats = l10n.satsAmount(
         formats.decimal.format(order.amountSats!.toInt()),

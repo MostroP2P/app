@@ -74,10 +74,38 @@ pub const TRUSTED_MOSTRO_NODES: &[TrustedNodeConfig] = &[
         region: "🇧🇷 Brasil",
     },
     TrustedNodeConfig {
+        pubkey: "da23a31d75572138ab8149911a04224812a34bda679caba7cb1824fdf7c592ec",
+        region: "🇪🇺 Europa",
+    },
+    TrustedNodeConfig {
         pubkey: DEFAULT_MOSTRO_PUBKEY,
         region: "🌐",
     },
 ];
+
+/// The push server (docs/PUSH_NOTIFICATIONS.md §3). The Fly.io instance the
+/// server repository deploys; a build may point elsewhere with
+/// `PUSH_SERVER_URL` at compile time (forks, a local server under test).
+pub const DEFAULT_PUSH_SERVER_URL: &str = "https://mostro-push-server.fly.dev";
+
+static PUSH_SERVER_URL_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
+
+/// The push server base URL: the runtime override (tests), else the
+/// compile-time `PUSH_SERVER_URL`, else the default. No trailing slash.
+pub fn push_server_url() -> String {
+    if let Some(url) = PUSH_SERVER_URL_OVERRIDE.read().unwrap().clone() {
+        return url;
+    }
+    option_env!("PUSH_SERVER_URL")
+        .unwrap_or(DEFAULT_PUSH_SERVER_URL)
+        .trim_end_matches('/')
+        .to_string()
+}
+
+/// Set (or clear) the push server URL override.
+pub fn set_push_server_url_override(url: Option<String>) {
+    *PUSH_SERVER_URL_OVERRIDE.write().unwrap() = url.map(|u| u.trim_end_matches('/').to_string());
+}
 
 // ── Runtime pubkey override ──────────────────────────────────────────────────
 

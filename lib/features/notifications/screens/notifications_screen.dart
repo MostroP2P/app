@@ -8,6 +8,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
+import 'package:mostro/features/notifications/widgets/bond_slashed_dialog.dart';
 import 'package:mostro/features/notifications/widgets/notification_group_card.dart';
 import 'package:mostro/features/notifications/widgets/system_notification_banner.dart';
 
@@ -53,8 +54,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 (context) => [
                   PopupMenuItem(
                     value: _MenuAction.markAllRead,
-                    child:
-                        Text(AppLocalizations.of(context).markAllAsReadMenuItem),
+                    child: Text(
+                      AppLocalizations.of(context).markAllAsReadMenuItem,
+                    ),
                   ),
                   PopupMenuItem(
                     value: _MenuAction.clearAll,
@@ -109,7 +111,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     final disputeGroups =
         sortedGroups
-            .where((g) => g.any((n) => n.type == NotificationType.dispute))
+            .where((g) => g.any((n) => n.isDisputeNotification))
             .toList();
     final systemCount = systemItems.length + (backupActive ? 1 : 0);
 
@@ -205,10 +207,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     switch (n.type) {
       case NotificationType.ratingReceived:
-      case NotificationType.tradeUpdate:
         n.orderId != null
             ? context.push(AppRoute.rateUserPath(n.orderId!))
             : noId();
+      // A peer chat card opens that chat; the solver's opens the trade,
+      // like a trade status card (the default below).
+      case NotificationType.message
+          when n.orderId != null && !n.isSolverChatCard:
+        context.push(AppRoute.chatRoomPath(n.orderId!));
       case NotificationType.paymentReceived:
       case NotificationType.payment:
         n.orderId != null
@@ -224,6 +230,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         n.disputeId != null
             ? context.push(AppRoute.disputeDetailsPath(n.disputeId!))
             : noId();
+      case NotificationType.bondClaim:
+        n.orderId != null
+            ? context.push(AppRoute.bondPayoutPath(n.orderId!))
+            : noId();
+      case NotificationType.bondSlashed:
+        BondSlashedDialog.show(context, n);
       default:
         n.orderId != null
             ? context.push(AppRoute.tradeDetailPath(n.orderId!))
@@ -431,6 +443,7 @@ class _TypeIcon extends StatelessWidget {
       NotificationType.invoiceRequest => (Icons.description, Colors.green),
       NotificationType.orderTaken => (Icons.add_circle_outline, Colors.green),
       NotificationType.bondSlashed => (Icons.money_off, Colors.red),
+      NotificationType.bondClaim => (Icons.savings_outlined, Colors.orange),
     };
     return Icon(icon, color: color, size: 22);
   }

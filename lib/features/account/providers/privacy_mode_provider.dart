@@ -11,8 +11,10 @@ final privacyModeProvider = StateNotifierProvider<PrivacyModeNotifier, bool>(
 );
 
 class PrivacyModeNotifier extends StateNotifier<bool> {
-  PrivacyModeNotifier() : super(false) {
-    _init();
+  /// When [initialValue] is provided the Rust layer is not read, so widget
+  /// tests can build the Account screen without the bridge.
+  PrivacyModeNotifier({bool? initialValue}) : super(initialValue ?? false) {
+    if (initialValue == null) _init();
   }
 
   Future<void> _init() async {

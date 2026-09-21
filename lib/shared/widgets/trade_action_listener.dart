@@ -1,10 +1,27 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
+
+/// Pushes [destination] unless it is already the screen on top.
+///
+/// The top of the stack is read from the last match, not from
+/// `currentConfiguration.uri`: an imperative `push` leaves that uri at the
+/// location underneath, so a guard on it never sees a pushed screen. The
+/// pay-bond screen hands a buyer over with `go(trade)` + `push(add-invoice)`
+/// on the very emission this listener reacts to, and the copy stacked on top
+/// generated and submitted a second NWC invoice.
+void pushUnlessVisible(GoRouter router, String destination) {
+  final config = router.routerDelegate.currentConfiguration;
+  final top = config.matches.isEmpty ? null : config.last;
+  final current = top is ImperativeRouteMatch ? top.matches.uri : config.uri;
+  if (current.toString() == destination) return;
+  router.push(destination);
+}
 
 /// Auto-opens the invoice screens when the daemon requests action.
 ///
@@ -18,9 +35,10 @@ import 'package:mostro/src/rust/api/types.dart';
 /// add-invoice screen, `WaitingPayment` sends the seller to the
 /// pay-invoice screen.
 ///
-/// Only makers ever reach this path — a taker's first reply is consumed by
-/// the take waiter in Rust and produces no emission (TakeOrderScreen
-/// navigates locally instead).
+/// A taker's first reply is consumed by the take waiter in Rust and produces
+/// no emission (TakeOrderScreen navigates locally instead) — but a taker who
+/// paid a bond gets here on the step after it, at the same moment the
+/// pay-bond screen navigates by itself. See [pushUnlessVisible].
 class TradeActionListener extends ConsumerStatefulWidget {
   const TradeActionListener({
     super.key,
@@ -58,18 +76,17 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
   static Future<TradeRole?> _bridgeRole(String orderId) =>
       orders_api.getTradeRole(orderId: orderId);
 
-  static void _routerNavigate(String destination) {
-    final current =
-        appRouter.routerDelegate.currentConfiguration.uri.toString();
-    if (current == destination) return;
-    appRouter.push(destination);
-  }
+  static void _routerNavigate(String destination) =>
+      pushUnlessVisible(appRouter, destination);
 
   Future<void> _handle(TradeUpdate update) async {
     final destination = switch (update.status) {
-      OrderStatus.waitingBuyerInvoice =>
-        AppRoute.addInvoicePath(update.orderId),
+      OrderStatus.waitingBuyerInvoice => AppRoute.addInvoicePath(
+        update.orderId,
+      ),
       OrderStatus.waitingPayment => AppRoute.payInvoicePath(update.orderId),
+      // The anti-abuse bond: only ever the taker's row, whichever side.
+      OrderStatus.waitingTakerBond => AppRoute.payBondPath(update.orderId),
       _ => null,
     };
     if (destination == null) return;
@@ -87,6 +104,9 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
       final actionable = switch (update.status) {
         OrderStatus.waitingBuyerInvoice => role == TradeRole.buyer,
         OrderStatus.waitingPayment => role == TradeRole.seller,
+        // Whichever side, but only for a trade this device knows: without
+        // a row the pay-bond screen has nothing to load.
+        OrderStatus.waitingTakerBond => role != null,
         _ => false,
       };
       if (!actionable || !mounted) return;
@@ -99,7 +119,8 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
       (widget.navigate ?? _routerNavigate)(destination);
     } catch (e, st) {
       debugPrint(
-          '[TradeActionListener] failed to handle ${update.orderId}: $e\n$st');
+        '[TradeActionListener] failed to handle ${update.orderId}: $e\n$st',
+      );
     } finally {
       _inFlight.remove(key);
     }

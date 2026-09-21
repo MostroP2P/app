@@ -14,6 +14,7 @@ import 'package:mostro/features/chat/widgets/message_input.dart';
 import 'package:mostro/features/chat/widgets/trade_state_header.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
@@ -309,6 +310,33 @@ void main() {
       );
 
       expect(find.byType(MessageInput), findsOneWidget);
+      await _leaveRoom(tester);
+    });
+  });
+
+  group('the composer and the keyboard', () {
+    final openChat = chatRowStateProvider(_orderId).overrideWithValue(
+      const ChatRowState(group: ChatGroup.active, tone: ChatAvatarTone.waiting),
+    );
+
+    testWidgets('sits just above the nav bar while the keyboard is closed',
+        (tester) async {
+      await _pumpChatRoom(tester, incoming, overrides: [openChat]);
+
+      final composer = tester.getRect(find.byType(MessageInput));
+      final bar = tester.getRect(find.byType(BottomNavBar));
+      expect(composer.bottom, bar.top - AppSpacing.sm);
+      await _leaveRoom(tester);
+    });
+
+    testWidgets('sits just above an open keyboard, no bar-sized gap',
+        (tester) async {
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await _pumpChatRoom(tester, incoming, overrides: [openChat]);
+
+      final composer = tester.getRect(find.byType(MessageInput));
+      expect(composer.bottom, 800 - 300 - AppSpacing.sm);
       await _leaveRoom(tester);
     });
   });

@@ -1,61 +1,41 @@
-// Firebase Cloud Messaging service worker.
-// Keep in sync with the Firebase SDK version used in pubspec.yaml.
-importScripts('https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.14.0/firebase-messaging-compat.js');
+// Firebase Cloud Messaging service worker (docs/PUSH_NOTIFICATIONS.md §2.6, T4.5).
+//
+// Registered by web/index.html and by the app (web_push_web.dart), relative to
+// the base path, under its own scope — never the isolation shim's. It rings
+// the bell and shows the notification. It never loads the wasm core, never
+// opens IndexedDB and never decrypts: the tab resyncs when it next runs.
+//
+// The SDK version is the one firebase_core_web loads on the page, and the
+// config is the web block of lib/firebase_options.dart;
+// test/web/pages_bundle_test.dart holds both equal.
+importScripts('https://www.gstatic.com/firebasejs/11.9.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.9.1/firebase-messaging-compat.js');
+importScripts('push_worker_logic.js');
 
-// Config is injected by flutterfire configure — replace with real values.
-const firebaseConfig = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME",
-};
-
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
-
-// Handle background messages on web.
-messaging.onBackgroundMessage((payload) => {
-  const { title, body, icon } = payload.notification ?? {};
-  if (!title) return;
-  return self.registration.showNotification(title, {
-    body: body ?? '',
-    icon: icon ?? '/icons/Icon-192.png',
-    data: payload.data,
-  });
-});
-
-// Handle notification clicks — focus existing window or open new one.
+// A tap: tell an open tab to show Notifications and focus it, or open one
+// there (pushWorkerLogic.openNotifications, tested under node). Added before
+// the SDK's own listener, which stops propagation for the notifications it
+// rendered.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  event.waitUntil(pushWorkerLogic.openNotifications(clients, self.location.href));
+});
 
-  const data = event.notification.data;
-  // Build a relative URL from the payload (mirrors routeFromPayload in Dart).
-  let path = '/';
-  if (data) {
-    const type = data.type;
-    const orderId = data.orderId;
-    const disputeId = data.disputeId;
-    if (type === 'tradeUpdate' && orderId) path = `/#/trade_detail/${orderId}`;
-    else if (type === 'invoiceRequest' && orderId) path = `/#/add_invoice/${orderId}`;
-    else if (type === 'paymentReceived' && orderId) path = `/#/pay_invoice/${orderId}`;
-    else if (type === 'orderTaken' && orderId) path = `/#/add_invoice/${orderId}`;
-    else if (type === 'dispute' && disputeId) path = `/#/dispute_details/${disputeId}`;
-  }
+firebase.initializeApp({
+  apiKey: 'AIzaSyCcKUG4IkZ51YfTjZSCqNdZmT5dVH_ebnA',
+  appId: '1:375342057498:web:2cd68bf87a368a4886e9a3',
+  messagingSenderId: '375342057498',
+  projectId: 'mostro-mobile',
+});
 
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Focus an existing tab if one is open.
-      for (const client of windowClients) {
-        if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
-          client.postMessage({ type: 'notification_click', path });
-          return client.focus();
-        }
-      }
-      // No existing tab — open a new one.
-      return clients.openWindow(path);
-    })
-  );
+// A trade_update is shown by the SDK from the server's own block. A chat_wake
+// has none, so the worker shows the content-free notice.
+firebase.messaging().onBackgroundMessage((payload) => {
+  const notice = pushWorkerLogic.noticeFor(payload, self.navigator.languages);
+  if (!notice) return undefined;
+  return self.registration.showNotification(notice.title, {
+    body: notice.body,
+    tag: 'mostro-chat',
+    icon: 'icons/Icon-192.png',
+  });
 });

@@ -78,10 +78,59 @@ Export identity as encrypted backup string.
 
 ---
 
+### funds_at_risk() → Vec<FundsAtRisk>
+What the current identity would lose if it were replaced now, most serious
+first; empty when it is safe to go ahead (issue #533). Local rows only — no
+relay round trip.
+
+`FundsAtRisk { order_id, reason, amount_sats? }`, where `reason` is a marker
+Dart localizes:
+
+| `reason` | When |
+|---|---|
+| `SellerEscrowLocked` | the user is the seller and the trade is `active`, `fiat-sent` or `dispute` — decided on the status, so a restored row with no bolt11 counts too |
+| `BondLocked` | the trade's bond is `Locked` |
+| `PayoutClaimOpen` | a `bond_claims` row in a non-terminal phase, inside its window |
+| `TradeInProgress` | a live trade with none of the user's sats locked (a buyer mid-trade, either side before the escrow is funded) |
+| `BondInvoicePending` | a `Requested` bond whose invoice has not expired |
+
+The Account screen calls it **before** generating a user or importing a
+seed — before anything is written — and shows a warning that lists the
+entries. It warns, it does not block: the safe action is the primary one, a
+dismissal counts as it, and going on still leads to the usual confirmation.
+A check that fails reads as empty, so it cannot lock the user out of
+rotating a compromised identity.
+
+---
+
 ### delete_identity() → ()
 Delete identity from device. Irreversible.
 
-**Side effects**: Clears all local data (orders, messages, trades, settings).
+**Side effects**: the next identity finds the app as a fresh install leaves
+it (issue #533).
+
+- Gives back the identity's relay subscriptions first — d-tag watchers,
+  daemon-message watchers, chats and the bulk kind-14 feed — so nothing of
+  the old user's keeps arriving.
+- Unregisters every push registration.
+- Wipes what the identity produced: the identity row, trade keys, trades,
+  chat messages, payout claims, the outbound queue, the cached order book
+  (its `is_mine` marks) and the per-order settings (chat and status cursors,
+  dispute markers, invoice-step starts, wipe tombstones, retained claim
+  nodes). `Storage::clear_identity_data`, one transaction on native.
+- Empties the in-memory stores: disputes, ratings, sessions, chats (unread
+  count published as zero), trade-key caches; then re-issues the public
+  subscriptions so the book refills with no order marked as own.
+- Clears the log buffer.
+
+**Kept**: device preferences — relays, the active and custom nodes, node
+caches, the push token and toggle, developer overrides. They belong to the
+device, not to the identity.
+
+A failed wipe is logged, never turned into a failed deletion: by then the
+identity is already gone. The Dart half — cached providers and the
+notifications store — is `resetIdentityScopedState`, run by the Account
+screen after a generate and, on import, **before** the recovery.
 
 **Errors**: `NoIdentity`.
 

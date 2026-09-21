@@ -48,24 +48,26 @@ void main() {
       expect(shimAt, lessThan(bootstrapAt));
     });
 
-    test('loads the locale sanitizer between the shim and flutter_bootstrap.js',
-        () {
-      // Arrange
-      final html = indexHtml.readAsStringSync();
+    test(
+      'loads the locale sanitizer between the shim and flutter_bootstrap.js',
+      () {
+        // Arrange
+        final html = indexHtml.readAsStringSync();
 
-      // Act
-      final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
-      final sanitizerAt = html.indexOf('<!-- locale-sanitizer');
-      final bootstrapAt = html.indexOf('flutter_bootstrap.js');
+        // Act
+        final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
+        final sanitizerAt = html.indexOf('<!-- locale-sanitizer');
+        final bootstrapAt = html.indexOf('flutter_bootstrap.js');
 
-      // Assert — the sanitizer must rewrite navigator.language(s) before the
-      // engine reads them during CanvasKit bootstrap, or an unparseable
-      // browser locale throws out of it and the page stays blank (#227). It
-      // still comes after the shim, which reloads the page to gain isolation.
-      expect(sanitizerAt, greaterThanOrEqualTo(0));
-      expect(shimAt, lessThan(sanitizerAt));
-      expect(sanitizerAt, lessThan(bootstrapAt));
-    });
+        // Assert — the sanitizer must rewrite navigator.language(s) before the
+        // engine reads them during CanvasKit bootstrap, or an unparseable
+        // browser locale throws out of it and the page stays blank (#227). It
+        // still comes after the shim, which reloads the page to gain isolation.
+        expect(sanitizerAt, greaterThanOrEqualTo(0));
+        expect(shimAt, lessThan(sanitizerAt));
+        expect(sanitizerAt, lessThan(bootstrapAt));
+      },
+    );
   });
 
   group('vendored coi-serviceworker', () {
@@ -213,7 +215,14 @@ void main() {
       // fixtures are the executable form of issue #154's "fail on any console
       // error" requirement.
       expect(selftest.existsSync(), isTrue);
-      for (final fixture in ['healthy', 'console-error', 'page-error']) {
+      for (final fixture in [
+        'healthy',
+        'console-error',
+        'page-error',
+        'store-probe',
+        'store-probe-empty',
+        'push-worker',
+      ]) {
         expect(
           File('test/web/smoke/fixtures/$fixture/index.html').existsSync(),
           isTrue,
@@ -237,11 +246,174 @@ void main() {
     });
   });
 
+  group('bond store read-back', () {
+    test('Dart, the smoke test and CI agree on the probe and the seed', () {
+      // Arrange — the check only runs when CI opts in, reads a flag Dart
+      // writes, and seeds the database Dart opens. A rename on any one side
+      // turns it into a timeout that reads as a broken bundle, or into a
+      // check that never runs.
+      final dart =
+          File('lib/core/web/store_probe_signal_web.dart').readAsStringSync();
+      final location =
+          File('lib/core/storage/db_location.dart').readAsStringSync();
+      final js = smoke.readAsStringSync();
+      final seed = File('test/web/smoke/seed/bond_store.json');
+      final yaml = webBuild.readAsStringSync();
+
+      // Act / Assert
+      expect(dart, contains(storeProbeFlag));
+      expect(js, contains(storeProbeFlag));
+      // Production publishes nothing unless the page asks, so the request
+      // flag must match too, or the check times out on a healthy bundle.
+      expect(dart, contains(storeProbeRequestFlag));
+      expect(js, contains(storeProbeRequestFlag));
+      expect(js, contains('SMOKE_BOND_STORE'));
+      expect(yaml, contains('SMOKE_BOND_STORE: "1"'));
+      expect(seed.existsSync(), isTrue);
+      expect(seed.readAsStringSync(), contains('"database": "mostro"'));
+      expect(location, contains("webDatabaseName = 'mostro'"));
+    });
+  });
+
+  group('messaging service worker (docs/PUSH_NOTIFICATIONS.md T4.5)', () {
+    final worker = File('web/firebase-messaging-sw.js');
+    final logic = File('web/push_worker_logic.js');
+
+    test('index.html registers it, relative to the base path, after the shim',
+        () {
+      // Arrange
+      final html = indexHtml.readAsStringSync();
+
+      // Act
+      final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
+      final registerAt = html.indexOf("register('$messagingWorkerScript'");
+      final bootstrapAt = html.indexOf('flutter_bootstrap.js');
+
+      // Assert — Firebase's default is the origin root, which under /app/ is
+      // a 404; a relative URL resolves against <base href>. After the shim,
+      // which must stay the first script.
+      expect(registerAt, greaterThan(shimAt));
+      expect(registerAt, lessThan(bootstrapAt));
+      expect(html, contains("scope: '$messagingWorkerScope'"));
+      expect(html, isNot(contains("'/$messagingWorkerScript'")));
+    });
+
+    test('routes on no payload field and carries no placeholder config', () {
+      // Arrange
+      final js = worker.readAsStringSync() + logic.readAsStringSync();
+
+      // Act / Assert — the server's push carries nothing to route on (§2.3).
+      expect(js, isNot(contains('REPLACE_ME')));
+      expect(js, isNot(contains('routeFromPayload')));
+      expect(js, isNot(contains('orderId')));
+      expect(js, isNot(contains('disputeId')));
+    });
+
+    test('uses the web Firebase config firebase_options.dart ships', () {
+      // Arrange — the worker cannot import Dart, so the values are copied;
+      // this is what keeps the copy honest after a `flutterfire configure`.
+      final options = File('lib/firebase_options.dart').readAsStringSync();
+      final web = options.substring(
+        options.indexOf('FirebaseOptions web = FirebaseOptions('),
+        options.indexOf('FirebaseOptions android'),
+      );
+      final js = worker.readAsStringSync();
+
+      // Act
+      final values = RegExp(r"(apiKey|appId|messagingSenderId|projectId): '([^']+)'")
+          .allMatches(web)
+          .map((m) => (m.group(1)!, m.group(2)!))
+          .toList();
+
+      // Assert
+      expect(values, hasLength(4));
+      for (final (key, value) in values) {
+        expect(js, contains("$key: '$value'"), reason: key);
+      }
+    });
+
+    test('loads the Firebase JS SDK version the page itself loads', () {
+      // Arrange — firebase_core_web pins the SDK the page imports; a worker
+      // on another version is a second SDK talking to the same push scope.
+      final config = File('.dart_tool/package_config.json').readAsStringSync();
+      final root = RegExp(
+        r'"name": "firebase_core_web",\s*"rootUri": "file://([^"]+)"',
+      ).firstMatch(config)!.group(1)!;
+      final pinned = RegExp(r"supportedFirebaseJsSdkVersion = '([^']+)'")
+          .firstMatch(
+            File('$root/lib/src/firebase_sdk_version.dart').readAsStringSync(),
+          )!
+          .group(1)!;
+      final js = worker.readAsStringSync();
+
+      // Act
+      final imported = RegExp(r'firebasejs/([0-9.]+)/')
+          .allMatches(js)
+          .map((m) => m.group(1))
+          .toSet();
+
+      // Assert
+      expect(imported, {pinned});
+    });
+
+    test('shows the chat-wake notice in the app’s own words', () {
+      // Arrange — the Dart background handler uses the arb strings; the
+      // worker cannot, so it carries a copy for every locale. The locales
+      // come from the translation files, so a new one cannot be missed here.
+      final js = logic.readAsStringSync();
+      final locales = Directory('lib/l10n')
+          .listSync()
+          .map((f) => RegExp(r'app_([a-z]{2})\.arb$').firstMatch(f.path)?.group(1))
+          .whereType<String>()
+          .toList()
+        ..sort();
+      expect(locales, isNotEmpty);
+
+      // Act / Assert
+      for (final locale in locales) {
+        final arb = File('lib/l10n/app_$locale.arb').readAsStringSync();
+        final body = RegExp(r'"pushNewMessageBody": "([^"]+)"')
+            .firstMatch(arb)!
+            .group(1)!;
+        expect(js, contains("$locale: '$body'"), reason: locale);
+      }
+    });
+
+    test('Dart, index.html, the smoke test and CI agree on the worker', () {
+      // Arrange — Dart registers the same script and scope index.html does;
+      // a mismatch is a second registration the token is never bound to.
+      final dart = File(
+        'lib/features/notifications/services/web_push_web.dart',
+      ).readAsStringSync();
+      final js = smoke.readAsStringSync();
+      final yaml = webBuild.readAsStringSync();
+
+      // Act / Assert
+      expect(dart, contains("'$messagingWorkerScript'"));
+      expect(dart, contains("'$messagingWorkerScope'"));
+      expect(js, contains(messagingWorkerScope));
+      expect(js, contains('SMOKE_PUSH_WORKER'));
+      expect(yaml, contains('SMOKE_PUSH_WORKER: "1"'));
+    });
+
+    test('CI builds with the VAPID define and keeps web push off', () {
+      // Arrange
+      final yaml = webBuild.readAsStringSync();
+
+      // Act / Assert — the key is public and set per repository (forks use
+      // their own); the flag flips only when the push server accepts web.
+      expect(yaml, contains('--dart-define=FCM_VAPID_KEY='));
+      expect(yaml, isNot(contains('PUSH_WEB_ENABLED')));
+      expect(yaml, contains('node --test test/web/push_worker/'));
+    });
+  });
+
   group('bridge readiness probe', () {
     test('Dart and the smoke test agree on the flag name', () {
       // Arrange — the probe is the only positive signal that the Rust bridge
       // survived; a rename on one side would silently never be awaited.
-      final dart = File('lib/core/web/bridge_probe_web.dart').readAsStringSync();
+      final dart =
+          File('lib/core/web/bridge_probe_web.dart').readAsStringSync();
       final js = smoke.readAsStringSync();
 
       // Act / Assert
@@ -254,3 +426,17 @@ void main() {
 /// The `window` property `main()` sets once a real Rust bridge call has
 /// returned on web, and that the headless smoke test waits for.
 const bridgeReadyFlag = 'mostroBridgeReady';
+
+/// The `window` property the web build sets to what it read back from the
+/// persistent store, and that the smoke test compares with its seed.
+const storeProbeFlag = 'mostroStoreProbe';
+
+/// The `window` property the smoke test sets before the page loads to ask the
+/// web build for the store read-back.
+const storeProbeRequestFlag = 'mostroStoreProbeRequested';
+
+/// The FCM service worker, relative to the base path.
+const messagingWorkerScript = 'firebase-messaging-sw.js';
+
+/// Its scope — Firebase's own default name, relative to the base path.
+const messagingWorkerScope = 'firebase-cloud-messaging-push-scope';

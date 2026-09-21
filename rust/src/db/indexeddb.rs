@@ -23,11 +23,11 @@ use web_sys::wasm_bindgen::JsValue;
 use crate::api::types::{
     ChatMessage, IdentityInfo, OrderInfo, QueuedMessageStatus, RelayInfo, TradeInfo,
 };
-use crate::db::{trade_json, web_lock, Storage};
+use crate::db::{settings_keys, trade_json, web_lock, Storage};
 use crate::queue::outbox::QueuedMessage;
 
 /// Bumped when a store is added; `open_db` creates whatever is missing.
-const DB_VERSION: u32 = 3;
+const DB_VERSION: u32 = 4;
 const MESSAGES_STORE: &str = "messages";
 const SETTINGS_STORE: &str = "settings";
 const TRADES_STORE: &str = "trades";
@@ -36,13 +36,14 @@ const ORDERS_STORE: &str = "orders";
 const RELAYS_STORE: &str = "relays";
 const IDENTITY_STORE: &str = "identity";
 const OUTBOX_STORE: &str = "queued_messages";
+const BOND_CLAIMS_STORE: &str = "bond_claims";
 /// The single identity document's key, mirroring SQLite's `id = 1` row.
 const IDENTITY_KEY: &str = "1";
 /// Origin-wide lock names (see [`web_lock`]): one per store whose documents
 /// are read, changed and written back as a whole.
 const TRADES_LOCK: &str = "mostro:db:trades";
 const OUTBOX_LOCK: &str = "mostro:db:queued_messages";
-const ALL_STORES: [&str; 8] = [
+const ALL_STORES: [&str; 9] = [
     MESSAGES_STORE,
     SETTINGS_STORE,
     TRADES_STORE,
@@ -51,6 +52,7 @@ const ALL_STORES: [&str; 8] = [
     RELAYS_STORE,
     IDENTITY_STORE,
     OUTBOX_STORE,
+    BOND_CLAIMS_STORE,
 ];
 
 /// Map an opaque JS-side error into an `anyhow` error the trait can carry.
@@ -344,6 +346,24 @@ impl Storage for IndexedDbStorage {
         Ok(msgs)
     }
 
+    async fn list_unread_messages(&self) -> Result<Vec<ChatMessage>> {
+        let mut msgs: Vec<ChatMessage> = self
+            .get_all_strings(MESSAGES_STORE)
+            .await?
+            .into_iter()
+            .filter_map(|json| match serde_json::from_str::<ChatMessage>(&json) {
+                Ok(msg) => Some(msg),
+                Err(e) => {
+                    log::warn!("[db] skipping unread message: deserialization failed: {e}");
+                    None
+                }
+            })
+            .collect();
+        msgs.retain(|m| !m.is_read);
+        msgs.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+        Ok(msgs)
+    }
+
     async fn mark_messages_read(&self, trade_id: &str) -> Result<()> {
         let unread: Vec<ChatMessage> = self
             .list_messages(trade_id)
@@ -477,6 +497,73 @@ impl Storage for IndexedDbStorage {
         self.clear_store(TRADE_KEYS_STORE).await
     }
 
+    async fn clear_identity_data(&self) -> Result<()> {
+        let db = self.open_db().await?;
+
+        // Pass 1, read-only: which settings keys are the identity's. The
+        // store is shared with device preferences, so it cannot be cleared.
+        let scoped_keys: Vec<String> = {
+            let tx = db
+                .transaction_on_one_with_mode(SETTINGS_STORE, IdbTransactionMode::Readonly)
+                .map_err(|e| js_err("tx open", e))?;
+            let store = tx
+                .object_store(SETTINGS_STORE)
+                .map_err(|e| js_err("store open", e))?;
+            store
+                .get_all_keys()
+                .map_err(|e| js_err("get_all_keys", e))?
+                .await
+                .map_err(|e| js_err("get_all_keys await", e))?
+                .iter()
+                .filter_map(|k| k.as_string())
+                .filter(|key| {
+                    settings_keys::IDENTITY_SCOPED_PREFIXES
+                        .iter()
+                        .any(|prefix| key.starts_with(prefix))
+                        || key == settings_keys::BOND_CLAIM_RETAINED_NODES
+                })
+                .collect()
+        };
+
+        // Pass 2, one read-write transaction over every store: all of it
+        // commits or none does. A half-wiped database would show the new
+        // user some of the old one's rows, which is the bug this closes.
+        //
+        // Every request is queued before the first `await`. A transaction is
+        // only active while its own callbacks run, and a Rust future resumes
+        // from a later task — so awaiting between requests would make the
+        // next one hit an inactive transaction (see `patch_serial`). That is
+        // also why the keys are read in a transaction of their own.
+        const WIPED: [&str; 5] = [
+            TRADES_STORE,
+            MESSAGES_STORE,
+            BOND_CLAIMS_STORE,
+            OUTBOX_STORE,
+            ORDERS_STORE,
+        ];
+        let mut stores = WIPED.to_vec();
+        stores.push(SETTINGS_STORE);
+        let tx = db
+            .transaction_on_multi_with_mode(&stores, IdbTransactionMode::Readwrite)
+            .map_err(|e| js_err("tx open", e))?;
+        for name in WIPED {
+            tx.object_store(name)
+                .map_err(|e| js_err("store open", e))?
+                .clear()
+                .map_err(|e| js_err("clear", e))?;
+        }
+        let settings = tx
+            .object_store(SETTINGS_STORE)
+            .map_err(|e| js_err("store open", e))?;
+        for key in &scoped_keys {
+            settings
+                .delete_owned(key.as_str())
+                .map_err(|e| js_err("delete", e))?;
+        }
+        tx.await.into_result().map_err(|e| js_err("tx commit", e))?;
+        Ok(())
+    }
+
     // ── Settings KV — fully implemented (chat cursor + preferences, #246) ───
 
     async fn get_setting(&self, key: &str) -> Result<Option<String>> {
@@ -572,6 +659,17 @@ impl Storage for IndexedDbStorage {
             .await
     }
 
+    async fn set_cooperative_cancel_state(
+        &self,
+        order_id: &str,
+        state: crate::api::types::CooperativeCancelState,
+    ) -> Result<()> {
+        self.patch_trade_by_order_id(order_id, |doc| {
+            trade_json::set_cooperative_cancel_state(doc, &state)
+        })
+        .await
+    }
+
     async fn update_trade_counterparty(
         &self,
         order_id: &str,
@@ -580,6 +678,55 @@ impl Storage for IndexedDbStorage {
         self.patch_trade_by_order_id(order_id, |doc| {
             trade_json::set_counterparty(doc, counterparty_pubkey)
         })
+        .await
+    }
+
+    // ── Bond payout claims — whole-document, keyed by node:order ────────────
+
+    async fn save_bond_claim(&self, claim: &crate::api::types::BondClaim) -> Result<()> {
+        let json = serde_json::to_string(claim)?;
+        self.put_string(BOND_CLAIMS_STORE, &claim.storage_id(), &json)
+            .await
+    }
+
+    async fn get_bond_claim(
+        &self,
+        node_pubkey: &str,
+        order_id: &str,
+    ) -> Result<Option<crate::api::types::BondClaim>> {
+        Ok(self
+            .get_string(
+                BOND_CLAIMS_STORE,
+                &crate::api::types::bond_claim_key(node_pubkey, order_id),
+            )
+            .await?
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?)
+    }
+
+    async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>> {
+        let mut claims: Vec<crate::api::types::BondClaim> = self
+            .get_all_strings(BOND_CLAIMS_STORE)
+            .await?
+            .into_iter()
+            .filter_map(|json| match serde_json::from_str(&json) {
+                Ok(claim) => Some(claim),
+                Err(e) => {
+                    log::warn!("[db] skipping bond claim: deserialization failed: {e}");
+                    None
+                }
+            })
+            .collect();
+        // Same order as SQLite: most recently changed first.
+        claims.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        Ok(claims)
+    }
+
+    async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()> {
+        self.delete_key(
+            BOND_CLAIMS_STORE,
+            &crate::api::types::bond_claim_key(node_pubkey, order_id),
+        )
         .await
     }
 }

@@ -168,6 +168,12 @@ fn rating_store() -> &'static RatingStore {
     RATING_STORE.get_or_init(RatingStore::new)
 }
 
+/// Forget the ratings of the identity being deleted (issue #533). Privacy
+/// mode is left alone: the identity swap sets it explicitly.
+pub(crate) async fn forget_identity_ratings() {
+    rating_store().ratings.write().await.clear();
+}
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 use crate::rt::unix_now;

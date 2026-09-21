@@ -39,6 +39,9 @@ class CreateOrderPalette {
     required this.ctaDisabledBg,
     required this.ctaDisabledInk,
     required this.dashedBorder,
+    required this.pickerRowSelectedBg,
+    required this.pickerRowSelectedBorder,
+    required this.pickerCheckboxBorder,
     required this.error,
     required this.ctaShadow,
   });
@@ -94,6 +97,14 @@ class CreateOrderPalette {
   /// Dashed border of the "Add" payment-method chip.
   final Color dashedBorder;
 
+  /// Chosen row of the payment-method picker (handoff 18a): lime tint and
+  /// hairline. The unchosen row is transparent, so it has no token.
+  final Color pickerRowSelectedBg;
+  final Color pickerRowSelectedBorder;
+
+  /// Outline of an empty checkbox on that list.
+  final Color pickerCheckboxBorder;
+
   /// Validation message and the underline of the field it names.
   final Color error;
 
@@ -126,6 +137,9 @@ class CreateOrderPalette {
     ctaDisabledBg: Color(0x2992D64F), // rgba(146,214,79,0.16)
     ctaDisabledInk: Color(0x8CC6F09A), // rgba(198,240,154,0.55)
     dashedBorder: Color(0x29FFFFFF), // white 16%
+    pickerRowSelectedBg: Color(0x1492D64F), // rgba(146,214,79,0.08)
+    pickerRowSelectedBorder: Color(0x5992D64F), // rgba(146,214,79,0.35)
+    pickerCheckboxBorder: Color(0x38FFFFFF), // white 22%
     error: Color(0xFFFF8B8B),
     ctaShadow: [
       BoxShadow(
@@ -163,6 +177,9 @@ class CreateOrderPalette {
     ctaDisabledBg: Color(0x3892D64F), // lime 22%
     ctaDisabledInk: Color(0xB33E6B1C), // rgba(62,107,28,0.70)
     dashedBorder: Color(0x3312161F), // ink 20%
+    pickerRowSelectedBg: Color(0x1F92D64F), // lime 12%
+    pickerRowSelectedBorder: Color(0x5C5C9130), // rgba(92,145,48,0.36)
+    pickerCheckboxBorder: Color(0x4712161F), // ink 28%
     error: Color(0xFFC2403A),
     ctaShadow: [
       BoxShadow(

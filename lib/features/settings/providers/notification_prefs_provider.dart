@@ -6,11 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///
 /// Lifted out of the notification screen's local state because 10a shows the
 /// tally (`Notificaciones push → 3 de 4`) on the settings list, so the same
-/// preferences have to be readable from two places. The keys are the ones
-/// `push_notification_service.dart` gates on — changing one here without the
-/// other silently stops (or starts) delivering a class of notification.
-/// `newMessages` is the exception: no push type carries a chat message yet,
-/// so `_isTypeEnabled` has nothing to gate with it.
+/// preferences have to be readable from two places. They gate the in-app
+/// cards: a push carries no type to gate on (docs/PUSH_NOTIFICATIONS.md §2.3),
+/// so these decide what the app shows once it is awake, not what wakes it.
 enum NotificationEvent {
   tradeUpdates('notify_trade_updates'),
   newMessages('notify_new_messages'),

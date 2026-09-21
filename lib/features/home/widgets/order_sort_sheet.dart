@@ -4,14 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// Shows the order-book sort picker; picking a criterion applies it and
 /// closes the sheet.
 Future<void> showOrderSortSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
+  return showMostroSheet<void>(
     context: context,
-    showDragHandle: true,
-    backgroundColor: OrderBookPalette.of(context).surface,
     builder: (_) => const _OrderSortSheet(),
   );
 }
@@ -32,36 +31,23 @@ class _OrderSortSheet extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final current = ref.watch(orderSortProvider);
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Text(
-                l10n.sortSheetTitle,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: pal.textPrimary,
-                ),
-              ),
+    return MostroSheet(
+      title: l10n.sortSheetTitle,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final sort in OrderSort.values)
+            _SortOption(
+              label: orderSortLabel(l10n, sort),
+              isSelected: sort == current,
+              palette: pal,
+              onTap: () {
+                ref.read(orderSortProvider.notifier).state = sort;
+                Navigator.of(context).pop();
+              },
             ),
-            for (final sort in OrderSort.values)
-              _SortOption(
-                label: orderSortLabel(l10n, sort),
-                isSelected: sort == current,
-                palette: pal,
-                onTap: () {
-                  ref.read(orderSortProvider.notifier).state = sort;
-                  Navigator.of(context).pop();
-                },
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }

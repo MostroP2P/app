@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<!--
+  Fixture for the messaging worker check (SMOKE_PUSH_WORKER=1): the healthy
+  page plus the registration web/index.html performs, relative to the base
+  path and under the push scope.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="data:," />
+    <title>smoke fixture — push worker</title>
+  </head>
+  <body>
+    <flutter-view></flutter-view>
+    <script>
+      navigator.serviceWorker.register('firebase-messaging-sw.js', {
+        scope: 'firebase-cloud-messaging-push-scope',
+      });
+      window.mostroBridgeReady = true;
+    </script>
+  </body>
+</html>

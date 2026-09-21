@@ -16,6 +16,7 @@ import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/features/home/widgets/order_book_list.dart';
 import 'package:mostro/features/home/widgets/order_list_empty.dart';
 import 'package:mostro/features/home/widgets/order_sort_sheet.dart';
+import 'package:mostro/features/home/widgets/side_swipe.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/add_order_button.dart';
@@ -85,6 +86,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final sort = ref.watch(orderSortProvider);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isDesktop = screenWidth >= AppBreakpoints.desktop;
+    void selectSide(OrderType type) =>
+        ref.read(homeOrderTypeProvider.notifier).state = type;
 
     // ── Order list: responsive column count ──────────────────────────────────
     final columns =
@@ -126,8 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _SideTabs(
           palette: pal,
           selected: orderType,
-          onSelected:
-              (type) => ref.read(homeOrderTypeProvider.notifier).state = type,
+          onSelected: selectSide,
         ),
         _FilterRow(
           palette: pal,
@@ -137,16 +139,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           showsOrders: book.hasValue,
         ),
         Expanded(
-          child: AnimatedSwitcher(
-            duration: _switchDuration,
-            layoutBuilder:
-                (current, previous) => Stack(
-                  fit: StackFit.expand,
-                  children: [...previous, if (current != null) current],
-                ),
-            // Keyed by side only: a book update within the same tab rebuilds
-            // the list in place instead of fading it.
-            child: KeyedSubtree(key: ValueKey(orderType), child: orders),
+          // A horizontal swipe over the book flips Buy / Sell like the tabs.
+          child: SideSwipe(
+            current: orderType,
+            onChanged: selectSide,
+            child: AnimatedSwitcher(
+              duration: _switchDuration,
+              layoutBuilder:
+                  (current, previous) => Stack(
+                    fit: StackFit.expand,
+                    children: [...previous, if (current != null) current],
+                  ),
+              // Keyed by side only: a book update within the same tab rebuilds
+              // the list in place instead of fading it.
+              child: KeyedSubtree(key: ValueKey(orderType), child: orders),
+            ),
           ),
         ),
       ],

@@ -13,6 +13,7 @@ import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/features/settings/providers/notification_permission_provider.dart';
 import 'package:mostro/features/settings/providers/notification_prefs_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
+import 'package:mostro/features/settings/providers/push_settings_provider.dart';
 import 'package:mostro/features/settings/providers/relay_auto_sync_provider.dart';
 import 'package:mostro/features/settings/providers/relays_provider.dart';
 import 'package:mostro/features/settings/screens/notification_settings_screen.dart';
@@ -20,8 +21,9 @@ import 'package:mostro/features/settings/screens/relays_screen.dart';
 import 'package:mostro/features/settings/screens/settings_screen.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show MostroNodeEntry, RelayInfo, RelaySource, RelayStatus;
+    show MostroNodeEntry, PushStatus, RelayInfo, RelaySource, RelayStatus;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../support/provider_harness.dart';
@@ -47,11 +49,43 @@ final _mixedRelays = [
   _relay('wss://relay.mostro.network', status: RelayStatus.error),
 ];
 
+PushStatus _push({
+  bool enabled = true,
+  int registered = 0,
+  DateTime? nodeRefusedUntil,
+}) => PushStatus(
+  enabled: enabled,
+  hasToken: true,
+  registered: registered,
+  wanted: registered,
+  nodeRefusedUntil:
+      nodeRefusedUntil == null
+          ? null
+          : nodeRefusedUntil.millisecondsSinceEpoch ~/ 1000,
+);
+
+/// Records what the master toggle asked for, without a bridge or a device.
+class _RecordingToggle implements PushToggle {
+  final asked = <bool>[];
+
+  @override
+  Future<bool> set(bool enabled) async {
+    asked.add(enabled);
+    return true;
+  }
+}
+
 List<Override> _overrides({
   List<RelayInfo>? relays,
   NwcWalletState? wallet,
   bool permissionDenied = false,
+  bool pushSupported = true,
+  PushStatus? push,
+  PushToggle? toggle,
 }) => [
+  pushSupportedProvider.overrideWithValue(pushSupported),
+  pushStatusProvider.overrideWith((ref) => Stream.value(push ?? _push())),
+  pushToggleProvider.overrideWithValue(toggle ?? _RecordingToggle()),
   relayListLoaderProvider.overrideWithValue(() async => relays ?? _mixedRelays),
   // A reader that never completes: the list under test comes from the load.
   relayStatusStreamProvider.overrideWithValue(
@@ -131,6 +165,10 @@ Future<ProviderContainer> _pump(
   return container;
 }
 
+final _masterToggle = find.byWidgetPredicate(
+  (w) => w is MostroToggle && w.semanticLabel == 'Push notifications',
+);
+
 Color _colorOf(WidgetTester tester, String text) =>
     tester.widget<Text>(find.text(text)).style!.color!;
 
@@ -180,6 +218,28 @@ void main() {
 
       expect(_colorOf(tester, 'Not connected'), SettingsPalette.dark.warnInk);
       expect(_colorOf(tester, 'Not set'), SettingsPalette.dark.warnInk);
+    });
+
+    testWidgets('saving a lightning address closes the dialog cleanly', (
+      tester,
+    ) async {
+      await _pump(tester, const SettingsScreen());
+
+      await tester.tap(find.text('Not set'));
+      await tester.pumpAndSettle();
+      final dialog = find.byType(MostroDialog);
+      await tester.enterText(
+        find.descendant(of: dialog, matching: find.byType(TextField)),
+        'alice@example.com',
+      );
+      await tester.tap(
+        find.descendant(of: dialog, matching: find.text('Save')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(MostroDialog), findsNothing);
+      expect(find.text('alice@example.com'), findsOneWidget);
     });
 
     testWidgets('shows a connected wallet by name, un-warned', (tester) async {
@@ -332,9 +392,145 @@ void main() {
     ) async {
       await _pump(tester, const NotificationSettingsScreen());
 
-      expect(find.byType(MostroToggle), findsNWidgets(4));
+      // The master push toggle, then the four events.
+      expect(find.byType(MostroToggle), findsNWidgets(5));
       expect(find.text('Trade updates'), findsOneWidget);
       expect(find.text('Dispute updates'), findsOneWidget);
+    });
+
+    testWidgets('the event header no longer promises push filtering', (
+      tester,
+    ) async {
+      await _pump(tester, const NotificationSettingsScreen());
+
+      // A content-free push has no type to filter on: the rows gate the
+      // in-app cards.
+      expect(
+        find.text('Choose which events show a notification in the app.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('trigger push'), findsNothing);
+    });
+
+    testWidgets('the master toggle reports what Rust registered', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(push: _push(registered: 2)),
+      );
+
+      expect(find.text('Push notifications'), findsOneWidget);
+      expect(find.text('Registered for 2 trades'), findsOneWidget);
+    });
+
+    testWidgets('turning the master toggle off goes through the toggle', (
+      tester,
+    ) async {
+      final toggle = _RecordingToggle();
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(toggle: toggle),
+      );
+
+      await tester.tap(_masterToggle);
+      await tester.pumpAndSettle();
+
+      expect(toggle.asked, [false]);
+    });
+
+    testWidgets('a refused node is reported under the toggle', (tester) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(
+          push: _push(
+            registered: 1,
+            nodeRefusedUntil: DateTime.now().add(const Duration(hours: 3)),
+          ),
+        ),
+      );
+
+      expect(
+        find.text('This Mostro node is not accepted by the push server'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('push off says nothing is registered', (tester) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(push: _push(enabled: false)),
+      );
+
+      expect(tester.widget<MostroToggle>(_masterToggle).value, isFalse);
+      expect(
+        find.text('Off — nothing is registered with the push server'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('push off warns about registrations awaiting removal', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(push: _push(enabled: false, registered: 3)),
+      );
+      const copy = 'Off — removal of 3 push registrations is pending';
+      expect(find.text(copy), findsOneWidget);
+      expect(_colorOf(tester, copy), SettingsPalette.dark.warnInk);
+      expect(
+        find.text('Off — nothing is registered with the push server'),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'a reopened screen remains disabled during the shared transaction',
+      (tester) async {
+        final container = await _pump(
+          tester,
+          const NotificationSettingsScreen(),
+        );
+        container.read(pushTogglePendingProvider.notifier).state = false;
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(_app(container, const SizedBox.shrink()));
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          _app(container, const NotificationSettingsScreen()),
+        );
+        await tester.pumpAndSettle();
+        final toggle = tester.widget<MostroToggle>(_masterToggle);
+        expect(toggle.value, isFalse);
+        expect(toggle.onChanged, isNull);
+
+        container.read(pushTogglePendingProvider.notifier).state = null;
+        await tester.pumpAndSettle();
+        expect(tester.widget<MostroToggle>(_masterToggle).onChanged, isNotNull);
+      },
+    );
+
+    testWidgets('an unsupported platform shows an info row, not a toggle', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(pushSupported: false),
+      );
+
+      expect(
+        find.text('Push notifications are not available on this platform'),
+        findsOneWidget,
+      );
+      expect(_masterToggle, findsNothing);
+      // The in-app event rows still apply.
+      expect(find.byType(MostroToggle), findsNWidgets(4));
     });
 
     testWidgets('no banner while the system permission is granted', (
@@ -362,18 +558,26 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Open settings'), findsOneWidget);
-      // Flipping a toggle here would change nothing the user can see.
+      // Flipping an event row here would change nothing the user can see.
       for (final toggle in tester.widgetList<MostroToggle>(
         find.byType(MostroToggle),
       )) {
+        if (toggle.semanticLabel == 'Push notifications') continue;
         expect(toggle.onChanged, isNull);
       }
+      // Turning push off still unregisters every trade from the server.
+      expect(tester.widget<MostroToggle>(_masterToggle).onChanged, isNotNull);
     });
 
     testWidgets('toggling an event persists it', (tester) async {
       await _pump(tester, const NotificationSettingsScreen());
 
-      await tester.tap(find.byType(MostroToggle).first);
+      // The first toggle is the master push toggle; this is the first event.
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is MostroToggle && w.semanticLabel == 'Trade updates',
+        ),
+      );
       await tester.pumpAndSettle();
 
       final prefs = await SharedPreferences.getInstance();

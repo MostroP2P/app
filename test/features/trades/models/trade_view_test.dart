@@ -7,6 +7,7 @@ import 'package:mostro/features/trades/models/trade_view.dart';
 /// the trade is active; dispute never before the escrow is locked (#203).
 void main() {
   bondWindowTests();
+  cancelRequestTests();
   TradeView view(
     TradeStatus status, {
     required bool isBuyer,
@@ -187,23 +188,81 @@ void main() {
   });
 }
 
-/// Phase 0 of `docs/ANTI_ABUSE_BOND.md`: the bond window offers no daemon
-/// action yet. `waitingBond` merges the taker and maker waits, and the daemon
-/// rejects a maker's cancel during its bond (§2.8), so a Cancel here would be
-/// an action guaranteed to fail for one of the two sides. Phase 1 tells them
-/// apart with the pay-bond screen.
+/// Protocol `cancel.md`, "Cancel cooperatively": once this side asked to
+/// cancel, the trade goes on until the counterparty also cancels. Asking
+/// again is not an action, so the bar drops `Cancel` and keeps the rest.
+void cancelRequestTests() {
+  group('a cancel request of this side is pending', () {
+    for (final status in [TradeStatus.active, TradeStatus.fiatSent]) {
+      for (final isBuyer in [true, false]) {
+        test(
+          'no second cancel, everything else stays ($status, isBuyer: $isBuyer)',
+          () {
+            final plain = TradeView.of(status: status, isBuyer: isBuyer);
+            final asked = TradeView.of(
+              status: status,
+              isBuyer: isBuyer,
+              cancelRequested: true,
+            );
+            expect(
+              asked.secondary,
+              isNot(contains(TradeSecondaryAction.cancel)),
+            );
+            expect(
+              asked.secondary,
+              plain.secondary.where((a) => a != TradeSecondaryAction.cancel),
+            );
+            expect(asked.primary, plain.primary);
+            expect(asked.chip, plain.chip);
+            expect(asked.showsChat, plain.showsChat);
+            expect(asked.step, plain.step);
+            expect(asked.timer, plain.timer);
+          },
+        );
+      }
+    }
+
+    test(
+      'the flag outlives the request: a dispute keeps the seller\'s cancel',
+      () {
+        // The row is never cleared; a dispute opened after an unanswered
+        // request must not lose the seller's own cancel action.
+        final v = TradeView.of(
+          status: TradeStatus.disputed,
+          isBuyer: false,
+          cancelRequested: true,
+        );
+        expect(v.secondary, contains(TradeSecondaryAction.cancel));
+      },
+    );
+
+    test('no request can be open before active: the flag changes nothing', () {
+      final v = TradeView.of(
+        status: TradeStatus.waitingPayment,
+        isBuyer: true,
+        cancelRequested: true,
+      );
+      expect(v.secondary, [TradeSecondaryAction.cancel]);
+      expect(v.cancelIsFullWidth, isTrue);
+    });
+  });
+}
+
+/// `docs/ANTI_ABUSE_BOND.md` Phase 1: the bond window is the user's turn —
+/// pay the deposit — and a taker may still back out (the daemon releases
+/// their bond). The maker variant (no cancel) is Phase 2.
 void bondWindowTests() {
   group('waiting for the anti-abuse bond', () {
     for (final isBuyer in [true, false]) {
-      test('no primary and no secondary action (isBuyer: $isBuyer)', () {
+      test('pay the deposit, or back out (isBuyer: $isBuyer)', () {
         final v = TradeView.of(
           status: TradeStatus.waitingBond,
           isBuyer: isBuyer,
           canRate: true,
         );
-        expect(v.chip, TradeChip.waiting);
-        expect(v.primary, TradePrimaryAction.none);
-        expect(v.secondary, isEmpty);
+        expect(v.chip, TradeChip.yourTurn);
+        expect(v.primary, TradePrimaryAction.payBond);
+        expect(v.secondary, [TradeSecondaryAction.cancel]);
         expect(v.showsChat, isFalse);
         expect(v.timer, TradeTimerOwner.none);
       });

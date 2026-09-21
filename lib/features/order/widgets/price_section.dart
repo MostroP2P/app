@@ -15,6 +15,7 @@ import 'package:mostro/features/order/providers/order_side_provider.dart';
 import 'package:mostro/features/order/widgets/premium_slider_shapes.dart';
 import 'package:mostro/features/order/widgets/underline_amount_field.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/pill_segmented.dart';
 
 /// Whether Market or Fixed price mode is selected.
@@ -487,17 +488,16 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
   }
 
   void _showPriceInfo(BuildContext context) {
-    showDialog<void>(
+    final l10n = AppLocalizations.of(context);
+    showMostroDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(AppLocalizations.of(context).priceTypesDialogTitle),
-        content: Text(AppLocalizations.of(context).priceTypesDialogContent),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(AppLocalizations.of(context).okButtonLabel),
-          ),
-        ],
+      builder: (dialogContext) => MostroDialog(
+        title: l10n.priceTypesDialogTitle,
+        body: l10n.priceTypesDialogContent,
+        primary: ModalAction(
+          label: l10n.okButtonLabel,
+          onPressed: () => Navigator.pop(dialogContext),
+        ),
       ),
     );
   }

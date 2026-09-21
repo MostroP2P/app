@@ -43,12 +43,19 @@ class AutomationIds {
   static const String keysGenerateConfirm = 'keys.generate.confirm';
   static const String keysGenerateCancel = 'keys.generate.cancel';
   static const String keysImport = 'keys.import';
+  // The warning shown before a generate or an import while the current
+  // identity still has escrow, bonds or trades in flight (issue #533).
+  static const String keysFundsAtRiskKeep = 'keys.funds_at_risk.keep';
+  static const String keysFundsAtRiskContinue = 'keys.funds_at_risk.continue';
+
+  /// Readout: the identity's full public key, for a driver to prove the
+  /// identity it onboarded is the one the app still holds.
+  static const String keysPublicKey = 'keys.public_key';
   static const String keysSeedReveal = 'keys.seed.reveal';
   // There is deliberately no identifier for the mnemonic itself. A stable
   // readout would put the seed phrase in the accessibility tree, where any
   // accessibility service on the device can read it, and no Mortsom scenario
   // needs it: identities are generated in the app, never transcribed.
-  static const String keysPublicKey = 'keys.public_key';
 
   // Settings
   static const String settingsMostroNode = 'settings.mostro_node';
@@ -139,6 +146,12 @@ class AutomationIds {
   static const String orderCreatePaymentMethod = 'order.create.payment_method';
   static const String orderCreatePaymentMethodCustomAdd =
       'order.create.payment_method.custom_add';
+  // Dashed row at the end of the list that opens the free-text sheet, and
+  // the bottom bar's button, the only way the selection reaches the form.
+  static const String orderCreatePaymentMethodCustomOpen =
+      'order.create.payment_method.custom_open';
+  static const String orderCreatePaymentMethodsConfirm =
+      'order.create.payment_methods.confirm';
   // `Market | Fixed` control, as a whole and per segment. Fixed is disabled
   // while a range order is being written.
   static const String orderCreatePriceType = 'order.create.price_type';
@@ -150,6 +163,10 @@ class AutomationIds {
   static const String orderCreateSubmit = 'order.create.submit';
   static const String orderCreateCancel = 'order.create.cancel';
   static const String orderConfirmHome = 'order.confirm.home';
+
+  /// My Order while the maker's anti-abuse deposit is outstanding: opens
+  /// the pay-bond screen.
+  static const String myOrderPayBond = 'order.payBond';
 
   /// Row of an order in the public order book.
   static String orderBookItem(String orderId) => 'order.book.item.$orderId';
@@ -177,6 +194,24 @@ class AutomationIds {
   static const String orderId = 'order.id';
   static const String orderStatus = 'order.status';
   static const String tradePayInvoice = 'trade.payInvoice';
+  static const String tradePayBond = 'trade.payBond';
+
+  /// Readout: the payout claim banner on the trade detail, labelled with the
+  /// claim's phase (docs/ANTI_ABUSE_BOND.md §8.3); absent without a claim.
+  static const String tradeBondClaim = 'trade.bondClaim';
+
+  /// Readout: the durable slash notice on the trade detail, labelled with
+  /// the cause (`dispute` / `timeout`); absent unless this user's bond was
+  /// slashed.
+  static const String tradeBondSlashed = 'trade.bondSlashed';
+  static const String tradeCancelRequest = 'trade.cancelRequest';
+  static const String bondSlashedViewPolicy = 'bond.slashed.viewPolicy';
+
+  /// Present only while the slashed trade's row still exists (a timeout
+  /// slash wipes it): opens the trade detail.
+  static const String bondSlashedViewTrade = 'bond.slashed.viewTrade';
+  static const String bondSlashedClose = 'bond.slashed.close';
+  static const String tradeBondClaimOpen = 'trade.bondClaim.open';
   static const String tradeAddInvoice = 'trade.addInvoice';
   static const String tradeFiatSent = 'trade.fiatSent';
   static const String tradeRelease = 'trade.release';
@@ -203,6 +238,8 @@ class AutomationIds {
   static const String invoiceAmount = 'invoice.amount';
   static const String invoiceOrderId = 'invoice.order_id';
   static const String invoiceText = 'invoice.text';
+  static const String invoicePaste = 'invoice.paste';
+  static const String invoiceScan = 'invoice.scan';
   static const String invoiceSubmit = 'invoice.submit';
 
   /// Readout: the daemon's reason for refusing the last submitted invoice.
@@ -210,6 +247,26 @@ class AutomationIds {
   static const String invoiceError = 'invoice.error';
   static const String invoiceCancel = 'invoice.cancel';
   static const String payInvoiceText = 'pay.invoice.text';
+
+  // Anti-abuse bond (docs/ANTI_ABUSE_BOND.md, handoff 14a/14b)
+  /// Readout: the bond bolt11, otherwise only drawn as a QR code.
+  static const String bondInvoiceText = 'bond.invoice.text';
+  static const String bondOrderId = 'bond.order_id';
+  static const String bondExplainer = 'bond.explainer';
+  static const String bondCancel = 'bond.cancel';
+
+  // Payout claim on a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4)
+  static const String bondClaimOrderId = 'bond.claim.order_id';
+
+  /// Readout: the share on offer, in sats.
+  static const String bondClaimAmount = 'bond.claim.amount';
+
+  /// Readout: the claim's phase (`pending`, `submitted`, `acknowledged`,
+  /// `completed`, `expired`), the clock applied.
+  static const String bondClaimStatus = 'bond.claim.status';
+  static const String bondClaimText = 'bond.claim.text';
+  static const String bondClaimSubmit = 'bond.claim.submit';
+  static const String bondClaimManual = 'bond.claim.manual';
   static const String payOrderId = 'pay.order_id';
   static const String payNwc = 'pay.nwc';
   static const String payCancel = 'pay.cancel';

@@ -2,39 +2,52 @@ import 'package:flutter/material.dart';
 
 /// Per-slide list of terms to highlight in green (semibold).
 ///
-/// Each entry is a regex pattern that matches the term in all 5 supported
-/// languages (EN, ES, IT, FR, DE). Case-insensitive matching is enabled.
+/// Each entry is a regex pattern with one alternative per wording the
+/// supported languages use. Where a language keeps the English term (every
+/// locale says "Hold Invoices" on slide 3), the English alternative covers it.
+/// Case-insensitive matching is enabled. `highlight_config_test.dart` checks
+/// that every pattern matches in every locale, so a stale alternative fails.
 class HighlightConfig {
   /// Slide index → list of term patterns.
   static final Map<int, List<String>> patterns = {
     // Page 1: Welcome
     0: [
       r'Nostr',
-      r'no KYC|sin KYC|senza KYC|sans KYC|ohne KYC',
-      r'censorship.resistant|resistente a la censura|resistente alla censura|résistant à la censure|zensurresistent',
+      r'no KYC|sin KYC|senza KYC|sans KYC|ohne KYC|zonder KYC',
+      r'censorship.resistant|resistente a la censura|resistente alla censura|résistant à la censure|zensurresistent|bestand tegen censuur',
     ],
     // Page 2: Privacy by Default
     1: [
-      r'Reputation mode|Modo reputación|Modalità reputazione|Mode réputation|Reputationsmodus',
-      r'Full privacy mode|Modo privacidad total|Modalità privacy totale|Mode confidentialité totale|Vollständiger Datenschutzmodus',
+      r'Reputation mode|Modo reputación|Modalità reputazione|Mode réputation|Reputationsmodus|Reputatiemodus',
+      r'Full privacy mode|Modo privacidad total|Modalità privacy totale|Mode confidentialité totale|Vollständiger Privatsphäre-Modus|Volledig privé',
     ],
     // Page 3: Security at Every Step
     2: [
-      r'Hold Invoices?|Facturas de retención|Fatture hold|Factures retenues|Hold-Rechnungen?',
+      r'Hold Invoices?|Factures retenues',
     ],
     // Page 4: Encrypted Chat
     3: [
-      r'end.to.end encrypted|cifrado de extremo a extremo|crittografato end.to.end|cifrat[oa] end.to.end|chiffré de bout en bout|Ende.zu.Ende.verschlüsselt',
+      r'end.to.end encrypted|cifrado de extremo a extremo|cifrat[oa] end.to.end|chiffré de bout en bout|Ende.zu.Ende.verschlüsselt|end.to.end versleuteld',
     ],
     // Page 5: Take an Offer
     4: [
-      "order book|libro de órdenes|libro degli ordini|book degli ordini|carnet d'ordres|Orderbuch",
+      r"order book|libro de órdenes|book degli ordini|carnet d'ordres|Orderbuch|orderboek",
     ],
     // Page 6: Create Your Own Offer
     5: [
-      r'create your own offer|crear? tu propia oferta|crea(?:re)? la tua offerta|cré(?:er|ez) votre propre offre|dein eigenes Angebot erstellen',
+      r'create your own offer|crear? tu propia oferta|crea(?:re)? la tua offerta|cré(?:er|ez) votre propre offre|dein eigenes Angebot erstellen|je eigen aanbod plaatsen',
     ],
   };
+
+  /// The combined pattern per slide, built once rather than on every build.
+  static final Map<int, RegExp?> _compiled = {};
+
+  static RegExp? _regexFor(int slideIndex) =>
+      _compiled.putIfAbsent(slideIndex, () {
+        final termPatterns = patterns[slideIndex];
+        if (termPatterns == null || termPatterns.isEmpty) return null;
+        return RegExp(termPatterns.join('|'), caseSensitive: false);
+      });
 
   /// Build a [TextSpan] tree from [text], highlighting any match from
   /// [patterns[slideIndex]] in [highlightColor] with [FontWeight.w600].
@@ -44,13 +57,10 @@ class HighlightConfig {
     Color highlightColor,
     TextStyle baseStyle,
   ) {
-    final termPatterns = patterns[slideIndex];
-    if (termPatterns == null || termPatterns.isEmpty) {
+    final regex = _regexFor(slideIndex);
+    if (regex == null) {
       return TextSpan(text: text, style: baseStyle);
     }
-
-    final combined = termPatterns.join('|');
-    final regex = RegExp(combined, caseSensitive: false);
 
     final spans = <TextSpan>[];
     int cursor = 0;

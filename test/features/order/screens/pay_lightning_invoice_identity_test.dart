@@ -51,6 +51,15 @@ void main() {
                 theme: buildDarkTheme(),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 supportedLocales: AppLocalizations.supportedLocales,
+                // The empty invoice field pulses until touched; reduced
+                // motion lets pumpAndSettle settle.
+                builder:
+                    (context, child) => MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(disableAnimations: true),
+                      child: child!,
+                    ),
                 routes: {
                   '/pay':
                       (_) =>

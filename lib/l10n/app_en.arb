@@ -243,10 +243,6 @@
       }
     }
   },
-  "payLightningInvoiceTitle": "Pay Lightning Invoice",
-  "@payLightningInvoiceTitle": {
-    "description": "Screen title for the pay Lightning invoice step"
-  },
   "invoiceRejected": "The node rejected this invoice. Check its amount and expiry and add a new one.",
   "@invoiceRejected": {
     "description": "Inline error on the add-invoice screen after the Mostro daemon refused the submitted invoice (CantDo InvalidInvoice)"
@@ -255,10 +251,6 @@
   "@invoiceCopied": {
     "description": "Snackbar shown after copying a Lightning invoice to clipboard"
   },
-  "addInvoiceTitle": "Add Invoice",
-  "@addInvoiceTitle": {
-    "description": "Screen title for adding a Lightning invoice"
-  },
   "submitButtonLabel": "Submit",
   "@submitButtonLabel": {
     "description": "Generic submit button label"
@@ -266,10 +258,6 @@
   "orderAlreadyTaken": "Order has already been taken",
   "@orderAlreadyTaken": {
     "description": "Error message when attempting to take an already-taken order"
-  },
-  "bondRequired": "This node requires an anti-abuse bond, which is not supported yet",
-  "@bondRequired": {
-    "description": "Error shown when the Mostro node asks for an anti-abuse bond before accepting the order — the app does not support bonds yet"
   },
   "nodeProtocolUnsupported": "This Mostro node uses a protocol version this app does not support. Pick another node in Settings, or check for an app update",
   "@nodeProtocolUnsupported": {
@@ -287,47 +275,9 @@
   "@storageUnavailable": {
     "description": "Error shown when a trade key cannot be derived because the local database is unavailable, so orders cannot be created or taken"
   },
-  "addInvoiceAmount": "Amount to receive: {sats} sats",
-  "@addInvoiceAmount": {
-    "description": "Sats amount (calculated by the Mostro daemon) the buyer's invoice must be for, shown on the add-invoice screen",
-    "placeholders": {
-      "sats": {
-        "type": "String"
-      }
-    }
-  },
-  "payInvoiceAmount": "Amount to pay: {sats} sats",
-  "@payInvoiceAmount": {
-    "description": "Sats amount of the hold invoice the seller must pay, shown on the pay-invoice screen",
-    "placeholders": {
-      "sats": {
-        "type": "String"
-      }
-    }
-  },
   "orderIdCopied": "Order ID copied",
   "@orderIdCopied": {
     "description": "Snackbar shown after copying an order ID to clipboard"
-  },
-  "fiatSentButtonLabel": "FIAT SENT",
-  "@fiatSentButtonLabel": {
-    "description": "Button label for the buyer to confirm fiat was sent"
-  },
-  "disputeButtonLabel": "DISPUTE",
-  "@disputeButtonLabel": {
-    "description": "Button label to open a dispute for a trade"
-  },
-  "contactButtonLabel": "CONTACT",
-  "@contactButtonLabel": {
-    "description": "Button label to open the trade chat"
-  },
-  "rateButtonLabel": "RATE",
-  "@rateButtonLabel": {
-    "description": "Button label to rate the trading counterpart"
-  },
-  "viewDisputeButtonLabel": "View dispute",
-  "@viewDisputeButtonLabel": {
-    "description": "Button label to view an active dispute"
   },
   "comingSoonMessage": "Coming soon",
   "@comingSoonMessage": {
@@ -336,10 +286,6 @@
   "tradeStatusActive": "Active",
   "@tradeStatusActive": {
     "description": "Trade status chip label: active"
-  },
-  "tradeStatusFiatSent": "Fiat Sent",
-  "@tradeStatusFiatSent": {
-    "description": "Trade status chip label: fiat sent"
   },
   "tradeStatusCompleted": "Completed",
   "@tradeStatusCompleted": {
@@ -353,10 +299,6 @@
   "@tradeStatusDisputed": {
     "description": "Trade status chip label: disputed"
   },
-  "releaseButtonLabel": "RELEASE",
-  "@releaseButtonLabel": {
-    "description": "Button label for the seller to release sats"
-  },
   "accountScreenTitle": "Account",
   "@accountScreenTitle": {
     "description": "Screen title for the Account screen"
@@ -365,23 +307,15 @@
   "@secretWordsTitle": {
     "description": "Section title for the mnemonic backup card"
   },
-  "toRestoreYourAccount": "To restore your account",
-  "@toRestoreYourAccount": {
-    "description": "Subtitle under the secret words section heading"
-  },
   "privacyCardTitle": "Privacy",
   "@privacyCardTitle": {
     "description": "Section title for the privacy settings card"
-  },
-  "controlPrivacySettings": "Control your privacy settings",
-  "@controlPrivacySettings": {
-    "description": "Subtitle under the privacy section heading"
   },
   "reputationMode": "Reputation Mode",
   "@reputationMode": {
     "description": "Label for reputation privacy mode option"
   },
-  "reputationModeSubtitle": "Standard privacy with reputation",
+  "reputationModeSubtitle": "Your trades count toward your public reputation",
   "@reputationModeSubtitle": {
     "description": "Subtitle for reputation mode option"
   },
@@ -389,7 +323,7 @@
   "@fullPrivacyMode": {
     "description": "Label for full privacy mode option"
   },
-  "fullPrivacyModeSubtitle": "Maximum anonymity",
+  "fullPrivacyModeSubtitle": "Each trade uses a new identity, no reputation",
   "@fullPrivacyModeSubtitle": {
     "description": "Subtitle for full privacy mode option"
   },
@@ -437,9 +371,9 @@
   "@hideButtonLabel": {
     "description": "Button label to hide sensitive information"
   },
-  "showButtonLabel": "Show",
-  "@showButtonLabel": {
-    "description": "Button label to reveal sensitive information"
+  "showWordsButton": "Show words",
+  "@showWordsButton": {
+    "description": "Account: reveals the 12 masked secret words"
   },
   "settingsScreenTitle": "Settings",
   "@settingsScreenTitle": {
@@ -457,10 +391,6 @@
   "@appearanceDialogTitle": {
     "description": "Dialog title for the appearance/theme picker"
   },
-  "defaultFiatCurrencyTitle": "Default Fiat Currency",
-  "@defaultFiatCurrencyTitle": {
-    "description": "Settings list item title for default fiat currency"
-  },
   "allCurrencies": "All currencies",
   "@allCurrencies": {
     "description": "Option label meaning no currency filter is applied"
@@ -469,41 +399,21 @@
   "@lightningAddressSettingTitle": {
     "description": "Settings list item title for the user's Lightning address"
   },
-  "tapToSetSubtitle": "Tap to set",
-  "@tapToSetSubtitle": {
-    "description": "Subtitle shown when a settings value is not yet configured"
-  },
   "nwcWalletSettingTitle": "NWC Wallet",
   "@nwcWalletSettingTitle": {
     "description": "Settings list item title for NWC wallet connection"
-  },
-  "nwcConnectPrompt": "Connect your Lightning wallet via NWC",
-  "@nwcConnectPrompt": {
-    "description": "Subtitle prompting the user to connect a wallet via Nostr Wallet Connect"
   },
   "relaysSettingTitle": "Relays",
   "@relaysSettingTitle": {
     "description": "Settings list item title for Nostr relay management"
   },
-  "manageRelayConnections": "Manage relay connections",
-  "@manageRelayConnections": {
-    "description": "Subtitle for the relays settings entry"
-  },
   "pushNotificationsSettingTitle": "Push Notifications",
   "@pushNotificationsSettingTitle": {
     "description": "Settings list item title for push notification preferences"
   },
-  "manageNotificationPreferences": "Manage notification preferences",
-  "@manageNotificationPreferences": {
-    "description": "Subtitle for the push notifications settings entry"
-  },
   "logReportSettingTitle": "Log Report",
   "@logReportSettingTitle": {
     "description": "Settings list item title for viewing diagnostic logs"
-  },
-  "viewDiagnosticLogs": "View diagnostic logs",
-  "@viewDiagnosticLogs": {
-    "description": "Subtitle for the log report settings entry"
   },
   "mostroNodeSettingTitle": "Mostro Node",
   "@mostroNodeSettingTitle": {
@@ -541,17 +451,9 @@
   "@saveButtonLabel": {
     "description": "Button label to save a settings value"
   },
-  "connectWalletTitle": "Connect Wallet",
-  "@connectWalletTitle": {
-    "description": "Screen or dialog title for the NWC wallet connection flow"
-  },
   "scanQrCodeTitle": "Scan QR Code",
   "@scanQrCodeTitle": {
     "description": "Screen title for the QR code scanner"
-  },
-  "pasteNwcUri": "Paste NWC URI",
-  "@pasteNwcUri": {
-    "description": "Hint text for the NWC URI input field / QR scanner fallback"
   },
   "selectLanguageTitle": "Select Language",
   "@selectLanguageTitle": {
@@ -585,15 +487,6 @@
   "@relayErrorDuplicate": {
     "description": "Validation error when relay URL is already added"
   },
-  "nwcConnectedBalance": "NWC — Connected. Balance: {balance}",
-  "@nwcConnectedBalance": {
-    "description": "NWC wallet connected status with balance",
-    "placeholders": {
-      "balance": {
-        "type": "String"
-      }
-    }
-  },
   "pasteQrCodeHeading": "Paste QR Code Content",
   "@pasteQrCodeHeading": {
     "description": "Heading text on the web QR code paste fallback screen"
@@ -609,10 +502,6 @@
   "enterValueError": "Please enter a value",
   "@enterValueError": {
     "description": "Validation error when QR input field is empty"
-  },
-  "pasteOrScanQrCode": "Paste or scan a QR code",
-  "@pasteOrScanQrCode": {
-    "description": "Default hint text for the QR scanner widget"
   },
   "trustedBadgeLabel": "Trusted",
   "@trustedBadgeLabel": {
@@ -779,10 +668,6 @@
   "@nodeBondNone": {
     "description": "Trust row of a node card: the node requires no bond"
   },
-  "nodeBondUnsupported": "Bond: not supported",
-  "@nodeBondUnsupported": {
-    "description": "Trust row of a node card: the node requires a bond this app cannot post"
-  },
   "nodeStatusOnline": "Online · {count, plural, =1{1 order} other{{count} orders}}",
   "@nodeStatusOnline": {
     "description": "Availability line of a node card",
@@ -828,10 +713,6 @@
   "nodePubkeyCopied": "Key copied",
   "@nodePubkeyCopied": {
     "description": "Snackbar after tapping a node's public key"
-  },
-  "nodeNotSelectableBond": "This node requires a bond, which this app does not support yet",
-  "@nodeNotSelectableBond": {
-    "description": "Snackbar when tapping a node card that requires a bond this app cannot post"
   },
   "nodeNotSelectableOffline": "This node is not responding",
   "@nodeNotSelectableOffline": {
@@ -905,10 +786,6 @@
   "@successfulOrder": {
     "description": "Label shown for a completed order on the rating screen"
   },
-  "submitRatingButton": "SUBMIT",
-  "@submitRatingButton": {
-    "description": "Button label to submit a trade rating"
-  },
   "closeRatingButton": "CLOSE",
   "@closeRatingButton": {
     "description": "Button label to close the rating screen without rating"
@@ -917,21 +794,9 @@
   "@aboutScreenTitle": {
     "description": "Screen title for the About screen"
   },
-  "mostroTagline": "Peer-to-peer Bitcoin trading over Nostr",
-  "@mostroTagline": {
-    "description": "App tagline shown on the About screen"
-  },
-  "viewDocumentationButton": "View Documentation",
-  "@viewDocumentationButton": {
-    "description": "Button label to open the Mostro documentation"
-  },
   "linkCopiedToClipboard": "Link copied to clipboard",
   "@linkCopiedToClipboard": {
     "description": "Snackbar shown after copying a link to clipboard"
-  },
-  "defaultNodeSection": "Default Node",
-  "@defaultNodeSection": {
-    "description": "Section heading for the default Mostro node info"
   },
   "pubkeyLabel": "Pubkey",
   "@pubkeyLabel": {
@@ -940,10 +805,6 @@
   "relaysLabel": "Relays",
   "@relaysLabel": {
     "description": "Label for the list of Nostr relays"
-  },
-  "pubkeyCopiedToClipboard": "Pubkey copied to clipboard",
-  "@pubkeyCopiedToClipboard": {
-    "description": "Snackbar shown after copying a pubkey to clipboard"
   },
   "footerTagline": "Open-source. Non-custodial. Private.",
   "@footerTagline": {
@@ -1029,10 +890,6 @@
   "@removeRelayTooltip": {
     "description": "Tooltip for the remove-relay icon button"
   },
-  "relayFromMostroLabel": "Added from the Mostro node",
-  "@relayFromMostroLabel": {
-    "description": "Label under a relay URL that the active Mostro node announced in its kind 10002 relay list"
-  },
   "relayAddFailed": "Failed to add relay",
   "@relayAddFailed": {
     "description": "SnackBar message shown when adding a relay fails"
@@ -1040,10 +897,6 @@
   "relayRemoveFailed": "Failed to remove relay",
   "@relayRemoveFailed": {
     "description": "SnackBar message shown when removing a relay fails"
-  },
-  "backupConfirmCheckbox": "I have written down my words and backed them up securely",
-  "@backupConfirmCheckbox": {
-    "description": "Label for the backup confirmation checkbox on the Account screen"
   },
   "backupRitualSecondFailureMessage": "That was incorrect again. Please review and back up your secret words, then verify from the start.",
   "@backupRitualSecondFailureMessage": {
@@ -1085,6 +938,38 @@
   "@cancelRequestFailed": {
     "description": "Snackbar shown when the cancel request fails"
   },
+  "tradeCardCancelRequestedByMeTitle": "Cancel requested",
+  "@tradeCardCancelRequestedByMeTitle": {
+    "description": "Notifications card title on the daemon confirming this user's cooperative-cancel request (protocol cancel.md); the trade stays open until the other party also cancels"
+  },
+  "tradeCardCancelRequestedByMeMessage": "You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.",
+  "@tradeCardCancelRequestedByMeMessage": {
+    "description": "Notifications card body on the daemon confirming this user's cooperative-cancel request"
+  },
+  "tradeCardCancelRequestedByPeerTitle": "The other party wants to cancel",
+  "@tradeCardCancelRequestedByPeerTitle": {
+    "description": "Notifications card title when the counterparty asked to cancel an active trade (protocol cancel.md); this user decides whether to accept"
+  },
+  "tradeCardCancelRequestedByPeerMessage": "They asked to cancel this trade. Accept to end it with no funds moved, or keep trading.",
+  "@tradeCardCancelRequestedByPeerMessage": {
+    "description": "Notifications card body when the counterparty asked to cancel an active trade"
+  },
+  "tradeCancelRequestedByMeNotice": "You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.",
+  "@tradeCancelRequestedByMeNotice": {
+    "description": "Notice on the trade screen while this user's cooperative-cancel request waits for the other party"
+  },
+  "tradeCancelRequestedByPeerNotice": "The other party asked to cancel this trade. Accept to end it with no funds moved, or keep trading.",
+  "@tradeCancelRequestedByPeerNotice": {
+    "description": "Notice on the trade screen while the counterparty's cooperative-cancel request waits for this user"
+  },
+  "acceptCancelButton": "Accept cancel",
+  "@acceptCancelButton": {
+    "description": "Label of the cancel button once the counterparty asked to cancel: this user's cancel accepts theirs and ends the trade"
+  },
+  "cancelTradeDialogContentAccept": "The other party asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.",
+  "@cancelTradeDialogContentAccept": {
+    "description": "Body text for the cancel-trade confirmation dialog when the counterparty already asked to cancel: this cancel accepts theirs"
+  },
   "fiatSentFailed": "Failed to mark fiat as sent. Please try again.",
   "@fiatSentFailed": {
     "description": "Snackbar shown when the fiat-sent action fails"
@@ -1109,10 +994,6 @@
   "@releaseSatsButton": {
     "description": "Button label for the seller to release sats during an active dispute (secondary action row)"
   },
-  "markFiatSentButton": "Mark fiat sent",
-  "@markFiatSentButton": {
-    "description": "Primary CTA button label for the buyer to mark fiat as sent"
-  },
   "confirmReleaseSatsButton": "Confirm & release sats",
   "@confirmReleaseSatsButton": {
     "description": "Primary CTA button label for the seller to confirm and release sats"
@@ -1128,14 +1009,6 @@
   "orderPillYouAreBuying": "YOU ARE BUYING",
   "@orderPillYouAreBuying": {
     "description": "Order card pill label when the current user is the maker of a buy order"
-  },
-  "orderPillSelling": "SELLING",
-  "@orderPillSelling": {
-    "description": "Order card pill label for another user's sell order"
-  },
-  "orderPillBuying": "BUYING",
-  "@orderPillBuying": {
-    "description": "Order card pill label for another user's buy order"
   },
   "myOrderSellTitle": "Your sell order",
   "@myOrderSellTitle": {
@@ -1160,14 +1033,6 @@
   "orderStatusWaitingForTaker": "Waiting for a taker",
   "@orderStatusWaitingForTaker": {
     "description": "Status label shown on a pending maker order"
-  },
-  "orderStatusWaitingBuyerInvoice": "Waiting for buyer invoice",
-  "@orderStatusWaitingBuyerInvoice": {
-    "description": "Status label when waiting for the buyer to submit an invoice"
-  },
-  "orderStatusWaitingPayment": "Waiting for payment",
-  "@orderStatusWaitingPayment": {
-    "description": "Status label when waiting for the Lightning payment"
   },
   "orderStatusInProgress": "In progress",
   "@orderStatusInProgress": {
@@ -1394,10 +1259,6 @@
   "@tradeWaitingInvoiceSellerInstruction": {
     "description": "Instruction shown to the seller while waiting for the buyer's Lightning invoice"
   },
-  "tradeWaitingPaymentBuyerInstruction": "The seller is paying the hold invoice. Please wait.",
-  "@tradeWaitingPaymentBuyerInstruction": {
-    "description": "Instruction shown to the buyer while the seller pays the hold invoice"
-  },
   "tradeWaitingPaymentSellerInstruction": "Pay the hold invoice to lock the funds and start the trade.",
   "@tradeWaitingPaymentSellerInstruction": {
     "description": "Instruction shown to the seller prompting them to pay the hold invoice"
@@ -1410,10 +1271,6 @@
   "@tradeWaitingForHoldInvoice": {
     "description": "Loading message shown while the Mostro daemon has not yet sent the hold invoice"
   },
-  "payInvoiceInstruction": "Pay this hold invoice to start the trade",
-  "@payInvoiceInstruction": {
-    "description": "Instruction text shown on the pay invoice screen above the QR code"
-  },
   "shareButtonLabel": "Share",
   "@shareButtonLabel": {
     "description": "Share action button label on the pay invoice screen"
@@ -1425,14 +1282,6 @@
   "waitingForPaymentConfirmation": "Waiting for payment confirmation...",
   "@waitingForPaymentConfirmation": {
     "description": "Text shown while waiting for the Lightning payment to be confirmed after paying the hold invoice"
-  },
-  "payWithLightningWallet": "Pay with Lightning wallet",
-  "@payWithLightningWallet": {
-    "description": "Button label that opens the hold invoice in an external Lightning wallet via the lightning: URI scheme"
-  },
-  "noLightningWalletFound": "No Lightning wallet found on this device",
-  "@noLightningWalletFound": {
-    "description": "Snackbar shown when no app can handle the lightning: URI"
   },
   "orderNoLongerActive": "This order is no longer active",
   "@orderNoLongerActive": {
@@ -1453,14 +1302,6 @@
   "failedToLoadSecretWordsMessage": "Failed to load secret words. Please try again.",
   "@failedToLoadSecretWordsMessage": {
     "description": "Snackbar shown when loading the secret words fails on the Account screen"
-  },
-  "failedToConfirmBackupMessage": "Failed to confirm backup. Please try again.",
-  "@failedToConfirmBackupMessage": {
-    "description": "Snackbar shown when confirming the backup fails on the Account screen"
-  },
-  "secretWordsInfoContent": "Your 12 secret words are the only way to recover your account. Back them up in a safe place — never share them with anyone.",
-  "@secretWordsInfoContent": {
-    "description": "Body of the Secret Words info dialog on the Account screen"
   },
   "privacyModesInfoTitle": "Privacy Modes",
   "@privacyModesInfoTitle": {
@@ -1538,7 +1379,7 @@
   "@backupRitualWarningBody": {
     "description": "Body of the warning card on the show-words step"
   },
-  "wordsHiddenOnLeaveNote": "These words will be hidden when you leave this screen",
+  "wordsHiddenOnLeaveNote": "They will be hidden when you leave this screen",
   "@wordsHiddenOnLeaveNote": {
     "description": "Note reminding the user the words are hidden when leaving the ritual"
   },
@@ -1567,13 +1408,13 @@
   "@wrongPickMessage": {
     "description": "Error shown when the user taps a wrong verification option"
   },
-  "allWordsCorrectMessage": "All 3 words correct!",
+  "allWordsCorrectMessage": "All 3 words correct",
   "@allWordsCorrectMessage": {
     "description": "Success message shown when all challenged words are verified"
   },
-  "showWordsAgainButton": "Show words again",
-  "@showWordsAgainButton": {
-    "description": "Button that returns from verification to the show-words step"
+  "reviewWordsButton": "View words",
+  "@reviewWordsButton": {
+    "description": "Backup verification: back to the 12 words without losing solved slots"
   },
   "accountBackedUpTitle": "Your account is backed up",
   "@accountBackedUpTitle": {
@@ -1616,21 +1457,13 @@
   "@backupNowButton": {
     "description": "Primary button in the backup trigger sheet"
   },
-  "remindMeTomorrowButton": "Remind me tomorrow",
-  "@remindMeTomorrowButton": {
-    "description": "Ghost button in the backup trigger sheet that snoozes the reminder"
+  "backupLaterButton": "I'll do it later",
+  "@backupLaterButton": {
+    "description": "Link in the backup sheet that closes it; the banner stays on Account"
   },
   "nwcConnectionFailedMessage": "Connection failed. Please check your NWC URI and try again.",
   "@nwcConnectionFailedMessage": {
     "description": "Snackbar shown when connecting a wallet via NWC fails"
-  },
-  "connectWalletDescription": "Connect your Lightning wallet using a\nNostr Wallet Connect (NWC) URI.",
-  "@connectWalletDescription": {
-    "description": "Description text on the Connect Wallet screen"
-  },
-  "nwcUriLabel": "NWC URI",
-  "@nwcUriLabel": {
-    "description": "Field label for the NWC URI input"
   },
   "clipboardInvalidNwcUriMessage": "Clipboard does not contain a valid NWC URI.",
   "@clipboardInvalidNwcUriMessage": {
@@ -1644,33 +1477,13 @@
   "@connectButtonLabel": {
     "description": "Primary button on the Connect Wallet screen"
   },
-  "walletConfigurationTitle": "Wallet Configuration",
-  "@walletConfigurationTitle": {
-    "description": "App bar title of the Wallet Settings screen"
-  },
   "walletDisconnectedMessage": "Wallet disconnected",
   "@walletDisconnectedMessage": {
     "description": "Snackbar shown after disconnecting the wallet"
   },
-  "connectedBadgeLabel": "Connected",
-  "@connectedBadgeLabel": {
-    "description": "Badge indicating the wallet is connected"
-  },
-  "balanceLabel": "Balance",
-  "@balanceLabel": {
-    "description": "Label for the wallet balance row"
-  },
   "relayLabel": "Relay",
   "@relayLabel": {
     "description": "Label for a single relay row on the Wallet Settings screen"
-  },
-  "noWalletConnectedTitle": "No wallet connected",
-  "@noWalletConnectedTitle": {
-    "description": "Title shown when no wallet is connected"
-  },
-  "connectWalletPrompt": "Connect a wallet to enable automatic Lightning payments.",
-  "@connectWalletPrompt": {
-    "description": "Prompt shown when no wallet is connected"
   },
   "disconnectButtonLabel": "Disconnect",
   "@disconnectButtonLabel": {
@@ -1685,7 +1498,7 @@
       }
     }
   },
-  "chooseNotificationEventsSubtitle": "Choose which events trigger push notifications.",
+  "chooseNotificationEventsSubtitle": "Choose which events show a notification in the app.",
   "@chooseNotificationEventsSubtitle": {
     "description": "Subtitle on the notification settings screen"
   },
@@ -1736,22 +1549,6 @@
   "noLogsToShareTooltip": "No logs to share",
   "@noLogsToShareTooltip": {
     "description": "Tooltip for the share action when there are no logs"
-  },
-  "disableLoggingTooltip": "Disable verbose logging",
-  "@disableLoggingTooltip": {
-    "description": "Tooltip to turn verbose (debug-level) logging off"
-  },
-  "enableLoggingTooltip": "Enable verbose logging",
-  "@enableLoggingTooltip": {
-    "description": "Tooltip to turn verbose (debug-level) logging on"
-  },
-  "loggingEnabledStatus": "Verbose logging enabled",
-  "@loggingEnabledStatus": {
-    "description": "Status banner text when verbose logging is enabled"
-  },
-  "loggingDisabledStatus": "Verbose logging disabled",
-  "@loggingDisabledStatus": {
-    "description": "Status banner text when verbose logging is disabled"
   },
   "noLogEntriesMessage": "No log entries",
   "@noLogEntriesMessage": {
@@ -1805,10 +1602,6 @@
   "@menuTooltip": {
     "description": "Tooltip for the drawer menu button"
   },
-  "tradeStatusFilterPrefix": "Status",
-  "@tradeStatusFilterPrefix": {
-    "description": "Prefix shown before the selected status filter"
-  },
   "noTradesTitle": "No trades",
   "@noTradesTitle": {
     "description": "Title of the empty My Trades state"
@@ -1828,45 +1621,6 @@
   "buyingBitcoin": "Buying Bitcoin",
   "@buyingBitcoin": {
     "description": "Trade card title when the user is buying Bitcoin"
-  },
-  "createdByYou": "Created by you",
-  "@createdByYou": {
-    "description": "Role badge when the user created the order"
-  },
-  "takenByYou": "Taken by you",
-  "@takenByYou": {
-    "description": "Role badge when the user took the order"
-  },
-  "timeAgoNow": "now",
-  "@timeAgoNow": {
-    "description": "Compact relative time for just now"
-  },
-  "timeAgoMinutes": "{count}m",
-  "@timeAgoMinutes": {
-    "description": "Compact relative time in minutes",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "timeAgoHours": "{count}h",
-  "@timeAgoHours": {
-    "description": "Compact relative time in hours",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "timeAgoDays": "{count}d",
-  "@timeAgoDays": {
-    "description": "Compact relative time in days",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
   },
   "tradeInstructionActiveBuyer": "Once you have sent the money, mark it below. Only open a dispute if the seller stops responding.",
   "@tradeInstructionActiveBuyer": {
@@ -2011,15 +1765,6 @@
   "@tradeStepRate": {
     "description": "Timeline step and CTA: rate your counterpart"
   },
-  "tradeIdShortLabel": "ID {id}",
-  "@tradeIdShortLabel": {
-    "description": "Short order ID label in the meta footer",
-    "placeholders": {
-      "id": {
-        "type": "String"
-      }
-    }
-  },
   "tradeCreatedAtLabel": "created {date}",
   "@tradeCreatedAtLabel": {
     "description": "Created-at label in the meta footer",
@@ -2028,18 +1773,6 @@
         "type": "String"
       }
     }
-  },
-  "releaseSatsMenuItem": "Release sats",
-  "@releaseSatsMenuItem": {
-    "description": "Overflow menu item: release sats"
-  },
-  "cancelOrderMenuItem": "Cancel order",
-  "@cancelOrderMenuItem": {
-    "description": "Overflow menu item: cancel order"
-  },
-  "openDisputeMenuItem": "Open dispute",
-  "@openDisputeMenuItem": {
-    "description": "Overflow menu item: open dispute"
   },
   "stepIndicator": "STEP {current} OF {total}",
   "@stepIndicator": {
@@ -2115,18 +1848,6 @@
   "@disputesTab": {
     "description": "Chat screen tab: disputes"
   },
-  "activeTradeConversations": "Your active trade conversations",
-  "@activeTradeConversations": {
-    "description": "Description under the Messages tab"
-  },
-  "noMessagesAvailable": "No messages available",
-  "@noMessagesAvailable": {
-    "description": "Empty state for the Messages tab"
-  },
-  "disputesAndAdminChat": "Disputes and admin chat",
-  "@disputesAndAdminChat": {
-    "description": "Description under the Disputes tab"
-  },
   "tradeInformationTitle": "Trade Information",
   "@tradeInformationTitle": {
     "description": "Title of the trade information panel"
@@ -2182,33 +1903,6 @@
   "attachmentLabel": "[Attachment]",
   "@attachmentLabel": {
     "description": "Label shown on a chat bubble that has a file attachment"
-  },
-  "sellingSatsTo": "You are selling sats to {handle}",
-  "@sellingSatsTo": {
-    "description": "Chat list context line when the user is selling",
-    "placeholders": {
-      "handle": {
-        "type": "String"
-      }
-    }
-  },
-  "buyingSatsFrom": "You are buying sats from {handle}",
-  "@buyingSatsFrom": {
-    "description": "Chat list context line when the user is buying",
-    "placeholders": {
-      "handle": {
-        "type": "String"
-      }
-    }
-  },
-  "youMessagePrefix": "You: {message}",
-  "@youMessagePrefix": {
-    "description": "Chat list last-message preview prefix for own messages",
-    "placeholders": {
-      "message": {
-        "type": "String"
-      }
-    }
   },
   "downloadTooltip": "Download",
   "@downloadTooltip": {
@@ -2273,6 +1967,14 @@
       }
     }
   },
+  "invoiceNoLongerExpected": "This order is no longer waiting for an invoice. Updating its status…",
+  "@invoiceNoLongerExpected": {
+    "description": "Add-invoice screen: the daemon answered NotAllowedByStatus — the order moved on (usually an earlier submission was accepted) and the app is re-reading its state"
+  },
+  "invoiceSubmitInFlight": "An invoice for this order is already being sent. Wait for the reply.",
+  "@invoiceSubmitInFlight": {
+    "description": "Add-invoice screen: a second submission was refused because an earlier one for the same trade is still waiting for the daemon's reply (Rust marker InvoiceSubmitInFlight)"
+  },
   "waitingForTradeAmount": "Waiting for trade amount — please try again shortly.",
   "@waitingForTradeAmount": {
     "description": "Snackbar when submitting an LN address before the sats amount is known"
@@ -2284,14 +1986,6 @@
   "enterInvoiceManually": "Enter invoice manually",
   "@enterInvoiceManually": {
     "description": "Button to switch to manual invoice entry"
-  },
-  "enterLightningInvoiceInstruction": "Enter a Lightning Invoice to receive your sats",
-  "@enterLightningInvoiceInstruction": {
-    "description": "Instruction on the add invoice screen"
-  },
-  "lightningInvoiceLabel": "Lightning Invoice",
-  "@lightningInvoiceLabel": {
-    "description": "Field label for the Lightning invoice input"
   },
   "submitButton": "Submit",
   "@submitButton": {
@@ -2975,10 +2669,14 @@
       }
     }
   },
-  "lightningInvoiceQrLabel": "Lightning invoice QR code",
-  "@lightningInvoiceQrLabel": {
-    "description": "Accessibility label for the Lightning invoice QR code image"
-  },
+  "bondSlashedViewPolicy": "View policy",
+  "@bondSlashedViewPolicy": {"description": "Bond-slashed dialog button: opens the About screen with the node's bond policy"},
+  "bondSlashedViewTrade": "View trade",
+  "@bondSlashedViewTrade": {"description": "Bond-slashed dialog button: opens the trade"},
+  "bondSlashedTradeNoticeDispute": "The node slashed your {sats}-sat bond in this dispute.",
+  "@bondSlashedTradeNoticeDispute": {"description": "Trade detail durable notice after a dispute-cause slash; sats formatted", "placeholders": {"sats": {"type": "String"}}},
+  "bondSlashedTradeNoticeTimeout": "The node slashed your {sats}-sat bond after a step timed out.",
+  "@bondSlashedTradeNoticeTimeout": {"description": "Trade detail durable notice after a timeout slash; sats formatted", "placeholders": {"sats": {"type": "String"}}},
   "bondSlashedTitle": "Bond slashed",
   "@bondSlashedTitle": {
     "description": "Title of the notification shown when the user's anti-abuse bond is slashed"
@@ -3551,15 +3249,6 @@
   "@relayStatusOffline": {
     "description": "Per-relay status label, not connected"
   },
-  "relayStatusSlow": "Slow · {ms} ms",
-  "@relayStatusSlow": {
-    "description": "Per-relay status label with its mean latency",
-    "placeholders": {
-      "ms": {
-        "type": "int"
-      }
-    }
-  },
   "addRelayButtonLabel": "Add relay",
   "@addRelayButtonLabel": {
     "description": "Dashed full-width button that opens the add-relay dialog"
@@ -3571,10 +3260,6 @@
   "lastRelayBlockedMessage": "Keep at least one relay active: without relays you cannot see or publish orders.",
   "@lastRelayBlockedMessage": {
     "description": "Shown instead of disabling or removing the last active relay, which the core refuses"
-  },
-  "disableButtonLabel": "Disable",
-  "@disableButtonLabel": {
-    "description": "Confirms disabling the last active relay"
   },
   "nwcExplainerTitle": "Connect your wallet",
   "@nwcExplainerTitle": {
@@ -3625,9 +3310,80 @@
   "@openSystemSettingsAction": {
     "description": "Action of the denied-permission banner"
   },
-  "notificationsPrivacyFootnote": "Notifications carry no amounts and no counterparties: they only tell you there is something to see.",
+  "notificationsPrivacyFootnote": "Notifications carry no amounts and no counterparties. A push travels through Google's or Apple's servers and says only that there is something to see.",
   "@notificationsPrivacyFootnote": {
-    "description": "Footnote: what a push notification does not carry"
+    "description": "Footnote: what a push notification does not carry, and the one true sentence about how it travels. Must not claim the token is encrypted."
+  },
+  "pushMasterToggleTitle": "Push notifications",
+  "@pushMasterToggleTitle": {
+    "description": "Title of the master push toggle on the notification settings screen"
+  },
+  "pushMasterToggleSubtitle": "Wakes the app when a trade or chat message arrives. The notification itself carries nothing.",
+  "@pushMasterToggleSubtitle": {
+    "description": "Description under the master push toggle: a push is a content-free wake-up"
+  },
+  "pushStatusOff": "Off — nothing is registered with the push server",
+  "@pushStatusOff": {
+    "description": "Status line under the master push toggle when push is turned off"
+  },
+  "pushStatusCleanupPending": "{count, plural, =1{Off — removal of 1 push registration is pending} other{Off — removal of {count} push registrations is pending}}",
+  "@pushStatusCleanupPending": {
+    "description": "Push is off locally, but the server has not confirmed removing these registrations",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pushStatusNoToken": "Waiting for this device's push token",
+  "@pushStatusNoToken": {
+    "description": "Status line when push is on but the device has not produced a push token yet"
+  },
+  "pushStatusIdle": "On — no open trades to register",
+  "@pushStatusIdle": {
+    "description": "Status line when push is on, nothing failed, and there is no open trade to register"
+  },
+  "pushStatusRegistered": "{count, plural, =1{Registered for 1 trade} other{Registered for {count} trades}}",
+  "@pushStatusRegistered": {
+    "description": "Status line: how many open trades the push server holds this device's token for",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pushStatusLastRegistered": "last registered {ago}",
+  "@pushStatusLastRegistered": {
+    "description": "Appended to pushStatusRegistered after ' · '; {ago} is a relative time such as '3 h ago' or 'yesterday'",
+    "placeholders": {
+      "ago": {
+        "type": "String"
+      }
+    }
+  },
+  "pushStatusUnreachable": "Push server unreachable — retrying",
+  "@pushStatusUnreachable": {
+    "description": "Status line when the last registration attempt failed and will be retried"
+  },
+  "pushStatusNodeRefused": "This Mostro node is not accepted by the push server",
+  "@pushStatusNodeRefused": {
+    "description": "Status line when the push server operator refuses trades from the active Mostro node"
+  },
+  "pushStatusRateLimited": "Push request limit reached — retrying shortly",
+  "@pushStatusRateLimited": {
+    "description": "Status line when the push server asked the app to slow down"
+  },
+  "pushUnsupportedPlatform": "Push notifications are not available on this platform",
+  "@pushUnsupportedPlatform": {
+    "description": "Info row replacing the master push toggle on platforms that cannot receive a push (desktop, web for now)"
+  },
+  "pushToggleSaveFailed": "Could not change push notifications",
+  "@pushToggleSaveFailed": {
+    "description": "Snackbar when the master push toggle could not be saved"
+  },
+  "pushNewMessageBody": "You have a new message",
+  "@pushNewMessageBody": {
+    "description": "Body of the system notification shown when a peer's chat message wakes the app in the background. Content-free on purpose: it never names the trade, the peer or the message."
   },
   "notificationPrefSaveFailed": "Could not save that preference",
   "@notificationPrefSaveFailed": {
@@ -3805,6 +3561,8 @@
   "@tradesGroupClosed": {"description": "Group header of completed, cancelled and expired trades"},
   "tradesDirectionSell": "You sell",
   "@tradesDirectionSell": {"description": "First words of a trade card: the user sells bitcoin"},
+  "tradesDirectionBondClaim": "Bond claim",
+  "@tradesDirectionBondClaim": {"description": "My Trades row heading for a payout claim whose trade row is gone: the side of the trade is unknown, so no buy/sell direction is shown"},
   "tradesDirectionBuy": "You buy",
   "@tradesDirectionBuy": {"description": "First words of a trade card: the user buys bitcoin"},
   "tradesCounterpartyTo": "to {handle}",
@@ -3833,6 +3591,16 @@
   "@tradeListChipExpired": {"description": "Status chip: the order expired"},
   "tradeVerbAddInvoice": "Add invoice",
   "@tradeVerbAddInvoice": {"description": "Action on a trade card; opens the add-invoice step"},
+  "tradeVerbPayBond": "Pay deposit",
+  "@tradeVerbPayBond": {"description": "Trade list verb / trade detail primary action: pay the anti-abuse deposit that parks the take"},
+  "tradeHeadlineWaitingBond": "Lock your deposit to continue",
+  "@tradeHeadlineWaitingBond": {"description": "Trade detail headline while the taker's anti-abuse deposit is unpaid"},
+  "tradeInstructionWaitingBond": "The node holds this take until the refundable deposit is paid. The order stays open to others meanwhile.",
+  "@tradeInstructionWaitingBond": {"description": "Trade detail body while the taker's anti-abuse deposit is unpaid"},
+  "takeOrderBondNotice": "This node asks takers to lock a refundable deposit first; it comes back when the trade ends honestly.",
+  "@takeOrderBondNotice": {"description": "Take screen note on a bond-enabled node when no estimate is available"},
+  "takeOrderBondNoticeEstimate": "This node asks takers to lock a refundable deposit of ≈ {sats} sats first; it comes back when the trade ends honestly.",
+  "@takeOrderBondNoticeEstimate": {"description": "Take screen note on a bond-enabled node with the core's estimate; sats is a formatted figure", "placeholders": {"sats": {"type": "String"}}},
   "tradeVerbPayInvoice": "Pay invoice",
   "@tradeVerbPayInvoice": {"description": "Action on a trade card; opens the hold-invoice payment step"},
   "tradeVerbSendPayment": "Send payment",
@@ -3875,6 +3643,8 @@
   "@chatContextBuyClosed": {"description": "Which trade a conversation belongs to, once it has closed; amount is formatted", "placeholders": {"amount": {"type": "String"}, "currency": {"type": "String"}}},
   "chatTurnAddInvoice": "your turn to add the invoice",
   "@chatTurnAddInvoice": {"description": "After the trade context in a conversation row: the user must add their invoice"},
+  "chatTurnPayBond": "your turn to pay the deposit",
+  "@chatTurnPayBond": {"description": "After the trade context: the user must pay the anti-abuse deposit"},
   "chatTurnPayInvoice": "your turn to pay the invoice",
   "@chatTurnPayInvoice": {"description": "After the trade context: the user must pay the hold invoice"},
   "chatTurnSendPayment": "your turn to pay",
@@ -3901,6 +3671,178 @@
   "@invoiceReceiveTitle": {"description": "13a app bar title: the buyer gives where to receive the sats"},
   "invoiceLockTitle": "Lock your sats",
   "@invoiceLockTitle": {"description": "13b app bar title: the seller pays the hold invoice that locks the sats"},
+  "bondTitle": "Anti-abuse deposit",
+  "@bondTitle": {"description": "14 app bar title: the anti-abuse bond the taker locks before the trade starts"},
+  "bondRefundableLabel": "REFUNDABLE DEPOSIT",
+  "@bondRefundableLabel": {"description": "14a hero label above the bond amount"},
+  "bondComesBack": "comes back to you when the trade completes",
+  "@bondComesBack": {"description": "14a hero context line without a fiat rate"},
+  "bondFiatComesBack": "≈ {fiat} · comes back to you when the trade completes",
+  "@bondFiatComesBack": {"description": "14a hero context line; fiat is the bond's equivalent with its currency code", "placeholders": {"fiat": {"type": "String"}}},
+  "bondPaySemantics": "Refundable deposit of {sats} sats",
+  "@bondPaySemantics": {"description": "14 screen reader label of the hero amount", "placeholders": {"sats": {"type": "String"}}},
+  "bondReleasesIn": "The order is released if you don't pay in {time}",
+  "@bondReleasesIn": {"description": "14a time band: says the consequence, not only the number; time is mm:ss", "placeholders": {"time": {"type": "String"}}},
+  "bondRowHeld": "The sats stay {bold}, they are not spent",
+  "@bondRowHeld": {"description": "14a consequence row 1; bold is bondRowHeldBold", "placeholders": {"bold": {"type": "String"}}},
+  "bondRowHeldBold": "held in your wallet",
+  "@bondRowHeldBold": {"description": "14a bold part of row 1"},
+  "bondRowReleased": "If the trade ends well, {bold}",
+  "@bondRowReleased": {"description": "14a consequence row 2; bold is bondRowReleasedBold", "placeholders": {"bold": {"type": "String"}}},
+  "bondRowReleasedBold": "it is released on its own",
+  "@bondRowReleasedBold": {"description": "14a bold part of row 2"},
+  "bondRowLost": "You only lose it if there is a dispute and {bold}",
+  "@bondRowLost": {"description": "14a consequence row 3 on a node that does not slash on timeout; bold is bondRowLostBold", "placeholders": {"bold": {"type": "String"}}},
+  "bondRowLostTimeout": "You lose it if you let a step time out, or if there is a dispute and {bold}",
+  "@bondRowLostTimeout": {"description": "14a consequence row 3 on a node whose policy slashes on a waiting-step timeout; bold is bondRowLostBold", "placeholders": {"bold": {"type": "String"}}},
+  "bondRowLostBold": "you lose it",
+  "@bondRowLostBold": {"description": "14a bold part of row 3"},
+  "bondWhyTitle": "Why Mostro asks for a deposit",
+  "@bondWhyTitle": {"description": "14 explainer accordion header"},
+  "bondWhyCustody": "Mostro does not hold funds, so it cannot penalise whoever abandons a trade; the deposit does that job, and protects every user against scammers.",
+  "@bondWhyCustody": {"description": "14b explainer paragraph 1"},
+  "bondWhyHold": "It is a {hold} invoice: your wallet reserves the sats without sending them; when the trade completes, the reservation is cancelled on its own.",
+  "@bondWhyHold": {"description": "14b explainer paragraph 2; hold is the protocol term, rendered bold and left untranslated", "placeholders": {"hold": {"type": "String"}}},
+  "bondWhyDispute": "If you open a dispute and win, you get it back too. It is only charged when you lose a dispute.",
+  "@bondWhyDispute": {"description": "14b explainer paragraph 3 on a node that does not slash on timeout"},
+  "bondWhyDisputeTimeout": "If you open a dispute and win, you get it back too. It is only charged when you lose a dispute or let a waiting step time out.",
+  "@bondWhyDisputeTimeout": {"description": "14b explainer paragraph 3 on a node whose policy slashes on a waiting-step timeout"},
+  "bondReadDocs": "Read the documentation",
+  "@bondReadDocs": {"description": "14b link at the foot of the explainer"},
+  "bondContextOrder": "Order",
+  "@bondContextOrder": {"description": "14b context card row label"},
+  "bondContextBuy": "You buy {fiat}",
+  "@bondContextBuy": {"description": "14b context card: the taker buys sats for this fiat amount", "placeholders": {"fiat": {"type": "String"}}},
+  "bondContextSell": "You sell {fiat}",
+  "@bondContextSell": {"description": "14b context card: the taker sells sats for this fiat amount", "placeholders": {"fiat": {"type": "String"}}},
+  "bondContextEquals": "Deposit equals",
+  "@bondContextEquals": {"description": "14b context card row label"},
+  "bondContextPercent": "{pct} % of the amount",
+  "@bondContextPercent": {"description": "14b context card: the node's bond percentage of the order amount", "placeholders": {"pct": {"type": "String"}}},
+  "bondDontPublish": "Don't publish the order",
+  "@bondDontPublish": {"description": "Pay-bond screen, maker variant: abandon the unpublished order (local wipe)"},
+  "bondAbandoned": "Order dropped. Nothing was published and nothing was charged.",
+  "@bondAbandoned": {"description": "Snackbar after a maker abandons their bond"},
+  "bondPublishesIn": "Not published yet: the order is dropped if you don't pay in {time}",
+  "@bondPublishesIn": {"description": "Pay-bond time band, maker variant; time is the formatted countdown", "placeholders": {"time": {"type": "String"}}},
+  "bondInvoiceMissingMaker": "This device has no copy of the deposit invoice and the node does not resend it for an order you created. Drop the order and create it again.",
+  "@bondInvoiceMissingMaker": {"description": "Pay-bond screen, maker row restored without its bolt11 (no re-request upstream)"},
+  "bondExpiredBodyMaker": "It was not paid in time: the order was never published and no sats left your wallet.",
+  "@bondExpiredBodyMaker": {"description": "Pay-bond expired view body, maker variant"},
+  "bondExpiredNoticeMaker": "The deposit invoice expired; the order was not published",
+  "@bondExpiredNoticeMaker": {"description": "Snackbar when a maker's bond window expires while the screen is open"},
+  "orderStatusWaitingBond": "Waiting for your deposit — not published yet",
+  "@orderStatusWaitingBond": {"description": "My Order status while the maker's anti-abuse deposit is outstanding"},
+  "bondCancelNotAllowed": "This order can't be cancelled while its deposit is pending. Drop it from the deposit screen instead.",
+  "@bondCancelNotAllowed": {"description": "Error for the BondCancelNotAllowed marker"},
+  "createOrderBondNoticeEstimate": "This node asks you to lock a refundable deposit of ≈ {sats} sats before the order is published; it comes back when the trade ends honestly.",
+  "@createOrderBondNoticeEstimate": {"description": "Create-order preview notice on a maker-bond node with the core estimate; sats is a formatted figure", "placeholders": {"sats": {"type": "String"}}},
+  "createOrderBondNotice": "This node asks you to lock a refundable deposit before the order is published; it comes back when the trade ends honestly.",
+  "@createOrderBondNotice": {"description": "Create-order preview notice on a node whose bond applies to makers"},
+  "bondClaimTitle": "Claim your share",
+  "@bondClaimTitle": {"description": "Claim screen title (payout of a slashed bond's counterparty share)"},
+  "bondClaimShareLabel": "YOUR SHARE",
+  "@bondClaimShareLabel": {"description": "Claim screen hero label, upper case"},
+  "bondClaimShareSemantics": "Share of {sats} sats to claim",
+  "@bondClaimShareSemantics": {"description": "Semantics of the claim hero", "placeholders": {"sats": {"type": "String"}}},
+  "bondClaimContext": "From the trade of {context}",
+  "@bondClaimContext": {"description": "Claim hero context line; context is fiat amount · payment method", "placeholders": {"context": {"type": "String"}}},
+  "bondClaimDeadline": "Claim before {date}",
+  "@bondClaimDeadline": {"description": "Claim deadline line; date is formatted", "placeholders": {"date": {"type": "String"}}},
+  "bondClaimExplainer": "The other party's deposit was forfeited in your favour. Add an invoice for exactly this amount and the node pays it to you.",
+  "@bondClaimExplainer": {"description": "Claim screen explainer while pending"},
+  "bondClaimFieldLabel": "Lightning invoice",
+  "@bondClaimFieldLabel": {"description": "Claim invoice field label"},
+  "bondClaimFieldHint": "lnbc… for exactly the share",
+  "@bondClaimFieldHint": {"description": "Claim invoice field hint"},
+  "bondClaimSubmit": "Send invoice",
+  "@bondClaimSubmit": {"description": "Claim submit button"},
+  "bondClaimSent": "Invoice sent to the node",
+  "@bondClaimSent": {"description": "Snackbar after a claim submission was acknowledged"},
+  "bondClaimSubmittedTitle": "Invoice sent",
+  "@bondClaimSubmittedTitle": {"description": "Claim state title while submitted"},
+  "bondClaimSubmittedBody": "Waiting for the node to confirm it.",
+  "@bondClaimSubmittedBody": {"description": "Claim state body while submitted"},
+  "bondClaimAcknowledgedTitle": "Payout in progress",
+  "@bondClaimAcknowledgedTitle": {"description": "Claim state title once acknowledged"},
+  "bondClaimAcknowledgedBody": "The node accepted your invoice and is paying it. If it cannot be routed, you will be asked for a new one.",
+  "@bondClaimAcknowledgedBody": {"description": "Claim state body once acknowledged"},
+  "bondClaimCompletedTitle": "Paid",
+  "@bondClaimCompletedTitle": {"description": "Claim state title once completed"},
+  "bondClaimCompletedBody": "{sats} sats reached your wallet.",
+  "@bondClaimCompletedBody": {"description": "Claim state body once completed; sats is formatted", "placeholders": {"sats": {"type": "String"}}},
+  "bondClaimExpiredTitle": "The claim window ended",
+  "@bondClaimExpiredTitle": {"description": "Claim expired title"},
+  "bondClaimExpiredBody": "It closed on {date}. The share can no longer be claimed.",
+  "@bondClaimExpiredBody": {"description": "Claim expired body; date is formatted", "placeholders": {"date": {"type": "String"}}},
+  "bondClaimMissing": "No claim found for this order.",
+  "@bondClaimMissing": {"description": "Claim screen without a claim"},
+  "bondClaimErrorAmount": "The invoice must be for exactly the share shown.",
+  "@bondClaimErrorAmount": {"description": "InvoiceAmountMismatch marker"},
+  "bondClaimErrorExpired": "The claim window ended; the share can no longer be claimed.",
+  "@bondClaimErrorExpired": {"description": "BondClaimExpired marker"},
+  "bondClaimErrorRejected": "The node did not accept the invoice. Try another one.",
+  "@bondClaimErrorRejected": {"description": "BondClaimRejected marker"},
+  "bondClaimErrorNotClaimable": "This claim is not open for an invoice right now.",
+  "@bondClaimErrorNotClaimable": {"description": "ClaimNotClaimable / ClaimNotFound markers"},
+  "bondClaimErrorNoKey": "This device has no key for that trade, so it cannot claim the share.",
+  "@bondClaimErrorNoKey": {"description": "TradeKeyMissing marker"},
+  "tradeVerbClaimPayout": "Claim payout",
+  "@tradeVerbClaimPayout": {"description": "My Trades verb: open the payout claim screen"},
+  "chatTurnClaimPayout": "your turn to claim the payout",
+  "@chatTurnClaimPayout": {"description": "Chat list turn line for a pending payout claim"},
+  "tradeBadgePayoutPending": "Payout pending",
+  "@tradeBadgePayoutPending": {"description": "My Trades badge: a slashed bond's share waits for the user's invoice"},
+  "tradeBadgePayoutInProgress": "Payout in progress",
+  "@tradeBadgePayoutInProgress": {"description": "My Trades badge: the payout invoice was sent or accepted"},
+  "tradeBadgePayoutPaid": "Payout paid",
+  "@tradeBadgePayoutPaid": {"description": "My Trades badge: the share was paid"},
+  "bondBannerPendingTitle": "{sats} sats are ready to come back to you",
+  "@bondBannerPendingTitle": {"description": "Trade detail banner title while a claim is pending; sats is formatted", "placeholders": {"sats": {"type": "String"}}},
+  "bondBannerPendingBody": "The other party's deposit was forfeited in your favour. Add any Lightning invoice for {sats} sats to claim it.",
+  "@bondBannerPendingBody": {"description": "Trade detail banner body while a claim is pending; sats is formatted", "placeholders": {"sats": {"type": "String"}}},
+  "bondBannerAddInvoice": "Add payout invoice",
+  "@bondBannerAddInvoice": {"description": "Trade detail banner button while pending"},
+  "bondBannerView": "View claim",
+  "@bondBannerView": {"description": "Trade detail banner button while in progress"},
+  "bondBannerInProgressTitle": "Payout in progress",
+  "@bondBannerInProgressTitle": {"description": "Trade detail banner title once the invoice was sent or accepted"},
+  "bondBannerInProgressBody": "The node is paying your {sats}-sat share.",
+  "@bondBannerInProgressBody": {"description": "Trade detail banner body once the invoice was sent or accepted; sats is formatted", "placeholders": {"sats": {"type": "String"}}},
+  "bondBannerPaidTitle": "Payout received",
+  "@bondBannerPaidTitle": {"description": "Trade detail banner title once paid"},
+  "bondBannerPaidBody": "{sats} sats were paid to you on {date}.",
+  "@bondBannerPaidBody": {"description": "Trade detail banner body once paid; sats formatted, date formatted", "placeholders": {"sats": {"type": "String"}, "date": {"type": "String"}}},
+  "bondBannerExpired": "The claim on the other party's deposit closed on {date}.",
+  "@bondBannerExpired": {"description": "Trade detail muted line once the claim window closed; date formatted", "placeholders": {"date": {"type": "String"}}},
+  "bondClaimNewTitle": "Bond payout to claim",
+  "@bondClaimNewTitle": {"description": "Notification title for a new or re-prompted payout claim"},
+  "bondClaimNewMessage": "You can claim {sats} sats from a slashed bond. Add a Lightning invoice to receive them.",
+  "@bondClaimNewMessage": {"description": "Notification message for a new payout claim; sats is a plain number", "placeholders": {"sats": {"type": "String"}}},
+  "bondClaimPaidTitle": "Bond payout received",
+  "@bondClaimPaidTitle": {"description": "Notification title once a payout was paid"},
+  "bondClaimPaidMessage": "Bond payout of {sats} sats received.",
+  "@bondClaimPaidMessage": {"description": "Notification message once a payout was paid; sats is a plain number", "placeholders": {"sats": {"type": "String"}}},
+  "bondDontTake": "Don't take the order",
+  "@bondDontTake": {"description": "14 footer link: cancels the take; nothing is committed yet, so it is not styled as destructive"},
+  "bondLockedNowEscrow": "Deposit locked. Now lock the trade amount.",
+  "@bondLockedNowEscrow": {"description": "Snackbar when a seller-as-taker's bond locks and the trade hold invoice follows"},
+  "bondLostRace": "Another user took this order before your deposit was paid",
+  "@bondLostRace": {"description": "Snackbar when the bond window ends because another taker locked first"},
+  "bondMakerCanceled": "The maker cancelled this order",
+  "@bondMakerCanceled": {"description": "Snackbar when the bond window ends because the maker cancelled"},
+  "bondExpiredNotice": "The deposit invoice expired; the order went back to the book",
+  "@bondExpiredNotice": {"description": "Snackbar when the bond bolt11 expired unpaid while the screen was not open"},
+  "bondExpiredTitle": "The deposit invoice expired",
+  "@bondExpiredTitle": {"description": "14 terminal state title when the bond bolt11 ran out"},
+  "bondExpiredBody": "It was not paid in time: the order went back to the book and no sats left your wallet.",
+  "@bondExpiredBody": {"description": "14 terminal state explanation"},
+  "bondInvoiceMissing": "This device has no copy of the deposit invoice. Ask the node for it again to keep taking the order.",
+  "@bondInvoiceMissing": {"description": "14 state after a fresh-device restore: the row has no bolt11"},
+  "bondRequestAgain": "Request the invoice again",
+  "@bondRequestAgain": {"description": "14 action: same-take re-request of the bond bolt11"},
+  "bondRequestFailed": "The node did not resend the deposit invoice",
+  "@bondRequestFailed": {"description": "Snackbar when the re-request fails"},
   "invoiceOrderIdCopied": "Order ID copied",
   "@invoiceOrderIdCopied": {"description": "Snackbar after tapping the order id in the invoice app bar"},
   "invoiceYouReceiveLabel": "You will receive",
@@ -3921,6 +3863,20 @@
   "@invoiceFieldLabel": {"description": "13a invoice field header (rendered uppercase)"},
   "invoiceFieldHint": "lnbc… or user@domain",
   "@invoiceFieldHint": {"description": "13a invoice field placeholder: says it accepts both an invoice and an address"},
+  "invoiceFieldPromptLabel": "Paste your invoice here",
+  "@invoiceFieldPromptLabel": {"description": "17a label of the empty invoice field, in the imperative, so the buyer sees where to write"},
+  "invoiceFieldFilledLabel": "Lightning invoice",
+  "@invoiceFieldFilledLabel": {"description": "17b label of the invoice field once it holds something; also the title of the full-invoice sheet"},
+  "invoiceFieldAddressLabel": "Lightning address",
+  "@invoiceFieldAddressLabel": {"description": "17b label of the invoice field when it holds a valid Lightning address; also its screen reader label and the full-value sheet title"},
+  "invoiceScanButton": "Scan",
+  "@invoiceScanButton": {"description": "17a/17b button under the invoice field that scans a QR code"},
+  "invoiceReplaceButton": "Replace",
+  "@invoiceReplaceButton": {"description": "17b button that replaces the invoice with the clipboard content"},
+  "invoiceFieldSemantics": "Lightning invoice or address, required",
+  "@invoiceFieldSemantics": {"description": "Screen reader label of the invoice text field"},
+  "invoiceFilledSemantics": "Lightning invoice for {sats} sats",
+  "@invoiceFilledSemantics": {"description": "Screen reader label of the filled invoice field: the decoded amount, not the whole string", "placeholders": {"sats": {"type": "String"}}},
   "invoiceValidAddress": "Valid address · the invoice will be requested on sending",
   "@invoiceValidAddress": {"description": "13a validation row for a Lightning address or LNURL"},
   "invoiceValidInvoice": "Valid invoice · {sats} sats",
@@ -3968,5 +3924,119 @@
   "invoiceErrorWrongNetwork": "The invoice is for {invoice}, the node uses {node}",
   "@invoiceErrorWrongNetwork": {"description": "13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet", "placeholders": {"invoice": {"type": "String"}, "node": {"type": "String"}}},
   "invoiceCountdownHours": "{hours} h {minutes}",
-  "@invoiceCountdownHours": {"description": "Invoice time band countdown above one hour; hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence", "placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}}
+  "@invoiceCountdownHours": {"description": "Invoice time band countdown above one hour; hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence", "placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}},
+  "tradeCardWaitingBuyerInvoiceTitle": "Waiting for the buyer's invoice",
+  "@tradeCardWaitingBuyerInvoiceTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingBuyerInvoiceMessage": "The trade continues once the buyer adds a Lightning invoice.",
+  "@tradeCardWaitingBuyerInvoiceMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingPaymentTitle": "Waiting for the seller's payment",
+  "@tradeCardWaitingPaymentTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingPaymentMessage": "The trade continues once the seller pays the hold invoice.",
+  "@tradeCardWaitingPaymentMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingTakerBondTitle": "Bond payment pending",
+  "@tradeCardWaitingTakerBondTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardWaitingTakerBondMessage": "The taker's anti-abuse bond must be paid before the trade starts.",
+  "@tradeCardWaitingTakerBondMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardActiveTitle": "Trade active",
+  "@tradeCardActiveTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardActiveMessage": "The sats are locked. The buyer can now send the fiat payment.",
+  "@tradeCardActiveMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardFiatSentTitle": "Fiat marked as sent",
+  "@tradeCardFiatSentTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardFiatSentMessage": "The buyer marked the fiat payment as sent.",
+  "@tradeCardFiatSentMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledHoldInvoiceTitle": "Sats released",
+  "@tradeCardSettledHoldInvoiceTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledHoldInvoiceMessage": "The seller released the sats. The buyer's payout is on its way.",
+  "@tradeCardSettledHoldInvoiceMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSuccessTitle": "Trade completed",
+  "@tradeCardSuccessTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSuccessMessage": "The trade finished successfully.",
+  "@tradeCardSuccessMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledTitle": "Trade canceled",
+  "@tradeCardCanceledTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledMessage": "The trade was canceled.",
+  "@tradeCardCanceledMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardExpiredTitle": "Order expired",
+  "@tradeCardExpiredTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardExpiredMessage": "The order expired before the trade could continue.",
+  "@tradeCardExpiredMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCooperativelyCanceledTitle": "Trade canceled by agreement",
+  "@tradeCardCooperativelyCanceledTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCooperativelyCanceledMessage": "Both parties agreed to cancel the trade.",
+  "@tradeCardCooperativelyCanceledMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardDisputeTitle": "Dispute opened",
+  "@tradeCardDisputeTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardDisputeMessage": "A dispute was opened on this trade.",
+  "@tradeCardDisputeMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledByAdminTitle": "Canceled by the resolver",
+  "@tradeCardCanceledByAdminTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledByAdminMessage": "The dispute resolver canceled the trade.",
+  "@tradeCardCanceledByAdminMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledByAdminTitle": "Settled by the resolver",
+  "@tradeCardSettledByAdminTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardSettledByAdminMessage": "The dispute resolver released the sats to the buyer.",
+  "@tradeCardSettledByAdminMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCompletedByAdminTitle": "Completed by the resolver",
+  "@tradeCardCompletedByAdminTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCompletedByAdminMessage": "The dispute resolver completed the trade.",
+  "@tradeCardCompletedByAdminMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardUpdatedTitle": "Trade updated",
+  "@tradeCardUpdatedTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardUpdatedMessage": "The status of this trade changed.",
+  "@tradeCardUpdatedMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
+  "tradeCardCanceledByMakerMessage": "The maker canceled the order.",
+  "@tradeCardCanceledByMakerMessage": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "tradeCardCanceledBondLostRaceMessage": "Another user took this order before the bond was paid.",
+  "@tradeCardCanceledBondLostRaceMessage": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "tradeCardCanceledBondExpiredMessage": "The bond invoice expired unpaid.",
+  "@tradeCardCanceledBondExpiredMessage": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "chatCardTitle": "New messages",
+  "@chatCardTitle": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "chatCardSolverTitle": "Messages from the resolver",
+  "@chatCardSolverTitle": {"description": "Notifications card copy for trades and chat (issue #474)"},
+  "chatCardMessage": "{count, plural, =1{1 new message from your trade partner} other{{count} new messages from your trade partner}}",
+  "@chatCardMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}},
+  "chatCardSolverMessage": "{count, plural, =1{1 new message from the dispute resolver} other{{count} new messages from the dispute resolver}}",
+  "@chatCardSolverMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}},
+  "invalidTradeIndexError": "Your account is out of sync with this Mostro node, so it refused the order. Try again in a moment",
+  "@invalidTradeIndexError": {"description": "Error shown when the Mostro node refuses a new order or take with CantDo(InvalidTradeIndex) even after the app resynced its trade-key counter and retried once"},
+  "recoveringTradesMessage": "Account imported. Recovering your trades from Mostro…",
+  "@recoveringTradesMessage": {"description": "Snackbar shown on the Account screen right after a mnemonic import, while the app asks Mostro for the identity's trades in progress"},
+  "recoveredTradesMessage": "{count, plural, =0{Account imported. You had no trades in progress} =1{Account imported. 1 trade recovered} other{Account imported. {count} trades recovered}}",
+  "@recoveredTradesMessage": {"description": "Snackbar shown after a mnemonic import once Mostro returned the identity's trades in progress; count is how many orders and disputes came back", "placeholders": {"count": {"type": "int"}}},
+  "recoverTradesFailedMessage": "Account imported, but Mostro did not answer, so your trades in progress were not recovered",
+  "@recoverTradesFailedMessage": {"description": "Snackbar shown after a mnemonic import when Mostro did not answer the recovery request; the import itself succeeded"},
+  "paymentMethodsChosenLabel": "Chosen",
+  "@paymentMethodsChosenLabel": {"description": "Label in front of the chips summarising the methods chosen so far on the payment-method picker screen"},
+  "paymentMethodsSelectedCount": "{count, plural, =0{Choose at least one method} =1{1 method selected} other{{count} methods selected}}",
+  "@paymentMethodsSelectedCount": {"description": "Count line above the confirm button of the payment-method picker screen", "placeholders": {"count": {"type": "int"}}},
+  "paymentMethodsConfirm": "Confirm methods",
+  "@paymentMethodsConfirm": {"description": "Button that saves the payment-method selection and closes the picker screen"},
+  "paymentMethodAddCustom": "Add custom payment method",
+  "@paymentMethodAddCustom": {"description": "Dashed row at the end of the payment-method list that opens the custom-method sheet"},
+  "paymentMethodsDiscardTitle": "Discard the changes?",
+  "@paymentMethodsDiscardTitle": {"description": "Title of the dialog shown when leaving the payment-method picker with unconfirmed changes"},
+  "paymentMethodsDiscardConfirm": "Discard",
+  "@paymentMethodsDiscardConfirm": {"description": "Dialog action that leaves the payment-method picker without saving"},
+  "paymentMethodsKeepEditing": "Keep editing",
+  "@paymentMethodsKeepEditing": {"description": "Dialog action that stays on the payment-method picker screen"},
+  "fundsAtRiskTitle": "This user still has sats in play",
+  "@fundsAtRiskTitle": {"description": "Title of the warning shown before generating a new user or importing a seed while the current identity has escrow, bonds, payout claims or trades in flight"},
+  "fundsAtRiskBody": "If you continue, this user's keys are replaced and nothing listed here can be finished or recovered from this device. This is not recommended: you can lose these sats.",
+  "@fundsAtRiskBody": {"description": "Body of the funds-at-risk warning, above the list of what is still in flight"},
+  "fundsAtRiskSellerEscrow": "Sats locked in escrow for a sale",
+  "@fundsAtRiskSellerEscrow": {"description": "Funds-at-risk list entry: the user is the seller and the hold invoice is paid and held"},
+  "fundsAtRiskBondLocked": "Bond locked",
+  "@fundsAtRiskBondLocked": {"description": "Funds-at-risk list entry: an anti-abuse bond is locked until its trade ends"},
+  "fundsAtRiskPayoutClaim": "Bond payout not collected yet",
+  "@fundsAtRiskPayoutClaim": {"description": "Funds-at-risk list entry: the user won a share of a slashed bond and has not been paid yet"},
+  "fundsAtRiskTradeInProgress": "Trade in progress",
+  "@fundsAtRiskTradeInProgress": {"description": "Funds-at-risk list entry: a live trade with none of the user's sats locked"},
+  "fundsAtRiskBondInvoicePending": "Bond invoice still payable",
+  "@fundsAtRiskBondInvoicePending": {"description": "Funds-at-risk list entry: a bond invoice that has not been paid and has not expired"},
+  "fundsAtRiskKeep": "Keep this user",
+  "@fundsAtRiskKeep": {"description": "Safe, primary action of the funds-at-risk warning: abandon the generation or import"},
+  "fundsAtRiskContinue": "Continue anyway",
+  "@fundsAtRiskContinue": {"description": "Destructive action of the funds-at-risk warning: go on with the generation or import"}
 }

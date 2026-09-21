@@ -11,7 +11,12 @@ use anyhow::{bail, Result};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 
-use crate::api::types::{BondPolicyInfo, BondSlashedEvent, OrderStatus, SlashCause};
+use crate::api::types::{
+    BondClaim, BondClaimPhase, BondClaimUpdate, BondPolicyInfo, BondSlashedEvent, OrderStatus,
+    SlashCause,
+};
+use crate::mostro::bond_claims;
+use crate::db::Storage;
 use crate::mostro::bond_policy;
 
 // ── Node policy ─────────────────────────────────────────────────────────────
@@ -32,6 +37,354 @@ pub fn get_bond_policy() -> Option<BondPolicyInfo> {
 pub fn estimate_bond_sats(order_amount_sats: u64) -> Option<u64> {
     let policy = get_bond_policy()?;
     bond_policy::estimate_bond_sats(order_amount_sats, &policy)
+}
+
+// ── Maker bond ──────────────────────────────────────────────────────────────
+
+/// Walk away from an order parked at `WaitingMakerBond` without paying the
+/// bond (docs/ANTI_ABUSE_BOND.md §6.2). The daemon refuses a cancel in this
+/// window and reaps the unpaid order itself, so this only wipes the local
+/// row and emits `Canceled` with `UserCanceled`. Markers: `TradeNotFound`,
+/// `NotWaitingBond` when the row is not a maker's bond window.
+pub async fn abandon_bonded_order(order_id: String) -> Result<()> {
+    // Decided under the order's guard, on the row as it is then: a bond
+    // that locked meanwhile is a published order, which is refused.
+    crate::api::orders::abandon_maker_bond(&order_id).await
+}
+
+/// Close the bond window of `order_id` now if its deadline passed unpaid —
+/// what the periodic sweep would do on its next pass. The pay-bond screen
+/// calls it when its countdown ends, so a row does not linger as "pay
+/// deposit" in My Trades for up to a sweep interval. Returns whether the
+/// row was closed; a paid, published or still-live window is left alone.
+pub async fn close_expired_bond_window(order_id: String) -> Result<bool> {
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    let Some(trade) = db.get_trade_by_order_id(&order_id).await? else {
+        return Ok(false);
+    };
+    Ok(crate::api::orders::close_expired_bond_trade(&trade, crate::rt::unix_now()).await)
+}
+
+// ── Payout claims (docs/ANTI_ABUSE_BOND.md §6.4) ─────────────────────────────
+
+/// Buffered claim updates; a handful per slash, so a small buffer is ample.
+const CLAIM_CHANNEL_CAPACITY: usize = 64;
+
+fn claim_tx() -> &'static broadcast::Sender<BondClaimUpdate> {
+    static TX: std::sync::OnceLock<broadcast::Sender<BondClaimUpdate>> = std::sync::OnceLock::new();
+    TX.get_or_init(|| broadcast::channel(CLAIM_CHANNEL_CAPACITY).0)
+}
+
+/// Broadcast a claim's phase change to any [`BondClaimStream`].
+pub(crate) fn emit_claim_update(node_pubkey: &str, order_id: &str, phase: BondClaimPhase) {
+    let _ = claim_tx().send(BondClaimUpdate {
+        order_id: order_id.to_string(),
+        node_pubkey: node_pubkey.to_string(),
+        phase,
+    });
+}
+
+/// A stream of claim phase changes for the Dart layer, the pattern of
+/// [`BondSlashedStream`].
+pub struct BondClaimStream {
+    rx: broadcast::Receiver<BondClaimUpdate>,
+}
+
+impl BondClaimStream {
+    /// The next claim change; a lag skips ahead rather than ending the stream.
+    pub async fn next(&mut self) -> Result<BondClaimUpdate> {
+        loop {
+            match self.rx.recv().await {
+                Ok(update) => return Ok(update),
+                Err(RecvError::Lagged(_)) => continue,
+                Err(RecvError::Closed) => bail!("BondClaimStream closed: sender dropped"),
+            }
+        }
+    }
+}
+
+/// The raw channel, for tests that drain it without awaiting.
+#[cfg(test)]
+pub(crate) fn subscribe_claim_updates() -> broadcast::Receiver<BondClaimUpdate> {
+    claim_tx().subscribe()
+}
+
+/// Subscribe to claim phase changes (new claim, submission, ack, payout,
+/// expiry).
+pub fn on_bond_claim_updated() -> BondClaimStream {
+    BondClaimStream {
+        rx: claim_tx().subscribe(),
+    }
+}
+
+/// Persist a claim and keep the claim-node set — what the kind-14 filter
+/// and the sender check read — in step with the store.
+pub(crate) async fn persist_claim(claim: &BondClaim) -> Result<()> {
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    db.save_bond_claim(claim).await?;
+    refresh_claim_nodes().await;
+    crate::api::push::request_reconcile();
+    Ok(())
+}
+
+/// Rebuild the claim-node set from the store (startup, and after every
+/// claim write). A node whose last claim just ended drops off the filter
+/// on the next re-subscription; one joining it is picked up the same way.
+pub(crate) async fn refresh_claim_nodes() {
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    let before: std::collections::HashSet<String> =
+        bond_claims::claim_node_pubkeys().into_iter().collect();
+    let claims = db.list_bond_claims().await.unwrap_or_default();
+    bond_claims::set_claim_nodes(bond_claims::claim_nodes_of(&claims));
+    // The nodes the user left, as persisted: merged in, then pruned.
+    let stored: std::collections::HashMap<String, i64> = db
+        .get_setting(crate::db::settings_keys::BOND_CLAIM_RETAINED_NODES)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default();
+    let stored_len = stored.len();
+    for (node, until) in stored {
+        bond_claims::retain_node(&node, until);
+    }
+    if bond_claims::prune_retained(crate::rt::unix_now())
+        || bond_claims::retained_nodes_snapshot().len() != stored_len
+    {
+        persist_retained_nodes().await;
+    }
+    let after: std::collections::HashSet<String> =
+        bond_claims::claim_node_pubkeys().into_iter().collect();
+    if before != after {
+        crate::api::orders::resubscribe_global_dm_filter().await;
+    }
+}
+
+async fn persist_retained_nodes() {
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    match serde_json::to_string(&bond_claims::retained_nodes_snapshot()) {
+        Ok(json) => {
+            if let Err(e) = db
+                .set_setting(crate::db::settings_keys::BOND_CLAIM_RETAINED_NODES, &json)
+                .await
+            {
+                log::warn!("[bond] retained claim nodes not persisted: {e}");
+            }
+        }
+        Err(e) => log::warn!("[bond] retained claim nodes not serialised: {e}"),
+    }
+}
+
+/// Keep `previous` — the node the user is switching away from — on the
+/// claim filter for its claim window plus a margin (§6.4). A counterparty's
+/// bond slashed after the switch (a dispute still open, say) is otherwise
+/// asked for on a node the filter no longer hears, and the claim is never
+/// created. Call before the switch clears the node's cached policy: a node
+/// known not to run bonds cannot issue a claim and is not retained.
+pub(crate) async fn retain_previous_node(previous: &str) {
+    let policy = crate::mostro::bond_policy::get_for(previous);
+    if policy
+        .as_ref()
+        .is_some_and(|p| p.policy != crate::api::types::BondPolicy::Enabled)
+    {
+        return;
+    }
+    let now = crate::rt::unix_now();
+    let until = bond_claims::retain_until(now, policy.and_then(|p| p.payout_claim_window_days));
+    bond_claims::retain_node(previous, until);
+    bond_claims::prune_retained(now);
+    persist_retained_nodes().await;
+    crate::api::orders::resubscribe_global_dm_filter().await;
+}
+
+/// The claim for `order_id` the user can still act on — or, failing that,
+/// the most recently changed one — whichever node issued it.
+async fn claim_for_order(order_id: &str) -> Result<Option<BondClaim>> {
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    let claims = db.list_bond_claims().await?;
+    let mut for_order = claims.into_iter().filter(|c| c.order_id == order_id);
+    let first = for_order.next();
+    let Some(first) = first else {
+        return Ok(None);
+    };
+    let open = std::iter::once(first.clone())
+        .chain(for_order)
+        .find(|c| !c.phase.is_terminal());
+    Ok(Some(open.unwrap_or(first)))
+}
+
+/// Every claim, most recently changed first (My Trades, §8.3).
+pub async fn list_bond_claims() -> Result<Vec<BondClaim>> {
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    db.list_bond_claims().await
+}
+
+/// The claim for one order (the open one when several nodes issued one).
+pub async fn get_bond_claim(order_id: String) -> Result<Option<BondClaim>> {
+    claim_for_order(&order_id).await
+}
+
+/// The claim one node issued for one order — the exact claim a
+/// [`BondClaimUpdate`] names, whatever other node holds one for the order.
+pub async fn get_bond_claim_from(node_pubkey: String, order_id: String) -> Result<Option<BondClaim>> {
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
+    db.get_bond_claim(&node_pubkey, &order_id).await
+}
+
+/// Send the daemon the bolt11 for a claim's share (§6.4): publish the
+/// `add-bond-invoice` reply **to the node that issued the claim**, mark the
+/// claim `Submitted` so the next cadence retry does not re-arm the form,
+/// and wait for the daemon's verdict. Markers: `ClaimNotFound`,
+/// `ClaimNotClaimable` (already acknowledged, paid or expired),
+/// `InvalidInvoice`, `InvoiceAmountMismatch` (a decodable bolt11 for other
+/// than the share), `TradeKeyMissing`, `BondClaimRejected` (a `CantDo`
+/// the claim cannot explain; it stays `Pending`), `BondClaimExpired` (the
+/// deadline passed), `NoDaemonResponse` (the claim stays `Submitted`; the
+/// acknowledgement arrives on the global feed).
+pub async fn submit_bond_payout_invoice(order_id: String, invoice: String) -> Result<()> {
+    use crate::mostro::pending::{
+        detach_request_waiter, pending_requests, remove_pending_request, DaemonReply,
+        PendingRequest, PendingRequestKind, Wake,
+    };
+    let bolt11 = invoice.trim().trim_start_matches("lightning:").to_string();
+    if bolt11.is_empty() {
+        bail!("InvalidInvoice");
+    }
+    // A decodable bolt11 with an amount must carry exactly the share, in
+    // whole sats: a sub-sat remainder is a mismatch too (the daemon pays
+    // the principal with fee 0).
+    if let Some(decoded) = crate::api::invoice::decode_bolt11(bolt11.clone()) {
+        if let Some(msat) = decoded.amount_msat.filter(|m| *m != 0) {
+            if let Some(share) = claim_for_order(&order_id).await?.map(|c| c.amount_sats) {
+                if msat != share.saturating_mul(1_000) {
+                    bail!("InvoiceAmountMismatch");
+                }
+            }
+        }
+    }
+    let claim = claim_for_order(&order_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("ClaimNotFound"))?;
+    if !matches!(claim.phase, BondClaimPhase::Pending | BondClaimPhase::Submitted) {
+        bail!("ClaimNotClaimable");
+    }
+    let now = crate::rt::unix_now();
+    if now > claim.deadline_at {
+        let mut expired = claim.clone();
+        expired.phase = BondClaimPhase::Expired;
+        expired.updated_at = now;
+        persist_claim(&expired).await?;
+        emit_claim_update(&claim.node_pubkey, &order_id, BondClaimPhase::Expired);
+        bail!("BondClaimExpired");
+    }
+    // The key the daemon asked on — the slashed attempt's, even when the
+    // order was retaken on a newer key since — or, for a claim stored
+    // before that was recorded, the order's current one.
+    let trade_index = match claim.trade_index {
+        Some(index) => index,
+        None => crate::api::orders::trade_key_index_of(&order_id)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("TradeKeyMissing"))?,
+    };
+    let sender_keys = crate::api::identity::get_active_trade_keys(trade_index).await?;
+    let identity_keys = crate::api::identity::get_transport_identity_keys(&sender_keys).await?;
+    let node_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&claim.node_pubkey)?;
+    let request_id: u64 = {
+        use rand::RngCore;
+        rand::rngs::OsRng.next_u64().max(1)
+    };
+    let event_json = crate::mostro::actions::add_bond_invoice(
+        &identity_keys,
+        &sender_keys,
+        &node_pubkey,
+        &order_id,
+        trade_index,
+        &bolt11,
+        request_id,
+    )
+    .await?;
+    let trade_pk_hex = sender_keys.public_key().to_hex();
+    let (tx, rx) = tokio::sync::oneshot::channel::<Wake>();
+    if let Ok(mut map) = pending_requests().lock() {
+        map.insert(
+            trade_pk_hex.clone(),
+            PendingRequest {
+                request_id,
+                trade_index,
+                kind: PendingRequestKind::BondClaimSubmit,
+                tx: Some(tx),
+            },
+        );
+    }
+    if let Err(e) = crate::api::orders::publish_event_json(&event_json).await {
+        remove_pending_request(&trade_pk_hex, request_id);
+        return Err(e);
+    }
+    // Submitted before the wait: a restart in between must not re-arm the
+    // form, and the daemon's retry that crosses this reply is a no-op.
+    let mut submitted = claim.clone();
+    submitted.phase = BondClaimPhase::Submitted;
+    submitted.submitted_invoice = Some(bolt11.clone());
+    submitted.updated_at = now;
+    persist_claim(&submitted).await?;
+    emit_claim_update(&claim.node_pubkey, &order_id, BondClaimPhase::Submitted);
+    crate::api::logging::blog_info(
+        "bond",
+        format!(
+            "add-bond-invoice published for order={} node={} trade_index={trade_index}",
+            crate::api::logging::short_id(&order_id),
+            &claim.node_pubkey[..8.min(claim.node_pubkey.len())],
+        ),
+    );
+
+    let reply = crate::rt::time::timeout(std::time::Duration::from_secs(10), rx).await;
+    if !matches!(reply, Ok(Ok(_))) {
+        detach_request_waiter(&trade_pk_hex, request_id);
+    }
+    match reply {
+        Ok(Ok(Wake {
+            reply: DaemonReply::Acknowledged,
+            ..
+        })) => Ok(()),
+        Ok(Ok(Wake {
+            reply: DaemonReply::Rejected { reason, .. },
+            ..
+        })) => {
+            // The arm persisted nothing for a claim submission: resolve
+            // here, from what the claim knows (§6.4).
+            let current = claim_for_order(&order_id).await?.unwrap_or(submitted);
+            let now = crate::rt::unix_now();
+            match bond_claims::resolve_submission_rejection(&current, now) {
+                Ok(phase) if phase == current.phase => {
+                    bail!("ClaimNotClaimable")
+                }
+                Ok(phase) => {
+                    let mut next = current.clone();
+                    next.phase = phase;
+                    next.updated_at = now;
+                    persist_claim(&next).await?;
+                    emit_claim_update(&current.node_pubkey, &order_id, phase);
+                    bail!("BondClaimExpired")
+                }
+                Err(marker) => {
+                    log::info!("[bond] add-bond-invoice rejected: {reason} — claim stays pending");
+                    let mut pending = current.clone();
+                    pending.phase = BondClaimPhase::Pending;
+                    pending.submitted_invoice = None;
+                    pending.updated_at = now;
+                    persist_claim(&pending).await?;
+                    emit_claim_update(&current.node_pubkey, &order_id, BondClaimPhase::Pending);
+                    bail!("{marker}")
+                }
+            }
+        }
+        Ok(Ok(_)) => Ok(()),
+        _ => bail!(crate::mostro::pending::NO_DAEMON_RESPONSE),
+    }
 }
 
 // ── Forfeiture notice ───────────────────────────────────────────────────────
@@ -78,6 +431,12 @@ pub(crate) fn emit_bond_slashed(event: BondSlashedEvent) {
     let _ = bond_store().event_tx.send(event);
 }
 
+/// The raw slash channel, for tests that drain it without awaiting.
+#[cfg(test)]
+pub(crate) fn subscribe_slashed() -> broadcast::Receiver<BondSlashedEvent> {
+    bond_store().event_tx.subscribe()
+}
+
 /// A stream that emits incoming [`BondSlashedEvent`]s for the Dart layer.
 pub struct BondSlashedStream {
     rx: broadcast::Receiver<BondSlashedEvent>,
@@ -108,6 +467,82 @@ pub fn on_bond_slashed() -> BondSlashedStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The web smoke test seeds these rows into IndexedDB and expects the
+    /// release build to read them back (docs/ANTI_ABUSE_BOND.md T5.1).
+    /// Decoding the file here keeps it in step with the stored types: a
+    /// renamed field fails `cargo test` instead of a CI browser run.
+    #[test]
+    fn web_smoke_seed_rows_decode_as_stored() {
+        // Outside the crate on purpose: this is the file the smoke test
+        // seeds, and a crate-local copy would drift from it unnoticed.
+        let seed: serde_json::Value =
+            serde_json::from_str(include_str!("../../../test/web/smoke/seed/bond_store.json"))
+                .expect("seed is JSON");
+        let stores = &seed["stores"];
+        // The probe publishes Dart enum names: the variant, first letter lower.
+        let dart_name = |variant: String| {
+            let mut chars = variant.chars();
+            chars
+                .next()
+                .map(|first| first.to_lowercase().collect::<String>() + chars.as_str())
+                .unwrap_or_default()
+        };
+
+        let claims: Vec<BondClaim> = stores["bond_claims"]
+            .as_object()
+            .expect("bond_claims store")
+            .iter()
+            .map(|(key, doc)| {
+                let claim: BondClaim = serde_json::from_value(doc.clone()).expect("a BondClaim");
+                assert_eq!(key, &claim.storage_id(), "stored under its storage key");
+                claim
+            })
+            .collect();
+        let trades: Vec<crate::api::types::TradeInfo> = stores["trades"]
+            .as_object()
+            .expect("trades store")
+            .iter()
+            .map(|(key, doc)| {
+                let trade: crate::api::types::TradeInfo =
+                    serde_json::from_value(doc.clone()).expect("a TradeInfo");
+                assert_eq!(key, &trade.id, "stored under its id");
+                trade
+            })
+            .collect();
+        for (order_id, index) in stores["trade_keys"].as_object().expect("trade_keys store") {
+            index.as_str().expect("stored as a string").parse::<u32>().expect("a u32 index");
+            assert!(trades.iter().any(|t| &t.id == order_id), "key for a seeded trade");
+        }
+
+        let expect = &seed["expect"];
+        for want in expect["claims"].as_array().expect("expected claims") {
+            assert!(
+                claims.iter().any(|c| {
+                    want["orderId"] == c.order_id.as_str()
+                        && want["phase"] == dart_name(format!("{:?}", c.phase)).as_str()
+                }),
+                "no seeded claim matches {want}"
+            );
+        }
+        let expected_trades = expect["trades"].as_array().expect("expected trades");
+        for want in expected_trades {
+            assert!(
+                trades.iter().any(|t| {
+                    want["id"] == t.id.as_str()
+                        && want["status"] == dart_name(format!("{:?}", t.order.status)).as_str()
+                        && t.bond.as_ref().is_some_and(|b| {
+                            want["bondState"] == dart_name(format!("{:?}", b.state)).as_str()
+                        })
+                }),
+                "no seeded trade matches {want}"
+            );
+        }
+        // Both bond statuses, or the check covers only half of what it claims.
+        for status in ["waitingTakerBond", "waitingMakerBond"] {
+            assert!(expected_trades.iter().any(|t| t["status"] == status), "{status} seeded");
+        }
+    }
 
     #[test]
     fn dispute_and_admin_states_infer_dispute() {

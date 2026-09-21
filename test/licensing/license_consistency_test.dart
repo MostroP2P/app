@@ -122,7 +122,7 @@ void main() {
 
     test('every locale labels the licence AGPLv3+', () {
       // Arrange
-      final locales = ['en', 'es', 'fr', 'de', 'it'];
+      final locales = _arbLocales();
 
       for (final locale in locales) {
         final arb =
@@ -160,7 +160,7 @@ void main() {
 
     test('the displayed repository name matches the link it opens', () {
       // Arrange
-      final locales = ['en', 'es', 'fr', 'de', 'it'];
+      final locales = _arbLocales();
 
       for (final locale in locales) {
         final arb =
@@ -175,4 +175,17 @@ void main() {
       }
     });
   });
+}
+
+/// Every locale that has a translation file, so a newly added language is
+/// checked here without anyone remembering to list it.
+List<String> _arbLocales() {
+  final locales = Directory('lib/l10n')
+      .listSync()
+      .map((f) => RegExp(r'app_([a-z]{2})\.arb$').firstMatch(f.path)?.group(1))
+      .whereType<String>()
+      .toList()
+    ..sort();
+  expect(locales, isNotEmpty, reason: 'no lib/l10n/app_*.arb files found');
+  return locales;
 }

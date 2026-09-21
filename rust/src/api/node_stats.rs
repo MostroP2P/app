@@ -6,11 +6,18 @@
 /// the node's kind 38383 events, never declared by the node), fee, sats range
 /// per trade, escrow backend and anti-abuse bond.
 ///
-/// Everything here is derived from two relay queries over the candidate
+/// Everything here is derived from relay queries over the candidate
 /// pubkeys — the nodes' kind 38385 instance events and their `pending`
 /// kind 38383 orders — folded by pure helpers so the logic is unit-tested
-/// without a relay pool. Nothing is persisted and the active-node order book
-/// (`orders::ORDER_BOOK`, deliberately single-node) is never touched.
+/// without a relay pool. The active-node order book (`orders::ORDER_BOOK`,
+/// deliberately single-node) is never touched.
+///
+/// A node's settings rarely change, so the newest kind 38385 event of each
+/// node is **cached** (`settings_keys::MOSTRO_NODE_INFO`): warmed at startup
+/// by [`refresh_mostro_node_info_cache`], served by
+/// [`cached_mostro_node_stats`] the moment the selector opens, and rewritten
+/// by every [`fetch_mostro_node_stats`]. Order counts are never cached — a
+/// stale count would be an invented one.
 use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Result;
@@ -18,14 +25,18 @@ use nostr_sdk::prelude::{Event, Filter, Kind, PublicKey, SingleLetterTag, Timest
 use serde::{Deserialize, Serialize};
 
 use crate::api::types::{BondPolicy, BondPolicyInfo, OrderInfo, OrderStatus};
+use crate::db::{settings_keys, Storage};
 use crate::mostro::{bond_policy, escrow_mode};
 use crate::nostr::order_events::{parse_order_event, KIND_ORDER, RECENT_ORDERS_WINDOW_SECS};
 
 /// Kind 38385 — Mostro instance status (NIP-33 addressable, `d` = pubkey).
 const KIND_INSTANCE: u16 = 38385;
 
-/// Relay round-trip budget for each of the two queries.
+/// Relay round-trip budget for each query.
 const FETCH_TIMEOUT_SECS: u64 = 10;
+
+/// How long the startup warm-up waits for the relay handshakes it races with.
+const WARM_UP_CONNECT_WAIT_SECS: u64 = 5;
 
 /// Open orders of one fiat currency on one node.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -218,6 +229,110 @@ fn apply_order_counts(stats: &mut MostroNodeStats, liquidity: NodeLiquidity) {
     stats.latest_order_at = latest;
 }
 
+/// A node's newest kind 38385 event as persisted under
+/// [`settings_keys::MOSTRO_NODE_INFO`]. The raw tags are kept, not the parsed
+/// row, so a cached event is read by the same [`apply_info_tags`] as a live
+/// one and a tag this client learns to parse later needs no migration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct CachedNodeInfo {
+    pub created_at: i64,
+    /// Hex id of the event, which orders two revisions of the same second
+    /// (see [`CachedNodeInfo::supersedes`]). `None` for an entry cached before
+    /// the id was kept.
+    #[serde(default)]
+    pub event_id: Option<String>,
+    pub tags: Vec<Vec<String>>,
+}
+
+impl CachedNodeInfo {
+    /// Whether this revision replaces `held`, the way NIP-01 orders revisions
+    /// of a replaceable event: the newer `created_at` wins, and within one
+    /// second the **lowest** id — the one relays retain. Without the id a tie
+    /// went to whichever relay answered first, so two devices could cache
+    /// different settings for the same node. Same rule as the relay list's
+    /// `generation_is_newer`.
+    ///
+    /// An entry without an id cannot claim to be the lowest: it yields a tie
+    /// to a known id and never wins one.
+    fn supersedes(&self, held: &Self) -> bool {
+        match self.created_at.cmp(&held.created_at) {
+            std::cmp::Ordering::Greater => true,
+            std::cmp::Ordering::Less => false,
+            // Ids are lowercase hex of equal length: string order is byte order.
+            std::cmp::Ordering::Equal => match (&self.event_id, &held.event_id) {
+                (Some(id), Some(held_id)) => id < held_id,
+                (Some(_), None) => true,
+                (None, _) => false,
+            },
+        }
+    }
+}
+
+/// Newest valid kind 38385 per requested author; the `d` tag must be the
+/// author itself, as in `fetch_mostro_instance_tags`.
+fn newest_info(pubkeys: &[String], info_events: &[Event]) -> HashMap<String, CachedNodeInfo> {
+    let mut newest: HashMap<String, CachedNodeInfo> = HashMap::new();
+    for event in info_events {
+        let author = event.pubkey.to_hex();
+        if !pubkeys.contains(&author) {
+            continue;
+        }
+        let tags: Vec<Vec<String>> = event.tags.iter().map(|t| t.as_slice().to_vec()).collect();
+        if tag_value(&tags, "d") != Some(author.as_str()) {
+            continue;
+        }
+        let info = CachedNodeInfo {
+            created_at: event.created_at.as_secs() as i64,
+            event_id: Some(event.id.to_hex()),
+            tags,
+        };
+        if newest.get(&author).is_some_and(|prev| !info.supersedes(prev)) {
+            continue;
+        }
+        newest.insert(author, info);
+    }
+    newest
+}
+
+/// Fold `fresh` into `cache`, the newest revision per node winning
+/// ([`CachedNodeInfo::supersedes`]), and say whether anything changed — an unchanged cache is not rewritten.
+fn merge_info(
+    cache: &mut HashMap<String, CachedNodeInfo>,
+    fresh: HashMap<String, CachedNodeInfo>,
+) -> bool {
+    let mut changed = false;
+    for (pubkey, info) in fresh {
+        match cache.get(&pubkey) {
+            Some(prev) if !info.supersedes(prev) => {}
+            _ => {
+                cache.insert(pubkey, info);
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
+/// Rows built from the cache alone, one per requested pubkey in request
+/// order. No order counts: `total_orders` is `0` because nothing was counted,
+/// not because the node is empty — the caller must not read availability or
+/// liquidity off these rows.
+fn rows_from_cache(
+    pubkeys: &[String],
+    cache: &HashMap<String, CachedNodeInfo>,
+) -> Vec<MostroNodeStats> {
+    pubkeys
+        .iter()
+        .map(|p| {
+            let mut row = MostroNodeStats::empty(p);
+            if let Some(info) = cache.get(p) {
+                apply_info_tags(&mut row, &info.tags, info.created_at);
+            }
+            row
+        })
+        .collect()
+}
+
 /// Build the stats rows from the raw events, one row per requested pubkey in
 /// request order. Nodes with no event at all get an empty row (the UI shows
 /// them as unreachable), never a missing one.
@@ -235,24 +350,10 @@ fn summarize(
         .map(|(i, p)| (p.as_str(), i))
         .collect();
 
-    // Newest 38385 per author wins; the `d` tag must be the author itself,
-    // as in `fetch_mostro_instance_tags`.
-    let mut seen_info: HashMap<String, i64> = HashMap::new();
-    for event in info_events {
-        let author = event.pubkey.to_hex();
-        let Some(&i) = index.get(author.as_str()) else {
-            continue;
-        };
-        let tags: Vec<Vec<String>> = event.tags.iter().map(|t| t.as_slice().to_vec()).collect();
-        if tag_value(&tags, "d") != Some(author.as_str()) {
-            continue;
+    for (author, info) in newest_info(pubkeys, info_events) {
+        if let Some(&i) = index.get(author.as_str()) {
+            apply_info_tags(&mut rows[i], &info.tags, info.created_at);
         }
-        let created = event.created_at.as_secs() as i64;
-        if seen_info.get(&author).is_some_and(|&prev| prev >= created) {
-            continue;
-        }
-        seen_info.insert(author.clone(), created);
-        apply_info_tags(&mut rows[i], &tags, created);
     }
 
     let orders: Vec<OrderInfo> = order_events
@@ -267,7 +368,132 @@ fn summarize(
     rows
 }
 
+// ── KV persistence ───────────────────────────────────────────────────────────
+
+async fn load_info_cache(db: &impl Storage) -> Result<HashMap<String, CachedNodeInfo>> {
+    match db.get_setting(settings_keys::MOSTRO_NODE_INFO).await? {
+        // A corrupt blob costs one cold open of the selector, nothing else.
+        Some(json) => Ok(serde_json::from_str(&json).unwrap_or_default()),
+        None => Ok(HashMap::new()),
+    }
+}
+
+/// Merge `fresh` into the persisted cache. With `keep`, entries of nodes no
+/// longer in it are dropped (a removed custom node). Writes only on a change.
+async fn store_info(
+    db: &impl Storage,
+    fresh: HashMap<String, CachedNodeInfo>,
+    keep: Option<&[String]>,
+) -> Result<()> {
+    // Same lock as the registry blobs: the cache is written as a whole, so
+    // two concurrent cycles would drop one side's update. Held only around
+    // the KV cycle, never across a relay round trip.
+    let _guard = crate::api::nodes::registry_lock().lock().await;
+    let mut cache = load_info_cache(db).await?;
+    let mut changed = merge_info(&mut cache, fresh);
+    if let Some(keep) = keep {
+        let before = cache.len();
+        cache.retain(|pubkey, _| keep.contains(pubkey));
+        changed |= cache.len() != before;
+    }
+    if changed {
+        db.set_setting(
+            settings_keys::MOSTRO_NODE_INFO,
+            &serde_json::to_string(&cache)?,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// Best effort: the cache is an optimization, so a failed write is logged and
+/// the freshly fetched rows are still returned.
+async fn store_info_best_effort(fresh: HashMap<String, CachedNodeInfo>, keep: Option<&[String]>) {
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    if let Err(e) = store_info(db, fresh, keep).await {
+        log::warn!("[node_stats] could not persist the kind 38385 cache: {e}");
+    }
+}
+
+fn parse_authors(pubkeys: &[String]) -> Result<Vec<PublicKey>> {
+    pubkeys
+        .iter()
+        .map(|p| PublicKey::from_hex(p).map_err(|e| anyhow::anyhow!("InvalidPubkey: {e}")))
+        .collect()
+}
+
+fn normalize_pubkeys(pubkeys: Vec<String>) -> Vec<String> {
+    pubkeys
+        .into_iter()
+        .map(|p| p.trim().to_lowercase())
+        .collect()
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
+
+/// What the selector shows the moment it opens: one row per requested pubkey
+/// (64-char hex), in request order, built from the persisted kind 38385 cache
+/// alone — no relay is asked. A node never seen comes back as an empty row.
+///
+/// Order counts are **not** part of these rows (`total_orders == 0`,
+/// `latest_order_at == None` regardless of the node's real book) and
+/// `info_seen_at` is as old as the cache: never derive liquidity or
+/// availability from them. [`fetch_mostro_node_stats`] supplies both.
+pub async fn cached_mostro_node_stats(pubkeys: Vec<String>) -> Result<Vec<MostroNodeStats>> {
+    let pubkeys = normalize_pubkeys(pubkeys);
+    let cache = match crate::db::app_db::db() {
+        Some(db) => load_info_cache(db).await?,
+        None => HashMap::new(),
+    };
+    Ok(rows_from_cache(&pubkeys, &cache))
+}
+
+/// Download the kind 38385 event of every node in the registry (trusted and
+/// user-added) and persist the newest per node. Called once at startup, in
+/// the background, so the selector has every node's settings before it is
+/// first opened. Entries of nodes that left the registry are dropped.
+///
+/// Best-effort: nodes that did not answer within the window keep their cached
+/// event. Only an outright query failure is an error, and then the cache is
+/// untouched.
+pub async fn refresh_mostro_node_info_cache() -> Result<()> {
+    use std::time::Duration;
+
+    let pubkeys: Vec<String> = crate::api::nodes::list_mostro_nodes()
+        .await?
+        .into_iter()
+        .map(|n| n.pubkey)
+        .collect();
+    let authors = parse_authors(&pubkeys)?;
+    let client = crate::api::nostr::get_pool()?.client();
+    // Runs right after the pool is created, while the relays are still
+    // handshaking: a fetch issued now would reach none of them. A no-op once
+    // they are connected.
+    client
+        .connect()
+        .and_wait(Duration::from_secs(WARM_UP_CONNECT_WAIT_SECS))
+        .await;
+    let filter = Filter::new()
+        .kind(Kind::from(KIND_INSTANCE))
+        .authors(authors);
+    let events = client
+        .fetch_events(filter)
+        .timeout(Duration::from_secs(FETCH_TIMEOUT_SECS))
+        .await
+        .map_err(|e| anyhow::anyhow!("fetch_events (38385) failed: {e}"))?;
+    let events: Vec<Event> = events.into_iter().collect();
+    let fresh = newest_info(&pubkeys, &events);
+    // Prune against the registry as it is now, not as it was before the
+    // round trip: a node added meanwhile must not lose its cached event.
+    let keep: Vec<String> = match crate::api::nodes::list_mostro_nodes().await {
+        Ok(nodes) => nodes.into_iter().map(|n| n.pubkey).collect(),
+        Err(_) => pubkeys,
+    };
+    store_info_best_effort(fresh, Some(&keep)).await;
+    Ok(())
+}
 
 /// Fetch decision data for every node in `pubkeys` (64-char hex) with three
 /// relay queries — their kind 38385 instance events, their `pending` kind
@@ -285,20 +511,17 @@ fn summarize(
 /// the window is used, a node that answered nothing comes back as an empty
 /// row (no `info_seen_at`, zero orders). Only an outright query failure or an
 /// invalid pubkey is an error.
+///
+/// The kind 38385 events it received refresh the persisted cache behind
+/// [`cached_mostro_node_stats`] (best effort, written only on a change).
 pub async fn fetch_mostro_node_stats(pubkeys: Vec<String>) -> Result<Vec<MostroNodeStats>> {
     use std::time::Duration;
 
-    let pubkeys: Vec<String> = pubkeys
-        .into_iter()
-        .map(|p| p.trim().to_lowercase())
-        .collect();
+    let pubkeys = normalize_pubkeys(pubkeys);
     if pubkeys.is_empty() {
         return Ok(Vec::new());
     }
-    let authors: Vec<PublicKey> = pubkeys
-        .iter()
-        .map(|p| PublicKey::from_hex(p).map_err(|e| anyhow::anyhow!("InvalidPubkey: {e}")))
-        .collect::<Result<_>>()?;
+    let authors = parse_authors(&pubkeys)?;
 
     let client = crate::api::nostr::get_pool()?.client();
     let timeout = Duration::from_secs(FETCH_TIMEOUT_SECS);
@@ -331,6 +554,7 @@ pub async fn fetch_mostro_node_stats(pubkeys: Vec<String>) -> Result<Vec<MostroN
     // Merged before `summarize` deduplicates by (author, d): the newer
     // revision wins whichever query returned it.
     let orders: Vec<Event> = pending.into_iter().chain(recent).collect();
+    store_info_best_effort(newest_info(&pubkeys, &info), None).await;
     Ok(summarize(&pubkeys, &info, &orders, now))
 }
 
@@ -547,6 +771,216 @@ mod tests {
         assert_eq!(rows[0].info_seen_at, None);
         assert_eq!(rows[0].total_orders, 0);
         assert_eq!(rows[0].escrow_mode, "unknown");
+    }
+
+    fn info_event(keys: &nostr_sdk::prelude::Keys, d: &str, fee: &str, created_at: u64) -> Event {
+        use nostr_sdk::prelude::{EventBuilder, FinalizeEvent, Tag};
+        EventBuilder::new(Kind::from(KIND_INSTANCE), "")
+            .tags([
+                Tag::parse(["d", d]).unwrap(),
+                Tag::parse(["fee", fee]).unwrap(),
+            ])
+            .custom_created_at(Timestamp::from_secs(created_at))
+            .finalize(keys)
+            .unwrap()
+    }
+
+    fn cached(created_at: i64, fee: &str) -> CachedNodeInfo {
+        CachedNodeInfo {
+            created_at,
+            event_id: None,
+            tags: tags(&[("fee", fee)]),
+        }
+    }
+
+    fn cached_with_id(created_at: i64, event_id: &str, fee: &str) -> CachedNodeInfo {
+        CachedNodeInfo {
+            event_id: Some(event_id.to_string()),
+            ..cached(created_at, fee)
+        }
+    }
+
+    async fn temp_store(tag: &str) -> crate::db::sqlite::SqliteStorage {
+        let path =
+            std::env::temp_dir().join(format!("mostro_node_info_{tag}_{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        crate::db::sqlite::SqliteStorage::open(path.to_str().unwrap())
+            .await
+            .unwrap()
+    }
+
+    #[test]
+    fn newest_info_keeps_the_newest_valid_event_of_requested_authors() {
+        let node = nostr_sdk::prelude::Keys::generate();
+        let stranger = nostr_sdk::prelude::Keys::generate();
+        let pk = node.public_key().to_hex();
+        let events = vec![
+            info_event(&node, &pk, "0.006", 200),
+            info_event(&node, &pk, "0.01", 100),
+            // `d` is not the author: not this node's instance event.
+            info_event(&node, "someone-else", "0.5", 300),
+            // Not a requested author.
+            info_event(&stranger, &stranger.public_key().to_hex(), "0.9", 400),
+        ];
+        let newest = newest_info(std::slice::from_ref(&pk), &events);
+        assert_eq!(newest.len(), 1);
+        assert_eq!(newest[&pk].created_at, 200);
+        assert_eq!(tag_value(&newest[&pk].tags, "fee"), Some("0.006"));
+    }
+
+    /// NIP-01: of two revisions of a replaceable event created in the same
+    /// second, the one with the lowest id is the one relays retain. Which of
+    /// them a relay answers with first must not decide what is cached.
+    #[test]
+    fn newest_info_breaks_a_same_second_tie_by_lowest_id_in_either_order() {
+        // Arrange: same second, different fee → different ids.
+        let node = nostr_sdk::prelude::Keys::generate();
+        let pk = node.public_key().to_hex();
+        let (a, b) = (
+            info_event(&node, &pk, "0.006", 100),
+            info_event(&node, &pk, "0.01", 100),
+        );
+        let lowest = if a.id.to_hex() < b.id.to_hex() { &a } else { &b };
+        let expected_fee = tag_value(
+            &lowest.tags.iter().map(|t| t.as_slice().to_vec()).collect::<Vec<_>>(),
+            "fee",
+        )
+        .map(str::to_string);
+
+        // Act
+        let forward = newest_info(std::slice::from_ref(&pk), &[a.clone(), b.clone()]);
+        let reversed = newest_info(std::slice::from_ref(&pk), &[b.clone(), a.clone()]);
+
+        // Assert
+        assert_eq!(forward[&pk].event_id, Some(lowest.id.to_hex()));
+        assert_eq!(forward[&pk], reversed[&pk]);
+        assert_eq!(
+            tag_value(&forward[&pk].tags, "fee").map(str::to_string),
+            expected_fee
+        );
+    }
+
+    #[test]
+    fn merge_info_replaces_a_same_second_entry_only_with_a_lower_id() {
+        // Arrange
+        let mut cache = HashMap::from([(NODE_A.to_string(), cached_with_id(100, "bb", "0.006"))]);
+
+        // Act + Assert: a higher id of the same second loses…
+        let higher = HashMap::from([(NODE_A.to_string(), cached_with_id(100, "cc", "0.5"))]);
+        assert!(!merge_info(&mut cache, higher));
+        assert_eq!(cache[NODE_A], cached_with_id(100, "bb", "0.006"));
+
+        // …a lower one wins…
+        let lower = HashMap::from([(NODE_A.to_string(), cached_with_id(100, "aa", "0.01"))]);
+        assert!(merge_info(&mut cache, lower));
+        assert_eq!(cache[NODE_A], cached_with_id(100, "aa", "0.01"));
+
+        // …and the very same event is not a change.
+        let same = HashMap::from([(NODE_A.to_string(), cached_with_id(100, "aa", "0.01"))]);
+        assert!(!merge_info(&mut cache, same));
+    }
+
+    #[test]
+    fn an_entry_cached_without_an_id_yields_a_same_second_tie_to_a_known_id() {
+        // Arrange: written before the id was kept.
+        let mut cache = HashMap::from([(NODE_A.to_string(), cached(100, "0.006"))]);
+
+        // Act
+        let live = HashMap::from([(NODE_A.to_string(), cached_with_id(100, "ff", "0.01"))]);
+        let changed = merge_info(&mut cache, live);
+
+        // Assert: the id-less entry cannot claim to be the lowest.
+        assert!(changed);
+        assert_eq!(cache[NODE_A], cached_with_id(100, "ff", "0.01"));
+
+        // And it never wins one itself.
+        let legacy = HashMap::from([(NODE_A.to_string(), cached(100, "0.5"))]);
+        assert!(!merge_info(&mut cache, legacy));
+    }
+
+    #[test]
+    fn a_cache_written_before_the_id_was_kept_still_loads() {
+        // Arrange
+        let json = r#"{"created_at":100,"tags":[["fee","0.006"]]}"#;
+
+        // Act
+        let info: CachedNodeInfo = serde_json::from_str(json).unwrap();
+
+        // Assert
+        assert_eq!(info, cached(100, "0.006"));
+    }
+
+    #[test]
+    fn merge_info_lets_the_newest_event_win_and_reports_changes() {
+        let mut cache = HashMap::from([(NODE_A.to_string(), cached(100, "0.006"))]);
+
+        // Older or identical events change nothing — no rewrite.
+        let stale = HashMap::from([(NODE_A.to_string(), cached(50, "0.5"))]);
+        assert!(!merge_info(&mut cache, stale));
+        let same = HashMap::from([(NODE_A.to_string(), cached(100, "0.006"))]);
+        assert!(!merge_info(&mut cache, same));
+        assert_eq!(cache[NODE_A], cached(100, "0.006"));
+
+        // A newer event replaces the entry; a new node is added.
+        let fresh = HashMap::from([
+            (NODE_A.to_string(), cached(200, "0.01")),
+            (NODE_B.to_string(), cached(10, "0.02")),
+        ]);
+        assert!(merge_info(&mut cache, fresh));
+        assert_eq!(cache[NODE_A], cached(200, "0.01"));
+        assert_eq!(cache[NODE_B], cached(10, "0.02"));
+    }
+
+    #[test]
+    fn cached_rows_carry_the_settings_but_never_an_order_count() {
+        let cache = HashMap::from([(NODE_A.to_string(), cached(100, "0.006"))]);
+        let rows = rows_from_cache(&[NODE_B.into(), NODE_A.into()], &cache);
+        assert_eq!(rows.len(), 2);
+        // Request order, and a never-seen node is an empty row.
+        assert_eq!(rows[0].pubkey, NODE_B);
+        assert_eq!(rows[0].info_seen_at, None);
+        assert_eq!(rows[1].pubkey, NODE_A);
+        assert_eq!(rows[1].fee_pct, Some(0.6));
+        assert_eq!(rows[1].info_seen_at, Some(100));
+        assert_eq!(rows[1].total_orders, 0);
+        assert!(rows[1].orders_by_fiat.is_empty());
+        assert_eq!(rows[1].latest_order_at, None);
+    }
+
+    #[tokio::test]
+    async fn the_info_cache_survives_a_round_trip_and_prunes_removed_nodes() {
+        let db = temp_store("round_trip").await;
+        assert!(load_info_cache(&db).await.unwrap().is_empty());
+
+        let fresh = HashMap::from([
+            (NODE_A.to_string(), cached(100, "0.006")),
+            (NODE_B.to_string(), cached(100, "0.02")),
+        ]);
+        store_info(&db, fresh, None).await.unwrap();
+        let loaded = load_info_cache(&db).await.unwrap();
+        assert_eq!(loaded[NODE_A], cached(100, "0.006"));
+        assert_eq!(loaded[NODE_B], cached(100, "0.02"));
+
+        // A refresh that heard nothing keeps what it had…
+        store_info(&db, HashMap::new(), None).await.unwrap();
+        assert_eq!(load_info_cache(&db).await.unwrap().len(), 2);
+
+        // …and one over a registry without NODE_B forgets NODE_B.
+        store_info(&db, HashMap::new(), Some(&[NODE_A.to_string()]))
+            .await
+            .unwrap();
+        let pruned = load_info_cache(&db).await.unwrap();
+        assert_eq!(pruned.len(), 1);
+        assert!(pruned.contains_key(NODE_A));
+    }
+
+    #[tokio::test]
+    async fn a_corrupt_info_cache_reads_as_empty() {
+        let db = temp_store("corrupt").await;
+        db.set_setting(settings_keys::MOSTRO_NODE_INFO, "not json")
+            .await
+            .unwrap();
+        assert!(load_info_cache(&db).await.unwrap().is_empty());
     }
 
     #[test]
