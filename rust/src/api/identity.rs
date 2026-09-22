@@ -318,6 +318,27 @@ pub(crate) async fn current_bip39_seed() -> Result<zeroize::Zeroizing<[u8; 64]>>
 /// Delete the in-memory identity state. Flutter must also clear
 /// `flutter_secure_storage` after calling this.
 pub async fn delete_identity() -> Result<()> {
+    delete_identity_inner(true).await
+}
+
+/// [`delete_identity`], with the wipe of the identity's data switchable.
+///
+/// `wipe_data: false` exists for the unit test of the identity lifecycle
+/// only: the database and the in-memory stores are process-wide, and tests
+/// run in parallel against them, so a real wipe there deletes the rows other
+/// tests are asserting on. The wipe itself is covered where it can run alone
+/// (`clear_identity_data_wipes_the_identity_and_keeps_the_device`,
+/// `clearing_the_store_leaves_no_chats_and_no_unread_count`).
+async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
+    if identity_lock().read().await.is_none() {
+        bail!("NoIdentity");
+    }
+    // While the identity still exists: its relay subscriptions are given
+    // back first, so nothing of the old user's keeps arriving afterwards.
+    if wipe_data {
+        crate::api::orders::release_identity_subscriptions().await;
+    }
+
     let mut guard = identity_lock().write().await;
     if guard.is_none() {
         bail!("NoIdentity");
@@ -341,6 +362,19 @@ pub async fn delete_identity() -> Result<()> {
         if let Err(e) = db.clear_trade_keys().await {
             log::warn!("[identity] failed to clear trade key mappings: {e}");
         }
+        // Everything else the identity produced — trades, chats, payout
+        // claims, the outbound queue, per-order cursors (issue #533). The
+        // next user must find the app as a fresh install would leave it.
+        // Same handling as above: the identity is already gone, so a failed
+        // wipe is reported, never turned into a failed deletion.
+        if wipe_data {
+            if let Err(e) = db.clear_identity_data().await {
+                log::warn!("[identity] failed to wipe the identity's data: {e}");
+            }
+        }
+    }
+    if wipe_data {
+        forget_identity_state().await;
     }
 
     // Last, so the cleanup warnings above are dropped too: buffered lines name
@@ -349,6 +383,46 @@ pub async fn delete_identity() -> Result<()> {
     crate::api::logging::clear_logs();
 
     Ok(())
+}
+
+/// What the current identity would lose if it were replaced now: locked
+/// escrow, locked or payable bonds, open payout claims, live trades — most
+/// serious first, empty when it is safe to go ahead (issue #533).
+///
+/// The Account screen calls this before generating a new user or importing a
+/// seed, and warns. It reads the local rows only: no relay round trip sits
+/// between the user and the dialog. With no database there is nothing to
+/// lose track of, so that reads as empty.
+pub async fn funds_at_risk() -> Result<Vec<crate::api::types::FundsAtRisk>> {
+    let Some(db) = crate::db::app_db::db() else {
+        return Ok(Vec::new());
+    };
+    let trades = db.list_trades().await?;
+    let claims = db.list_bond_claims().await?;
+    Ok(crate::mostro::funds_at_risk::funds_at_risk(
+        &trades,
+        &claims,
+        unix_now(),
+    ))
+}
+
+/// Empty what the process holds in memory about the deleted identity, and
+/// point the public subscriptions at a clean book (issue #533).
+///
+/// The stores are process-wide singletons, so without this the new user sees
+/// the previous one's disputes, ratings and `is_mine` marks until a restart,
+/// whatever the database says.
+async fn forget_identity_state() {
+    crate::api::disputes::forget_identity_disputes().await;
+    crate::api::reputation::forget_identity_ratings().await;
+    crate::mostro::session::session_manager().clear().await;
+    crate::mostro::bond_claims::set_claim_nodes(std::iter::empty());
+    crate::mostro::bond_claims::clear_retained();
+    // The book's own-order marks and local trade statuses were the old
+    // identity's. Handed back to the public view in memory: re-fetching the
+    // book from the relays waits for EOSE from every one of them, and a
+    // single slow relay held a new user's generation for 20 s.
+    crate::api::orders::forget_book_ownership().await;
 }
 
 /// Derive a new trade key, auto-incrementing the index.
@@ -661,6 +735,22 @@ pub(crate) async fn get_active_trade_keys(index: u32) -> Result<Keys> {
     key_ops::derive_trade_key(&state.mnemonic_words, index)
 }
 
+/// Every active trade key from index 1 to `up_to`, in index order — the
+/// whole set at the price of one seed derivation, where calling
+/// [`get_active_trade_keys`] per index pays for one each
+/// (see `crypto::keys::derive_trade_keys`).
+pub(crate) async fn get_active_trade_keys_up_to(up_to: u32) -> Result<Vec<Keys>> {
+    let guard = identity_lock().read().await;
+    let state = guard.as_ref().ok_or_else(|| anyhow!("NoIdentity"))?;
+    if up_to == 0 {
+        return Ok(Vec::new());
+    }
+    if state.mnemonic_words.is_empty() {
+        bail!("InvalidIndex: nsec import — no mnemonic for trade key derivation");
+    }
+    key_ops::derive_trade_keys(&state.mnemonic_words, up_to)
+}
+
 /// Choose the identity keys that will sign the NIP-59 seal for messages
 /// addressed to the Mostro node.
 ///
@@ -683,6 +773,22 @@ pub(crate) async fn get_transport_identity_keys(trade_keys: &Keys) -> Result<Key
 
 #[cfg(test)]
 mod tests {
+    /// The book is public and the same for any identity; only its `is_mine`
+    /// marks were the old user's. Re-fetching it from the relays instead
+    /// waits for EOSE from every relay, twice: a single slow one held the
+    /// generation of a new user for 20 s.
+    #[test]
+    fn forgetting_the_identity_never_waits_on_the_relays_for_the_book() {
+        let source = include_str!("identity.rs");
+        let start = source
+            .find("async fn forget_identity_state()")
+            .expect("the identity reset exists");
+        let body = &source[start..start + source[start..].find("\n}\n").expect("it ends")];
+
+        assert!(body.contains("forget_book_ownership()"));
+        assert!(!body.contains("refresh_subscriptions_for_active_node"));
+    }
+
     use super::*;
 
     /// A throwaway SQLite store, named per test so parallel runs never collide.
@@ -797,6 +903,13 @@ mod tests {
         async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
             unimplemented!()
         }
+        async fn set_cooperative_cancel_state(
+            &self,
+            _order_id: &str,
+            _state: crate::api::types::CooperativeCancelState,
+        ) -> Result<()> {
+            unimplemented!()
+        }
         async fn update_trade_counterparty(
             &self,
             _order_id: &str,
@@ -854,6 +967,9 @@ mod tests {
             unimplemented!()
         }
         async fn clear_trade_keys(&self) -> Result<()> {
+            unimplemented!()
+        }
+        async fn clear_identity_data(&self) -> Result<()> {
             unimplemented!()
         }
         async fn get_setting(&self, _key: &str) -> Result<Option<String>> {
@@ -1067,7 +1183,8 @@ mod tests {
 
         crate::api::logging::forward_log(log::Level::Info, "identity_probe", "before delete");
 
-        delete_identity().await.unwrap();
+        // Without the data wipe: see `delete_identity_inner`.
+        delete_identity_inner(false).await.unwrap();
         assert!(get_identity().await.unwrap().is_none());
         assert!(
             !crate::api::logging::recent_logs()

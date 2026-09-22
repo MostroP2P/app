@@ -16,9 +16,12 @@
 //! they commit, and so the deadline arithmetic of a payout claim has a window
 //! to work with.
 
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
+
+use tokio::sync::watch;
 
 use crate::api::types::{BondApplyTo, BondPolicy, BondPolicyInfo};
+use crate::rt::time::{timeout, Duration};
 
 // ── Pure helpers ────────────────────────────────────────────────────────────
 
@@ -162,6 +165,56 @@ pub fn get_for(node: &str) -> Option<BondPolicyInfo> {
         .as_ref()
         .filter(|(from, _)| from.eq_ignore_ascii_case(node))
         .map(|(_, policy)| policy.clone())
+}
+
+/// How many capability fetches are pending. The order-book subscription opens
+/// before that fetch (a slow relay must not hold the book), so the node's
+/// history can replay an `add-bond-invoice` while [`get_for`] still answers
+/// `None` for "not answered yet" — and a claim's deadline is frozen at first
+/// receipt (§6.4). A count, not a flag: the Online sequence can overlap itself
+/// when the pool flaps, and the first run to finish must not speak for the
+/// second.
+static FETCHES_PENDING: LazyLock<watch::Sender<u32>> = LazyLock::new(|| watch::channel(0).0);
+
+/// How long [`get_for_once_settled`] waits for a pending fetch: its own bound.
+const FETCH_WAIT: Duration = Duration::from_secs(10);
+
+/// A capability fetch that is about to run, pending until dropped — so an
+/// early return or a panic on the way cannot leave claims waiting for good.
+#[must_use = "the fetch stops being pending when this is dropped"]
+pub struct FetchPending(&'static watch::Sender<u32>);
+
+impl FetchPending {
+    fn on(pending: &'static watch::Sender<u32>) -> Self {
+        pending.send_modify(|n| *n += 1);
+        Self(pending)
+    }
+}
+
+impl Drop for FetchPending {
+    fn drop(&mut self) {
+        self.0.send_modify(|n| *n = n.saturating_sub(1));
+    }
+}
+
+/// Announce a capability fetch. Take it **before** opening the subscriptions
+/// whose replay may need the answer, and hold it until the fetch returned.
+pub fn fetch_pending() -> FetchPending {
+    FetchPending::on(&FETCHES_PENDING)
+}
+
+/// [`get_for`], but not while a capability fetch is pending. Costs nothing
+/// otherwise, which is every call but the ones racing a cold start, a
+/// reconnect or a node switch.
+pub async fn get_for_once_settled(node: &str) -> Option<BondPolicyInfo> {
+    wait_settled(FETCHES_PENDING.subscribe(), FETCH_WAIT).await;
+    get_for(node)
+}
+
+/// Until nothing is `pending`, or `wait` at most: an unreachable node must
+/// cost a claim its advertised window, never the claim itself.
+async fn wait_settled(mut pending: watch::Receiver<u32>, wait: Duration) {
+    let _ = timeout(wait, pending.wait_for(|pending| *pending == 0)).await;
 }
 
 #[cfg(test)]
@@ -392,5 +445,76 @@ mod tests {
         assert_eq!(get_for("bb"), None, "another node's answer is not reused");
         clear();
         assert_eq!(get_for("aa"), None);
+    }
+
+    const WAIT: Duration = Duration::from_secs(10);
+
+    fn pending_count() -> &'static watch::Sender<u32> {
+        Box::leak(Box::new(watch::channel(0).0))
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn no_fetch_pending_costs_no_wait() {
+        // Arrange
+        let count = pending_count();
+        let started = tokio::time::Instant::now();
+
+        // Act
+        wait_settled(count.subscribe(), WAIT).await;
+
+        // Assert
+        assert_eq!(started.elapsed(), Duration::ZERO);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_wait_ends_when_the_fetch_concludes() {
+        // Arrange
+        let count = pending_count();
+        let fetch = FetchPending::on(count);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            drop(fetch);
+        });
+        let started = tokio::time::Instant::now();
+
+        // Act
+        wait_settled(count.subscribe(), WAIT).await;
+
+        // Assert
+        assert_eq!(started.elapsed(), Duration::from_secs(2));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn overlapping_fetches_are_waited_for_until_the_last_one() {
+        // Arrange: a flapping pool runs the Online sequence twice at once.
+        let count = pending_count();
+        let (first, second) = (FetchPending::on(count), FetchPending::on(count));
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            drop(first);
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            drop(second);
+        });
+        let started = tokio::time::Instant::now();
+
+        // Act
+        wait_settled(count.subscribe(), WAIT).await;
+
+        // Assert
+        assert_eq!(started.elapsed(), Duration::from_secs(3));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_fetch_that_never_concludes_is_given_up_on() {
+        // Arrange
+        let count = pending_count();
+        let _fetch = FetchPending::on(count);
+        let started = tokio::time::Instant::now();
+
+        // Act
+        wait_settled(count.subscribe(), WAIT).await;
+
+        // Assert
+        assert_eq!(started.elapsed(), WAIT);
     }
 }

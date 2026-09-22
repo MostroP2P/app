@@ -9,6 +9,7 @@ import 'package:mostro/features/settings/models/node_display.dart';
 import 'package:mostro/features/settings/models/node_selector_rules.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// `Agregar nodo propio` (handoff 9b): the public key is the focused,
 /// Manrope-set field — hex digits align so the key can be checked by eye —
@@ -117,155 +118,84 @@ class _AddCustomNodeDialogState extends ConsumerState<AddCustomNodeDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final book = OrderBookPalette.of(context);
     final pal = NodeSelectorPalette.of(context);
     final l10n = AppLocalizations.of(context);
     final canSubmit = _pubkeyValid && !_submitting;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-        decoration: BoxDecoration(
-          color: book.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: book.textPrimary.withValues(alpha: 0.08)),
-          boxShadow: pal.dialogShadow,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              l10n.addCustomNode,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: book.textPrimary,
-              ),
+    return MostroDialog(
+      title: l10n.addCustomNode,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _UnderlineField(
+            controller: _pubkeyCtrl,
+            focusNode: _pubkeyFocus,
+            label: l10n.nodePubkeyFieldLabel,
+            hint: l10n.nodePubkeyFieldHint,
+            errorText: _errorText,
+            primary: true,
+            enabled: !_submitting,
+            onChanged: (_) {
+              if (_errorText != null) setState(() => _errorText = null);
+            },
+            onSubmitted: (_) => _nameFocus.requestFocus(),
+          ).withAutomationId(AutomationIds.nodeCustomPubkey),
+          const SizedBox(height: 14),
+          _UnderlineField(
+            controller: _nameCtrl,
+            focusNode: _nameFocus,
+            label: l10n.nodeNameOptionalLabel,
+            hint: l10n.nodeNameFieldHint,
+            primary: false,
+            enabled: !_submitting,
+            onSubmitted: (_) => _submit(),
+          ).withAutomationId(AutomationIds.nodeCustomName),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: pal.warnBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: pal.warnBorder),
             ),
-            const SizedBox(height: 14),
-            _UnderlineField(
-              controller: _pubkeyCtrl,
-              focusNode: _pubkeyFocus,
-              label: l10n.nodePubkeyFieldLabel,
-              hint: l10n.nodePubkeyFieldHint,
-              errorText: _errorText,
-              primary: true,
-              enabled: !_submitting,
-              onChanged: (_) {
-                if (_errorText != null) setState(() => _errorText = null);
-              },
-              onSubmitted: (_) => _nameFocus.requestFocus(),
-            ).withAutomationId(AutomationIds.nodeCustomPubkey),
-            const SizedBox(height: 14),
-            _UnderlineField(
-              controller: _nameCtrl,
-              focusNode: _nameFocus,
-              label: l10n.nodeNameOptionalLabel,
-              hint: l10n.nodeNameFieldHint,
-              primary: false,
-              enabled: !_submitting,
-              onSubmitted: (_) => _submit(),
-            ).withAutomationId(AutomationIds.nodeCustomName),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-              decoration: BoxDecoration(
-                color: pal.warnBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: pal.warnBorder),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: Icon(
-                      Icons.warning_amber_rounded,
-                      size: 13,
-                      color: pal.dotWarn,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.nodeVerifyKeyWarning,
-                      style: TextStyle(
-                        fontSize: 11,
-                        height: 1.45,
-                        color: pal.warnInk,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  flex: 10,
-                  child: OutlinedButton(
-                    onPressed:
-                        _submitting ? null : () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: book.textBody,
-                      side: BorderSide(color: pal.buttonBorder),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: Text(
-                      l10n.cancel,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ).withAutomationId(AutomationIds.nodeAddCustomCancel),
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 13,
+                    color: pal.dotWarn,
+                  ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
-                  flex: 13,
-                  child: FilledButton(
-                    onPressed: canSubmit ? _submit : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: book.lime,
-                      foregroundColor: book.onLime,
-                      disabledBackgroundColor: pal.ctaDisabledBg,
-                      disabledForegroundColor: pal.ctaDisabledInk,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                  child: Text(
+                    l10n.nodeVerifyKeyWarning,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.45,
+                      color: pal.warnInk,
                     ),
-                    child:
-                        _submitting
-                            ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: book.onLime,
-                              ),
-                            )
-                            : Text(
-                              l10n.addButtonLabel,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                  ).withAutomationId(AutomationIds.nodeCustomConfirm),
+                  ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+      secondary: ModalAction(
+        label: l10n.cancel,
+        onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+        automationId: AutomationIds.nodeAddCustomCancel,
+      ),
+      primary: ModalAction(
+        label: l10n.addButtonLabel,
+        onPressed: canSubmit ? _submit : null,
+        busy: _submitting,
+        automationId: AutomationIds.nodeCustomConfirm,
       ),
     );
   }
@@ -374,9 +304,8 @@ class _UnderlineField extends StatelessWidget {
 
 /// Open the add-own-node dialog over the selector sheet.
 Future<void> showAddCustomNodeDialog(BuildContext context) {
-  return showDialog<void>(
+  return showMostroDialog<void>(
     context: context,
-    barrierColor: OrderBookPalette.of(context).scrim,
     builder: (_) => const AddCustomNodeDialog(),
   );
 }

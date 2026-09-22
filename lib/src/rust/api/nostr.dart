@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_relay_list_event`, `default_relays`, `fetch_and_set_node_capabilities`, `generation_is_newer`, `get_pool`, `load_persisted_relays`, `new`, `note_relay_list_generation`, `persist_relay`, `pool`, `relay_list_seen`, `relay_sync_tx`, `removal_effect`, `resync_with`, `run_resync`, `seed_default_relays`, `select_rates_event`, `tag_value`, `unpersist_relay`
+// These functions are ignored because they are not marked as `pub`: `apply_node_capabilities`, `apply_relay_list_event`, `default_relays`, `fetch_and_set_node_capabilities`, `generation_is_newer`, `get_pool`, `load_persisted_relays`, `new`, `note_relay_list_generation`, `on_pool_online`, `persist_relay`, `pool`, `relay_list_seen`, `relay_sync_tx`, `removal_effect`, `resync_with`, `run_resync`, `seed_default_relays`, `select_rates_event`, `tag_value`, `unpersist_relay`, `watch_connection_state`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ResyncState`
 
 /// Initialize the Nostr client with a relay list.
@@ -69,7 +69,9 @@ Future<int> flushMessageQueue() =>
 ///    id (the relay replaces it in place and replays the node's history; the
 ///    per-order status cursors keep that replay in order), the order-book
 ///    loop, the peer chats and the dispute chats are re-armed — each of them
-///    a no-op when its task is alive.
+///    a no-op when its task is alive. A pass that runs before the relays are
+///    back lands its REQs nowhere; `nostr::live_subs` keeps the intent and
+///    re-issues it on each relay as it connects.
 /// 3. **Outbox.** Whatever was queued while offline is published.
 ///
 /// Single-flight: concurrent calls coalesce onto the pass in progress and

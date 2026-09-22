@@ -1,5 +1,14 @@
 import 'package:mostro/l10n/app_localizations.dart';
 
+/// Whether [error] is the daemon's `NotAllowedByStatus`: the order is not in
+/// the state the request assumed. The Rust core still words this CantDo as
+/// prose; the marker is matched either way.
+bool isStatusRejection(Object error) {
+  final raw = error.toString();
+  return raw.contains('NotAllowedByStatus') ||
+      raw.contains('not allowed in the current order status');
+}
+
 /// Central mapping from the stable error markers the Rust core emits to
 /// localized, actionable messages.
 ///
@@ -33,12 +42,22 @@ String localizedDaemonError(
   if (raw.contains('MaintenanceMode')) {
     return l10n.mostroMaintenanceMode;
   }
+  // The local trade-key counter is behind the node's. Create and take resync
+  // it and retry once (mostro::trade_index), so this is a second refusal.
+  if (raw.contains('InvalidTradeIndex')) {
+    return l10n.invalidTradeIndexError;
+  }
   // The daemon refused the buyer invoice: wrong amount, too short an expiry
   // for its payout window, or not an invoice at all. The Rust core words the
   // CantDo as "invalid Lightning invoice"; the marker is matched either way.
   if (raw.contains('InvalidInvoice') ||
       raw.contains('invalid Lightning invoice')) {
     return l10n.invoiceRejected;
+  }
+  // A second add-invoice while an earlier one still waits for the daemon:
+  // refused before it was sent, so the first keeps its reply.
+  if (raw.contains('InvoiceSubmitInFlight')) {
+    return l10n.invoiceSubmitInFlight;
   }
   // Payout claim submission (docs/ANTI_ABUSE_BOND.md §6.4).
   if (raw.contains('InvoiceAmountMismatch')) {

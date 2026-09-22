@@ -80,6 +80,39 @@ void main() {
       expect(prefs.getInt(kBackupSnoozedUntilKey), isNull);
     });
 
+    test('markAlreadyBackedUp(): clears a reminder armed earlier', () async {
+      SharedPreferences.setMockInitialValues({
+        kBackupReminderActiveKey: true,
+        kBackupReminderDismissedKey: false,
+      });
+
+      final notifier = BackupReminderNotifier();
+      await notifier.load();
+      expect(notifier.state, isTrue);
+
+      await notifier.markAlreadyBackedUp();
+
+      expect(notifier.state, isFalse);
+      final prefs = await _prefs();
+      expect(prefs.getBool(kBackupReminderDismissedKey), isTrue);
+      expect(prefs.getBool(kBackupCompletedKey), isTrue);
+      expect(prefs.getInt(kBackupSnoozedUntilKey), isNull);
+    });
+
+    test('markAlreadyBackedUp(): a load() in flight cannot re-arm it',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        kBackupReminderActiveKey: true,
+        kBackupReminderDismissedKey: false,
+      });
+
+      // The constructor starts load(); do not await it.
+      final notifier = BackupReminderNotifier();
+      await notifier.markAlreadyBackedUp();
+
+      expect(notifier.state, isFalse);
+    });
+
     test('snoozeUntilTomorrow(): hides badge and persists a future snooze',
         () async {
       SharedPreferences.setMockInitialValues({

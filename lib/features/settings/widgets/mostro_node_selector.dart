@@ -20,8 +20,10 @@ import 'package:mostro/features/settings/widgets/node_card.dart';
 import 'package:mostro/features/settings/widgets/node_switch_confirm_sheet.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/dashed_border.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/src/rust/api/node_stats.dart' show MostroNodeStats;
 import 'package:mostro/src/rust/api/types.dart';
 
 export 'package:mostro/features/settings/models/node_display.dart'
@@ -39,9 +41,10 @@ export 'package:mostro/features/settings/widgets/add_custom_node_dialog.dart'
 /// fee, range) before "do I trust it?" (custody, bond). Tapping a card
 /// selects it and the sheet closes on its own; there is no confirm button.
 ///
-/// Figures come from [nodeStatsProvider], fetched while the sheet is open;
-/// until they land the metric strips show skeletons, never a spinner over a
-/// card.
+/// Figures come from [nodeStatsProvider], fetched while the sheet is open.
+/// Until they land each card shows the node's settings as last seen
+/// ([cachedNodeStatsProvider]) and a skeleton for the order count — or
+/// skeletons throughout for a node never seen — never a spinner over a card.
 class MostroNodeSelector extends ConsumerStatefulWidget {
   const MostroNodeSelector({super.key});
 
@@ -156,22 +159,21 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
     if (entry.isTrusted || entry.isActive) return;
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showMostroDialog<bool>(
       context: context,
       builder:
-          (ctx) => AlertDialog(
-            title: Text(l10n.deleteCustomNodeTitle),
-            content: Text(l10n.deleteCustomNodeMessage),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(l10n.cancel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: Text(l10n.deleteCustomNodeConfirm),
-              ),
-            ],
+          (ctx) => MostroDialog(
+            title: l10n.deleteCustomNodeTitle,
+            body: l10n.deleteCustomNodeMessage,
+            secondary: ModalAction(
+              label: l10n.cancel,
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            primary: ModalAction(
+              label: l10n.deleteCustomNodeConfirm,
+              onPressed: () => Navigator.of(ctx).pop(true),
+              tone: ModalTone.destructive,
+            ),
           ),
     );
     if (confirmed != true || !mounted) return;
@@ -222,10 +224,17 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
             : ref.watch(exchangeRateProvider(myFiat)).valueOrNull;
     final now = clock.now();
 
-    final stats = statsAsync.valueOrNull ?? const {};
+    // Live figures win as soon as they exist; the cached settings only fill
+    // the wait (and stay if the fetch fails). They never order the list:
+    // without order counts every node would tie anyway.
+    final stats = statsAsync.valueOrNull;
+    final cachedStats =
+        stats != null
+            ? const <String, MostroNodeStats>{}
+            : ref.watch(cachedNodeStatsProvider).valueOrNull ?? const {};
     final nodes = sortNodes(
       nodesAsync.valueOrNull ?? const [],
-      stats,
+      stats ?? const {},
       myFiat,
       now,
     );
@@ -272,17 +281,23 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
                         final entry = nodes[i];
+                        final live = stats?[entry.pubkey];
                         return NodeCard(
                           key: ValueKey(entry.pubkey),
                           entry: entry,
-                          stats: stats[entry.pubkey],
+                          stats: live ?? cachedStats[entry.pubkey],
+                          statsCached: live == null,
                           statsLoading: statsAsync.isLoading,
                           myFiat: myFiat,
                           flags: flags,
                           btcPrice: btcPrice,
+                          // One radio at a time: while a switch is in
+                          // flight the tapped node owns it, not the node
+                          // that is still active underneath.
                           selected:
-                              entry.isActive ||
-                              entry.pubkey == _selectingPubkey,
+                              _selectingPubkey == null
+                                  ? entry.isActive
+                                  : entry.pubkey == _selectingPubkey,
                           now: now,
                           onSelect: () => _onNodeTap(entry),
                           onBlocked: _onBlocked,
@@ -470,13 +485,11 @@ class _AddOwnNodeButton extends StatelessWidget {
 
 /// Open the node selector as a modal sheet over Settings.
 Future<void> showMostroNodeSelector(BuildContext context) {
-  final book = OrderBookPalette.of(context);
-  return showModalBottomSheet<void>(
+  // A screen, not a question: it paints its own page backdrop and its own
+  // footer, so it opens `bare` rather than inside a [MostroSheet].
+  return showMostroSheet<void>(
     context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: book.scrim,
+    bare: true,
     builder: (_) => const MostroNodeSelector(),
   );
 }

@@ -333,7 +333,28 @@ class NotificationModel {
   int get chatUnreadCount =>
       _isChatCard ? int.tryParse(detail?[_chatCountKey] ?? '') ?? 0 : 0;
 
+  /// A cooperative-cancel request changes no status (protocol `cancel.md`),
+  /// so its card is told apart by the reason, not the status it rode on.
+  String? _cancelRequestTitle(
+    AppLocalizations l10n,
+  ) => switch (detail?[_tradeReasonKey]) {
+    'cooperativeCancelRequestedByMe' => l10n.tradeCardCancelRequestedByMeTitle,
+    'cooperativeCancelRequestedByPeer' =>
+      l10n.tradeCardCancelRequestedByPeerTitle,
+    _ => null,
+  };
+
+  String? _cancelRequestMessage(AppLocalizations l10n) =>
+      switch (detail?[_tradeReasonKey]) {
+        'cooperativeCancelRequestedByMe' =>
+          l10n.tradeCardCancelRequestedByMeMessage,
+        'cooperativeCancelRequestedByPeer' =>
+          l10n.tradeCardCancelRequestedByPeerMessage,
+        _ => null,
+      };
+
   String _tradeTitle(AppLocalizations l10n) =>
+      _cancelRequestTitle(l10n) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceTitle,
         'waitingPayment' => l10n.tradeCardWaitingPaymentTitle,
@@ -353,6 +374,7 @@ class NotificationModel {
       };
 
   String _tradeMessage(AppLocalizations l10n) =>
+      _cancelRequestMessage(l10n) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceMessage,
         'waitingPayment' => l10n.tradeCardWaitingPaymentMessage,

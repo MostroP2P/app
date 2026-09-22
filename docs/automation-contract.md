@@ -64,6 +64,7 @@ fails the build when an identifier is declared and attached to nothing.
 | `bond.claim.status` | The claim's phase as the screen renders it: `pending`, `submitted`, `acknowledged`, `completed`, `expired` (a pending claim past its window reads `expired`). |
 | `bond.claim.order_id` | The exact order ID shown in the claim screen's app bar. |
 | `trade.bondSlashed` | The durable line on the trade detail once this user's own bond was slashed, labelled with the cause (`dispute` / `timeout`); absent otherwise. |
+| `trade.cancelRequest` | The pending cooperative-cancel request on the trade detail (protocol `cancel.md`), this side's or the counterparty's, while the trade is `active` or `fiat-sent`; absent otherwise. |
 | `invoice.nwc.text` | The buyer invoice NWC generated, for payment correlation. |
 | `invoice.error` | The reason the daemon refused the last submitted buyer invoice. Present only after a rejection, until the next submission; the manual form stays open behind it. In the wallet-generated (NWC) branch, which has no form, the readout comes with `invoice.manual` so the buyer can switch to manual entry. |
 | `settings.relays.item.<url>` | The relay's URL. |

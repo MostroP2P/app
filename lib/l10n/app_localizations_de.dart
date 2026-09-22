@@ -722,6 +722,36 @@ class AppLocalizationsDe extends AppLocalizations {
       'Abbrechen fehlgeschlagen. Bitte erneut versuchen.';
 
   @override
+  String get tradeCardCancelRequestedByMeTitle => 'Stornierung angefragt';
+
+  @override
+  String get tradeCardCancelRequestedByMeMessage =>
+      'Du hast die Stornierung dieses Handels angefragt. Er bleibt offen, bis die Gegenpartei ebenfalls storniert. Antwortet sie nicht, kannst du einen Streitfall eröffnen.';
+
+  @override
+  String get tradeCardCancelRequestedByPeerTitle =>
+      'Die Gegenpartei möchte stornieren';
+
+  @override
+  String get tradeCardCancelRequestedByPeerMessage =>
+      'Sie hat die Stornierung dieses Handels angefragt. Nimm an, um ihn ohne Geldbewegung zu beenden, oder handle weiter.';
+
+  @override
+  String get tradeCancelRequestedByMeNotice =>
+      'Du hast die Stornierung dieses Handels angefragt. Er bleibt offen, bis die Gegenpartei ebenfalls storniert. Antwortet sie nicht, kannst du einen Streitfall eröffnen.';
+
+  @override
+  String get tradeCancelRequestedByPeerNotice =>
+      'Die Gegenpartei hat die Stornierung dieses Handels angefragt. Nimm an, um ihn ohne Geldbewegung zu beenden, oder handle weiter.';
+
+  @override
+  String get acceptCancelButton => 'Stornierung annehmen';
+
+  @override
+  String get cancelTradeDialogContentAccept =>
+      'Die Gegenpartei hat die Stornierung angefragt. Wenn du jetzt stornierst, endet der Handel für beide, ohne dass Geld bewegt wird.';
+
+  @override
   String get fiatSentFailed =>
       'Fiat-Zahlung konnte nicht bestätigt werden. Bitte erneut versuchen.';
 
@@ -1507,6 +1537,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String timeLeftLabel(String time) {
     return '$time übrig';
   }
+
+  @override
+  String get invoiceNoLongerExpected =>
+      'Diese Order wartet nicht mehr auf eine Rechnung. Status wird aktualisiert…';
+
+  @override
+  String get invoiceSubmitInFlight =>
+      'Für diese Order wird bereits eine Rechnung gesendet. Warte auf die Antwort.';
 
   @override
   String get waitingForTradeAmount =>
@@ -3534,4 +3572,87 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get invalidTradeIndexError =>
+      'Dein Konto ist nicht mit diesem Mostro-Knoten synchronisiert, daher wurde die Order abgelehnt. Versuche es gleich noch einmal';
+
+  @override
+  String get recoveringTradesMessage =>
+      'Konto importiert. Deine Trades werden von Mostro wiederhergestellt…';
+
+  @override
+  String recoveredTradesMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Konto importiert. $count Trades wiederhergestellt',
+      one: 'Konto importiert. 1 Trade wiederhergestellt',
+      zero: 'Konto importiert. Du hattest keine laufenden Trades',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get recoverTradesFailedMessage =>
+      'Konto importiert, aber Mostro hat nicht geantwortet, daher wurden deine laufenden Trades nicht wiederhergestellt';
+
+  @override
+  String get paymentMethodsChosenLabel => 'Ausgewählt';
+
+  @override
+  String paymentMethodsSelectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Methoden ausgewählt',
+      one: '1 Methode ausgewählt',
+      zero: 'Wähle mindestens eine Methode',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get paymentMethodsConfirm => 'Methoden bestätigen';
+
+  @override
+  String get paymentMethodAddCustom => 'Eigene Zahlungsmethode hinzufügen';
+
+  @override
+  String get paymentMethodsDiscardTitle => 'Änderungen verwerfen?';
+
+  @override
+  String get paymentMethodsDiscardConfirm => 'Verwerfen';
+
+  @override
+  String get paymentMethodsKeepEditing => 'Weiter bearbeiten';
+
+  @override
+  String get fundsAtRiskTitle => 'Dieser Benutzer hat noch Sats im Spiel';
+
+  @override
+  String get fundsAtRiskBody =>
+      'Wenn du fortfährst, werden die Schlüssel dieses Benutzers ersetzt, und nichts von dem hier Aufgeführten kann von diesem Gerät aus abgeschlossen oder wiederhergestellt werden. Das wird nicht empfohlen: Du kannst diese Sats verlieren.';
+
+  @override
+  String get fundsAtRiskSellerEscrow =>
+      'Sats für einen Verkauf treuhänderisch gesperrt';
+
+  @override
+  String get fundsAtRiskBondLocked => 'Kaution gesperrt';
+
+  @override
+  String get fundsAtRiskPayoutClaim => 'Kautionsauszahlung noch nicht abgeholt';
+
+  @override
+  String get fundsAtRiskTradeInProgress => 'Handel läuft';
+
+  @override
+  String get fundsAtRiskBondInvoicePending => 'Kautionsrechnung noch zahlbar';
+
+  @override
+  String get fundsAtRiskKeep => 'Diesen Benutzer behalten';
+
+  @override
+  String get fundsAtRiskContinue => 'Trotzdem fortfahren';
 }

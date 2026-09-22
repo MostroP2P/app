@@ -11,6 +11,7 @@ import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/trade_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart' show BottomNavBar;
 import 'package:mostro/shared/widgets/tab_app_bar.dart';
 
@@ -175,49 +176,33 @@ class _Header extends ConsumerWidget {
   ) async {
     final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
-    final picked = await showModalBottomSheet<TradeListFilter>(
+    final picked = await showMostroSheet<TradeListFilter>(
       context: context,
-      backgroundColor: book.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
       builder:
-          (ctx) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 14, 8, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
-                    child: Text(
-                      l10n.tradeListFilterTitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: book.textPrimary,
-                      ),
+          (ctx) => MostroSheet(
+            title: l10n.tradeListFilterTitle,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final f in TradeListFilter.values)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    title: Text(
+                      filterText(f, l10n),
+                      style: TextStyle(fontSize: 13, color: book.textStrong),
+                    ),
+                    trailing:
+                        f == current
+                            ? Icon(Icons.check_rounded, color: book.limeIcon)
+                            : null,
+                    onTap: () => Navigator.of(ctx).pop(f),
                   ),
-                  for (final f in TradeListFilter.values)
-                    ListTile(
-                      dense: true,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      title: Text(
-                        filterText(f, l10n),
-                        style: TextStyle(fontSize: 13, color: book.textStrong),
-                      ),
-                      trailing:
-                          f == current
-                              ? Icon(Icons.check_rounded, color: book.limeIcon)
-                              : null,
-                      onTap: () => Navigator.of(ctx).pop(f),
-                    ),
-                ],
-              ),
+              ],
             ),
           ),
     );

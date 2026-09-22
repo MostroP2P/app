@@ -43,6 +43,10 @@ class AutomationIds {
   static const String keysGenerateConfirm = 'keys.generate.confirm';
   static const String keysGenerateCancel = 'keys.generate.cancel';
   static const String keysImport = 'keys.import';
+  // The warning shown before a generate or an import while the current
+  // identity still has escrow, bonds or trades in flight (issue #533).
+  static const String keysFundsAtRiskKeep = 'keys.funds_at_risk.keep';
+  static const String keysFundsAtRiskContinue = 'keys.funds_at_risk.continue';
 
   /// Readout: the identity's full public key, for a driver to prove the
   /// identity it onboarded is the one the app still holds.
@@ -142,6 +146,12 @@ class AutomationIds {
   static const String orderCreatePaymentMethod = 'order.create.payment_method';
   static const String orderCreatePaymentMethodCustomAdd =
       'order.create.payment_method.custom_add';
+  // Dashed row at the end of the list that opens the free-text sheet, and
+  // the bottom bar's button, the only way the selection reaches the form.
+  static const String orderCreatePaymentMethodCustomOpen =
+      'order.create.payment_method.custom_open';
+  static const String orderCreatePaymentMethodsConfirm =
+      'order.create.payment_methods.confirm';
   // `Market | Fixed` control, as a whole and per segment. Fixed is disabled
   // while a range order is being written.
   static const String orderCreatePriceType = 'order.create.price_type';
@@ -194,6 +204,7 @@ class AutomationIds {
   /// the cause (`dispute` / `timeout`); absent unless this user's bond was
   /// slashed.
   static const String tradeBondSlashed = 'trade.bondSlashed';
+  static const String tradeCancelRequest = 'trade.cancelRequest';
   static const String bondSlashedViewPolicy = 'bond.slashed.viewPolicy';
 
   /// Present only while the slashed trade's row still exists (a timeout

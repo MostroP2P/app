@@ -714,6 +714,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancelRequestFailed => 'Failed to cancel. Please try again.';
 
   @override
+  String get tradeCardCancelRequestedByMeTitle => 'Cancel requested';
+
+  @override
+  String get tradeCardCancelRequestedByMeMessage =>
+      'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.';
+
+  @override
+  String get tradeCardCancelRequestedByPeerTitle =>
+      'The other party wants to cancel';
+
+  @override
+  String get tradeCardCancelRequestedByPeerMessage =>
+      'They asked to cancel this trade. Accept to end it with no funds moved, or keep trading.';
+
+  @override
+  String get tradeCancelRequestedByMeNotice =>
+      'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.';
+
+  @override
+  String get tradeCancelRequestedByPeerNotice =>
+      'The other party asked to cancel this trade. Accept to end it with no funds moved, or keep trading.';
+
+  @override
+  String get acceptCancelButton => 'Accept cancel';
+
+  @override
+  String get cancelTradeDialogContentAccept =>
+      'The other party asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.';
+
+  @override
   String get fiatSentFailed => 'Failed to mark fiat as sent. Please try again.';
 
   @override
@@ -1483,6 +1513,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String timeLeftLabel(String time) {
     return '$time left';
   }
+
+  @override
+  String get invoiceNoLongerExpected =>
+      'This order is no longer waiting for an invoice. Updating its status…';
+
+  @override
+  String get invoiceSubmitInFlight =>
+      'An invoice for this order is already being sent. Wait for the reply.';
 
   @override
   String get waitingForTradeAmount =>
@@ -3489,4 +3527,86 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get invalidTradeIndexError =>
+      'Your account is out of sync with this Mostro node, so it refused the order. Try again in a moment';
+
+  @override
+  String get recoveringTradesMessage =>
+      'Account imported. Recovering your trades from Mostro…';
+
+  @override
+  String recoveredTradesMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Account imported. $count trades recovered',
+      one: 'Account imported. 1 trade recovered',
+      zero: 'Account imported. You had no trades in progress',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get recoverTradesFailedMessage =>
+      'Account imported, but Mostro did not answer, so your trades in progress were not recovered';
+
+  @override
+  String get paymentMethodsChosenLabel => 'Chosen';
+
+  @override
+  String paymentMethodsSelectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count methods selected',
+      one: '1 method selected',
+      zero: 'Choose at least one method',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get paymentMethodsConfirm => 'Confirm methods';
+
+  @override
+  String get paymentMethodAddCustom => 'Add custom payment method';
+
+  @override
+  String get paymentMethodsDiscardTitle => 'Discard the changes?';
+
+  @override
+  String get paymentMethodsDiscardConfirm => 'Discard';
+
+  @override
+  String get paymentMethodsKeepEditing => 'Keep editing';
+
+  @override
+  String get fundsAtRiskTitle => 'This user still has sats in play';
+
+  @override
+  String get fundsAtRiskBody =>
+      'If you continue, this user\'s keys are replaced and nothing listed here can be finished or recovered from this device. This is not recommended: you can lose these sats.';
+
+  @override
+  String get fundsAtRiskSellerEscrow => 'Sats locked in escrow for a sale';
+
+  @override
+  String get fundsAtRiskBondLocked => 'Bond locked';
+
+  @override
+  String get fundsAtRiskPayoutClaim => 'Bond payout not collected yet';
+
+  @override
+  String get fundsAtRiskTradeInProgress => 'Trade in progress';
+
+  @override
+  String get fundsAtRiskBondInvoicePending => 'Bond invoice still payable';
+
+  @override
+  String get fundsAtRiskKeep => 'Keep this user';
+
+  @override
+  String get fundsAtRiskContinue => 'Continue anyway';
 }

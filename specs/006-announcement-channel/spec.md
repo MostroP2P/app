@@ -83,7 +83,7 @@ Worth reading before §4, because it is where a straight port would go wrong:
 |---|---|---|
 | Parsing, allowlist decoding, signature verification, freshness, storage — all in Dart | **all in Rust** | Golden rule: Nostr protocol, cryptography and business logic live in `rust/src/`; Dart is UI, navigation and device I/O. `.specify/ARCHITECTURE.md`, constitution Principle I |
 | A new bell, a new screen, a new `shared_preferences` cache | **reuses `NotificationType.system`, `SystemNotificationBanner`, `NotificationBell` and the Sembast store** | They already exist and already render exactly this shape |
-| 4 locales (`en`, `es`, `ja`, `pt`) | **5 locales** (`en`, `es`, `fr`, `de`, `it`) | `lib/l10n/app_{en,es,fr,de,it}.arb` |
+| 4 locales (`en`, `es`, `ja`, `pt`) | **6 locales** (`en`, `es`, `fr`, `de`, `it`, `nl`) | `lib/l10n/app_{en,es,fr,de,it,nl}.arb` |
 | `tool/announce.dart` could not call the app's parser (plain Dart VM vs `dart:ui`), so constants were duplicated and pinned by a test | **the publisher tool is a Rust binary in the same crate and calls the real parser directly** | No duplication to drift; the tool literally cannot accept what the app would drop |
 | Version from `package_info_plus` | `get_app_version()` in `rust/src/api/mod.rs` | already bridged, and fixed in this PR — §4.3 |
 
@@ -163,7 +163,7 @@ That consequence is discharged in **MostroP2P/protocol#56**, which registers the
 and describes the event in `src/announcement_event.md`. A number reserved only in this
 document would not be reserved — the registry is what stops the next Mostro client from
 picking `38387` for something else. Where the two documents overlap, the protocol one is
-the wire contract and this one is how this app implements it; §3.2's five-locale rule is
+the wire contract and this one is how this app implements it; §3.2's six-locale rule is
 this app's policy, which the protocol document explicitly leaves to each project.
 
 Being addressable (30000–39999) is the part that matters functionally: it is what makes
@@ -222,7 +222,8 @@ way to fail it.
     "es": { "title": "…", "body": "…" },
     "fr": { "title": "…", "body": "…" },
     "de": { "title": "…", "body": "…" },
-    "it": { "title": "…", "body": "…" }
+    "it": { "title": "…", "body": "…" },
+    "nl": { "title": "…", "body": "…" }
   },
   "url": "https://mostro.network/…"
 }
@@ -232,19 +233,19 @@ way to fail it.
 |---|---|---|
 | `v` | yes | schema version, `1` today. An unknown `v` is **ignored**, never rendered best-effort |
 | `severity` | yes | one of `info`, `warning`, `critical` — see §3.4 |
-| `locales` | yes | must contain **exactly** `en`, `es`, `fr`, `de`, `it`. A missing one, or an unknown extra one, makes the announcement **invalid** |
+| `locales` | yes | must contain **exactly** `en`, `es`, `fr`, `de`, `it`, `nl`. A missing one, or an unknown extra one, makes the announcement **invalid** |
 | `locales[x].title` | yes | ≤ 80 characters after trimming |
 | `locales[x].body` | yes | ≤ 500 characters after trimming |
 | `url` | no | exactly one action link, `https` scheme only |
 
-All five required is deliberately stricter than "must contain `en`". A fallback to English
+All six required is deliberately stricter than "must contain `en`". A fallback to English
 is a bug that ships quietly: the Italian reader gets English, nothing is logged, and the
-sender never finds out. Every announcement is written once, by hand — "translate all five
+sender never finds out. Every announcement is written once, by hand — "translate all six
 before publishing" is minutes paid at publish time by someone who can see the problem, and
 §8's validator makes it a hard stop rather than a habit.
 
 An unknown extra key is rejected for the same reason and not out of tidiness: it is the
-shape a sixth locale takes, and quietly ignoring it leaves the sender believing they
+shape a new locale takes, and quietly ignoring it leaves the sender believing they
 reached a language the installed app cannot render. When the app gains a locale, this list
 and `AppLocalizations.supportedLocales` change in the same release.
 
@@ -255,14 +256,14 @@ with rendering arbitrary content inside a Bitcoin exchange client.
 ### 3.3 Why all locales ride in one event
 
 The idiomatic Nostr alternative is one event per language tagged `["l", "es"]`. It is
-worse here: it turns one publish into five, lets a user's relay set deliver two of them
+worse here: it turns one publish into six, lets a user's relay set deliver two of them
 and not the others, and leaves the app deciding whether three events are one announcement
 or three. One event carrying every translation cannot half-arrive.
 
 The cost is that this copy does not live in `lib/l10n/*.arb` and so is outside the l10n
 workflow. That is inherent — the text is written after the build ships. The chrome around
 it (screen title, empty state, the settings toggle) is localized normally, and per
-CLAUDE.md the Rust side still translates nothing: it returns all five locales and Dart
+CLAUDE.md the Rust side still translates nothing: it returns all six locales and Dart
 picks.
 
 ### 3.4 Severity
@@ -530,7 +531,7 @@ A new `rust/src/api/announcements.rs` exposing:
 | `mark_announcement_read(address)` / `dismiss_announcement(address)` | read/dismiss state, stored beside the event |
 
 `Announcement` carries the address, the revision, `created_at`, `expiration`, the optional
-`url`, and **all five locales**. Rust does not pick a language — CLAUDE.md, "Rust does not
+`url`, and **all six locales**. Rust does not pick a language — CLAUDE.md, "Rust does not
 translate."
 
 Adding `rust/src/api/announcements.rs` means `./scripts/frb-generate.sh` must run, and the
@@ -570,7 +571,7 @@ notification.
 ## 7. Consent
 
 A fifth toggle — **Announcements** — in `NotificationSettingsScreen`, beside trade updates,
-messages, payments and disputes. Localized in all five languages.
+messages, payments and disputes. Localized in all six languages.
 
 Unlike its four neighbours, which are `shared_preferences` keys, this one is persisted in
 the **Rust settings table** (`rust/src/api/settings.rs`, the existing key-value `settings`
@@ -619,7 +620,7 @@ What the sender owes:
    is `(kind, pubkey, d)`. Republishing from a different allowlisted key creates a second
    announcement, not a fix.
 2. An `expiration` that is actually in the future.
-3. All five locales, and no others. No partial publish, no fallback (§3.2).
+3. All six locales, and no others. No partial publish, no fallback (§3.2).
 4. A `severity` that is one of the three, and honestly chosen — §3.4's last paragraph.
 5. A `url` that is `https`, if any.
 6. Version bounds, if any, that parse: no build metadata, and `max_version` is the version
@@ -635,7 +636,7 @@ copy of the schema constants to drift.
 
 ```sh
 cargo run --bin announce -- --template > draft.json
-# edit draft.json — all five locales, an expiry in the future
+# edit draft.json — all six locales, an expiry in the future
 cargo run --bin announce -- draft.json --out event.json
 nak event --sec <the offline key> wss://relay.mostro.network < event.json
 ```
@@ -667,7 +668,7 @@ Rust unless stated otherwise. The pure-function layer needs no relay and no data
 | Version source | the version the bounds compare against is the shipped release version, and drift between `rust/Cargo.toml` and `pubspec.yaml` fails the suite — **already covered** by `app_version_matches_pubspec` and `app_version_carries_no_build_number` (§4.3) |
 | Consent | off ⇒ no subscription opened; switching off closes it at the tap and an event arriving immediately after is not processed; switching back on resumes delivery |
 | Publisher tool | every §8 obligation rejected with a message naming the fix; the emitted event clears the app's own parser; a hand-built bad event does not, so the check has teeth |
-| Dart widget | each of the five locales renders its own copy; the system banner shows title, body and the link button; read and dismiss persist across a restart; the dot appears only when something is unread |
+| Dart widget | each of the six locales renders its own copy; the system banner shows title, body and the link button; read and dismiss persist across a restart; the dot appears only when something is unread |
 
 Both suites gate this feature: `cd rust && cargo test && cargo clippy`, then
 `flutter analyze && flutter test`.
@@ -685,7 +686,7 @@ PR per step, per the workflow in CLAUDE.md.
 | 1 | §3 parsing and validation + the §4.1 allowlist, as pure Rust functions — no relay, no DB, no UI | Everything rests on it, and it is the cheapest thing to get wrong quietly. Ships with the allowlist **empty**, which is inert by construction |
 | 2 | Fetch, verify, freshness, expiry, the `announcements` table and the schema bump (§4.2, §5) | Testable without a screen |
 | 3 | The bridge surface + the Announcements toggle (§6.1, §7), then `./scripts/frb-generate.sh` | The off switch before the surface |
-| 4 | Rendering into the existing notification surface, five locales of chrome (§6.2) | Last, when there is something to show |
+| 4 | Rendering into the existing notification surface, six locales of chrome (§6.2) | Last, when there is something to show |
 | 5 | `rust/src/bin/announce.rs` + the publishing doc (§8) | With or just after step 1, sharing its validator |
 | 6 | **Add the real npubs** — one line, its own PR, npubs checked against a source outside this repo | The only commit that makes the channel live |
 | 7 | **Land MostroP2P/protocol#56** — the `38387` registration (§3) | A number reserved only in this repo is not reserved; it should land before the reader ships, and it depends on nothing here |

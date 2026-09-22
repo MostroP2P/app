@@ -12,6 +12,7 @@ import 'package:mostro/features/settings/models/settings_rows.dart';
 import 'package:mostro/features/settings/providers/relays_provider.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/dashed_border.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/types.dart' show RelayInfo;
@@ -83,14 +84,14 @@ class RelaysScreen extends ConsumerWidget {
     final controller = TextEditingController();
     String? errorText;
 
-    final url = await showDialog<String>(
+    final url = await showMostroDialog<String>(
       context: context,
       builder:
           (ctx) => StatefulBuilder(
             builder: (ctx, setDialogState) {
               final l10n = AppLocalizations.of(ctx);
-              return AlertDialog(
-                title: Text(l10n.addRelayDialogTitle),
+              return MostroDialog(
+                title: l10n.addRelayDialogTitle,
                 content: TextField(
                   controller: controller,
                   autocorrect: false,
@@ -105,28 +106,28 @@ class RelaysScreen extends ConsumerWidget {
                     }
                   },
                 ).withAutomationId(AutomationIds.settingsRelaysAddUrl),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: Text(l10n.cancel),
-                  ).withAutomationId(AutomationIds.settingsRelaysAddCancel),
-                  TextButton(
-                    onPressed: () {
-                      // Canonicalized before anything else looks at it: a relay
-                      // written with and without a trailing slash is the same
-                      // relay, and two rows for it would share one automation
-                      // identifier, which no driver could then tell apart.
-                      final candidate = canonicalRelayUrl(controller.text);
-                      final error = _validateRelayUrl(candidate, relays, l10n);
-                      if (error != null) {
-                        setDialogState(() => errorText = error);
-                        return;
-                      }
-                      Navigator.of(ctx).pop(candidate);
-                    },
-                    child: Text(l10n.addButtonLabel),
-                  ).withAutomationId(AutomationIds.settingsRelaysAddConfirm),
-                ],
+                secondary: ModalAction(
+                  label: l10n.cancel,
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  automationId: AutomationIds.settingsRelaysAddCancel,
+                ),
+                primary: ModalAction(
+                  label: l10n.addButtonLabel,
+                  automationId: AutomationIds.settingsRelaysAddConfirm,
+                  onPressed: () {
+                    // Canonicalized before anything else looks at it: a relay
+                    // written with and without a trailing slash is the same
+                    // relay, and two rows for it would share one automation
+                    // identifier, which no driver could then tell apart.
+                    final candidate = canonicalRelayUrl(controller.text);
+                    final error = _validateRelayUrl(candidate, relays, l10n);
+                    if (error != null) {
+                      setDialogState(() => errorText = error);
+                      return;
+                    }
+                    Navigator.of(ctx).pop(candidate);
+                  },
+                ),
               );
             },
           ),

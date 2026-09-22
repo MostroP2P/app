@@ -20,6 +20,7 @@ import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/bond_claim_banner.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 /// Detail screen for an order created by the current user (handoff 6a/6b).
@@ -289,14 +290,23 @@ class _AmountBlock extends StatelessWidget {
         children: [
           Row(
             children: [
-              _SideChip(
-                label:
-                    isSelling ? l10n.orderSideChipSell : l10n.orderSideChipBuy,
-                color: isSelling ? pal.sellInk : pal.buyInk,
-                fill: isSelling ? pal.sellChipBg : pal.buyChipBg,
-                border: isSelling ? pal.sellChipBorder : pal.buyChipBorder,
+              // Takes the room the currency chip leaves, so a long label at a
+              // large text size ellipsizes instead of overflowing the card.
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: _SideChip(
+                    label: isSelling
+                        ? l10n.orderSideChipSell
+                        : l10n.orderSideChipBuy,
+                    color: isSelling ? pal.sellInk : pal.buyInk,
+                    fill: isSelling ? pal.sellChipBg : pal.buyChipBg,
+                    border:
+                        isSelling ? pal.sellChipBorder : pal.buyChipBorder,
+                  ),
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               OrderCurrencyChip(flag: flag, code: order.fiatCode),
             ],
           ),
@@ -378,6 +388,8 @@ class _SideChip extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         semanticsLabel: label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
@@ -426,91 +438,34 @@ class _CancelButton extends StatelessWidget {
                   color: pal.danger,
                 ),
               )
-              : Text(l10n.cancel),
+              // One line, shrunk to fit at large text sizes, rather than
+              // breaking the word ("Annulere/n").
+              : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(l10n.cancel, maxLines: 1),
+              ),
     ).withAutomationId(AutomationIds.tradeCancel);
   }
 }
 
 /// The confirmation sheet: never cancel in a single tap.
 Future<bool?> _confirmCancel(BuildContext context) {
-  final book = OrderBookPalette.of(context);
-  final pal = OrderDetailPalette.of(context);
-  return showModalBottomSheet<bool>(
+  return showMostroSheet<bool>(
     context: context,
-    backgroundColor: book.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
     builder: (ctx) {
       final l10n = AppLocalizations.of(ctx);
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: pal.sheetHandle,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                l10n.cancelOrderSheetTitle,
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: book.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.cancelOrderSheetBody,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: book.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: book.sell,
-                  foregroundColor: book.onSell,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  textStyle: const TextStyle(
-                    fontFamily: AppFonts.ui,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                child: Text(l10n.yesCancelButtonLabel),
-              ).withAutomationId(AutomationIds.tradeCancelConfirm),
-              const SizedBox(height: 4),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                style: TextButton.styleFrom(
-                  foregroundColor: book.textSecondary,
-                  textStyle: const TextStyle(
-                    fontFamily: AppFonts.ui,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                child: Text(l10n.goBackButtonLabel),
-              ),
-            ],
-          ),
+      return MostroSheet(
+        title: l10n.cancelOrderSheetTitle,
+        body: l10n.cancelOrderSheetBody,
+        secondary: ModalAction(
+          label: l10n.goBackButtonLabel,
+          onPressed: () => Navigator.of(ctx).pop(false),
+        ),
+        primary: ModalAction(
+          label: l10n.yesCancelButtonLabel,
+          onPressed: () => Navigator.of(ctx).pop(true),
+          tone: ModalTone.destructive,
+          automationId: AutomationIds.tradeCancelConfirm,
         ),
       );
     },

@@ -7,14 +7,15 @@ import 'package:mostro/features/account/providers/backup_reminder_provider.dart'
 import 'package:mostro/features/account/screens/backup_ritual_screen.dart';
 import 'package:mostro/features/account/widgets/backup_widgets.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// Opens the `Secure your reputation` sheet (15c).
 Future<void> showBackupTriggerSheet(BuildContext context) {
-  return showModalBottomSheet<void>(
+  // Keeps its own hero body — it invites into the 3-step ritual rather than
+  // asking a question — so it opens `bare` and paints its own surface.
+  return showMostroSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: BackupPalette.of(context).scrim,
+    bare: true,
     builder: (_) => const BackupTriggerSheet(),
   );
 }
@@ -43,7 +44,9 @@ class BackupTriggerSheet extends ConsumerWidget {
       decoration: BoxDecoration(
         color: book.surface,
         border: Border.all(color: pal.sheetBorder),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadius.modal),
+        ),
       ),
       padding: EdgeInsets.fromLTRB(
         18,

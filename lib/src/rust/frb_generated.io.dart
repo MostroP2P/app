@@ -20,6 +20,7 @@ import 'api/orders.dart';
 import 'api/push.dart';
 import 'api/reputation.dart';
 import 'api/settings.dart';
+import 'api/trade_touch.dart';
 import 'api/types.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -79,6 +80,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderBookPtr;
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_OrderDeltaStreamPtr =>
+      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStreamPtr;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_OrdersStreamPtr =>
       wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStreamPtr;
 
@@ -105,6 +110,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_TradeKeyIndexStreamPtr =>
       wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStreamPtr;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_TradeTouchStreamPtr =>
+      wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStreamPtr;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_TradeUpdatesStreamPtr =>
@@ -188,6 +197,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDeltaStream
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    dynamic raw,
+  );
+
+  @protected
   OrdersStream
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     dynamic raw,
@@ -226,6 +241,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   TradeKeyIndexStream
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
+    dynamic raw,
+  );
+
+  @protected
+  TradeTouchStream
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
     dynamic raw,
   );
 
@@ -308,6 +329,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDeltaStream
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    dynamic raw,
+  );
+
+  @protected
   OrdersStream
   dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     dynamic raw,
@@ -346,6 +373,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   TradeKeyIndexStream
   dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
+    dynamic raw,
+  );
+
+  @protected
+  TradeTouchStream
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
     dynamic raw,
   );
 
@@ -440,6 +473,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDeltaStream
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    dynamic raw,
+  );
+
+  @protected
   OrdersStream
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     dynamic raw,
@@ -478,6 +517,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   TradeKeyIndexStream
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
+    dynamic raw,
+  );
+
+  @protected
+  TradeTouchStream
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
     dynamic raw,
   );
 
@@ -604,6 +649,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   NwcWalletInfo dco_decode_box_autoadd_nwc_wallet_info(dynamic raw);
 
   @protected
+  OrderDelta dco_decode_box_autoadd_order_delta(dynamic raw);
+
+  @protected
   OrderFilters dco_decode_box_autoadd_order_filters(dynamic raw);
 
   @protected
@@ -626,6 +674,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TradeRole dco_decode_box_autoadd_trade_role(dynamic raw);
+
+  @protected
+  TradeTouch dco_decode_box_autoadd_trade_touch(dynamic raw);
 
   @protected
   TradeUpdate dco_decode_box_autoadd_trade_update(dynamic raw);
@@ -682,6 +733,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FileType dco_decode_file_type(dynamic raw);
 
   @protected
+  FundsAtRisk dco_decode_funds_at_risk(dynamic raw);
+
+  @protected
+  FundsAtRiskReason dco_decode_funds_at_risk_reason(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -710,6 +767,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<FiatOrderCount> dco_decode_list_fiat_order_count(dynamic raw);
+
+  @protected
+  List<FundsAtRisk> dco_decode_list_funds_at_risk(dynamic raw);
 
   @protected
   List<List<String>> dco_decode_list_list_String(dynamic raw);
@@ -825,6 +885,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   NwcWalletInfo? dco_decode_opt_box_autoadd_nwc_wallet_info(dynamic raw);
 
   @protected
+  OrderDelta? dco_decode_opt_box_autoadd_order_delta(dynamic raw);
+
+  @protected
   OrderFilters? dco_decode_opt_box_autoadd_order_filters(dynamic raw);
 
   @protected
@@ -849,6 +912,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TradeRole? dco_decode_opt_box_autoadd_trade_role(dynamic raw);
 
   @protected
+  TradeTouch? dco_decode_opt_box_autoadd_trade_touch(dynamic raw);
+
+  @protected
   TradeUpdate? dco_decode_opt_box_autoadd_trade_update(dynamic raw);
 
   @protected
@@ -870,6 +936,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<OrderInfo>? dco_decode_opt_list_order_info(dynamic raw);
+
+  @protected
+  OrderBookSnapshot dco_decode_order_book_snapshot(dynamic raw);
+
+  @protected
+  OrderDelta dco_decode_order_delta(dynamic raw);
 
   @protected
   OrderFilters dco_decode_order_filters(dynamic raw);
@@ -936,6 +1008,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TradeStep dco_decode_trade_step(dynamic raw);
+
+  @protected
+  TradeTouch dco_decode_trade_touch(dynamic raw);
 
   @protected
   TradeUpdate dco_decode_trade_update(dynamic raw);
@@ -1034,6 +1109,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDeltaStream
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   OrdersStream
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     SseDeserializer deserializer,
@@ -1072,6 +1153,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   TradeKeyIndexStream
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TradeTouchStream
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
     SseDeserializer deserializer,
   );
 
@@ -1154,6 +1241,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDeltaStream
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   OrdersStream
   sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     SseDeserializer deserializer,
@@ -1192,6 +1285,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   TradeKeyIndexStream
   sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TradeTouchStream
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
     SseDeserializer deserializer,
   );
 
@@ -1286,6 +1385,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDeltaStream
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   OrdersStream
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     SseDeserializer deserializer,
@@ -1324,6 +1429,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   TradeKeyIndexStream
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  TradeTouchStream
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
     SseDeserializer deserializer,
   );
 
@@ -1470,6 +1581,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDelta sse_decode_box_autoadd_order_delta(SseDeserializer deserializer);
+
+  @protected
   OrderFilters sse_decode_box_autoadd_order_filters(
     SseDeserializer deserializer,
   );
@@ -1498,6 +1612,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TradeRole sse_decode_box_autoadd_trade_role(SseDeserializer deserializer);
+
+  @protected
+  TradeTouch sse_decode_box_autoadd_trade_touch(SseDeserializer deserializer);
 
   @protected
   TradeUpdate sse_decode_box_autoadd_trade_update(SseDeserializer deserializer);
@@ -1562,6 +1679,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FileType sse_decode_file_type(SseDeserializer deserializer);
 
   @protected
+  FundsAtRisk sse_decode_funds_at_risk(SseDeserializer deserializer);
+
+  @protected
+  FundsAtRiskReason sse_decode_funds_at_risk_reason(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -1594,6 +1719,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<FiatOrderCount> sse_decode_list_fiat_order_count(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<FundsAtRisk> sse_decode_list_funds_at_risk(SseDeserializer deserializer);
 
   @protected
   List<List<String>> sse_decode_list_list_String(SseDeserializer deserializer);
@@ -1735,6 +1863,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  OrderDelta? sse_decode_opt_box_autoadd_order_delta(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   OrderFilters? sse_decode_opt_box_autoadd_order_filters(
     SseDeserializer deserializer,
   );
@@ -1775,6 +1908,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TradeTouch? sse_decode_opt_box_autoadd_trade_touch(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TradeUpdate? sse_decode_opt_box_autoadd_trade_update(
     SseDeserializer deserializer,
   );
@@ -1800,6 +1938,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<OrderInfo>? sse_decode_opt_list_order_info(SseDeserializer deserializer);
+
+  @protected
+  OrderBookSnapshot sse_decode_order_book_snapshot(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OrderDelta sse_decode_order_delta(SseDeserializer deserializer);
 
   @protected
   OrderFilters sse_decode_order_filters(SseDeserializer deserializer);
@@ -1870,6 +2016,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TradeStep sse_decode_trade_step(SseDeserializer deserializer);
+
+  @protected
+  TradeTouch sse_decode_trade_touch(SseDeserializer deserializer);
 
   @protected
   TradeUpdate sse_decode_trade_update(SseDeserializer deserializer);
@@ -1985,6 +2134,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    OrderDeltaStream self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     OrdersStream self,
     SseSerializer serializer,
@@ -2029,6 +2185,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
     TradeKeyIndexStream self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
+    TradeTouchStream self,
     SseSerializer serializer,
   );
 
@@ -2125,6 +2288,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    OrderDeltaStream self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     OrdersStream self,
     SseSerializer serializer,
@@ -2169,6 +2339,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
     TradeKeyIndexStream self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
+    TradeTouchStream self,
     SseSerializer serializer,
   );
 
@@ -2279,6 +2456,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    OrderDeltaStream self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     OrdersStream self,
     SseSerializer serializer,
@@ -2323,6 +2507,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream(
     TradeKeyIndexStream self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
+    TradeTouchStream self,
     SseSerializer serializer,
   );
 
@@ -2513,6 +2704,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_order_delta(
+    OrderDelta self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_order_filters(
     OrderFilters self,
     SseSerializer serializer,
@@ -2557,6 +2754,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_trade_role(
     TradeRole self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_trade_touch(
+    TradeTouch self,
     SseSerializer serializer,
   );
 
@@ -2645,6 +2848,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_file_type(FileType self, SseSerializer serializer);
 
   @protected
+  void sse_encode_funds_at_risk(FundsAtRisk self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_funds_at_risk_reason(
+    FundsAtRiskReason self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -2689,6 +2901,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_fiat_order_count(
     List<FiatOrderCount> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_funds_at_risk(
+    List<FundsAtRisk> self,
     SseSerializer serializer,
   );
 
@@ -2882,6 +3100,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_order_delta(
+    OrderDelta? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_order_filters(
     OrderFilters? self,
     SseSerializer serializer,
@@ -2930,6 +3154,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_trade_touch(
+    TradeTouch? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_trade_update(
     TradeUpdate? self,
     SseSerializer serializer,
@@ -2961,6 +3191,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     List<OrderInfo>? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_order_book_snapshot(
+    OrderBookSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_order_delta(OrderDelta self, SseSerializer serializer);
 
   @protected
   void sse_encode_order_filters(OrderFilters self, SseSerializer serializer);
@@ -3033,6 +3272,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_trade_step(TradeStep self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_trade_touch(TradeTouch self, SseSerializer serializer);
 
   @protected
   void sse_encode_trade_update(TradeUpdate self, SseSerializer serializer);
@@ -3454,6 +3696,40 @@ class RustLibWire implements BaseWire {
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStreamPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStreamPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStreamPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_mostro_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStream =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrderDeltaStreamPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOrdersStream(
     ffi.Pointer<ffi.Void> ptr,
   ) {
@@ -3689,6 +3965,40 @@ class RustLibWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStream =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeKeyIndexStreamPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStreamPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_mostro_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStreamPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStreamPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_mostro_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStream =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTradeTouchStreamPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void

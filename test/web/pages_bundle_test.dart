@@ -358,11 +358,19 @@ void main() {
 
     test('shows the chat-wake notice in the app’s own words', () {
       // Arrange — the Dart background handler uses the arb strings; the
-      // worker cannot, so it carries a copy for the five locales.
+      // worker cannot, so it carries a copy for every locale. The locales
+      // come from the translation files, so a new one cannot be missed here.
       final js = logic.readAsStringSync();
+      final locales = Directory('lib/l10n')
+          .listSync()
+          .map((f) => RegExp(r'app_([a-z]{2})\.arb$').firstMatch(f.path)?.group(1))
+          .whereType<String>()
+          .toList()
+        ..sort();
+      expect(locales, isNotEmpty);
 
       // Act / Assert
-      for (final locale in ['en', 'es', 'fr', 'de', 'it']) {
+      for (final locale in locales) {
         final arb = File('lib/l10n/app_$locale.arb').readAsStringSync();
         final body = RegExp(r'"pushNewMessageBody": "([^"]+)"')
             .firstMatch(arb)!

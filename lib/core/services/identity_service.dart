@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
+import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 
 /// Secure-storage keys.
 const _kMnemonic = 'mostro_identity_mnemonic';
@@ -10,9 +12,65 @@ const _kTradeKeyIndex = 'mostro_trade_key_index';
 const _kPrivacyMode = 'mostro_privacy_mode';
 const _kCreatedAt = 'mostro_identity_created_at';
 
+/// What secure storage holds about the identity, read in one go.
+class StoredIdentity {
+  const StoredIdentity({
+    required this.words,
+    required this.tradeKeyIndex,
+    required this.privacyMode,
+    required this.createdAtMillis,
+  });
+
+  final List<String> words;
+  final int tradeKeyIndex;
+  final bool privacyMode;
+
+  /// Zero when the install predates the key.
+  final int createdAtMillis;
+
+  /// `null` when no mnemonic was ever stored — a first launch. The other keys
+  /// fall back to what an install without them had.
+  static StoredIdentity? fromEntries(Map<String, String> entries) {
+    final mnemonic = entries[_kMnemonic]?.trim() ?? '';
+    if (mnemonic.isEmpty) return null;
+    return StoredIdentity(
+      words: mnemonic.split(' '),
+      tradeKeyIndex: int.tryParse(entries[_kTradeKeyIndex] ?? '') ?? 0,
+      privacyMode: entries[_kPrivacyMode] == 'true',
+      createdAtMillis: int.tryParse(entries[_kCreatedAt] ?? '') ?? 0,
+    );
+  }
+}
+
 /// Manages identity lifecycle: creation on first launch and reload on
 /// subsequent launches. Mnemonic persists in [FlutterSecureStorage]
 /// (iOS Keychain / Android Keystore). Rust holds keys only in memory.
+/// What the daemon-side recovery after a seed import came to.
+@immutable
+class RecoveryOutcome {
+  const RecoveryOutcome.recovered(int this.count) : _kind = 0;
+  const RecoveryOutcome.skipped() : count = null, _kind = 1;
+  const RecoveryOutcome.failed() : count = null, _kind = 2;
+
+  /// Orders and disputes the daemon returned; null unless [isRecovered].
+  final int? count;
+  final int _kind;
+
+  bool get isRecovered => _kind == 0;
+  bool get isSkipped => _kind == 1;
+  bool get isFailed => _kind == 2;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecoveryOutcome && other._kind == _kind && other.count == count;
+
+  @override
+  int get hashCode => Object.hash(_kind, count);
+
+  @override
+  String toString() => 'RecoveryOutcome($_kind, $count)';
+}
+
 class IdentityService {
   IdentityService._();
 
@@ -30,13 +88,11 @@ class IdentityService {
   /// Returns the mnemonic words so callers can react if needed (e.g. first-run
   /// flows that want to prime the backup reminder immediately).
   static Future<List<String>> initialize() async {
-    final storedMnemonic = await _storage.read(key: _kMnemonic);
-
-    if (storedMnemonic == null || storedMnemonic.trim().isEmpty) {
-      return _createAndStore();
-    } else {
-      return _loadExisting(storedMnemonic);
-    }
+    // One read, not one per key: each is a platform round trip (on Linux it
+    // parses the whole keyring file), this runs before the first frame, and
+    // four in a row were a quarter of the way there.
+    final stored = StoredIdentity.fromEntries(await _storage.readAll());
+    return stored == null ? _createAndStore() : _loadExisting(stored);
   }
 
   /// Read the stored mnemonic words. Returns an empty list if none is found
@@ -133,6 +189,27 @@ class IdentityService {
     debugPrint('[identity] identity imported — ${words.length} words');
   }
 
+  /// Ask the daemon for this identity's trades after [importAndStore].
+  ///
+  /// A seed that already traded left the daemon's trade index ahead of the
+  /// fresh local counter, and the first order would be refused with
+  /// `InvalidTradeIndex`; the Rust restore also resyncs that counter
+  /// (`recover_trades`). Privacy mode has no account to recover, so it is
+  /// skipped. A failure is reported, never thrown: the import itself stands,
+  /// and a later order still resyncs the counter on its own.
+  static Future<RecoveryOutcome> recoverAfterImport({
+    Future<bool> Function() isPrivacyMode = reputation_api.getPrivacyMode,
+    Future<int> Function() recover = orders_api.recoverTrades,
+  }) async {
+    try {
+      if (await isPrivacyMode()) return const RecoveryOutcome.skipped();
+      return RecoveryOutcome.recovered(await recover());
+    } catch (e) {
+      debugPrint('[identity] recoverAfterImport error: $e');
+      return const RecoveryOutcome.failed();
+    }
+  }
+
   /// Generate a new identity and atomically replace the stored one.
   ///
   /// The new mnemonic is written to secure storage **before** the old metadata
@@ -148,10 +225,14 @@ class IdentityService {
       await identity_api.deleteIdentity();
     } catch (e) {
       final msg = e.toString().toLowerCase();
-      if (!msg.contains('noidentity') && !msg.contains('no identity') && !msg.contains('not loaded')) {
+      if (!msg.contains('noidentity') &&
+          !msg.contains('no identity') &&
+          !msg.contains('not loaded')) {
         rethrow;
       }
-      debugPrint('[identity] regenerate: no identity loaded, skipping deleteIdentity');
+      debugPrint(
+        '[identity] regenerate: no identity loaded, skipping deleteIdentity',
+      );
     }
     final result = await identity_api.createIdentity();
     final words = result.mnemonicWords;
@@ -215,16 +296,11 @@ class IdentityService {
     return words;
   }
 
-  static Future<List<String>> _loadExisting(String storedMnemonic) async {
-    final words = storedMnemonic.trim().split(' ');
-
-    final indexStr = await _storage.read(key: _kTradeKeyIndex);
-    final privacyStr = await _storage.read(key: _kPrivacyMode);
-    final createdAtStr = await _storage.read(key: _kCreatedAt);
-
-    final tradeKeyIndex = int.tryParse(indexStr ?? '0') ?? 0;
-    final privacyMode = privacyStr == 'true';
-    final createdAt = int.tryParse(createdAtStr ?? '0') ?? 0;
+  static Future<List<String>> _loadExisting(StoredIdentity stored) async {
+    final words = stored.words;
+    final tradeKeyIndex = stored.tradeKeyIndex;
+    final privacyMode = stored.privacyMode;
+    final createdAt = stored.createdAtMillis;
 
     final info = await identity_api.loadIdentityFromMnemonic(
       words: words,

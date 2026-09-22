@@ -938,6 +938,38 @@
   "@cancelRequestFailed": {
     "description": "Snackbar shown when the cancel request fails"
   },
+  "tradeCardCancelRequestedByMeTitle": "Cancel requested",
+  "@tradeCardCancelRequestedByMeTitle": {
+    "description": "Notifications card title on the daemon confirming this user's cooperative-cancel request (protocol cancel.md); the trade stays open until the other party also cancels"
+  },
+  "tradeCardCancelRequestedByMeMessage": "You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.",
+  "@tradeCardCancelRequestedByMeMessage": {
+    "description": "Notifications card body on the daemon confirming this user's cooperative-cancel request"
+  },
+  "tradeCardCancelRequestedByPeerTitle": "The other party wants to cancel",
+  "@tradeCardCancelRequestedByPeerTitle": {
+    "description": "Notifications card title when the counterparty asked to cancel an active trade (protocol cancel.md); this user decides whether to accept"
+  },
+  "tradeCardCancelRequestedByPeerMessage": "They asked to cancel this trade. Accept to end it with no funds moved, or keep trading.",
+  "@tradeCardCancelRequestedByPeerMessage": {
+    "description": "Notifications card body when the counterparty asked to cancel an active trade"
+  },
+  "tradeCancelRequestedByMeNotice": "You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.",
+  "@tradeCancelRequestedByMeNotice": {
+    "description": "Notice on the trade screen while this user's cooperative-cancel request waits for the other party"
+  },
+  "tradeCancelRequestedByPeerNotice": "The other party asked to cancel this trade. Accept to end it with no funds moved, or keep trading.",
+  "@tradeCancelRequestedByPeerNotice": {
+    "description": "Notice on the trade screen while the counterparty's cooperative-cancel request waits for this user"
+  },
+  "acceptCancelButton": "Accept cancel",
+  "@acceptCancelButton": {
+    "description": "Label of the cancel button once the counterparty asked to cancel: this user's cancel accepts theirs and ends the trade"
+  },
+  "cancelTradeDialogContentAccept": "The other party asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.",
+  "@cancelTradeDialogContentAccept": {
+    "description": "Body text for the cancel-trade confirmation dialog when the counterparty already asked to cancel: this cancel accepts theirs"
+  },
   "fiatSentFailed": "Failed to mark fiat as sent. Please try again.",
   "@fiatSentFailed": {
     "description": "Snackbar shown when the fiat-sent action fails"
@@ -1934,6 +1966,14 @@
         "type": "String"
       }
     }
+  },
+  "invoiceNoLongerExpected": "This order is no longer waiting for an invoice. Updating its status…",
+  "@invoiceNoLongerExpected": {
+    "description": "Add-invoice screen: the daemon answered NotAllowedByStatus — the order moved on (usually an earlier submission was accepted) and the app is re-reading its state"
+  },
+  "invoiceSubmitInFlight": "An invoice for this order is already being sent. Wait for the reply.",
+  "@invoiceSubmitInFlight": {
+    "description": "Add-invoice screen: a second submission was refused because an earlier one for the same trade is still waiting for the daemon's reply (Rust marker InvoiceSubmitInFlight)"
   },
   "waitingForTradeAmount": "Waiting for trade amount — please try again shortly.",
   "@waitingForTradeAmount": {
@@ -3958,5 +3998,45 @@
   "chatCardMessage": "{count, plural, =1{1 new message from your trade partner} other{{count} new messages from your trade partner}}",
   "@chatCardMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}},
   "chatCardSolverMessage": "{count, plural, =1{1 new message from the dispute resolver} other{{count} new messages from the dispute resolver}}",
-  "@chatCardSolverMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}}
+  "@chatCardSolverMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}},
+  "invalidTradeIndexError": "Your account is out of sync with this Mostro node, so it refused the order. Try again in a moment",
+  "@invalidTradeIndexError": {"description": "Error shown when the Mostro node refuses a new order or take with CantDo(InvalidTradeIndex) even after the app resynced its trade-key counter and retried once"},
+  "recoveringTradesMessage": "Account imported. Recovering your trades from Mostro…",
+  "@recoveringTradesMessage": {"description": "Snackbar shown on the Account screen right after a mnemonic import, while the app asks Mostro for the identity's trades in progress"},
+  "recoveredTradesMessage": "{count, plural, =0{Account imported. You had no trades in progress} =1{Account imported. 1 trade recovered} other{Account imported. {count} trades recovered}}",
+  "@recoveredTradesMessage": {"description": "Snackbar shown after a mnemonic import once Mostro returned the identity's trades in progress; count is how many orders and disputes came back", "placeholders": {"count": {"type": "int"}}},
+  "recoverTradesFailedMessage": "Account imported, but Mostro did not answer, so your trades in progress were not recovered",
+  "@recoverTradesFailedMessage": {"description": "Snackbar shown after a mnemonic import when Mostro did not answer the recovery request; the import itself succeeded"},
+  "paymentMethodsChosenLabel": "Chosen",
+  "@paymentMethodsChosenLabel": {"description": "Label in front of the chips summarising the methods chosen so far on the payment-method picker screen"},
+  "paymentMethodsSelectedCount": "{count, plural, =0{Choose at least one method} =1{1 method selected} other{{count} methods selected}}",
+  "@paymentMethodsSelectedCount": {"description": "Count line above the confirm button of the payment-method picker screen", "placeholders": {"count": {"type": "int"}}},
+  "paymentMethodsConfirm": "Confirm methods",
+  "@paymentMethodsConfirm": {"description": "Button that saves the payment-method selection and closes the picker screen"},
+  "paymentMethodAddCustom": "Add custom payment method",
+  "@paymentMethodAddCustom": {"description": "Dashed row at the end of the payment-method list that opens the custom-method sheet"},
+  "paymentMethodsDiscardTitle": "Discard the changes?",
+  "@paymentMethodsDiscardTitle": {"description": "Title of the dialog shown when leaving the payment-method picker with unconfirmed changes"},
+  "paymentMethodsDiscardConfirm": "Discard",
+  "@paymentMethodsDiscardConfirm": {"description": "Dialog action that leaves the payment-method picker without saving"},
+  "paymentMethodsKeepEditing": "Keep editing",
+  "@paymentMethodsKeepEditing": {"description": "Dialog action that stays on the payment-method picker screen"},
+  "fundsAtRiskTitle": "This user still has sats in play",
+  "@fundsAtRiskTitle": {"description": "Title of the warning shown before generating a new user or importing a seed while the current identity has escrow, bonds, payout claims or trades in flight"},
+  "fundsAtRiskBody": "If you continue, this user's keys are replaced and nothing listed here can be finished or recovered from this device. This is not recommended: you can lose these sats.",
+  "@fundsAtRiskBody": {"description": "Body of the funds-at-risk warning, above the list of what is still in flight"},
+  "fundsAtRiskSellerEscrow": "Sats locked in escrow for a sale",
+  "@fundsAtRiskSellerEscrow": {"description": "Funds-at-risk list entry: the user is the seller and the hold invoice is paid and held"},
+  "fundsAtRiskBondLocked": "Bond locked",
+  "@fundsAtRiskBondLocked": {"description": "Funds-at-risk list entry: an anti-abuse bond is locked until its trade ends"},
+  "fundsAtRiskPayoutClaim": "Bond payout not collected yet",
+  "@fundsAtRiskPayoutClaim": {"description": "Funds-at-risk list entry: the user won a share of a slashed bond and has not been paid yet"},
+  "fundsAtRiskTradeInProgress": "Trade in progress",
+  "@fundsAtRiskTradeInProgress": {"description": "Funds-at-risk list entry: a live trade with none of the user's sats locked"},
+  "fundsAtRiskBondInvoicePending": "Bond invoice still payable",
+  "@fundsAtRiskBondInvoicePending": {"description": "Funds-at-risk list entry: a bond invoice that has not been paid and has not expired"},
+  "fundsAtRiskKeep": "Keep this user",
+  "@fundsAtRiskKeep": {"description": "Safe, primary action of the funds-at-risk warning: abandon the generation or import"},
+  "fundsAtRiskContinue": "Continue anyway",
+  "@fundsAtRiskContinue": {"description": "Destructive action of the funds-at-risk warning: go on with the generation or import"}
 }

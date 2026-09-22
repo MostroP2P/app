@@ -1,6 +1,6 @@
 [package]
 name = "rust"
-version = "2.0.0"
+version = "2.0.5"
 license = "AGPL-3.0-or-later"
 edition = "2021"
 
@@ -25,7 +25,7 @@ nostr = { version = "0.45", default-features = false, features = ["std", "nip04"
 # requires nostr 0.45. The Cashu wire form pinned by `mostro/cashu_wire.rs` and
 # documented in docs/cashu/README.md §2 was confirmed against 0.14.1 and is
 # unchanged since.
-mostro-core = "0.14.6"
+mostro-core = "0.15.0"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -73,6 +73,11 @@ bip39 = { version = "2", features = ["all-languages", "rand"] }
 # expiry). Already in the native tree through cdk; on wasm its heavy
 # dependency, `bitcoin`, already comes in through mostro-core.
 lightning-invoice = "0.34"
+
+# `Stream` for reading a relay query as it arrives (nostr/first_answer.rs).
+# Already in the tree through nostr-sdk, whose prelude re-exports only
+# `StreamExt` — not the trait a generic bound needs.
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 # Native-only: SQLite + tokio do NOT compile to WASM
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

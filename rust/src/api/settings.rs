@@ -72,7 +72,7 @@ fn store() -> &'static SettingsStore {
 /// **Keep in sync** with the Flutter side: `AppLocalizations.supportedLocales`
 /// in `lib/l10n/` (or the `flutter_localizations` delegate configuration).
 /// Both lists must be updated together when adding a new language.
-const SUPPORTED_LOCALES: &[&str] = &["en", "es", "it", "fr", "de"];
+const SUPPORTED_LOCALES: &[&str] = &["en", "es", "it", "fr", "de", "nl"];
 
 fn validate_locale(locale: &str) -> Result<()> {
     if SUPPORTED_LOCALES.contains(&locale) {
@@ -144,7 +144,7 @@ pub async fn set_theme(theme: ThemeMode) -> Result<()> {
 
 /// Update the display language.
 ///
-/// **Errors**: `UnsupportedLocale` if `locale` is not one of `en|es|it|fr|de`.
+/// **Errors**: `UnsupportedLocale` if `locale` is not one of `en|es|it|fr|de|nl`.
 pub async fn set_language(locale: String) -> Result<()> {
     validate_locale(&locale)?;
     let snapshot = store().write_with(|s| s.language = locale).await;
@@ -448,5 +448,25 @@ mod tests {
         }
         // Restore
         set_language("en".to_string()).await.unwrap();
+    }
+
+    /// `all_supported_locales_accepted` loops over `SUPPORTED_LOCALES` itself, so it
+    /// cannot notice a locale missing from it. This compares the list with the
+    /// translation files the Flutter side is generated from.
+    #[test]
+    fn supported_locales_match_the_arb_files() {
+        let l10n = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../lib/l10n");
+        let mut from_arb: Vec<String> = std::fs::read_dir(&l10n)
+            .expect("lib/l10n is readable")
+            .filter_map(|entry| {
+                let name = entry.ok()?.file_name().into_string().ok()?;
+                let code = name.strip_prefix("app_")?.strip_suffix(".arb")?;
+                (code.len() == 2).then(|| code.to_string())
+            })
+            .collect();
+        from_arb.sort();
+        let mut supported: Vec<String> = SUPPORTED_LOCALES.iter().map(|s| s.to_string()).collect();
+        supported.sort();
+        assert_eq!(supported, from_arb, "SUPPORTED_LOCALES must equal the app_*.arb files");
     }
 }

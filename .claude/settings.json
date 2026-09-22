@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/check-generated.sh",
+            "timeout": 300,
+            "statusMessage": "Checking generated code is up to date…"
+          }
+        ]
+      }
+    ]
+  }
+}

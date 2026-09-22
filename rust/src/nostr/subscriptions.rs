@@ -358,18 +358,9 @@ async fn dismantle(
     // subscription lives on: relays cap concurrent REQs, and once past the
     // cap they answer CLOSED — which can take the order-book feed down
     // with it.
-    if let Err(e) = client
-        .unsubscribe(&daemon_message_subscription_id(trade_pubkey_hex))
-        .await
-    {
-        crate::api::logging::blog_warn(
-            "orders",
-            format!(
-                "daemon-message unsubscribe failed for trade={}: {e}",
-                short(trade_pubkey_hex)
-            ),
-        );
-    }
+    super::live_subs::live_subs()
+        .close(client, &daemon_message_subscription_id(trade_pubkey_hex))
+        .await;
 
     // The subscription bounds the pending record's lifetime: once no reply
     // can be delivered here anymore, a still-unconsumed record (request

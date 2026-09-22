@@ -270,6 +270,12 @@ impl SessionManager {
         }
     }
 
+    /// Drop every session: they hold the trade keys and peer keys of the
+    /// identity being deleted (issue #533).
+    pub async fn clear(&self) {
+        self.sessions.write().await.clear();
+    }
+
     /// Store the ECDH admin shared key derived from `adminTookDispute`.
     ///
     /// Called by the event handler when the daemon assigns an admin to the

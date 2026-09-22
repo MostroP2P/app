@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mostro/features/home/providers/order_book_feed.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
@@ -164,6 +164,13 @@ class OrderItem {
 
   bool get isRange => fiatAmountMin != null && fiatAmountMax != null;
 
+  /// [paymentMethod] as the payment-method filter compares it: its
+  /// comma-separated entries, trimmed and lower-cased. Computed on first use
+  /// and kept — an order's methods never change, and the filter walks the
+  /// whole book on every emission and every filter change.
+  late final Set<String> paymentTokens =
+      paymentMethod.split(',').map((t) => t.trim().toLowerCase()).toSet();
+
   String get displayAmount {
     if (isRange) {
       return '${_fmt(fiatAmountMin!)} – ${_fmt(fiatAmountMax!)}';
@@ -266,36 +273,38 @@ extension OrderItemTakerView on OrderItem {
   bool get hasFixedSats => (amountSats ?? BigInt.zero) > BigInt.zero;
 }
 
-/// Live order book backed by the Rust bridge Kind 38383 subscription.
+/// The Rust bridge as an [OrderDeltaSource]; injectable for tests.
+final orderDeltaSourceProvider = Provider<OrderDeltaSource>(
+  (ref) => const _BridgeOrderDeltas(),
+);
+
+class _BridgeOrderDeltas implements OrderDeltaSource {
+  const _BridgeOrderDeltas();
+
+  @override
+  Future<Future<OrderDelta?> Function()> subscribe() async =>
+      (await orders_api.onOrderDeltas()).next;
+
+  @override
+  Future<OrderBookSnapshot> snapshot() => orders_api.getOrderBookSnapshot();
+}
+
+/// Live order book, kept current from the Rust book's per-order deltas.
 ///
-/// Immediately yields the current cached snapshot (empty on first run) so the
-/// UI exits the shimmer/loading state right away.  Subsequent emissions arrive
-/// as [subscribe_orders()] upserts orders from the relay stream.
-final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((
-  ref,
-) async* {
-  // Subscribe first so no broadcast is missed between snapshot and loop.
-  final stream = await orders_api.onOrdersUpdated();
-
-  // Fast-exit shimmer only if the cache already has orders. If the cache is
-  // empty we stay in loading state until the relay delivers the first update,
-  // preventing an "No orders available" flash before any relay data arrives.
-  // An empty book is confirmed by the relay's EOSE on the pending-book
-  // subscription, which Rust publishes as an (empty) update — without that
-  // this would wait forever whenever the book is empty, both on a cold start
-  // and every time this provider is re-created after the last order left.
-  final snapshot = await orders_api.getOrders(filters: null);
-  debugPrint('[orderBook] initial snapshot: ${snapshot.length} orders');
-  if (snapshot.isNotEmpty) {
-    yield snapshot.map(OrderItem.fromInfo).toList();
-  }
-
-  // Stream live updates from the relay subscription.
-  while (true) {
-    final orders = await stream.next();
-    if (orders == null) break;
-    yield orders.map(OrderItem.fromInfo).toList();
-  }
+/// It used to receive the **whole book** on every change and re-map every
+/// order of it; now a change crosses the bridge as the one order it concerns,
+/// is mapped once, and the list is handed over at most once per
+/// [orderBookFlushInterval]. See [OrderBookFeed] for the rules — the
+/// revision boundary, the resync, and staying in the loading state on an
+/// empty book until the relay's EOSE confirms it (so "no orders" never
+/// flashes before the orders arrive, and a quiet node still leaves loading).
+final orderBookProvider = StreamProvider.autoDispose<List<OrderItem>>((ref) {
+  final feed = OrderBookFeed<OrderItem>(
+    ref.watch(orderDeltaSourceProvider),
+    map: OrderItem.fromInfo,
+  );
+  ref.onDispose(feed.dispose);
+  return feed.stream;
 });
 
 /// The live book indexed by order id, rebuilt once per emission.
@@ -364,6 +373,9 @@ final filteredOrdersProvider = Provider.autoDispose<List<OrderItem>>((ref) {
   final ratingRange = ref.watch(ratingFilterProvider);
   final premiumRange = ref.watch(premiumRangeFilterProvider);
   final sort = ref.watch(orderSortProvider);
+  final selectedMethods = {
+    for (final method in selectedPaymentMethods) method.toLowerCase(),
+  };
 
   return allOrders.where((o) {
       if (!_isListedOnTab(o, orderType)) return false;
@@ -373,15 +385,9 @@ final filteredOrdersProvider = Provider.autoDispose<List<OrderItem>>((ref) {
         return false;
       }
 
-      if (selectedPaymentMethods.isNotEmpty) {
-        final tokens =
-            o.paymentMethod
-                .split(',')
-                .map((t) => t.trim().toLowerCase())
-                .toSet();
-        final selectedLower =
-            selectedPaymentMethods.map((pm) => pm.toLowerCase()).toSet();
-        if (tokens.intersection(selectedLower).isEmpty) return false;
+      if (selectedMethods.isNotEmpty &&
+          !o.paymentTokens.any(selectedMethods.contains)) {
+        return false;
       }
 
       if (ratingRange != defaultRatingRange) {

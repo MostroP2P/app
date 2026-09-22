@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:mostro/core/order_book_palette.dart';
+
 export 'package:mostro/core/order_book_palette.dart';
 
 /// Mostro design system tokens.
@@ -367,6 +369,14 @@ abstract final class AppRadius {
   static const double chip = 6;
   static const double bubble = 16;
   static const double input = 8;
+
+  /// Dialog and bottom-sheet container. The redesign's surfaces (order book,
+  /// node selector, release sheet) all land here, so every modal does too.
+  static const double modal = 24;
+
+  /// The action buttons inside a modal. Deliberately softer than [button],
+  /// which is the in-page control.
+  static const double cta = 14;
 }
 
 // ── Typography tokens ─────────────────────────────────────────────────────────
@@ -386,6 +396,20 @@ abstract final class AppFonts {
   static const String figures = 'Manrope';
 }
 
+// ── The accent ────────────────────────────────────────────────────────────────
+
+/// The app's one accent, shared with `OrderBookPalette.lime` — the redesign's
+/// surfaces and this theme must never drift into two nearly-equal greens
+/// again (`test/core/accent_consistency_test.dart` holds them equal).
+///
+/// Text and icon roles use it straight on a dark surface; anything that fills
+/// a shape with it puts [_accentInk] on top, never white: white on this green
+/// is 2.05:1, which is not readable (#534).
+const _accent = Color(0xFF92D64F);
+
+/// The only legible ink on a shape filled with [_accent] — 10.6:1.
+const _accentInk = Color(0xFF12161F);
+
 // ── Predefined colour instances ────────────────────────────────────────────────
 
 const _dark = AppColors(
@@ -393,7 +417,7 @@ const _dark = AppColors(
   backgroundCard: Color(0xFF1E2230),
   backgroundInput: Color(0xFF252A3A),
   backgroundElevated: Color(0xFF2A2D35),
-  mostroGreen: Color(0xFF8CC63F),
+  mostroGreen: _accent,
   mostroGreenBright: Color(0xFFA5FF00),
   sellColor: Color(0xFFFF8A8A),
   destructiveRed: Color(0xFFD84D4D),
@@ -404,7 +428,7 @@ const _dark = AppColors(
   textSecondary: Color(0xFFB0B3C6),
   textSubtle: Color(0xFF9A9A9C),
   textDisabled: Color(0xFF6C757D),
-  textLink: Color(0xFF8CC63F),
+  textLink: _accent,
   messageSent: Color(0xFF8359C2),
   messageReceived: Color(0xFF4B6349),
   systemMessage: Color(0xFF2A2D35),
@@ -417,7 +441,7 @@ const _light = AppColors(
   backgroundCard: Color(0xFFF5F5F5),
   backgroundInput: Color(0xFFEEEEEE),
   backgroundElevated: Color(0xFFE0E0E0),
-  mostroGreen: Color(0xFF8CC63F),
+  mostroGreen: _accent,
   mostroGreenBright: Color(0xFF6A9E00),
   sellColor: Color(0xFFFF8A8A),
   destructiveRed: Color(0xFFD84D4D),
@@ -461,6 +485,12 @@ ThemeData _buildTheme({
   required AppColors colors,
   required Color scaffold,
 }) {
+  // The redesign's palette, read here so the modal surfaces in this theme and
+  // the ones the redesign screens build by hand are the same colour.
+  final book =
+      brightness == Brightness.dark
+          ? OrderBookPalette.dark
+          : OrderBookPalette.light;
   final base = ThemeData(
     brightness: brightness,
     fontFamily: AppFonts.ui,
@@ -477,7 +507,7 @@ ThemeData _buildTheme({
     colorScheme: ColorScheme(
       brightness: brightness,
       primary: colors.mostroGreen,
-      onPrimary: Colors.white,
+      onPrimary: _accentInk,
       secondary: colors.purpleButton,
       onSecondary: Colors.white,
       error: colors.destructiveRed,
@@ -502,6 +532,40 @@ ThemeData _buildTheme({
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+    ),
+    // Every modal surface, including the ones that still build a bare
+    // `AlertDialog`: without these two, Material's defaults (radius 28, its
+    // own surface, its own scrim) render next to the redesign's sheets and
+    // read as two different apps (#534).
+    dialogTheme: DialogThemeData(
+      backgroundColor: book.surface,
+      surfaceTintColor: Colors.transparent,
+      barrierColor: book.scrim,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.modal),
+      ),
+      titleTextStyle: TextStyle(
+        fontFamily: AppFonts.ui,
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        color: book.textPrimary,
+      ),
+      contentTextStyle: TextStyle(
+        fontFamily: AppFonts.ui,
+        fontSize: 14,
+        height: 1.5,
+        color: book.textSecondary,
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: book.surface,
+      surfaceTintColor: Colors.transparent,
+      modalBarrierColor: book.scrim,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.modal),
+        ),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(

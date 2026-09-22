@@ -91,6 +91,24 @@ void main() {
       expect(seq.currentStep, 'connecting to the network');
     });
 
+    test('work started before the step still fails under its own name', () async {
+      // Startup launches its three platform round trips together and awaits
+      // each inside its own step (#508 merged the parallel start into the
+      // sequence this guard names). `currentStep` is one field, so the name
+      // must come from where the failure is awaited, not from where the work
+      // began.
+      final engine = Future<void>.error(StateError('bridge panic'))..ignore();
+      final seq = StartupSequence();
+
+      await seq.optional('setting up notifications', () async {});
+      await expectLater(
+        seq.required('loading the engine', () => engine),
+        throwsStateError,
+      );
+
+      expect(seq.currentStep, 'loading the engine');
+    });
+
     test('the label is in place while the body runs, not only after', () async {
       final seq = StartupSequence();
       late String seen;

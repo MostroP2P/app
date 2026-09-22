@@ -177,6 +177,41 @@ void main() {
     },
   );
 
+  // Issue #533, the opposite of the test above. `deleteAll` is the user
+  // clearing their list, so a replayed message must stay counted. An identity
+  // change forgets the ledger too: a same-seed import replays chat messages
+  // under ids this notifier already holds, and their card was just wiped.
+  test(
+    'a message replayed after an identity wipe is counted again',
+    () async {
+      final notifier = NotificationsNotifier();
+      NotificationModel fold(NotificationModel? existing) =>
+          NotificationModel.chatMessages(
+            tradeId: 'order-1',
+            fromSolver: false,
+            count: (existing?.chatUnreadCount ?? 0) + 1,
+            at: DateTime.utc(2026),
+          );
+      await notifier.addChatMessage(
+        messageId: 'm1',
+        cardId: 'chat-order-1',
+        fold: fold,
+      );
+      expect(notifier.hasProcessedChatMessage('m1'), isTrue);
+
+      await notifier.wipeForIdentityChange();
+      expect(snapshot(notifier), isEmpty);
+      expect(notifier.hasProcessedChatMessage('m1'), isFalse);
+
+      await notifier.addChatMessage(
+        messageId: 'm1',
+        cardId: 'chat-order-1',
+        fold: fold,
+      );
+      expect(snapshot(notifier).single.chatUnreadCount, 1);
+    },
+  );
+
   test('mark-all and delete execute after a pending chat fold', () async {
     for (final delete in [false, true]) {
       final store = SembastNotificationsStore(

@@ -12,6 +12,7 @@ import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/features/settings/providers/node_stats_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
+import 'package:mostro/features/settings/widgets/node_card.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
@@ -167,11 +168,13 @@ List<Override> _overrides(
   _FakeNodesNotifier notifier, {
   Map<String, MostroNodeStats>? stats,
   Completer<Map<String, MostroNodeStats>>? statsGate,
+  Map<String, MostroNodeStats> cachedStats = const {},
   String? fiat = 'ARS',
   bool tradeInProgress = false,
   bool tradesFail = false,
 }) => [
   mostroNodesProvider.overrideWith(() => notifier),
+  cachedNodeStatsProvider.overrideWith((ref) async => cachedStats),
   nodeStatsProvider.overrideWith(
     (ref) => statsGate?.future ?? Future.value(stats ?? _fixtureStats),
   ),
@@ -213,6 +216,7 @@ Future<_FakeNodesNotifier> _pump(
   List<MostroNodeEntry>? nodes,
   Map<String, MostroNodeStats>? stats,
   Completer<Map<String, MostroNodeStats>>? statsGate,
+  Map<String, MostroNodeStats> cachedStats = const {},
   String? fiat = 'ARS',
   bool failSelect = false,
   bool tradeInProgress = false,
@@ -230,6 +234,7 @@ Future<_FakeNodesNotifier> _pump(
       notifier,
       stats: stats,
       statsGate: statsGate,
+      cachedStats: cachedStats,
       fiat: fiat,
       tradeInProgress: tradeInProgress,
       tradesFail: tradesFail,
@@ -248,6 +253,21 @@ Future<_FakeNodesNotifier> _pump(
 Future<void> _settleSelection(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 300));
   await tester.pump();
+}
+
+/// Exactly one radio is filled, and it is the one on [nodeName]'s card.
+void _expectOnlyChecked(WidgetTester tester, String nodeName) {
+  expect(find.byIcon(Icons.check), findsOneWidget);
+  expect(
+    find.descendant(
+      of: find.ancestor(
+        of: find.text(nodeName),
+        matching: find.byType(NodeCard),
+      ),
+      matching: find.byIcon(Icons.check),
+    ),
+    findsOneWidget,
+  );
 }
 
 void main() {
@@ -296,6 +316,29 @@ void main() {
       });
     });
 
+    testWidgets('a card lists every accepted currency, never a +N', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(_now), () async {
+        const many = ['VES', 'BRL', 'ARS', 'EUR', 'COP', 'USD', 'CLP', 'PEN'];
+        await _pump(
+          tester,
+          nodes: [_fixtureNodes.first],
+          stats: {
+            defaultMostroPubkey: _stats(
+              defaultMostroPubkey,
+              infoSeenAt: _now,
+              accepted: many,
+            ),
+          },
+        );
+        for (final code in many) {
+          expect(find.text(code), findsOneWidget, reason: code);
+        }
+        expect(find.textContaining(RegExp(r'^\+\d+$')), findsNothing);
+      });
+    });
+
     testWidgets('shows skeletons while stats load, never a spinner', (
       tester,
     ) async {
@@ -309,6 +352,89 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
         expect(find.byType(Shimmer), findsNothing);
         expect(find.text('38'), findsOneWidget);
+      });
+    });
+
+    testWidgets(
+      'cached node settings show at once; only liquidity waits for the relays',
+      (tester) async {
+        await withClock(Clock.fixed(_now), () async {
+          final gate = Completer<Map<String, MostroNodeStats>>();
+          await _pump(
+            tester,
+            statsGate: gate,
+            cachedStats: {
+              for (final pubkey in _fixtureStats.keys)
+                pubkey: _stats(pubkey, infoSeenAt: _now, feePct: 0.9),
+            },
+          );
+          // Fee, range and custody come from the local copy…
+          expect(find.text('0.9'), findsNWidgets(3));
+          expect(find.text('5k–2M'), findsNWidgets(3));
+          expect(find.text('Lightning custody'), findsNWidgets(3));
+          // …while the order count, which is never cached, is still loading:
+          // one skeleton per card, and no availability verdict yet.
+          expect(find.byType(Shimmer), findsNWidgets(3));
+          expect(find.textContaining('in ARS'), findsNothing);
+          expect(find.textContaining('Not responding'), findsNothing);
+
+          // The background refresh lands: changed settings replace the copy.
+          gate.complete(_fixtureStats);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 200));
+          expect(find.byType(Shimmer), findsNothing);
+          expect(find.text('0.9'), findsNothing);
+          expect(find.text('0.6'), findsNWidgets(3));
+          expect(find.text('38'), findsOneWidget);
+        });
+      },
+    );
+
+    testWidgets('an old cached heartbeat never blocks or dims a node', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(_now), () async {
+        final gate = Completer<Map<String, MostroNodeStats>>();
+        final notifier = await _pump(
+          tester,
+          statsGate: gate,
+          cachedStats: {
+            _cubaPubkey: _stats(
+              _cubaPubkey,
+              infoSeenAt: _now.subtract(const Duration(days: 3)),
+            ),
+          },
+        );
+        expect(find.textContaining('Not responding'), findsNothing);
+        await tester.tap(find.text('Kmbalache 🇨🇺'));
+        await _settleSelection(tester);
+        expect(notifier.selected, [_cubaPubkey]);
+      });
+    });
+
+    testWidgets('when the refresh fails the cached settings stay on screen', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(_now), () async {
+        final gate = Completer<Map<String, MostroNodeStats>>();
+        final notifier = await _pump(
+          tester,
+          statsGate: gate,
+          cachedStats: {
+            _cubaPubkey: _stats(_cubaPubkey, infoSeenAt: _now, feePct: 0.9),
+          },
+        );
+        gate.completeError(Exception('relay down'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(find.byType(Shimmer), findsNothing);
+        expect(find.text('0.9'), findsOneWidget);
+        // Liquidity is unknown, not zero.
+        expect(find.text('no orders'), findsNothing);
+        expect(find.textContaining('Not responding'), findsNothing);
+        await tester.tap(find.text('Kmbalache 🇨🇺'));
+        await _settleSelection(tester);
+        expect(notifier.selected, [_cubaPubkey]);
       });
     });
 
@@ -348,11 +474,47 @@ void main() {
         await tester.tap(find.text('Kmbalache 🇨🇺'));
         await tester.pump();
         await tester.pump();
-        expect(find.byIcon(Icons.check), findsNWidgets(2));
+        _expectOnlyChecked(tester, 'Kmbalache 🇨🇺');
         await _settleSelection(tester);
         expect(notifier.selected, [_cubaPubkey]);
       });
     });
+
+    testWidgets(
+      'confirming a switch moves the radio: the previous node is unchecked',
+      (tester) async {
+        await withClock(Clock.fixed(_now), () async {
+          tester.view.physicalSize = const Size(1200, 3000);
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.reset);
+          // Hold the switch in flight: re-targeting the subscriptions takes
+          // seconds on a real pool, and the sheet stays open meanwhile.
+          final gate = Completer<void>();
+          final notifier = _FakeNodesNotifier(_fixtureNodes)
+            ..selectGate = gate.future;
+          final container = createContainer(
+            overrides: _overrides(notifier, tradeInProgress: true),
+          );
+          await tester.pumpWidget(
+            _app(container, const Scaffold(body: MostroNodeSelector())),
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 200));
+          _expectOnlyChecked(tester, 'Mostro 🌐');
+
+          await tester.tap(find.text('Kmbalache 🇨🇺'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Change node'));
+          await tester.pumpAndSettle();
+
+          _expectOnlyChecked(tester, 'Kmbalache 🇨🇺');
+
+          gate.complete();
+          await tester.pumpAndSettle();
+          expect(notifier.selected, [_cubaPubkey]);
+        });
+      },
+    );
 
     testWidgets('a failed switch keeps the sheet open and reports the error', (
       tester,
@@ -364,7 +526,8 @@ void main() {
         expect(find.byType(MostroNodeSelector), findsOneWidget);
         expect(find.text('Failed to switch node'), findsOneWidget);
         await tester.pump(const Duration(milliseconds: 200));
-        expect(find.byIcon(Icons.check), findsOneWidget);
+        // The radio goes back to the node that is still active.
+        _expectOnlyChecked(tester, 'Mostro 🌐');
       });
     });
 

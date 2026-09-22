@@ -76,6 +76,15 @@ pub(crate) fn mark_rated(trade: &mut Value, rated_at: i64) -> Result<()> {
     Ok(())
 }
 
+/// `$.cooperative_cancel_state = state`, as serde spells the variant.
+pub(crate) fn set_cooperative_cancel_state(
+    trade: &mut Value,
+    state: &crate::api::types::CooperativeCancelState,
+) -> Result<()> {
+    *field(trade, &["cooperative_cancel_state"])? = serde_json::to_value(state)?;
+    Ok(())
+}
+
 /// `$.counterparty_pubkey = pubkey`. Reveals are monotonic, so an empty
 /// value is a caller bug and is refused rather than wiping a good row.
 pub(crate) fn set_counterparty(trade: &mut Value, pubkey: &str) -> Result<()> {
@@ -125,6 +134,15 @@ mod tests {
         assert_eq!(started_at_of(&trade()), 1700000000);
         assert_eq!(started_at_of(&json!({})), 0);
         assert_eq!(order_id_of(&json!({"order": {}})), None);
+    }
+
+    #[test]
+    fn records_who_asked_for_a_cooperative_cancel() {
+        use crate::api::types::CooperativeCancelState;
+        let mut t = trade();
+        set_cooperative_cancel_state(&mut t, &CooperativeCancelState::RequestedByMe).unwrap();
+        assert_eq!(t["cooperative_cancel_state"], "RequestedByMe");
+        assert_eq!(t["order"]["status"], "Pending");
     }
 
     #[test]

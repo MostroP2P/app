@@ -189,7 +189,7 @@ void main() {
   });
 
   group('currencyChips', () {
-    test('my currency first, capped at five, rest overflow', () {
+    test('my currency first, then every other one — never capped', () {
       final chips = currencyChips([
         'VES',
         'BRL',
@@ -200,14 +200,12 @@ void main() {
         'CLP',
         'PEN',
       ], 'ars');
-      expect(chips.shown, ['ARS', 'VES', 'BRL', 'EUR', 'COP']);
-      expect(chips.overflow, 3);
+      expect(chips, ['ARS', 'VES', 'BRL', 'EUR', 'COP', 'USD', 'CLP', 'PEN']);
     });
 
     test('unaccepted currency is not injected', () {
       final chips = currencyChips(['COP', 'VES'], 'ARS');
-      expect(chips.shown, ['COP', 'VES']);
-      expect(chips.overflow, 0);
+      expect(chips, ['COP', 'VES']);
     });
   });
 

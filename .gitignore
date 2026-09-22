@@ -24,6 +24,13 @@ rust_builder/target/
 .env.*
 *.iml
 
+# Signing keys. android/.gitignore already covers android/, but a keystore generated with
+# `keytool` from the repo root (docs/RELEASING.md) would land here, unignored. The release
+# key must never be committed: leaked, anyone can ship an "update" to every user.
+*.jks
+*.keystore
+android/key.properties
+
 # Platform
 ios/Pods/
 ios/.symlinks/

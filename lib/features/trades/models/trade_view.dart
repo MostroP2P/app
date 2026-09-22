@@ -87,11 +87,50 @@ class TradeView {
   bool get showsTimer => timer != TradeTimerOwner.none;
 
   /// [canRate] is false in privacy mode, where no rating can be sent: the
-  /// completed screen then only offers `Close`.
+  /// completed screen then only offers `Close`. [cancelRequested] is this
+  /// side's pending cooperative-cancel request (protocol `cancel.md`): the
+  /// trade goes on until the counterparty also cancels, and asking again is
+  /// not an action, so the bar drops `Cancel` and keeps the rest. Only while
+  /// the request can be open — `active` and `fiatSent`: the row keeps the
+  /// flag after a dispute takes over, where the seller's cancel is a
+  /// different action.
   static TradeView of({
     required TradeStatus status,
     required bool isBuyer,
     bool canRate = true,
+    bool cancelRequested = false,
+  }) {
+    final view = _of(status: status, isBuyer: isBuyer, canRate: canRate);
+    return cancelRequested && cancelRequestCanBeOpen(status)
+        ? view._withoutCancel()
+        : view;
+  }
+
+  /// The statuses a cooperative-cancel request is open in.
+  static bool cancelRequestCanBeOpen(TradeStatus status) =>
+      status == TradeStatus.active || status == TradeStatus.fiatSent;
+
+  TradeView _withoutCancel() => TradeView(
+    step: step,
+    chip: chip,
+    showsChat: showsChat,
+    showsReputation: showsReputation,
+    primary: primary,
+    secondary: [
+      for (final action in secondary)
+        if (action != TradeSecondaryAction.cancel) action,
+    ],
+    timer: timer,
+    note: note,
+    isCompleted: isCompleted,
+    showsReleaseWarning: showsReleaseWarning,
+    showsCloseLink: showsCloseLink,
+  );
+
+  static TradeView _of({
+    required TradeStatus status,
+    required bool isBuyer,
+    required bool canRate,
   }) {
     const cancelOnly = [TradeSecondaryAction.cancel];
     const cancelOrDispute = [

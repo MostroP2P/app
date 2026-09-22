@@ -7,6 +7,7 @@ import 'package:mostro/features/trades/models/trade_view.dart';
 /// the trade is active; dispute never before the escrow is locked (#203).
 void main() {
   bondWindowTests();
+  cancelRequestTests();
   TradeView view(
     TradeStatus status, {
     required bool isBuyer,
@@ -184,6 +185,66 @@ void main() {
         );
       }
     }
+  });
+}
+
+/// Protocol `cancel.md`, "Cancel cooperatively": once this side asked to
+/// cancel, the trade goes on until the counterparty also cancels. Asking
+/// again is not an action, so the bar drops `Cancel` and keeps the rest.
+void cancelRequestTests() {
+  group('a cancel request of this side is pending', () {
+    for (final status in [TradeStatus.active, TradeStatus.fiatSent]) {
+      for (final isBuyer in [true, false]) {
+        test(
+          'no second cancel, everything else stays ($status, isBuyer: $isBuyer)',
+          () {
+            final plain = TradeView.of(status: status, isBuyer: isBuyer);
+            final asked = TradeView.of(
+              status: status,
+              isBuyer: isBuyer,
+              cancelRequested: true,
+            );
+            expect(
+              asked.secondary,
+              isNot(contains(TradeSecondaryAction.cancel)),
+            );
+            expect(
+              asked.secondary,
+              plain.secondary.where((a) => a != TradeSecondaryAction.cancel),
+            );
+            expect(asked.primary, plain.primary);
+            expect(asked.chip, plain.chip);
+            expect(asked.showsChat, plain.showsChat);
+            expect(asked.step, plain.step);
+            expect(asked.timer, plain.timer);
+          },
+        );
+      }
+    }
+
+    test(
+      'the flag outlives the request: a dispute keeps the seller\'s cancel',
+      () {
+        // The row is never cleared; a dispute opened after an unanswered
+        // request must not lose the seller's own cancel action.
+        final v = TradeView.of(
+          status: TradeStatus.disputed,
+          isBuyer: false,
+          cancelRequested: true,
+        );
+        expect(v.secondary, contains(TradeSecondaryAction.cancel));
+      },
+    );
+
+    test('no request can be open before active: the flag changes nothing', () {
+      final v = TradeView.of(
+        status: TradeStatus.waitingPayment,
+        isBuyer: true,
+        cancelRequested: true,
+      );
+      expect(v.secondary, [TradeSecondaryAction.cancel]);
+      expect(v.cancelIsFullWidth, isTrue);
+    });
   });
 }
 

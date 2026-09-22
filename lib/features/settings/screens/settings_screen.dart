@@ -22,6 +22,7 @@ import 'package:mostro/features/settings/widgets/language_selector.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/types.dart' show MostroNodeEntry;
 
@@ -264,29 +265,38 @@ class SettingsScreen extends ConsumerWidget {
 
   Future<void> _showThemeDialog(BuildContext context, WidgetRef ref) async {
     final current = ref.read(settingsProvider).themeMode;
-    await showDialog<void>(
+    await showMostroDialog<void>(
       context: context,
       builder:
-          (ctx) => SimpleDialog(
-            title: Text(AppLocalizations.of(ctx).appearanceDialogTitle),
-            children:
-                ThemeMode.values
-                    .map(
-                      (mode) => ListTile(
-                        title: Text(
-                          _themeLabel(AppLocalizations.of(ctx), mode),
+          (ctx) => MostroDialog(
+            title: AppLocalizations.of(ctx).appearanceDialogTitle,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:
+                  ThemeMode.values
+                      .map(
+                        (mode) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            _themeLabel(AppLocalizations.of(ctx), mode),
+                          ),
+                          trailing:
+                              mode == current
+                                  ? Icon(
+                                    Icons.check,
+                                    color: OrderBookPalette.of(ctx).lime,
+                                  )
+                                  : null,
+                          onTap: () {
+                            ref
+                                .read(settingsProvider.notifier)
+                                .setThemeMode(mode);
+                            Navigator.of(ctx).pop();
+                          },
                         ),
-                        trailing:
-                            mode == current ? const Icon(Icons.check) : null,
-                        onTap: () {
-                          ref
-                              .read(settingsProvider.notifier)
-                              .setThemeMode(mode);
-                          Navigator.of(ctx).pop();
-                        },
-                      ),
-                    )
-                    .toList(),
+                      )
+                      .toList(),
+            ),
           ),
     );
   }
@@ -296,7 +306,7 @@ class SettingsScreen extends ConsumerWidget {
   Future<void> _showLightningAddressDialog(
     BuildContext context,
     WidgetRef ref,
-  ) => showDialog<void>(
+  ) => showMostroDialog<void>(
     context: context,
     builder: (_) => const _LightningAddressDialog(),
   );
@@ -349,8 +359,8 @@ class _LightningAddressDialogState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text(l10n.lightningAddressDialogTitle),
+    return MostroDialog(
+      title: l10n.lightningAddressDialogTitle,
       content: TextField(
         controller: _controller,
         keyboardType: TextInputType.emailAddress,
@@ -362,20 +372,22 @@ class _LightningAddressDialogState
           if (_errorText != null) setState(() => _errorText = null);
         },
       ),
-      actions: [
-        TextButton(
+      // Clearing the saved address is neither the answer nor the way out of
+      // this dialog, so it reads as a link rather than a third button.
+      links: [
+        ModalLink(
+          label: l10n.clearButtonLabel,
           onPressed: () => _saveAndClose(null),
-          child: Text(l10n.clearButtonLabel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.cancel),
-        ),
-        TextButton(
-          onPressed: () => _onSave(l10n),
-          child: Text(l10n.saveButtonLabel),
         ),
       ],
+      secondary: ModalAction(
+        label: l10n.cancel,
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      primary: ModalAction(
+        label: l10n.saveButtonLabel,
+        onPressed: () => _onSave(l10n),
+      ),
     );
   }
 }

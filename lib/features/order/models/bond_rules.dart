@@ -101,7 +101,12 @@ BondCancelCopy bondCancelCopy(TradeUpdateReason? reason) => switch (reason) {
   TradeUpdateReason.bondLostRace => BondCancelCopy.lostRace,
   TradeUpdateReason.makerCanceled => BondCancelCopy.makerCanceled,
   TradeUpdateReason.userCanceled => BondCancelCopy.own,
-  TradeUpdateReason.bondExpired || null => BondCancelCopy.neutral,
+  // A cooperative-cancel request only exists from `active` on, never in
+  // the bond window; nothing to explain here.
+  TradeUpdateReason.bondExpired ||
+  TradeUpdateReason.cooperativeCancelRequestedByMe ||
+  TradeUpdateReason.cooperativeCancelRequestedByPeer ||
+  null => BondCancelCopy.neutral,
 };
 
 /// The explainer accordion is open the first time a user sees the screen

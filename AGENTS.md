@@ -3,7 +3,7 @@
 ## Language
 
 - **Everything published to this repository must be written in English.** This includes code, code comments, identifiers, commit messages, branch names, PR titles and descriptions, review comments, issues, and documentation.
-- The **only** exception is user-facing UI copy, which is localized through Flutter l10n ARB files (`lib/l10n/app_{en,es,fr,de,it}.arb`); the source language there is still English (`app_en.arb`).
+- The **only** exception is user-facing UI copy, which is localized through Flutter l10n ARB files (`lib/l10n/app_{en,es,fr,de,it,nl}.arb`); the source language there is still English (`app_en.arb`).
 - Keep English as the default even when discussing changes informally — the public history of the project stays in one language.
 
 ## Project Structure & Module Organization

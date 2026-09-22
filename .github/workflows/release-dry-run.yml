@@ -1,0 +1,39 @@
+name: Release dry run
+
+# Compiles the desktop and iOS release artifacts for a PR that could break
+# them, and publishes nothing. release.yml only runs on a pushed tag, and
+# Windows, macOS and iOS cannot be built on a contributor's Linux machine, so
+# without this the first sign of a broken build would be a release missing it.
+#
+# Path-filtered on purpose: four native builds are far too slow for every PR.
+# A PR that touches none of these paths does not start the workflow at all, so
+# never make it a required status check.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release*.yml"
+      - "linux/**"
+      - "windows/**"
+      - "macos/**"
+      - "rust_builder/**"
+      - "pubspec.lock"
+      - "rust/Cargo.lock"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  builds:
+    name: Builds
+    uses: ./.github/workflows/release-builds.yml
+    permissions:
+      contents: read
+    with:
+      tag: v0.0.0
+      version: 0.0.0
+      build_number: "1"
+      retention_days: 3

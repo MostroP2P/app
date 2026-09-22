@@ -1092,6 +1092,664 @@ abstract class InvoiceVerdict_Rejected extends InvoiceVerdict {
 }
 
 /// @nodoc
+mixin _$OrderDelta {
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(int revision, OrderInfo order) upserted,
+    required TResult Function(int revision, String orderId) removed,
+    required TResult Function() resync,
+    required TResult Function() loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(int revision, OrderInfo order)? upserted,
+    TResult? Function(int revision, String orderId)? removed,
+    TResult? Function()? resync,
+    TResult? Function()? loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(int revision, OrderInfo order)? upserted,
+    TResult Function(int revision, String orderId)? removed,
+    TResult Function()? resync,
+    TResult Function()? loaded,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(OrderDelta_Upserted value) upserted,
+    required TResult Function(OrderDelta_Removed value) removed,
+    required TResult Function(OrderDelta_Resync value) resync,
+    required TResult Function(OrderDelta_Loaded value) loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(OrderDelta_Upserted value)? upserted,
+    TResult? Function(OrderDelta_Removed value)? removed,
+    TResult? Function(OrderDelta_Resync value)? resync,
+    TResult? Function(OrderDelta_Loaded value)? loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(OrderDelta_Upserted value)? upserted,
+    TResult Function(OrderDelta_Removed value)? removed,
+    TResult Function(OrderDelta_Resync value)? resync,
+    TResult Function(OrderDelta_Loaded value)? loaded,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $OrderDeltaCopyWith<$Res> {
+  factory $OrderDeltaCopyWith(
+    OrderDelta value,
+    $Res Function(OrderDelta) then,
+  ) = _$OrderDeltaCopyWithImpl<$Res, OrderDelta>;
+}
+
+/// @nodoc
+class _$OrderDeltaCopyWithImpl<$Res, $Val extends OrderDelta>
+    implements $OrderDeltaCopyWith<$Res> {
+  _$OrderDeltaCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+abstract class _$$OrderDelta_UpsertedImplCopyWith<$Res> {
+  factory _$$OrderDelta_UpsertedImplCopyWith(
+    _$OrderDelta_UpsertedImpl value,
+    $Res Function(_$OrderDelta_UpsertedImpl) then,
+  ) = __$$OrderDelta_UpsertedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({int revision, OrderInfo order});
+}
+
+/// @nodoc
+class __$$OrderDelta_UpsertedImplCopyWithImpl<$Res>
+    extends _$OrderDeltaCopyWithImpl<$Res, _$OrderDelta_UpsertedImpl>
+    implements _$$OrderDelta_UpsertedImplCopyWith<$Res> {
+  __$$OrderDelta_UpsertedImplCopyWithImpl(
+    _$OrderDelta_UpsertedImpl _value,
+    $Res Function(_$OrderDelta_UpsertedImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? revision = null, Object? order = null}) {
+    return _then(
+      _$OrderDelta_UpsertedImpl(
+        revision:
+            null == revision
+                ? _value.revision
+                : revision // ignore: cast_nullable_to_non_nullable
+                    as int,
+        order:
+            null == order
+                ? _value.order
+                : order // ignore: cast_nullable_to_non_nullable
+                    as OrderInfo,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$OrderDelta_UpsertedImpl extends OrderDelta_Upserted {
+  const _$OrderDelta_UpsertedImpl({required this.revision, required this.order})
+    : super._();
+
+  @override
+  final int revision;
+  @override
+  final OrderInfo order;
+
+  @override
+  String toString() {
+    return 'OrderDelta.upserted(revision: $revision, order: $order)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OrderDelta_UpsertedImpl &&
+            (identical(other.revision, revision) ||
+                other.revision == revision) &&
+            (identical(other.order, order) || other.order == order));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, revision, order);
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OrderDelta_UpsertedImplCopyWith<_$OrderDelta_UpsertedImpl> get copyWith =>
+      __$$OrderDelta_UpsertedImplCopyWithImpl<_$OrderDelta_UpsertedImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(int revision, OrderInfo order) upserted,
+    required TResult Function(int revision, String orderId) removed,
+    required TResult Function() resync,
+    required TResult Function() loaded,
+  }) {
+    return upserted(revision, order);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(int revision, OrderInfo order)? upserted,
+    TResult? Function(int revision, String orderId)? removed,
+    TResult? Function()? resync,
+    TResult? Function()? loaded,
+  }) {
+    return upserted?.call(revision, order);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(int revision, OrderInfo order)? upserted,
+    TResult Function(int revision, String orderId)? removed,
+    TResult Function()? resync,
+    TResult Function()? loaded,
+    required TResult orElse(),
+  }) {
+    if (upserted != null) {
+      return upserted(revision, order);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(OrderDelta_Upserted value) upserted,
+    required TResult Function(OrderDelta_Removed value) removed,
+    required TResult Function(OrderDelta_Resync value) resync,
+    required TResult Function(OrderDelta_Loaded value) loaded,
+  }) {
+    return upserted(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(OrderDelta_Upserted value)? upserted,
+    TResult? Function(OrderDelta_Removed value)? removed,
+    TResult? Function(OrderDelta_Resync value)? resync,
+    TResult? Function(OrderDelta_Loaded value)? loaded,
+  }) {
+    return upserted?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(OrderDelta_Upserted value)? upserted,
+    TResult Function(OrderDelta_Removed value)? removed,
+    TResult Function(OrderDelta_Resync value)? resync,
+    TResult Function(OrderDelta_Loaded value)? loaded,
+    required TResult orElse(),
+  }) {
+    if (upserted != null) {
+      return upserted(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class OrderDelta_Upserted extends OrderDelta {
+  const factory OrderDelta_Upserted({
+    required final int revision,
+    required final OrderInfo order,
+  }) = _$OrderDelta_UpsertedImpl;
+  const OrderDelta_Upserted._() : super._();
+
+  int get revision;
+  OrderInfo get order;
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$OrderDelta_UpsertedImplCopyWith<_$OrderDelta_UpsertedImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$OrderDelta_RemovedImplCopyWith<$Res> {
+  factory _$$OrderDelta_RemovedImplCopyWith(
+    _$OrderDelta_RemovedImpl value,
+    $Res Function(_$OrderDelta_RemovedImpl) then,
+  ) = __$$OrderDelta_RemovedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({int revision, String orderId});
+}
+
+/// @nodoc
+class __$$OrderDelta_RemovedImplCopyWithImpl<$Res>
+    extends _$OrderDeltaCopyWithImpl<$Res, _$OrderDelta_RemovedImpl>
+    implements _$$OrderDelta_RemovedImplCopyWith<$Res> {
+  __$$OrderDelta_RemovedImplCopyWithImpl(
+    _$OrderDelta_RemovedImpl _value,
+    $Res Function(_$OrderDelta_RemovedImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? revision = null, Object? orderId = null}) {
+    return _then(
+      _$OrderDelta_RemovedImpl(
+        revision:
+            null == revision
+                ? _value.revision
+                : revision // ignore: cast_nullable_to_non_nullable
+                    as int,
+        orderId:
+            null == orderId
+                ? _value.orderId
+                : orderId // ignore: cast_nullable_to_non_nullable
+                    as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$OrderDelta_RemovedImpl extends OrderDelta_Removed {
+  const _$OrderDelta_RemovedImpl({
+    required this.revision,
+    required this.orderId,
+  }) : super._();
+
+  @override
+  final int revision;
+  @override
+  final String orderId;
+
+  @override
+  String toString() {
+    return 'OrderDelta.removed(revision: $revision, orderId: $orderId)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OrderDelta_RemovedImpl &&
+            (identical(other.revision, revision) ||
+                other.revision == revision) &&
+            (identical(other.orderId, orderId) || other.orderId == orderId));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, revision, orderId);
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OrderDelta_RemovedImplCopyWith<_$OrderDelta_RemovedImpl> get copyWith =>
+      __$$OrderDelta_RemovedImplCopyWithImpl<_$OrderDelta_RemovedImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(int revision, OrderInfo order) upserted,
+    required TResult Function(int revision, String orderId) removed,
+    required TResult Function() resync,
+    required TResult Function() loaded,
+  }) {
+    return removed(revision, orderId);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(int revision, OrderInfo order)? upserted,
+    TResult? Function(int revision, String orderId)? removed,
+    TResult? Function()? resync,
+    TResult? Function()? loaded,
+  }) {
+    return removed?.call(revision, orderId);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(int revision, OrderInfo order)? upserted,
+    TResult Function(int revision, String orderId)? removed,
+    TResult Function()? resync,
+    TResult Function()? loaded,
+    required TResult orElse(),
+  }) {
+    if (removed != null) {
+      return removed(revision, orderId);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(OrderDelta_Upserted value) upserted,
+    required TResult Function(OrderDelta_Removed value) removed,
+    required TResult Function(OrderDelta_Resync value) resync,
+    required TResult Function(OrderDelta_Loaded value) loaded,
+  }) {
+    return removed(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(OrderDelta_Upserted value)? upserted,
+    TResult? Function(OrderDelta_Removed value)? removed,
+    TResult? Function(OrderDelta_Resync value)? resync,
+    TResult? Function(OrderDelta_Loaded value)? loaded,
+  }) {
+    return removed?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(OrderDelta_Upserted value)? upserted,
+    TResult Function(OrderDelta_Removed value)? removed,
+    TResult Function(OrderDelta_Resync value)? resync,
+    TResult Function(OrderDelta_Loaded value)? loaded,
+    required TResult orElse(),
+  }) {
+    if (removed != null) {
+      return removed(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class OrderDelta_Removed extends OrderDelta {
+  const factory OrderDelta_Removed({
+    required final int revision,
+    required final String orderId,
+  }) = _$OrderDelta_RemovedImpl;
+  const OrderDelta_Removed._() : super._();
+
+  int get revision;
+  String get orderId;
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$OrderDelta_RemovedImplCopyWith<_$OrderDelta_RemovedImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$OrderDelta_ResyncImplCopyWith<$Res> {
+  factory _$$OrderDelta_ResyncImplCopyWith(
+    _$OrderDelta_ResyncImpl value,
+    $Res Function(_$OrderDelta_ResyncImpl) then,
+  ) = __$$OrderDelta_ResyncImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$OrderDelta_ResyncImplCopyWithImpl<$Res>
+    extends _$OrderDeltaCopyWithImpl<$Res, _$OrderDelta_ResyncImpl>
+    implements _$$OrderDelta_ResyncImplCopyWith<$Res> {
+  __$$OrderDelta_ResyncImplCopyWithImpl(
+    _$OrderDelta_ResyncImpl _value,
+    $Res Function(_$OrderDelta_ResyncImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$OrderDelta_ResyncImpl extends OrderDelta_Resync {
+  const _$OrderDelta_ResyncImpl() : super._();
+
+  @override
+  String toString() {
+    return 'OrderDelta.resync()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType && other is _$OrderDelta_ResyncImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(int revision, OrderInfo order) upserted,
+    required TResult Function(int revision, String orderId) removed,
+    required TResult Function() resync,
+    required TResult Function() loaded,
+  }) {
+    return resync();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(int revision, OrderInfo order)? upserted,
+    TResult? Function(int revision, String orderId)? removed,
+    TResult? Function()? resync,
+    TResult? Function()? loaded,
+  }) {
+    return resync?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(int revision, OrderInfo order)? upserted,
+    TResult Function(int revision, String orderId)? removed,
+    TResult Function()? resync,
+    TResult Function()? loaded,
+    required TResult orElse(),
+  }) {
+    if (resync != null) {
+      return resync();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(OrderDelta_Upserted value) upserted,
+    required TResult Function(OrderDelta_Removed value) removed,
+    required TResult Function(OrderDelta_Resync value) resync,
+    required TResult Function(OrderDelta_Loaded value) loaded,
+  }) {
+    return resync(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(OrderDelta_Upserted value)? upserted,
+    TResult? Function(OrderDelta_Removed value)? removed,
+    TResult? Function(OrderDelta_Resync value)? resync,
+    TResult? Function(OrderDelta_Loaded value)? loaded,
+  }) {
+    return resync?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(OrderDelta_Upserted value)? upserted,
+    TResult Function(OrderDelta_Removed value)? removed,
+    TResult Function(OrderDelta_Resync value)? resync,
+    TResult Function(OrderDelta_Loaded value)? loaded,
+    required TResult orElse(),
+  }) {
+    if (resync != null) {
+      return resync(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class OrderDelta_Resync extends OrderDelta {
+  const factory OrderDelta_Resync() = _$OrderDelta_ResyncImpl;
+  const OrderDelta_Resync._() : super._();
+}
+
+/// @nodoc
+abstract class _$$OrderDelta_LoadedImplCopyWith<$Res> {
+  factory _$$OrderDelta_LoadedImplCopyWith(
+    _$OrderDelta_LoadedImpl value,
+    $Res Function(_$OrderDelta_LoadedImpl) then,
+  ) = __$$OrderDelta_LoadedImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$OrderDelta_LoadedImplCopyWithImpl<$Res>
+    extends _$OrderDeltaCopyWithImpl<$Res, _$OrderDelta_LoadedImpl>
+    implements _$$OrderDelta_LoadedImplCopyWith<$Res> {
+  __$$OrderDelta_LoadedImplCopyWithImpl(
+    _$OrderDelta_LoadedImpl _value,
+    $Res Function(_$OrderDelta_LoadedImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OrderDelta
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$OrderDelta_LoadedImpl extends OrderDelta_Loaded {
+  const _$OrderDelta_LoadedImpl() : super._();
+
+  @override
+  String toString() {
+    return 'OrderDelta.loaded()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType && other is _$OrderDelta_LoadedImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(int revision, OrderInfo order) upserted,
+    required TResult Function(int revision, String orderId) removed,
+    required TResult Function() resync,
+    required TResult Function() loaded,
+  }) {
+    return loaded();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(int revision, OrderInfo order)? upserted,
+    TResult? Function(int revision, String orderId)? removed,
+    TResult? Function()? resync,
+    TResult? Function()? loaded,
+  }) {
+    return loaded?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(int revision, OrderInfo order)? upserted,
+    TResult Function(int revision, String orderId)? removed,
+    TResult Function()? resync,
+    TResult Function()? loaded,
+    required TResult orElse(),
+  }) {
+    if (loaded != null) {
+      return loaded();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(OrderDelta_Upserted value) upserted,
+    required TResult Function(OrderDelta_Removed value) removed,
+    required TResult Function(OrderDelta_Resync value) resync,
+    required TResult Function(OrderDelta_Loaded value) loaded,
+  }) {
+    return loaded(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(OrderDelta_Upserted value)? upserted,
+    TResult? Function(OrderDelta_Removed value)? removed,
+    TResult? Function(OrderDelta_Resync value)? resync,
+    TResult? Function(OrderDelta_Loaded value)? loaded,
+  }) {
+    return loaded?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(OrderDelta_Upserted value)? upserted,
+    TResult Function(OrderDelta_Removed value)? removed,
+    TResult Function(OrderDelta_Resync value)? resync,
+    TResult Function(OrderDelta_Loaded value)? loaded,
+    required TResult orElse(),
+  }) {
+    if (loaded != null) {
+      return loaded(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class OrderDelta_Loaded extends OrderDelta {
+  const factory OrderDelta_Loaded() = _$OrderDelta_LoadedImpl;
+  const OrderDelta_Loaded._() : super._();
+}
+
+/// @nodoc
 mixin _$PaymentDestination {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({

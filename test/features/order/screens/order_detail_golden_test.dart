@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
@@ -40,6 +41,8 @@ Future<void> _pump(
   Widget screen, {
   required OrderItem order,
   required Brightness brightness,
+  Locale locale = const Locale('es'),
+  double textScale = 1.0,
 }) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
@@ -67,9 +70,15 @@ Future<void> _pump(
         debugShowCheckedModeBanner: false,
         theme:
             brightness == Brightness.dark ? buildDarkTheme() : buildLightTheme(),
-        locale: const Locale('es'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(textScale),
+          ),
+          child: child!,
+        ),
         home: screen,
       ),
     ),
@@ -82,6 +91,35 @@ Future<void> _pump(
 }
 
 void main() {
+  // The side chip ("Du verkaufst BTC", "Tu vends du BTC", …) shares its row
+  // with the currency chip; at large text sizes it must ellipsize rather
+  // than overflow the card.
+  for (final locale in AppLocalizations.supportedLocales) {
+    testWidgets('6a header fits at 2x text, ${locale.languageCode}', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          const MyOrderScreen(orderId: _id),
+          order: _order(isMine: true),
+          brightness: Brightness.dark,
+          locale: locale,
+          textScale: 2.0,
+        );
+        expect(tester.takeException(), isNull);
+        // The action bar labels stay on one line instead of breaking the
+        // word ("Annulere/n").
+        final l10n = lookupAppLocalizations(locale);
+        for (final label in [l10n.closeButtonLabel, l10n.cancel]) {
+          final text = tester.renderObject<RenderParagraph>(find.text(label));
+          final line = text.getFullHeightForCaret(const TextPosition(offset: 0));
+          expect(text.size.height, lessThan(line * 1.5), reason: label);
+        }
+      });
+    });
+  }
+
   for (final (name, brightness) in [
     ('dark', Brightness.dark),
     ('light', Brightness.light),

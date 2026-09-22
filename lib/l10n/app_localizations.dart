@@ -10,6 +10,7 @@ import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
 import 'app_localizations_it.dart';
+import 'app_localizations_nl.dart';
 
 // ignore_for_file: type=lint
 
@@ -102,6 +103,7 @@ abstract class AppLocalizations {
     Locale('es'),
     Locale('fr'),
     Locale('it'),
+    Locale('nl'),
   ];
 
   /// Application name
@@ -1363,6 +1365,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to cancel. Please try again.'**
   String get cancelRequestFailed;
+
+  /// Notifications card title on the daemon confirming this user's cooperative-cancel request (protocol cancel.md); the trade stays open until the other party also cancels
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel requested'**
+  String get tradeCardCancelRequestedByMeTitle;
+
+  /// Notifications card body on the daemon confirming this user's cooperative-cancel request
+  ///
+  /// In en, this message translates to:
+  /// **'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.'**
+  String get tradeCardCancelRequestedByMeMessage;
+
+  /// Notifications card title when the counterparty asked to cancel an active trade (protocol cancel.md); this user decides whether to accept
+  ///
+  /// In en, this message translates to:
+  /// **'The other party wants to cancel'**
+  String get tradeCardCancelRequestedByPeerTitle;
+
+  /// Notifications card body when the counterparty asked to cancel an active trade
+  ///
+  /// In en, this message translates to:
+  /// **'They asked to cancel this trade. Accept to end it with no funds moved, or keep trading.'**
+  String get tradeCardCancelRequestedByPeerMessage;
+
+  /// Notice on the trade screen while this user's cooperative-cancel request waits for the other party
+  ///
+  /// In en, this message translates to:
+  /// **'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.'**
+  String get tradeCancelRequestedByMeNotice;
+
+  /// Notice on the trade screen while the counterparty's cooperative-cancel request waits for this user
+  ///
+  /// In en, this message translates to:
+  /// **'The other party asked to cancel this trade. Accept to end it with no funds moved, or keep trading.'**
+  String get tradeCancelRequestedByPeerNotice;
+
+  /// Label of the cancel button once the counterparty asked to cancel: this user's cancel accepts theirs and ends the trade
+  ///
+  /// In en, this message translates to:
+  /// **'Accept cancel'**
+  String get acceptCancelButton;
+
+  /// Body text for the cancel-trade confirmation dialog when the counterparty already asked to cancel: this cancel accepts theirs
+  ///
+  /// In en, this message translates to:
+  /// **'The other party asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.'**
+  String get cancelTradeDialogContentAccept;
 
   /// Snackbar shown when the fiat-sent action fails
   ///
@@ -2749,6 +2799,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{time} left'**
   String timeLeftLabel(String time);
+
+  /// Add-invoice screen: the daemon answered NotAllowedByStatus — the order moved on (usually an earlier submission was accepted) and the app is re-reading its state
+  ///
+  /// In en, this message translates to:
+  /// **'This order is no longer waiting for an invoice. Updating its status…'**
+  String get invoiceNoLongerExpected;
+
+  /// Add-invoice screen: a second submission was refused because an earlier one for the same trade is still waiting for the daemon's reply (Rust marker InvoiceSubmitInFlight)
+  ///
+  /// In en, this message translates to:
+  /// **'An invoice for this order is already being sent. Wait for the reply.'**
+  String get invoiceSubmitInFlight;
 
   /// Snackbar when submitting an LN address before the sats amount is known
   ///
@@ -5905,6 +5967,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 new message from the dispute resolver} other{{count} new messages from the dispute resolver}}'**
   String chatCardSolverMessage(int count);
+
+  /// Error shown when the Mostro node refuses a new order or take with CantDo(InvalidTradeIndex) even after the app resynced its trade-key counter and retried once
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is out of sync with this Mostro node, so it refused the order. Try again in a moment'**
+  String get invalidTradeIndexError;
+
+  /// Snackbar shown on the Account screen right after a mnemonic import, while the app asks Mostro for the identity's trades in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Account imported. Recovering your trades from Mostro…'**
+  String get recoveringTradesMessage;
+
+  /// Snackbar shown after a mnemonic import once Mostro returned the identity's trades in progress; count is how many orders and disputes came back
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Account imported. You had no trades in progress} =1{Account imported. 1 trade recovered} other{Account imported. {count} trades recovered}}'**
+  String recoveredTradesMessage(int count);
+
+  /// Snackbar shown after a mnemonic import when Mostro did not answer the recovery request; the import itself succeeded
+  ///
+  /// In en, this message translates to:
+  /// **'Account imported, but Mostro did not answer, so your trades in progress were not recovered'**
+  String get recoverTradesFailedMessage;
+
+  /// Label in front of the chips summarising the methods chosen so far on the payment-method picker screen
+  ///
+  /// In en, this message translates to:
+  /// **'Chosen'**
+  String get paymentMethodsChosenLabel;
+
+  /// Count line above the confirm button of the payment-method picker screen
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Choose at least one method} =1{1 method selected} other{{count} methods selected}}'**
+  String paymentMethodsSelectedCount(int count);
+
+  /// Button that saves the payment-method selection and closes the picker screen
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm methods'**
+  String get paymentMethodsConfirm;
+
+  /// Dashed row at the end of the payment-method list that opens the custom-method sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Add custom payment method'**
+  String get paymentMethodAddCustom;
+
+  /// Title of the dialog shown when leaving the payment-method picker with unconfirmed changes
+  ///
+  /// In en, this message translates to:
+  /// **'Discard the changes?'**
+  String get paymentMethodsDiscardTitle;
+
+  /// Dialog action that leaves the payment-method picker without saving
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get paymentMethodsDiscardConfirm;
+
+  /// Dialog action that stays on the payment-method picker screen
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get paymentMethodsKeepEditing;
+
+  /// Title of the warning shown before generating a new user or importing a seed while the current identity has escrow, bonds, payout claims or trades in flight
+  ///
+  /// In en, this message translates to:
+  /// **'This user still has sats in play'**
+  String get fundsAtRiskTitle;
+
+  /// Body of the funds-at-risk warning, above the list of what is still in flight
+  ///
+  /// In en, this message translates to:
+  /// **'If you continue, this user\'s keys are replaced and nothing listed here can be finished or recovered from this device. This is not recommended: you can lose these sats.'**
+  String get fundsAtRiskBody;
+
+  /// Funds-at-risk list entry: the user is the seller and the hold invoice is paid and held
+  ///
+  /// In en, this message translates to:
+  /// **'Sats locked in escrow for a sale'**
+  String get fundsAtRiskSellerEscrow;
+
+  /// Funds-at-risk list entry: an anti-abuse bond is locked until its trade ends
+  ///
+  /// In en, this message translates to:
+  /// **'Bond locked'**
+  String get fundsAtRiskBondLocked;
+
+  /// Funds-at-risk list entry: the user won a share of a slashed bond and has not been paid yet
+  ///
+  /// In en, this message translates to:
+  /// **'Bond payout not collected yet'**
+  String get fundsAtRiskPayoutClaim;
+
+  /// Funds-at-risk list entry: a live trade with none of the user's sats locked
+  ///
+  /// In en, this message translates to:
+  /// **'Trade in progress'**
+  String get fundsAtRiskTradeInProgress;
+
+  /// Funds-at-risk list entry: a bond invoice that has not been paid and has not expired
+  ///
+  /// In en, this message translates to:
+  /// **'Bond invoice still payable'**
+  String get fundsAtRiskBondInvoicePending;
+
+  /// Safe, primary action of the funds-at-risk warning: abandon the generation or import
+  ///
+  /// In en, this message translates to:
+  /// **'Keep this user'**
+  String get fundsAtRiskKeep;
+
+  /// Destructive action of the funds-at-risk warning: go on with the generation or import
+  ///
+  /// In en, this message translates to:
+  /// **'Continue anyway'**
+  String get fundsAtRiskContinue;
 }
 
 class _AppLocalizationsDelegate
@@ -5917,8 +6099,14 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['de', 'en', 'es', 'fr', 'it'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+    'de',
+    'en',
+    'es',
+    'fr',
+    'it',
+    'nl',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -5937,6 +6125,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsFr();
     case 'it':
       return AppLocalizationsIt();
+    case 'nl':
+      return AppLocalizationsNl();
   }
 
   throw FlutterError(

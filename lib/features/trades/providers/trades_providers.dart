@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trade_rows_provider.dart'
     show needsActionCountProvider;
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
 // ── TradeStatusFilter ─────────────────────────────────────────────────────────
@@ -72,6 +73,10 @@ TradeStatusFilter orderStatusToFilter(rust_types.OrderStatus status) {
 
 // ── Raw trade list from DB ────────────────────────────────────────────────────
 
+/// How long the trade list lets touches pile up before re-reading: a restore's
+/// history replay files dozens of rows in a burst, and one read covers them.
+const tradeListTouchWindow = Duration(milliseconds: 150);
+
 /// Loads all trades from the Rust DB, sorted newest-first.
 ///
 /// Exposed so callers (e.g. [refreshTrades]) can invalidate it when new trades
@@ -82,7 +87,17 @@ final rawTradesProvider = FutureProvider<List<rust_types.TradeInfo>>((ref) {
   // and a sweep resync rewrites its status — pull-to-refresh must not be
   // the only way to observe either.
   ref.listen(tradeUpdatesProvider, (_, __) => ref.invalidateSelf());
-  return orders_api.listTrades();
+  // And on every touch, Rust's doorbell for any write to a trade row. Some
+  // writes ring nothing else: the history a restore replays is filed with a
+  // touch only, so it raises no notice — and without this the imported
+  // user's trades appeared only after a restart.
+  Timer? pending;
+  ref.onDispose(() => pending?.cancel());
+  ref.listen<AsyncValue<rust_types.TradeTouch>>(tradeTouchProvider, (_, next) {
+    if (!next.hasValue || (pending?.isActive ?? false)) return;
+    pending = Timer(tradeListTouchWindow, ref.invalidateSelf);
+  });
+  return ref.watch(tradeListReaderProvider)();
 });
 
 /// Returns the [rust_types.TradeInfo] for a given [orderId], or null if not found.

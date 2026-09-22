@@ -109,6 +109,16 @@ void main() {
     );
   });
 
+  /// The order paths resync the trade-key counter and retry once on
+  /// `CantDo(InvalidTradeIndex)`; only a second refusal reaches the UI, as the
+  /// bare marker — never as the old "Order rejected by Mostro: …" prose.
+  test('maps the InvalidTradeIndex marker to the out-of-sync guidance', () {
+    expect(
+      localizedDaemonError(l10n, 'InvalidTradeIndex', fallback: 'x'),
+      l10n.invalidTradeIndexError,
+    );
+  });
+
   /// mostro-core 0.14.6 adds `CantDoReason::MaintenanceMode`: the node is
   /// draining and refuses new orders and takes. Rust emits the bare marker;
   /// some wrappers prepend their own context, so match it by substring like
@@ -125,6 +135,17 @@ void main() {
         fallback: 'x',
       ),
       l10n.mostroMaintenanceMode,
+    );
+  });
+
+  test('maps a refused duplicate invoice submission', () {
+    expect(
+      localizedDaemonError(
+        l10n,
+        'AnyhowException(InvoiceSubmitInFlight)',
+        fallback: 'x',
+      ),
+      l10n.invoiceSubmitInFlight,
     );
   });
 

@@ -20,7 +20,7 @@ Future<void> setTheme({required ThemeMode theme}) =>
 
 /// Update the display language.
 ///
-/// **Errors**: `UnsupportedLocale` if `locale` is not one of `en|es|it|fr|de`.
+/// **Errors**: `UnsupportedLocale` if `locale` is not one of `en|es|it|fr|de|nl`.
 Future<void> setLanguage({required String locale}) =>
     RustLib.instance.api.crateApiSettingsSetLanguage(locale: locale);
 

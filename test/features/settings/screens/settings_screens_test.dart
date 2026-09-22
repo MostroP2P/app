@@ -21,6 +21,7 @@ import 'package:mostro/features/settings/screens/relays_screen.dart';
 import 'package:mostro/features/settings/screens/settings_screen.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/src/rust/api/types.dart'
     show MostroNodeEntry, PushStatus, RelayInfo, RelaySource, RelayStatus;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -226,7 +227,7 @@ void main() {
 
       await tester.tap(find.text('Not set'));
       await tester.pumpAndSettle();
-      final dialog = find.byType(AlertDialog);
+      final dialog = find.byType(MostroDialog);
       await tester.enterText(
         find.descendant(of: dialog, matching: find.byType(TextField)),
         'alice@example.com',
@@ -237,7 +238,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(MostroDialog), findsNothing);
       expect(find.text('alice@example.com'), findsOneWidget);
     });
 

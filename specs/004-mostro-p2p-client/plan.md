@@ -34,7 +34,7 @@ Build Mostro Mobile v2, a P2P Bitcoin Lightning exchange application that replic
 
 **Constraints**: Offline-first (queue outbound messages when offline); zero crypto in Dart; no analytics/telemetry; responsive layouts for mobile, tablet, and desktop; all relay I/O originates in Rust
 
-**Scale/Scope**: ~23 distinct screens (per V1_FLOW_GUIDE.md); 15 Mostro order states; ~50 functional requirements; 5 languages (EN, ES, IT, FR, DE)
+**Scale/Scope**: ~23 distinct screens (per V1_FLOW_GUIDE.md); 15 Mostro order states; ~50 functional requirements; 6 languages (EN, ES, IT, FR, DE, NL)
 
 ## Constitution Check
 
@@ -101,6 +101,7 @@ lib/                          # Flutter/Dart UI shell
 │   ├── providers/            # Cross-feature Riverpod providers
 │   ├── widgets/              # Reusable UI components
 │   └── utils/
+├── l10n/                     # ARB localization files (EN, ES, IT, FR, DE, NL) + generated AppLocalizations
 └── generated/                # flutter_rust_bridge generated bindings (DO NOT EDIT)
 
 rust/                         # Rust core
@@ -149,9 +150,8 @@ test/
 specs/                        # Planning artifacts (this directory)
 assets/
 ├── images/                   # Walkthrough images (wt-1.webp … wt-6.webp), logos
-├── data/
-│   └── fiat.json             # Fiat currency + country flag data
-└── l10n/                     # ARB localization files (EN, ES, IT, FR, DE)
+└── data/
+    └── fiat.json             # Fiat currency + country flag data
 ```
 
 **Structure Decision**: Flutter multi-platform monorepo with a `lib/` Dart shell and `rust/` Rust core. Features are organized as self-contained directories under `lib/features/`, each mirroring a V1_FLOW_GUIDE.md section group. The Rust `api/` layer exposes only what the Flutter shell needs; all protocol internals stay inside `rust/src/`. The `generated/` directory is owned by `flutter_rust_bridge_codegen` and must never be edited manually.

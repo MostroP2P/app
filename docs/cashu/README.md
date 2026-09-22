@@ -328,7 +328,7 @@ Every phase, without exception, carries these standing requirements:
 
 - Zero behavior change in Lightning mode (existing `cargo test` / `flutter test` pass
   unmodified; new tests added for new code).
-- All user-facing strings via `lib/l10n/app_{en,es,fr,de,it}.arb` + `flutter gen-l10n`
+- All user-facing strings via `lib/l10n/app_{en,es,fr,de,it,nl}.arb` + `flutter gen-l10n`
   (Rust returns markers/codes only, per repo translation rule).
 - `./scripts/frb-generate.sh` after any `rust/src/api/` change.
 - `cargo clippy` / `flutter analyze` clean.

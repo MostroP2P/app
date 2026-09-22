@@ -11,16 +11,19 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/backup_palette.dart';
+import 'package:mostro/core/services/identity_scoped_state.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/account/widgets/backup_trigger_sheet.dart';
 import 'package:mostro/features/account/widgets/backup_widgets.dart';
+import 'package:mostro/features/account/widgets/funds_at_risk_dialog.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/providers/session_provider.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/types.dart' show FundsAtRisk;
 
 /// Account — Route `/key_management` (`design_handoff_cuenta_respaldo`,
 /// 15a not backed up · 15b backed up).
@@ -35,6 +38,10 @@ class AccountScreen extends ConsumerStatefulWidget {
     super.key,
     @visibleForTesting this.debugWords,
     @visibleForTesting this.debugPublicKey,
+    @visibleForTesting this.debugRegenerate,
+    @visibleForTesting this.debugImport,
+    @visibleForTesting this.debugRecover,
+    @visibleForTesting this.debugFundsAtRisk,
   });
 
   /// Test-only word source for `Show words`, so widget tests do not reach the
@@ -43,6 +50,13 @@ class AccountScreen extends ConsumerStatefulWidget {
 
   /// Test seam: the public key the readout shows, instead of the bridge's.
   final Future<String?> Function()? debugPublicKey;
+
+  /// Test seam: the identity swaps, instead of [IdentityService]'s
+  /// bridge-backed ones. Never set in production.
+  final Future<void> Function()? debugRegenerate;
+  final Future<void> Function(List<String> words)? debugImport;
+  final Future<RecoveryOutcome> Function()? debugRecover;
+  final Future<List<FundsAtRisk>> Function()? debugFundsAtRisk;
 
   @override
   ConsumerState<AccountScreen> createState() => _AccountScreenState();
@@ -196,8 +210,16 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 ),
               ],
               footer: _AccountActions(
-                onGenerate: () => _confirmGenerateNewUser(context),
-                onImport: () => _showImportDialog(context),
+                onGenerate:
+                    () => _guardedIdentitySwap(
+                      context,
+                      () => _confirmGenerateNewUser(context),
+                    ),
+                onImport:
+                    () => _guardedIdentitySwap(
+                      context,
+                      () => _showImportDialog(context),
+                    ),
                 onRefresh: () => _confirmRefresh(context),
               ),
             ),
@@ -218,105 +240,168 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   void _showInfoDialog(BuildContext context, String title, String content) {
-    showDialog<void>(
+    showMostroDialog<void>(
       context: context,
       builder:
-          (dialogContext) => AlertDialog(
-            title: Text(title),
-            content: Text(content),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(AppLocalizations.of(context).okButtonLabel),
-              ),
-            ],
+          (dialogContext) => MostroDialog(
+            title: title,
+            body: content,
+            primary: ModalAction(
+              label: AppLocalizations.of(context).okButtonLabel,
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
           ),
     );
   }
 
-  /// A new or imported identity is, by definition, not backed up: mask the
-  /// old words, re-arm the reminder and clear the backed-up flag, then go
-  /// home. The identity has already been replaced when this runs, so a reset
-  /// that fails is reported as a backup-status failure, not as a failed
-  /// generation or import, and never keeps the other reset from running.
-  Future<void> _finishIdentitySwap(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
+  /// Mask the old words, move the backup state to what the new identity
+  /// deserves, then go home.
+  ///
+  /// A generated mnemonic is, by definition, not backed up: the reminder
+  /// re-arms and the backed-up flag clears. An imported one came from words
+  /// the user already holds ([alreadyBackedUp]) — there is nothing to ask
+  /// them to write down, so the reminder is cleared instead, and cleared
+  /// actively: the walkthrough or the replaced identity may have armed it
+  /// already (#530).
+  ///
+  /// The identity has already been replaced when this runs, so a write that
+  /// fails is reported as a backup-status failure, not as a failed generation
+  /// or import, and never keeps the other write from running.
+  ///
+  /// Runs through [swap], not this screen: the screen may be gone by now.
+  Future<void> _finishIdentitySwap(
+    _IdentitySwap swap, {
+    required bool alreadyBackedUp,
+  }) async {
     _copiedTimer?.cancel();
-    setState(() {
-      _words = null;
-      _copied = false;
-    });
-    ref.read(sessionProvider.notifier).clearSession();
-    final reminder = ref.read(backupReminderProvider.notifier);
-    final completed = ref.read(backupCompletedProvider.notifier);
+    if (mounted) {
+      setState(() {
+        _words = null;
+        _copied = false;
+      });
+    }
+    final reminder = swap.container.read(backupReminderProvider.notifier);
+    final completed = swap.container.read(backupCompletedProvider.notifier);
+
+    final writes =
+        alreadyBackedUp
+            ? [reminder.markAlreadyBackedUp, completed.markCompleted]
+            : [reminder.showBackupReminder, completed.reset];
 
     var resetFailed = false;
-    for (final reset in [reminder.showBackupReminder, completed.reset]) {
+    for (final write in writes) {
       try {
-        await reset();
+        await write();
       } catch (e) {
-        debugPrint('[account] backup state reset error: $e');
+        debugPrint('[account] backup state write error: $e');
         resetFailed = true;
       }
     }
 
-    if (!context.mounted) return;
     if (resetFailed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.failedToSaveBackupStatusMessage)),
+      swap.messenger.showSnackBar(
+        SnackBar(content: Text(swap.l10n.failedToSaveBackupStatusMessage)),
       );
     }
-    context.go(AppRoute.home);
+    swap.router.go(AppRoute.home);
+  }
+
+  /// Run [proceed] — the generate or import flow — unless the current
+  /// identity still has something in flight and the user backs out of the
+  /// warning (issue #533). Asked before anything is written: before the new
+  /// mnemonic, before `delete_identity`.
+  ///
+  /// A check that fails must not lock the user out of rotating a possibly
+  /// compromised identity, so it reads as "nothing found" and is logged.
+  Future<void> _guardedIdentitySwap(
+    BuildContext context,
+    VoidCallback proceed,
+  ) async {
+    var risks = const <FundsAtRisk>[];
+    try {
+      risks =
+          await (widget.debugFundsAtRisk?.call() ??
+              identity_api.fundsAtRisk());
+    } catch (e) {
+      debugPrint('[account] fundsAtRisk error: $e');
+    }
+    if (!context.mounted) return;
+    if (risks.isNotEmpty &&
+        !await confirmIdentitySwapDespiteRisk(context, risks)) {
+      return;
+    }
+    if (!context.mounted) return;
+    proceed();
+  }
+
+  /// Empty the Dart-side state of the identity that was just replaced, so
+  /// the new one starts as a fresh install would (issue #533). Rust already
+  /// wiped the rows in `delete_identity`. Never throws: the swap has
+  /// happened, and stale state on screen must not be reported as a failed
+  /// generation or import.
+  ///
+  /// Through the app's container, never this screen's `ref`: the screen can
+  /// be disposed while the bridge call runs, and the reset then failed with
+  /// "Cannot use ref after the widget was disposed", leaving the previous
+  /// user on screen until a restart.
+  Future<void> _forgetPreviousIdentity(_IdentitySwap swap) async {
+    try {
+      await resetIdentityScopedState(swap.container);
+    } catch (e) {
+      debugPrint('[account] identity-scoped reset error: $e');
+    }
   }
 
   void _confirmGenerateNewUser(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    showDialog<void>(
+    showMostroDialog<void>(
       context: context,
       builder:
-          (dialogContext) => AlertDialog(
-            title: Text(l10n.generateNewUserDialogTitle),
-            content: Text(l10n.generateNewUserDialogContent),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(l10n.cancel),
-              ).withAutomationId(AutomationIds.keysGenerateCancel),
-              FilledButton(
-                onPressed: () async {
+          (dialogContext) => MostroDialog(
+            title: l10n.generateNewUserDialogTitle,
+            body: l10n.generateNewUserDialogContent,
+            secondary: ModalAction(
+              label: l10n.cancel,
+              onPressed: () => Navigator.pop(dialogContext),
+              automationId: AutomationIds.keysGenerateCancel,
+            ),
+            primary: ModalAction(
+              label: l10n.continueButtonLabel,
+              tone: ModalTone.destructive,
+              automationId: AutomationIds.keysGenerateConfirm,
+              onPressed: () async {
+                  final swap = _IdentitySwap.of(context);
                   Navigator.pop(dialogContext);
                   try {
                     // Atomically replaces the stored identity: new mnemonic is
                     // written before old data is cleared, so there is no window
                     // where the user is left without a valid identity.
-                    await IdentityService.regenerate();
+                    await (widget.debugRegenerate?.call() ??
+                        IdentityService.regenerate());
                   } catch (e) {
                     debugPrint('[account] generateNewUser error: $e');
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    swap.messenger.showSnackBar(
                       SnackBar(
                         content: Text(
                           kDebugMode
                               ? 'Failed to generate identity: $e'
-                              : l10n.failedToGenerateIdentityMessage,
+                              : swap.l10n.failedToGenerateIdentityMessage,
                         ),
                       ),
                     );
                     return;
                   }
                   // Only reset and navigate once the new identity exists.
-                  if (!context.mounted) return;
-                  await _finishIdentitySwap(context);
-                },
-                child: Text(l10n.continueButtonLabel),
-              ).withAutomationId(AutomationIds.keysGenerateConfirm),
-            ],
+                  await _forgetPreviousIdentity(swap);
+                  await _finishIdentitySwap(swap, alreadyBackedUp: false);
+              },
+            ),
           ),
     );
   }
 
   void _showImportDialog(BuildContext context) {
-    showDialog<void>(
+    showMostroDialog<void>(
       context: context,
       builder:
           (dialogContext) => _ImportMnemonicDialog(
@@ -326,13 +411,14 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   Future<void> _importIdentity(BuildContext context, List<String> words) async {
-    final l10n = AppLocalizations.of(context);
+    final swap = _IdentitySwap.of(context);
+    final l10n = swap.l10n;
     try {
-      await IdentityService.importAndStore(words);
+      await (widget.debugImport?.call(words) ??
+          IdentityService.importAndStore(words));
     } catch (e) {
       debugPrint('[account] importIdentity error: $e');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      swap.messenger.showSnackBar(
         SnackBar(
           content: Text(
             kDebugMode ? 'Import failed: $e' : l10n.invalidMnemonicMessage,
@@ -341,25 +427,47 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       );
       return;
     }
-    if (!context.mounted) return;
-    await _finishIdentitySwap(context);
+    // Before the recovery below, not after: what it brings back belongs to
+    // the imported identity and must survive.
+    await _forgetPreviousIdentity(swap);
+    // A seed that already traded must learn its trades and trade index from
+    // the daemon before its first new order (InvalidTradeIndex otherwise).
+    final messenger = swap.messenger;
+    messenger.showSnackBar(
+      SnackBar(content: Text(l10n.recoveringTradesMessage)),
+    );
+    final outcome =
+        await (widget.debugRecover?.call() ??
+            IdentityService.recoverAfterImport());
+    messenger.hideCurrentSnackBar();
+    if (outcome.isRecovered) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.recoveredTradesMessage(outcome.count!))),
+      );
+    } else if (outcome.isFailed) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.recoverTradesFailedMessage)),
+      );
+    }
+    // The user restored from words they already had: nothing to back up.
+    await _finishIdentitySwap(swap, alreadyBackedUp: true);
   }
 
   void _confirmRefresh(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    showDialog<void>(
+    showMostroDialog<void>(
       context: context,
       builder:
-          (dialogContext) => AlertDialog(
-            title: Text(l10n.refreshUserDialogTitle),
-            content: Text(l10n.refreshUserDialogContent),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: Text(l10n.cancel),
-              ),
-              FilledButton(
-                onPressed: () async {
+          (dialogContext) => MostroDialog(
+            title: l10n.refreshUserDialogTitle,
+            body: l10n.refreshUserDialogContent,
+            secondary: ModalAction(
+              label: l10n.cancel,
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+            primary: ModalAction(
+              label: l10n.refreshButtonLabel,
+              onPressed: () async {
                   Navigator.pop(dialogContext);
                   try {
                     await orders_api.restartOrdersSubscription();
@@ -380,13 +488,31 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                       ),
                     );
                   }
-                },
-                child: Text(l10n.refreshButtonLabel),
-              ),
-            ],
+              },
+            ),
           ),
     );
   }
+}
+
+/// What an identity swap needs from the app once it has started, taken from
+/// the Account screen's context before the first await (issue #533).
+///
+/// The swap outlives the screen: the bridge calls take long enough for the
+/// screen to be disposed underneath them, and its `ref` and `context` die
+/// with it. The container, the router and the root messenger belong to the
+/// app, so the reset, the backup state and the trip home still happen.
+class _IdentitySwap {
+  _IdentitySwap.of(BuildContext context)
+    : container = ProviderScope.containerOf(context, listen: false),
+      router = GoRouter.of(context),
+      messenger = ScaffoldMessenger.of(context),
+      l10n = AppLocalizations.of(context);
+
+  final ProviderContainer container;
+  final GoRouter router;
+  final ScaffoldMessengerState messenger;
+  final AppLocalizations l10n;
 }
 
 // ── 15a · Banner ──────────────────────────────────────────────────────────────
@@ -954,8 +1080,8 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text(l10n.importMnemonicDialogTitle),
+    return MostroDialog(
+      title: l10n.importMnemonicDialogTitle,
       content: TextField(
         controller: _controller,
         maxLines: 3,
@@ -970,13 +1096,11 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
           if (_error != null) setState(() => _error = null);
         },
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.cancel),
-        ),
-        FilledButton(onPressed: _submit, child: Text(l10n.importButtonLabel)),
-      ],
+      secondary: ModalAction(
+        label: l10n.cancel,
+        onPressed: () => Navigator.pop(context),
+      ),
+      primary: ModalAction(label: l10n.importButtonLabel, onPressed: _submit),
     );
   }
 }

@@ -141,21 +141,16 @@ List<MostroNodeEntry> sortNodes(
 
 // ── Currency chips ────────────────────────────────────────────────────────────
 
-/// At most this many currency chips; the rest collapse into `+N`.
-const maxCurrencyChips = 5;
-
-typedef CurrencyChips = ({List<String> shown, int overflow});
-
-/// The user's currency first, then the node's order, capped at
-/// [maxCurrencyChips].
-CurrencyChips currencyChips(List<String> accepted, String? myFiat) {
+/// Every currency the node accepts, the user's first, then the node's order.
+///
+/// Never capped: the list is how a user checks whether a node serves their
+/// currency, so collapsing the tail into `+N` would hide exactly that.
+List<String> currencyChips(List<String> accepted, String? myFiat) {
   final mine = myFiat?.toUpperCase();
-  final ordered = <String>[
+  return [
     if (mine != null && accepted.contains(mine)) mine,
     ...accepted.where((c) => c != mine),
   ];
-  final shown = ordered.take(maxCurrencyChips).toList();
-  return (shown: shown, overflow: ordered.length - shown.length);
 }
 
 // ── Figures ───────────────────────────────────────────────────────────────────

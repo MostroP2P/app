@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
-import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// What a `bond-slashed` notice means, on tap (docs/ANTI_ABUSE_BOND.md §8.5,
 /// mock 145-bond-slashed): the cause and the amount, the order, and a way to
@@ -21,7 +21,7 @@ class BondSlashedDialog extends ConsumerWidget {
   final NotificationModel notification;
 
   static Future<void> show(BuildContext context, NotificationModel n) =>
-      showDialog<void>(
+      showMostroDialog<void>(
         context: context,
         builder: (_) => BondSlashedDialog(notification: n),
       );
@@ -34,8 +34,8 @@ class BondSlashedDialog extends ConsumerWidget {
     final tradeExists =
         orderId != null &&
         ref.watch(tradeInfoProvider(orderId)).valueOrNull != null;
-    return AlertDialog(
-      title: Text(notification.resolvedTitle(l10n)),
+    return MostroDialog(
+      title: notification.resolvedTitle(l10n),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,27 +67,32 @@ class BondSlashedDialog extends ConsumerWidget {
             ),
         ],
       ),
-      actions: [
-        TextButton(
+      // Both routes out of this notice are somewhere else to read, not an
+      // answer to a question — they are links, and Close is the one button.
+      links: [
+        ModalLink(
+          label: l10n.bondSlashedViewPolicy,
+          automationId: AutomationIds.bondSlashedViewPolicy,
           onPressed: () {
             Navigator.of(context).pop();
             context.push(AppRoute.about);
           },
-          child: Text(l10n.bondSlashedViewPolicy),
-        ).withAutomationId(AutomationIds.bondSlashedViewPolicy),
+        ),
         if (tradeExists)
-          TextButton(
+          ModalLink(
+            label: l10n.bondSlashedViewTrade,
+            automationId: AutomationIds.bondSlashedViewTrade,
             onPressed: () {
               Navigator.of(context).pop();
               context.push(AppRoute.tradeDetailPath(orderId));
             },
-            child: Text(l10n.bondSlashedViewTrade),
-          ).withAutomationId(AutomationIds.bondSlashedViewTrade),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.closeButtonLabel),
-        ).withAutomationId(AutomationIds.bondSlashedClose),
+          ),
       ],
+      primary: ModalAction(
+        label: l10n.closeButtonLabel,
+        onPressed: () => Navigator.of(context).pop(),
+        automationId: AutomationIds.bondSlashedClose,
+      ),
     );
   }
 }

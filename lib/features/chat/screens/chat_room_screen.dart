@@ -539,11 +539,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 
         // Composition bar
         Padding(
-          padding: EdgeInsets.only(
+          padding: const EdgeInsets.only(
             left: AppSpacing.sm,
             right: AppSpacing.sm,
-            bottom:
-                MediaQuery.of(context).viewInsets.bottom + AppSpacing.sm,
+            bottom: AppSpacing.sm,
             top: AppSpacing.xs,
           ),
           // A closed trade's conversation opens read-only (handoff 11b), and
@@ -562,9 +561,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     );
 
     return Scaffold(
-      // Keyboard avoidance is handled manually via viewInsets.bottom padding
-      // on the composition bar so the BottomNavBar does not push content twice.
-      resizeToAvoidBottomInset: false,
+      // The Scaffold owns keyboard avoidance: the body ends at the taller of
+      // the keyboard and the BottomNavBar, never their sum, so the composer
+      // must not add viewInsets itself.
       appBar: AppBar(
         leading: const BackButton(),
         title: _AppBarTitle(room: room),

@@ -7,10 +7,11 @@ import 'package:mostro/features/home/widgets/order_list_item.dart';
 
 /// The order book's rows — one column as a list, two or three as a grid.
 ///
-/// Lifted out of `HomeScreen` so the keyed-reorder behaviour below can be
-/// tested against the delegates the app actually builds. Inline in the screen
-/// the only reachable test is a replica of the list, which would keep passing
-/// after the real one regressed.
+/// Lifted out of `HomeScreen` so the list's keyed reorder, and the grid's
+/// keys without one, can be tested against the delegates the app actually
+/// builds.
+/// Inline in the screen the only reachable test is a replica of the list,
+/// which would keep passing after the real one regressed.
 class OrderBookList extends StatelessWidget {
   const OrderBookList({
     super.key,
@@ -38,26 +39,26 @@ class OrderBookList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Where each order sits right now, so a row that moved can be found at its
-    // new index. A `ValueKey` alone does not do this: a lazy sliver compares
-    // the new widget at index *i* against the old element at *i*, and two
-    // different keys fail `Widget.canUpdate`, so the element is torn down and a
-    // fresh one inflated — strictly worse than no key at all. The index
-    // callback is what lets the framework move the element instead, and it is
-    // also what keeps the card's `InkWell` splash with its own order rather
-    // than with the position it used to occupy.
-    //
-    // Built on first lookup and discarded with this build: the framework asks
-    // only for the keys it currently holds (the visible rows and the cache
-    // extent), and a linear scan per key would be O(rows × orders).
-    Map<String, int>? indexById;
-    int? indexOfKey(Key key) {
-      if (key is! ValueKey<String>) return null;
-      indexById ??= {for (var i = 0; i < orders.length; i++) orders[i].id: i};
-      return indexById![key.value];
-    }
-
     if (columns == 1) {
+      // Where each order sits right now, so a row that moved can be found at
+      // its new index. A `ValueKey` alone does not do this: a lazy sliver
+      // compares the new widget at index *i* against the old element at *i*,
+      // and two different keys fail `Widget.canUpdate`, so the element is torn
+      // down and a fresh one inflated — strictly worse than no key at all. The
+      // index callback is what lets the framework move the element instead,
+      // and it is also what keeps the card's `InkWell` splash with its own
+      // order rather than with the position it used to occupy.
+      //
+      // Built on first lookup and discarded with this build: the framework
+      // asks only for the keys it currently holds (the visible rows and the
+      // cache extent), and a linear scan per key would be O(rows × orders).
+      Map<String, int>? indexById;
+      int? indexOfKey(Key key) {
+        if (key is! ValueKey<String>) return null;
+        indexById ??= {for (var i = 0; i < orders.length; i++) orders[i].id: i};
+        return indexById![key.value];
+      }
+
       return ListView.separated(
         padding: listPadding,
         itemCount: orders.length,
@@ -82,7 +83,26 @@ class OrderBookList extends StatelessWidget {
     // Masonry, not a fixed-extent grid: a card's height depends on its
     // content and the text scale (wrapping chips, two lines of payment
     // methods), so a fixed tile ratio overflows on long localized copy or
-    // large text. The same index callback keeps rows moving on a re-sort.
+    // large text.
+    //
+    // The cards are keyed here as well, but the grid does not move them by
+    // key: `SliverMasonryGrid` cannot lay out a child moved by
+    // `findChildIndexCallback` (#453, flutter_staggered_grid_view 0.7.0).
+    // Once an order that had left the book comes back, `performLayout` hits a
+    // null layout offset and throws on every frame, blanking the whole grid
+    // until a later update lays it out again.
+    //
+    // The key still earns its place without the callback, for correctness
+    // rather than cost: a card whose order moved fails `Widget.canUpdate`, so
+    // it is torn down instead of being reused for whatever order landed at
+    // its index. A press, hover or focus in progress is cancelled rather than
+    // carried over to an order the user never picked — the book shifts on its
+    // own as relays deliver, and this is the layout desktop, web and tablets
+    // get. The cost is a re-inflate instead of a rebuild per shifted card.
+    //
+    // TODO(#453): give the delegate the index callback again once the package
+    // lays out children moved by it. The regression group in
+    // `order_book_list_reorder_test.dart` says whether a version does.
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -96,7 +116,6 @@ class OrderBookList extends StatelessWidget {
             delegate: SliverChildBuilderDelegate(
               (context, index) => _card(orders[index]),
               childCount: orders.length,
-              findChildIndexCallback: indexOfKey,
             ),
           ),
         ),
@@ -104,10 +123,12 @@ class OrderBookList extends StatelessWidget {
     );
   }
 
+  /// Keyed by order id: in the list, where the index callback can find the
+  /// key again, an arriving order moves the rows below it instead of leaving
+  /// each element with a different order's content; in the grid, where
+  /// nothing moves by key, the key is what keeps an element from being reused
+  /// for another order.
   Widget _card(OrderItem order) => OrderListItem(
-    // Keyed by order id so an arriving order moves the rows below it instead
-    // of leaving each element with a different order's content — see
-    // `indexOfKey`, without which the key is a pessimisation.
     key: ValueKey(order.id),
     order: order,
     currencyFlags: currencyFlags,

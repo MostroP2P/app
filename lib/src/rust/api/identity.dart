@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `current_bip39_seed`, `derive_trade_key_with`, `ensure_trade_key_index_at_least_with`, `ensure_trade_key_index_at_least`, `get_active_keys`, `get_active_trade_keys`, `get_transport_identity_keys`, `identity_lock`, `publish_index`, `reconcile_and_publish_to`, `reconcile_trade_key_index`, `require_durable_storage`, `trade_key_index_tx`
+// These functions are ignored because they are not marked as `pub`: `current_bip39_seed`, `delete_identity_inner`, `derive_trade_key_with`, `ensure_trade_key_index_at_least_with`, `ensure_trade_key_index_at_least`, `forget_identity_state`, `get_active_keys`, `get_active_trade_keys_up_to`, `get_active_trade_keys`, `get_transport_identity_keys`, `identity_lock`, `publish_index`, `reconcile_and_publish_to`, `reconcile_trade_key_index`, `require_durable_storage`, `trade_key_index_tx`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `IdentityState`, `RecoveryProgress`
 
 /// Subscribe to consumed trade-key indices. Flutter calls this once at startup
@@ -69,6 +69,17 @@ Future<IdentityInfo?> getIdentity() =>
 /// `flutter_secure_storage` after calling this.
 Future<void> deleteIdentity() =>
     RustLib.instance.api.crateApiIdentityDeleteIdentity();
+
+/// What the current identity would lose if it were replaced now: locked
+/// escrow, locked or payable bonds, open payout claims, live trades — most
+/// serious first, empty when it is safe to go ahead (issue #533).
+///
+/// The Account screen calls this before generating a new user or importing a
+/// seed, and warns. It reads the local rows only: no relay round trip sits
+/// between the user and the dialog. With no database there is nothing to
+/// lose track of, so that reads as empty.
+Future<List<FundsAtRisk>> fundsAtRisk() =>
+    RustLib.instance.api.crateApiIdentityFundsAtRisk();
 
 /// Derive a new trade key, auto-incrementing the index.
 /// Returns the new key's info and updates the stored `trade_key_index`.

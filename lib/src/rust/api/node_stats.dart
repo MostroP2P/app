@@ -7,8 +7,34 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_info_tags`, `apply_order_counts`, `count_open_orders`, `dedup_latest`, `empty`, `fraction_to_pct`, `is_open`, `parse_accepted_currencies`, `parse_u64`, `summarize`, `tag_value`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `apply_info_tags`, `apply_order_counts`, `count_open_orders`, `dedup_latest`, `empty`, `fraction_to_pct`, `is_open`, `load_info_cache`, `merge_info`, `newest_info`, `normalize_pubkeys`, `parse_accepted_currencies`, `parse_authors`, `parse_u64`, `rows_from_cache`, `store_info_best_effort`, `store_info`, `summarize`, `supersedes`, `supersedes`, `tag_value`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CachedNodeInfo`, `Revision`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
+
+/// What the selector shows the moment it opens: one row per requested pubkey
+/// (64-char hex), in request order, built from the persisted kind 38385 cache
+/// alone — no relay is asked. A node never seen comes back as an empty row.
+///
+/// Order counts are **not** part of these rows (`total_orders == 0`,
+/// `latest_order_at == None` regardless of the node's real book) and
+/// `info_seen_at` is as old as the cache: never derive liquidity or
+/// availability from them. [`fetch_mostro_node_stats`] supplies both.
+Future<List<MostroNodeStats>> cachedMostroNodeStats({
+  required List<String> pubkeys,
+}) => RustLib.instance.api.crateApiNodeStatsCachedMostroNodeStats(
+  pubkeys: pubkeys,
+);
+
+/// Download the kind 38385 event of every node in the registry (trusted and
+/// user-added) and persist the newest per node. Called once at startup, in
+/// the background, so the selector has every node's settings before it is
+/// first opened. Entries of nodes that left the registry are dropped.
+///
+/// Best-effort: nodes that did not answer within the window keep their cached
+/// event. Only an outright query failure is an error, and then the cache is
+/// untouched.
+Future<void> refreshMostroNodeInfoCache() =>
+    RustLib.instance.api.crateApiNodeStatsRefreshMostroNodeInfoCache();
 
 /// Fetch decision data for every node in `pubkeys` (64-char hex) with three
 /// relay queries — their kind 38385 instance events, their `pending` kind
@@ -26,6 +52,9 @@ import 'types.dart';
 /// the window is used, a node that answered nothing comes back as an empty
 /// row (no `info_seen_at`, zero orders). Only an outright query failure or an
 /// invalid pubkey is an error.
+///
+/// The kind 38385 events it received refresh the persisted cache behind
+/// [`cached_mostro_node_stats`] (best effort, written only on a change).
 Future<List<MostroNodeStats>> fetchMostroNodeStats({
   required List<String> pubkeys,
 }) => RustLib.instance.api.crateApiNodeStatsFetchMostroNodeStats(

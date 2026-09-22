@@ -176,6 +176,39 @@ void main() {
       );
     });
 
+    test(
+      'a cooperative-cancel request raises a card for either side',
+      () async {
+        // The requester's confirmation: their own doing, but it says the
+        // trade now waits on the counterparty, which they need to know.
+        await cards.onTradeUpdate(
+          update(
+            OrderStatus.active,
+            reason: TradeUpdateReason.cooperativeCancelRequestedByMe,
+          ),
+        );
+        // The counterparty's request, after the fiat was sent.
+        await cards.onTradeUpdate(
+          update(
+            OrderStatus.fiatSent,
+            reason: TradeUpdateReason.cooperativeCancelRequestedByPeer,
+          ),
+        );
+        // A replay of the same request adds nothing.
+        await cards.onTradeUpdate(
+          update(
+            OrderStatus.fiatSent,
+            reason: TradeUpdateReason.cooperativeCancelRequestedByPeer,
+          ),
+        );
+
+        expect(stateOf(notifier).map((n) => n.id), [
+          'trade-order-1-fiatSent-cooperativeCancelRequestedByPeer',
+          'trade-order-1-active-cooperativeCancelRequestedByMe',
+        ]);
+      },
+    );
+
     test('a book-only status raises nothing', () async {
       await cards.onTradeUpdate(update(OrderStatus.pending));
       await cards.onTradeUpdate(update(OrderStatus.inProgress));

@@ -219,6 +219,17 @@ class SembastNotificationsStore {
     await _store.delete(db);
   }
 
+  /// [deleteAll] plus the processed-event ledger: what an identity change
+  /// needs. The ledger names events of the identity that is gone, and a new
+  /// user must start as a fresh install would (issue #533).
+  Future<void> wipe() async {
+    final db = await _open();
+    await db.transaction((txn) async {
+      await _store.delete(txn);
+      await _processed.delete(txn);
+    });
+  }
+
   Future<bool> isProcessed(String eventId) async {
     final db = await _open();
     return await _processed.record(eventId).get(db) ?? false;
@@ -428,6 +439,24 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
       await store?.deleteAll();
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to persist deleteAll: $e');
+    }
+  });
+
+  /// Forget everything, ledger included, because the identity changed
+  /// (issue #533). Unlike [deleteAll] — the user clearing their own list —
+  /// nothing here may survive to suppress or resurrect a notice for the
+  /// next user.
+  Future<void> wipeForIdentityChange() => _mutate(() async {
+    if (_loadsInFlight > 0) _wipedDuringLoad = true;
+    state = [];
+    // The in-memory half of the ledger: this notifier outlives the identity,
+    // and a same-seed import replays chat messages under the ids it already
+    // holds — they would be dropped as seen, with the card just wiped.
+    _processedMessages.clear();
+    try {
+      await store?.wipe();
+    } catch (e) {
+      debugPrint('NotificationsNotifier: failed to persist identity wipe: $e');
     }
   });
 

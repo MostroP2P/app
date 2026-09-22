@@ -27,6 +27,7 @@ import 'package:mostro/src/rust/frb_generated.dart';
 import 'package:mostro/src/rust/api.dart' as rust_api;
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/src/rust/api/escrow.dart' as escrow_api;
+import 'package:mostro/src/rust/api/node_stats.dart' as node_stats_api;
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -68,6 +69,23 @@ Future<void> _startup(
   StartupSequence startup, {
   List<String> seedRelays = const [],
 }) async {
+  // The three platform round trips of startup — push notifications, the Rust
+  // engine and the saved preferences — started together rather than one after
+  // the other, since all of them run before the first frame (#508).
+  //
+  // Each one is awaited below inside its own named step, so a failure still
+  // names the stretch it belongs to: `StartupSequence.currentStep` is a single
+  // field, and three steps running under it at once would leave a failure
+  // naming whichever of them was set last.
+  //
+  // `ignore()` is what makes that late await honest. A future that fails while
+  // another is still being awaited has no listener yet, and Dart reports it as
+  // an unhandled async error before we ever reach its step; `ignore()` marks
+  // the error handled without consuming it, and the `await` below still throws.
+  final firebase = _initFirebase()..ignore();
+  final engine = RustLib.init()..ignore();
+  final preferences = SharedPreferences.getInstance()..ignore();
+
   // The bundled fonts ship under the SIL Open Font License, which allows it
   // only alongside their notices; this adds them to Flutter's licence page.
   // It registers a loader rather than reading the files, and a failure leaves
@@ -77,39 +95,20 @@ Future<void> _startup(
   });
 
   // Push notifications only — the app trades, chats and settles without them.
-  //
-  // The one optional step that handles anything itself: there is no Firebase
-  // configuration for Linux, so `DefaultFirebaseOptions.currentPlatform` throws
-  // UnsupportedError there on every run (web, Android, iOS, macOS and Windows
-  // return options; see lib/firebase_options.dart). That is an expected state
-  // on Linux rather than a failure, and letting it reach the helper would log
-  // a "failed" on every Linux launch. Caught below and reported as what it is;
-  // everything else falls through to the helper.
-  await startup.optional('setting up notifications', () async {
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    } on UnsupportedError catch (e) {
-      debugPrint(
-        '[startup] Firebase not configured for this platform — push '
-        'notifications disabled: $e',
-      );
-    }
-  });
+  // Optional on purpose: there is no Firebase configuration for Linux, so this
+  // fails there on every run (see lib/firebase_options.dart), and the app has
+  // to open anyway.
+  await startup.optional('setting up notifications', () => firebase);
 
-  await startup.required('loading the engine', RustLib.init);
+  await startup.required('loading the engine', () => engine);
 
-  // Pre-read SharedPreferences so providers start with synchronous initial
-  // values — eliminates the AsyncValue.loading() race that caused the router
-  // to show the home screen before redirecting to /walkthrough on first launch.
   final (
     prefs,
     firstRunComplete,
     backupPending,
     savedSettings,
   ) = await startup.required('reading your settings', () async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await preferences;
     final backupDismissed = prefs.getBool(kBackupReminderDismissedKey) ?? false;
     final backupActive = prefs.getBool(kBackupReminderActiveKey) ?? false;
     return (
@@ -295,6 +294,8 @@ Future<void> _startup(
     // Logs every relay connection state change (debug builds only).
     _watchConnectionState();
 
+    _warmNodeInfoCache();
+
     final container = ProviderContainer(
       overrides: [
         firstRunProvider.overrideWith(
@@ -357,6 +358,19 @@ Future<void> _startup(
   markBridgeReady();
 }
 
+/// Initialize Firebase (no-op if firebase_options.dart is the placeholder).
+Future<void> _initFirebase() async {
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on UnsupportedError catch (e) {
+    debugPrint(
+      '[startup] Firebase not configured: $e — push notifications disabled.',
+    );
+  }
+}
+
 /// Persists every consumed trade-key index reported by Rust.
 ///
 /// Runs for the process lifetime. A write failure is logged and the loop
@@ -386,6 +400,18 @@ void _mirrorTradeKeyIndex(identity_api.TradeKeyIndexStream stream) {
       }
     }
   });
+}
+
+/// Download every known node's kind 38385 settings in the background, so the
+/// node selector opens on local data instead of waiting for the relays. Never
+/// awaited: startup does not depend on it, and a failure only means the
+/// selector fills in from its own fetch, as it did before the cache existed.
+void _warmNodeInfoCache() {
+  unawaited(
+    node_stats_api.refreshMostroNodeInfoCache().catchError((Object e) {
+      debugPrint('[main] node info warm-up failed: $e');
+    }),
+  );
 }
 
 /// Reconnect a previously saved NWC wallet in the background.

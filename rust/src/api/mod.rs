@@ -14,6 +14,7 @@ pub mod orders;
 pub mod push;
 pub mod reputation;
 pub mod settings;
+pub mod trade_touch;
 pub mod types;
 
 pub fn get_app_version() -> String {

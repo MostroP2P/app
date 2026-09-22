@@ -15,6 +15,7 @@ const CHAT_WAKE_BODIES = {
   fr: 'Vous avez un nouveau message',
   de: 'Du hast eine neue Nachricht',
   it: 'Hai un nuovo messaggio',
+  nl: 'Je hebt een nieuw bericht',
 };
 
 // What the worker posts to an open tab on a tap. Equal to

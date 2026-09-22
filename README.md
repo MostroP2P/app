@@ -500,7 +500,7 @@ app/
 │   │   ├── about/              #     Mostro node info
 │   │   └── settings/           #     Relays, wallet, preferences
 │   ├── shared/                 #   Cross-feature providers, widgets, utils
-│   ├── l10n/                   #   Localization strings (EN, ES, IT, FR, DE)
+│   ├── l10n/                   #   Localization strings (EN, ES, IT, FR, DE, NL)
 │   └── src/rust/               #   Auto-generated Rust bridge (DO NOT EDIT)
 │
 ├── rust/                       # Rust core
@@ -600,13 +600,21 @@ The app is localized in:
 | Italian | `it` | `lib/l10n/app_it.arb` |
 | French | `fr` | `lib/l10n/app_fr.arb` |
 | German | `de` | `lib/l10n/app_de.arb` |
+| Dutch | `nl` | `lib/l10n/app_nl.arb` |
 
 To add a new language:
 
 1. Copy `lib/l10n/app_en.arb` to `lib/l10n/app_<code>.arb`
 2. Translate all string values (keep the `"@@locale"` key correct)
 3. Run `flutter gen-l10n` to regenerate the Dart localizations — it auto-detects the new `.arb` file (no `l10n.yaml` change needed)
-4. Open a PR — translation contributions are always welcome
+4. Register the language in the places that keep their own list:
+   - `lib/features/settings/widgets/language_selector.dart`: the English and native name in `languageNames` (the picker already lists every `.arb` file; without a name it shows the bare code)
+   - `rust/src/api/settings.rs`: the code in `SUPPORTED_LOCALES`, then `./scripts/frb-generate.sh`
+   - `web/push_worker_logic.js`: the locale's `pushNewMessageBody` in `CHAT_WAKE_BODIES` (a service worker cannot read `.arb` files)
+   - `lib/features/walkthrough/utils/highlight_config.dart`: the locale's wording of each highlighted onboarding phrase
+   - `specs/006-announcement-channel/spec.md`: the locales every announcement must carry, in the rule and in the JSON example
+5. Run `flutter test` and `cargo test`: `test/l10n/locale_lists_test.dart` checks the picker names, the Rust list, the push worker and spec 006 against the `.arb` files, and `highlight_config_test.dart` checks the walkthrough phrases per locale, so a place missed in step 4 fails there
+6. Open a PR — translation contributions are always welcome
 
 ---
 

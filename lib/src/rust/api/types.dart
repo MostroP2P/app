@@ -10,7 +10,7 @@ part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `default_expiration_hours`, `default_expiration_seconds`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AppState`, `MostroNodeInfo`, `QueuedMessageStatus`, `TradeHistoryEntry`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// The `bond_claims` key for a node / order pair.
 Future<String> bondClaimKey({
@@ -804,6 +804,55 @@ class EscrowModeInfo {
 
 enum FileType { image, document, video }
 
+/// One thing the current identity still has in flight, as listed by
+/// `funds_at_risk()` before a new user is generated or a seed imported.
+class FundsAtRisk {
+  final String orderId;
+  final FundsAtRiskReason reason;
+
+  /// The sats concerned, when known: the escrow, the bond or the payout.
+  final BigInt? amountSats;
+
+  const FundsAtRisk({
+    required this.orderId,
+    required this.reason,
+    this.amountSats,
+  });
+
+  @override
+  int get hashCode => orderId.hashCode ^ reason.hashCode ^ amountSats.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FundsAtRisk &&
+          runtimeType == other.runtimeType &&
+          orderId == other.orderId &&
+          reason == other.reason &&
+          amountSats == other.amountSats;
+}
+
+/// Why replacing the identity now would cost the user something (issue
+/// #533). A marker, not prose: Dart localizes it.
+enum FundsAtRiskReason {
+  /// The user is the seller and the hold invoice is paid and held; only a
+  /// `release` signed with this trade's key moves those sats.
+  sellerEscrowLocked,
+
+  /// An anti-abuse bond is locked; it is given back when its trade ends.
+  bondLocked,
+
+  /// A slashed-bond payout the user won and has not been paid yet.
+  payoutClaimOpen,
+
+  /// A live trade with none of the user's sats locked — a buyer mid-trade,
+  /// or either side before the escrow is funded.
+  tradeInProgress,
+
+  /// A bond invoice that can still be paid: nothing is locked yet.
+  bondInvoicePending,
+}
+
 class IdentityInfo {
   final String publicKey;
   final String? displayName;
@@ -1168,6 +1217,67 @@ class NymIdentity {
           pseudonym == other.pseudonym &&
           iconIndex == other.iconIndex &&
           colorHue == other.colorHue;
+}
+
+/// The whole book — every status, as the snapshot stream carries it — and the
+/// revision it was read at. See [`OrderDelta`].
+class OrderBookSnapshot {
+  final int revision;
+  final List<OrderInfo> orders;
+
+  /// Whether the relay already finished replaying the node's stored pending
+  /// orders into this book — what [`OrderDelta::Loaded`] announces when it
+  /// happens. A consumer created afterwards never hears that event, so it
+  /// reads the fact here: with `loaded`, an empty `orders` is really empty.
+  /// Back to `false` when the book is cleared for another node.
+  final bool loaded;
+
+  const OrderBookSnapshot({
+    required this.revision,
+    required this.orders,
+    required this.loaded,
+  });
+
+  @override
+  int get hashCode => revision.hashCode ^ orders.hashCode ^ loaded.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OrderBookSnapshot &&
+          runtimeType == other.runtimeType &&
+          revision == other.revision &&
+          orders == other.orders &&
+          loaded == other.loaded;
+}
+
+@freezed
+sealed class OrderDelta with _$OrderDelta {
+  const OrderDelta._();
+
+  /// `order` was added or changed.
+  const factory OrderDelta.upserted({
+    required int revision,
+    required OrderInfo order,
+  }) = OrderDelta_Upserted;
+
+  /// The order with this id left the book.
+  const factory OrderDelta.removed({
+    required int revision,
+    required String orderId,
+  }) = OrderDelta_Removed;
+
+  /// What happened cannot be told order by order: the book was replaced or
+  /// cleared (a node switch), or this subscriber fell behind and deltas
+  /// were dropped.
+  const factory OrderDelta.resync() = OrderDelta_Resync;
+
+  /// The relay finished replaying the node's stored pending orders: the
+  /// book as the consumer has it is complete, so an empty one is really
+  /// empty. Without this a quiet node never produces a delta, and a screen
+  /// waiting for one to leave its loading state waits forever. Changes
+  /// nothing in the book; may arrive more than once (one per relay).
+  const factory OrderDelta.loaded() = OrderDelta_Loaded;
 }
 
 class OrderInfo {
@@ -1748,6 +1858,27 @@ sealed class TradeStep with _$TradeStep {
   const factory TradeStep.disputed() = TradeStep_Disputed;
 }
 
+/// "Read this trade again" — the doorbell of `api::trade_touch`. Unlike a
+/// [`TradeUpdate`] it says nothing about what changed and drives no
+/// notification; it only tells a screen its copy may be stale.
+class TradeTouch {
+  /// The order whose book entry or trade row was written. `None` means the
+  /// subscriber fell behind and touches were dropped: re-read every trade.
+  final String? orderId;
+
+  const TradeTouch({this.orderId});
+
+  @override
+  int get hashCode => orderId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TradeTouch &&
+          runtimeType == other.runtimeType &&
+          orderId == other.orderId;
+}
+
 /// A trade lifecycle change pushed from Rust so the UI does not have to poll
 /// for it. Emitted on every daemon-driven status sync — cancellations
 /// (including the wipe of a never-active trade, whose DB row no longer
@@ -1760,8 +1891,9 @@ class TradeUpdate {
   final OrderStatus status;
 
   /// Why the status changed, when the wire action alone is ambiguous
-  /// (`docs/ANTI_ABUSE_BOND.md` §6.1). `None` from every emitter that has
-  /// nothing to add.
+  /// (`docs/ANTI_ABUSE_BOND.md` §6.1), or what happened when it did not
+  /// change at all (a cooperative-cancel request). `None` from every
+  /// emitter that has nothing to add.
   final TradeUpdateReason? reason;
 
   /// When the change happened, in Unix seconds: the daemon message's own
@@ -1813,6 +1945,16 @@ enum TradeUpdateReason {
 
   /// The bond bolt11 expired unpaid; the local row was closed.
   bondExpired,
+
+  /// This side asked to cancel an active trade; the status is unchanged
+  /// until the counterparty also cancels (protocol `cancel.md`, "Cancel
+  /// cooperatively"). Emitted on the daemon's
+  /// `cooperative-cancel-initiated-by-you`.
+  cooperativeCancelRequestedByMe,
+
+  /// The counterparty asked to cancel; this side decides whether to
+  /// cancel too. Emitted on `cooperative-cancel-initiated-by-peer`.
+  cooperativeCancelRequestedByPeer,
 }
 
 enum WalletStatus { connected, disconnected, connecting, error }

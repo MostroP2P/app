@@ -74,6 +74,10 @@ pub const TRUSTED_MOSTRO_NODES: &[TrustedNodeConfig] = &[
         region: "🇧🇷 Brasil",
     },
     TrustedNodeConfig {
+        pubkey: "da23a31d75572138ab8149911a04224812a34bda679caba7cb1824fdf7c592ec",
+        region: "🇪🇺 Europa",
+    },
+    TrustedNodeConfig {
         pubkey: DEFAULT_MOSTRO_PUBKEY,
         region: "🌐",
     },

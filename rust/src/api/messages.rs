@@ -284,6 +284,16 @@ impl MessageStore {
         let _ = self.unread_tx.send(unread);
     }
 
+    /// Drop every conversation held in memory and publish an unread count
+    /// of zero. `hydrated` goes too, so a later read of the same trade id
+    /// goes back to the database instead of trusting an emptied cache.
+    async fn clear(&self) {
+        self.messages.write().await.clear();
+        self.hydrated.write().await.clear();
+        self.non_durable.write().await.clear();
+        let _ = self.unread_tx.send(0);
+    }
+
     async fn unread_count_inner(&self) -> u32 {
         let store = self.messages.read().await;
         store
@@ -1090,11 +1100,101 @@ impl ChatChannel {
 /// Orders with a live chat task. Single-owner guard: the peer-reveal capture
 /// fires again on daemon replays and reconnect backfills, and a second task
 /// for the same order would double-process events and race on the cursor.
-static ACTIVE_CHATS: OnceLock<tokio::sync::Mutex<std::collections::HashSet<String>>> =
+static ACTIVE_CHATS: OnceLock<tokio::sync::Mutex<std::collections::HashMap<String, u64>>> =
     OnceLock::new();
 
-fn active_chats() -> &'static tokio::sync::Mutex<std::collections::HashSet<String>> {
-    ACTIVE_CHATS.get_or_init(|| tokio::sync::Mutex::new(std::collections::HashSet::new()))
+/// Live chat tasks, by guard key: the generation of the task that owns the
+/// chat's subscription. Presence alone is not ownership: after a stop, a
+/// replacement task can claim the same chat before the old one wakes, and the
+/// old one's cleanup must not release — or close the REQ of — its successor
+/// (PR #527 review). Same scheme as `single_order_tasks` in `orders.rs`.
+fn active_chats() -> &'static tokio::sync::Mutex<std::collections::HashMap<String, u64>> {
+    ACTIVE_CHATS.get_or_init(Default::default)
+}
+
+/// Source of chat task generations; strictly increasing.
+static CHAT_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Claim the chat for a new task: its generation, or `None` while another
+/// task owns it.
+async fn claim_chat(channel: ChatChannel, order_id: &str) -> Option<u64> {
+    let mut active = active_chats().lock().await;
+    let key = channel.guard_key(order_id);
+    if active.contains_key(&key) {
+        return None;
+    }
+    let generation = CHAT_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    active.insert(key, generation);
+    Some(generation)
+}
+
+/// Whether `generation` still owns the chat.
+async fn chat_is_current(channel: ChatChannel, order_id: &str, generation: u64) -> bool {
+    active_chats().lock().await.get(&channel.guard_key(order_id)) == Some(&generation)
+}
+
+/// Release `generation`'s claim, returning whether it still held it — only
+/// then does the task own the subscription it is about to close.
+async fn release_chat(channel: ChatChannel, order_id: &str, generation: u64) -> bool {
+    let mut active = active_chats().lock().await;
+    let key = channel.guard_key(order_id);
+    if active.get(&key) == Some(&generation) {
+        active.remove(&key);
+        true
+    } else {
+        false
+    }
+}
+
+/// Stop the chat subscriptions of a trade that is over (#523): release both
+/// channels' ownership and close their REQs, which otherwise stayed open for
+/// the rest of the session and counted against the relays' caps. A running
+/// task sees its ownership gone and exits at its next wake. Returns the
+/// channels that were running.
+pub(crate) async fn stop_chat_subscriptions(order_id: &str) -> Vec<ChatChannel> {
+    let stopped: Vec<ChatChannel> = {
+        let mut active = active_chats().lock().await;
+        [ChatChannel::Peer, ChatChannel::Dispute]
+            .into_iter()
+            .filter(|channel| active.remove(&channel.guard_key(order_id)).is_some())
+            .collect()
+    };
+    if !stopped.is_empty() {
+        if let Ok(pool) = crate::api::nostr::get_pool() {
+            let client = pool.client();
+            for channel in &stopped {
+                crate::nostr::live_subs::live_subs()
+                    .close(&client, &chat_subscription_id(*channel, order_id))
+                    .await;
+            }
+        }
+    }
+    stopped
+}
+
+/// Forget every conversation of the identity being deleted (issue #533):
+/// release each live chat task's claim, close its REQ, and empty the
+/// in-memory store, so the next user starts with no chats and an unread
+/// count of zero. The persisted rows go with `clear_identity_data`; a task
+/// still running sees its claim gone at its next wake and exits.
+pub(crate) async fn forget_identity_chats() {
+    let guard_keys: Vec<String> = active_chats()
+        .lock()
+        .await
+        .drain()
+        .map(|(key, _)| key)
+        .collect();
+    if let Ok(pool) = crate::api::nostr::get_pool() {
+        let client = pool.client();
+        for key in &guard_keys {
+            // Same shape as `chat_subscription_id`, whose suffix is the guard key.
+            let id = nostr_sdk::prelude::SubscriptionId::new(format!("mostro-chat-{key}"));
+            crate::nostr::live_subs::live_subs()
+                .close(&client, &id)
+                .await;
+        }
+    }
+    message_store().clear().await;
 }
 
 /// Bounded insert-only id set with FIFO eviction (outer-id LRU, step 5).
@@ -1247,32 +1347,37 @@ pub(crate) async fn subscribe_incoming_chat(
     sign: nostr_sdk::prelude::Keys,
 ) {
     // Single-owner guard: a second spawn for the same order is a no-op.
-    {
-        let mut active = active_chats().lock().await;
-        if !active.insert(channel.guard_key(&order_id)) {
-            log::debug!("[messages] chat task already active order={order_id}");
-            return;
-        }
-    }
+    let Some(generation) = claim_chat(channel, &order_id).await else {
+        log::debug!("[messages] chat task already active order={order_id}");
+        return;
+    };
 
-    run_chat_subscription(channel, &order_id, &trade_keys, &peer_pubkey, &conv, &sign).await;
+    run_chat_subscription(
+        channel,
+        &order_id,
+        generation,
+        &trade_keys,
+        &peer_pubkey,
+        &conv,
+        &sign,
+    )
+    .await;
 
     // Cleanup on every exit path: release ownership and drop the relay
-    // subscriptions so they never outlive the task.
-    active_chats()
-        .lock()
-        .await
-        .remove(&channel.guard_key(&order_id));
+    // subscription so it never outlives the task — but only while this task
+    // still owns the chat. After a stop the REQ is already closed, and a
+    // replacement task may have re-opened it under the same id.
+    if !release_chat(channel, &order_id, generation).await {
+        log::debug!("[messages] chat task superseded order={order_id}");
+        return;
+    }
     if let Ok(pool) = crate::api::nostr::get_pool() {
         let client = pool.client();
-        // Unsubscribing a subscription that already went away is not an
-        // error worth surfacing: the loop is exiting either way.
-        if let Err(e) = client
-            .unsubscribe(&chat_subscription_id(channel, &order_id))
-            .await
-        {
-            log::debug!("[messages] unsubscribe on exit failed: {e}");
-        }
+        // Through the registry, or a reconnect repair would resurrect the
+        // REQ of a chat nobody listens to any more.
+        crate::nostr::live_subs::live_subs()
+            .close(&client, &chat_subscription_id(channel, &order_id))
+            .await;
     }
     log::debug!("[messages] incoming-chat subscription exiting order={order_id}");
 }
@@ -1350,6 +1455,7 @@ impl ChatRxState {
 async fn run_chat_subscription(
     channel: ChatChannel,
     order_id: &str,
+    generation: u64,
     trade_keys: &nostr_sdk::prelude::Keys,
     peer_pubkey: &nostr_sdk::prelude::PublicKey,
     conv: &nostr_sdk::prelude::Keys,
@@ -1385,19 +1491,31 @@ async fn run_chat_subscription(
     // and would otherwise be missed.
     let mut rx = client.notifications();
 
-    if let Err(e) = client.subscribe(filter).with_id(sub_id.clone()).await {
-        log::warn!("[messages] subscribe_incoming_chat subscribe failed: {e}");
-        return;
-    }
+    // `replace`, not a bare subscribe: issued while relays are still coming
+    // back (a resume), it must reach each of them as it connects.
+    let issued = match crate::nostr::live_subs::live_subs()
+        .replace(&client, sub_id.clone(), filter)
+        .await
+    {
+        Ok(issued) => issued,
+        Err(e) => {
+            log::warn!("[messages] subscribe_incoming_chat subscribe failed: {e}");
+            return;
+        }
+    };
 
     log::info!(
-        "[messages] incoming-chat subscription active order={order_id} author={} since={cursor}",
+        "[messages] incoming-chat subscription {issued:?} order={order_id} author={} since={cursor}",
         sign_pubkey.to_hex(),
     );
 
     let mut state = ChatRxState::new(channel, cursor);
 
     loop {
+        // The trade ended and `stop_chat_subscriptions` took the chat back.
+        if !chat_is_current(channel, order_id, generation).await {
+            return;
+        }
         match rx.next().await {
             Some(ClientNotification::Event {
                 subscription_id,
@@ -1738,6 +1856,38 @@ mod tests {
             attachment: None,
             created_at: index,
         }
+    }
+
+    /// Issue #533: a new user starts with no conversations and no unread
+    /// badge, whatever the previous one left in memory.
+    #[tokio::test]
+    async fn clearing_the_store_leaves_no_chats_and_no_unread_count() {
+        let store = MessageStore::new();
+        let trade_id = uuid::Uuid::new_v4().to_string();
+        let mut unread = store.unread_tx.subscribe();
+        store
+            .add_message(notification_test_message(&trade_id, 1))
+            .await;
+        assert_eq!(store.messages.read().await.len(), 1);
+        assert!(store.hydrated.read().await.contains(&trade_id));
+        assert_eq!(store.unread_count_inner().await, 1);
+
+        store.clear().await;
+
+        // Asserted on the maps `clear` owns, not through `get_messages`: that
+        // read re-hydrates from the process-wide database, where a parallel
+        // test may have had this message persisted. In the app the rows are
+        // wiped first, so the re-hydration `clear` allows finds nothing.
+        assert!(store.messages.read().await.is_empty());
+        assert!(store.hydrated.read().await.is_empty());
+        assert!(store.non_durable.read().await.is_empty());
+        assert_eq!(store.unread_count_inner().await, 0);
+        // The badge is pushed, not polled: the last value published is zero.
+        let mut last = None;
+        while let Ok(count) = unread.try_recv() {
+            last = Some(count);
+        }
+        assert_eq!(last, Some(0));
     }
 
     #[tokio::test]
@@ -2288,6 +2438,46 @@ mod tests {
         // An untouched trade has room.
         let other = uuid::Uuid::new_v4().to_string();
         assert!(!store.quota_exceeded(&other, 1024).await);
+    }
+
+    /// #523: a finished trade gives its chat REQs back. Stopping releases
+    /// both channels' ownership — the running tasks exit at their next wake —
+    /// and reports which were running; an order with no chat is a no-op.
+    #[tokio::test]
+    async fn stopping_a_finished_trades_chats_releases_both_channels() {
+        let order = format!("stop-{}", uuid::Uuid::new_v4());
+        let peer = claim_chat(ChatChannel::Peer, &order).await.expect("claim");
+        let dispute = claim_chat(ChatChannel::Dispute, &order).await.expect("claim");
+
+        let stopped = stop_chat_subscriptions(&order).await;
+
+        assert_eq!(stopped, vec![ChatChannel::Peer, ChatChannel::Dispute]);
+        assert!(!chat_is_current(ChatChannel::Peer, &order, peer).await);
+        assert!(!chat_is_current(ChatChannel::Dispute, &order, dispute).await);
+        assert!(stop_chat_subscriptions(&order).await.is_empty());
+    }
+
+    /// PR #527 review: stop, then a replacement task claims the same chat,
+    /// then the old task finally exits. The old task's cleanup must not take
+    /// the replacement's ownership (nor, therefore, close its REQ).
+    #[tokio::test]
+    async fn an_old_chat_task_cannot_release_its_replacement() {
+        let order = format!("swap-{}", uuid::Uuid::new_v4());
+        let old = claim_chat(ChatChannel::Peer, &order).await.expect("first claim");
+        // One owner at a time.
+        assert!(claim_chat(ChatChannel::Peer, &order).await.is_none());
+
+        stop_chat_subscriptions(&order).await;
+        let new = claim_chat(ChatChannel::Peer, &order).await.expect("replacement");
+        assert_ne!(old, new);
+
+        // The old task wakes: it is no longer current, and releasing reports
+        // that it owned nothing — so its cleanup leaves the REQ alone.
+        assert!(!chat_is_current(ChatChannel::Peer, &order, old).await);
+        assert!(!release_chat(ChatChannel::Peer, &order, old).await);
+        assert!(chat_is_current(ChatChannel::Peer, &order, new).await);
+
+        assert!(release_chat(ChatChannel::Peer, &order, new).await);
     }
 
     #[test]

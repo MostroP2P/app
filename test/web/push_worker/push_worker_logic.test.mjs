@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readdirSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const {
@@ -134,6 +135,12 @@ test('an unknown data-only push renders nothing', () => {
   assert.equal(noticeFor({}, ['en']), null);
 });
 
-test('the notice ships the five app languages', () => {
-  assert.deepEqual(Object.keys(CHAT_WAKE_BODIES).sort(), ['de', 'en', 'es', 'fr', 'it']);
+test('the notice ships every app language', () => {
+  // Derived from the translation files, so a new locale cannot be missed here.
+  const l10n = new URL('../../../lib/l10n/', import.meta.url);
+  const locales = readdirSync(l10n)
+    .map((name) => /^app_([a-z]{2})\.arb$/.exec(name)?.[1])
+    .filter(Boolean)
+    .sort();
+  assert.deepEqual(Object.keys(CHAT_WAKE_BODIES).sort(), locales);
 });

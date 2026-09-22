@@ -446,6 +446,7 @@ mod tests {
                 rating: 4.375,
                 reviews: 4,
                 operating_days: 64,
+                since: None,
             }),
         });
         assert_eq!(peer_reputation(&Some(peer)), Some((4.375, 4, 64)));
@@ -464,6 +465,7 @@ mod tests {
                 rating: 0.0,
                 reviews: 0,
                 operating_days: 0,
+                since: None,
             }),
         });
         assert_eq!(peer_reputation(&Some(fresh)), Some((0.0, 0, 0)));
@@ -489,6 +491,7 @@ mod tests {
                     rating: 5.0,
                     reviews,
                     operating_days,
+                    since: None,
                 }),
             })
         };

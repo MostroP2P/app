@@ -4,18 +4,43 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 // ── Language data ─────────────────────────────────────────────────────────────
 
 typedef _LangEntry = ({String code, String name, String native});
 
-const List<_LangEntry> _languages = [
-  (code: 'en', name: 'English', native: 'English'),
-  (code: 'es', name: 'Spanish', native: 'Español'),
-  (code: 'it', name: 'Italian', native: 'Italiano'),
-  (code: 'fr', name: 'French', native: 'Français'),
-  (code: 'de', name: 'German', native: 'Deutsch'),
-];
+/// English and native name of every language the app ships, in picker order.
+///
+/// Only the names live here: which languages the picker lists comes from
+/// [AppLocalizations.supportedLocales], i.e. from the `lib/l10n/app_*.arb`
+/// files. A new ARB file therefore shows up in the picker (under its code)
+/// even before it gets a row here, and `locale_lists_test.dart` fails until
+/// it does.
+const Map<String, ({String name, String native})> languageNames = {
+  'en': (name: 'English', native: 'English'),
+  'es': (name: 'Spanish', native: 'Español'),
+  'it': (name: 'Italian', native: 'Italiano'),
+  'fr': (name: 'French', native: 'Français'),
+  'de': (name: 'German', native: 'Deutsch'),
+  'nl': (name: 'Dutch', native: 'Nederlands'),
+};
+
+/// The picker rows: every supported locale, in [languageNames] order, with
+/// any locale that has no names yet appended under its code.
+final List<_LangEntry> _languages = () {
+  final supported = {
+    for (final l in AppLocalizations.supportedLocales) l.languageCode,
+  };
+  return [
+    for (final MapEntry(key: code, value: n) in languageNames.entries)
+      if (supported.contains(code))
+        (code: code, name: n.name, native: n.native),
+    for (final code in supported)
+      if (!languageNames.containsKey(code))
+        (code: code, name: code, native: code),
+  ];
+}();
 
 // ── Widget ────────────────────────────────────────────────────────────────────
 
@@ -32,46 +57,28 @@ class LanguageSelector extends ConsumerWidget {
     if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
     final colors = colorsRaw;
 
-    return SafeArea(
-      child: Column(
+    return MostroSheet(
+      title: AppLocalizations.of(context).selectLanguageTitle,
+      content: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                Text(
-                  AppLocalizations.of(context).selectLanguageTitle,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          ...List.generate(_languages.length, (index) {
-            final lang = _languages[index];
-            final isSelected = lang.code == currentCode;
-            return ListTile(
+          for (final lang in _languages)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
               title: Text(
                 lang.native,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? colors.mostroGreen : null,
+                      color:
+                          lang.code == currentCode ? colors.mostroGreen : null,
                     ),
               ),
               subtitle: Text(
                 lang.name,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              trailing: isSelected
+              trailing: lang.code == currentCode
                   ? Icon(Icons.check_circle, color: colors.mostroGreen)
                   : null,
               onTap: () {
@@ -86,9 +93,7 @@ class LanguageSelector extends ConsumerWidget {
                   (_) => notifier.setLanguage(lang.code),
                 );
               },
-            );
-          }),
-          const SizedBox(height: AppSpacing.md),
+            ),
         ],
       ),
     );
@@ -99,12 +104,8 @@ class LanguageSelector extends ConsumerWidget {
 
 /// Show the [LanguageSelector] as a modal bottom sheet.
 void showLanguageSelector(BuildContext context) {
-  showModalBottomSheet<void>(
+  showMostroSheet<void>(
     context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
-    ),
     builder: (_) => const LanguageSelector(),
   );
 }

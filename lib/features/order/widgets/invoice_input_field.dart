@@ -7,6 +7,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/invoice_palette.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// Minimum hit target of the actions under the field.
 const _kHitTarget = 44.0;
@@ -141,43 +142,14 @@ class _InvoiceInputFieldState extends State<InvoiceInputField>
 
   void _showWhole(AppLocalizations l10n) {
     final book = OrderBookPalette.of(context);
-    showModalBottomSheet<void>(
+    showMostroSheet<void>(
       context: context,
-      backgroundColor: book.surface,
-      isScrollControlled: true,
       builder:
-          (sheetContext) => ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.6,
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      _filledLabel(l10n).toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.66,
-                        color: book.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: SelectableText(
-                          widget.controller.text,
-                          style: _kTextStyle.copyWith(color: book.textStrong),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          (_) => MostroSheet(
+            title: _filledLabel(l10n),
+            content: SelectableText(
+              widget.controller.text,
+              style: _kTextStyle.copyWith(color: book.textStrong),
             ),
           ),
     );

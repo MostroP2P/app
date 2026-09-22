@@ -57,6 +57,31 @@ void main() {
       );
     });
 
+    test('a cooperative-cancel request is its own card, not an active one', () {
+      NotificationModel request(String status, String reason) =>
+          NotificationModel.tradeStatus(
+            orderId: 'order-1',
+            status: status,
+            reason: reason,
+            at: at,
+          );
+
+      final mine = request('active', 'cooperativeCancelRequestedByMe');
+      expect(mine.id, 'trade-order-1-active-cooperativeCancelRequestedByMe');
+      expect(mine.resolvedTitle(en), en.tradeCardCancelRequestedByMeTitle);
+      expect(mine.resolvedMessage(en), en.tradeCardCancelRequestedByMeMessage);
+      expect(mine.resolvedTitle(es), es.tradeCardCancelRequestedByMeTitle);
+
+      // The status carried is the trade's own: the same copy after fiat sent.
+      final peer = request('fiatSent', 'cooperativeCancelRequestedByPeer');
+      expect(peer.resolvedTitle(en), en.tradeCardCancelRequestedByPeerTitle);
+      expect(
+        peer.resolvedMessage(en),
+        en.tradeCardCancelRequestedByPeerMessage,
+      );
+      expect(peer.resolvedTitle(en), isNot(mine.resolvedTitle(en)));
+    });
+
     test('a status this build does not know still renders', () {
       final n = NotificationModel.tradeStatus(
         orderId: 'order-1',

@@ -383,7 +383,7 @@ pub async fn submit_bond_payout_invoice(order_id: String, invoice: String) -> Re
             }
         }
         Ok(Ok(_)) => Ok(()),
-        _ => bail!("NoDaemonResponse"),
+        _ => bail!(crate::mostro::pending::NO_DAEMON_RESPONSE),
     }
 }
 

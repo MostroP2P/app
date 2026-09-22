@@ -20,12 +20,18 @@ import 'package:mostro/src/rust/api/types.dart';
 /// [stats] is `null` while loading ([statsLoading]) or when the fetch failed:
 /// the strip then shows skeletons or `—`, and the card stays selectable —
 /// missing data is never a verdict.
+///
+/// With [statsCached] the row is the node's settings as last seen, shown
+/// while the live fetch runs: it has no order count and its heartbeat is as
+/// old as the cache, so liquidity stays a skeleton (or `—`) and availability
+/// is not judged at all.
 class NodeCard extends StatelessWidget {
   const NodeCard({
     super.key,
     required this.entry,
     required this.stats,
     required this.statsLoading,
+    this.statsCached = false,
     required this.myFiat,
     required this.flags,
     required this.btcPrice,
@@ -40,6 +46,9 @@ class NodeCard extends StatelessWidget {
   final MostroNodeEntry entry;
   final MostroNodeStats? stats;
   final bool statsLoading;
+
+  /// [stats] came from the local kind 38385 cache, not from the relays.
+  final bool statsCached;
 
   /// The user's preferred fiat code, or `null` for "all currencies".
   final String? myFiat;
@@ -65,7 +74,9 @@ class NodeCard extends StatelessWidget {
     final book = OrderBookPalette.of(context);
     final pal = NodeSelectorPalette.of(context);
     final s = stats;
-    final blocker = blockerOf(s, myFiat, now);
+    // Settings only: a cached row says nothing about liquidity or liveness.
+    final liveStats = statsCached ? null : s;
+    final blocker = blockerOf(liveStats, myFiat, now);
     final accepts = s == null ? null : acceptsMyFiat(s, myFiat);
     final dim = dimFactorOf(blocker, accepts);
 
@@ -82,7 +93,7 @@ class NodeCard extends StatelessWidget {
         children: [
           _IdentityRow(
             entry: entry,
-            stats: s,
+            stats: liveStats,
             myFiat: myFiat,
             now: now,
             selected: selected,
@@ -94,6 +105,7 @@ class NodeCard extends StatelessWidget {
           const SizedBox(height: 11),
           _MetricsStrip(
             stats: s,
+            liquidityStats: liveStats,
             loading: statsLoading,
             myFiat: myFiat,
             btcPrice: btcPrice,
@@ -470,7 +482,7 @@ class _CurrencyRow extends StatelessWidget {
             border: pal.warnBorder,
             ink: pal.warnInk,
           ),
-        for (final code in chips.shown)
+        for (final code in chips)
           code == mine
               ? chip(
                 text: code,
@@ -485,12 +497,6 @@ class _CurrencyRow extends StatelessWidget {
                 bg: pal.chipNeutralBg,
                 ink: pal.chipNeutralInk,
               ),
-        if (chips.overflow > 0)
-          chip(
-            text: '+${chips.overflow}',
-            bg: pal.chipNeutralBg,
-            ink: pal.chipNeutralInk,
-          ),
       ],
     );
   }
@@ -501,6 +507,7 @@ class _CurrencyRow extends StatelessWidget {
 class _MetricsStrip extends StatelessWidget {
   const _MetricsStrip({
     required this.stats,
+    required this.liquidityStats,
     required this.loading,
     required this.myFiat,
     required this.btcPrice,
@@ -508,6 +515,12 @@ class _MetricsStrip extends StatelessWidget {
   });
 
   final MostroNodeStats? stats;
+
+  /// Source of the order count: `null` while [stats] is only a cached row.
+  final MostroNodeStats? liquidityStats;
+
+  /// The live fetch is in flight: the order count is a skeleton, and so are
+  /// fee and range unless [stats] already has them from the cache.
   final bool loading;
   final String? myFiat;
   final double? btcPrice;
@@ -527,12 +540,13 @@ class _MetricsStrip extends StatelessWidget {
     final mine = myFiat?.toUpperCase();
 
     // Liquidity — the only lime figure: it is the one that decides.
-    final total = s?.totalOrders ?? 0;
-    final inMine = s == null || mine == null ? null : ordersIn(s, mine);
+    final live = liquidityStats;
+    final total = live?.totalOrders ?? 0;
+    final inMine = live == null || mine == null ? null : ordersIn(live, mine);
     final liquidity = _Metric(
-      figure: s == null ? '—' : '$total',
+      figure: live == null ? '—' : '$total',
       figureColor:
-          s == null
+          live == null
               ? book.textFaint
               : total == 0
               ? book.textTertiary
@@ -540,7 +554,7 @@ class _MetricsStrip extends StatelessWidget {
       unit: inMine == null ? null : l10n.nodeOrdersInCurrency(inMine, mine!),
       unitColor: inMine == 0 && total > 0 ? pal.warnInk : book.textTertiary,
       label:
-          s != null && total == 0
+          live != null && total == 0
               ? l10n.nodeNoOrdersLabel
               : l10n.nodeOrdersNowLabel,
     );
@@ -587,8 +601,13 @@ class _MetricsStrip extends StatelessWidget {
         builder: (context, constraints) {
           final scale = MediaQuery.textScalerOf(context).scale(1);
           final oneRow = constraints.maxWidth >= _minRowWidth * scale;
-          Widget cell(_Metric m) =>
-              Expanded(child: _MetricCell(metric: m, loading: loading));
+          final settingsLoading = loading && s == null;
+          Widget cell(_Metric m) => Expanded(
+            child: _MetricCell(
+              metric: m,
+              loading: identical(m, liquidity) ? loading : settingsLoading,
+            ),
+          );
           if (oneRow) {
             return IntrinsicHeight(
               child: Row(
@@ -625,7 +644,7 @@ class _MetricsStrip extends StatelessWidget {
               const SizedBox(height: 10),
               Container(height: 1, color: dimmed(pal.colDivider, dim)),
               const SizedBox(height: 10),
-              _MetricCell(metric: columns[2], loading: loading),
+              _MetricCell(metric: columns[2], loading: settingsLoading),
             ],
           );
         },

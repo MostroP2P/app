@@ -722,6 +722,36 @@ class AppLocalizationsEs extends AppLocalizations {
       'No se pudo cancelar. Por favor, inténtelo de nuevo.';
 
   @override
+  String get tradeCardCancelRequestedByMeTitle => 'Cancelación solicitada';
+
+  @override
+  String get tradeCardCancelRequestedByMeMessage =>
+      'Pediste cancelar este intercambio. Sigue abierto hasta que la otra parte también cancele. Si no responde, puedes abrir una disputa.';
+
+  @override
+  String get tradeCardCancelRequestedByPeerTitle =>
+      'La otra parte quiere cancelar';
+
+  @override
+  String get tradeCardCancelRequestedByPeerMessage =>
+      'Pidió cancelar este intercambio. Acepta para terminarlo sin mover fondos, o sigue con el intercambio.';
+
+  @override
+  String get tradeCancelRequestedByMeNotice =>
+      'Pediste cancelar este intercambio. Sigue abierto hasta que la otra parte también cancele. Si no responde, puedes abrir una disputa.';
+
+  @override
+  String get tradeCancelRequestedByPeerNotice =>
+      'La otra parte pidió cancelar este intercambio. Acepta para terminarlo sin mover fondos, o sigue con el intercambio.';
+
+  @override
+  String get acceptCancelButton => 'Aceptar cancelación';
+
+  @override
+  String get cancelTradeDialogContentAccept =>
+      'La otra parte pidió cancelar. Si cancelas ahora, el intercambio termina para ambos y no se mueven fondos.';
+
+  @override
   String get fiatSentFailed =>
       'Error al marcar el fiat como enviado. Por favor, inténtelo de nuevo.';
 
@@ -1502,6 +1532,14 @@ class AppLocalizationsEs extends AppLocalizations {
   String timeLeftLabel(String time) {
     return 'Quedan $time';
   }
+
+  @override
+  String get invoiceNoLongerExpected =>
+      'Esta orden ya no espera una factura. Actualizando su estado…';
+
+  @override
+  String get invoiceSubmitInFlight =>
+      'Ya se está enviando una factura para esta orden. Espera la respuesta.';
 
   @override
   String get waitingForTradeAmount =>
@@ -3518,4 +3556,87 @@ class AppLocalizationsEs extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get invalidTradeIndexError =>
+      'Tu cuenta no está sincronizada con este nodo Mostro, así que rechazó la orden. Inténtalo de nuevo en un momento';
+
+  @override
+  String get recoveringTradesMessage =>
+      'Cuenta importada. Recuperando tus operaciones desde Mostro…';
+
+  @override
+  String recoveredTradesMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Cuenta importada. Se recuperaron $count operaciones',
+      one: 'Cuenta importada. Se recuperó 1 operación',
+      zero: 'Cuenta importada. No tenías operaciones en curso',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get recoverTradesFailedMessage =>
+      'Cuenta importada, pero Mostro no respondió, así que no se recuperaron tus operaciones en curso';
+
+  @override
+  String get paymentMethodsChosenLabel => 'Elegidos';
+
+  @override
+  String paymentMethodsSelectedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count métodos seleccionados',
+      one: '1 método seleccionado',
+      zero: 'Elige al menos un método',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get paymentMethodsConfirm => 'Confirmar métodos';
+
+  @override
+  String get paymentMethodAddCustom => 'Agregar método personalizado';
+
+  @override
+  String get paymentMethodsDiscardTitle => '¿Descartar los cambios?';
+
+  @override
+  String get paymentMethodsDiscardConfirm => 'Descartar';
+
+  @override
+  String get paymentMethodsKeepEditing => 'Seguir editando';
+
+  @override
+  String get fundsAtRiskTitle => 'Este usuario todavía tiene sats en juego';
+
+  @override
+  String get fundsAtRiskBody =>
+      'Si continúas, las llaves de este usuario se reemplazan y nada de lo que aparece aquí podrá terminarse ni recuperarse desde este dispositivo. No se recomienda: puedes perder estos sats.';
+
+  @override
+  String get fundsAtRiskSellerEscrow =>
+      'Sats retenidos en garantía por una venta';
+
+  @override
+  String get fundsAtRiskBondLocked => 'Fianza retenida';
+
+  @override
+  String get fundsAtRiskPayoutClaim => 'Pago de fianza aún sin cobrar';
+
+  @override
+  String get fundsAtRiskTradeInProgress => 'Operación en curso';
+
+  @override
+  String get fundsAtRiskBondInvoicePending => 'Factura de fianza aún pagable';
+
+  @override
+  String get fundsAtRiskKeep => 'Conservar este usuario';
+
+  @override
+  String get fundsAtRiskContinue => 'Continuar de todos modos';
 }

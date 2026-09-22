@@ -70,10 +70,41 @@ void main() {
         fakeOrder(id: 'cash', kind: 'sell', paymentMethod: 'Cash'),
       ]);
       helper.setTab(OrderType.buy);
-      helper.container.read(paymentMethodFilterProvider.notifier).state =
-          ['revolut'];
+      helper.container.read(paymentMethodFilterProvider.notifier).state = [
+        'revolut',
+      ];
 
       expect(helper.ids(), ['multi']);
+    });
+
+    test('payment method filter ignores case and padding', () async {
+      // Arrange
+      final helper = await bookWith([
+        fakeOrder(id: 'padded', kind: 'sell', paymentMethod: ' wire ,Revolut'),
+        fakeOrder(id: 'cash', kind: 'sell', paymentMethod: 'Cash'),
+      ]);
+
+      // Act
+      helper.container.read(paymentMethodFilterProvider.notifier).state = [
+        'WIRE',
+      ];
+
+      // Assert
+      expect(helper.ids(), ['padded']);
+    });
+
+    test('an order splits its payment methods once, not per filter pass', () {
+      // Arrange
+      final order = fakeOrder(
+        id: 'multi',
+        kind: 'sell',
+        paymentMethod: 'Wire, Revolut',
+      );
+
+      // Act / Assert: the filter runs over the whole book on every emission
+      // and every filter change; the tokens of an order never change.
+      expect(order.paymentTokens, {'wire', 'revolut'});
+      expect(identical(order.paymentTokens, order.paymentTokens), isTrue);
     });
 
     test('rating range excludes orders outside the bounds', () async {
@@ -82,8 +113,10 @@ void main() {
         fakeOrder(id: 'high', kind: 'sell', rating: 4.5),
       ]);
       helper.setTab(OrderType.buy);
-      helper.container.read(ratingFilterProvider.notifier).state =
-          (min: 4.0, max: 5.0);
+      helper.container.read(ratingFilterProvider.notifier).state = (
+        min: 4.0,
+        max: 5.0,
+      );
 
       expect(helper.ids(), ['high']);
     });
@@ -94,8 +127,10 @@ void main() {
         fakeOrder(id: 'pricey', kind: 'sell', premium: 8.0),
       ]);
       helper.setTab(OrderType.buy);
-      helper.container.read(premiumRangeFilterProvider.notifier).state =
-          (min: 5.0, max: 10.0);
+      helper.container.read(premiumRangeFilterProvider.notifier).state = (
+        min: 5.0,
+        max: 10.0,
+      );
 
       expect(helper.ids(), ['pricey']);
     });

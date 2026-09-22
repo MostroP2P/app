@@ -31,7 +31,6 @@ class BackupPalette {
     required this.revealFill,
     required this.revealBorder,
     required this.outlineBorder,
-    required this.scrim,
     required this.sheetBorder,
     required this.grabber,
     required this.heroFill,
@@ -94,8 +93,6 @@ class BackupPalette {
   /// `Import user` and the refresh square.
   final Color outlineBorder;
 
-  /// Behind the 15c sheet.
-  final Color scrim;
   final Color sheetBorder;
   final Color grabber;
 
@@ -147,7 +144,6 @@ class BackupPalette {
     revealFill: Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
     revealBorder: Color(0x17FFFFFF), // rgba(255,255,255,0.09)
     outlineBorder: Color(0x7392D64F), // rgba(146,214,79,0.45)
-    scrim: Color(0x8C06080C), // rgba(6,8,12,0.55)
     sheetBorder: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
     grabber: Color(0x2EFFFFFF), // rgba(255,255,255,0.18)
     heroFill: Color(0x1FF7DE72), // rgba(247,222,114,0.12)
@@ -182,7 +178,6 @@ class BackupPalette {
     revealFill: Color(0x0A12161F), // ink 4%
     revealBorder: Color(0x1A12161F), // ink 10%
     outlineBorder: Color(0x995C9130), // rgba(92,145,48,0.60)
-    scrim: Color(0x8C06080C),
     sheetBorder: Color(0x1412161F), // ink 8%
     grabber: Color(0x2E12161F), // ink 18%
     heroFill: Color(0x40F2D14B), // yellow 25%

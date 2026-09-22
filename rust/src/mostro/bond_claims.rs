@@ -202,6 +202,14 @@ pub fn prune_retained(now: i64) -> bool {
         .unwrap_or(false)
 }
 
+/// Forget every node kept for a payout claim: the claims were the deleted
+/// identity's, and so is the persisted map this mirrors (issue #533).
+pub fn clear_retained() {
+    if let Ok(mut nodes) = retained().write() {
+        nodes.clear();
+    }
+}
+
 /// The retained nodes and their dates, for persistence.
 pub fn retained_nodes_snapshot() -> HashMap<String, i64> {
     retained().read().map(|map| map.clone()).unwrap_or_default()

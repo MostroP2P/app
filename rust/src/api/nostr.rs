@@ -108,45 +108,105 @@ pub async fn initialize(relays: Option<Vec<String>>) -> Result<()> {
         seed_default_relays().await;
     }
 
-    // Spawn a background task that flushes the outbox whenever the relay pool
-    // transitions to Online.  The task exits when the broadcast channel closes.
-    let pool_ref = POOL.get().unwrap().clone();
-    crate::rt::spawn(async move {
-        let mut rx = pool_ref.subscribe_connection_state();
-        log::info!("[nostr] connection state watcher started");
-        loop {
-            match rx.recv().await {
-                Ok(ConnectionState::Online) => {
-                    log::info!("[nostr] relay pool ONLINE — fetching node capabilities, flushing queue, subscribing orders");
-                    // Fetch capabilities first so queued messages are wrapped with the
-                    // correct difficulty before being flushed.
-                    fetch_and_set_node_capabilities().await;
-                    let _ = flush_message_queue().await;
-                    // Start (or re-start) Kind 38383 order book subscription.
-                    crate::api::orders::subscribe_orders().await;
-                    // Rebuild chat listeners for persisted active trades —
-                    // sessions are in-memory, so after a restart nothing else
-                    // would resubscribe. Idempotent: orders with a live chat
-                    // task are skipped by the single-owner guard.
-                    crate::api::messages::resubscribe_active_chats().await;
-                    // Same rearm for dispute chats: solver assignments are
-                    // committed before listener startup, which can fail while
-                    // keys or connectivity are missing — coming online is the
-                    // retry point (PR #254 review).
-                    crate::api::disputes::resubscribe_active_dispute_chats().await;
-                }
-                Ok(state) => {
-                    log::info!("[nostr] connection state changed: {state:?}");
-                }
-                Err(_) => {
-                    log::warn!("[nostr] connection state channel closed");
-                    break;
-                }
-            }
-        }
-    });
+    // A REQ issued while a relay is down never exists on it, reconnect or
+    // not (nostr-sdk 0.45): re-issue what each relay misses as it connects.
+    crate::nostr::live_subs::spawn_repair(POOL.get().unwrap());
+
+    // Runs the Online sequence whenever the relay pool transitions to Online.
+    // Subscribed *before* the state is read, and both before the task is
+    // spawned: `RelayPool::new` already started the status monitor, which
+    // polls every 100 ms at start-up, and a broadcast channel replays nothing.
+    // An `Online` sent before this line shows in the state read next; one
+    // sent after it lands in `rx`. Subscribing inside the task left a window
+    // (the restore and seed above, then the scheduler) in which the first
+    // `Online` had no receiver — and with the state unchanged afterwards the
+    // monitor never sends another, so the book, the capabilities and the
+    // outbox waited for a relay to drop and come back.
+    let pool_ref = POOL.get().unwrap();
+    let rx = pool_ref.subscribe_connection_state();
+    let current = pool_ref.connection_state().await;
+    crate::rt::spawn(watch_connection_state(rx, current, || {
+        // Not run inline. The sequence takes seconds (a 10 s capability fetch
+        // among them), and transitions arriving meanwhile used to queue here
+        // and each re-run all of it back to back — a flapping pool multiplied
+        // its own storm. Coalesced, a burst costs one run, plus at most one
+        // more for whatever arrived while it was in flight.
+        ONLINE_SYNC.request(ONLINE_SETTLE, on_pool_online);
+    }));
 
     Ok(())
+}
+
+/// Call `on_online` for every `Online` on `rx` — and once up front when the
+/// pool was `current`ly online already, which is the transition `rx` was
+/// subscribed too late to see. When both report the same `Online`, the caller
+/// coalesces them. Ends when the channel closes.
+async fn watch_connection_state(
+    mut rx: tokio::sync::broadcast::Receiver<ConnectionState>,
+    current: ConnectionState,
+    on_online: impl Fn() + crate::rt::MaybeSend + 'static,
+) {
+    use tokio::sync::broadcast::error::RecvError;
+
+    log::info!("[nostr] connection state watcher started");
+    if current == ConnectionState::Online {
+        log::info!("[nostr] pool was online before the watcher subscribed");
+        on_online();
+    }
+    loop {
+        match rx.recv().await {
+            Ok(ConnectionState::Online) => on_online(),
+            Ok(state) => log::info!("[nostr] connection state changed: {state:?}"),
+            // Skipped states are gone; the next one still arrives.
+            Err(RecvError::Lagged(_)) => continue,
+            Err(RecvError::Closed) => {
+                log::warn!("[nostr] connection state channel closed");
+                break;
+            }
+        }
+    }
+}
+
+/// The coalescing window of the Online sequence. Short on purpose: the first
+/// `Online` of a cold start is what starts the order-book subscription, so
+/// this is paid before the book can load. What the coalescing buys is not the
+/// wait but the bound — transitions arriving while a run is in flight cost
+/// one more run, however many they are.
+///
+/// An `Offline` inside the window or during a run does not cancel it; the run
+/// then meets the same timeouts the inline sequence used to. Cancelling on a
+/// flap is a possible refinement, not something the old code did either.
+const ONLINE_SETTLE: crate::rt::time::Duration = crate::rt::time::Duration::from_millis(100);
+
+static ONLINE_SYNC: crate::nostr::coalesce::Coalesced = crate::nostr::coalesce::Coalesced::new();
+
+/// Everything that has to happen once the pool can reach a relay again.
+async fn on_pool_online() {
+    log::info!(
+        "[nostr] relay pool ONLINE — subscribing orders, fetching node capabilities, flushing queue"
+    );
+    // Taken before the subscriptions open: their history replay can carry an
+    // `add-bond-invoice`, whose deadline waits for the fetch below (§6.4).
+    let capabilities_pending = crate::mostro::bond_policy::fetch_pending();
+    // Start (or re-start) Kind 38383 order book subscription. First, and it
+    // only spawns: the book is public and needs nothing the capability fetch
+    // returns, while that fetch is a relay round trip. Behind it, a relay slow
+    // to answer kept the book empty for eight seconds of a cold start.
+    crate::api::orders::subscribe_orders().await;
+    // Capabilities before the flush, so queued messages are wrapped with the
+    // correct difficulty.
+    fetch_and_set_node_capabilities().await;
+    drop(capabilities_pending);
+    let _ = flush_message_queue().await;
+    // Rebuild chat listeners for persisted active trades — sessions are
+    // in-memory, so after a restart nothing else would resubscribe.
+    // Idempotent: orders with a live chat task are skipped by the
+    // single-owner guard.
+    crate::api::messages::resubscribe_active_chats().await;
+    // Same rearm for dispute chats: solver assignments are committed before
+    // listener startup, which can fail while keys or connectivity are
+    // missing — coming online is the retry point (PR #254 review).
+    crate::api::disputes::resubscribe_active_dispute_chats().await;
 }
 
 /// Add a new relay and connect to it.
@@ -276,7 +336,7 @@ fn note_relay_list_generation(
     true
 }
 
-// ── Relay persistence (best effort: web has no relay store yet, #233) ───────
+// ── Relay persistence (best effort: a failed write is logged and ignored) ───
 
 async fn load_persisted_relays() -> Vec<RelayInfo> {
     let Some(db) = crate::db::app_db::db() else {
@@ -378,7 +438,9 @@ const RESYNC_CONNECT_WAIT: std::time::Duration = std::time::Duration::from_secs(
 ///    id (the relay replaces it in place and replays the node's history; the
 ///    per-order status cursors keep that replay in order), the order-book
 ///    loop, the peer chats and the dispute chats are re-armed — each of them
-///    a no-op when its task is alive.
+///    a no-op when its task is alive. A pass that runs before the relays are
+///    back lands its REQs nowhere; `nostr::live_subs` keeps the intent and
+///    re-issues it on each relay as it connects.
 /// 3. **Outbox.** Whatever was queued while offline is published.
 ///
 /// Single-flight: concurrent calls coalesce onto the pass in progress and
@@ -453,6 +515,15 @@ async fn run_resync() -> ResyncOutcome {
     crate::api::orders::subscribe_orders().await;
     crate::api::messages::resubscribe_active_chats().await;
     crate::api::disputes::resubscribe_active_dispute_chats().await;
+    // Whatever a relay that is up right now still lacks. The ones still
+    // reconnecting get theirs from the repair task as they connect, so a pass
+    // that ran offline no longer leaves the session deaf.
+    let repaired = crate::nostr::live_subs::live_subs()
+        .repair_all(&client)
+        .await;
+    if repaired > 0 {
+        log::info!("[nostr] resync: repaired {repaired} subscription(s)");
+    }
 
     let flushed = match flush_message_queue().await {
         Ok(n) => n,
@@ -548,23 +619,40 @@ pub async fn fetch_mostro_instance_tags(
         .custom_tag(SingleLetterTag::LOWERCASE_D, &mostro_pubkey_hex)
         .limit(1);
 
-    let events = client
-        .fetch_events(filter)
+    // Streamed, not `fetch_events`: that returns once *every* relay has sent
+    // EOSE, so one relay sitting on the REQ cost the whole 10 s — at startup,
+    // with the answer already in hand from the others. The event is
+    // replaceable, so the first copy plus a short grace for a newer one (by
+    // NIP-01's order) is enough. Dropping the stream closes the REQ on the relays still silent.
+    let stream = client
+        .stream_events(filter)
         .timeout(Duration::from_secs(10))
         .await
-        .map_err(|e| anyhow::anyhow!("fetch_events failed: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("stream_events failed: {e}"))?;
+    let copies = stream.filter_map(|(relay, item)| async move {
+        item.inspect_err(|e| log::debug!("[nostr] 38385 from {relay}: {e}"))
+            .ok()
+    });
+    let event = crate::nostr::first_answer::newest_answer(
+        Box::pin(copies),
+        INSTANCE_INFO_GRACE,
+        crate::nostr::first_answer::replaceable_rank,
+    )
+    .await;
 
-    if let Some(event) = events.first() {
-        let tags = event
+    Ok(event.map(|event| {
+        event
             .tags
             .iter()
             .map(|t| t.as_slice().to_vec())
-            .collect::<Vec<Vec<String>>>();
-        Ok(Some(tags))
-    } else {
-        Ok(None)
-    }
+            .collect::<Vec<Vec<String>>>()
+    }))
 }
+
+/// How long [`fetch_mostro_instance_tags`] keeps listening after the first
+/// copy of the node's info event, in case that relay held a stale one. Relays
+/// that answer at all do so within a few hundred milliseconds of each other.
+const INSTANCE_INFO_GRACE: std::time::Duration = std::time::Duration::from_millis(750);
 
 /// Price of one BTC in `fiat_code`, as published by `mostro_pubkey_hex` in its
 /// Kind 30078 (`d` = `mostro-rates`) event.
@@ -702,10 +790,28 @@ fn tag_value(event: &nostr_sdk::prelude::Event, name: &str) -> Option<String> {
 /// from the same event, and a second relay query for the escrow tags would
 /// double the traffic for no new information.
 pub(crate) async fn fetch_and_set_node_capabilities() {
+    let mostro_pubkey_hex = crate::config::active_mostro_pubkey();
+    let fetched = fetch_mostro_instance_tags(mostro_pubkey_hex.clone()).await;
+    apply_node_capabilities(&mostro_pubkey_hex, fetched);
+}
+
+/// Store what `node`'s info event said — or, for a failed or empty fetch,
+/// forget what was known.
+///
+/// A fetch outlived by a node switch is dropped whole, success or failure.
+/// Every store here is a single slot for "the active node": the slower fetch
+/// of the node left behind used to land after the new node's and overwrite
+/// it — the bond policy then answered `None` for the active node, and the
+/// escrow mode, which carries no node tag at all, was simply the wrong node's.
+fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>) {
     use crate::mostro::escrow_mode;
 
-    let mostro_pubkey_hex = crate::config::active_mostro_pubkey();
-    match fetch_mostro_instance_tags(mostro_pubkey_hex.clone()).await {
+    if !node.eq_ignore_ascii_case(&crate::config::active_mostro_pubkey()) {
+        log::info!("[nostr] capabilities of a node no longer active — dropped");
+        return;
+    }
+    let mostro_pubkey_hex = node.to_string();
+    match fetched {
         Ok(Some(tags)) => {
             // Both difficulties: `pow` for every event, `pow_first_contact`
             // for the first event of a trade. An absent first-contact tag is
@@ -888,6 +994,83 @@ mod tests {
 
     const RATES: &str = r#"{"BTC":{"USD":50000.0}}"#;
 
+    fn bond_enabled_tags() -> Vec<Vec<String>> {
+        [("bond_enabled", "true"), ("bond_payout_claim_window_days", "30")]
+            .iter()
+            .map(|(k, v)| vec![k.to_string(), v.to_string()])
+            .collect()
+    }
+
+    #[test]
+    fn a_capability_fetch_for_a_node_no_longer_active_writes_nothing() {
+        // Arrange: the user switched nodes while this fetch was in flight. Its
+        // answer is about a node nobody is talking to any more.
+        let left_behind = "a".repeat(64);
+        assert_ne!(left_behind, crate::config::active_mostro_pubkey());
+
+        // Act
+        apply_node_capabilities(&left_behind, Ok(Some(bond_enabled_tags())));
+
+        // Assert: had it been written, the single policy slot would now hold
+        // this node's answer in place of the active node's.
+        assert_eq!(crate::mostro::bond_policy::get_for(&left_behind), None);
+    }
+
+    /// The body of `on_pool_online`, up to the next top-level item.
+    fn on_pool_online_body() -> &'static str {
+        let source = include_str!("nostr.rs");
+        let start = source
+            .find("async fn on_pool_online()")
+            .expect("on_pool_online exists");
+        let body = &source[start..];
+        &body[..body.find("\n}\n").expect("on_pool_online ends")]
+    }
+
+    #[test]
+    fn the_order_book_is_subscribed_before_the_capability_fetch() {
+        // Arrange: the capability fetch is a relay round trip bounded only by
+        // a 10 s timeout, and the public book needs none of what it returns.
+        let body = on_pool_online_body();
+
+        // Act
+        let subscribe = body.find("subscribe_orders().await");
+        let capabilities = body.find("fetch_and_set_node_capabilities().await");
+
+        // Assert
+        assert!(
+            subscribe.expect("subscribes the book") < capabilities.expect("fetches capabilities"),
+            "a slow relay must not hold the order book behind the capability fetch"
+        );
+    }
+
+    #[test]
+    fn the_capability_fetch_is_announced_before_the_subscriptions_open() {
+        // Arrange: a payout claim replayed by those subscriptions prices its
+        // deadline from the fetch, and only waits for one it knows is coming.
+        let body = on_pool_online_body();
+
+        // Act
+        let announced = body.find("bond_policy::fetch_pending()");
+        let subscribe = body.find("subscribe_orders().await");
+
+        // Assert
+        assert!(announced.expect("announces the fetch") < subscribe.expect("subscribes the book"));
+    }
+
+    #[test]
+    fn the_outbox_is_still_flushed_after_the_capability_fetch() {
+        // Arrange: queued messages are wrapped at flush time and need the
+        // node's PoW difficulty, which only the fetch provides.
+        let body = on_pool_online_body();
+
+        // Act
+        let capabilities = body.find("fetch_and_set_node_capabilities().await");
+        let flush = body.find("flush_message_queue().await");
+
+        // Assert
+        assert!(capabilities.expect("fetches capabilities") < flush.expect("flushes the outbox"));
+    }
+
     fn rates_event(keys: &Keys, content: &str, created_at: u64) -> Event {
         EventBuilder::new(Kind::from(rates::RATES_KIND), content)
             .tag(Tag::parse(["d", rates::RATES_D_TAG]).unwrap())
@@ -971,6 +1154,62 @@ mod tests {
             .unwrap();
         assert!(select_rates_event([wrong_d_tag], &node.public_key()).is_none());
     }
+
+    /// Runs the watcher until the channel closes; returns how often it rang.
+    async fn online_calls(current: ConnectionState, sent: &[ConnectionState]) -> usize {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let (tx, rx) = tokio::sync::broadcast::channel(16);
+        for state in sent {
+            tx.send(state.clone()).unwrap();
+        }
+        drop(tx);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let sink = calls.clone();
+        watch_connection_state(rx, current, move || {
+            sink.fetch_add(1, Ordering::SeqCst);
+        })
+        .await;
+        calls.load(Ordering::SeqCst)
+    }
+
+    #[tokio::test]
+    async fn a_pool_already_online_when_the_watcher_starts_still_runs_the_sequence() {
+        // Arrange: the monitor reported `Online` before anyone subscribed, and
+        // with the state unchanged it never reports it again.
+        let current = ConnectionState::Online;
+
+        // Act
+        let calls = online_calls(current, &[]).await;
+
+        // Assert
+        assert_eq!(calls, 1);
+    }
+
+    #[tokio::test]
+    async fn an_online_transition_after_the_watcher_starts_runs_the_sequence() {
+        // Arrange
+        let current = ConnectionState::Reconnecting;
+
+        // Act
+        let calls = online_calls(current, &[ConnectionState::Online]).await;
+
+        // Assert
+        assert_eq!(calls, 1);
+    }
+
+    #[tokio::test]
+    async fn states_other_than_online_run_nothing() {
+        // Arrange
+        let current = ConnectionState::Reconnecting;
+        let sent = [ConnectionState::Offline, ConnectionState::Reconnecting];
+
+        // Act
+        let calls = online_calls(current, &sent).await;
+
+        // Assert
+        assert_eq!(calls, 0);
+    }
 }
 
 /// The remove → restart → restore → re-add lifecycle, against a real SQLite
@@ -978,7 +1217,7 @@ mod tests {
 /// user removed must stay out across a restart, and adding it back by hand
 /// must lift the blacklist for good.
 ///
-/// Native only: the IndexedDB backend does not persist relays yet (#233).
+/// Native only: the test drives the SQLite backend directly.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod relay_blacklist_restart_tests {
     use super::{removal_effect, RelayInfo};

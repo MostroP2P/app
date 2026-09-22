@@ -41,7 +41,8 @@ class TradeRow {
 
   final String orderId;
 
-  /// Live when the order is still moving, else the persisted status.
+  /// Live when the order is still moving, else the persisted status — see
+  /// [shownTradeStatus], which the trade screen shares.
   final rust_types.OrderStatus status;
   final TradeRowState state;
   final bool isSelling;
@@ -71,16 +72,6 @@ class TradeRow {
   /// Built from the claim store alone: the trade row is gone.
   final bool claimOnly;
 }
-
-const _terminal = {
-  rust_types.OrderStatus.success,
-  rust_types.OrderStatus.settledByAdmin,
-  rust_types.OrderStatus.completedByAdmin,
-  rust_types.OrderStatus.canceled,
-  rust_types.OrderStatus.expired,
-  rust_types.OrderStatus.cooperativelyCanceled,
-  rust_types.OrderStatus.canceledByAdmin,
-};
 
 const _successes = {
   rust_types.OrderStatus.success,
@@ -162,10 +153,14 @@ TradeRow _row(
 }) {
   final order = trade.order;
   final persisted = order.status;
-  final status =
-      _terminal.contains(persisted)
-          ? persisted
-          : ref.watch(tradeStatusProvider(order.id)).valueOrNull ?? persisted;
+  final status = shownTradeStatus(
+    row: persisted,
+    live:
+        isTerminalTradeStatus(persisted)
+            ? null
+            : ref.watch(tradeStatusProvider(order.id)).valueOrNull,
+    isTake: !order.isMine,
+  );
   final ratedByMe =
       trade.ratedAt != null ||
       (_successes.contains(status) && ref.watch(ratedByMeProvider(order.id)));

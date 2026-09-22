@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -6,6 +8,28 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Release signing (docs/RELEASING.md). `android/key.properties` is never committed: the
+// release workflow writes it from repository secrets, and a maintainer can create one to
+// sign locally. Without it a release build falls back to the debug key so that
+// `flutter run --release` keeps working — an APK signed that way must never be published:
+// Android refuses to update an app whose signing certificate changed.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    // A present but incomplete file must not fall through to the debug key, nor hand
+    // Gradle a null: name what is missing and stop.
+    val missing = listOf("storeFile", "storePassword", "keyPassword", "keyAlias")
+        .filter { keystoreProperties.getProperty(it).isNullOrBlank() }
+    check(missing.isEmpty()) {
+        "android/key.properties is missing: ${missing.joinToString()} (docs/RELEASING.md)"
+    }
 }
 
 android {
@@ -34,17 +58,33 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        ndk {
-            // ABI targets for flutter_rust_bridge Rust cross-compilation
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        // `flutter build apk --split-per-abi` (the release workflow) configures `splits.abi`
+        // from --target-platform, and AGP rejects ndk.abiFilters next to it ("Conflicting
+        // configuration"). The filter is only needed for a fat APK.
+        if (project.findProperty("split-per-abi")?.toString() != "true") {
+            ndk {
+                // ABI targets for flutter_rust_bridge Rust cross-compilation
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            }
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
         }
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(
+                if (hasReleaseKeystore) "release" else "debug"
+            )
         }
     }
 

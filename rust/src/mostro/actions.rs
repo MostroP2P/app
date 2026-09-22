@@ -516,6 +516,29 @@ pub async fn last_trade_index(
     wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
+/// Build an `Orders` request: the daemon's full record of this identity's
+/// orders `ids`, as `SmallOrder`s naming both trade pubkeys.
+///
+/// The daemon scopes the lookup to the account in the identity proof and caps
+/// `ids` at its `max_orders_per_response`. `request_id` is the correlation
+/// nonce it echoes in its reply.
+pub async fn own_orders(
+    identity_keys: &Keys,
+    trade_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    request_id: u64,
+    ids: Vec<uuid::Uuid>,
+) -> Result<String> {
+    let msg = Message::new_order(
+        None,
+        Some(request_id),
+        None,
+        Action::Orders,
+        Some(Payload::Ids(ids)),
+    );
+    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

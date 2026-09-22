@@ -7,6 +7,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// Provider for the currently selected fiat code in the create-order form.
 final selectedFiatCodeProvider = StateProvider<String>((_) => 'USD');
@@ -26,7 +27,7 @@ final selectedFiatCurrencyProvider = Provider<FiatCurrency?>((ref) {
 /// Opens the searchable currency picker and writes the choice to
 /// [selectedFiatCodeProvider].
 void showCurrencyPicker(BuildContext context, WidgetRef ref) {
-  showDialog<void>(
+  showMostroDialog<void>(
     context: context,
     builder: (dialogContext) => _CurrencyPickerDialog(
       selected: ref.read(selectedFiatCodeProvider),
@@ -161,48 +162,59 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
           c.name.toLowerCase().contains(q);
     }).toList();
 
-    return Dialog(
-      backgroundColor: colors?.backgroundCard,
-      child: Column(
+    return MostroDialog(
+      title: AppLocalizations.of(context).selectCurrencyDialogTitle,
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: TextField(
-              autofocus: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                hintText: AppLocalizations.of(context).searchCurrenciesHint,
-                prefixIcon: const Icon(Icons.search),
-              ),
-              onChanged: (v) => setState(() => _query = v),
-            ).withAutomationId(AutomationIds.orderCreateCurrencySearch),
-          ),
+          TextField(
+            autofocus: true,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: InputDecoration(
+              hintText: AppLocalizations.of(context).searchCurrenciesHint,
+              prefixIcon: const Icon(Icons.search),
+            ),
+            onChanged: (v) => setState(() => _query = v),
+          ).withAutomationId(AutomationIds.orderCreateCurrencySearch),
+          const SizedBox(height: AppSpacing.md),
           SizedBox(
             height: 300,
             child: currencies.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (_, i) {
-                final c = filtered[i];
-                final isSelected = c.code == widget.selected;
-                return ListTile(
-                  leading: Text(c.flag, style: const TextStyle(fontSize: 20)),
-                  title: Text(c.code),
-                  subtitle: Text(
-                    c.name,
-                    style: TextStyle(color: colors?.textSubtle, fontSize: 12),
-                  ),
-                  selected: isSelected,
-                  selectedColor: colors?.mostroGreen,
-                  onTap: () => widget.onSelect(c.code),
-                ).withAutomationId(
-                  AutomationIds.orderCreateCurrencyOption(c.code),
-                );
-              },
-            ),
+                : filtered.isEmpty
+                    ? Center(
+                        child: Text(
+                          AppLocalizations.of(context).noCurrenciesFoundMessage,
+                          style: TextStyle(color: colors?.textSubtle),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (_, i) {
+                          final c = filtered[i];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Text(
+                              c.flag,
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                            title: Text(c.code),
+                            subtitle: Text(
+                              c.name,
+                              style: TextStyle(
+                                color: colors?.textSubtle,
+                                fontSize: 12,
+                              ),
+                            ),
+                            selected: c.code == widget.selected,
+                            selectedColor: colors?.mostroGreen,
+                            onTap: () => widget.onSelect(c.code),
+                          ).withAutomationId(
+                            AutomationIds.orderCreateCurrencyOption(c.code),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

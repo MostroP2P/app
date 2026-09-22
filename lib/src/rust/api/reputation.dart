@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get`, `has_mine`, `hydrate_mine_from_db`, `hydrate_mine`, `insert_peer`, `new`, `rating_store`, `remove_mine`, `try_insert_mine`
+// These functions are ignored because they are not marked as `pub`: `forget_identity_ratings`, `get`, `has_mine`, `hydrate_mine_from_db`, `hydrate_mine`, `insert_peer`, `new`, `rating_store`, `remove_mine`, `try_insert_mine`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `RatingStore`, `TradeRatings`
 
 /// Submit a star rating for the counterparty of a completed trade.

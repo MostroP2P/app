@@ -11,7 +11,7 @@ description: |
     - Lightning-native: All Bitcoin settlements happen via Lightning invoices, with Nostr Wallet Connect (NWC) support for automated invoicing
     - Hierarchical Key Management: BIP-32 / BIP-39 key derivation with a unique key per trade
     - Censorship-resistant: Built on Nostr — no central server or domain to block
-    - Multi-Language: English, Spanish, Italian, French, and German
+    - Multi-Language: English, Spanish, Italian, French, German, and Dutch
     - Open source: AGPLv3 licensed and fully auditable
 summary: Non-custodial, peer-to-peer Bitcoin exchange on Lightning, powered by Nostr.
 tags:
