@@ -51,8 +51,12 @@ class StartupFailureApp extends StatelessWidget {
 
   /// Both lines as one block, so a pasted report carries the step as well as
   /// the cause. The cause alone loses half of what makes it actionable.
+  ///
+  /// The cause goes in whole. `_shortError` caps what the screen draws, and
+  /// the clipboard has no layout to protect: a long panic message would reach
+  /// the issue tracker already cut (#405, coderabbit).
   String _report() {
-    final cause = error == null ? '' : '\n${_shortError(error!)}';
+    final cause = error == null ? '' : '\n${error!}';
     return 'Mostro could not start: $step$cause';
   }
 

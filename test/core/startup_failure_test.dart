@@ -140,6 +140,40 @@ void main() {
       expect(find.text('Mostro could not start'), findsOneWidget);
     });
 
+    testWidgets('the copied cause is not the one trimmed for the screen', (
+      tester,
+    ) async {
+      // The 300-character cap protects the layout, and the clipboard has no
+      // layout. A long cause — a bridge panic, a wrapped PlatformException —
+      // must reach the issue tracker whole (#405, coderabbit).
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      final long = 'panic: ${'x' * 400} at the end';
+      await tester.pumpWidget(
+        StartupFailureApp(step: 'loading the engine', error: long),
+      );
+      await tester.tap(find.byTooltip('Copy details'));
+      await tester.pump();
+
+      expect(copied.single, contains('at the end'));
+      expect(copied.single, isNot(contains('…')));
+    });
+
     testWidgets('a tap puts the step and the cause on the clipboard', (
       tester,
     ) async {
