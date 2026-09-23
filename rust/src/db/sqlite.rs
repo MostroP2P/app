@@ -249,15 +249,6 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
-    async fn get_trade(&self, id: &str) -> Result<Option<TradeInfo>> {
-        let row: Option<(String,)> =
-            sqlx::query_as("SELECT data FROM trades WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
-        Ok(row.map(|(data,)| serde_json::from_str(&data)).transpose()?)
-    }
-
     async fn list_trades(&self) -> Result<Vec<TradeInfo>> {
         let rows: Vec<(String, String)> =
             sqlx::query_as("SELECT id, data FROM trades ORDER BY started_at DESC")
@@ -1097,6 +1088,114 @@ mod tests {
         // A re-wrapped replay carries the same inner id — now known, durably.
         assert!(storage.message_exists(&inner_id).await.unwrap());
         assert!(!storage.message_exists("un".repeat(32).as_str()).await.unwrap());
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The contract behind #395, in one place: a row's `trades.id` is not the
+    /// order's, and **every** accessor reaches it by `order.id`. Individual
+    /// methods are covered by their own tests; this one states the rule they
+    /// all follow, so a reader of the storage layer finds it asserted rather
+    /// than implied.
+    ///
+    /// It cannot catch an accessor added later that keys on the primary key —
+    /// no test calls a method it does not know about. What it does is leave
+    /// the invariant written down next to the code that depends on it.
+    #[tokio::test]
+    async fn every_trade_accessor_reaches_a_row_by_its_order_id() {
+        use crate::api::types::*;
+
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+
+        // Taker-shaped: the row id is a fresh UUID, the order id is the
+        // daemon's. Nothing below is allowed to use the former.
+        let row_id = "11111111-1111-4111-8111-111111111111";
+        let order_id = "22222222-2222-4222-8222-222222222222";
+        let mut trade = TradeInfo {
+            id: row_id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Sell,
+                status: OrderStatus::WaitingBuyerInvoice,
+                amount_sats: None,
+                fiat_amount: Some(100.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "maker".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+            bond: None,
+        };
+        storage.save_trade(&trade).await.unwrap();
+
+        // Read.
+        let found = storage
+            .get_trade_by_order_id(order_id)
+            .await
+            .unwrap()
+            .expect("the row is found by the order id");
+        assert_eq!(found.id, row_id, "the row keeps its own id");
+
+        // Write: status, counterparty, reputation — each addressed by order id.
+        storage
+            .update_trade_fields(order_id, Some(OrderStatus::Active), None, Some(5_000))
+            .await
+            .unwrap();
+        storage
+            .update_trade_counterparty(order_id, "peer-pubkey")
+            .await
+            .unwrap();
+        let after = storage
+            .get_trade_by_order_id(order_id)
+            .await
+            .unwrap()
+            .expect("still there after the updates");
+        assert_eq!(after.order.status, OrderStatus::Active);
+        assert_eq!(after.order.amount_sats, Some(5_000));
+        assert_eq!(after.counterparty_pubkey, "peer-pubkey");
+
+        // Re-saving under the same row id replaces rather than duplicates —
+        // the one thing `trades.id` is for.
+        trade.order.status = OrderStatus::FiatSent;
+        storage.save_trade(&trade).await.unwrap();
+        assert_eq!(
+            storage.list_trades().await.unwrap().len(),
+            1,
+            "carrying the row id forward must replace the row, not add one"
+        );
+
+        // Delete.
+        storage.delete_trade_by_order_id(order_id).await.unwrap();
+        assert!(storage
+            .get_trade_by_order_id(order_id)
+            .await
+            .unwrap()
+            .is_none());
 
         drop(storage);
         let _ = std::fs::remove_file(&path);

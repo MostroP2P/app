@@ -1754,6 +1754,16 @@ enum SlashCause {
 enum ThemeMode { system, dark, light }
 
 class TradeInfo {
+  /// This row's own id, minted locally when the trade is created — **not**
+  /// the order's. On a taker row the two always differ: `take_order` derives
+  /// a fresh UUID here while `order.id` holds the id the daemon knows.
+  ///
+  /// Nothing looks a trade up by this. Every accessor on
+  /// [`crate::db::Storage`] keys on `order.id`, and so does the chat
+  /// (`messages.trade_id`); its one job is to be the row's primary key, so
+  /// `save_trade` replaces a row instead of inserting a second one. Carry it
+  /// forward when rebuilding a row, and reach for `order.id` when looking
+  /// one up (issue #395).
   final String id;
   final OrderInfo order;
   final TradeRole role;

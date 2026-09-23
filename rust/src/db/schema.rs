@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 CREATE TABLE IF NOT EXISTS trades (
-    id              TEXT PRIMARY KEY,
+    id              TEXT PRIMARY KEY, -- the row's own id, NOT the order's
     data            TEXT NOT NULL,   -- JSON-serialised TradeInfo
     status          TEXT NOT NULL,
     started_at      INTEGER NOT NULL,
