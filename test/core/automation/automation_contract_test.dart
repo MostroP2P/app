@@ -38,7 +38,7 @@ void main() {
         // nowhere else names nothing.
         final uses = source.entries
             .where((e) => !e.key.endsWith('automation_ids.dart'))
-            .where((e) => e.value.contains('AutomationIds.$member'))
+            .where((e) => _attachment(member).hasMatch(e.value))
             .length;
         if (uses == 0) unattached.add(member);
       }
@@ -270,6 +270,15 @@ List<String> _declaredIdentifiers() {
       .toList();
 }
 
+/// Matches a use of [member] and not of a longer member it prefixes.
+///
+/// A plain substring search reports `tradeRate` as attached because
+/// `AutomationIds.tradeRateSubmit` contains it, which is how `trade.rate`
+/// outlived the button it named. Thirteen members prefix another one, so
+/// whatever follows the name has to be something that cannot continue it.
+RegExp _attachment(String member) =>
+    RegExp('AutomationIds\\.${RegExp.escape(member)}(?![A-Za-z0-9_])');
+
 Map<String, String> _librarySources() {
   final files = Directory('lib')
       .listSync(recursive: true)
@@ -279,5 +288,25 @@ Map<String, String> _librarySources() {
       .where((f) => !f.path.startsWith('lib/src/'))
       .where((f) => !f.path.startsWith('lib/generated/'))
       .where((f) => !f.path.startsWith('lib/l10n/'));
-  return {for (final f in files) f.path: f.readAsStringSync()};
+  return {for (final f in files) f.path: _withoutComments(f.readAsStringSync())};
 }
+
+/// [source] with its comments dropped.
+///
+/// A member named only in prose is attached to nothing, and `lib/` holds two
+/// such mentions today — a docstring example and a note pointing back at the
+/// registry. Counting them would let a removed control keep its identifier
+/// alive on the strength of a comment about it.
+///
+/// The one wrong cut this can make is a `//` inside a string, which in this
+/// repository means a relay url. Those carry a colon, so a `//` behind one is
+/// left alone. Anything still cut wrongly costs a real use and fails the test
+/// out loud — never the silent pass being guarded against here.
+String _withoutComments(String source) => source
+    .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+    .split('\n')
+    .map((line) {
+      final comment = line.indexOf(RegExp(r'(?<!:)//'));
+      return comment == -1 ? line : line.substring(0, comment);
+    })
+    .join('\n');
