@@ -50,6 +50,42 @@ void main() {
     });
   });
 
+  // What the check above counts as a use depends entirely on this, and the
+  // two are read apart: a filter that quietly kept comments would restore
+  // the false negative the whole group exists to prevent.
+  group('the source filter', () {
+    test('drops a comment however it is spaced', () {
+      for (final line in [
+        'case 1:// AutomationIds.tradeRate',
+        'case 1: // AutomationIds.tradeRate',
+        '/// AutomationIds.tradeRate',
+        '/* AutomationIds.tradeRate */ build();',
+      ]) {
+        expect(_withoutComments(line), isNot(contains('AutomationIds')),
+            reason: line);
+      }
+    });
+
+    test('a url is not a comment, and neither is the code after it', () {
+      const line =
+          "connect('wss://relay.mostro.network'); tag(AutomationIds.tradeRate);";
+      expect(_withoutComments(line), contains('wss://'));
+      expect(_withoutComments(line), contains('AutomationIds.tradeRate'));
+    });
+
+    test('a url inside a triple-quoted block is not a comment either', () {
+      const block = "const license = '''\n"
+          'see <https://www.gnu.org/licenses/>\n'
+          "''';\ntag(AutomationIds.tradeRate);";
+      expect(_withoutComments(block), contains('AutomationIds.tradeRate'));
+    });
+
+    test('a comment following a url on one line still goes', () {
+      const line = "connect('wss://x'); // AutomationIds.tradeRate";
+      expect(_withoutComments(line), isNot(contains('AutomationIds')));
+    });
+  });
+
   group('AutomationId', () {
     testWidgets('exposes the identifier and merges the control it names',
         (tester) async {
@@ -291,22 +327,33 @@ Map<String, String> _librarySources() {
   return {for (final f in files) f.path: _withoutComments(f.readAsStringSync())};
 }
 
-/// [source] with its comments dropped.
+/// A string literal or a comment, whichever starts first.
+///
+/// The alternation is ordered: both triple-quoted forms before their
+/// single-quoted counterparts, and every string form before `//`. A `//`
+/// inside a string is therefore consumed as part of that string and never
+/// looks like a comment — which is the whole point, since a relay url
+/// (`ws://…`) is indistinguishable from one by shape alone.
+final _stringOrComment = RegExp("r?'''[\\s\\S]*?'''"
+    '|r?"""[\\s\\S]*?"""'
+    "|r?'(?:[^'\\\\\\n]|\\\\.)*'"
+    '|r?"(?:[^"\\\\\\n]|\\\\.)*"'
+    r'|//[^\n]*'
+    r'|/\*[\s\S]*?\*/');
+
+/// [source] with its comments dropped and its strings left whole.
 ///
 /// A member named only in prose is attached to nothing, and `lib/` holds two
 /// such mentions today — a docstring example and a note pointing back at the
 /// registry. Counting them would let a removed control keep its identifier
 /// alive on the strength of a comment about it.
 ///
-/// The one wrong cut this can make is a `//` inside a string, which in this
-/// repository means a relay url. Those carry a colon, so a `//` behind one is
-/// left alone. Anything still cut wrongly costs a real use and fails the test
-/// out loud — never the silent pass being guarded against here.
-String _withoutComments(String source) => source
-    .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
-    .split('\n')
-    .map((line) {
-      final comment = line.indexOf(RegExp(r'(?<!:)//'));
-      return comment == -1 ? line : line.substring(0, comment);
-    })
-    .join('\n');
+/// Telling the two apart needs the strings, not a rule about what a comment
+/// looks like: `case 1:// …` is a comment and `'ws://…'` is not, and no test
+/// of the characters around `//` separates them. Scanning strings and
+/// comments together, first match wins, decides it by position instead.
+String _withoutComments(String source) =>
+    source.replaceAllMapped(_stringOrComment, (match) {
+      final token = match[0]!;
+      return token.startsWith('//') || token.startsWith('/*') ? '' : token;
+    });
