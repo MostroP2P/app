@@ -220,7 +220,6 @@ class AutomationIds {
   static const String tradeCancelConfirm = 'trade.cancel.confirm';
   static const String tradeDispute = 'trade.dispute';
   static const String tradeDisputeConfirm = 'trade.dispute.confirm';
-  static const String tradeRate = 'trade.rate';
   static const String tradeRateSubmit = 'trade.rate.submit';
   static const String tradeRateClose = 'trade.rate.close';
   static const String tradeViewDispute = 'trade.dispute.view';
