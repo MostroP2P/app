@@ -4,6 +4,23 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.7] - 2026-09-25
+
+### ✨ Features
+
+- **chat-attachments:** phase 3 — the dispute chat, text and files to the solver (#589) ([#596](https://github.com/MostroP2P/app/pull/596)) by @grunch
+- **chat-attachments:** phase 2b — open with…, share, and v1 document cards (#589) ([#595](https://github.com/MostroP2P/app/pull/595)) by @grunch
+- **chat-attachments:** phase 2a — send, show and save images and PDFs (#589) ([#593](https://github.com/MostroP2P/app/pull/593)) by @grunch
+- **chat-attachments:** phase 1 — v1-compatible attachment core ([#590](https://github.com/MostroP2P/app/pull/590)) by @grunch
+- **automation:** add the invoice.check readout for the app's own invoice verdict ([#588](https://github.com/MostroP2P/app/pull/588)) by @Catrya
+
+### 🐛 Bug Fixes
+
+- re-mark the book entry as own when the maker row persists ([#556](https://github.com/MostroP2P/app/pull/556)) by @Forte11Cuba
+- **invoice:** a step start belongs to one trade, not to one status ([#574](https://github.com/MostroP2P/app/pull/574)) by @Catrya
+- **trades:** the seller rates right after releasing ([#587](https://github.com/MostroP2P/app/pull/587)) by @grunch
+- **order-book:** the user's own orders win no highlight chip ([#585](https://github.com/MostroP2P/app/pull/585)) by @grunch
+
 ## [2.0.6] - 2026-09-24
 
 ### ✨ Features
