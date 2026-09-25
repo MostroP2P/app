@@ -106,6 +106,36 @@ off, which the protocol allows.
 
 **Side effects**: Sends the new-order message to the Mostro daemon and waits for its confirmation. The order is created only once the daemon confirms it; the public order book is populated exclusively from the daemon's Kind 38383 event (the order is **not** inserted optimistically). On no confirmation within the timeout the order is treated as not created — nothing is persisted to My Trades and nothing is added to the book.
 
+**Book ownership on a fresh create (#552).** The order's Kind 38383 usually
+outruns the confirmation that binds the daemon UUID and persists the maker
+row, so the ingest writes the entry with `is_mine = false` — and the live
+stream never redelivers the event to correct it. Persisting a maker row
+(`persist_trade_row`, the funnel every row creation passes through) therefore
+**claims** the order in the book, in memory and before the save: the claim
+marks the order's existing entry `is_mine = true` and every later write of it,
+whichever arrives first and even when the save fails. It never inserts an
+entry, keeping the book fed by Kind 38383 alone. The ingest reads the claim
+too, so it treats a claimed order as ours without a readable row. A taker's
+row (`is_mine = false`) claims nothing.
+
+Claims belong to the identity: forgetting the identity (#533) empties them
+under the same lock, so a persist of the old identity's that was already
+under way when the teardown began cannot mark the book afterwards. A node
+switch keeps them (order ids are daemon UUIDs).
+
+The ingest classifies an order for the identity current when it starts —
+`is_mine` from the claim or the trade row, a refused wire status replaced
+by the trade's, whether the order is ours — and awaits the database before
+writing the entry. Forgetting the identity also bumps an ownership epoch,
+which the ingest reads with the claim and the write checks again under the
+book's lock: a classification made for a forgotten identity is discarded,
+and the event applies as a stranger's order (its wire view, marked only by
+a claim of the new identity's, dropped when finished).
+
+Not covered: a persist that *starts* after the teardown, and writes that
+read an entry and write it back outside the lock — no operation carries an
+identity generation from where it began.
+
 **Errors**: `NoIdentity`, `Offline` (queued), `NoDaemonResponse` (daemon did not confirm within the timeout), `ProtocolError`.
 
 **Anti-abuse bond (maker).** A node that requires a maker bond answers the
