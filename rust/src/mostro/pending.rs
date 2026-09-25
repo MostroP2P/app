@@ -112,8 +112,21 @@ pub(crate) enum PendingRequestKind {
         /// (docs/ANTI_ABUSE_BOND.md §6.2).
         bond_requested: bool,
     },
-    /// A take-buy / take-sell awaiting the daemon's first reply.
-    Take,
+    /// A take-buy / take-sell awaiting the daemon's first reply. Carries the
+    /// book order the caller validated and took, so a genuine reply that
+    /// outlives the 10 s wait AND names no order — `waiting-seller-to-pay`
+    /// after a take-sell with a default lightning address, where mostrod
+    /// skips add-invoice and the buyer's reply has no payload — can still
+    /// rebuild the trade row the caller never persisted (#566). The live
+    /// path never reads it: the woken `take_order` holds its own copy.
+    Take {
+        /// The taken book order, as the caller validated it.
+        order: Box<crate::api::types::OrderInfo>,
+        /// The taker's role in it.
+        role: crate::api::types::TradeRole,
+        /// The chosen amount for a range order (`None` otherwise).
+        fiat_amount: Option<f64>,
+    },
     /// A buyer's add-invoice awaiting the daemon's acknowledgement.
     AddInvoice,
     /// An `add-bond-invoice` reply (the payout claim's bolt11) awaiting the
@@ -151,6 +164,36 @@ pub(crate) enum PendingRequestKind {
         /// the global feed — so the record can live for the whole process.
         superseded: Vec<u64>,
     },
+}
+
+/// A `Take` record kind for tests that exercise correlation or record
+/// lifecycle, not the snapshot: an arbitrary pending buy order, taken as
+/// its seller.
+#[cfg(test)]
+pub(crate) fn test_take_kind() -> PendingRequestKind {
+    PendingRequestKind::Take {
+        order: Box::new(crate::api::types::OrderInfo {
+            id: "test-take-order".to_string(),
+            kind: crate::api::types::OrderKind::Buy,
+            status: crate::api::types::OrderStatus::Pending,
+            fiat_code: "USD".to_string(),
+            fiat_amount: Some(100.0),
+            fiat_amount_min: None,
+            fiat_amount_max: None,
+            payment_method: "Bank".to_string(),
+            premium: 0.0,
+            is_mine: false,
+            created_at: 0,
+            expires_at: None,
+            amount_sats: None,
+            creator_pubkey: String::new(),
+            rating: 0.0,
+            total_reviews: 0,
+            days_active: 0,
+        }),
+        role: crate::api::types::TradeRole::Seller,
+        fiat_amount: None,
+    }
 }
 
 /// What a `DisputeInitiatedByYou` turned out to be for this trade key.
@@ -444,7 +487,7 @@ pub(crate) fn take_matching_take(
     match map.get(trade_pubkey_hex) {
         Some(p)
             if request_id_matches(p.request_id, got)
-                && matches!(p.kind, PendingRequestKind::Take) =>
+                && matches!(p.kind, PendingRequestKind::Take { .. }) =>
         {
             map.remove(trade_pubkey_hex)
         }
@@ -800,7 +843,7 @@ mod tests {
             PendingRequest {
                 request_id,
                 trade_index: 4,
-                kind: PendingRequestKind::Take,
+                kind: test_take_kind(),
                 tx: Some(tx),
             },
         );
@@ -1030,7 +1073,7 @@ mod tests {
         assert!(take_matching_take(take_key, Some(99)).is_none());
         assert!(pending_requests().lock().unwrap().contains_key(take_key));
         let pending = take_matching_take(take_key, Some(42)).expect("must match");
-        assert!(matches!(pending.kind, PendingRequestKind::Take));
+        assert!(matches!(pending.kind, PendingRequestKind::Take { .. }));
         assert!(!pending_requests().lock().unwrap().contains_key(take_key));
 
         pending_requests().lock().unwrap().remove(create_key);

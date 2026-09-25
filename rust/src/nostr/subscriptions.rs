@@ -431,7 +431,7 @@ mod tests {
     /// teardown, after any lease refresh has been honored.
     #[tokio::test]
     async fn pending_record_survives_a_lease_refresh_and_dies_with_teardown() {
-        use crate::mostro::pending::{pending_requests, PendingRequest, PendingRequestKind};
+        use crate::mostro::pending::{pending_requests, PendingRequest};
 
         let key = "ac".repeat(32);
         let client = offline_client();
@@ -443,7 +443,7 @@ mod tests {
             PendingRequest {
                 request_id: 7,
                 trade_index: 1,
-                kind: PendingRequestKind::Take,
+                kind: crate::mostro::pending::test_take_kind(),
                 tx: None,
             },
         );
@@ -613,7 +613,7 @@ mod tests {
     /// `NoDaemonResponse` on a request the daemon accepted.
     #[tokio::test]
     async fn dismantle_spares_a_pending_record_with_a_live_waiter() {
-        use crate::mostro::pending::{pending_requests, PendingRequest, PendingRequestKind};
+        use crate::mostro::pending::{pending_requests, PendingRequest};
 
         let key = "ag".repeat(32);
         let client = offline_client();
@@ -626,7 +626,7 @@ mod tests {
             PendingRequest {
                 request_id: 9,
                 trade_index: 1,
-                kind: PendingRequestKind::Take,
+                kind: crate::mostro::pending::test_take_kind(),
                 tx: Some(tx),
             },
         );
