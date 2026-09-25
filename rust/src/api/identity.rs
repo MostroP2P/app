@@ -21,6 +21,7 @@ use tokio::sync::RwLock;
 use crate::api::types::{IdentityInfo, NymIdentity};
 use crate::crypto::{keys as key_ops, nym};
 use crate::db::Storage;
+use crate::mostro::delete_effects::{DeleteEffects, RealDeleteEffects};
 
 // ── Global in-memory identity state ──────────────────────────────────────────
 
@@ -318,25 +319,32 @@ pub(crate) async fn current_bip39_seed() -> Result<zeroize::Zeroizing<[u8; 64]>>
 /// Delete the in-memory identity state. Flutter must also clear
 /// `flutter_secure_storage` after calling this.
 pub async fn delete_identity() -> Result<()> {
-    delete_identity_inner(true).await
+    delete_identity_inner(true, crate::db::app_db::db(), &RealDeleteEffects).await
 }
 
-/// [`delete_identity`], with the wipe of the identity's data switchable.
+/// [`delete_identity`], with the store, the side effects and the wipe of the
+/// identity's data switchable.
 ///
-/// `wipe_data: false` exists for the unit test of the identity lifecycle
-/// only: the database and the in-memory stores are process-wide, and tests
-/// run in parallel against them, so a real wipe there deletes the rows other
-/// tests are asserting on. The wipe itself is covered where it can run alone
+/// The parameters exist for the identity lifecycle test (#553): the database
+/// and the in-memory stores are process-wide, and tests run in parallel
+/// against them, so a real wipe there deletes the rows other tests are
+/// asserting on. The test injects doubles and asserts the wiring instead —
+/// every wipe effect runs for `wipe_data: true`, none for `false` — while
+/// the wipe itself is covered where it can run alone
 /// (`clear_identity_data_wipes_the_identity_and_keeps_the_device`,
 /// `clearing_the_store_leaves_no_chats_and_no_unread_count`).
-async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
+async fn delete_identity_inner<S: Storage, W: DeleteEffects>(
+    wipe_data: bool,
+    db: Option<&S>,
+    fx: &W,
+) -> Result<()> {
     if identity_lock().read().await.is_none() {
         bail!("NoIdentity");
     }
     // While the identity still exists: its relay subscriptions are given
     // back first, so nothing of the old user's keeps arriving afterwards.
     if wipe_data {
-        crate::api::orders::release_identity_subscriptions().await;
+        fx.release_identity_subscriptions().await;
     }
 
     let mut guard = identity_lock().write().await;
@@ -348,14 +356,14 @@ async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
 
     // The push server must stop waking this device for keys the user no
     // longer holds; the registrations name pubkeys only, so no key is needed.
-    crate::api::push::unregister_all().await;
+    fx.unregister_push().await;
 
     // Clear the persisted trade key counter and per-order key mappings: both
     // belong to the deleted identity's derivation tree, and a new mnemonic
     // must start counting from zero instead of inheriting them. (If this
     // cleanup fails, the pubkey guard in `reconcile_trade_key_index` still
     // prevents the stale row from leaking into a different identity.)
-    if let Some(db) = crate::db::app_db::db() {
+    if let Some(db) = db {
         if let Err(e) = db.delete_identity().await {
             log::warn!("[identity] failed to clear persisted identity: {e}");
         }
@@ -374,7 +382,7 @@ async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
         }
     }
     if wipe_data {
-        forget_identity_state().await;
+        fx.forget_identity_state().await;
     }
 
     // Last, so the cleanup warnings above are dropped too: buffered lines name
@@ -412,7 +420,7 @@ pub async fn funds_at_risk() -> Result<Vec<crate::api::types::FundsAtRisk>> {
 /// The stores are process-wide singletons, so without this the new user sees
 /// the previous one's disputes, ratings and `is_mine` marks until a restart,
 /// whatever the database says.
-async fn forget_identity_state() {
+pub(crate) async fn forget_identity_state() {
     crate::api::disputes::forget_identity_disputes().await;
     crate::api::reputation::forget_identity_ratings().await;
     crate::mostro::session::session_manager().clear().await;
@@ -789,6 +797,28 @@ mod tests {
         assert!(!body.contains("refresh_subscriptions_for_active_node"));
     }
 
+    /// #533's second acceptance criterion: `DISPUTE_STORE` and `RATING_STORE`
+    /// are empty after a deletion. The lifecycle test proves with a double
+    /// that `delete_identity_inner` calls `forget_identity_state` (#553);
+    /// this closes the link below it — the body must actually empty every
+    /// per-identity in-memory store. Source-level because a behavior test
+    /// cannot run here: the stores are process-wide, so clearing them races
+    /// the parallel suite (the same reason the doubles exist).
+    #[test]
+    fn forgetting_the_identity_empties_every_in_memory_store() {
+        let source = include_str!("identity.rs");
+        let start = source
+            .find("async fn forget_identity_state()")
+            .expect("the identity reset exists");
+        let body = &source[start..start + source[start..].find("\n}\n").expect("it ends")];
+
+        assert!(body.contains("forget_identity_disputes()"));
+        assert!(body.contains("forget_identity_ratings()"));
+        assert!(body.contains("session_manager().clear()"));
+        assert!(body.contains("set_claim_nodes(std::iter::empty())"));
+        assert!(body.contains("clear_retained()"));
+    }
+
     use super::*;
 
     /// A throwaway SQLite store, named per test so parallel runs never collide.
@@ -1014,6 +1044,234 @@ mod tests {
         }
     }
 
+    /// Ordered record of the deletion effects, shared by the two doubles so
+    /// the lifecycle test can assert the wiring of `delete_identity_inner`
+    /// as one literal call sequence (#553).
+    #[derive(Default)]
+    struct CallLog(std::sync::Mutex<Vec<&'static str>>);
+
+    impl CallLog {
+        fn push(&self, call: &'static str) {
+            self.0.lock().unwrap().push(call);
+        }
+        fn calls(&self) -> Vec<&'static str> {
+            self.0.lock().unwrap().clone()
+        }
+    }
+
+    /// A `DeleteEffects` that records instead of touching the process-wide
+    /// subscriptions, push registrations and in-memory stores.
+    struct SpyEffects<'a>(&'a CallLog);
+
+    impl DeleteEffects for SpyEffects<'_> {
+        async fn release_identity_subscriptions(&self) {
+            self.0.push("release_identity_subscriptions");
+        }
+        async fn unregister_push(&self) {
+            self.0.push("unregister_push");
+        }
+        async fn forget_identity_state(&self) {
+            self.0.push("forget_identity_state");
+        }
+    }
+
+    /// A `Storage` that records the deletion path's writes. Same discipline
+    /// as `FailingStore`: everything the path under test must not reach is
+    /// `unimplemented!()`, so an unexpected call is a test failure, not a
+    /// silent success.
+    struct SpyStore<'a>(&'a CallLog);
+
+    impl Storage for SpyStore<'_> {
+        async fn delete_identity(&self) -> Result<()> {
+            self.0.push("delete_identity");
+            Ok(())
+        }
+        async fn clear_trade_keys(&self) -> Result<()> {
+            self.0.push("clear_trade_keys");
+            Ok(())
+        }
+        async fn clear_identity_data(&self) -> Result<()> {
+            self.0.push("clear_identity_data");
+            Ok(())
+        }
+        async fn save_identity(&self, _identity: &IdentityInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_order(&self, _order: &crate::api::types::OrderInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_order(&self, _id: &str) -> Result<Option<crate::api::types::OrderInfo>> {
+            unimplemented!()
+        }
+        async fn delete_order(&self, _id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_orders(&self) -> Result<Vec<crate::api::types::OrderInfo>> {
+            unimplemented!()
+        }
+        async fn save_trade(&self, _trade: &crate::api::types::TradeInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_trade(&self, _id: &str) -> Result<Option<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn list_trades(&self) -> Result<Vec<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn save_message(&self, _msg: &crate::api::types::ChatMessage) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_messages(
+            &self,
+            _trade_id: &str,
+        ) -> Result<Vec<crate::api::types::ChatMessage>> {
+            unimplemented!()
+        }
+        async fn list_unread_messages(&self) -> Result<Vec<crate::api::types::ChatMessage>> {
+            unimplemented!()
+        }
+        async fn mark_messages_read(&self, _trade_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn message_exists(&self, _id: &str) -> Result<bool> {
+            unimplemented!()
+        }
+        async fn save_relay(&self, _relay: &crate::api::types::RelayInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_relay(&self, _url: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_relays(&self) -> Result<Vec<crate::api::types::RelayInfo>> {
+            unimplemented!()
+        }
+        async fn get_identity(&self) -> Result<Option<IdentityInfo>> {
+            unimplemented!()
+        }
+        async fn update_trade_peer_reputation(
+            &self,
+            _order_id: &str,
+            _rating: f64,
+            _reviews: u32,
+            _days: u32,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_bond(
+            &self,
+            _order_id: &str,
+            _bond: &crate::api::types::BondInfo,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
+            unimplemented!()
+        }
+        async fn set_cooperative_cancel_state(
+            &self,
+            _order_id: &str,
+            _state: crate::api::types::CooperativeCancelState,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_counterparty(
+            &self,
+            _order_id: &str,
+            _counterparty_pubkey: &str,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_bond_claim(&self, _claim: &crate::api::types::BondClaim) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_bond_claim(
+            &self,
+            _node_pubkey: &str,
+            _order_id: &str,
+        ) -> Result<Option<crate::api::types::BondClaim>> {
+            unimplemented!()
+        }
+        async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>> {
+            unimplemented!()
+        }
+        async fn delete_bond_claim(&self, _node_pubkey: &str, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_queued_message(
+            &self,
+            _msg: &crate::queue::outbox::QueuedMessage,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_queued_messages(
+            &self,
+        ) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
+            unimplemented!()
+        }
+        async fn update_queued_message_status(
+            &self,
+            _id: &str,
+            _status: crate::api::types::QueuedMessageStatus,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_queued_message(&self, _id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_trade_key(&self, _order_id: &str, _key_index: u32) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_trade_key(&self, _order_id: &str) -> Result<Option<u32>> {
+            unimplemented!()
+        }
+        async fn get_order_id_by_trade_index(&self, _key_index: u32) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn delete_trade_key(&self, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_setting(&self, _key: &str) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn set_setting(&self, _key: &str, _value: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_setting(&self, _key: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_active_mostro_pubkey(&self, _pubkey: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn get_trade_by_order_id(
+            &self,
+            _order_id: &str,
+        ) -> Result<Option<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn delete_trade_by_order_id(&self, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_order_id(
+            &self,
+            _old_order_id: &str,
+            _new_order_id: &str,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_fields(
+            &self,
+            _order_id: &str,
+            _status: Option<crate::api::types::OrderStatus>,
+            _hold_invoice: Option<String>,
+            _amount_sats: Option<u64>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
     #[test]
     fn deriving_without_durable_storage_is_refused() {
         // Asserted as a pure decision, not through `derive_trade_key`: that
@@ -1183,8 +1441,18 @@ mod tests {
 
         crate::api::logging::forward_log(log::Level::Info, "identity_probe", "before delete");
 
-        // Without the data wipe: see `delete_identity_inner`.
-        delete_identity_inner(false).await.unwrap();
+        // The deletion wiring (#553), asserted with doubles so the
+        // process-wide stores stay untouched — see `delete_identity_inner`.
+        // With `wipe_data: false`, no wipe effect may run.
+        let kept = CallLog::default();
+        delete_identity_inner(false, Some(&SpyStore(&kept)), &SpyEffects(&kept))
+            .await
+            .unwrap();
+        assert_eq!(
+            kept.calls(),
+            ["unregister_push", "delete_identity", "clear_trade_keys"],
+            "wipe_data: false must skip every wipe effect",
+        );
         assert!(get_identity().await.unwrap().is_none());
         assert!(
             !crate::api::logging::recent_logs()
@@ -1195,5 +1463,36 @@ mod tests {
 
         // Deleting again fails: there is no identity left.
         assert!(delete_identity().await.is_err());
+
+        // With `wipe_data: true` — what the real `delete_identity()` passes —
+        // all three wipe effects run (#533's acceptance criteria; #553).
+        // Contract in this sequence: `release_identity_subscriptions` comes
+        // first, while the identity still exists. The rest is today's order,
+        // pinned because a wiring test reads cheapest as a literal
+        // transcript — not because it is semantic.
+        // (The reload reconciles its index against the global APP_DB if some
+        // other test initialized it — a read-only touch, tolerated either
+        // way, and the only global the block reaches.)
+        let new_words = key_ops::generate_mnemonic().unwrap();
+        load_identity_from_mnemonic(new_words, 0, false, None)
+            .await
+            .unwrap();
+        let wiped = CallLog::default();
+        delete_identity_inner(true, Some(&SpyStore(&wiped)), &SpyEffects(&wiped))
+            .await
+            .unwrap();
+        assert_eq!(
+            wiped.calls(),
+            [
+                "release_identity_subscriptions",
+                "unregister_push",
+                "delete_identity",
+                "clear_trade_keys",
+                "clear_identity_data",
+                "forget_identity_state",
+            ],
+            "wipe_data: true must run every wipe effect",
+        );
+        assert!(get_identity().await.unwrap().is_none());
     }
 }
