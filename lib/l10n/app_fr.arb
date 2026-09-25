@@ -315,6 +315,8 @@
   "backedUpBadgeLabel": "Sauvegardés",
   "backupBannerTitle": "Sécurisez votre réputation",
   "backupBannerSubtitle": "Sauvegardez vos 12 mots — cela prend 60 secondes.",
+  "pendingWipeBannerTitle": "Les données de l'utilisateur précédent sont toujours sur cet appareil",
+  "pendingWipeBannerBody": "La suppression de l'identité précédente n'a pas pu effacer ses échanges et ses discussions de cet appareil. L'application réessaiera à la prochaine création d'un nouvel utilisateur.",
   "failedToSaveBackupStatusMessage": "Échec de l'enregistrement de l'état de la sauvegarde. Veuillez réessayer.",
   "backupRitualStep1Title": "Étape 1 sur 3 · Notez vos mots",
   "backupRitualStep2Title": "Étape 2 sur 3 · Vérifier",

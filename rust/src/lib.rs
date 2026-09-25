@@ -15,16 +15,3 @@ pub mod nwc;
 pub mod queue;
 mod rt;
 
-/// Called once by Flutter during `RustLib.init()` — sets up logging so Rust
-/// messages appear in `adb logcat` / stderr and are forwarded to the Flutter
-/// log stream via `BridgeLogger`.
-#[flutter_rust_bridge::frb(init)]
-pub fn init_app() {
-    // Install the log bridge so every log::info!/warn!/error! is forwarded
-    // to the Flutter on_log_entry() stream AND printed to stderr (logcat on
-    // Android).  Must be called before any other log::set_logger() call.
-    api::logging::install_log_bridge();
-
-    log::info!("[init] Rust core initialized");
-}
-

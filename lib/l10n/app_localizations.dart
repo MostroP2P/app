@@ -1990,6 +1990,18 @@ abstract class AppLocalizations {
   /// **'Back up your 12 words — it takes 60 seconds.'**
   String get backupBannerSubtitle;
 
+  /// Title of the Account screen warning shown while a failed identity wipe is pending retry (issue #555)
+  ///
+  /// In en, this message translates to:
+  /// **'Previous user\'s data is still on this device'**
+  String get pendingWipeBannerTitle;
+
+  /// Body of the pending-wipe warning on the Account screen
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting the previous identity could not remove its trades and chats from this device. The app will retry the next time a new user is generated.'**
+  String get pendingWipeBannerBody;
+
   /// Snackbar shown when persisting the backup-complete status fails in the backup ritual
   ///
   /// In en, this message translates to:

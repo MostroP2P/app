@@ -1076,6 +1076,14 @@ class AppLocalizationsFr extends AppLocalizations {
       'Sauvegardez vos 12 mots — cela prend 60 secondes.';
 
   @override
+  String get pendingWipeBannerTitle =>
+      'Les données de l\'utilisateur précédent sont toujours sur cet appareil';
+
+  @override
+  String get pendingWipeBannerBody =>
+      'La suppression de l\'identité précédente n\'a pas pu effacer ses échanges et ses discussions de cet appareil. L\'application réessaiera à la prochaine création d\'un nouvel utilisateur.';
+
+  @override
   String get failedToSaveBackupStatusMessage =>
       'Échec de l\'enregistrement de l\'état de la sauvegarde. Veuillez réessayer.';
 

@@ -315,6 +315,8 @@
   "backedUpBadgeLabel": "Veiliggesteld",
   "backupBannerTitle": "Stel je reputatie veilig",
   "backupBannerSubtitle": "Sla je 12 woorden op. Het kost een minuut.",
+  "pendingWipeBannerTitle": "De gegevens van de vorige gebruiker staan nog op dit apparaat",
+  "pendingWipeBannerBody": "Bij het verwijderen van de vorige identiteit konden de trades en chats niet van dit apparaat worden gewist. De app probeert het opnieuw wanneer een nieuwe gebruiker wordt aangemaakt.",
   "failedToSaveBackupStatusMessage": "De back-upstatus kon niet worden opgeslagen. Probeer het opnieuw.",
   "backupRitualStep1Title": "Stap 1 van 3 · Schrijf je woorden op",
   "backupRitualStep2Title": "Stap 2 van 3 · Controleren",

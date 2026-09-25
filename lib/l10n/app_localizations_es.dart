@@ -1075,6 +1075,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'Respalda tus 12 palabras — toma 60 segundos.';
 
   @override
+  String get pendingWipeBannerTitle =>
+      'Los datos del usuario anterior siguen en este dispositivo';
+
+  @override
+  String get pendingWipeBannerBody =>
+      'Al eliminar la identidad anterior no se pudieron borrar sus intercambios y chats de este dispositivo. La app lo reintentará la próxima vez que se genere un nuevo usuario.';
+
+  @override
   String get failedToSaveBackupStatusMessage =>
       'No se pudo guardar el estado del respaldo. Inténtalo de nuevo.';
 

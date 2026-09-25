@@ -52,6 +52,7 @@ Future<void> _pumpAccount(
   WidgetTester tester, {
   required bool backedUp,
   Future<String?> Function()? publicKey,
+  Future<bool> Function()? pendingWipe,
 }) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
@@ -75,7 +76,11 @@ Future<void> _pumpAccount(
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: AccountScreen(debugWords: _words, debugPublicKey: publicKey),
+        home: AccountScreen(
+          debugWords: _words,
+          debugPublicKey: publicKey,
+          debugPendingWipe: pendingWipe,
+        ),
       ),
     ),
   );
@@ -113,6 +118,31 @@ void main() {
 
       expect(find.text(l10n.backupNowButton), findsNothing);
       expect(find.text(l10n.backupBannerTitle), findsOneWidget);
+    });
+  });
+
+  group('pending wipe (issue #555)', () {
+    testWidgets('the warning shows only while the marker is set', (
+      tester,
+    ) async {
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        pendingWipe: () async => true,
+      );
+
+      expect(find.text(l10n.pendingWipeBannerTitle), findsOneWidget);
+      expect(find.text(l10n.pendingWipeBannerBody), findsOneWidget);
+    });
+
+    testWidgets('no marker, no warning', (tester) async {
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        pendingWipe: () async => false,
+      );
+
+      expect(find.text(l10n.pendingWipeBannerTitle), findsNothing);
     });
   });
 

@@ -315,6 +315,8 @@
   "backedUpBadgeLabel": "Salvate",
   "backupBannerTitle": "Proteggi la tua reputazione",
   "backupBannerSubtitle": "Salva le tue 12 parole — bastano 60 secondi.",
+  "pendingWipeBannerTitle": "I dati dell'utente precedente sono ancora su questo dispositivo",
+  "pendingWipeBannerBody": "L'eliminazione dell'identità precedente non ha potuto rimuovere i suoi scambi e le sue chat da questo dispositivo. L'app riproverà alla prossima creazione di un nuovo utente.",
   "failedToSaveBackupStatusMessage": "Impossibile salvare lo stato del backup. Riprova.",
   "backupRitualStep1Title": "Passo 1 di 3 · Annota le tue parole",
   "backupRitualStep2Title": "Passo 2 di 3 · Verifica",

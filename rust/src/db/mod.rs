@@ -180,6 +180,17 @@ pub mod settings_keys {
     pub fn trade_wiped(order_id: &str) -> String {
         format!("{TRADE_WIPED_PREFIX}{order_id}")
     }
+
+    /// Set when an identity deletion could not wipe the identity's data
+    /// (`clear_identity_data` failed): the previous identity's rows are still
+    /// on disk. The next identity creation retries the wipe and clears this
+    /// (`api::identity::retry_pending_wipe`, issue #555). Presence is the
+    /// value.
+    ///
+    /// Deliberately absent from [`IDENTITY_SCOPED_PREFIXES`]: the wipe that
+    /// would drop it is the wipe that failed, and the marker must outlive the
+    /// identity swap to drive the retry.
+    pub const IDENTITY_WIPE_PENDING: &str = "identity_wipe_pending";
 }
 
 /// Storage trait — implemented by both SQLite (native) and IndexedDB (WASM).

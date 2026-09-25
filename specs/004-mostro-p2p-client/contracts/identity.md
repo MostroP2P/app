@@ -21,6 +21,10 @@ IdentityCreationResult {
 ```
 
 **Side effects**: Stores encrypted private key in platform secure storage.
+Retries a data wipe a previous deletion left pending (`identity_wipe_pending`,
+issue #555) before installing the new identity — the one point where that is
+safe, since the empty slot guarantees the tables hold nothing of a live
+identity. The launch reload (`load_identity_from_mnemonic`) never retries.
 
 **Errors**: `StorageError` if secure storage unavailable.
 
@@ -127,12 +131,26 @@ it (issue #533).
 caches, the push token and toggle, developer overrides. They belong to the
 device, not to the identity.
 
-A failed wipe is logged, never turned into a failed deletion: by then the
-identity is already gone. The Dart half — cached providers and the
-notifications store — is `resetIdentityScopedState`, run by the Account
-screen after a generate and, on import, **before** the recovery.
+A failed wipe is never turned into a failed deletion: by then the identity
+is already gone. It is reported **after** the log clear (so the failure is
+the first line of the fresh history, worded without orders or
+counterparties), and it persists the `identity_wipe_pending` settings key —
+device-scoped on purpose, since the wipe that would drop it is the wipe that
+failed. `create_identity` retries the wipe off that marker while the slot is
+empty and clears it on success; `has_pending_identity_wipe` exposes it, and
+the Account screen shows a warning while it holds (issue #555). The Dart
+half — cached providers and the notifications store — is
+`resetIdentityScopedState`, run by the Account screen after a generate and,
+on import, **before** the recovery.
 
 **Errors**: `NoIdentity`.
+
+---
+
+### has_pending_identity_wipe() → bool
+True while a previous deletion's data wipe is pending retry (issue #555):
+the previous identity's rows are still on disk. Read by the Account screen
+for its warning banner; false with no database.
 
 ---
 

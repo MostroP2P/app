@@ -1061,6 +1061,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Back up your 12 words — it takes 60 seconds.';
 
   @override
+  String get pendingWipeBannerTitle =>
+      'Previous user\'s data is still on this device';
+
+  @override
+  String get pendingWipeBannerBody =>
+      'Deleting the previous identity could not remove its trades and chats from this device. The app will retry the next time a new user is generated.';
+
+  @override
   String get failedToSaveBackupStatusMessage =>
       'Failed to save backup status. Please try again.';
 

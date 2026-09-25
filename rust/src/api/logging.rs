@@ -93,6 +93,21 @@ fn is_relay_traffic(level: log::Level, tag: &str) -> bool {
 
 // ── Installation and verbosity ───────────────────────────────────────────────
 
+/// Called once by Flutter during `RustLib.init()` — installs the log bridge
+/// so every `log::` record reaches the platform console (stderr / logcat /
+/// devtools) and the Flutter log stream.
+///
+/// It must live under `crate::api`: the codegen only scans that module
+/// (`rust_input` in `flutter_rust_bridge.yaml`), and an `frb(init)` function
+/// anywhere else is silently left out of `executeRustInitializers()` — the
+/// app then runs with no logger at all (issue #555).
+/// `test/generated_init_wiring_test.dart` guards the generated call.
+#[flutter_rust_bridge::frb(init)]
+pub fn init_app() {
+    install_log_bridge();
+    log::info!("[init] Rust core initialized");
+}
+
 /// Install the log capture bridge. Called once from `init_app()`; until it
 /// runs, `log::` records go nowhere.
 pub fn install_log_bridge() {

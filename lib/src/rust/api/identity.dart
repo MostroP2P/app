@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `current_bip39_seed`, `delete_identity_inner`, `derive_trade_key_with`, `ensure_trade_key_index_at_least_with`, `ensure_trade_key_index_at_least`, `forget_identity_state`, `get_active_keys`, `get_active_trade_keys_up_to`, `get_active_trade_keys`, `get_transport_identity_keys`, `identity_lock`, `publish_index`, `reconcile_and_publish_to`, `reconcile_trade_key_index`, `require_durable_storage`, `trade_key_index_tx`
+// These functions are ignored because they are not marked as `pub`: `clear_logs_and_report`, `current_bip39_seed`, `delete_identity_inner`, `derive_trade_key_with`, `ensure_trade_key_index_at_least_with`, `ensure_trade_key_index_at_least`, `forget_identity_state`, `get_active_keys`, `get_active_trade_keys_up_to`, `get_active_trade_keys`, `get_transport_identity_keys`, `identity_lock`, `publish_index`, `reconcile_and_publish_to`, `reconcile_trade_key_index`, `require_durable_storage`, `retry_pending_wipe`, `trade_key_index_tx`, `wipe_identity_rows`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `IdentityState`, `RecoveryProgress`
 
 /// Subscribe to consumed trade-key indices. Flutter calls this once at startup
@@ -69,6 +69,14 @@ Future<IdentityInfo?> getIdentity() =>
 /// `flutter_secure_storage` after calling this.
 Future<void> deleteIdentity() =>
     RustLib.instance.api.crateApiIdentityDeleteIdentity();
+
+/// Whether a previous identity deletion left its data wipe pending: the
+/// previous identity's rows are still on disk and no retry has succeeded yet
+/// (issue #555). The Account screen shows a warning while this holds — the
+/// deletion itself reported success, so this flag is the one trace the UI
+/// can reach.
+Future<bool> hasPendingIdentityWipe() =>
+    RustLib.instance.api.crateApiIdentityHasPendingIdentityWipe();
 
 /// What the current identity would lose if it were replaced now: locked
 /// escrow, locked or payable bonds, open payout claims, live trades — most

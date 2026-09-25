@@ -315,6 +315,8 @@
   "backedUpBadgeLabel": "Gesichert",
   "backupBannerTitle": "Sichere deine Reputation",
   "backupBannerSubtitle": "Sichere deine 12 Wörter — es dauert 60 Sekunden.",
+  "pendingWipeBannerTitle": "Die Daten des vorherigen Nutzers sind noch auf diesem Gerät",
+  "pendingWipeBannerBody": "Beim Löschen der vorherigen Identität konnten deren Trades und Chats nicht von diesem Gerät entfernt werden. Die App versucht es erneut, sobald ein neuer Nutzer erstellt wird.",
   "failedToSaveBackupStatusMessage": "Sicherungsstatus konnte nicht gespeichert werden. Bitte versuche es erneut.",
   "backupRitualStep1Title": "Schritt 1 von 3 · Schreibe deine Wörter auf",
   "backupRitualStep2Title": "Schritt 2 von 3 · Überprüfen",

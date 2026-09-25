@@ -48,6 +48,7 @@ class AccountScreen extends ConsumerStatefulWidget {
     @visibleForTesting this.debugRestoreRun,
     @visibleForTesting this.debugPrivacyMode,
     @visibleForTesting this.debugRestartOrders,
+    @visibleForTesting this.debugPendingWipe,
   });
 
   /// Test-only word source for `Show words`, so widget tests do not reach the
@@ -73,6 +74,10 @@ class AccountScreen extends ConsumerStatefulWidget {
   /// Test seam: the book re-subscription behind `Actualizar`.
   final Future<void> Function()? debugRestartOrders;
 
+  /// Test seam: whether a failed identity wipe is pending retry (issue #555),
+  /// instead of the bridge's answer.
+  final Future<bool> Function()? debugPendingWipe;
+
   @override
   ConsumerState<AccountScreen> createState() => _AccountScreenState();
 }
@@ -88,10 +93,29 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   bool _copied = false;
   Timer? _copiedTimer;
 
+  /// Whether the previous identity's data wipe is still pending (issue #555).
+  bool _pendingWipe = false;
+
   @override
   void initState() {
     super.initState();
     unawaited(_loadPublicKey());
+    unawaited(_loadPendingWipe());
+  }
+
+  /// A failed read hides the banner rather than breaking the screen: the
+  /// marker is diagnostic, and the retry itself does not depend on it being
+  /// shown.
+  Future<void> _loadPendingWipe() async {
+    try {
+      final pending =
+          await (widget.debugPendingWipe?.call() ??
+              identity_api.hasPendingIdentityWipe());
+      if (!mounted) return;
+      setState(() => _pendingWipe = pending);
+    } catch (e) {
+      debugPrint('[account] pending-wipe flag unavailable: $e');
+    }
   }
 
   Future<void> _loadPublicKey() async {
@@ -199,6 +223,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             BackupFillViewport(
               gap: 11,
               blocks: [
+                if (_pendingWipe) const _PendingWipeBanner(),
                 if (backedUp)
                   _SecretWordsCard(
                     words: _words,
@@ -656,6 +681,66 @@ class _BackupBanner extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── issue #555 · Pending-wipe warning ─────────────────────────────────────────
+
+/// Shown while a failed identity wipe is pending retry: the previous
+/// identity's rows are still on this device, the deletion itself reported
+/// success, and this banner is the one trace the user gets. Informational
+/// only — the retry belongs to the next identity creation, the point where
+/// the tables hold nothing a live identity would lose (issue #555).
+class _PendingWipeBanner extends StatelessWidget {
+  const _PendingWipeBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+
+    return Material(
+      color: pal.amberFill,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: pal.amberBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 20, color: pal.amber),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.pendingWipeBannerTitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: pal.amberTitle,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.pendingWipeBannerBody,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: book.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -1072,6 +1072,14 @@ class AppLocalizationsNl extends AppLocalizations {
       'Sla je 12 woorden op. Het kost een minuut.';
 
   @override
+  String get pendingWipeBannerTitle =>
+      'De gegevens van de vorige gebruiker staan nog op dit apparaat';
+
+  @override
+  String get pendingWipeBannerBody =>
+      'Bij het verwijderen van de vorige identiteit konden de trades en chats niet van dit apparaat worden gewist. De app probeert het opnieuw wanneer een nieuwe gebruiker wordt aangemaakt.';
+
+  @override
   String get failedToSaveBackupStatusMessage =>
       'De back-upstatus kon niet worden opgeslagen. Probeer het opnieuw.';
 

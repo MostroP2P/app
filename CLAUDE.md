@@ -230,7 +230,10 @@ bridged by flutter_rust_bridge.
   `settings` key family (add its prefix to `IDENTITY_SCOPED_PREFIXES`), a process-wide store,
   a non-`autoDispose` provider — must be added to the matching one, or it leaks into the next
   user's session. The stores are process-wide and tests run in parallel, which is why the
-  identity lifecycle test calls `delete_identity_inner(false)`.
+  identity lifecycle test calls `delete_identity_inner(false)`. A failed `clear_identity_data`
+  is reported *after* the log clear, persists the device-scoped `identity_wipe_pending` key,
+  and `create_identity` retries the wipe off it — only there: with a live identity a retry
+  would take its payout claims, which no restore brings back (issue #555).
 - **`OrderInfo::created_at` is when the order was created, not the event's time.** It comes from
   the NIP-69 `created_at` tag (mostro#971), capped at the event's time and falling back to it on
   older nodes. The event's own `created_at` moves on every revision of the addressable event, so

@@ -1074,6 +1074,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'Salva le tue 12 parole — bastano 60 secondi.';
 
   @override
+  String get pendingWipeBannerTitle =>
+      'I dati dell\'utente precedente sono ancora su questo dispositivo';
+
+  @override
+  String get pendingWipeBannerBody =>
+      'L\'eliminazione dell\'identità precedente non ha potuto rimuovere i suoi scambi e le sue chat da questo dispositivo. L\'app riproverà alla prossima creazione di un nuovo utente.';
+
+  @override
   String get failedToSaveBackupStatusMessage =>
       'Impossibile salvare lo stato del backup. Riprova.';
 

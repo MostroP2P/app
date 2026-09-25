@@ -130,6 +130,15 @@ pub async fn create_identity() -> Result<IdentityCreationResult> {
         bail!("AlreadyExists");
     }
 
+    // The one point where retrying a pending data wipe is safe: the slot is
+    // empty (checked above, under the write lock), so the tables hold
+    // nothing of a live identity (issue #555). This also covers the app
+    // dying between a deletion and its replacement — the next launch lands
+    // here through the first-run auto-create.
+    if let Some(db) = crate::db::app_db::db() {
+        retry_pending_wipe(db).await;
+    }
+
     let mnemonic_words = key_ops::generate_mnemonic()?;
     let keys = key_ops::derive_master_key(&mnemonic_words)?;
     let public_key = keys.public_key().to_hex();
@@ -350,39 +359,148 @@ async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
     // longer holds; the registrations name pubkeys only, so no key is needed.
     crate::api::push::unregister_all().await;
 
-    // Clear the persisted trade key counter and per-order key mappings: both
-    // belong to the deleted identity's derivation tree, and a new mnemonic
-    // must start counting from zero instead of inheriting them. (If this
-    // cleanup fails, the pubkey guard in `reconcile_trade_key_index` still
-    // prevents the stale row from leaking into a different identity.)
-    if let Some(db) = crate::db::app_db::db() {
-        if let Err(e) = db.delete_identity().await {
-            log::warn!("[identity] failed to clear persisted identity: {e}");
-        }
-        if let Err(e) = db.clear_trade_keys().await {
-            log::warn!("[identity] failed to clear trade key mappings: {e}");
-        }
-        // Everything else the identity produced — trades, chats, payout
-        // claims, the outbound queue, per-order cursors (issue #533). The
-        // next user must find the app as a fresh install would leave it.
-        // Same handling as above: the identity is already gone, so a failed
-        // wipe is reported, never turned into a failed deletion.
-        if wipe_data {
-            if let Err(e) = db.clear_identity_data().await {
-                log::warn!("[identity] failed to wipe the identity's data: {e}");
-            }
-        }
-    }
+    let cleanup_failures = match crate::db::app_db::db() {
+        Some(db) => wipe_identity_rows(db, wipe_data).await,
+        // Memory-only session (`init_db` failed): rows persisted by earlier
+        // sessions are still in the store file, and with no database the
+        // retry marker cannot be persisted either — the report is all there
+        // is (issue #555).
+        None if wipe_data => vec![
+            "no database this session — rows persisted by earlier sessions \
+             stay on disk, and no retry marker could be saved"
+                .to_string(),
+        ],
+        None => Vec::new(),
+    };
     if wipe_data {
         forget_identity_state().await;
     }
 
-    // Last, so the cleanup warnings above are dropped too: buffered lines name
-    // orders and counterparties of the identity being deleted, and the Logs
-    // screen can still share them afterwards. The platform console keeps them.
-    crate::api::logging::clear_logs();
+    // Last, so the buffered lines above are dropped too: they name orders and
+    // counterparties of the identity being deleted, and the Logs screen can
+    // still share them afterwards. The platform console keeps them. The
+    // cleanup failures are the exception, re-emitted after the clear — see
+    // `clear_logs_and_report`.
+    clear_logs_and_report(&cleanup_failures);
 
     Ok(())
+}
+
+/// Clear what the identity persisted, returning a description per failure
+/// instead of failing: by the time this runs the identity is already gone,
+/// and the contract is that a failed cleanup is reported, never turned into
+/// a failed deletion.
+///
+/// A failed data wipe additionally persists
+/// [`settings_keys::IDENTITY_WIPE_PENDING`] so the next identity creation
+/// retries it ([`retry_pending_wipe`]) — without the marker the previous
+/// identity's trades and chats stay on disk for the life of the install
+/// (issue #555). The returned strings outlive `clear_logs()`, so they must
+/// name no order or counterparty.
+async fn wipe_identity_rows<S: Storage>(db: &S, wipe_data: bool) -> Vec<String> {
+    use crate::db::settings_keys::IDENTITY_WIPE_PENDING;
+
+    let mut failures = Vec::new();
+    // The persisted trade key counter and per-order key mappings: both belong
+    // to the deleted identity's derivation tree, and a new mnemonic must
+    // start counting from zero instead of inheriting them. (If this cleanup
+    // fails, the pubkey guard in `reconcile_trade_key_index` still prevents
+    // the stale row from leaking into a different identity.)
+    if let Err(e) = db.delete_identity().await {
+        failures.push(format!("persisted identity kept: {e}"));
+    }
+    if let Err(e) = db.clear_trade_keys().await {
+        failures.push(format!("trade key mappings kept: {e}"));
+    }
+    // Everything else the identity produced — trades, chats, payout claims,
+    // the outbound queue, per-order cursors (issue #533). The next user must
+    // find the app as a fresh install would leave it.
+    if wipe_data {
+        match db.clear_identity_data().await {
+            // A wipe that succeeds settles any pending retry, whichever
+            // deletion left it behind.
+            Ok(()) => {
+                if let Err(e) = db.delete_setting(IDENTITY_WIPE_PENDING).await {
+                    failures.push(format!("wipe-pending marker kept: {e}"));
+                }
+            }
+            Err(e) => {
+                failures.push(format!("identity data rows kept: {e}"));
+                if let Err(e) = db.set_setting(IDENTITY_WIPE_PENDING, "1").await {
+                    failures.push(format!("wipe-pending marker not persisted: {e}"));
+                }
+            }
+        }
+    }
+    failures
+}
+
+/// Drop the buffered log history, then report the cleanup failures where the
+/// user can still find them (issue #555).
+///
+/// The order is the point: `clear_logs()` first, because the buffered lines
+/// name orders and counterparties of the deleted identity — but a cleanup
+/// failure dropped with them would leave a wipe that kept the previous
+/// identity's rows with no trace anywhere the user can reach. Re-emitting
+/// through `blog_warn` puts each failure on the platform console, in the
+/// fresh history the Logs screen loads, and on the live stream.
+fn clear_logs_and_report(failures: &[String]) {
+    crate::api::logging::clear_logs();
+    for failure in failures {
+        crate::api::logging::blog_warn("identity", format!("cleanup failed — {failure}"));
+    }
+}
+
+/// Retry the data wipe a previous deletion left pending, if any (issue #555).
+///
+/// Only sound while no identity holds the session — `create_identity` calls
+/// it under the write lock, after refusing to replace a loaded identity:
+/// `clear_identity_data` empties whole tables, so a retry with a live
+/// identity would take its trades — and its payout claims, which no restore
+/// brings back — along with the leftovers. That is why the launch reload
+/// (`load_identity_from_mnemonic`) never calls this.
+///
+/// A marker that cannot be read is not a wipe order: the data stays put.
+async fn retry_pending_wipe<S: Storage>(db: &S) {
+    use crate::db::settings_keys::IDENTITY_WIPE_PENDING;
+
+    match db.get_setting(IDENTITY_WIPE_PENDING).await {
+        Ok(Some(_)) => {}
+        Ok(None) | Err(_) => return,
+    }
+    match db.clear_identity_data().await {
+        Ok(()) => {
+            log::info!("[identity] pending identity wipe completed on retry");
+            if let Err(e) = db.delete_setting(IDENTITY_WIPE_PENDING).await {
+                crate::api::logging::blog_warn(
+                    "identity",
+                    format!("cleanup failed — wipe-pending marker kept: {e}"),
+                );
+            }
+        }
+        Err(e) => {
+            crate::api::logging::blog_warn(
+                "identity",
+                format!("retry of the pending identity wipe failed — the previous identity's data is still on disk: {e}"),
+            );
+        }
+    }
+}
+
+/// Whether a previous identity deletion left its data wipe pending: the
+/// previous identity's rows are still on disk and no retry has succeeded yet
+/// (issue #555). The Account screen shows a warning while this holds — the
+/// deletion itself reported success, so this flag is the one trace the UI
+/// can reach.
+pub async fn has_pending_identity_wipe() -> bool {
+    match crate::db::app_db::db() {
+        Some(db) => matches!(
+            db.get_setting(crate::db::settings_keys::IDENTITY_WIPE_PENDING)
+                .await,
+            Ok(Some(_))
+        ),
+        None => false,
+    }
 }
 
 /// What the current identity would lose if it were replaced now: locked
@@ -1195,5 +1313,377 @@ mod tests {
 
         // Deleting again fails: there is no identity left.
         assert!(delete_identity().await.is_err());
+    }
+
+    /// A `Storage` for the wipe seam (issue #555): the settings map works —
+    /// that is where the wipe-pending marker lives — the identity row and
+    /// trade-key clears succeed, and `clear_identity_data` always fails.
+    /// Everything else is `unimplemented!()`, like [`FailingStore`]:
+    /// reaching one would be a test bug, not silent success.
+    struct WipeFailingStore {
+        settings: std::sync::Mutex<std::collections::HashMap<String, String>>,
+    }
+
+    impl WipeFailingStore {
+        fn new() -> Self {
+            Self {
+                settings: Default::default(),
+            }
+        }
+        fn setting(&self, key: &str) -> Option<String> {
+            self.settings.lock().unwrap().get(key).cloned()
+        }
+        fn put_setting(&self, key: &str, value: &str) {
+            self.settings
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), value.to_string());
+        }
+    }
+
+    impl Storage for WipeFailingStore {
+        async fn delete_identity(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn clear_trade_keys(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn clear_identity_data(&self) -> Result<()> {
+            anyhow::bail!("injected wipe failure")
+        }
+        async fn get_setting(&self, key: &str) -> Result<Option<String>> {
+            Ok(self.setting(key))
+        }
+        async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+            self.put_setting(key, value);
+            Ok(())
+        }
+        async fn delete_setting(&self, key: &str) -> Result<()> {
+            self.settings.lock().unwrap().remove(key);
+            Ok(())
+        }
+        async fn save_identity(&self, _identity: &IdentityInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_order(&self, _order: &crate::api::types::OrderInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_order(&self, _id: &str) -> Result<Option<crate::api::types::OrderInfo>> {
+            unimplemented!()
+        }
+        async fn delete_order(&self, _id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_orders(&self) -> Result<Vec<crate::api::types::OrderInfo>> {
+            unimplemented!()
+        }
+        async fn save_trade(&self, _trade: &crate::api::types::TradeInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_trade(&self, _id: &str) -> Result<Option<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn list_trades(&self) -> Result<Vec<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn save_message(&self, _msg: &crate::api::types::ChatMessage) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_messages(
+            &self,
+            _trade_id: &str,
+        ) -> Result<Vec<crate::api::types::ChatMessage>> {
+            unimplemented!()
+        }
+        async fn list_unread_messages(&self) -> Result<Vec<crate::api::types::ChatMessage>> {
+            unimplemented!()
+        }
+        async fn mark_messages_read(&self, _trade_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn message_exists(&self, _id: &str) -> Result<bool> {
+            unimplemented!()
+        }
+        async fn save_relay(&self, _relay: &crate::api::types::RelayInfo) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_relay(&self, _url: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_relays(&self) -> Result<Vec<crate::api::types::RelayInfo>> {
+            unimplemented!()
+        }
+        async fn get_identity(&self) -> Result<Option<IdentityInfo>> {
+            unimplemented!()
+        }
+        async fn update_trade_peer_reputation(
+            &self,
+            _order_id: &str,
+            _rating: f64,
+            _reviews: u32,
+            _days: u32,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_bond(
+            &self,
+            _order_id: &str,
+            _bond: &crate::api::types::BondInfo,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn mark_trade_rated(&self, _order_id: &str, _rated_at: i64) -> Result<()> {
+            unimplemented!()
+        }
+        async fn set_cooperative_cancel_state(
+            &self,
+            _order_id: &str,
+            _state: crate::api::types::CooperativeCancelState,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_counterparty(
+            &self,
+            _order_id: &str,
+            _counterparty_pubkey: &str,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_bond_claim(&self, _claim: &crate::api::types::BondClaim) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_bond_claim(
+            &self,
+            _node_pubkey: &str,
+            _order_id: &str,
+        ) -> Result<Option<crate::api::types::BondClaim>> {
+            unimplemented!()
+        }
+        async fn list_bond_claims(&self) -> Result<Vec<crate::api::types::BondClaim>> {
+            unimplemented!()
+        }
+        async fn delete_bond_claim(&self, _node_pubkey: &str, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_queued_message(
+            &self,
+            _msg: &crate::queue::outbox::QueuedMessage,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_queued_messages(
+            &self,
+        ) -> Result<Vec<crate::queue::outbox::QueuedMessage>> {
+            unimplemented!()
+        }
+        async fn update_queued_message_status(
+            &self,
+            _id: &str,
+            _status: crate::api::types::QueuedMessageStatus,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_queued_message(&self, _id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_trade_key(&self, _order_id: &str, _key_index: u32) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_trade_key(&self, _order_id: &str) -> Result<Option<u32>> {
+            unimplemented!()
+        }
+        async fn get_order_id_by_trade_index(&self, _key_index: u32) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn delete_trade_key(&self, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn save_active_mostro_pubkey(&self, _pubkey: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_active_mostro_pubkey(&self) -> Result<Option<String>> {
+            unimplemented!()
+        }
+        async fn get_trade_by_order_id(
+            &self,
+            _order_id: &str,
+        ) -> Result<Option<crate::api::types::TradeInfo>> {
+            unimplemented!()
+        }
+        async fn delete_trade_by_order_id(&self, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_order_id(
+            &self,
+            _old_order_id: &str,
+            _new_order_id: &str,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_trade_fields(
+            &self,
+            _order_id: &str,
+            _status: Option<crate::api::types::OrderStatus>,
+            _hold_invoice: Option<String>,
+            _amount_sats: Option<u64>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
+    /// The deletion seam of issue #555: a wipe that fails is reported to the
+    /// caller's failure list AND persists the retry marker — nothing bubbles
+    /// up as an error, per the deletion contract.
+    #[tokio::test]
+    async fn a_failed_wipe_reports_and_persists_the_retry_marker() {
+        let store = WipeFailingStore::new();
+
+        let failures = wipe_identity_rows(&store, true).await;
+
+        assert!(
+            failures.iter().any(|f| f.contains("injected wipe failure")),
+            "the wipe failure must be reported: {failures:?}"
+        );
+        assert_eq!(
+            store
+                .setting(crate::db::settings_keys::IDENTITY_WIPE_PENDING)
+                .as_deref(),
+            Some("1"),
+            "a failed wipe must leave the retry marker"
+        );
+    }
+
+    /// A wipe that succeeds settles the pending retry, whichever deletion
+    /// left it behind — otherwise a healthy install would keep retrying (and
+    /// warning) forever.
+    #[tokio::test]
+    async fn a_successful_wipe_clears_the_retry_marker() {
+        let db = temp_store("wipe_marker_cleared").await;
+        db.set_setting(crate::db::settings_keys::IDENTITY_WIPE_PENDING, "1")
+            .await
+            .unwrap();
+
+        let failures = wipe_identity_rows(&db, true).await;
+
+        assert!(failures.is_empty(), "unexpected failures: {failures:?}");
+        assert_eq!(
+            db.get_setting(crate::db::settings_keys::IDENTITY_WIPE_PENDING)
+                .await
+                .unwrap(),
+            None,
+            "a successful wipe must clear the retry marker"
+        );
+    }
+
+    /// The retry acts only on the marker: without it the data stays put, with
+    /// it the wipe runs and the marker is cleared. The probe row is an
+    /// identity-scoped settings key, one of the families the wipe removes.
+    #[tokio::test]
+    async fn the_wipe_retry_acts_only_on_the_marker() {
+        use crate::db::settings_keys;
+
+        let db = temp_store("wipe_retry").await;
+        let probe = settings_keys::status_cursor("wipe-retry-probe");
+        db.set_setting(&probe, "1").await.unwrap();
+
+        retry_pending_wipe(&db).await;
+        assert_eq!(
+            db.get_setting(&probe).await.unwrap().as_deref(),
+            Some("1"),
+            "no marker, no wipe"
+        );
+
+        db.set_setting(settings_keys::IDENTITY_WIPE_PENDING, "1")
+            .await
+            .unwrap();
+        retry_pending_wipe(&db).await;
+        assert_eq!(
+            db.get_setting(&probe).await.unwrap(),
+            None,
+            "with the marker the retry must wipe"
+        );
+        assert_eq!(
+            db.get_setting(settings_keys::IDENTITY_WIPE_PENDING)
+                .await
+                .unwrap(),
+            None,
+            "a successful retry must clear the marker"
+        );
+    }
+
+    /// A retry that fails keeps the marker, so the next creation tries again.
+    #[tokio::test]
+    async fn a_failed_retry_keeps_the_marker() {
+        let store = WipeFailingStore::new();
+        store.put_setting(crate::db::settings_keys::IDENTITY_WIPE_PENDING, "1");
+
+        retry_pending_wipe(&store).await;
+
+        assert_eq!(
+            store
+                .setting(crate::db::settings_keys::IDENTITY_WIPE_PENDING)
+                .as_deref(),
+            Some("1")
+        );
+    }
+
+    /// The retry may only run while the identity slot is empty — the whole
+    /// trade-off of issue #555 (`retry_pending_wipe` explains why): so it
+    /// must sit in `create_identity` between the AlreadyExists guard and the
+    /// install of the new identity, and the launch reload must not call it.
+    #[test]
+    fn the_wipe_retry_runs_before_the_new_identity_and_never_on_reload() {
+        let source = include_str!("identity.rs");
+
+        let start = source
+            .find("pub async fn create_identity(")
+            .expect("create_identity exists");
+        let body = &source[start..start + source[start..].find("\n}\n").expect("it ends")];
+        let guard = body
+            .find("bail!(\"AlreadyExists\")")
+            .expect("the replace guard exists");
+        let retry = body
+            .find("retry_pending_wipe")
+            .expect("create_identity retries the pending wipe");
+        let install = body.find("*guard = Some").expect("the install exists");
+        assert!(
+            guard < retry && retry < install,
+            "the retry must run after the guard and before the install"
+        );
+
+        let start = source
+            .find("pub async fn load_identity_from_mnemonic(")
+            .expect("the launch reload exists");
+        let body = &source[start..start + source[start..].find("\n}\n").expect("it ends")];
+        assert!(
+            !body.contains("retry_pending_wipe"),
+            "the launch reload runs with a live identity — a wipe there takes its data"
+        );
+    }
+
+    /// The report must outlive the history clear (issue #555): asserted on
+    /// the live stream, which a `clear_logs` from a parallel test cannot
+    /// retract — and the buffered copy lands after this seam's own clear, so
+    /// the Logs screen history starts with it.
+    #[tokio::test]
+    async fn a_cleanup_failure_survives_the_log_clear() {
+        crate::api::logging::install_log_bridge();
+        let mut stream = crate::api::logging::on_log_entry();
+
+        // The token is this test's own: parallel tests share the stream and
+        // other injected failures also log under the `identity` tag.
+        clear_logs_and_report(&["identity data rows kept: wipe-probe-555".to_string()]);
+
+        let entry = crate::rt::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                let e = stream.next().await.expect("stream closed unexpectedly");
+                if e.tag == "identity" && e.message.contains("wipe-probe-555") {
+                    return e;
+                }
+            }
+        })
+        .await
+        .expect("the cleanup failure never reached the log stream");
+        assert!(entry.message.contains("cleanup failed"));
     }
 }
