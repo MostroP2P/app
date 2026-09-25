@@ -883,9 +883,6 @@ mod tests {
         async fn save_trade(&self, _trade: &crate::api::types::TradeInfo) -> Result<()> {
             unimplemented!()
         }
-        async fn get_trade(&self, _id: &str) -> Result<Option<crate::api::types::TradeInfo>> {
-            unimplemented!()
-        }
         async fn list_trades(&self) -> Result<Vec<crate::api::types::TradeInfo>> {
             unimplemented!()
         }

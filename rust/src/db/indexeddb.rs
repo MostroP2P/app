@@ -305,13 +305,6 @@ impl Storage for IndexedDbStorage {
         let json = serde_json::to_string(trade)?;
         self.put_string(TRADES_STORE, &trade.id, &json).await
     }
-    async fn get_trade(&self, id: &str) -> Result<Option<TradeInfo>> {
-        Ok(self
-            .get_string(TRADES_STORE, id)
-            .await?
-            .map(|json| serde_json::from_str(&json))
-            .transpose()?)
-    }
     async fn list_trades(&self) -> Result<Vec<TradeInfo>> {
         Ok(self
             .trade_documents()
