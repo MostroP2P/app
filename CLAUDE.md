@@ -60,9 +60,9 @@ flutter gen-l10n                            # after editing lib/l10n/*.arb
 - Static greps pass on a page that dies at runtime, so that workflow also runs
   **`test/web/smoke/smoke.mjs`**: it serves the release bundle cross-origin isolated under
   `/app/` and asserts in headless Chrome that the page is isolated, the Flutter view mounted,
-  a **Rust bridge call returned**, and nothing errored. The bridge signal comes from
-  `lib/core/web/bridge_probe.dart`, which `main()` sets after its first successful Rust call
-  (no-op off web) — rename that flag on one side only and the check silently never fires.
+  **startup finished** (so the Rust bridge answered), and nothing errored. The bridge signal comes from
+  `lib/core/web/bridge_probe.dart`, which startup sets once it has finished — not at the first
+  Rust call, or a later failure goes unseen — and the startup guard sets on failure (no-op off web) — rename that flag on one side only and the check silently never fires.
   The CI run also sets `SMOKE_BOND_STORE=1`: it seeds bond rows (`test/web/smoke/seed/`) into
   IndexedDB, reloads, and compares them with what `lib/core/web/store_probe.dart` read back.
 - **The FCM messaging worker is a second service worker**, `web/firebase-messaging-sw.js`,
@@ -150,6 +150,10 @@ bridged by flutter_rust_bridge.
 - **All user-facing strings are Dart-level** (Flutter l10n): `lib/l10n/app_{en,es,fr,de,it,nl}.arb`,
   config `l10n.yaml`, generated `AppLocalizations` via `flutter gen-l10n`, used with
   `AppLocalizations.of(context)`.
+- **One exception, deliberate:** `lib/core/startup_failure.dart` hard-codes its
+  English. It is the surface shown when startup fails before `runApp`, and
+  localization is one of the things that can be what failed — a rescue screen
+  that needs what broke is a second blank page (#389). Do not "fix" it into l10n.
 - **Rust does not translate.** Rust returns data or a stable marker/code (e.g. `NoDaemonResponse`);
   Dart maps it to a localized string. Don't hardcode user-facing prose in Rust.
   (Known debt: some `CantDo` errors still return English prose directly — should become markers.)
