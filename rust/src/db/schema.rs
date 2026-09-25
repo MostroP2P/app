@@ -62,8 +62,10 @@ CREATE TABLE IF NOT EXISTS trades (
     completed_at    INTEGER
 );
 
--- `trades.id` is a fresh UUID for takers, so every lookup by order id has to
--- reach inside the JSON blob. The expression here must stay byte-identical to
+-- `trades.id` is the row's own id: a fresh UUID for a take made here, the
+-- order id itself for a row rebuilt from a replayed message or a restored
+-- bond. Since it may or may not match, every lookup by order id reaches
+-- inside the JSON blob instead. The expression here must stay byte-identical to
 -- the one in the six `WHERE json_extract(data, '$.order.id') = ?` queries in
 -- sqlite.rs, or SQLite silently falls back to a full scan that re-parses every
 -- row — on the ingest path that runs once per non-pending order event.
@@ -71,10 +73,10 @@ CREATE INDEX IF NOT EXISTS idx_trades_order_id
     ON trades(json_extract(data, '$.order.id'));
 
 -- Chat history + durable replay dedup (issue #246). `trade_id` here is the
--- **order id** — the identity chat keys are derived from — which for taken
--- orders differs from the `trades.id` UUID, so deliberately NO foreign key
--- to trades(id): with one, every taker's save_message failed its FK check
--- and history/dedup silently vanished on restart.
+-- **order id** — the identity chat keys are derived from — which a row's own
+-- `trades.id` is not bound to match, so deliberately NO foreign key to
+-- trades(id): with one, save_message failed its FK check for every row whose
+-- two ids diverged, and history/dedup silently vanished on restart.
 CREATE TABLE IF NOT EXISTS messages (
     id              TEXT PRIMARY KEY,
     trade_id        TEXT NOT NULL,

@@ -100,10 +100,15 @@ status" in `contracts/orders.md`.
 An active transaction linking buyer, seller, and order. Only one active
 trade at a time (v2.0 scope constraint).
 
+Stored as one row per trade: `id` is the primary key and every other field
+lives inside a JSON-serialised `TradeInfo` in `data`. There is **no
+`order_id` column** — the order's id sits in that blob at `$.order.id`, which
+is why the schema carries an expression index over it.
+
 | Field | Type | Description |
 |-------|------|-------------|
-| id | UUID | Trade identifier |
-| order_id | UUID | FK → Order |
+| id | UUID | **The row's own id, not the order's.** A take made on this device mints a fresh UUID here while `$.order.id` holds the id the daemon knows; a row rebuilt rather than taken — a replayed daemon message on a fresh device, a restored bond — reuses the order id for both. So the two may match or diverge, and neither case says whose row it is (`order.is_mine` and `role` carry that). Nothing looks a trade up by this: it exists so `save_trade` replaces a row instead of inserting a second one, which is why a rebuild carries it forward rather than minting a new one (issue #395) |
+| order.id | UUID | The daemon's id for the order, inside `data`. **Every accessor keys on this** — read, update, delete, and the chat's `messages.trade_id` — whether or not it equals the row's `id`. `get_trade`, which keyed on the primary key and so missed the rows where they diverge, was removed |
 | role | Enum | `Buyer` or `Seller` |
 | counterparty_pubkey | String | Other party's public key |
 | current_step | Enum | Current progress step (see below) |
@@ -153,7 +158,7 @@ disputes. Persisted locally after decryption.
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
-| trade_id | UUID | FK → Trade |
+| trade_id | UUID | The **order id**, which is what the chat keys are derived from — deliberately **not** a foreign key to `trades(id)`: a row whose own id diverges from its order's would fail that check and lose its history on restart (issue #246) |
 | sender_pubkey | String | Sender's public key |
 | recipient_pubkey | String | Recipient's public key |
 | content | String | Decrypted message text |

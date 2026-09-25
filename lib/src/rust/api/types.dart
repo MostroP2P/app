@@ -1754,16 +1754,23 @@ enum SlashCause {
 enum ThemeMode { system, dark, light }
 
 class TradeInfo {
-  /// This row's own id, minted locally when the trade is created — **not**
-  /// the order's. On a taker row the two always differ: `take_order` derives
-  /// a fresh UUID here while `order.id` holds the id the daemon knows.
+  /// This row's own id — **not** the order's, and not reliably either the
+  /// same or different.
   ///
-  /// Nothing looks a trade up by this. Every accessor on
-  /// [`crate::db::Storage`] keys on `order.id`, and so does the chat
-  /// (`messages.trade_id`); its one job is to be the row's primary key, so
-  /// `save_trade` replaces a row instead of inserting a second one. Carry it
-  /// forward when rebuilding a row, and reach for `order.id` when looking
-  /// one up (issue #395).
+  /// A take made on this device mints a fresh UUID here (`take_order`)
+  /// while `order.id` holds the id the daemon knows, so the two diverge. A
+  /// row rebuilt instead of taken — from a replayed daemon message on a
+  /// fresh device (`trade_row_from_small_order`), or from a restored bond
+  /// (`restored_bond_row`) — reuses the order id for both. So neither
+  /// equality nor inequality says whose row it is, and no code should ask:
+  /// `order.is_mine` and `role` are what carry that.
+  ///
+  /// Nothing looks a trade up by this, whether or not it happens to match.
+  /// Every accessor on [`crate::db::Storage`] keys on `order.id`, and so
+  /// does the chat (`messages.trade_id`); its one job is to be the row's
+  /// primary key, so `save_trade` replaces a row instead of inserting a
+  /// second one. Carry it forward when rebuilding a row, and reach for
+  /// `order.id` when looking one up (issue #395).
   final String id;
   final OrderInfo order;
   final TradeRole role;

@@ -200,12 +200,13 @@ pub trait Storage: Send + Sync {
     async fn list_orders(&self) -> Result<Vec<crate::api::types::OrderInfo>>;
 
     /// Insert or replace the row keyed by [`TradeInfo::id`] — the row's own
-    /// id, **not** the order's. The two differ on every taker row (see
-    /// [`crate::api::types::TradeInfo::id`]), and this is the only method
-    /// that keys on it: everything that looks a trade up does so by
-    /// `order.id`. Replacing a row therefore requires the same `id` the row
-    /// was saved with, which is why a rebuild carries it forward rather than
-    /// minting a new one.
+    /// id, **not** the order's, and sometimes but not always a different
+    /// value (see [`crate::api::types::TradeInfo::id`]). This is the only
+    /// method that keys on it: everything that looks a trade up does so by
+    /// `order.id`, which is correct whether or not the two happen to match.
+    /// Replacing a row therefore requires the same `id` the row was saved
+    /// with, which is why a rebuild carries it forward rather than minting a
+    /// new one.
     async fn save_trade(&self, trade: &crate::api::types::TradeInfo) -> Result<()>;
     async fn list_trades(&self) -> Result<Vec<crate::api::types::TradeInfo>>;
 
