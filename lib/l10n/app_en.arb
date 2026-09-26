@@ -1300,9 +1300,9 @@
   "@sessionTimeoutMessage": {
     "description": "Snackbar shown when the Mostro node does not respond to a new order within the timeout — the order was not created"
   },
-  "noRelayAcceptedMessage": "Your message didn't reach any relay. Check your relays in Settings and try again",
+  "noRelayAcceptedMessage": "No relay accepted your message. Check your relays in Settings and try again",
   "@noRelayAcceptedMessage": {
-    "description": "Snackbar shown when no relay accepted an outgoing message, so it never left the device and the Mostro node never saw it — unlike sessionTimeoutMessage, where the message went out and no reply came back"
+    "description": "Snackbar shown when no relay accepted an outgoing message: every relay refused it, timed out or was unreachable, so the Mostro node never saw it — unlike sessionTimeoutMessage, where a relay took the message and no reply came back"
   },
   "noIdentityFoundMessage": "No identity found — try restarting the app.",
   "@noIdentityFoundMessage": {

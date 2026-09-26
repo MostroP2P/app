@@ -1018,7 +1018,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get noRelayAcceptedMessage =>
-      'Je bericht heeft geen enkele relay bereikt. Controleer je relays in Instellingen en probeer het opnieuw';
+      'Geen enkele relay heeft je bericht geaccepteerd. Controleer je relays in Instellingen en probeer het opnieuw';
 
   @override
   String get noIdentityFoundMessage =>

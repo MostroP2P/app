@@ -1023,7 +1023,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get noRelayAcceptedMessage =>
-      'Tu mensaje no llegó a ningún relay. Revisa tus relays en Ajustes e inténtalo de nuevo';
+      'Ningún relay aceptó tu mensaje. Revisa tus relays en Ajustes e inténtalo de nuevo';
 
   @override
   String get noIdentityFoundMessage =>

@@ -84,10 +84,10 @@ String localizedDaemonError(
   if (raw.contains('NoDaemonResponse')) {
     return l10n.sessionTimeoutMessage;
   }
-  // No relay accepted the event — it never left the device, so the daemon
-  // never saw it. Not a timeout: the remedy is the relay list, and a shared
-  // message sent users hunting for a network problem their device did not
-  // have.
+  // No relay accepted the event: every relay refused it, timed out or was
+  // unreachable, so the daemon never saw it. Not a timeout: the remedy is the
+  // relay list, and a shared message sent users hunting for a network problem
+  // their device did not have.
   if (raw.contains('NoRelayAccepted')) {
     return l10n.noRelayAcceptedMessage;
   }

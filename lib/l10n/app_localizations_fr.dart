@@ -1022,7 +1022,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get noRelayAcceptedMessage =>
-      'Votre message n\'a atteint aucun relais. Vérifiez vos relais dans les Paramètres et réessayez';
+      'Aucun relais n\'a accepté votre message. Vérifiez vos relais dans les Paramètres et réessayez';
 
   @override
   String get noIdentityFoundMessage =>

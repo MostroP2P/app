@@ -299,7 +299,7 @@
   "orderNoLongerActive": "Questo ordine non è più attivo",
   "tradeNoLongerYours": "Non partecipi più a questo scambio",
   "sessionTimeoutMessage": "Nessuna risposta ricevuta, verifica la tua connessione e riprova più tardi",
-  "noRelayAcceptedMessage": "Il tuo messaggio non ha raggiunto nessun relay. Controlla i tuoi relay nelle Impostazioni e riprova",
+  "noRelayAcceptedMessage": "Nessun relay ha accettato il tuo messaggio. Controlla i tuoi relay nelle Impostazioni e riprova",
   "noIdentityFoundMessage": "Nessuna identità trovata — prova a riavviare l'app.",
   "failedToLoadSecretWordsMessage": "Impossibile caricare le parole segrete. Riprova.",
   "privacyModesInfoTitle": "Modalità di privacy",
