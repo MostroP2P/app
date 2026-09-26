@@ -299,6 +299,7 @@
   "orderNoLongerActive": "Deze order is niet meer actief",
   "tradeNoLongerYours": "Je hoort niet meer bij deze trade",
   "sessionTimeoutMessage": "Geen antwoord ontvangen, controleer je verbinding en probeer het later opnieuw",
+  "noRelayAcceptedMessage": "Geen enkele relay heeft je bericht geaccepteerd. Controleer je relays in Instellingen en probeer het opnieuw",
   "noIdentityFoundMessage": "Geen identiteit gevonden. Herstart de app.",
   "failedToLoadSecretWordsMessage": "De geheime woorden konden niet worden geladen. Probeer het opnieuw.",
   "privacyModesInfoTitle": "Privacymodi",

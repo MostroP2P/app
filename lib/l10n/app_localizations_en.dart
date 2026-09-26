@@ -1008,6 +1008,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'No response received, check your connection and try again later';
 
   @override
+  String get noRelayAcceptedMessage =>
+      'No relay accepted your message. Check your relays in Settings and try again';
+
+  @override
   String get noIdentityFoundMessage =>
       'No identity found — try restarting the app.';
 
