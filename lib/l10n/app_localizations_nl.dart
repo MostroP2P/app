@@ -1017,6 +1017,10 @@ class AppLocalizationsNl extends AppLocalizations {
       'Geen antwoord ontvangen, controleer je verbinding en probeer het later opnieuw';
 
   @override
+  String get noRelayAcceptedMessage =>
+      'Je bericht heeft geen enkele relay bereikt. Controleer je relays in Instellingen en probeer het opnieuw';
+
+  @override
   String get noIdentityFoundMessage =>
       'Geen identiteit gevonden. Herstart de app.';
 

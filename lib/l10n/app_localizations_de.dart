@@ -1023,6 +1023,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Keine Antwort erhalten; prüfe deine Verbindung und versuche es später erneut';
 
   @override
+  String get noRelayAcceptedMessage =>
+      'Deine Nachricht hat kein Relay erreicht. Prüfe deine Relays in den Einstellungen und versuche es erneut';
+
+  @override
   String get noIdentityFoundMessage =>
       'Keine Identität gefunden — versuche, die App neu zu starten.';
 

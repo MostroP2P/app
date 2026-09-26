@@ -1894,6 +1894,12 @@ abstract class AppLocalizations {
   /// **'No response received, check your connection and try again later'**
   String get sessionTimeoutMessage;
 
+  /// Snackbar shown when no relay accepted an outgoing message, so it never left the device and the Mostro node never saw it — unlike sessionTimeoutMessage, where the message went out and no reply came back
+  ///
+  /// In en, this message translates to:
+  /// **'Your message didn\'t reach any relay. Check your relays in Settings and try again'**
+  String get noRelayAcceptedMessage;
+
   /// Snackbar shown on the Account screen when no stored identity can be loaded
   ///
   /// In en, this message translates to:

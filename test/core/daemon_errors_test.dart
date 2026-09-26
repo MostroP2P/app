@@ -155,6 +155,15 @@ void main() {
       l10n.sessionTimeoutMessage,
     );
     expect(
+      localizedDaemonError(l10n, 'NoRelayAccepted', fallback: 'x'),
+      l10n.noRelayAcceptedMessage,
+    );
+    expect(
+      l10n.noRelayAcceptedMessage,
+      isNot(l10n.sessionTimeoutMessage),
+      reason: 'an event that never left the device is not a daemon timeout',
+    );
+    expect(
       localizedDaemonError(l10n, 'StorageUnavailable: no db', fallback: 'x'),
       l10n.storageUnavailable,
     );

@@ -299,6 +299,7 @@
   "orderNoLongerActive": "Cet ordre n'est plus actif",
   "tradeNoLongerYours": "Vous ne participez plus à cet échange",
   "sessionTimeoutMessage": "Aucune réponse reçue, vérifiez votre connexion et réessayez plus tard",
+  "noRelayAcceptedMessage": "Votre message n'a atteint aucun relais. Vérifiez vos relais dans les Paramètres et réessayez",
   "noIdentityFoundMessage": "Aucune identité trouvée — essayez de redémarrer l'application.",
   "failedToLoadSecretWordsMessage": "Échec du chargement des mots secrets. Veuillez réessayer.",
   "privacyModesInfoTitle": "Modes de confidentialité",
