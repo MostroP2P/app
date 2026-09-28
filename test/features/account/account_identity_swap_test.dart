@@ -54,11 +54,20 @@ Future<ProviderContainer> _pumpAccount(
   final container = ProviderContainer(
     overrides: [
       backupReminderProvider.overrideWith(
-        (ref) => BackupReminderNotifier(initialValue: reminderArmed),
+        (ref) => BackupReminderNotifier(
+          initialValue: reminderArmed,
+          resetConfirmed: () async {},
+        ),
       ),
-      backupCompletedProvider.overrideWith(
-        (ref) => BackupCompletedNotifier(initialValue: backedUp),
-      ),
+      backupCompletedProvider.overrideWith((ref) {
+        var confirmed = backedUp;
+        return BackupCompletedNotifier(
+          initialValue: backedUp,
+          getConfirmed: () async => confirmed,
+          setConfirmed: (v) async => confirmed = v,
+          resetConfirmed: () async => confirmed = false,
+        );
+      }),
       privacyModeProvider.overrideWith(
         (ref) => PrivacyModeNotifier(initialValue: false),
       ),
@@ -359,7 +368,6 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool(kBackupReminderDismissedKey), isTrue);
-      expect(prefs.getBool(kBackupCompletedKey), isTrue);
     });
 
     testWidgets('passes the typed words on and lands home', (tester) async {
@@ -661,7 +669,6 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool(kBackupReminderActiveKey), isTrue);
       expect(prefs.getBool(kBackupReminderDismissedKey), isFalse);
-      expect(prefs.getBool(kBackupCompletedKey), isFalse);
     });
   });
 }

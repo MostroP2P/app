@@ -103,7 +103,6 @@ void main() {
       expect(notifier.state, isFalse);
       final prefs = await _prefs();
       expect(prefs.getBool(kBackupReminderDismissedKey), isTrue);
-      expect(prefs.getBool(kBackupCompletedKey), isTrue);
       expect(prefs.getInt(kBackupSnoozedUntilKey), isNull);
     });
 
