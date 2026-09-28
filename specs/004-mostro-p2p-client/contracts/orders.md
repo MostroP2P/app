@@ -16,6 +16,15 @@ by relays carry a different (or no) `request_id` and touch nothing. Each
 call waits up to 10 s; on timeout it returns `NoDaemonResponse` and nothing
 is persisted.
 
+Before that wait, the request has to be accepted by a relay. Publishing
+resolves on the first relay that answers `OK true`; when none does (every
+relay refused the event, timed out or was not connected), the call fails with
+`NoRelayAccepted` instead, rolls its pending record back and does not wait for
+the daemon. A relay that timed out may still have stored and forwarded the
+event, so the daemon can see the request anyway. The two are different
+failures and the UI tells them apart: `NoDaemonResponse` means the request went out and no
+reply came back, `NoRelayAccepted` points the user at their relay list.
+
 What happens to a genuine reply that arrives **after** that timeout depends on
 the request. The pending record survives the timeout in every case — only its
 waiter detaches — so the late reply is still recognized as ours rather than as
@@ -86,6 +95,9 @@ NewOrderParams {
 **Validation**:
 - Either `fiat_amount` OR both `fiat_amount_min` and `fiat_amount_max` MUST be provided (not both)
 - If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`
+- If range: `amount_sats` MUST be absent (not even `0`) — a range is priced at
+  market when taken, and mostro-core refuses one with sats. Fails with
+  `RangeOrderWithSats`.
 - `fiat_code` MUST be valid ISO 4217
 - `payment_method` MUST not be empty
 - The amount is checked against the node's advertised `min_order_amount` /
@@ -106,7 +118,37 @@ off, which the protocol allows.
 
 **Side effects**: Sends the new-order message to the Mostro daemon and waits for its confirmation. The order is created only once the daemon confirms it; the public order book is populated exclusively from the daemon's Kind 38383 event (the order is **not** inserted optimistically). On no confirmation within the timeout the order is treated as not created — nothing is persisted to My Trades and nothing is added to the book.
 
-**Errors**: `NoIdentity`, `Offline` (queued), `NoDaemonResponse` (daemon did not confirm within the timeout), `ProtocolError`.
+**Book ownership on a fresh create (#552).** The order's Kind 38383 usually
+outruns the confirmation that binds the daemon UUID and persists the maker
+row, so the ingest writes the entry with `is_mine = false` — and the live
+stream never redelivers the event to correct it. Persisting a maker row
+(`persist_trade_row`, the funnel every row creation passes through) therefore
+**claims** the order in the book, in memory and before the save: the claim
+marks the order's existing entry `is_mine = true` and every later write of it,
+whichever arrives first and even when the save fails. It never inserts an
+entry, keeping the book fed by Kind 38383 alone. The ingest reads the claim
+too, so it treats a claimed order as ours without a readable row. A taker's
+row (`is_mine = false`) claims nothing.
+
+Claims belong to the identity: forgetting the identity (#533) empties them
+under the same lock, so a persist of the old identity's that was already
+under way when the teardown began cannot mark the book afterwards. A node
+switch keeps them (order ids are daemon UUIDs).
+
+The ingest classifies an order for the identity current when it starts —
+`is_mine` from the claim or the trade row, a refused wire status replaced
+by the trade's, whether the order is ours — and awaits the database before
+writing the entry. Forgetting the identity also bumps an ownership epoch,
+which the ingest reads with the claim and the write checks again under the
+book's lock: a classification made for a forgotten identity is discarded,
+and the event applies as a stranger's order (its wire view, marked only by
+a claim of the new identity's, dropped when finished).
+
+Not covered: a persist that *starts* after the teardown, and writes that
+read an entry and write it back outside the lock — no operation carries an
+identity generation from where it began.
+
+**Errors**: `NoIdentity`, `Offline` (queued), `NoDaemonResponse` (daemon did not confirm within the timeout), `ProtocolError`, `RangeOrderWithSats` (a range with `amount_sats`).
 
 **Anti-abuse bond (maker).** A node that requires a maker bond answers the
 create with `pay-bond-invoice` instead of `new-order`. The order then has its
@@ -114,8 +156,9 @@ daemon id but no kind 38383 event until the bond is paid: `create_order`
 returns it at `WaitingMakerBond`, and persists the maker row with `bond` set
 (`role = Maker`, `state = Requested`, the bolt11 and its decoded expiry). The
 later `new-order` for that id is the only sign the bond locked; it moves the
-row to `Pending` with the bond `Locked`. The daemon refuses a cancel in this
-window, so walking away is `abandon_bonded_order` (see `contracts/bond.md`).
+row to `Pending` with the bond `Locked`. Walking away is `cancel_order`, which
+in this window waits for the daemon's answer (see *Maker's bond window* under
+`cancel_order`).
 
 ---
 
@@ -242,9 +285,32 @@ message is published; nothing waits for the daemon.
   (above); the trade screen says the cancel waits for the counterparty and
   drops the `Cancel` action until the daemon settles the trade.
 
+**Maker's bond window** (`WaitingMakerBond`, docs/ANTI_ABUSE_BOND.md §6.2).
+Here the call **does** wait: the cancel carries a `request_id`, and the daemon's
+answer decides the outcome, within 10 s.
+- `canceled` (mostro#996): the daemon closed the unpublished order and cancelled
+  the bond invoice. The row is wiped with `Canceled` / `UserCanceled` before the
+  call returns.
+- `NotAllowedByStatus`: the bond locked first, or the daemon predates #996. The
+  call watches the row for 5 s, then checks the public book under the order's
+  guard. If the row moved to `Pending`, or the book carries the order, the order
+  is live: the row is reconciled to the lock, and the call fails with
+  `BondAlreadyLocked`. With no evidence either way nothing is wiped: the call
+  fails with `MakerCancelRefused`, and the user may drop the order from this
+  device with `abandon_bonded_order` (see `contracts/bond.md`).
+- Any other `CantDo`: the call fails with the daemon's reason.
+- No answer: `NoDaemonResponse`, and the row stays. A late `canceled` still wipes
+  it as the user's own cancel, including one answering an earlier attempt that a
+  retry superseded.
+
+A `canceled` with no cancel of this client behind it is the daemon's payment
+deadline (mostro#994): the row is wiped with `Canceled` / `BondExpired`.
+
 **Errors**: no trade-key binding for the order (`no persisted trade key for
 order …`), trade-key or identity load failures, and publish failures. Daemon
-rejections arrive later as `CantDo`; this call does not wait for them.
+rejections arrive later as `CantDo`; this call does not wait for them, except in
+the maker's bond window (`BondAlreadyLocked`, `MakerCancelRefused`,
+`NoDaemonResponse`, the `CantDo` reason).
 
 ---
 

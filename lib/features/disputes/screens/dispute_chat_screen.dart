@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,16 +7,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/features/chat/attachments/attachment_flow.dart';
+import 'package:mostro/features/chat/attachments/upload_controller.dart';
+import 'package:mostro/features/disputes/providers/dispute_chat_provider.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/disputes/widgets/dispute_message_input.dart';
 import 'package:mostro/features/disputes/widgets/dispute_messages_list.dart';
+import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 
 /// Dispute chat screen — Route `/dispute_details/:disputeId`.
 ///
 /// Layout:
 ///   - Custom header: "Dispute with Buyer/Seller: [handle]" + status badge
 ///   - Scrollable [DisputeMessagesList] (info card + bubbles + banners)
-///   - [DisputeMessageInput] — only visible when status == in-progress
+///   - [DisputeMessageInput] — only once a solver took the dispute
+///
+/// The conversation is with the solver (#143): history and live messages
+/// from [disputeChatProvider], text through `submit_evidence`, images and
+/// PDFs through `send_dispute_file` (#589 phase 3).
 ///
 /// Terminal state — resolved (admin settled in buyer's favour):
 ///   Green checkmark + "Successfully completed" + lock icon + closed message.
@@ -33,40 +44,111 @@ class DisputeChatScreen extends ConsumerStatefulWidget {
 }
 
 class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
+  bool _isSending = false;
+  bool _isAttaching = false;
+
+  /// The trade whose dispute was refreshed and whose solver notice was
+  /// marked read: done once, as soon as the dispute is known.
+  String? _openedTradeId;
+
+  /// Live updates applied so far. A refresh that started before one of them
+  /// answers with an older record, so it is dropped (PR #596 review).
+  int _liveUpdates = 0;
+
   @override
   void initState() {
     super.initState();
     // Mark as read as soon as the screen opens.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ref.read(disputeNotifierProvider.notifier).markRead(widget.disputeId);
-      }
+      if (!mounted) return;
+      ref.read(disputeNotifierProvider.notifier).markRead(widget.disputeId);
     });
   }
 
-  void _onSendText(String text) {
-    // Dispute messaging requires an adminSharedKey derived from the trade key
-    // and the admin's pubkey (Phase 12). The Rust bridge will expose
-    // `send_dispute_message(dispute_id, text, admin_shared_key)` when ready.
-    final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(l10n.disputeMessagingComingSoon),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  /// Once per trade, whenever the dispute first shows up — on the first
+  /// frame, or later if the list had not loaded it yet.
+  void _onDisputeKnown(String tradeId) {
+    if (_openedTradeId == tradeId) return;
+    _openedTradeId = tradeId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref
+            .read(notificationsProvider.notifier)
+            .markAsRead(NotificationModel.chatCardId(tradeId, fromSolver: true)),
+      );
+      unawaited(_refreshDispute(tradeId));
+    });
   }
 
-  void _onAttachFile() {
-    // File attachments in disputes require the same adminSharedKey as text
-    // messages (Phase 12). Will use file picker + encrypt + upload flow.
+  /// The list learns of a dispute's changes on resume only; a solver who took
+  /// it since then must show here before the first live update does.
+  Future<void> _refreshDispute(String tradeId) async {
+    final liveUpdates = _liveUpdates;
+    try {
+      final dispute = await ref
+          .read(disputeChatGatewayProvider)
+          .getDispute(tradeId);
+      if (dispute == null || !mounted || liveUpdates != _liveUpdates) return;
+      ref
+          .read(disputeNotifierProvider.notifier)
+          .applyBridgeUpdate(disputeItemFromRust(dispute));
+    } catch (e) {
+      debugPrint('[disputes] refresh failed: $e');
+    }
+  }
+
+  Future<bool> _onSendText(String tradeId, String text) async {
+    if (_isSending) return false;
     final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(l10n.disputeAttachmentsComingSoon),
-        duration: const Duration(seconds: 2),
-      ),
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isSending = true);
+    try {
+      final sent = await ref
+          .read(disputeChatGatewayProvider)
+          .sendText(tradeId: tradeId, text: text);
+      if (mounted) ref.read(disputeChatProvider(tradeId).notifier).add(sent);
+      return true;
+    } catch (e) {
+      debugPrint('[disputes] send failed: $e');
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(disputeSendErrorMessage(l10n, e)),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  /// Paperclip: pick, confirm, then send to the solver (#589 phase 3). The
+  /// upload shows its own progress in the list.
+  Future<void> _onAttachFile(String tradeId) async {
+    if (_isAttaching) return;
+    final picked = await pickAttachmentToSend(
+      context,
+      ref,
+      onBusy: (busy) => setState(() => _isAttaching = busy),
+      sheetNote: AppLocalizations.of(context).attachSheetBodySolver,
     );
+    if (picked == null || !mounted) return;
+    final sent = await ref
+        .read(disputeUploadsProvider(tradeId).notifier)
+        .send(picked.name, picked.bytes);
+    if (sent != null && mounted) {
+      ref.read(disputeChatProvider(tradeId).notifier).add(sent);
+    }
+  }
+
+  Future<void> _retryUpload(String tradeId, String uploadId) async {
+    final sent = await ref
+        .read(disputeUploadsProvider(tradeId).notifier)
+        .retry(uploadId);
+    if (sent != null && mounted) {
+      ref.read(disputeChatProvider(tradeId).notifier).add(sent);
+    }
   }
 
   @override
@@ -87,12 +169,26 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
       );
     }
 
-    // Stub messages list — will be driven by bridge events in Phase 13+.
-    const List<DisputeMessage> messages = [];
+    final tradeId = dispute.tradeId;
+    _onDisputeKnown(tradeId);
+    // The solver taking the dispute, and its resolution, while it is open.
+    ref.listen(
+      disputeUpdatesProvider(tradeId),
+      (_, next) => next.whenData((update) {
+        _liveUpdates++;
+        ref
+            .read(disputeNotifierProvider.notifier)
+            .applyBridgeUpdate(disputeItemFromRust(update));
+      }),
+    );
+    final messages = ref.watch(disputeChatProvider(tradeId));
+    final uploads = ref.watch(disputeUploadsProvider(tradeId));
 
     final isResolved = dispute.status == DisputeStatus.resolved;
-    final isInProgress = dispute.status == DisputeStatus.inReview ||
-        dispute.status == DisputeStatus.open;
+    // Only a solver can be written to: until one takes the dispute there is
+    // nobody to share a key with.
+    final canWrite =
+        dispute.status == DisputeStatus.inReview && dispute.adminPubkey != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -112,11 +208,17 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
             child: DisputeMessagesList(
               dispute: dispute,
               messages: messages,
+              uploads: uploads,
+              onRetryUpload: (id) => _retryUpload(tradeId, id),
+              onDiscardUpload:
+                  (id) => ref
+                      .read(disputeUploadsProvider(tradeId).notifier)
+                      .discard(id),
             ),
           ),
 
-          // ── Message input (in-progress only) ─────────────────────────
-          if (isInProgress)
+          // ── Message input (solver assigned only) ─────────────────────
+          if (canWrite)
             Padding(
               // #267: add the bottom system-bar inset so the message input
               // clears the gesture / 3-button navigation bar.
@@ -127,15 +229,25 @@ class _DisputeChatScreenState extends ConsumerState<DisputeChatScreen> {
                 AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
               ),
               child: DisputeMessageInput(
-                onSendText: _onSendText,
-                onAttachFile: _onAttachFile,
-                isAttaching: false,
+                onSendText: (text) => _onSendText(tradeId, text),
+                onAttachFile: () => _onAttachFile(tradeId),
+                isAttaching: _isAttaching,
+                isSending: _isSending,
               ),
             ),
         ],
       ),
     );
   }
+}
+
+/// Why a message to the solver was not sent, localized from the marker
+/// `submit_evidence` fails with (CLAUDE.md, *Translations*).
+String disputeSendErrorMessage(AppLocalizations l10n, Object error) {
+  final raw = error.toString();
+  if (raw.contains('AdminNotAssigned')) return l10n.disputeSolverNotAssigned;
+  if (raw.contains('NoOpenDispute')) return l10n.disputeChatClosed;
+  return l10n.messageSendFailed;
 }
 
 // ── Header title ──────────────────────────────────────────────────────────────

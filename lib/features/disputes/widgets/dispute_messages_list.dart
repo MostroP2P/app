@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/chat/attachments/upload_controller.dart';
+import 'package:mostro/features/chat/widgets/encrypted_file_message.dart';
+import 'package:mostro/features/chat/widgets/encrypted_image_message.dart';
+import 'package:mostro/features/chat/widgets/upload_bubble.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
 // ── DisputeMessagesList ───────────────────────────────────────────────────────
 
@@ -15,7 +20,8 @@ import 'package:mostro/l10n/app_localizations.dart';
 ///      messages yet
 ///   3. [DisputeMessageBubble] entries — sorted by `createdAt`, deduped by
 ///      `nostrEventId` if present
-///   4. "Chat closed" lock banner — shown when status is resolved/closed
+///   4. [UploadBubble]s — files still on their way to the solver
+///   5. "Chat closed" lock banner — shown when status is resolved/closed
 ///
 /// Auto-scrolls to bottom when new messages arrive.
 class DisputeMessagesList extends StatefulWidget {
@@ -23,10 +29,16 @@ class DisputeMessagesList extends StatefulWidget {
     super.key,
     required this.dispute,
     required this.messages,
+    this.uploads = const [],
+    this.onRetryUpload,
+    this.onDiscardUpload,
   });
 
   final DisputeItem dispute;
   final List<DisputeMessage> messages;
+  final List<PendingUpload> uploads;
+  final ValueChanged<String>? onRetryUpload;
+  final ValueChanged<String>? onDiscardUpload;
 
   @override
   State<DisputeMessagesList> createState() => _DisputeMessagesListState();
@@ -38,7 +50,8 @@ class _DisputeMessagesListState extends State<DisputeMessagesList> {
   @override
   void didUpdateWidget(DisputeMessagesList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.messages.length != oldWidget.messages.length) {
+    if (widget.messages.length != oldWidget.messages.length ||
+        widget.uploads.length != oldWidget.uploads.length) {
       _scrollToBottom();
     }
   }
@@ -102,7 +115,23 @@ class _DisputeMessagesListState extends State<DisputeMessagesList> {
           ),
         ),
 
-        // 4. "Chat closed" lock banner (resolved state)
+        // 4. Files on their way out follow the history.
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final upload = widget.uploads[index];
+              return UploadBubble(
+                key: ValueKey(upload.id),
+                upload: upload,
+                onRetry: () => widget.onRetryUpload?.call(upload.id),
+                onDiscard: () => widget.onDiscardUpload?.call(upload.id),
+              );
+            },
+            childCount: widget.uploads.length,
+          ),
+        ),
+
+        // 5. "Chat closed" lock banner (resolved state)
         if (isResolved)
           SliverToBoxAdapter(
             child: _ChatClosedBanner(colors: colors),
@@ -230,6 +259,9 @@ class _IdRow extends StatelessWidget {
 /// - Own → right-aligned, purple (`colors.purpleButton`)
 /// - Admin → left-aligned, dark gray
 /// - System → centered italic
+///
+/// An image or a file shows the chat's own attachment widgets, which
+/// download and decrypt it with the solver's key (#589 phase 3).
 class DisputeMessageBubble extends StatelessWidget {
   const DisputeMessageBubble({
     super.key,
@@ -264,6 +296,8 @@ class DisputeMessageBubble extends StatelessWidget {
     }
 
     final isMine = message.isMine;
+    final attachment = message.attachment;
+    final isImage = attachment?.fileType == rust_types.FileType.image;
     final bubbleColor = isMine
         ? colors.purpleButton
         : const Color(0xFF2D3142); // admin/peer dark gray
@@ -283,15 +317,18 @@ class DisputeMessageBubble extends StatelessWidget {
           );
 
     return GestureDetector(
-      onLongPress: () {
-        Clipboard.setData(ClipboardData(text: message.content));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).messageCopied),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
+      // An attachment's content is its file name: nothing worth copying.
+      onLongPress: attachment != null
+          ? null
+          : () {
+              Clipboard.setData(ClipboardData(text: message.content));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(AppLocalizations.of(context).messageCopied),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
       child: Padding(
         padding: EdgeInsets.only(
           left: isMine ? AppSpacing.xl : AppSpacing.lg,
@@ -305,10 +342,13 @@ class DisputeMessageBubble extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.72,
             ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
+            // An image fills its bubble; a thin frame keeps the colour.
+            padding: isImage
+                ? const EdgeInsets.all(4)
+                : const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
             decoration: BoxDecoration(
               color: bubbleColor,
               borderRadius: borderRadius,
@@ -325,11 +365,21 @@ class DisputeMessageBubble extends StatelessWidget {
                       fontSize: 10,
                     ),
                   ),
-                Text(
-                  message.content,
-                  style: textTheme.bodyMedium
-                      ?.copyWith(color: Colors.white),
-                ),
+                switch (attachment) {
+                  null => Text(
+                      message.content,
+                      style: textTheme.bodyMedium
+                          ?.copyWith(color: Colors.white),
+                    ),
+                  _ when isImage => EncryptedImageMessage(
+                      messageId: message.id,
+                      attachment: attachment,
+                    ),
+                  _ => EncryptedFileMessage(
+                      messageId: message.id,
+                      attachment: attachment,
+                    ),
+                },
               ],
             ),
           ),
@@ -390,12 +440,15 @@ class _ChatClosedBanner extends StatelessWidget {
         children: [
           Icon(Icons.lock_outline, size: 14, color: colors.textSubtle),
           const SizedBox(width: AppSpacing.xs),
-          Text(
-            AppLocalizations.of(context).disputeChatClosed,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.textSubtle,
-                  fontStyle: FontStyle.italic,
-                ),
+          // Wraps on a narrow phone instead of overflowing (PR #596).
+          Flexible(
+            child: Text(
+              AppLocalizations.of(context).disputeChatClosed,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textSubtle,
+                    fontStyle: FontStyle.italic,
+                  ),
+            ),
           ),
         ],
       ),

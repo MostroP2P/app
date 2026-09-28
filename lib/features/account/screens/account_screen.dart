@@ -15,6 +15,8 @@ import 'package:mostro/core/services/identity_scoped_state.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/account/restore/restore_run.dart';
+import 'package:mostro/features/account/restore/restore_sheet.dart';
 import 'package:mostro/features/account/widgets/backup_trigger_sheet.dart';
 import 'package:mostro/features/account/widgets/backup_widgets.dart';
 import 'package:mostro/features/account/widgets/funds_at_risk_dialog.dart';
@@ -23,6 +25,7 @@ import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
+import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 import 'package:mostro/src/rust/api/types.dart' show FundsAtRisk;
 
 /// Account — Route `/key_management` (`design_handoff_cuenta_respaldo`,
@@ -42,6 +45,9 @@ class AccountScreen extends ConsumerStatefulWidget {
     @visibleForTesting this.debugImport,
     @visibleForTesting this.debugRecover,
     @visibleForTesting this.debugFundsAtRisk,
+    @visibleForTesting this.debugRestoreRun,
+    @visibleForTesting this.debugPrivacyMode,
+    @visibleForTesting this.debugRestartOrders,
   });
 
   /// Test-only word source for `Show words`, so widget tests do not reach the
@@ -57,6 +63,15 @@ class AccountScreen extends ConsumerStatefulWidget {
   final Future<void> Function(List<String> words)? debugImport;
   final Future<RecoveryOutcome> Function()? debugRecover;
   final Future<List<FundsAtRisk>> Function()? debugFundsAtRisk;
+
+  /// Test seam: the restore the sheet follows (20a–20d), instead of one
+  /// against the core, and the privacy mode that decides whether there is
+  /// anything to restore.
+  final RestoreRun Function()? debugRestoreRun;
+  final Future<bool> Function()? debugPrivacyMode;
+
+  /// Test seam: the book re-subscription behind `Actualizar`.
+  final Future<void> Function()? debugRestartOrders;
 
   @override
   ConsumerState<AccountScreen> createState() => _AccountScreenState();
@@ -432,6 +447,59 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     await _forgetPreviousIdentity(swap);
     // A seed that already traded must learn its trades and trade index from
     // the daemon before its first new order (InvalidTradeIndex otherwise).
+    await _restoreOrders(swap);
+    // The user restored from words they already had: nothing to back up.
+    await _finishIdentitySwap(swap, alreadyBackedUp: true);
+  }
+
+  /// Ask the node for the imported account's orders, in the restore sheet
+  /// (design 20a–20d) while this screen is up. Resolves once the user closes
+  /// it.
+  ///
+  /// `Cancelar` closes the sheet without stopping the core: the request is
+  /// already out, and its answer raises the trade-key index the account's
+  /// next order is signed with (#217, #328) — abandoning it would reuse a
+  /// key a recovered trade owns.
+  ///
+  /// The swap can outlive this screen (see [_IdentitySwap]); then there is no
+  /// sheet to show, and the restore runs headless with the snackbars.
+  Future<void> _restoreOrders(_IdentitySwap swap) async {
+    if (!mounted) return _restoreOrdersHeadless(swap);
+    final bool privacy;
+    try {
+      privacy = await _privacyMode();
+    } catch (e) {
+      debugPrint('[account] privacy mode unavailable: $e');
+      return _restoreOrdersHeadless(swap);
+    }
+    // Privacy mode has no account on the node to restore.
+    if (privacy) return;
+    if (!mounted) return _restoreOrdersHeadless(swap);
+    await _openRestoreSheet();
+  }
+
+  /// Whether `Actualizar` should run the restore after the book refreshed:
+  /// not in privacy mode, and not when that cannot be told — a failed check
+  /// must not turn the refresh that already succeeded into a failure.
+  Future<bool> _refreshRestores() async {
+    try {
+      return !await _privacyMode();
+    } catch (e) {
+      debugPrint('[account] privacy mode unavailable: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _privacyMode() =>
+      widget.debugPrivacyMode?.call() ?? reputation_api.getPrivacyMode();
+
+  Future<void> _openRestoreSheet() => showRestoreSheet(
+    context,
+    run: widget.debugRestoreRun?.call() ?? RestoreRun.core(),
+  );
+
+  Future<void> _restoreOrdersHeadless(_IdentitySwap swap) async {
+    final l10n = swap.l10n;
     final messenger = swap.messenger;
     messenger.showSnackBar(
       SnackBar(content: Text(l10n.recoveringTradesMessage)),
@@ -449,8 +517,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         SnackBar(content: Text(l10n.recoverTradesFailedMessage)),
       );
     }
-    // The user restored from words they already had: nothing to back up.
-    await _finishIdentitySwap(swap, alreadyBackedUp: true);
   }
 
   void _confirmRefresh(BuildContext context) {
@@ -470,7 +536,16 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               onPressed: () async {
                   Navigator.pop(dialogContext);
                   try {
-                    await orders_api.restartOrdersSubscription();
+                    await (widget.debugRestartOrders?.call() ??
+                        orders_api.restartOrdersSubscription());
+                    // `Actualizar` promises the account's trades too, and the
+                    // failed restore (20c) sends the user here to retry: the
+                    // same restore sheet, unless privacy mode has no account
+                    // on the node to restore.
+                    if (await _refreshRestores() && mounted) {
+                      await _openRestoreSheet();
+                      return;
+                    }
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(l10n.orderBookRefreshedMessage)),

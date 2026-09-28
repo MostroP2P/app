@@ -61,9 +61,11 @@ Future<int> flushMessageQueue() =>
 /// SDK reconnects on its own schedule, and nothing else re-checks that every
 /// subscription survived or that the outbox drained. One pass, in order:
 ///
-/// 1. **Reconnect nudge.** `connect()` spawns a connection task for every
-///    relay that has none (a relay whose first attempt failed never got one)
-///    and is a no-op for the rest; the wait is bounded, and the pool's own
+/// 1. **Reconnect nudge.** Every relay the OS cut while the app was away is
+///    bounced so it reconnects now instead of after its retry interval
+///    (`relay_probe::reconnect_disconnected_now`). Then `connect()` spawns a
+///    connection task for every relay that has none (a relay whose first
+///    attempt failed never got one); the wait is bounded, and the pool's own
 ///    state is what gets reported.
 /// 2. **Subscriptions.** The bulk kind-14 filter is re-issued under its stable
 ///    id (the relay replaces it in place and replays the node's history; the

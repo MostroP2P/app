@@ -9,23 +9,30 @@ import 'package:mostro/l10n/app_localizations.dart';
 /// Only rendered when the dispute is still `in-progress`; hidden for
 /// resolved or closed disputes.
 ///
-/// File attachments use the admin shared key for encryption (wired Phase 12+).
+/// Text and files both go to the solver, keyed to the solver's pubkey
+/// (#143, #589 phase 3).
 class DisputeMessageInput extends StatefulWidget {
   const DisputeMessageInput({
     super.key,
     required this.onSendText,
     required this.onAttachFile,
     this.isAttaching = false,
+    this.isSending = false,
   });
 
-  /// Called with the composed text when the user taps send.
-  final void Function(String text) onSendText;
+  /// Called with the composed text when the user taps send. Resolves to
+  /// whether it was sent: the field is cleared only then, so a failed send
+  /// keeps what the user wrote.
+  final Future<bool> Function(String text) onSendText;
 
   /// Called when the user taps the attachment button.
   final VoidCallback onAttachFile;
 
   /// When true, replaces the attachment icon with a progress indicator.
   final bool isAttaching;
+
+  /// When true, a message is on its way and the send button is disabled.
+  final bool isSending;
 
   @override
   State<DisputeMessageInput> createState() => _DisputeMessageInputState();
@@ -40,11 +47,14 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
     super.dispose();
   }
 
-  void _handleSend() {
+  Future<void> _handleSend() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
-    widget.onSendText(text);
-    _controller.clear();
+    if (text.isEmpty || widget.isSending) return;
+    final sent = await widget.onSendText(text);
+    // Only what was sent: text typed while it was on its way stays.
+    if (sent && mounted && _controller.text.trim() == text) {
+      _controller.clear();
+    }
   }
 
   @override
@@ -131,7 +141,7 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
             height: 36,
             child: IconButton(
               icon: Icon(Icons.send, color: colors.mostroGreen),
-              onPressed: _handleSend,
+              onPressed: widget.isSending ? null : _handleSend,
               tooltip: l10n.disputeSend,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),

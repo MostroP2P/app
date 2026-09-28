@@ -311,6 +311,30 @@ void main() {
       expect(tester.widget<TextField>(_amountField()).controller!.text, '25');
     });
 
+    testWidgets('opening the method picker releases the amount field focus', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await tester.enterText(_amountField(), '5000');
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // Flutter restores the route's last focus on pop: without the unfocus
+      // the keyboard comes back over the publish button.
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText).first)
+            .focusNode
+            .hasFocus,
+        isFalse,
+      );
+      expect(tester.testTextInput.isVisible, isFalse);
+    });
+
     testWidgets('quick chips follow the chosen currency', (tester) async {
       final container = await _pump(tester);
       container.read(selectedFiatCodeProvider.notifier).state = 'ARS';

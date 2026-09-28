@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,13 +21,15 @@ import '../../../support/trades_list_fixtures.dart';
 Future<ProviderContainer> _pump(
   WidgetTester tester, {
   List<TradeInfo>? trades,
+  Future<List<TradeInfo>> Function()? load,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = const Size(360, 1400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
   final container = createContainer(
-    overrides: tradesListOverrides(trades ?? kHandoffTrades),
+    overrides: tradesListOverrides(trades ?? kHandoffTrades, load: load),
   );
   final router = GoRouter(
     routes: [GoRoute(path: '/', builder: (_, __) => const TradesScreen())],
@@ -48,13 +52,21 @@ Future<ProviderContainer> _pump(
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // A list still loading spins forever, so it never settles.
+    settle ? await tester.pumpAndSettle() : await tester.pump();
   });
   return container;
 }
 
 Finder _card(String orderId) =>
     find.bySemanticsIdentifier(AutomationIds.tradesItem(orderId));
+
+Finder _anyCard() => find.bySemanticsIdentifier(
+  RegExp('^${RegExp.escape(AutomationIds.tradesItem(''))}'),
+);
+
+final _empty = find.bySemanticsIdentifier(AutomationIds.tradesEmpty);
+final _error = find.bySemanticsIdentifier(AutomationIds.tradesError);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -161,5 +173,56 @@ void main() {
     expect(find.text('REQUIEREN TU ACCIÓN'), findsNothing);
     expect(find.text('CERRADAS'), findsNothing);
     expect(find.byType(RefreshIndicator), findsOneWidget);
+  });
+
+  // A harness reads a missing row as a trade that left the list only on a
+  // loaded list (docs/automation-contract.md): each state says which it is.
+  group('the list state is addressable', () {
+    testWidgets('a loaded list with nothing to show exposes trades.empty', (
+      tester,
+    ) async {
+      await _pump(tester, trades: const []);
+
+      expect(_empty, findsOneWidget);
+      expect(_error, findsNothing);
+      expect(_anyCard(), findsNothing);
+    });
+
+    testWidgets('a list with rows exposes neither empty nor error', (
+      tester,
+    ) async {
+      await _pump(tester);
+
+      expect(_card('release'), findsOneWidget);
+      expect(_empty, findsNothing);
+      expect(_error, findsNothing);
+    });
+
+    testWidgets('a list that failed exposes trades.error, retry still apart', (
+      tester,
+    ) async {
+      await _pump(tester, load: () => Future.error(StateError('no db')));
+
+      expect(_error, findsOneWidget);
+      expect(_empty, findsNothing);
+      expect(_anyCard(), findsNothing);
+      // `merge: false`: the retry keeps its own node and its tap action.
+      expect(
+        tester.getSemantics(find.byType(TextButton)),
+        isSemantics(isButton: true, hasTapAction: true),
+      );
+    });
+
+    testWidgets('a list still loading exposes no list state at all', (
+      tester,
+    ) async {
+      final never = Completer<List<TradeInfo>>();
+      await _pump(tester, load: () => never.future, settle: false);
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(_empty, findsNothing);
+      expect(_error, findsNothing);
+      expect(_anyCard(), findsNothing);
+    });
   });
 }

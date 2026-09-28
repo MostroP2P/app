@@ -246,6 +246,32 @@ bool invoiceCheckAllowsSubmit(InvoiceCheck check) => switch (check) {
   InvoiceCheckValid() => true,
 };
 
+/// [check] as the stable word automation reads off `invoice.check`, or null
+/// in the three states that draw no row at all.
+///
+/// Null is "not judged yet", never "fine": the amount an invoice is checked
+/// against arrives with the trade, and the node's expiry window with its
+/// capabilities, so a perfectly good invoice reads
+/// [InvoiceCheckUnverified] — no row, no word — until both land. A harness
+/// waits for the word it expects instead of reading once.
+///
+/// Kebab-case like `order.status`, and never the row's sentence, which is
+/// translated.
+String? invoiceCheckWord(InvoiceCheck check) => switch (check) {
+  InvoiceCheckNone() || InvoiceCheckPending() || InvoiceCheckUnverified() =>
+    null,
+  InvoiceCheckAddress() => 'address',
+  InvoiceCheckValid() => 'valid',
+  InvoiceCheckError(:final problem) => switch (problem) {
+    InvoiceProblem.unrecognized => 'unrecognized',
+    InvoiceProblem.malformed => 'malformed',
+    InvoiceProblem.wrongAmount => 'wrong-amount',
+    InvoiceProblem.expired => 'expired',
+    InvoiceProblem.expiresTooSoon => 'expires-too-soon',
+    InvoiceProblem.wrongNetwork => 'wrong-network',
+  },
+};
+
 // ── Counterpart ───────────────────────────────────────────────────────────────
 
 /// The reputation beside the counterpart's name: `★ 4.9`, or null when the

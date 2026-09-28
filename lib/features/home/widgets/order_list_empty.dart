@@ -56,7 +56,7 @@ class OrderListEmpty extends ConsumerWidget {
             if (hiddenByFilters) ...[
               const SizedBox(height: 8),
               TextButton(
-                onPressed: () => clearOrderFilters(ref),
+                onPressed: ref.read(orderFiltersProvider.notifier).clear,
                 style: TextButton.styleFrom(foregroundColor: pal.limeText),
                 child: Text(l10n.clearFiltersButton),
               ),

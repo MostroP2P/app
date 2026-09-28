@@ -40,6 +40,7 @@ Future<void> _pump(
   bool walletConnected = false,
   bool? slashOnTimeout,
   Future<TradeInfo> Function(String)? requestAgain,
+  Future<void> Function(String)? cancel,
   Future<void> Function(String)? abandon,
   Future<bool> Function(String)? closeExpired,
 }) async {
@@ -67,6 +68,7 @@ Future<void> _pump(
         exchangeRateProvider.overrideWith((ref, code) async => null),
         if (requestAgain != null)
           requestBondInvoiceAgainProvider.overrideWithValue(requestAgain),
+        if (cancel != null) cancelBondWindowProvider.overrideWithValue(cancel),
         if (abandon != null)
           abandonBondedOrderProvider.overrideWithValue(abandon),
         if (closeExpired != null)
@@ -229,26 +231,90 @@ void main() {
       expect(find.text('You sell 100 USD'), findsOneWidget);
     });
 
-    testWidgets('dropping the order wipes it locally, never a daemon cancel', (
+    testWidgets('dropping the order sends the daemon a cancel (mostro#996)', (
       tester,
     ) async {
-      final abandoned = <String>[];
+      final canceled = <String>[];
       await _pump(
         tester,
         trade: makerTrade(),
-        abandon: (id) async => abandoned.add(id),
+        cancel: (id) async => canceled.add(id),
       );
       await tester.ensureVisible(find.text("Don't publish the order"));
       await tester.tap(find.text("Don't publish the order"));
       await tester.pump();
       await tester.pump();
-      expect(abandoned, ['order-1']);
+      expect(canceled, ['order-1']);
       expect(
         find.text(
           'Order dropped. Nothing was published and nothing was charged.',
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+      'a refused cancel asks before removing the order from this device',
+      (tester) async {
+        final abandoned = <String>[];
+        await _pump(
+          tester,
+          trade: makerTrade(),
+          cancel: (id) async => throw Exception('MakerCancelRefused'),
+          abandon: (id) async => abandoned.add(id),
+        );
+        await tester.ensureVisible(find.text("Don't publish the order"));
+        await tester.tap(find.text("Don't publish the order"));
+        await tester.pumpAndSettle();
+        expect(find.text("The node didn't cancel the deposit"), findsOneWidget);
+        expect(abandoned, isEmpty, reason: 'nothing is dropped on a guess');
+
+        await tester.tap(find.text('Remove from this device'));
+        await tester.pump();
+        await tester.pump();
+        expect(abandoned, ['order-1']);
+      },
+    );
+
+    testWidgets('keeping the order after a refused cancel drops nothing', (
+      tester,
+    ) async {
+      final abandoned = <String>[];
+      await _pump(
+        tester,
+        trade: makerTrade(),
+        cancel: (id) async => throw Exception('MakerCancelRefused'),
+        abandon: (id) async => abandoned.add(id),
+      );
+      await tester.ensureVisible(find.text("Don't publish the order"));
+      await tester.tap(find.text("Don't publish the order"));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep waiting'));
+      await tester.pumpAndSettle();
+      expect(abandoned, isEmpty);
+      expect(find.byType(PayBondInvoiceScreen), findsOneWidget);
+    });
+
+    testWidgets('a cancel that lost to the bond says the order is live', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        trade: makerTrade(),
+        cancel: (id) async => throw Exception('BondAlreadyLocked'),
+      );
+      await tester.ensureVisible(find.text("Don't publish the order"));
+      await tester.tap(find.text("Don't publish the order"));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.text(
+          'Your deposit was already paid, so the order is published. '
+          'Cancel it from the order screen.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(PayBondInvoiceScreen), findsOneWidget);
     });
 
     testWidgets('a maker row without its bolt11 has no re-request', (

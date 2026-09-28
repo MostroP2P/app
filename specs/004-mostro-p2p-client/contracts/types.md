@@ -263,12 +263,18 @@ created_at: i64
 
 ### AttachmentInfo
 ```text
-file_name: String
-mime_type: String
-file_size: u64
+file_name: String        # sanitized
+mime_type: String        # declared by the sender
+file_size: u64           # before encryption
 file_type: FileType
 download_status: DownloadStatus
-local_path: String?
+blossom_url: String      # https://…/<sha256>
+sha256: String           # of the encrypted blob
+encrypted_size: u64
+width: u32?              # images
+height: u32?
+counterpart_pubkey: String?  # our own sends only: who it was encrypted to
+                             # (peer or solver); never from the wire (#596)
 ```
 
 ### RelaySource

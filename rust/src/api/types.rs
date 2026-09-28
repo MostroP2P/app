@@ -365,6 +365,49 @@ pub struct TradeInfo {
     /// on rows written before the field existed (`#[serde(default)]`).
     #[serde(default)]
     pub bond: Option<BondInfo>,
+
+    /// The buyer's **per-order trade pubkey**, as the daemon stated it.
+    ///
+    /// Not the same as [`Self::counterparty_pubkey`], which holds the maker's
+    /// order-book key for a taker and nothing at all for a maker. The Cashu
+    /// escrow is locked to these keys, and the daemon re-derives them from the
+    /// order and rejects a proof that names any others — so this is the only
+    /// value that can be used to build one.
+    ///
+    /// `None` until the daemon sends a reply carrying an order payload.
+    #[serde(default)]
+    pub buyer_trade_pubkey: Option<String>,
+    /// The seller's per-order trade pubkey. See [`Self::buyer_trade_pubkey`].
+    #[serde(default)]
+    pub seller_trade_pubkey: Option<String>,
+
+    // ── Cashu escrow (phase C5) ──────────────────────────────────────────────
+    //
+    // All `None` on a Lightning trade, and on every trade that predates this
+    // field. `TradeInfo` is persisted as a JSON blob, so adding optional fields
+    // needs no migration — but they are `#[serde(default)]` so a row written by
+    // an older build still deserializes.
+    /// Mint the escrow was locked at. Recorded per trade rather than read back
+    /// from settings: a node may change its mint, and a trade must still be
+    /// settleable at the mint its funds actually sit in.
+    #[serde(default)]
+    pub cashu_mint_url: Option<String>,
+    /// The 2-of-3 escrow token the seller locked. Kept so the seller can
+    /// re-submit after an interrupted send, and so either party can settle or
+    /// reclaim without asking the daemon for it again.
+    #[serde(default)]
+    pub cashu_escrow_token: Option<String>,
+    /// Unix timestamp (seconds) when the escrow was locked. The locktime
+    /// refund window is counted from the node's advertised locktime, not from
+    /// this — this is for display and for ordering.
+    #[serde(default)]
+    pub cashu_locked_at: Option<i64>,
+    /// Escrow tokens the daemon rejected for good (`invalid_cashu_token`,
+    /// `invalid_mint_url`): it did not store them, so a retry must build a new
+    /// one. Kept, never dropped — each is the seller's money, reclaimable
+    /// through the refund path once its locktime passes.
+    #[serde(default)]
+    pub cashu_rejected_escrow_tokens: Vec<String>,
 }
 
 /// Who posted the bond — a *posting-timing* role, not the buyer/seller side
@@ -521,6 +564,21 @@ pub struct OrderBookSnapshot {
     pub loaded: bool,
 }
 
+/// A step of an account restore, pushed by `api::restore_progress` while
+/// `recover_trades` runs, so the restore sheet can show which stage is in
+/// flight. The outcome itself is `recover_trades`' result, not an event here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RestoreProgress {
+    /// The restore request reached at least one relay.
+    Connected,
+    /// The node answered. `found` is every order and dispute it returned;
+    /// `to_load` is how many of them the app fetches the details of.
+    Found { found: u32, to_load: u32 },
+    /// `done` of the `to_load` orders have their details. A restore that
+    /// ends with `done < to_load` recovered only part of them.
+    Loaded { done: u32, to_load: u32 },
+}
+
 /// "Read this trade again" — the doorbell of `api::trade_touch`. Unlike a
 /// [`TradeUpdate`] it says nothing about what changed and drives no
 /// notification; it only tells a screen its copy may be stale.
@@ -557,14 +615,37 @@ pub enum TradeUpdateReason {
     CooperativeCancelRequestedByPeer,
 }
 
+/// An image or file sent in a chat (#589), as read from v1's JSON message.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AttachmentInfo {
+    /// Sanitized: the last path component only, safe to show and save under.
     pub file_name: String,
+    /// As declared by the sender; a label only.
     pub mime_type: String,
+    /// Size of the file before encryption, in bytes.
     pub file_size: u64,
     pub file_type: FileType,
     pub download_status: DownloadStatus,
-    pub local_path: Option<String>,
+    /// Where the encrypted blob lives (`https://…/<sha256>`).
+    #[serde(default)]
+    pub blossom_url: String,
+    /// Hex SHA-256 of the encrypted blob, from the URL.
+    #[serde(default)]
+    pub sha256: String,
+    #[serde(default)]
+    pub encrypted_size: u64,
+    /// Pixel size, for images: lets the bubble keep its shape before the
+    /// image is decrypted.
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    /// For a file we sent: the pubkey it was encrypted to — the peer, or the
+    /// solver in the dispute chat. Never read from the wire. Kept because
+    /// our own message names only us as its sender, and a resolved
+    /// dispute's solver key is gone after a restart (PR #596 review).
+    #[serde(default)]
+    pub counterpart_pubkey: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -1062,6 +1143,35 @@ pub struct CashuWalletStatus {
     /// a mint missing any of them is refused at connect, so a non-empty list
     /// here means the wallet is bound to a mint that has since changed.
     pub missing_capabilities: Vec<String>,
+}
+
+/// What a seller is about to lock into a Cashu escrow — phase C5.
+///
+/// Shown before the seller commits anything. The amount comes from the order;
+/// the fee is derived from the node's advertised rate and must match what the
+/// daemon computed to the satoshi, so it is surfaced rather than hidden.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CashuEscrowQuote {
+    pub order_id: String,
+    /// The escrow itself: exactly the order amount.
+    pub amount_sats: u64,
+    /// The Mostro fee funded with the lock. Zero until the daemon collects a
+    /// fee token (its TA-1f): today it ignores one, so building it would only
+    /// cost the seller.
+    pub fee_sats: u64,
+    /// `amount_sats + fee_sats` — what the wallet must actually hold.
+    pub total_sats: u64,
+    /// Spendable balance right now, so the UI can say "fund your wallet"
+    /// instead of failing at the mint.
+    pub balance_sats: u64,
+    /// Mint the escrow will be locked at.
+    pub mint_url: String,
+    /// Days the escrow stays locked before the seller can reclaim it alone.
+    pub locktime_days: u32,
+    /// An escrow is already locked for this trade and recorded, but the node
+    /// has not confirmed it: the next `lock_escrow` re-sends that same token
+    /// and swaps nothing.
+    pub pending_submission: bool,
 }
 
 /// The settlement backend the active Mostro node runs, as resolved by

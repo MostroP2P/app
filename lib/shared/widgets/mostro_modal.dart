@@ -99,10 +99,14 @@ Future<T?> showMostroSheet<T>({
   required WidgetBuilder builder,
   bool isScrollControlled = true,
   bool bare = false,
+  bool isDismissible = true,
+  bool enableDrag = true,
 }) {
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
+    isDismissible: isDismissible,
+    enableDrag: enableDrag,
     useSafeArea: true,
     backgroundColor: bare ? Colors.transparent : null,
     elevation: bare ? 0 : null,

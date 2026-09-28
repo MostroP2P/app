@@ -7,7 +7,8 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `active_wallet`, `changes`, `ensure_enabled`, `lifecycle_lock`, `notify`, `proof_store_path`, `same_mint`, `sibling_store_path`, `snapshot`, `wallet_lock`
+// These functions are ignored because they are not marked as `pub`: `active_wallet`, `build_and_record_escrow`, `changes`, `ensure_enabled`, `escrow_op_lock`, `forget_held_escrow`, `held_escrows`, `hold_unrecorded_escrow`, `lifecycle_lock`, `load_trade`, `notify`, `now_secs`, `proof_store_path`, `record_escrow_token`, `recorded_or_held_escrow`, `resubmit_pending_escrows`, `retire_escrow_token`, `same_mint`, `settle_escrow_rejection`, `sibling_store_path`, `snapshot`, `submit_escrow`, `wallet_lock`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `SubmitError`
 
 /// Connect the wallet to the mint the active node pins, unless already connected.
 ///
@@ -65,6 +66,46 @@ Future<void> cashuSweepSpentProofs() =>
 /// mint never serves another's.
 Future<void> cashuDisconnect() =>
     RustLib.instance.api.crateApiCashuCashuDisconnect();
+
+/// What the seller is about to lock, so the UI can show it before they commit.
+///
+/// Computed rather than taken from the daemon: the escrow request states the
+/// amount but neither the mint nor the locktime, and in Cashu mode the node
+/// publishes no info event that would (mostro `scheduler.rs`, "a Cashu-aware
+/// info event is future work"). So the mint must be known — advertised or set
+/// through the developer override — and the locktime falls back to the
+/// protocol default, never to a guess.
+///
+/// **Errors**: `CashuNotEnabled`, `CashuOrderAmountUnknown`, `CashuMintUnknown`,
+/// `CashuNotConnected`, `CashuBalanceUnknown`.
+Future<CashuEscrowQuote> cashuEscrowQuote({required String orderId}) =>
+    RustLib.instance.api.crateApiCashuCashuEscrowQuote(orderId: orderId);
+
+/// Seller: fund the 2-of-3 escrow for `order_id` and submit it to the daemon.
+///
+/// The Cashu analogue of paying the hold invoice, built so no call can lose or
+/// double-spend the seller's funds:
+///
+/// 1. one operation per order at a time ([`escrow_op_lock`]);
+/// 2. an escrow already recorded for the trade is **re-sent as is** — the
+///    daemon answers the same token with `cashu-escrow-locked` again, and a
+///    different one with `invalid_cashu_token`, so a retry must never swap
+///    anew;
+/// 3. otherwise the balance is checked, the escrow built, and the token
+///    **recorded before anything else can fail** — from the swap on, the
+///    funds exist only in that token;
+/// 4. the submission is correlated by `request_id` and answered by the
+///    daemon: `cashu-escrow-locked`, or a `cant-do` that
+///    [`settle_escrow_rejection`] turns into the next step.
+///
+/// **Errors** (stable markers): `CashuNotEnabled`, `CashuNotConnected`,
+/// `CashuMintUnknown`, `CashuInsufficientFunds`, `NotTheSeller`,
+/// `CashuEscrowOrderMovedOn`,
+/// `CashuEscrowRequestMissing`, `CashuWrongTradeKey`, `DeviceClockInvalid`,
+/// `CashuEscrowNotPersisted`, `CashuEscrowRejected: <reason>`,
+/// `NoDaemonResponse`, plus the `CashuLockFailed` markers from construction.
+Future<void> lockEscrow({required String orderId}) =>
+    RustLib.instance.api.crateApiCashuLockEscrow(orderId: orderId);
 
 /// Subscribe to wallet changes.
 Future<CashuWalletStream> onCashuWalletChanged() =>

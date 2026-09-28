@@ -55,6 +55,7 @@ class EventCards {
     required this.isEnabled,
     required this.identityCreatedAt,
     required this.currentLocation,
+    this.disputeIdForTrade = _noDispute,
   });
 
   final NotificationsNotifier Function() notifications;
@@ -68,6 +69,12 @@ class EventCards {
 
   /// The route on screen, to skip a card for the chat the user is reading.
   final String? Function() currentLocation;
+
+  /// The id of a trade's dispute, which names the dispute chat's route: a
+  /// solver message is skipped while that chat is on screen (PR #596).
+  final String? Function(String tradeId) disputeIdForTrade;
+
+  static String? _noDispute(String tradeId) => null;
 
   Future<void> onTradeUpdate(TradeUpdate update) async {
     final event = tradeCardEvent(update.status);
@@ -84,6 +91,17 @@ class EventCards {
         at: at,
       ),
     );
+  }
+
+  /// Whether the room a message belongs to is on screen: the P2P chat, or
+  /// the dispute chat (under either of its routes) for the solver's.
+  bool _isOnScreen(String tradeId, bool fromSolver) {
+    final location = currentLocation();
+    if (!fromSolver) return location == AppRoute.chatRoomPath(tradeId);
+    final disputeId = disputeIdForTrade(tradeId);
+    return disputeId != null &&
+        (location == AppRoute.disputeDetailsPath(disputeId) ||
+            location == AppRoute.disputeChatPath(disputeId));
   }
 
   Future<void> onChatMessage(ChatMessage message) async {
@@ -108,8 +126,7 @@ class EventCards {
             predatesIdentity ||
             !isEnabled(NotificationEvent.newMessages) ||
             notifier.readRevision(cardId) != readRevision ||
-            (!fromSolver &&
-                currentLocation() == AppRoute.chatRoomPath(message.tradeId))) {
+            _isOnScreen(message.tradeId, fromSolver)) {
           return null;
         }
         return NotificationModel.chatMessages(

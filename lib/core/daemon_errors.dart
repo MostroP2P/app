@@ -75,19 +75,26 @@ String localizedDaemonError(
   if (raw.contains('TradeKeyMissing')) {
     return l10n.bondClaimErrorNoKey;
   }
-  // A cancel during the maker's bond window: the daemon would refuse it
-  // (docs/ANTI_ABUSE_BOND.md §2.8); the pay-bond screen offers Abandon.
-  if (raw.contains('BondCancelNotAllowed')) {
-    return l10n.bondCancelNotAllowed;
+  // A maker's cancel lost to its own bond, which locked first: the order is
+  // published and is cancelled from its screen (docs/ANTI_ABUSE_BOND.md §6.2).
+  if (raw.contains('BondAlreadyLocked')) {
+    return l10n.bondAlreadyLocked;
   }
   // The daemon never answered within the reply window.
   if (raw.contains('NoDaemonResponse')) {
     return l10n.sessionTimeoutMessage;
   }
-  // No relay accepted the event — it never left the device. Same remedy as
-  // a daemon timeout: check the connection and retry.
+  // No relay accepted the event: every relay refused it, timed out or was
+  // unreachable (one that timed out may still have forwarded it, so the daemon
+  // is not guaranteed to have missed it). Not a timeout: the remedy is the
+  // relay list, and a shared message sent users hunting for a network problem
+  // their device did not have.
   if (raw.contains('NoRelayAccepted')) {
-    return l10n.sessionTimeoutMessage;
+    return l10n.noRelayAcceptedMessage;
+  }
+  // A range order carries no fixed sats: it is priced at market when taken.
+  if (raw.contains('RangeOrderWithSats')) {
+    return l10n.rangeOrderWithSats;
   }
   // No durable storage: no trade key can be derived (issue #249).
   if (raw.contains('StorageUnavailable')) {

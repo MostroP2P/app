@@ -6,6 +6,8 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
+import 'package:mostro/features/cashu/seller_funding_route.dart';
+import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 
 /// Pushes [destination] unless it is already the screen on top.
 ///
@@ -84,7 +86,10 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
       OrderStatus.waitingBuyerInvoice => AppRoute.addInvoicePath(
         update.orderId,
       ),
-      OrderStatus.waitingPayment => AppRoute.payInvoicePath(update.orderId),
+      OrderStatus.waitingPayment => sellerFundingPath(
+        update.orderId,
+        cashu: ref.read(isCashuModeProvider),
+      ),
       // The anti-abuse bond: only ever the taker's row, whichever side.
       OrderStatus.waitingTakerBond => AppRoute.payBondPath(update.orderId),
       _ => null,

@@ -214,17 +214,11 @@ abstract class AppLocalizations {
   /// **'Failed to load disputes. Please try again.'**
   String get disputeLoadError;
 
-  /// Snackbar shown when user tries to send a dispute message
+  /// Shown when the user tries to write in a dispute chat before a solver has taken the dispute
   ///
   /// In en, this message translates to:
-  /// **'Dispute messaging coming soon'**
-  String get disputeMessagingComingSoon;
-
-  /// Snackbar shown when user tries to attach a file in dispute chat
-  ///
-  /// In en, this message translates to:
-  /// **'File attachments coming soon'**
-  String get disputeAttachmentsComingSoon;
+  /// **'No resolver has taken this dispute yet. You can write once one does.'**
+  String get disputeSolverNotAssigned;
 
   /// Body text shown when a dispute cannot be found by ID
   ///
@@ -394,6 +388,12 @@ abstract class AppLocalizations {
   /// **'Filter'**
   String get filterButtonLabel;
 
+  /// Screen-reader addition to the order-book filter chip when filters narrow the book; the chip itself shows only the number in a badge. Read after the chip label, e.g. 'Filter, 2 filters on'
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 filter on} other{{count} filters on}}'**
+  String filtersActiveCount(int count);
+
   /// Empty state message when the order book has no orders
   ///
   /// In en, this message translates to:
@@ -471,6 +471,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The app cannot create or take orders while its local database is unavailable. Restart the app and try again'**
   String get storageUnavailable;
+
+  /// Create-order error (RangeOrderWithSats marker): a range order was sent with a fixed sats amount, which the daemon refuses
+  ///
+  /// In en, this message translates to:
+  /// **'A range order can\'t have a fixed sats amount: it is priced at market when taken.'**
+  String get rangeOrderWithSats;
 
   /// Snackbar shown after copying an order ID to clipboard
   ///
@@ -583,13 +589,13 @@ abstract class AppLocalizations {
   /// Dialog title for importing a mnemonic phrase
   ///
   /// In en, this message translates to:
-  /// **'Import Mnemonic'**
+  /// **'Import secret words'**
   String get importMnemonicDialogTitle;
 
   /// Hint text in the mnemonic import text field
   ///
   /// In en, this message translates to:
-  /// **'Enter your 12 or 24 word phrase…'**
+  /// **'Enter your 12 secret words'**
   String get importMnemonicHintText;
 
   /// Button label to confirm mnemonic import
@@ -1426,6 +1432,24 @@ abstract class AppLocalizations {
   /// **'Failed to release. Please try again.'**
   String get releaseFailed;
 
+  /// Trade screen, seller: the disabled Release button while a published release waits for the node's confirmation (hold invoice settlement)
+  ///
+  /// In en, this message translates to:
+  /// **'Releasing… waiting for the node'**
+  String get releasePendingLabel;
+
+  /// Snackbar after the seller confirmed the release: it was published, and the node confirms it only once the hold invoice settled
+  ///
+  /// In en, this message translates to:
+  /// **'Release sent. The node can take up to a minute to confirm it.'**
+  String get releaseSentNotice;
+
+  /// Snackbar when a published release got no confirmation within 90 s: Release is offered again; a retry is safe
+  ///
+  /// In en, this message translates to:
+  /// **'The node has not confirmed the release yet. If the order doesn\'t update, you can release again.'**
+  String get releaseUnconfirmedNotice;
+
   /// Button label to cancel an in-progress trade (secondary action row)
   ///
   /// In en, this message translates to:
@@ -1894,6 +1918,12 @@ abstract class AppLocalizations {
   /// **'No response received, check your connection and try again later'**
   String get sessionTimeoutMessage;
 
+  /// Snackbar shown when no relay accepted an outgoing message: every relay refused it, timed out or was unreachable, so it may not have reached the Mostro node (a relay that timed out may still have forwarded it) — unlike sessionTimeoutMessage, where a relay took the message and no reply came back
+  ///
+  /// In en, this message translates to:
+  /// **'No relay accepted your message. Check your relays in Settings and try again'**
+  String get noRelayAcceptedMessage;
+
   /// Snackbar shown on the Account screen when no stored identity can be loaded
   ///
   /// In en, this message translates to:
@@ -1927,13 +1957,13 @@ abstract class AppLocalizations {
   /// Snackbar shown when an imported mnemonic is invalid on the Account screen
   ///
   /// In en, this message translates to:
-  /// **'Invalid mnemonic. Please check your words and try again.'**
+  /// **'Invalid secret words. Please check your words and try again.'**
   String get invalidMnemonicMessage;
 
   /// Validation error shown in the import mnemonic dialog when the phrase is not 12 or 24 words
   ///
   /// In en, this message translates to:
-  /// **'Enter a valid 12 or 24 word phrase.'**
+  /// **'Enter your 12 secret words.'**
   String get enterValidMnemonicError;
 
   /// Snackbar confirming the order book was refreshed from the Account screen
@@ -2722,24 +2752,6 @@ abstract class AppLocalizations {
   /// **'Keep your shared key safe — it is needed for dispute resolution'**
   String get sharedKeySafetyNote;
 
-  /// Label shown on a chat bubble that has a file attachment
-  ///
-  /// In en, this message translates to:
-  /// **'[Attachment]'**
-  String get attachmentLabel;
-
-  /// Tooltip for the file download button
-  ///
-  /// In en, this message translates to:
-  /// **'Download'**
-  String get downloadTooltip;
-
-  /// Placeholder snackbar for file download (not yet wired)
-  ///
-  /// In en, this message translates to:
-  /// **'File download wired in Phase 10+'**
-  String get fileDownloadPlaceholder;
-
   /// File type chip: video
   ///
   /// In en, this message translates to:
@@ -2763,18 +2775,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'File'**
   String get fileTypeFile;
-
-  /// Hint on an encrypted image placeholder
-  ///
-  /// In en, this message translates to:
-  /// **'Tap to download'**
-  String get tapToDownload;
-
-  /// Placeholder snackbar for image download (not yet wired)
-  ///
-  /// In en, this message translates to:
-  /// **'Image download wired in Phase 10+'**
-  String get imageDownloadPlaceholder;
 
   /// Trade state header amount when buying
   ///
@@ -5128,13 +5128,13 @@ abstract class AppLocalizations {
   /// **'{pct} % of the amount'**
   String bondContextPercent(String pct);
 
-  /// Pay-bond screen, maker variant: abandon the unpublished order (local wipe)
+  /// Pay-bond screen, maker variant: cancel the unpublished order and its deposit invoice
   ///
   /// In en, this message translates to:
   /// **'Don\'t publish the order'**
   String get bondDontPublish;
 
-  /// Snackbar after a maker abandons their bond
+  /// Snackbar after a maker cancels the order during its bond window
   ///
   /// In en, this message translates to:
   /// **'Order dropped. Nothing was published and nothing was charged.'**
@@ -5170,11 +5170,35 @@ abstract class AppLocalizations {
   /// **'Waiting for your deposit — not published yet'**
   String get orderStatusWaitingBond;
 
-  /// Error for the BondCancelNotAllowed marker
+  /// Pay-bond screen, maker: the cancel lost to a bond that locked first (BondAlreadyLocked marker); the order is published
   ///
   /// In en, this message translates to:
-  /// **'This order can\'t be cancelled while its deposit is pending. Drop it from the deposit screen instead.'**
-  String get bondCancelNotAllowed;
+  /// **'Your deposit was already paid, so the order is published. Cancel it from the order screen.'**
+  String get bondAlreadyLocked;
+
+  /// Pay-bond screen, maker: dialog title when the node refused the cancel and no lock was seen (MakerCancelRefused)
+  ///
+  /// In en, this message translates to:
+  /// **'The node didn\'t cancel the deposit'**
+  String get bondCancelRefusedTitle;
+
+  /// Body of that dialog: an older node, or a deposit just paid; removing only affects this device
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro node may not support cancelling an unpaid deposit yet, or your deposit was just paid. If you haven\'t paid it, you can remove the order from this device. If the invoice is paid later, the order will still be published.'**
+  String get bondCancelRefusedBody;
+
+  /// Dialog action: drop the order locally (explicit user choice)
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from this device'**
+  String get bondRemoveFromDevice;
+
+  /// Dialog action: keep the order and stay on the deposit screen
+  ///
+  /// In en, this message translates to:
+  /// **'Keep waiting'**
+  String get bondKeepWaiting;
 
   /// Create-order preview notice on a maker-bond node with the core estimate; sats is a formatted figure
   ///
@@ -6087,6 +6111,726 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Continue anyway'**
   String get fundsAtRiskContinue;
+
+  /// Restore sheet (design 20a/20b) title while an imported account asks its node for its orders
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring your account'**
+  String get restoreSheetTitle;
+
+  /// Restore sheet subtitle before the node answered (20a)
+  ///
+  /// In en, this message translates to:
+  /// **'This may take a few seconds'**
+  String get restoreSheetWaiting;
+
+  /// Restore sheet subtitle while order details load (20b); done and total are order counts
+  ///
+  /// In en, this message translates to:
+  /// **'{done} of {total} orders recovered'**
+  String restoreSheetLoading(int done, int total);
+
+  /// Restore stage 1 while the request has not reached a relay yet
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to the Mostro node'**
+  String get restoreStageConnecting;
+
+  /// Restore stage 1 once the request reached a relay
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to the Mostro node'**
+  String get restoreStageConnected;
+
+  /// Restore stage 2 while waiting for the node to answer
+  ///
+  /// In en, this message translates to:
+  /// **'Requesting your orders'**
+  String get restoreStageRequesting;
+
+  /// Restore stage 2 once the node answered; count is every order and dispute it returned
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 order found} other{{count} orders found}}'**
+  String restoreStageFound(int count);
+
+  /// Restore stage 3: loading each order's details
+  ///
+  /// In en, this message translates to:
+  /// **'Loading details'**
+  String get restoreStageLoading;
+
+  /// Tag on the restore stage that failed (20c)
+  ///
+  /// In en, this message translates to:
+  /// **'No response'**
+  String get restoreStageNoResponse;
+
+  /// Screen-reader form of the n/N counter of restore stage 3
+  ///
+  /// In en, this message translates to:
+  /// **'{done} of {total} orders'**
+  String restoreLoadingCountSemantics(int done, int total);
+
+  /// Restore sheet title when the restore failed (20c)
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t restore your orders'**
+  String get restoreFailedTitle;
+
+  /// Restore sheet subtitle when it failed: the account import itself is kept
+  ///
+  /// In en, this message translates to:
+  /// **'Your account was imported'**
+  String get restoreFailedSubtitle;
+
+  /// Restore failure paragraph; place is the Account screen name, shown in bold
+  ///
+  /// In en, this message translates to:
+  /// **'Check your connection and try again. You can retry any time from {place}.'**
+  String restoreFailedBody(String place);
+
+  /// Secondary action of the failed restore: close and keep the imported account without orders
+  ///
+  /// In en, this message translates to:
+  /// **'Continue without restoring'**
+  String get restoreContinueWithout;
+
+  /// Restore sheet title once it finished (20d)
+  ///
+  /// In en, this message translates to:
+  /// **'Account restored'**
+  String get restoreDoneTitle;
+
+  /// Restore sheet subtitle once it finished with orders
+  ///
+  /// In en, this message translates to:
+  /// **'We recovered everything the node had'**
+  String get restoreDoneSubtitle;
+
+  /// Restore sheet subtitle once it finished and the node had no orders for the account
+  ///
+  /// In en, this message translates to:
+  /// **'This account had no orders on the node'**
+  String get restoreDoneEmptySubtitle;
+
+  /// Label of the restored-orders count in the restore summary
+  ///
+  /// In en, this message translates to:
+  /// **'Orders'**
+  String get restoreSummaryOrders;
+
+  /// Label of the trades-in-progress count in the restore summary
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get restoreSummaryInProgress;
+
+  /// Restore summary notice: trades waiting for the user's next step
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{You have 1 active order waiting for you} other{You have {count} active orders waiting for you}}'**
+  String restoreActionNotice(int count);
+
+  /// Restore summary warning when some orders' details did not load; missing and total are counts
+  ///
+  /// In en, this message translates to:
+  /// **'{missing} of {total} orders couldn\'t be loaded'**
+  String restorePartialNotice(int missing, int total);
+
+  /// Title of the sheet that picks a file to send in the trade chat
+  ///
+  /// In en, this message translates to:
+  /// **'Send a file'**
+  String get attachSheetTitle;
+
+  /// Body of the attach sheet: what happens to the file
+  ///
+  /// In en, this message translates to:
+  /// **'It is encrypted on your device. Only your counterpart can open it.'**
+  String get attachSheetBody;
+
+  /// Body of the attach sheet in the dispute chat, where only the solver can open the file
+  ///
+  /// In en, this message translates to:
+  /// **'It is encrypted on your device. Only the resolver can open it.'**
+  String get attachSheetBodySolver;
+
+  /// Attach sheet row: pick a photo from the gallery
+  ///
+  /// In en, this message translates to:
+  /// **'Photo'**
+  String get attachSourcePhoto;
+
+  /// Attach sheet row: take a photo with the camera
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get attachSourceCamera;
+
+  /// Attach sheet row: pick a PDF document
+  ///
+  /// In en, this message translates to:
+  /// **'PDF document'**
+  String get attachSourcePdf;
+
+  /// Title of the dialog confirming a file before it is sent
+  ///
+  /// In en, this message translates to:
+  /// **'Send this file?'**
+  String get attachConfirmTitle;
+
+  /// Body of the send confirmation: the file name and its size
+  ///
+  /// In en, this message translates to:
+  /// **'{fileName} ({size})'**
+  String attachConfirmBody(String fileName, String size);
+
+  /// Error: the picked file is over the 25 MB limit
+  ///
+  /// In en, this message translates to:
+  /// **'Files can be up to 25 MB.'**
+  String get attachmentTooLarge;
+
+  /// Error: the file is not a type the chat sends
+  ///
+  /// In en, this message translates to:
+  /// **'Only JPEG, PNG and PDF files can be sent.'**
+  String get attachmentUnsupported;
+
+  /// Error: the image could not be decoded
+  ///
+  /// In en, this message translates to:
+  /// **'This image could not be read.'**
+  String get attachmentInvalidImage;
+
+  /// Error: the picked file could not be read from the device
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be read.'**
+  String get attachmentReadFailed;
+
+  /// Error: no counterpart yet, so there is no one to encrypt the file for
+  ///
+  /// In en, this message translates to:
+  /// **'You can send files once someone takes the order.'**
+  String get attachmentPeerUnknown;
+
+  /// Error: no file server accepted the upload
+  ///
+  /// In en, this message translates to:
+  /// **'The upload failed. Check your connection and try again.'**
+  String get attachmentUploadFailed;
+
+  /// Error: the file could not be sent, for any other reason
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be sent.'**
+  String get attachmentSendFailed;
+
+  /// Error: the attachment could not be downloaded
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be downloaded.'**
+  String get attachmentDownloadFailed;
+
+  /// Error: the attachment was downloaded but does not decrypt
+  ///
+  /// In en, this message translates to:
+  /// **'This file could not be decrypted.'**
+  String get attachmentDecryptFailed;
+
+  /// Status of a file bubble while it is being encrypted and uploaded
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get attachmentUploading;
+
+  /// Button that drops a failed upload from the chat
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get attachmentDiscard;
+
+  /// Button or tooltip that saves a received file
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get attachmentSave;
+
+  /// Snackbar after a file was saved
+  ///
+  /// In en, this message translates to:
+  /// **'File saved'**
+  String get attachmentSaved;
+
+  /// Snackbar when saving a file failed
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be saved.'**
+  String get attachmentSaveFailed;
+
+  /// Screen-reader label of an image in the chat
+  ///
+  /// In en, this message translates to:
+  /// **'Image: {fileName}'**
+  String attachmentImageSemantics(String fileName);
+
+  /// Screen-reader hint: tapping opens the image full screen
+  ///
+  /// In en, this message translates to:
+  /// **'Open image'**
+  String get attachmentOpenImage;
+
+  /// Action that hands a received file to another app on the device
+  ///
+  /// In en, this message translates to:
+  /// **'Open with…'**
+  String get attachmentOpenWith;
+
+  /// Action that opens the system share sheet for a received file
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get attachmentShare;
+
+  /// Tooltip of the menu on a file card in the chat
+  ///
+  /// In en, this message translates to:
+  /// **'More options'**
+  String get attachmentMoreActions;
+
+  /// Snackbar: no installed app can open the file
+  ///
+  /// In en, this message translates to:
+  /// **'No app on this device can open this file.'**
+  String get attachmentNoAppToOpen;
+
+  /// Snackbar: opening the file in another app failed
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be opened.'**
+  String get attachmentOpenFailed;
+
+  /// Snackbar: sharing the file failed
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be shared.'**
+  String get attachmentShareFailed;
+
+  /// Snackbar: the file is of a type the app will not hand to another app
+  ///
+  /// In en, this message translates to:
+  /// **'This type of file can only be saved.'**
+  String get attachmentSaveOnly;
+
+  /// Title of the embedded Cashu ecash wallet screen
+  ///
+  /// In en, this message translates to:
+  /// **'Cashu wallet'**
+  String get cashuWalletTitle;
+
+  /// Settings — subtitle of the Cashu wallet entry
+  ///
+  /// In en, this message translates to:
+  /// **'Hold ecash for trades on this node'**
+  String get cashuWalletSubtitle;
+
+  /// Cashu wallet — balance label
+  ///
+  /// In en, this message translates to:
+  /// **'Balance'**
+  String get cashuBalanceLabel;
+
+  /// Cashu wallet — the mint the wallet is connected to
+  ///
+  /// In en, this message translates to:
+  /// **'Mint: {mint}'**
+  String cashuMintLabel(String mint);
+
+  /// Cashu wallet — shown when the wallet could not bind to a mint
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected to a mint'**
+  String get cashuNotConnected;
+
+  /// Cashu wallet — button that scans or pastes a token to redeem
+  ///
+  /// In en, this message translates to:
+  /// **'Receive'**
+  String get cashuReceiveButton;
+
+  /// Cashu wallet — button that exports ecash as a token
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get cashuSendButton;
+
+  /// Cashu wallet — placeholder in the token scanner
+  ///
+  /// In en, this message translates to:
+  /// **'Paste or scan a Cashu token'**
+  String get cashuReceiveHint;
+
+  /// Cashu wallet — amount field when exporting a token
+  ///
+  /// In en, this message translates to:
+  /// **'Amount in sats'**
+  String get cashuAmountLabel;
+
+  /// Cashu wallet — confirmation after redeeming a token
+  ///
+  /// In en, this message translates to:
+  /// **'Received {sats} sats'**
+  String cashuReceived(int sats);
+
+  /// Cashu wallet — button that drops proofs the mint reports as spent and refreshes the balance; it does not recover unredeemed tokens
+  ///
+  /// In en, this message translates to:
+  /// **'Sync with mint'**
+  String get cashuSyncButton;
+
+  /// Cashu wallet — confirmation after the sync completed
+  ///
+  /// In en, this message translates to:
+  /// **'Synced with mint'**
+  String get cashuSynced;
+
+  /// Cashu wallet — title of the dialog showing an exported token
+  ///
+  /// In en, this message translates to:
+  /// **'Your token'**
+  String get cashuTokenTitle;
+
+  /// Cashu wallet — warning that an exported token is bearer money
+  ///
+  /// In en, this message translates to:
+  /// **'Anyone who redeems this token keeps the funds. Treat it like cash: send it once, to one person.'**
+  String get cashuTokenWarning;
+
+  /// Cashu wallet — copies the exported token to the clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get cashuCopyToken;
+
+  /// Cashu wallet — confirmation after copying a token
+  ///
+  /// In en, this message translates to:
+  /// **'Token copied'**
+  String get cashuTokenCopied;
+
+  /// Cashu wallet — explanation of what the wallet is for
+  ///
+  /// In en, this message translates to:
+  /// **'This wallet holds ecash issued by the mint your Mostro node uses. It exists to fund and receive trades on that node — it is not a general-purpose wallet.'**
+  String get cashuWalletExplanation;
+
+  /// Cashu error — the active node is not a Cashu node
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro node does not settle trades with Cashu.'**
+  String get cashuErrorNotEnabled;
+
+  /// Cashu error — an operation was attempted before connecting
+  ///
+  /// In en, this message translates to:
+  /// **'The wallet is not connected to a mint yet.'**
+  String get cashuErrorNotConnected;
+
+  /// Cashu error — the mint did not answer
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach the mint. Check your connection and try again.'**
+  String get cashuErrorMintUnreachable;
+
+  /// Cashu error — the mint answered but lacks a required NUT or keyset
+  ///
+  /// In en, this message translates to:
+  /// **'This node\'s mint is missing features the escrow needs, so trading is not possible here.'**
+  String get cashuErrorMintUnusable;
+
+  /// Cashu error — the web build has no proof storage
+  ///
+  /// In en, this message translates to:
+  /// **'The Cashu wallet is not available on the web version yet.'**
+  String get cashuErrorUnsupportedOnWeb;
+
+  /// Cashu error — a zero or missing amount
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an amount greater than zero.'**
+  String get cashuErrorAmountZero;
+
+  /// Cashu error — the requested amount exceeds the balance
+  ///
+  /// In en, this message translates to:
+  /// **'You only have {sats} sats.'**
+  String cashuErrorAmountTooLarge(int sats);
+
+  /// Cashu error — redeeming a token failed
+  ///
+  /// In en, this message translates to:
+  /// **'That token could not be redeemed. It may be from another mint, or already spent.'**
+  String get cashuErrorReceiveFailed;
+
+  /// Cashu error — exporting a token failed
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create the token. You may not have enough funds.'**
+  String get cashuErrorSendFailed;
+
+  /// Cashu error — no identity is loaded, so no wallet seed exists
+  ///
+  /// In en, this message translates to:
+  /// **'Create or import an account before using the wallet.'**
+  String get cashuErrorNoIdentity;
+
+  /// Cashu error — fallback for an unrecognised failure
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong with the wallet. Please try again.'**
+  String get cashuErrorGeneric;
+
+  /// Cashu wallet — reminder shown while an exported token has not been marked as handed over
+  ///
+  /// In en, this message translates to:
+  /// **'You exported a token. It is money until someone redeems it — keep it until you are sure it arrived.'**
+  String get cashuLastTokenPending;
+
+  /// Cashu wallet — re-opens the last exported token
+  ///
+  /// In en, this message translates to:
+  /// **'Show it again'**
+  String get cashuShowLastToken;
+
+  /// Cashu wallet — clears the exported-token reminder
+  ///
+  /// In en, this message translates to:
+  /// **'I\'ve sent it'**
+  String get cashuLastTokenDone;
+
+  /// Cashu wallet — shown in place of the QR when the exported token exceeds QR capacity
+  ///
+  /// In en, this message translates to:
+  /// **'This token is too large for a QR code. Copy it instead.'**
+  String get cashuTokenTooLargeForQr;
+
+  /// Cashu wallet — the node was switched while the wallet was bound to the previous node's mint
+  ///
+  /// In en, this message translates to:
+  /// **'The active node changed and this wallet is bound to another mint. Go back and open the wallet again.'**
+  String get cashuErrorMintChanged;
+
+  /// Cashu wallet — permanent: an nsec-imported identity has no seed
+  ///
+  /// In en, this message translates to:
+  /// **'This account was imported from an nsec, so there is no recovery phrase to derive the wallet from. The Cashu wallet needs an account created from a recovery phrase.'**
+  String get cashuErrorNoMnemonic;
+
+  /// Cashu wallet — a received token has no usable DLEQ proof
+  ///
+  /// In en, this message translates to:
+  /// **'This token could not be verified: it carries no proof of the mint\'s signature, so it was not accepted.'**
+  String get cashuErrorTokenUnverified;
+
+  /// Cashu wallet — a failed send whose proofs could not be confirmed back
+  ///
+  /// In en, this message translates to:
+  /// **'The send failed and the wallet could not confirm the funds are back. Sync with the mint before trying again.'**
+  String get cashuErrorSendUnresolved;
+
+  /// Title of the seller's Cashu escrow funding screen
+  ///
+  /// In en, this message translates to:
+  /// **'Lock the escrow'**
+  String get lockEscrowTitle;
+
+  /// Explanation shown on the escrow funding screen
+  ///
+  /// In en, this message translates to:
+  /// **'Lock your ecash in a 2-of-3 escrow at this node\'s mint. Neither you nor the buyer can move it alone — and if the node disappears, you can reclaim it yourself once the locktime passes.'**
+  String get lockEscrowExplanation;
+
+  /// Escrow screen — the order amount to be locked
+  ///
+  /// In en, this message translates to:
+  /// **'Escrow'**
+  String get lockEscrowAmount;
+
+  /// Escrow screen — the separate fee token amount
+  ///
+  /// In en, this message translates to:
+  /// **'Mostro fee'**
+  String get lockEscrowFee;
+
+  /// Escrow screen — escrow plus fee
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get lockEscrowTotal;
+
+  /// Escrow screen — the Cashu wallet balance
+  ///
+  /// In en, this message translates to:
+  /// **'Your balance'**
+  String get lockEscrowBalance;
+
+  /// Escrow screen — button that funds and submits the escrow
+  ///
+  /// In en, this message translates to:
+  /// **'Lock escrow'**
+  String get lockEscrowConfirm;
+
+  /// Escrow screen — button shown when the balance is short, opening the wallet
+  ///
+  /// In en, this message translates to:
+  /// **'Fund your wallet'**
+  String get lockEscrowFundWallet;
+
+  /// Escrow screen — confirmation after a successful lock
+  ///
+  /// In en, this message translates to:
+  /// **'Escrow locked and sent'**
+  String get lockEscrowSubmitted;
+
+  /// Escrow error — balance below amount plus fee
+  ///
+  /// In en, this message translates to:
+  /// **'Your wallet does not hold enough for the escrow and the fee.'**
+  String get lockEscrowInsufficientFunds;
+
+  /// Escrow error — the lock was attempted from the buyer side
+  ///
+  /// In en, this message translates to:
+  /// **'Only the seller funds the escrow.'**
+  String get lockEscrowNotTheSeller;
+
+  /// Escrow error — the locally built token failed its own verification
+  ///
+  /// In en, this message translates to:
+  /// **'The escrow could not be built correctly. Nothing was sent.'**
+  String get lockEscrowInvalidToken;
+
+  /// Escrow error — the mint refused the swap
+  ///
+  /// In en, this message translates to:
+  /// **'The mint could not lock the escrow. Your funds have not moved.'**
+  String get lockEscrowFailed;
+
+  /// Escrow screen — the mint the escrow is locked at
+  ///
+  /// In en, this message translates to:
+  /// **'Mint: {mint}'**
+  String lockEscrowMint(String mint);
+
+  /// Escrow screen — when the seller can unilaterally reclaim
+  ///
+  /// In en, this message translates to:
+  /// **'Reclaimable by you after {days} days'**
+  String lockEscrowLocktime(int days);
+
+  /// Escrow error — the daemon has not sent the escrow request, so the buyer trade key is unknown
+  ///
+  /// In en, this message translates to:
+  /// **'This trade has no escrow request yet. Wait for the buyer\'s take to arrive, then try again.'**
+  String get lockEscrowRequestMissing;
+
+  /// Escrow error — the stored seller trade key does not match this device
+  ///
+  /// In en, this message translates to:
+  /// **'This device does not hold the key this order was taken with. Restore your account on the device you started the trade on.'**
+  String get lockEscrowWrongTradeKey;
+
+  /// Escrow error — a refund was attempted before the locktime expired
+  ///
+  /// In en, this message translates to:
+  /// **'The escrow is still locked. You can reclaim it yourself once the locktime passes.'**
+  String get lockEscrowLocktimeNotReached;
+
+  /// Escrow error — the system clock is before 1970
+  ///
+  /// In en, this message translates to:
+  /// **'Your device\'s clock is wrong, so the escrow cannot be timed correctly. Fix the date and try again.'**
+  String get lockEscrowClockInvalid;
+
+  /// Escrow screen — resubmits an escrow that was locked but whose message did not reach the node
+  ///
+  /// In en, this message translates to:
+  /// **'Retry sending'**
+  String get lockEscrowRetry;
+
+  /// Escrow screen — shown when a token exists locally but the submission may not have arrived
+  ///
+  /// In en, this message translates to:
+  /// **'Your escrow is locked but the node has not confirmed it. Retrying is safe — it will not lock a second time.'**
+  String get lockEscrowPendingSubmission;
+
+  /// Escrow error — the node published no mint (CashuMintUnknown)
+  ///
+  /// In en, this message translates to:
+  /// **'This node has not published its mint, so there is nowhere to lock the escrow.'**
+  String get lockEscrowMintUnknown;
+
+  /// Escrow error — submitted, but the device could not save the token (CashuEscrowNotPersisted)
+  ///
+  /// In en, this message translates to:
+  /// **'The escrow reached the node, but this device could not save a copy of it. The trade can go on, but this device cannot reclaim the escrow.'**
+  String get lockEscrowNotRecorded;
+
+  /// Escrow error — the daemon answered invalid_cashu_token; the token is retired and kept
+  ///
+  /// In en, this message translates to:
+  /// **'The node did not accept this escrow. It was set aside — it comes back to you when its lock expires — and the next attempt locks a new one.'**
+  String get lockEscrowRejectedToken;
+
+  /// Escrow error — the daemon answered invalid_mint_url; the token is retired and kept
+  ///
+  /// In en, this message translates to:
+  /// **'The node uses a different mint. This escrow was set aside — it comes back to you when its lock expires. Check the node\'s mint before trying again.'**
+  String get lockEscrowRejectedMint;
+
+  /// Escrow error — the daemon could not reach the mint (cashu_mint_unavailable); a retry re-sends the same token
+  ///
+  /// In en, this message translates to:
+  /// **'The node could not reach the mint to check your escrow. Try again: the same escrow is re-sent, nothing is locked twice.'**
+  String get lockEscrowMintUnavailableAtNode;
+
+  /// Escrow error — any other daemon refusal; the token stays recorded
+  ///
+  /// In en, this message translates to:
+  /// **'The node refused the escrow. It stays recorded on this device; try again in a moment.'**
+  String get lockEscrowRejectedGeneric;
+
+  /// Escrow error — no daemon answer within the wait; the token is recorded and re-sent on retry
+  ///
+  /// In en, this message translates to:
+  /// **'The node has not answered yet. Your escrow is recorded; retrying re-sends the same one.'**
+  String get lockEscrowNoAnswer;
+
+  /// Escrow error — a re-sent escrow was refused because the order no longer waits for it (CashuEscrowOrderMovedOn); not reported as locked
+  ///
+  /// In en, this message translates to:
+  /// **'The node says this order is no longer waiting for the escrow. Your escrow stays recorded on this device; the trade\'s status will update when the node reports it.'**
+  String get lockEscrowOrderMovedOn;
+
+  /// Trade screen headline for the seller while it must lock the Cashu escrow (the hold-invoice step on a Cashu node)
+  ///
+  /// In en, this message translates to:
+  /// **'Lock the escrow to start the trade'**
+  String get tradeHeadlineWaitingPaymentSellerCashu;
+
+  /// Trade screen instruction for the seller on a Cashu node: lock the escrow
+  ///
+  /// In en, this message translates to:
+  /// **'Lock your ecash in the escrow at the node\'s mint. That starts the trade, and it comes back to you if the node disappears.'**
+  String get tradeWaitingPaymentSellerInstructionCashu;
+
+  /// Trade screen body for the buyer while the seller locks the Cashu escrow
+  ///
+  /// In en, this message translates to:
+  /// **'They\'re locking the sats in escrow. Once it\'s locked, it\'s your turn to pay the fiat.'**
+  String get tradeBodyWaitingPaymentBuyerCashu;
 }
 
 class _AppLocalizationsDelegate

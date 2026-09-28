@@ -7,6 +7,9 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 /// Each reason is awarded to at most one card in the visible list, and each
 /// card carries at most one — a chip means something only because it is
 /// rare. Priority when a card qualifies for both: best premium.
+///
+/// The user's own orders never compete (#584): the chips help choose an
+/// order to take, and an own order cannot be taken.
 enum OrderReason {
   /// The premium most in the taker's favour. The card also gets the
   /// highlight border.
@@ -19,7 +22,9 @@ enum OrderReason {
 /// Computes the highlight chip for each order in [orders] (the currently
 /// displayed, filtered list). Returns a map of order id -> reason.
 ///
-/// Rules (deterministic):
+/// Rules (deterministic), over the orders the user can take — their own
+/// ([OrderItem.isMine]) are left out of both, keeping only their "yours"
+/// pill:
 /// - Best premium: the order with the highest
 ///   [OrderItemTakerView.takerPremiumAdvantage] — the cheapest sell order on
 ///   Buy BTC, the best-paying buy order on Sell BTC. Ties are broken by list
@@ -29,7 +34,13 @@ enum OrderReason {
 /// - Most reputable: the order with the highest rating (must be > 0), ties
 ///   broken by higher tradeCount, then list position. Skips the card that
 ///   already won "best premium".
-Map<String, OrderReason> computeOrderReasons(List<OrderItem> orders) {
+Map<String, OrderReason> computeOrderReasons(List<OrderItem> book) {
+  // Judged among the takeable orders only, so a lone takeable order among
+  // the user's own has nothing to beat and earns no "best".
+  final orders = [
+    for (final o in book)
+      if (!o.isMine) o,
+  ];
   if (orders.isEmpty) return const {};
   final reasons = <String, OrderReason>{};
 
@@ -69,7 +80,9 @@ Map<String, OrderReason> computeOrderReasons(List<OrderItem> orders) {
 /// autoDispose for the same reason as [filteredOrdersProvider]: watching it
 /// from a provider that never disposes would keep the whole order-book
 /// pipeline alive well after the list leaves the screen.
-final orderReasonsProvider = Provider.autoDispose<Map<String, OrderReason>>((ref) {
+final orderReasonsProvider = Provider.autoDispose<Map<String, OrderReason>>((
+  ref,
+) {
   final orders = ref.watch(filteredOrdersProvider);
   return computeOrderReasons(orders);
 });

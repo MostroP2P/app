@@ -40,13 +40,21 @@ class _OrderFilterDialog extends ConsumerWidget {
     final colors = theme.extension<AppColors>();
     final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
 
-    final selectedCurrencies = ref.watch(currencyFilterProvider);
-    final selectedMethods = ref.watch(paymentMethodFilterProvider);
+    final filters = ref.watch(orderFiltersProvider);
+    final notifier = ref.read(orderFiltersProvider.notifier);
+    final selectedCurrencies = filters.currencies;
+    final selectedMethods = filters.paymentMethods;
     final allCurrencies = ref.watch(availableCurrencyCodesProvider);
-    final currencies =
-        allCurrencies.isNotEmpty ? allCurrencies : _topCurrencies;
-    final ratingRange = ref.watch(ratingFilterProvider);
-    final premiumRange = ref.watch(premiumRangeFilterProvider);
+    // Selected values first-class, catalogued or not: the filters outlive
+    // the app version that stored them (#575), and a value the dialog does
+    // not show is one the user cannot deselect.
+    final currencies = _withSelected(
+      allCurrencies.isNotEmpty ? allCurrencies : _topCurrencies,
+      selectedCurrencies,
+    );
+    final methods = _withSelected(_paymentMethods, selectedMethods);
+    final ratingRange = filters.rating;
+    final premiumRange = filters.premium;
     final l10n = AppLocalizations.of(context);
 
     return MostroDialog(
@@ -70,12 +78,17 @@ class _OrderFilterDialog extends ConsumerWidget {
                     selectedColor: green.withValues(alpha: 0.2),
                     checkmarkColor: green,
                     onSelected: (on) {
-                      final current =
-                          ref.read(currencyFilterProvider.notifier).state;
-                      ref.read(currencyFilterProvider.notifier).state =
-                          on
-                              ? [...current, code]
-                              : current.where((c) => c != code).toList();
+                      final current = ref.read(orderFiltersProvider);
+                      notifier.set(
+                        current.copyWith(
+                          currencies:
+                              on
+                                  ? [...current.currencies, code]
+                                  : current.currencies
+                                      .where((c) => c != code)
+                                      .toList(),
+                        ),
+                      );
                     },
                   );
                 }).toList(),
@@ -89,7 +102,7 @@ class _OrderFilterDialog extends ConsumerWidget {
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.xs,
             children:
-                _paymentMethods.map((method) {
+                methods.map((method) {
                   final selected = selectedMethods.contains(method);
                   return FilterChip(
                     label: Text(method, style: const TextStyle(fontSize: 12)),
@@ -97,12 +110,17 @@ class _OrderFilterDialog extends ConsumerWidget {
                     selectedColor: green.withValues(alpha: 0.2),
                     checkmarkColor: green,
                     onSelected: (on) {
-                      final current =
-                          ref.read(paymentMethodFilterProvider.notifier).state;
-                      ref.read(paymentMethodFilterProvider.notifier).state =
-                          on
-                              ? [...current, method]
-                              : current.where((m) => m != method).toList();
+                      final current = ref.read(orderFiltersProvider);
+                      notifier.set(
+                        current.copyWith(
+                          paymentMethods:
+                              on
+                                  ? [...current.paymentMethods, method]
+                                  : current.paymentMethods
+                                      .where((m) => m != method)
+                                      .toList(),
+                        ),
+                      );
                     },
                   );
                 }).toList(),
@@ -121,12 +139,21 @@ class _OrderFilterDialog extends ConsumerWidget {
               ratingRange.min.toStringAsFixed(1),
               ratingRange.max.toStringAsFixed(1),
             ),
-            onChanged: (v) {
-              ref.read(ratingFilterProvider.notifier).state = (
-                min: v.start,
-                max: v.end,
-              );
-            },
+            // Every frame of a drag applies; only where it comes to rest is
+            // written to disk.
+            onChanged:
+                (v) => notifier.set(
+                  ref
+                      .read(orderFiltersProvider)
+                      .copyWith(rating: (min: v.start, max: v.end)),
+                  persist: false,
+                ),
+            onChangeEnd:
+                (v) => notifier.set(
+                  ref
+                      .read(orderFiltersProvider)
+                      .copyWith(rating: (min: v.start, max: v.end)),
+                ),
           ),
           const SizedBox(height: AppSpacing.md),
 
@@ -142,12 +169,19 @@ class _OrderFilterDialog extends ConsumerWidget {
               '${premiumRange.min.toStringAsFixed(0)}%',
               '${premiumRange.max.toStringAsFixed(0)}%',
             ),
-            onChanged: (v) {
-              ref.read(premiumRangeFilterProvider.notifier).state = (
-                min: v.start,
-                max: v.end,
-              );
-            },
+            onChanged:
+                (v) => notifier.set(
+                  ref
+                      .read(orderFiltersProvider)
+                      .copyWith(premium: (min: v.start, max: v.end)),
+                  persist: false,
+                ),
+            onChangeEnd:
+                (v) => notifier.set(
+                  ref
+                      .read(orderFiltersProvider)
+                      .copyWith(premium: (min: v.start, max: v.end)),
+                ),
           ),
           const SizedBox(height: AppSpacing.lg),
         ],
@@ -157,7 +191,7 @@ class _OrderFilterDialog extends ConsumerWidget {
       links: [
         ModalLink(
           label: l10n.resetButton,
-          onPressed: () => clearOrderFilters(ref),
+          onPressed: notifier.clear,
         ),
       ],
       primary: ModalAction(
@@ -166,4 +200,11 @@ class _OrderFilterDialog extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// [catalogue], then whatever of [selected] it does not list, in the order
+/// they were picked.
+List<String> _withSelected(List<String> catalogue, List<String> selected) {
+  final listed = catalogue.toSet();
+  return [...catalogue, ...selected.where((v) => !listed.contains(v))];
 }

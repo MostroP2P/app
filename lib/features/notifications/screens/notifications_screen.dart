@@ -11,6 +11,8 @@ import 'package:mostro/features/notifications/providers/notifications_provider.d
 import 'package:mostro/features/notifications/widgets/bond_slashed_dialog.dart';
 import 'package:mostro/features/notifications/widgets/notification_group_card.dart';
 import 'package:mostro/features/notifications/widgets/system_notification_banner.dart';
+import 'package:mostro/features/cashu/seller_funding_route.dart';
+import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 
 /// Notifications screen — Route `/notifications`.
 ///
@@ -218,7 +220,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       case NotificationType.paymentReceived:
       case NotificationType.payment:
         n.orderId != null
-            ? context.push(AppRoute.payInvoicePath(n.orderId!))
+            ? context.push(
+              sellerFundingPath(
+                n.orderId!,
+                cashu: ref.read(isCashuModeProvider),
+              ),
+            )
             : noId();
       case NotificationType.invoiceRequest:
       case NotificationType.orderUpdate:

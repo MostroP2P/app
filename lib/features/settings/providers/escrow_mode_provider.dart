@@ -33,6 +33,16 @@ final isCashuAvailableProvider = Provider<bool>((ref) {
   return ref.watch(escrowModeProvider).valueOrNull?.isCashuAvailable ?? false;
 });
 
+/// Whether the active node settles over Cashu at all — usable mint or not.
+///
+/// What **routing** asks: a Cashu node sends no hold invoice, so a seller
+/// must reach the escrow screen even when the mint is missing, and see
+/// `CashuMintUnknown` there rather than wait for an invoice that never comes.
+/// Whether a Cashu path may actually run is still [isCashuAvailableProvider].
+final isCashuModeProvider = Provider<bool>((ref) {
+  return ref.watch(escrowModeProvider).valueOrNull?.mode == 'cashu';
+});
+
 // ── Developer override ────────────────────────────────────────────────────────
 
 /// Writes the developer escrow overrides (§4.3 of `docs/cashu/README.md`).

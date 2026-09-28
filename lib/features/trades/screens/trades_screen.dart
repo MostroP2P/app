@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/activity_palette.dart';
 import 'package:mostro/core/app_theme.dart' show AppBreakpoints;
+import 'package:mostro/core/automation/automation_id.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/trades/models/trades_list_rules.dart';
@@ -242,7 +244,7 @@ class _TradesBody extends ConsumerWidget {
             onPressed: () => ref.invalidate(rawTradesProvider),
             child: Text(AppLocalizations.of(context).retry),
           ),
-        );
+        ).withAutomationId(AutomationIds.tradesError, merge: false);
       },
       data:
           (groups) => RefreshIndicator(
@@ -261,6 +263,9 @@ class _TradesBody extends ConsumerWidget {
                             title: AppLocalizations.of(context).noTradesTitle,
                             subtitle:
                                 AppLocalizations.of(context).noTradesSubtitle,
+                          ).withAutomationId(
+                            AutomationIds.tradesEmpty,
+                            merge: false,
                           ),
                         ),
                       ],

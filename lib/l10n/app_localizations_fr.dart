@@ -65,12 +65,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de charger les litiges. Veuillez réessayer.';
 
   @override
-  String get disputeMessagingComingSoon =>
-      'Messagerie de litige bientôt disponible';
-
-  @override
-  String get disputeAttachmentsComingSoon =>
-      'Pièces jointes bientôt disponibles';
+  String get disputeSolverNotAssigned =>
+      'Aucun médiateur n\'a encore pris ce litige. Vous pourrez écrire dès qu\'un médiateur l\'aura pris.';
 
   @override
   String get disputeNotFound => 'Litige introuvable.';
@@ -175,6 +171,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get filterButtonLabel => 'Filtrer';
 
   @override
+  String filtersActiveCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count filtres actifs',
+      one: '1 filtre actif',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get noOrdersAvailable => 'Aucun ordre disponible';
 
   @override
@@ -223,6 +230,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get storageUnavailable =>
       'L\'application ne peut pas créer ni prendre d\'ordres tant que sa base de données locale est indisponible. Redémarrez l\'application et réessayez';
+
+  @override
+  String get rangeOrderWithSats =>
+      'Un ordre à fourchette ne peut pas avoir de montant fixe en sats : il est coté au prix du marché lors de sa prise.';
 
   @override
   String get orderIdCopied => 'ID d\'ordre copié';
@@ -282,10 +293,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get continueButtonLabel => 'Continuer';
 
   @override
-  String get importMnemonicDialogTitle => 'Importer le mnémonique';
+  String get importMnemonicDialogTitle => 'Importer les mots secrets';
 
   @override
-  String get importMnemonicHintText => 'Entrez votre phrase de 12 ou 24 mots…';
+  String get importMnemonicHintText => 'Entrez vos 12 mots secrets';
 
   @override
   String get importButtonLabel => 'Importer';
@@ -760,6 +771,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get releaseFailed => 'Échec de la libération. Veuillez réessayer.';
 
   @override
+  String get releasePendingLabel => 'Libération… en attente du nœud';
+
+  @override
+  String get releaseSentNotice =>
+      'Libération envoyée. Le nœud peut mettre jusqu\'à une minute à la confirmer.';
+
+  @override
+  String get releaseUnconfirmedNotice =>
+      'Le nœud n\'a pas encore confirmé la libération. Si l\'ordre ne se met pas à jour, vous pouvez libérer à nouveau.';
+
+  @override
   String get cancelTradeButton => 'Annuler l\'échange';
 
   @override
@@ -1014,6 +1036,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Aucune réponse reçue, vérifiez votre connexion et réessayez plus tard';
 
   @override
+  String get noRelayAcceptedMessage =>
+      'Aucun relais n\'a accepté votre message. Vérifiez vos relais dans les Paramètres et réessayez';
+
+  @override
   String get noIdentityFoundMessage =>
       'Aucune identité trouvée — essayez de redémarrer l\'application.';
 
@@ -1034,11 +1060,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invalidMnemonicMessage =>
-      'Phrase mnémonique invalide. Veuillez vérifier vos mots et réessayer.';
+      'Mots secrets invalides. Veuillez vérifier vos mots et réessayer.';
 
   @override
-  String get enterValidMnemonicError =>
-      'Entrez une phrase valide de 12 ou 24 mots.';
+  String get enterValidMnemonicError => 'Entrez vos 12 mots secrets.';
 
   @override
   String get orderBookRefreshedMessage => 'Carnet d\'ordres actualisé';
@@ -1491,16 +1516,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Conservez votre clé partagée en sécurité — elle est nécessaire pour la résolution des litiges';
 
   @override
-  String get attachmentLabel => '[Pièce jointe]';
-
-  @override
-  String get downloadTooltip => 'Télécharger';
-
-  @override
-  String get fileDownloadPlaceholder =>
-      'Téléchargement de fichiers disponible en Phase 10+';
-
-  @override
   String get fileTypeVideo => 'Vidéo';
 
   @override
@@ -1511,13 +1526,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get fileTypeFile => 'Fichier';
-
-  @override
-  String get tapToDownload => 'Appuyez pour télécharger';
-
-  @override
-  String get imageDownloadPlaceholder =>
-      'Téléchargement d\'images disponible en Phase 10+';
 
   @override
   String buyingSatsAmount(String sats) {
@@ -3065,8 +3073,21 @@ class AppLocalizationsFr extends AppLocalizations {
       'En attente de votre dépôt — pas encore publié';
 
   @override
-  String get bondCancelNotAllowed =>
-      'Cet ordre ne peut pas être annulé tant que son dépôt est en attente. Abandonnez-le depuis l\'écran du dépôt.';
+  String get bondAlreadyLocked =>
+      'Votre dépôt a déjà été payé : l\'ordre est publié. Annulez-le depuis l\'écran de l\'ordre.';
+
+  @override
+  String get bondCancelRefusedTitle => 'Le nœud n\'a pas annulé le dépôt';
+
+  @override
+  String get bondCancelRefusedBody =>
+      'Ce nœud Mostro ne permet peut-être pas encore d\'annuler un dépôt impayé, ou votre dépôt vient d\'être payé. Si vous ne l\'avez pas payé, vous pouvez retirer l\'ordre de cet appareil. Si la facture est payée plus tard, l\'ordre sera tout de même publié.';
+
+  @override
+  String get bondRemoveFromDevice => 'Retirer de cet appareil';
+
+  @override
+  String get bondKeepWaiting => 'Continuer d\'attendre';
 
   @override
   String createOrderBondNoticeEstimate(String sats) {
@@ -3655,4 +3676,469 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get fundsAtRiskContinue => 'Continuer quand même';
+
+  @override
+  String get restoreSheetTitle => 'Restauration de votre compte';
+
+  @override
+  String get restoreSheetWaiting => 'Cela peut prendre quelques secondes';
+
+  @override
+  String restoreSheetLoading(int done, int total) {
+    String _temp0 = intl.Intl.pluralLogic(
+      done,
+      locale: localeName,
+      other: '$done commandes récupérées sur $total',
+      one: '$done commande récupérée sur $total',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get restoreStageConnecting => 'Connexion au nœud Mostro';
+
+  @override
+  String get restoreStageConnected => 'Connecté au nœud Mostro';
+
+  @override
+  String get restoreStageRequesting => 'Demande de vos commandes';
+
+  @override
+  String restoreStageFound(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count commandes trouvées',
+      one: '$count commande trouvée',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get restoreStageLoading => 'Chargement des détails';
+
+  @override
+  String get restoreStageNoResponse => 'Pas de réponse';
+
+  @override
+  String restoreLoadingCountSemantics(int done, int total) {
+    String _temp0 = intl.Intl.pluralLogic(
+      done,
+      locale: localeName,
+      other: '$done commandes sur $total',
+      one: '$done commande sur $total',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get restoreFailedTitle =>
+      'Nous n\'avons pas pu restaurer vos commandes';
+
+  @override
+  String get restoreFailedSubtitle => 'Votre compte a bien été importé';
+
+  @override
+  String restoreFailedBody(String place) {
+    return 'Vérifiez votre connexion et réessayez. Vous pouvez réessayer quand vous voulez depuis $place.';
+  }
+
+  @override
+  String get restoreContinueWithout => 'Continuer sans restaurer';
+
+  @override
+  String get restoreDoneTitle => 'Compte restauré';
+
+  @override
+  String get restoreDoneSubtitle =>
+      'Nous avons récupéré tout ce que le nœud avait';
+
+  @override
+  String get restoreDoneEmptySubtitle =>
+      'Ce compte n\'avait aucune commande sur le nœud';
+
+  @override
+  String get restoreSummaryOrders => 'Commandes';
+
+  @override
+  String get restoreSummaryInProgress => 'En cours';
+
+  @override
+  String restoreActionNotice(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Vous avez $count commandes actives qui attendent votre action',
+      one: 'Vous avez $count commande active qui attend votre action',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String restorePartialNotice(int missing, int total) {
+    String _temp0 = intl.Intl.pluralLogic(
+      missing,
+      locale: localeName,
+      other: '$missing commandes sur $total n\'ont pas pu être chargées',
+      one: '$missing commande sur $total n\'a pas pu être chargée',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get attachSheetTitle => 'Envoyer un fichier';
+
+  @override
+  String get attachSheetBody =>
+      'Il est chiffré sur votre appareil. Seule votre contrepartie peut l\'ouvrir.';
+
+  @override
+  String get attachSheetBodySolver =>
+      'Il est chiffré sur votre appareil. Seul le médiateur peut l\'ouvrir.';
+
+  @override
+  String get attachSourcePhoto => 'Photo';
+
+  @override
+  String get attachSourceCamera => 'Appareil photo';
+
+  @override
+  String get attachSourcePdf => 'Document PDF';
+
+  @override
+  String get attachConfirmTitle => 'Envoyer ce fichier ?';
+
+  @override
+  String attachConfirmBody(String fileName, String size) {
+    return '$fileName ($size)';
+  }
+
+  @override
+  String get attachmentTooLarge => 'Les fichiers peuvent peser jusqu\'à 25 Mo.';
+
+  @override
+  String get attachmentUnsupported =>
+      'Seuls les fichiers JPEG, PNG et PDF peuvent être envoyés.';
+
+  @override
+  String get attachmentInvalidImage => 'Impossible de lire cette image.';
+
+  @override
+  String get attachmentReadFailed => 'Impossible de lire le fichier.';
+
+  @override
+  String get attachmentPeerUnknown =>
+      'Vous pourrez envoyer des fichiers dès que quelqu\'un aura pris l\'ordre.';
+
+  @override
+  String get attachmentUploadFailed =>
+      'L\'envoi a échoué. Vérifiez votre connexion et réessayez.';
+
+  @override
+  String get attachmentSendFailed => 'Impossible d\'envoyer le fichier.';
+
+  @override
+  String get attachmentDownloadFailed =>
+      'Impossible de télécharger le fichier.';
+
+  @override
+  String get attachmentDecryptFailed => 'Impossible de déchiffrer ce fichier.';
+
+  @override
+  String get attachmentUploading => 'Envoi…';
+
+  @override
+  String get attachmentDiscard => 'Abandonner';
+
+  @override
+  String get attachmentSave => 'Enregistrer';
+
+  @override
+  String get attachmentSaved => 'Fichier enregistré';
+
+  @override
+  String get attachmentSaveFailed => 'Impossible d\'enregistrer le fichier.';
+
+  @override
+  String attachmentImageSemantics(String fileName) {
+    return 'Image : $fileName';
+  }
+
+  @override
+  String get attachmentOpenImage => 'Ouvrir l\'image';
+
+  @override
+  String get attachmentOpenWith => 'Ouvrir avec…';
+
+  @override
+  String get attachmentShare => 'Partager';
+
+  @override
+  String get attachmentMoreActions => 'Plus d\'options';
+
+  @override
+  String get attachmentNoAppToOpen =>
+      'Aucune application de cet appareil ne peut ouvrir ce fichier.';
+
+  @override
+  String get attachmentOpenFailed => 'Impossible d\'ouvrir le fichier.';
+
+  @override
+  String get attachmentShareFailed => 'Impossible de partager le fichier.';
+
+  @override
+  String get attachmentSaveOnly =>
+      'Ce type de fichier peut seulement être enregistré.';
+
+  @override
+  String get cashuWalletTitle => 'Portefeuille Cashu';
+
+  @override
+  String get cashuWalletSubtitle =>
+      'Conservez de l\'ecash pour les échanges sur ce nœud';
+
+  @override
+  String get cashuBalanceLabel => 'Solde';
+
+  @override
+  String cashuMintLabel(String mint) {
+    return 'Mint : $mint';
+  }
+
+  @override
+  String get cashuNotConnected => 'Non connecté à un mint';
+
+  @override
+  String get cashuReceiveButton => 'Recevoir';
+
+  @override
+  String get cashuSendButton => 'Envoyer';
+
+  @override
+  String get cashuReceiveHint => 'Collez ou scannez un token Cashu';
+
+  @override
+  String get cashuAmountLabel => 'Montant en sats';
+
+  @override
+  String cashuReceived(int sats) {
+    return '$sats sats reçus';
+  }
+
+  @override
+  String get cashuSyncButton => 'Synchroniser avec la mint';
+
+  @override
+  String get cashuSynced => 'Synchronisé avec la mint';
+
+  @override
+  String get cashuTokenTitle => 'Votre token';
+
+  @override
+  String get cashuTokenWarning =>
+      'Quiconque encaisse ce token garde les fonds. Traitez-le comme des espèces : envoyez-le une seule fois, à une seule personne.';
+
+  @override
+  String get cashuCopyToken => 'Copier';
+
+  @override
+  String get cashuTokenCopied => 'Token copié';
+
+  @override
+  String get cashuWalletExplanation =>
+      'Ce portefeuille contient de l\'ecash émis par le mint qu\'utilise votre nœud Mostro. Il sert à financer et à encaisser des échanges sur ce nœud : ce n\'est pas un portefeuille polyvalent.';
+
+  @override
+  String get cashuErrorNotEnabled =>
+      'Ce nœud Mostro ne règle pas les échanges avec Cashu.';
+
+  @override
+  String get cashuErrorNotConnected =>
+      'Le portefeuille n\'est pas encore connecté à un mint.';
+
+  @override
+  String get cashuErrorMintUnreachable =>
+      'Impossible de joindre le mint. Vérifiez votre connexion et réessayez.';
+
+  @override
+  String get cashuErrorMintUnusable =>
+      'Il manque au mint de ce nœud des fonctions nécessaires au séquestre ; il n\'est donc pas possible d\'échanger ici.';
+
+  @override
+  String get cashuErrorUnsupportedOnWeb =>
+      'Le portefeuille Cashu n\'est pas encore disponible dans la version web.';
+
+  @override
+  String get cashuErrorAmountZero => 'Saisissez un montant supérieur à zéro.';
+
+  @override
+  String cashuErrorAmountTooLarge(int sats) {
+    return 'Vous n\'avez que $sats sats.';
+  }
+
+  @override
+  String get cashuErrorReceiveFailed =>
+      'Ce token n\'a pas pu être encaissé. Il provient peut-être d\'un autre mint, ou il a déjà été dépensé.';
+
+  @override
+  String get cashuErrorSendFailed =>
+      'Impossible de créer le token. Vos fonds sont peut-être insuffisants.';
+
+  @override
+  String get cashuErrorNoIdentity =>
+      'Créez ou importez un compte avant d\'utiliser le portefeuille.';
+
+  @override
+  String get cashuErrorGeneric =>
+      'Un problème est survenu avec le portefeuille. Veuillez réessayer.';
+
+  @override
+  String get cashuLastTokenPending =>
+      'Vous avez exporté un token. C\'est de l\'argent jusqu\'à ce que quelqu\'un l\'encaisse — gardez-le jusqu\'à confirmation.';
+
+  @override
+  String get cashuShowLastToken => 'Le réafficher';
+
+  @override
+  String get cashuLastTokenDone => 'Je l\'ai envoyé';
+
+  @override
+  String get cashuTokenTooLargeForQr =>
+      'Ce token est trop volumineux pour un code QR. Copiez-le à la place.';
+
+  @override
+  String get cashuErrorMintChanged =>
+      'Le nœud actif a changé et ce portefeuille est lié à une autre mint. Revenez en arrière et rouvrez le portefeuille.';
+
+  @override
+  String get cashuErrorNoMnemonic =>
+      'Ce compte a été importé depuis un nsec, il n\'y a donc pas de phrase de récupération pour en dériver le portefeuille. Le portefeuille Cashu nécessite un compte créé à partir d\'une phrase de récupération.';
+
+  @override
+  String get cashuErrorTokenUnverified =>
+      'Ce token n\'a pas pu être vérifié : il ne contient aucune preuve de la signature de la mint, il n\'a donc pas été accepté.';
+
+  @override
+  String get cashuErrorSendUnresolved =>
+      'L\'envoi a échoué et le portefeuille n\'a pas pu confirmer le retour des fonds. Synchronisez avec la mint avant de réessayer.';
+
+  @override
+  String get lockEscrowTitle => 'Verrouiller le séquestre';
+
+  @override
+  String get lockEscrowExplanation =>
+      'Verrouillez votre ecash dans un séquestre 2-sur-3 au mint de ce nœud. Ni vous ni l\'acheteur ne pouvez le déplacer seul — et si le nœud disparaît, vous pourrez le récupérer vous-même une fois le verrou expiré.';
+
+  @override
+  String get lockEscrowAmount => 'Séquestre';
+
+  @override
+  String get lockEscrowFee => 'Frais Mostro';
+
+  @override
+  String get lockEscrowTotal => 'Total';
+
+  @override
+  String get lockEscrowBalance => 'Votre solde';
+
+  @override
+  String get lockEscrowConfirm => 'Verrouiller le séquestre';
+
+  @override
+  String get lockEscrowFundWallet => 'Approvisionner le portefeuille';
+
+  @override
+  String get lockEscrowSubmitted => 'Séquestre verrouillé et envoyé';
+
+  @override
+  String get lockEscrowInsufficientFunds =>
+      'Votre portefeuille ne couvre pas le séquestre et les frais.';
+
+  @override
+  String get lockEscrowNotTheSeller => 'Seul le vendeur finance le séquestre.';
+
+  @override
+  String get lockEscrowInvalidToken =>
+      'Le séquestre n\'a pas pu être construit correctement. Rien n\'a été envoyé.';
+
+  @override
+  String get lockEscrowFailed =>
+      'Le mint n\'a pas pu verrouiller le séquestre. Vos fonds n\'ont pas bougé.';
+
+  @override
+  String lockEscrowMint(String mint) {
+    return 'Mint : $mint';
+  }
+
+  @override
+  String lockEscrowLocktime(int days) {
+    return 'Récupérable par vous après $days jours';
+  }
+
+  @override
+  String get lockEscrowRequestMissing =>
+      'Cet échange n\'a pas encore de demande de séquestre. Attendez que la prise de l\'acheteur arrive, puis réessayez.';
+
+  @override
+  String get lockEscrowWrongTradeKey =>
+      'Cet appareil ne détient pas la clé avec laquelle cet ordre a été pris. Restaurez votre compte sur l\'appareil où vous avez commencé l\'échange.';
+
+  @override
+  String get lockEscrowLocktimeNotReached =>
+      'Le séquestre est encore verrouillé. Vous pourrez le récupérer vous-même une fois le verrou expiré.';
+
+  @override
+  String get lockEscrowClockInvalid =>
+      'L\'horloge de votre appareil est incorrecte, le séquestre ne peut donc pas être daté correctement. Corrigez la date et réessayez.';
+
+  @override
+  String get lockEscrowRetry => 'Réessayer l\'envoi';
+
+  @override
+  String get lockEscrowPendingSubmission =>
+      'Votre séquestre est verrouillé mais le nœud ne l\'a pas confirmé. Réessayer est sans risque : il ne sera pas verrouillé une seconde fois.';
+
+  @override
+  String get lockEscrowMintUnknown =>
+      'Ce nœud n\'a pas publié son mint : il n\'y a nulle part où verrouiller l\'escrow.';
+
+  @override
+  String get lockEscrowNotRecorded =>
+      'L\'escrow est arrivé au nœud, mais cet appareil n\'a pas pu en garder une copie. Le trade peut continuer, mais cet appareil ne pourra pas récupérer l\'escrow.';
+
+  @override
+  String get lockEscrowRejectedToken =>
+      'Le nœud n\'a pas accepté cet escrow. Il a été mis de côté — il vous revient à l\'expiration de son verrou — et la prochaine tentative en verrouille un nouveau.';
+
+  @override
+  String get lockEscrowRejectedMint =>
+      'Le nœud utilise un autre mint. Cet escrow a été mis de côté — il vous revient à l\'expiration de son verrou. Vérifiez le mint du nœud avant de réessayer.';
+
+  @override
+  String get lockEscrowMintUnavailableAtNode =>
+      'Le nœud n\'a pas pu joindre le mint pour vérifier votre escrow. Réessayez : le même escrow est renvoyé, rien n\'est verrouillé deux fois.';
+
+  @override
+  String get lockEscrowRejectedGeneric =>
+      'Le nœud a refusé l\'escrow. Il reste enregistré sur cet appareil ; réessayez dans un instant.';
+
+  @override
+  String get lockEscrowNoAnswer =>
+      'Le nœud n\'a pas encore répondu. Votre escrow est enregistré ; réessayer renvoie le même.';
+
+  @override
+  String get lockEscrowOrderMovedOn =>
+      'Le nœud indique que cet ordre n\'attend plus l\'escrow. Votre escrow reste enregistré sur cet appareil ; le statut du trade se mettra à jour quand le nœud le signalera.';
+
+  @override
+  String get tradeHeadlineWaitingPaymentSellerCashu =>
+      'Verrouillez l\'escrow pour démarrer le trade';
+
+  @override
+  String get tradeWaitingPaymentSellerInstructionCashu =>
+      'Verrouillez votre ecash dans l\'escrow au mint du nœud. Cela démarre le trade, et il vous revient si le nœud disparaît.';
+
+  @override
+  String get tradeBodyWaitingPaymentBuyerCashu =>
+      'Ils verrouillent les sats dans l\'escrow. Une fois verrouillé, c\'est à vous de payer le fiat.';
 }

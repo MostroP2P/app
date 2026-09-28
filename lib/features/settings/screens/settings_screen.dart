@@ -11,6 +11,7 @@ import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/about/screens/about_screen.dart'
     show appVersionProvider;
 import 'package:mostro/features/settings/models/settings_rows.dart';
+import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/features/settings/providers/notification_prefs_provider.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
@@ -91,6 +92,16 @@ class SettingsScreen extends ConsumerWidget {
             rows: [
               _lightningAddressRow(context, ref, l10n, settings),
               _walletRow(context, ref, l10n),
+              // Shown only when the active node actually settles over Cashu:
+              // on a Lightning node the feature does not exist as far as the
+              // user is concerned, and an entry point that leads to a
+              // permanently empty wallet would be worse than none.
+              if (ref.watch(isCashuAvailableProvider))
+                SettingsRow(
+                  icon: Icons.savings_outlined,
+                  label: l10n.cashuWalletTitle,
+                  onTap: () => context.push(AppRoute.cashuWallet),
+                ),
             ],
           ),
           const SizedBox(height: settingsGroupGap),

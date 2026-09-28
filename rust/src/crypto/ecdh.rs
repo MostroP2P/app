@@ -44,13 +44,30 @@ pub fn decrypt_message(
 /// This is used when raw bytes are needed (e.g. for file-attachment
 /// symmetric encryption with `chacha20poly1305`).
 fn ecdh_sha256(secret: &nostr_sdk::prelude::SecretKey, peer: &PublicKey) -> Result<[u8; 32]> {
-    use k256::ecdh::diffie_hellman;
     use sha2::{Digest, Sha256};
 
-    // nostr-sdk SecretKey wraps secp256k1 — extract the inner key bytes.
-    let secret_bytes: [u8; 32] = secret.to_secret_bytes();
+    let x_bytes = raw_shared_x(secret, peer)?;
+    let mut hasher = Sha256::new();
+    hasher.update(*x_bytes);
+    Ok(hasher.finalize().into())
+}
 
-    let scalar = k256::SecretKey::from_bytes((&secret_bytes).into())
+/// The raw x-coordinate of `ECDH(secret, peer)` — **unhashed**.
+///
+/// This is the secret the chat spec's `derive_chat_keys` starts from, and the
+/// one v1 (`NostrUtils.computeSharedKey`, via `Nip44.computeSharedSecret`)
+/// uses directly as the ChaCha20-Poly1305 key of chat attachments. It is not
+/// [`derive_nip04_shared_key`], which hashes it.
+pub fn raw_shared_x(
+    secret: &nostr_sdk::prelude::SecretKey,
+    peer: &PublicKey,
+) -> Result<zeroize::Zeroizing<[u8; 32]>> {
+    use k256::ecdh::diffie_hellman;
+
+    // nostr-sdk SecretKey wraps secp256k1 — extract the inner key bytes.
+    let secret_bytes = zeroize::Zeroizing::new(secret.to_secret_bytes());
+
+    let scalar = k256::SecretKey::from_bytes((&*secret_bytes).into())
         .map_err(|e| anyhow!("invalid secret scalar: {e}"))?;
 
     let peer_bytes = hex::decode(peer.to_hex())
@@ -60,11 +77,9 @@ fn ecdh_sha256(secret: &nostr_sdk::prelude::SecretKey, peer: &PublicKey) -> Resu
 
     // Use the proper k256 Diffie-Hellman function.
     let shared = diffie_hellman(scalar.to_nonzero_scalar(), peer_point.as_affine());
-    let x_bytes = shared.raw_secret_bytes();
-
-    let mut hasher = Sha256::new();
-    hasher.update(x_bytes);
-    Ok(hasher.finalize().into())
+    let mut x = zeroize::Zeroizing::new([0u8; 32]);
+    x.copy_from_slice(shared.raw_secret_bytes());
+    Ok(x)
 }
 
 /// Convert a 32-byte x-only pubkey to a 33-byte compressed SEC1 point.

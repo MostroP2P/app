@@ -59,7 +59,7 @@ void main() {
         fakeOrder(id: 'eur', kind: 'sell', fiatCode: 'EUR'),
       ]);
       helper.setTab(OrderType.buy);
-      helper.container.read(currencyFilterProvider.notifier).state = ['EUR'];
+      await helper.filter(const OrderFilters(currencies: ['EUR']));
 
       expect(helper.ids(), ['eur']);
     });
@@ -70,9 +70,7 @@ void main() {
         fakeOrder(id: 'cash', kind: 'sell', paymentMethod: 'Cash'),
       ]);
       helper.setTab(OrderType.buy);
-      helper.container.read(paymentMethodFilterProvider.notifier).state = [
-        'revolut',
-      ];
+      await helper.filter(const OrderFilters(paymentMethods: ['revolut']));
 
       expect(helper.ids(), ['multi']);
     });
@@ -85,9 +83,7 @@ void main() {
       ]);
 
       // Act
-      helper.container.read(paymentMethodFilterProvider.notifier).state = [
-        'WIRE',
-      ];
+      await helper.filter(const OrderFilters(paymentMethods: ['WIRE']));
 
       // Assert
       expect(helper.ids(), ['padded']);
@@ -113,10 +109,7 @@ void main() {
         fakeOrder(id: 'high', kind: 'sell', rating: 4.5),
       ]);
       helper.setTab(OrderType.buy);
-      helper.container.read(ratingFilterProvider.notifier).state = (
-        min: 4.0,
-        max: 5.0,
-      );
+      await helper.filter(const OrderFilters(rating: (min: 4.0, max: 5.0)));
 
       expect(helper.ids(), ['high']);
     });
@@ -127,10 +120,7 @@ void main() {
         fakeOrder(id: 'pricey', kind: 'sell', premium: 8.0),
       ]);
       helper.setTab(OrderType.buy);
-      helper.container.read(premiumRangeFilterProvider.notifier).state = (
-        min: 5.0,
-        max: 10.0,
-      );
+      await helper.filter(const OrderFilters(premium: (min: 5.0, max: 10.0)));
 
       expect(helper.ids(), ['pricey']);
     });

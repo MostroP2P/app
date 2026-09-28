@@ -210,14 +210,18 @@ jobs:
       # seeds bond rows into IndexedDB, reloads, and checks the app reads them
       # back (docs/ANTI_ABUSE_BOND.md T5.1). SMOKE_PUSH_WORKER checks the FCM
       # messaging worker activates beside the shim without costing isolation
-      # (docs/PUSH_NOTIFICATIONS.md T4.5). Only here: the locale runs below test
-      # the bootstrap, not the store or the worker.
+      # (docs/PUSH_NOTIFICATIONS.md T4.5). SMOKE_ATTACHMENTS serves a Blossom
+      # endpoint on a second origin and checks an encrypted upload makes the
+      # round trip through fetch and the IndexedDB cache (#589 phase 4). Only
+      # here: the locale runs below test the bootstrap, not the store or the
+      # worker.
       - name: Smoke test the release bundle (headless Chrome)
         working-directory: test/web/smoke
         env:
           BUNDLE_DIR: ${{ github.workspace }}/build/web
           SMOKE_BOND_STORE: "1"
           SMOKE_PUSH_WORKER: "1"
+          SMOKE_ATTACHMENTS: "1"
         run: BASE_PATH="/${GITHUB_REPOSITORY#*/}/" node smoke.mjs
       # Built once and reused by every negative control below. Copying the
       # built bundle and cutting the sanitizer out of its HTML — rather than

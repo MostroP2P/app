@@ -185,6 +185,29 @@ impl SqliteStorage {
     }
 }
 
+/// Most bytes of encrypted attachments kept on the device (#589): about a
+/// dozen full-size files, far more photos. Oldest evicted first.
+const ATTACHMENT_CACHE_BYTES: i64 = 300 * 1024 * 1024;
+
+impl SqliteStorage {
+    /// Keep the attachment cache within `cap` bytes: the newest blobs stay,
+    /// the oldest go. A miss only costs a download, so eviction is always safe.
+    async fn trim_attachment_blobs(&self, cap: i64) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM attachment_blobs WHERE sha256 IN (
+                 SELECT sha256 FROM (
+                     SELECT sha256, SUM(size) OVER (ORDER BY created_at DESC, rowid DESC) AS running
+                     FROM attachment_blobs
+                 ) WHERE running > ?
+             )",
+        )
+        .bind(cap)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+}
+
 impl Storage for SqliteStorage {
     async fn save_order(&self, order: &OrderInfo) -> Result<()> {
         let data = serde_json::to_string(order)?;
@@ -525,6 +548,7 @@ impl Storage for SqliteStorage {
             "DELETE FROM trades",
             "DELETE FROM messages",
             "DELETE FROM bond_claims",
+            "DELETE FROM attachment_blobs",
             "DELETE FROM queued_messages",
             "DELETE FROM orders",
         ] {
@@ -800,6 +824,29 @@ impl Storage for SqliteStorage {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    async fn save_attachment_blob(&self, sha256: &str, blob: &[u8]) -> Result<()> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO attachment_blobs (sha256, data, size, created_at)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind(sha256)
+        .bind(blob)
+        .bind(blob.len() as i64)
+        .bind(crate::rt::unix_now())
+        .execute(&self.pool)
+        .await?;
+        self.trim_attachment_blobs(ATTACHMENT_CACHE_BYTES).await
+    }
+
+    async fn get_attachment_blob(&self, sha256: &str) -> Result<Option<Vec<u8>>> {
+        let row: Option<(Vec<u8>,)> =
+            sqlx::query_as("SELECT data FROM attachment_blobs WHERE sha256 = ?")
+                .bind(sha256)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(data,)| data))
     }
 
     async fn mark_trade_rated(&self, order_id: &str, rated_at: i64) -> Result<()> {
@@ -1148,6 +1195,12 @@ mod tests {
             peer_days: None,
             rated_at: None,
             bond: None,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            cashu_mint_url: None,
+            cashu_escrow_token: None,
+            cashu_locked_at: None,
+            cashu_rejected_escrow_tokens: Vec::new(),
         };
         storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
         storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
@@ -1219,6 +1272,12 @@ mod tests {
             peer_days: None,
             rated_at: None,
             bond: None,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            cashu_mint_url: None,
+            cashu_escrow_token: None,
+            cashu_locked_at: None,
+            cashu_rejected_escrow_tokens: Vec::new(),
         };
         storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
         storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
@@ -1313,6 +1372,12 @@ mod tests {
             peer_days: None,
             rated_at: None,
             bond: None,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            cashu_mint_url: None,
+            cashu_escrow_token: None,
+            cashu_locked_at: None,
+            cashu_rejected_escrow_tokens: Vec::new(),
         };
         storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
         storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
@@ -1392,6 +1457,12 @@ mod tests {
             peer_days: None,
             rated_at: None,
             bond: None,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            cashu_mint_url: None,
+            cashu_escrow_token: None,
+            cashu_locked_at: None,
+            cashu_rejected_escrow_tokens: Vec::new(),
         };
         storage.save_trade(&trade("row-a", "order-a")).await.unwrap();
         storage.save_trade(&trade("row-b", "order-b")).await.unwrap();
@@ -1469,6 +1540,12 @@ mod tests {
             peer_days: None,
             rated_at: None,
             bond: None,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            cashu_mint_url: None,
+            cashu_escrow_token: None,
+            cashu_locked_at: None,
+            cashu_rejected_escrow_tokens: Vec::new(),
         };
         // Maker-shaped row (empty peer) and a poisoned pre-fix row (daemon
         // pubkey seeded by the old take path).
@@ -1996,6 +2073,30 @@ mod tests {
     }
 
     /// Issue #533: a new user must find the app as a fresh install leaves it.
+    /// The attachment cache (#589): blobs come back as stored, the newest
+    /// survive the size cap, and a new identity starts with none.
+    #[tokio::test]
+    async fn attachment_blobs_are_cached_bounded_and_wiped_with_the_identity() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        assert_eq!(storage.get_attachment_blob("a").await.unwrap(), None);
+
+        storage.save_attachment_blob("a", &[1u8; 10]).await.unwrap();
+        storage.save_attachment_blob("b", &[2u8; 10]).await.unwrap();
+        storage.save_attachment_blob("c", &[3u8; 10]).await.unwrap();
+        assert_eq!(storage.get_attachment_blob("b").await.unwrap(), Some(vec![2u8; 10]));
+
+        // Room for two: the oldest goes, the two newest stay.
+        storage.trim_attachment_blobs(25).await.unwrap();
+        assert_eq!(storage.get_attachment_blob("a").await.unwrap(), None);
+        assert!(storage.get_attachment_blob("b").await.unwrap().is_some());
+        assert!(storage.get_attachment_blob("c").await.unwrap().is_some());
+
+        storage.clear_identity_data().await.unwrap();
+        assert_eq!(storage.get_attachment_blob("c").await.unwrap(), None);
+        let _ = std::fs::remove_file(path);
+    }
+
     /// Everything the identity produced goes; what belongs to the device —
     /// relays, the node choice, preferences — stays.
     #[tokio::test]
@@ -2047,6 +2148,12 @@ mod tests {
                 peer_days: None,
                 rated_at: None,
                 bond: None,
+                buyer_trade_pubkey: None,
+                seller_trade_pubkey: None,
+                cashu_mint_url: None,
+                cashu_escrow_token: None,
+                cashu_locked_at: None,
+                cashu_rejected_escrow_tokens: Vec::new(),
             })
             .await
             .unwrap();

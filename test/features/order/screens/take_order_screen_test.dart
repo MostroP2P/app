@@ -78,8 +78,8 @@ Future<StreamController<List<OrderItem>>> _pump(
       ),
     ],
   );
-  // Under a router, so a redirect to the trade is observable: it lands on a
-  // stand-in reading `trade`.
+  // Under a router, so where the screen sends the user is observable: each
+  // destination lands on a stand-in reading its own name.
   final router = GoRouter(
     initialLocation:
         isBuying ? AppRoute.takeSellPath(_id) : AppRoute.takeBuyPath(_id),
@@ -91,6 +91,14 @@ Future<StreamController<List<OrderItem>>> _pump(
       GoRoute(
         path: AppRoute.tradeDetail,
         builder: (_, __) => const Scaffold(body: Text('trade')),
+      ),
+      GoRoute(
+        path: AppRoute.payInvoice,
+        builder: (_, __) => const Scaffold(body: Text('pay')),
+      ),
+      GoRoute(
+        path: AppRoute.addInvoice,
+        builder: (_, __) => const Scaffold(body: Text('add invoice')),
       ),
     ],
   );
@@ -118,6 +126,7 @@ OrderItem _order({
   double? fiatAmountMax,
   double premium = 0,
   BigInt? amountSats,
+  OrderStatus status = OrderStatus.pending,
   double rating = 4.8,
   int tradeCount = 16,
   int daysActive = 219,
@@ -132,6 +141,7 @@ OrderItem _order({
   paymentMethod: 'Mercado Pago',
   premium: premium,
   amountSats: amountSats,
+  status: status,
   rating: rating,
   tradeCount: tradeCount,
   daysActive: daysActive,
@@ -299,6 +309,174 @@ void main() {
       });
     });
 
+    testWidgets('keeps Taking… while its own take moves the order on', (
+      tester,
+    ) async {
+      // Rust updates the order's book entry as soon as the daemon confirms
+      // the take, before `take_order` returns: that is this user's take, not
+      // the order going away (#454).
+      await withClock(Clock.fixed(kFakeNow), () async {
+        final reply = Completer<TradeInfo>();
+        final books = await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) => reply.future,
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        books.add([
+          fakeOrder(id: _id, status: OrderStatus.waitingBuyerInvoice),
+        ]);
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.text('Taking…'), findsOneWidget);
+        expect(find.text('No longer available'), findsNothing);
+        // Left unanswered on purpose: the screen is torn down while loading.
+      });
+    });
+
+    testWidgets('a failed take over an order that moved on reads unavailable', (
+      tester,
+    ) async {
+      // The in-flight hold lasts only as long as the take: once it fails,
+      // the book decides again, and here the order is gone from `pending`.
+      await withClock(Clock.fixed(kFakeNow), () async {
+        final reply = Completer<TradeInfo>();
+        final books = await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) => reply.future,
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        books.add([fakeOrder(id: _id, status: OrderStatus.inProgress)]);
+        await tester.pump();
+        reply.completeError(Exception('AnyhowException(NoDaemonResponse)'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Taking…'), findsNothing);
+        expect(find.text('No longer available'), findsOneWidget);
+      });
+    });
+
+    for (final (side, isBuying, lands) in [
+      ('seller', false, 'pay'),
+      ('buyer', true, 'trade'),
+    ]) {
+      testWidgets('a $side take that succeeds never reads unavailable on the '
+          'way out', (tester) async {
+        // `context.go` leaves this screen mounted while the next route
+        // animates in, so the frames after a successful take are the screen's
+        // too, and its own take is already in the book by then (#454).
+        //
+        // The buyer path reads the default Lightning address before it
+        // navigates, and that bridge call throws in a widget test — which is
+        // the unreadable-settings path itself: the take stands, the error
+        // never reaches `_showTakeError`, and the trade screen is where the
+        // user lands, offering the invoice step it owns.
+        await withClock(Clock.fixed(kFakeNow), () async {
+          final reply = Completer<TradeInfo>();
+          final books = await _pump(
+            tester,
+            order: _order(kind: isBuying ? 'sell' : 'buy'),
+            isBuying: isBuying,
+            take:
+                ({required orderId, required role, fiatAmount}) => reply.future,
+          );
+
+          await tester.tap(find.text('Take order'));
+          await tester.pump();
+          // The daemon's answer reaches the book first, as it does in Rust.
+          books.add([
+            _order(
+              kind: isBuying ? 'sell' : 'buy',
+              status:
+                  isBuying
+                      ? OrderStatus.waitingBuyerInvoice
+                      : OrderStatus.waitingPayment,
+            ),
+          ]);
+          await tester.pump();
+          reply.complete(
+            fakeTrade(
+              id: 'taken',
+              status:
+                  isBuying
+                      ? OrderStatus.waitingBuyerInvoice
+                      : OrderStatus.waitingPayment,
+            ),
+          );
+
+          for (var frame = 0; frame < 60; frame++) {
+            await tester.pump(const Duration(milliseconds: 16));
+            if (find.byType(TakeOrderScreen).evaluate().isEmpty) continue;
+            expect(
+              find.text('No longer available'),
+              findsNothing,
+              reason: '$side, frame $frame, with the screen still mounted',
+            );
+          }
+          expect(find.text(lands), findsOneWidget);
+          // A take that stands is never reported as a failure, and an
+          // unreadable setting does not send the buyer to a step the daemon
+          // may not be waiting for.
+          expect(find.byType(SnackBar), findsNothing);
+          if (isBuying) expect(find.text('add invoice'), findsNothing);
+        });
+      });
+    }
+
+    testWidgets('an order expiring mid-take keeps Taking…', (tester) async {
+      var now = kFakeNow;
+      await withClock(Clock(() => now), () async {
+        await _pump(
+          tester,
+          order: _order(expiresIn: const Duration(seconds: 2)),
+          take:
+              ({required orderId, required role, fiatAmount}) =>
+                  Completer<TradeInfo>().future,
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        now = kFakeNow.add(const Duration(seconds: 5));
+        await tester.pump(const Duration(seconds: 3));
+
+        expect(find.text('Taking…'), findsOneWidget);
+        expect(find.text('No longer available'), findsNothing);
+      });
+    });
+
+    testWidgets('an order that expired mid-take dies once the take fails', (
+      tester,
+    ) async {
+      // The countdown held its fire for the take, so the expiry it saw is
+      // applied when the take comes back empty-handed: the book still calls
+      // the order pending until the daemon publishes its end.
+      var now = kFakeNow;
+      await withClock(Clock(() => now), () async {
+        final reply = Completer<TradeInfo>();
+        await _pump(
+          tester,
+          order: _order(expiresIn: const Duration(seconds: 2)),
+          take: ({required orderId, required role, fiatAmount}) => reply.future,
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        now = kFakeNow.add(const Duration(seconds: 5));
+        await tester.pump(const Duration(seconds: 3));
+        reply.completeError(Exception('AnyhowException(NoDaemonResponse)'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('No longer available'), findsOneWidget);
+        expect(find.text('Take order'), findsNothing);
+      });
+    });
+
     testWidgets('dies in place when the daemon says it was already taken', (
       tester,
     ) async {
@@ -395,6 +573,60 @@ void main() {
 
         expect(find.text(en.sessionTimeoutMessage), findsOneWidget);
         expect(find.text('Take order'), findsOneWidget);
+      });
+    });
+
+    testWidgets('a second tap while the first is still checking takes once', (
+      tester,
+    ) async {
+      // The button stays on Take order until the role lookup (and, on a
+      // range order, the amount modal) is done: a tap in that window must not
+      // start a second take (#551).
+      await withClock(Clock.fixed(kFakeNow), () async {
+        final rows = Completer<List<TradeInfo>>();
+        final taken = <String>[];
+        await _pump(
+          tester,
+          order: _order(),
+          readTrades: () => rows.future,
+          take: ({required orderId, required role, fiatAmount}) {
+            taken.add(orderId);
+            // Left unanswered: only the dispatch is under test.
+            return Completer<TradeInfo>().future;
+          },
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        await tester.tap(find.text('Take order'));
+        await tester.pump();
+        rows.complete(const []);
+        await tester.pump();
+        await tester.pump();
+
+        expect(taken, [_id]);
+        expect(find.text('Taking…'), findsOneWidget);
+      });
+    });
+
+    testWidgets('a take that failed can be tried again', (tester) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        var attempts = 0;
+        await _pump(
+          tester,
+          order: _order(),
+          take: ({required orderId, required role, fiatAmount}) async {
+            attempts++;
+            throw Exception('AnyhowException(NoDaemonResponse)');
+          },
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Take order'));
+        await tester.pumpAndSettle();
+
+        expect(attempts, 2);
       });
     });
   });

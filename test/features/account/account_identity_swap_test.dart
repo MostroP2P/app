@@ -12,6 +12,8 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/account/restore/restore_run.dart';
+import 'package:mostro/features/account/restore/restore_sheet.dart';
 import 'package:mostro/features/account/screens/account_screen.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
@@ -42,6 +44,8 @@ Future<ProviderContainer> _pumpAccount(
   Future<void> Function(List<String> words)? onImport,
   Future<RecoveryOutcome> Function(ProviderContainer container)? onRecover,
   Future<List<FundsAtRisk>> Function()? fundsAtRisk,
+  bool privacyMode = false,
+  Object? privacyError,
 }) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
@@ -61,6 +65,10 @@ Future<ProviderContainer> _pumpAccount(
       // Memory-only: the sembast store does real I/O, which never completes
       // under the widget tester's fake clock.
       notificationsProvider.overrideWith((ref) => NotificationsNotifier()),
+      // The trade list and the book the summary reads are bridge-backed.
+      restoreSummaryProvider.overrideWith(
+        (ref) => const RestoreSummary(inProgress: 0, needsAction: 0),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -85,6 +93,24 @@ Future<ProviderContainer> _pumpAccount(
                   () async =>
                       await onRecover?.call(container) ??
                       const RecoveryOutcome.skipped(),
+              debugPrivacyMode: () async {
+                if (privacyError != null) throw privacyError;
+                return privacyMode;
+              },
+              debugRestartOrders: () async {},
+              // The restore sheet runs the same recovery: its count on
+              // success, an error when it failed.
+              debugRestoreRun:
+                  () => RestoreRun(
+                    progress: () async => const Stream.empty(),
+                    recover: () async {
+                      final outcome = await onRecover?.call(container);
+                      if (outcome?.isFailed ?? false) {
+                        throw StateError('NoDaemonResponse');
+                      }
+                      return outcome?.count ?? 0;
+                    },
+                  ),
             ),
       ),
     ],
@@ -122,12 +148,26 @@ Future<void> _seedPreviousUser(ProviderContainer container) async {
   container.read(chatReadStatusProvider.notifier).state = {'old': 1};
 }
 
-Future<void> _import(WidgetTester tester, AppLocalizations l10n) async {
+/// Import the seed, up to the restore sheet if one opens.
+Future<void> _submitImport(WidgetTester tester, AppLocalizations l10n) async {
   await tester.tap(find.bySemanticsIdentifier(AutomationIds.keysImport));
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField), _seed);
   await tester.tap(find.widgetWithText(FilledButton, l10n.importButtonLabel));
   await tester.pumpAndSettle();
+}
+
+/// Import the seed and close the restore sheet the way its final state
+/// offers: `Cerrar` once restored, `Continuar sin restaurar` on failure.
+Future<void> _import(WidgetTester tester, AppLocalizations l10n) async {
+  await _submitImport(tester, l10n);
+  for (final key in const ['restore.close', 'restore.continue']) {
+    final button = find.byKey(Key(key));
+    if (button.evaluate().isNotEmpty) {
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+    }
+  }
 }
 
 /// Tap `Generate`, up to whatever opens first: the funds-at-risk warning or
@@ -155,6 +195,153 @@ void main() {
       kBackupReminderDismissedKey: false,
     });
     l10n = await AppLocalizations.delegate.load(const Locale('en'));
+  });
+
+  // design_handoff_restaurar_ordenes: the restore runs in a sheet (20a–20d)
+  // over this screen, and the import finishes once the user closes it.
+  group('the restore sheet', () {
+    testWidgets('opens after an import and lands home once closed', (
+      tester,
+    ) async {
+      var recoveries = 0;
+      await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: false,
+        onRecover: (_) async {
+          recoveries++;
+          return const RecoveryOutcome.recovered(0);
+        },
+      );
+
+      await _submitImport(tester, l10n);
+
+      expect(recoveries, 1);
+      expect(find.text(l10n.restoreDoneTitle), findsOneWidget);
+      expect(find.text('home'), findsNothing, reason: 'the sheet is up');
+
+      await tester.tap(find.byKey(const Key('restore.close')));
+      await tester.pumpAndSettle();
+      expect(find.text('home'), findsOneWidget);
+    });
+
+    testWidgets('a failed restore keeps the import and lets the user go on', (
+      tester,
+    ) async {
+      final container = await _pumpAccount(
+        tester,
+        reminderArmed: true,
+        backedUp: false,
+        onRecover: (_) async => const RecoveryOutcome.failed(),
+      );
+
+      await _submitImport(tester, l10n);
+      expect(find.text(l10n.restoreFailedSubtitle), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('restore.continue')));
+      await tester.pumpAndSettle();
+      expect(find.text('home'), findsOneWidget);
+      expect(
+        container.read(backupCompletedProvider),
+        isTrue,
+        reason: 'the words were imported, so they are backed up',
+      );
+    });
+
+    testWidgets('Cancelar leaves the restore and the import stands', (
+      tester,
+    ) async {
+      final never = Completer<RecoveryOutcome>();
+      await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: false,
+        onRecover: (_) => never.future,
+      );
+
+      await tester.tap(find.bySemanticsIdentifier(AutomationIds.keysImport));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), _seed);
+      await tester.tap(
+        find.widgetWithText(FilledButton, l10n.importButtonLabel),
+      );
+      // The running stage spins, so the tree never settles.
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text(l10n.restoreSheetTitle), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('restore.cancel')));
+      await tester.pumpAndSettle();
+      expect(find.text('home'), findsOneWidget);
+    });
+
+    testWidgets('privacy mode has nothing to restore', (tester) async {
+      var recoveries = 0;
+      await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: false,
+        privacyMode: true,
+        onRecover: (_) async {
+          recoveries++;
+          return const RecoveryOutcome.recovered(0);
+        },
+      );
+
+      await _submitImport(tester, l10n);
+
+      expect(recoveries, 0);
+      expect(find.text(l10n.restoreSheetTitle), findsNothing);
+      expect(find.text('home'), findsOneWidget);
+    });
+
+    testWidgets('a privacy check that fails does not undo a refresh', (
+      tester,
+    ) async {
+      await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: true,
+        privacyError: StateError('bridge busy'),
+      );
+
+      final refresh = find.byIcon(Icons.refresh_rounded);
+      await tester.ensureVisible(refresh);
+      await tester.pumpAndSettle();
+      await tester.tap(refresh);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.refreshButtonLabel).last);
+      await tester.pumpAndSettle();
+
+      expect(find.text(l10n.orderBookRefreshedMessage), findsOneWidget);
+      expect(find.text(l10n.refreshFailedMessage), findsNothing);
+    });
+
+    testWidgets('Actualizar runs the same restore', (tester) async {
+      var recoveries = 0;
+      await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: true,
+        onRecover: (_) async {
+          recoveries++;
+          return const RecoveryOutcome.recovered(0);
+        },
+      );
+
+      final refresh = find.byIcon(Icons.refresh_rounded);
+      await tester.ensureVisible(refresh);
+      await tester.pumpAndSettle();
+      await tester.tap(refresh);
+      await tester.pumpAndSettle();
+      // The dialog's confirm action carries the same label.
+      await tester.tap(find.text(l10n.refreshButtonLabel).last);
+      await tester.pumpAndSettle();
+
+      expect(recoveries, 1);
+      expect(find.text(l10n.restoreDoneTitle), findsOneWidget);
+    });
   });
 
   group('importing a seed', () {

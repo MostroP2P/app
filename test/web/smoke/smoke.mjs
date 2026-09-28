@@ -11,6 +11,7 @@
 //   2. the Flutter engine mounted         (the view element exists)
 //   3. startup finished                   (Rust bridge answered, nothing fatal after it)
 //  3b. seeded bond rows read back         (opt-in: SMOKE_BOND_STORE=1)
+//  3d. an attachment upload + read-back   (opt-in: SMOKE_ATTACHMENTS=1)
 //   4. nothing errored along the way      (console + uncaught page errors)
 //   5. every asset the page asked for was served (catches --base-href breakage)
 //
@@ -27,6 +28,7 @@
 // Usage:
 //   BUNDLE_DIR=../../../build/web BASE_PATH=/app/ node smoke.mjs
 
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
@@ -132,6 +134,84 @@ function serveBundle(misses) {
 }
 
 /**
+ * A Blossom endpoint on a second origin, for step 3d (#589 phase 4).
+ *
+ * Another port is another origin, so the page's upload is a real CORS request
+ * from a cross-origin isolated page — the situation the production servers
+ * put it in. It answers the way they do: `Access-Control-Allow-Origin: *`, a
+ * preflight that allows `Authorization`, BUD-02's `PUT /upload` with a blob
+ * descriptor, and the blob at `/<sha256>`. Nothing leaves the machine.
+ */
+/**
+ * Why a BUD-02 upload authorization is unacceptable for `sha256`, or null when
+ * it is fine: a base64 kind 24242 event, `t` = upload, `x` = the blob's hash,
+ * an expiration still ahead. What a real server checks, short of the Schnorr
+ * signature — Rust's blossom tests verify that one.
+ */
+function uploadAuthProblem(header, sha256) {
+  if (!header?.startsWith('Nostr ')) return 'no "Nostr" authorization';
+  let event;
+  try {
+    event = JSON.parse(Buffer.from(header.slice('Nostr '.length), 'base64').toString('utf8'));
+  } catch {
+    return 'the authorization is not a base64 JSON event';
+  }
+  const tag = (name) => event.tags?.find((t) => t[0] === name)?.[1];
+  if (event.kind !== 24242) return `kind ${event.kind}, not 24242`;
+  if (!/^[0-9a-f]{64}$/.test(event.pubkey ?? '') || !/^[0-9a-f]{128}$/.test(event.sig ?? '')) {
+    return 'the event is not signed';
+  }
+  if (tag('t') !== 'upload') return `t tag "${tag('t')}", not "upload"`;
+  if (tag('x') !== sha256) return `x tag "${tag('x')}" does not name the uploaded blob`;
+  if (!(Number(tag('expiration')) > Date.now() / 1000)) return 'no future expiration';
+  return null;
+}
+
+function serveBlossom(requests) {
+  const blobs = new Map();
+  const server = createServer((req, res) => {
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    const request = { method: req.method, path: pathname, authProblem: null };
+    requests.push(request);
+    const send = (status, body, type) => {
+      res.writeHead(status, {
+        'Content-Type': type || 'text/plain; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, PUT, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        'Cache-Control': 'no-store',
+      });
+      res.end(body);
+    };
+
+    if (req.method === 'OPTIONS') return send(204, '');
+    if (req.method === 'PUT' && pathname === '/upload') {
+      const chunks = [];
+      req.on('data', (chunk) => chunks.push(chunk));
+      req.on('end', () => {
+        const blob = Buffer.concat(chunks);
+        const sha256 = createHash('sha256').update(blob).digest('hex');
+        // Refused like a real server would, so a bad authorization fails
+        // the round trip rather than passing it.
+        request.authProblem = uploadAuthProblem(req.headers.authorization, sha256);
+        if (request.authProblem) return send(401, request.authProblem);
+        blobs.set(sha256, blob);
+        send(200, JSON.stringify({ sha256, size: blob.length }), 'application/json');
+      });
+      return;
+    }
+    const blob = req.method === 'GET' ? blobs.get(pathname.slice(1)) : undefined;
+    if (blob) return send(200, blob, 'application/octet-stream');
+    send(404, 'not found');
+  });
+
+  return new Promise((ok, fail) => {
+    server.on('error', fail);
+    server.listen(0, '127.0.0.1', () => ok(server));
+  });
+}
+
+/**
  * Runs in the page: writes each seeded document into its store as a string,
  * which is how rust/src/db/indexeddb.rs stores them. Returns true, or why it
  * could not.
@@ -189,6 +269,11 @@ async function main() {
   const url = `http://127.0.0.1:${port}${BASE_PATH}`;
   console.log(`serving ${BUNDLE_DIR} at ${url}`);
 
+  const blossomRequests = [];
+  const blossom =
+    process.env.SMOKE_ATTACHMENTS === '1' ? await serveBlossom(blossomRequests) : null;
+  const blossomUrl = blossom && `http://127.0.0.1:${blossom.address().port}`;
+
   // Everything past this point runs under the finally that closes the server:
   // a listening socket keeps the event loop alive, so leaking one turns a
   // browser that failed to start into a job that hangs until its timeout
@@ -220,6 +305,14 @@ async function main() {
       await page.addInitScript(() => {
         globalThis.mostroStoreProbeRequested = true;
       });
+    }
+
+    // Likewise for the attachment round trip (step 3d): the app runs it only
+    // when this names the server to run it against.
+    if (blossomUrl) {
+      await page.addInitScript((server) => {
+        globalThis.mostroAttachmentProbeServer = server;
+      }, blossomUrl);
     }
 
     // SMOKE_LOCALE goes through Playwright, which normalizes the tag before the
@@ -466,6 +559,34 @@ async function main() {
       console.log('✓ messaging worker active, page still isolated');
     }
 
+    // 3d. An attachment makes the round trip on the web (#589 phase 4).
+    //
+    //     Opt-in: SMOKE_ATTACHMENTS=1. The bridge answering says nothing about
+    //     the browser's fetch from an isolated page to another origin, nor the
+    //     IndexedDB blob cache, and either can break while the page looks
+    //     healthy. The app encrypts random bytes, uploads them to the endpoint
+    //     above, downloads them back against their hash, caches and decrypts
+    //     them (lib/core/web/attachment_probe.dart), then reports.
+    if (blossomUrl) {
+      await page
+        .waitForFunction(
+          () =>
+            globalThis.mostroAttachmentProbe === true ||
+            typeof globalThis.mostroAttachmentProbeError === 'string' ||
+            typeof globalThis.mostroBridgeError === 'string',
+          undefined,
+          { timeout: TIMEOUT_MS },
+        )
+        .catch(() => fail('the attachment round trip never reported (mostroAttachmentProbe)'));
+      // The endpoint refuses an upload whose kind 24242 authorization is
+      // wrong (uploadAuthProblem), so a success here means it was right.
+      const authProblem = blossomRequests.find((r) => r.authProblem)?.authProblem;
+      if (authProblem) await fail(`the upload authorization was refused: ${authProblem}`);
+      const probeError = await page.evaluate(() => globalThis.mostroAttachmentProbeError);
+      if (probeError) await fail(`the attachment round trip failed: ${probeError}`);
+      console.log('✓ attachment uploaded, downloaded, cached and decrypted');
+    }
+
     // 4/5. Anything the page complained about, and anything it asked for that
     //      this server could not serve.
     if (ignored.length) {
@@ -483,6 +604,8 @@ async function main() {
     // behind would hold the process open just as a listening one would.
     server.closeAllConnections();
     server.close();
+    blossom?.closeAllConnections();
+    blossom?.close();
   }
 }
 

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/chat/attachments/attachment_flow.dart';
+import 'package:mostro/features/chat/attachments/upload_controller.dart';
 import 'package:mostro/features/chat/models/chat_list_rules.dart';
 import 'package:mostro/features/chat/providers/chat_list_provider.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
@@ -11,6 +13,7 @@ import 'package:mostro/features/chat/widgets/info_panels.dart';
 import 'package:mostro/features/chat/widgets/message_bubble.dart';
 import 'package:mostro/features/chat/widgets/message_input.dart';
 import 'package:mostro/features/chat/widgets/trade_state_header.dart';
+import 'package:mostro/features/chat/widgets/upload_bubble.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
@@ -38,8 +41,7 @@ const Duration kMarkReadDebounce = Duration(milliseconds: 400);
 bool isPinnedToBottom({
   required double offset,
   required double maxScrollExtent,
-}) =>
-    maxScrollExtent - offset <= kFollowThresholdPixels;
+}) => maxScrollExtent - offset <= kFollowThresholdPixels;
 
 /// Route: /chat_room/:orderId
 ///
@@ -56,10 +58,7 @@ bool isPinnedToBottom({
 ///   Rust `subscribe_incoming_chat` background task.
 /// - [messages_api.markAsRead] resets unread count when the room is entered.
 class ChatRoomScreen extends ConsumerStatefulWidget {
-  const ChatRoomScreen({
-    super.key,
-    required this.orderId,
-  });
+  const ChatRoomScreen({super.key, required this.orderId});
 
   final String orderId;
 
@@ -103,8 +102,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     // The ref.listen in build only fires on changes; when the provider is
     // already alive with data (pushed from a screen that watches the same
     // family member), there is no change coming — apply the current value.
-    unawaited(_applyTradeIdentity(
-        ref.read(tradeInfoProvider(widget.orderId)).valueOrNull));
+    unawaited(
+      _applyTradeIdentity(
+        ref.read(tradeInfoProvider(widget.orderId)).valueOrNull,
+      ),
+    );
     _loadHistory();
     _markRead();
   }
@@ -228,19 +230,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         content: text.trim(),
       );
       if (!mounted) return;
-      // Record the id here too: every path that appends to [_messages] must
-      // go through [_seenIds], or an echo of this send arriving on the
-      // stream would render it twice.
-      if (_seenIds.add(sent.id)) {
-        setState(() => _messages.add(sent));
-      }
-      _scrollToBottom();
-      ref.read(chatRoomsNotifierProvider.notifier).upsertRoom(
-            _buildRoomPreview(
-              lastMsg: sent,
-              rooms: ref.read(chatRoomsNotifierProvider),
-            ),
-          );
+      _addOwnMessage(sent);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -254,11 +244,46 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
+  /// Appends a message this device sent and moves the room preview to it.
+  void _addOwnMessage(rust_types.ChatMessage sent) {
+    // Every path that appends to [_messages] must go through [_seenIds], or
+    // an echo of this send arriving on the stream would render it twice.
+    if (_seenIds.add(sent.id)) {
+      setState(() => _messages.add(sent));
+    }
+    _scrollToBottom();
+    ref
+        .read(chatRoomsNotifierProvider.notifier)
+        .upsertRoom(
+          _buildRoomPreview(
+            lastMsg: sent,
+            rooms: ref.read(chatRoomsNotifierProvider),
+          ),
+        );
+  }
+
+  /// Paperclip: pick, confirm, then send (#589). The spinner covers the
+  /// pick and the read; the upload shows its own progress in the list.
   Future<void> _onAttach() async {
-    setState(() => _isAttaching = true);
-    // File attachment via send_file is wired in Rust; UI hook deferred.
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (mounted) setState(() => _isAttaching = false);
+    if (_isAttaching) return;
+    final picked = await pickAttachmentToSend(
+      context,
+      ref,
+      onBusy: (busy) => setState(() => _isAttaching = busy),
+    );
+    if (picked == null || !mounted) return;
+    _scrollToBottom();
+    final sent = await ref
+        .read(chatUploadsProvider(widget.orderId).notifier)
+        .send(picked.name, picked.bytes);
+    if (sent != null && mounted) _addOwnMessage(sent);
+  }
+
+  Future<void> _retryUpload(String uploadId) async {
+    final sent = await ref
+        .read(chatUploadsProvider(widget.orderId).notifier)
+        .retry(uploadId);
+    if (sent != null && mounted) _addOwnMessage(sent);
   }
 
   // ── Incoming stream ───────────────────────────────────────────────────────
@@ -278,7 +303,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     // reading, and a burst starts one animation per message.
     if (wasAtBottom) _scrollToBottom();
     _scheduleMarkRead();
-    ref.read(chatRoomsNotifierProvider.notifier).upsertRoom(
+    ref
+        .read(chatRoomsNotifierProvider.notifier)
+        .upsertRoom(
           _buildRoomPreview(
             lastMsg: msg,
             rooms: ref.read(chatRoomsNotifierProvider),
@@ -343,28 +370,29 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   }
 
   void _toggleTradeInfo() => setState(() {
-        _showTradeInfo = !_showTradeInfo;
-        if (_showTradeInfo) _showUserInfo = false;
-      });
+    _showTradeInfo = !_showTradeInfo;
+    if (_showTradeInfo) _showUserInfo = false;
+  });
 
   void _toggleUserInfo() => setState(() {
-        _showUserInfo = !_showUserInfo;
-        if (_showUserInfo) _showTradeInfo = false;
-      });
+    _showUserInfo = !_showUserInfo;
+    if (_showUserInfo) _showTradeInfo = false;
+  });
 
   ChatRoomState _resolveRoom(List<ChatRoomState> rooms) {
     return rooms.firstWhere(
       (r) => r.orderId == widget.orderId,
-      orElse: () => ChatRoomState(
-        orderId: widget.orderId,
-        peerPubkey: '',
-        // Locale-independent: the localized "Unknown" is resolved at render
-        // time via ChatRoomState.displayHandle, never cached in the model.
-        peerHandle: '',
-        peerIconIndex: 0,
-        peerColorHue: 180,
-        isSelling: false,
-      ),
+      orElse:
+          () => ChatRoomState(
+            orderId: widget.orderId,
+            peerPubkey: '',
+            // Locale-independent: the localized "Unknown" is resolved at render
+            // time via ChatRoomState.displayHandle, never cached in the model.
+            peerHandle: '',
+            peerIconIndex: 0,
+            peerColorHue: 180,
+            isSelling: false,
+          ),
     );
   }
 
@@ -380,9 +408,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     // Strategy: start from room.unreadCount (as last set by the bridge) and
     // increment by one only when the incoming message is unread and not ours.
     // _markRead will reset this to 0 once the async call completes.
-    final unread = (lastMsg.isMine || lastMsg.isRead)
-        ? room.unreadCount
-        : room.unreadCount + 1;
+    final unread =
+        (lastMsg.isMine || lastMsg.isRead)
+            ? room.unreadCount
+            : room.unreadCount + 1;
     return room.copyWith(
       lastMessage: lastMsg.content,
       lastMessageIsOwn: lastMsg.isMine,
@@ -431,6 +460,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       throw StateError('AppColors theme extension must be registered');
     }
 
+    final uploads = ref.watch(chatUploadsProvider(widget.orderId));
+
     final screenWidth = MediaQuery.sizeOf(context).width;
     final showSidePanel = screenWidth >= AppBreakpoints.tablet;
 
@@ -441,30 +472,31 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         width: 300,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
-          child: _showTradeInfo
-              ? TradeInformationTab(
-                  key: const ValueKey('trade'),
-                  orderId: widget.orderId,
-                )
-              : _showUserInfo
+          child:
+              _showTradeInfo
+                  ? TradeInformationTab(
+                    key: const ValueKey('trade'),
+                    orderId: widget.orderId,
+                  )
+                  : _showUserInfo
                   ? UserInformationTab(
-                      key: const ValueKey('user'),
-                      peerHandle: displayHandle,
-                      peerPubkey: room.peerPubkey,
-                      peerIconIndex: room.peerIconIndex,
-                      peerColorHue: room.peerColorHue,
-                    )
+                    key: const ValueKey('user'),
+                    peerHandle: displayHandle,
+                    peerPubkey: room.peerPubkey,
+                    peerIconIndex: room.peerIconIndex,
+                    peerColorHue: room.peerColorHue,
+                  )
                   : Container(
-                      key: const ValueKey('none'),
-                      color: colors.backgroundCard,
-                      child: Center(
-                        child: Text(
-                          l10n.selectForDetailsHint,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: colors.textSubtle),
-                        ),
+                    key: const ValueKey('none'),
+                    color: colors.backgroundCard,
+                    child: Center(
+                      child: Text(
+                        l10n.selectForDetailsHint,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colors.textSubtle),
                       ),
                     ),
+                  ),
         ),
       );
     }
@@ -480,61 +512,82 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
         if (!showSidePanel)
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 250),
-            child: _showTradeInfo
-                ? TradeInformationTab(
-                    key: const ValueKey('trade'),
-                    orderId: widget.orderId,
-                  )
-                : _showUserInfo
+            child:
+                _showTradeInfo
+                    ? TradeInformationTab(
+                      key: const ValueKey('trade'),
+                      orderId: widget.orderId,
+                    )
+                    : _showUserInfo
                     ? UserInformationTab(
-                        key: const ValueKey('user'),
-                        peerHandle: displayHandle,
-                        peerPubkey: room.peerPubkey,
-                        peerIconIndex: room.peerIconIndex,
-                        peerColorHue: room.peerColorHue,
-                      )
+                      key: const ValueKey('user'),
+                      peerHandle: displayHandle,
+                      peerPubkey: room.peerPubkey,
+                      peerIconIndex: room.peerIconIndex,
+                      peerColorHue: room.peerColorHue,
+                    )
                     : const SizedBox.shrink(key: ValueKey('none')),
           ),
 
         // Message list
         Expanded(
-          child: !_historyLoaded
-              ? const Center(child: CircularProgressIndicator())
-              : _messages.isEmpty
+          child:
+              !_historyLoaded
+                  ? const Center(child: CircularProgressIndicator())
+                  : _messages.isEmpty && uploads.isEmpty
                   ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Text(
-                          l10n.noMessagesYet(displayHandle),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: colors.textSubtle),
-                        ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Text(
+                        l10n.noMessagesYet(displayHandle),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colors.textSubtle),
                       ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.sm),
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = _messages[index];
-                        return MessageBubble(
-                          // Adapt the FRB-generated ChatMessage to the
-                          // Dart-side ChatMessage used by MessageBubble.
-                          message: ChatMessage(
-                            id: msg.id,
-                            tradeId: msg.tradeId,
-                            content: msg.content,
-                            isMine: msg.isMine,
-                            isRead: msg.isRead,
-                            hasAttachment: msg.hasAttachment,
-                            createdAt: msg.createdAt.toInt(),
-                            messageType: _msgTypeStr(msg.messageType),
-                          ),
-                          peerColorHue: room.peerColorHue,
-                        );
-                      },
                     ),
+                  )
+                  : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                    ),
+                    itemCount: _messages.length + uploads.length,
+                    itemBuilder: (context, index) {
+                      // Files still on their way out follow the history.
+                      if (index >= _messages.length) {
+                        final upload = uploads[index - _messages.length];
+                        return UploadBubble(
+                          key: ValueKey(upload.id),
+                          upload: upload,
+                          onRetry: () => _retryUpload(upload.id),
+                          onDiscard:
+                              () => ref
+                                  .read(
+                                    chatUploadsProvider(
+                                      widget.orderId,
+                                    ).notifier,
+                                  )
+                                  .discard(upload.id),
+                        );
+                      }
+                      final msg = _messages[index];
+                      return MessageBubble(
+                        // Adapt the FRB-generated ChatMessage to the
+                        // Dart-side ChatMessage used by MessageBubble.
+                        message: ChatMessage(
+                          id: msg.id,
+                          tradeId: msg.tradeId,
+                          content: msg.content,
+                          isMine: msg.isMine,
+                          isRead: msg.isRead,
+                          hasAttachment: msg.hasAttachment,
+                          createdAt: msg.createdAt.toInt(),
+                          messageType: _msgTypeStr(msg.messageType),
+                          attachment: msg.attachment,
+                        ),
+                        peerColorHue: room.peerColorHue,
+                      );
+                    },
+                  ),
         ),
 
         // Composition bar
@@ -551,10 +604,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             ChatRowState(isReadOnly: true) => const _ClosedNotice(),
             ChatRowState(canCompose: false) => const SizedBox.shrink(),
             _ => MessageInput(
-                onSendText: _onSend,
-                onAttachFile: _onAttach,
-                isAttaching: _isAttaching || _isSending,
-              ),
+              onSendText: _onSend,
+              onAttachFile: _onAttach,
+              isAttaching: _isAttaching || _isSending,
+            ),
           },
         ),
       ],
@@ -586,15 +639,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           ),
         ],
       ),
-      body: showSidePanel && sidePanel != null
-          ? Row(
-              children: [
-                Expanded(child: chatColumn),
-                const VerticalDivider(width: 1),
-                sidePanel,
-              ],
-            )
-          : chatColumn,
+      body:
+          showSidePanel && sidePanel != null
+              ? Row(
+                children: [
+                  Expanded(child: chatColumn),
+                  const VerticalDivider(width: 1),
+                  sidePanel,
+                ],
+              )
+              : chatColumn,
       bottomNavigationBar: const BottomNavBar(),
     );
   }
@@ -603,10 +657,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 String _msgTypeStr(rust_types.MessageType t) => switch (t) {
-      rust_types.MessageType.peer => 'peer',
-      rust_types.MessageType.admin => 'admin',
-      rust_types.MessageType.system => 'system',
-    };
+  rust_types.MessageType.peer => 'peer',
+  rust_types.MessageType.admin => 'admin',
+  rust_types.MessageType.system => 'system',
+};
 
 // ── Closed notice ─────────────────────────────────────────────────────────────
 

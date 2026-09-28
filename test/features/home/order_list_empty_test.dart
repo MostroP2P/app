@@ -5,6 +5,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/widgets/order_list_empty.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/fake_orders.dart';
 
@@ -17,10 +18,10 @@ Future<ProviderContainer> _pump(
   required List<OrderItem> book,
   List<String> currencies = const [],
 }) async {
+  SharedPreferences.setMockInitialValues({});
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        currencyFilterProvider.overrideWith((ref) => currencies),
         orderBookProvider.overrideWith((ref) => Stream.value(book)),
       ],
       child: MaterialApp(
@@ -32,9 +33,15 @@ Future<ProviderContainer> _pump(
       ),
     ),
   );
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(Scaffold)),
+  );
+  await container
+      .read(orderFiltersProvider.notifier)
+      .set(OrderFilters(currencies: currencies));
   // Let the overridden book stream deliver.
   await tester.pump();
-  return ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
+  return container;
 }
 
 void main() {
@@ -61,7 +68,7 @@ void main() {
     await tester.tap(find.text('Clear filters'));
     await tester.pump();
 
-    expect(container.read(currencyFilterProvider), isEmpty);
+    expect(container.read(orderFiltersProvider).currencies, isEmpty);
     expect(find.text('Clear filters'), findsNothing);
   });
 

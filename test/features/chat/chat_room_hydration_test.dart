@@ -48,6 +48,7 @@ rust_types.TradeInfo _trade({required String counterpartyPubkey}) =>
         rust_types.SellerStep.takerFound,
       ),
       tradeKeyIndex: 1,
+      cashuRejectedEscrowTokens: const [],
       startedAt: intToPlatformInt64(1),
     );
 

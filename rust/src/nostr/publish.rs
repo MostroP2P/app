@@ -5,7 +5,9 @@
 //! holds the caller — and the screen behind it — for seconds after the event
 //! already reached the daemon through the healthy ones. The SDK's
 //! `FirstSuccess` ack policy is still commented out upstream (0.45), hence
-//! this.
+//! this. Daemon messages and the peer and dispute chats all publish through
+//! [`publish_event`]: a chat message used to wait for the slowest relay too,
+//! and showed up in its own conversation 10 s late.
 
 use std::future::Future;
 
@@ -55,6 +57,73 @@ where
     anyhow::bail!("NoRelayAccepted")
 }
 
+/// Publish a signed event through `client`'s write relays, resolving on the
+/// **first** that accepts it (see [`first_accepted`]). Each relay's outcome is
+/// logged as it answers, including those that answer after the return — with
+/// one relay habitually down, knowing where each event landed is what makes
+/// delivery issues diagnosable. Envelope metadata only: no content is logged.
+///
+/// Fails with `NoRelayAccepted` when no relay took it.
+pub(crate) async fn publish_event(
+    client: &nostr_sdk::prelude::Client,
+    event: &nostr_sdk::prelude::Event,
+) -> Result<()> {
+    use nostr_sdk::prelude::RelayCapabilities;
+
+    let kind = event.kind.as_u16();
+    let eid = event.id.to_hex();
+
+    // What `Client::send_event` does before fanning out. Verified first, so an
+    // inconsistent event fails here rather than in the store or on a relay;
+    // then saved: with the event in the SDK's store, a relay echoing it back
+    // on one of our subscriptions is not notified as new.
+    event
+        .verify()
+        .map_err(|e| anyhow::anyhow!("invalid event: {e}"))?;
+    if let Err(e) = client.database().save_event(event).await {
+        log::warn!("[publish] ev={eid} not saved to the local store: {e}");
+    }
+
+    let sends = client
+        .relays()
+        .with_capabilities(RelayCapabilities::WRITE)
+        .await
+        .into_iter()
+        .map(|(url, relay)| {
+            let event = event.clone();
+            let send = async move {
+                relay
+                    .send_event(&event)
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            };
+            (url.to_string(), send)
+        })
+        .collect();
+
+    let report = move |relay: &str, outcome: &SendOutcome| {
+        let ev = crate::api::logging::short_id(&eid);
+        let relay = crate::api::logging::display_relay(relay);
+        match outcome {
+            Ok(()) => crate::api::logging::blog_info(
+                "publish",
+                format!("ev={ev} kind={kind} relay={relay} OK"),
+            ),
+            Err(err) => crate::api::logging::blog_warn(
+                "publish",
+                format!(
+                    "ev={ev} kind={kind} relay={relay} FAIL: {}",
+                    crate::api::logging::sanitize_relay_text(err),
+                ),
+            ),
+        }
+    };
+
+    // An `OK false` is a relay error here, so "accepted" means accepted.
+    first_accepted(sends, report).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,6 +143,61 @@ mod tests {
     async fn after(delay_ms: u64, outcome: SendOutcome) -> SendOutcome {
         tokio::time::sleep(Duration::from_millis(delay_ms)).await;
         outcome
+    }
+
+    /// A relay that completes the websocket handshake and then never answers:
+    /// connected, but no `OK` ever comes back — what a stuck relay looks like.
+    async fn silent_relay() -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    if let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await {
+                        use futures_util::StreamExt;
+                        while ws.next().await.is_some() {}
+                    }
+                });
+            }
+        });
+        url
+    }
+
+    /// The chat delay of a stuck relay: one relay accepts at once, the other
+    /// never answers. The publish is back with the first, not after the
+    /// other's 10 s `OK` timeout, as `Client::send_event` would be.
+    #[tokio::test]
+    async fn a_relay_that_never_answers_does_not_hold_the_publish() {
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::*;
+
+        // Arrange
+        let healthy = MockRelay::run().await.expect("mock relay");
+        let healthy_url = healthy.url().await;
+        let silent_url = silent_relay().await;
+        let client = Client::new();
+        for url in [healthy_url.to_string(), silent_url] {
+            client.add_relay(&url).await.expect("add relay");
+            client
+                .try_connect_relay(&url, Duration::from_secs(3))
+                .await
+                .expect("connected");
+        }
+        let event = EventBuilder::new(Kind::TextNote, "hello")
+            .finalize(&Keys::generate())
+            .unwrap();
+
+        // Act
+        let started = Instant::now();
+        let result = publish_event(&client, &event).await;
+
+        // Assert
+        assert!(result.is_ok(), "{result:?}");
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "held for {:?} by the silent relay",
+            started.elapsed()
+        );
     }
 
     #[tokio::test]

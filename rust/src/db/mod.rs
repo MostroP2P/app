@@ -1,4 +1,8 @@
 pub mod app_db;
+/// The web attachment cache's eviction rule; compiled everywhere for the
+/// same reason as `trade_json`.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub mod blob_cache;
 #[cfg(target_arch = "wasm32")]
 pub mod indexeddb;
 pub mod schema;
@@ -132,10 +136,25 @@ pub mod settings_keys {
     /// Prefix of [`invoice_step_start`] keys.
     pub const INVOICE_STEP_PREFIX: &str = "invoice_step_start:";
 
-    /// Per-order start of the current invoice step (`<status>:<unix secs>`,
-    /// node clock), written only by the AddInvoice / PayInvoice arms. Unlike
-    /// [`status_cursor`], later messages for the same step never advance it,
-    /// so the invoice screens' countdown cannot be pushed out.
+    /// Per-order start of the current invoice step
+    /// (`<status>:<unix secs>:<trade_index>`, node clock), written only by the
+    /// AddInvoice / PayInvoice arms. Unlike [`status_cursor`], later messages
+    /// for the same step never advance it, so the invoice screens' countdown
+    /// cannot be pushed out.
+    ///
+    /// `trade_index` is the generation the message was addressed to, and it
+    /// decides before the timestamp does: a step belongs to one trade, not to
+    /// one status, so a later take opens a new step even though its status is
+    /// `WaitingBuyerInvoice` again, and a message for a superseded key never
+    /// walks the current start backwards (`next_step_start`, issue #567).
+    /// Values written before the generation existed carry two fields and are
+    /// replaced by the first message that can name its own.
+    ///
+    /// The generation identifies a **taker's** take, since a taker derives a
+    /// key per take. A maker keeps one key for the whole life of the order,
+    /// so nothing in the value distinguishes their takes: the key is deleted
+    /// instead when the daemon puts the order back on the book
+    /// (`resync_republished_maker_order`), and when the row is wiped.
     pub fn invoice_step_start(order_id: &str) -> String {
         format!("{INVOICE_STEP_PREFIX}{order_id}")
     }
@@ -258,7 +277,8 @@ pub trait Storage: Send + Sync {
     async fn clear_trade_keys(&self) -> Result<()>;
 
     /// Delete everything the current identity produced: trades, chat
-    /// messages, payout claims, the outbound queue, the cached order book
+    /// messages and their cached attachments, payout claims, the outbound
+    /// queue, the cached order book
     /// (its `is_mine` marks are the identity's) and the per-order settings
     /// ([`settings_keys::IDENTITY_SCOPED_PREFIXES`] and the retained-nodes
     /// map). Used on identity deletion, next to [`Self::clear_trade_keys`]:
@@ -390,4 +410,22 @@ pub trait Storage: Send + Sync {
 
     /// Remove one claim. No-op when absent.
     async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()>;
+
+    // ── Chat attachment cache (#589) ──────────────────────────────────────────
+
+    /// Keep an attachment's blob, **still encrypted**, under its SHA-256, so
+    /// it is not downloaded again. Decrypted bytes are never stored: the cache
+    /// is as unreadable as the copy on the Blossom server. Identity-scoped —
+    /// [`Self::clear_identity_data`] empties it.
+    ///
+    /// The default keeps nothing, for stores that have no cache: a miss only
+    /// costs a download. SQLite and IndexedDB both implement it.
+    async fn save_attachment_blob(&self, _sha256: &str, _blob: &[u8]) -> Result<()> {
+        Ok(())
+    }
+
+    /// The encrypted blob cached under `sha256`, if any.
+    async fn get_attachment_blob(&self, _sha256: &str) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
 }

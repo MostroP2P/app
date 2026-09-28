@@ -18,16 +18,17 @@
 /// stop every order from being created.
 use anyhow::{anyhow, Result};
 use indexed_db_futures::prelude::*;
-use web_sys::wasm_bindgen::JsValue;
+use web_sys::wasm_bindgen::{JsCast, JsValue};
 
 use crate::api::types::{
     ChatMessage, IdentityInfo, OrderInfo, QueuedMessageStatus, RelayInfo, TradeInfo,
 };
+use crate::db::blob_cache::{blobs_to_evict, BlobEntry, WEB_ATTACHMENT_CACHE_BYTES};
 use crate::db::{settings_keys, trade_json, web_lock, Storage};
 use crate::queue::outbox::QueuedMessage;
 
 /// Bumped when a store is added; `open_db` creates whatever is missing.
-const DB_VERSION: u32 = 4;
+const DB_VERSION: u32 = 5;
 const MESSAGES_STORE: &str = "messages";
 const SETTINGS_STORE: &str = "settings";
 const TRADES_STORE: &str = "trades";
@@ -37,13 +38,18 @@ const RELAYS_STORE: &str = "relays";
 const IDENTITY_STORE: &str = "identity";
 const OUTBOX_STORE: &str = "queued_messages";
 const BOND_CLAIMS_STORE: &str = "bond_claims";
+/// Encrypted attachment blobs (#589 phase 4) as `Uint8Array`s keyed by their
+/// SHA-256, and a small index of them (a [`BlobEntry`] JSON per hash) so the
+/// cache can be trimmed without loading every blob.
+const ATTACHMENT_BLOBS_STORE: &str = "attachment_blobs";
+const ATTACHMENT_INDEX_STORE: &str = "attachment_blob_index";
 /// The single identity document's key, mirroring SQLite's `id = 1` row.
 const IDENTITY_KEY: &str = "1";
 /// Origin-wide lock names (see [`web_lock`]): one per store whose documents
 /// are read, changed and written back as a whole.
 const TRADES_LOCK: &str = "mostro:db:trades";
 const OUTBOX_LOCK: &str = "mostro:db:queued_messages";
-const ALL_STORES: [&str; 9] = [
+const ALL_STORES: [&str; 11] = [
     MESSAGES_STORE,
     SETTINGS_STORE,
     TRADES_STORE,
@@ -53,6 +59,8 @@ const ALL_STORES: [&str; 9] = [
     IDENTITY_STORE,
     OUTBOX_STORE,
     BOND_CLAIMS_STORE,
+    ATTACHMENT_BLOBS_STORE,
+    ATTACHMENT_INDEX_STORE,
 ];
 
 /// Map an opaque JS-side error into an `anyhow` error the trait can carry.
@@ -534,10 +542,12 @@ impl Storage for IndexedDbStorage {
         // from a later task — so awaiting between requests would make the
         // next one hit an inactive transaction (see `patch_serial`). That is
         // also why the keys are read in a transaction of their own.
-        const WIPED: [&str; 5] = [
+        const WIPED: [&str; 7] = [
             TRADES_STORE,
             MESSAGES_STORE,
             BOND_CLAIMS_STORE,
+            ATTACHMENT_BLOBS_STORE,
+            ATTACHMENT_INDEX_STORE,
             OUTBOX_STORE,
             ORDERS_STORE,
         ];
@@ -728,6 +738,87 @@ impl Storage for IndexedDbStorage {
             &crate::api::types::bond_claim_key(node_pubkey, order_id),
         )
         .await
+    }
+
+    // ── Chat attachment cache (#589 phase 4) — encrypted blobs only ─────────
+
+    async fn save_attachment_blob(&self, sha256: &str, blob: &[u8]) -> Result<()> {
+        let entry = BlobEntry {
+            sha256: sha256.to_string(),
+            size: blob.len() as u64,
+            created_at: crate::rt::unix_now(),
+        };
+        let index = serde_json::to_string(&entry)?;
+        let data = web_sys::js_sys::Uint8Array::from(blob);
+
+        // The blob and its index entry commit together, so the trim never
+        // misses a blob nor deletes one it has no entry for. Both requests
+        // are queued before the first await (see `clear_identity_data`).
+        let db = self.open_db().await?;
+        let stores = [ATTACHMENT_BLOBS_STORE, ATTACHMENT_INDEX_STORE];
+        let tx = db
+            .transaction_on_multi_with_mode(&stores, IdbTransactionMode::Readwrite)
+            .map_err(|e| js_err("tx open", e))?;
+        tx.object_store(ATTACHMENT_BLOBS_STORE)
+            .map_err(|e| js_err("store open", e))?
+            .put_key_val_owned(sha256, &data)
+            .map_err(|e| js_err("put", e))?;
+        tx.object_store(ATTACHMENT_INDEX_STORE)
+            .map_err(|e| js_err("store open", e))?
+            .put_key_val_owned(sha256, &JsValue::from_str(&index))
+            .map_err(|e| js_err("put", e))?;
+        tx.await.into_result().map_err(|e| js_err("tx commit", e))?;
+
+        self.trim_attachment_blobs(WEB_ATTACHMENT_CACHE_BYTES).await
+    }
+
+    async fn get_attachment_blob(&self, sha256: &str) -> Result<Option<Vec<u8>>> {
+        let db = self.open_db().await?;
+        let tx = db
+            .transaction_on_one_with_mode(ATTACHMENT_BLOBS_STORE, IdbTransactionMode::Readonly)
+            .map_err(|e| js_err("tx open", e))?;
+        let value = tx
+            .object_store(ATTACHMENT_BLOBS_STORE)
+            .map_err(|e| js_err("store open", e))?
+            .get_owned(sha256)
+            .map_err(|e| js_err("get", e))?
+            .await
+            .map_err(|e| js_err("get await", e))?;
+        Ok(value
+            .filter(JsCast::is_instance_of::<web_sys::js_sys::Uint8Array>)
+            .map(|v| web_sys::js_sys::Uint8Array::from(v).to_vec()))
+    }
+}
+
+impl IndexedDbStorage {
+    /// Keep the attachment cache within `cap` bytes, oldest blobs first out.
+    /// Reads only the index; each evicted blob goes with its entry.
+    async fn trim_attachment_blobs(&self, cap: u64) -> Result<()> {
+        let entries = self
+            .get_all_strings(ATTACHMENT_INDEX_STORE)
+            .await?
+            .into_iter()
+            .filter_map(|json| serde_json::from_str::<BlobEntry>(&json).ok())
+            .collect();
+        let evicted = blobs_to_evict(entries, cap);
+        if evicted.is_empty() {
+            return Ok(());
+        }
+        let db = self.open_db().await?;
+        let stores = [ATTACHMENT_BLOBS_STORE, ATTACHMENT_INDEX_STORE];
+        let tx = db
+            .transaction_on_multi_with_mode(&stores, IdbTransactionMode::Readwrite)
+            .map_err(|e| js_err("tx open", e))?;
+        for name in stores {
+            let store = tx.object_store(name).map_err(|e| js_err("store open", e))?;
+            for sha256 in &evicted {
+                store
+                    .delete_owned(sha256.as_str())
+                    .map_err(|e| js_err("delete", e))?;
+            }
+        }
+        tx.await.into_result().map_err(|e| js_err("tx commit", e))?;
+        Ok(())
     }
 }
 

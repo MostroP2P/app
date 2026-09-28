@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/chat/widgets/encrypted_file_message.dart';
+import 'package:mostro/features/chat/widgets/encrypted_image_message.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
 // ── ChatMessage model ─────────────────────────────────────────────────────────
 
@@ -22,6 +25,7 @@ class ChatMessage {
     required this.hasAttachment,
     required this.createdAt,
     this.messageType = 'peer',
+    this.attachment,
   });
 
   /// Unique message identifier.
@@ -41,6 +45,9 @@ class ChatMessage {
 
   /// Whether an encrypted file attachment accompanies this message.
   final bool hasAttachment;
+
+  /// The attachment itself (#589). [content] then holds its file name.
+  final rust_types.AttachmentInfo? attachment;
 
   /// Unix timestamp (seconds) when the message was created.
   final int createdAt;
@@ -107,9 +114,15 @@ class MessageBubble extends StatelessWidget {
           );
 
     final timestamp = _formatTime(message.createdAt);
+    final attachment = message.attachment;
+    // An image fills its bubble; a thin frame keeps the bubble's colour.
+    final isImage = attachment?.fileType == rust_types.FileType.image;
 
     return GestureDetector(
-      onLongPress: () => _copyToClipboard(context, message.content),
+      // An attachment's content is its file name: nothing worth copying.
+      onLongPress: attachment != null
+          ? null
+          : () => _copyToClipboard(context, message.content),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
@@ -128,35 +141,32 @@ class MessageBubble extends StatelessWidget {
                     constraints: BoxConstraints(
                       maxWidth: MediaQuery.of(context).size.width * 0.72,
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
+                    padding: isImage
+                        ? const EdgeInsets.all(4)
+                        : const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: AppSpacing.sm,
+                          ),
                     decoration: BoxDecoration(
                       color: bubbleColor,
                       borderRadius: borderRadius,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                    child: switch (attachment) {
+                      null => Text(
                           message.content,
                           style: textTheme.bodyMedium?.copyWith(
                             color: Colors.white,
                           ),
                         ),
-                        if (message.hasAttachment) ...[
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            AppLocalizations.of(context).attachmentLabel,
-                            style: textTheme.bodySmall?.copyWith(
-                              color: Colors.white70,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                      _ when isImage => EncryptedImageMessage(
+                          messageId: message.id,
+                          attachment: attachment,
+                        ),
+                      _ => EncryptedFileMessage(
+                          messageId: message.id,
+                          attachment: attachment,
+                        ),
+                    },
                   ),
                   const SizedBox(height: 2),
                   // Timestamp

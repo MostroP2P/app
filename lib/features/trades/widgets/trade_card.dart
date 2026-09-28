@@ -18,6 +18,8 @@ import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
 import 'package:mostro/features/trades/widgets/trade_list_chip.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
+import 'package:mostro/features/cashu/seller_funding_route.dart';
+import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 
 /// One trade of My Trades (handoff 11a): direction and counterparty, the
 /// amount as the headline, then the chip and — when the next step is the
@@ -34,6 +36,7 @@ class TradeCard extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toString();
     final needsAction = row.state.needsAction;
+    final cashu = ref.watch(isCashuModeProvider);
 
     return Material(
       color: book.surface,
@@ -45,7 +48,7 @@ class TradeCard extends ConsumerWidget {
       child: InkWell(
         onTap: () {
           HapticFeedback.selectionClick();
-          context.push(_route());
+          context.push(_route(cashu));
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -90,10 +93,10 @@ class TradeCard extends ConsumerWidget {
                         )
                       else
                         _Verb(
-                          label: verbText(row.state.verb, l10n),
+                          label: verbText(row.state.verb, l10n, cashu: cashu),
                           onTap: () {
                             HapticFeedback.selectionClick();
-                            context.push(_verbRoute());
+                            context.push(_verbRoute(cashu));
                           },
                         ),
                     ],
@@ -109,7 +112,7 @@ class TradeCard extends ConsumerWidget {
 
   /// Where the card opens: the maker's pending order and the maker's own
   /// Lightning step keep their screens; everything else is the trade screen.
-  String _route() {
+  String _route(bool cashu) {
     // A claim with no trade behind it has nothing to open but the claim.
     if (row.claimOnly) return AppRoute.bondPayoutPath(row.orderId);
     if (row.isMaker) {
@@ -117,7 +120,7 @@ class TradeCard extends ConsumerWidget {
         return AppRoute.myOrderPath(row.orderId);
       }
       if (row.status == OrderStatus.waitingPayment && row.isSelling) {
-        return AppRoute.payInvoicePath(row.orderId);
+        return sellerFundingPath(row.orderId, cashu: cashu);
       }
       if (row.status == OrderStatus.waitingBuyerInvoice && !row.isSelling) {
         return AppRoute.addInvoicePath(row.orderId);
@@ -128,20 +131,24 @@ class TradeCard extends ConsumerWidget {
 
   /// The verb opens its step directly: the two Lightning steps have their own
   /// screens, the rest are the trade screen's primary button.
-  String _verbRoute() => switch (row.state.verb) {
+  String _verbRoute(bool cashu) => switch (row.state.verb) {
     TradeRowVerb.addInvoice => AppRoute.addInvoicePath(row.orderId),
     TradeRowVerb.payBond => AppRoute.payBondPath(row.orderId),
     TradeRowVerb.claimPayout => AppRoute.bondPayoutPath(row.orderId),
-    TradeRowVerb.payInvoice => AppRoute.payInvoicePath(row.orderId),
+    TradeRowVerb.payInvoice => sellerFundingPath(row.orderId, cashu: cashu),
     _ => AppRoute.tradeDetailPath(row.orderId),
   };
 
-  static String verbText(TradeRowVerb verb, AppLocalizations l10n) =>
-      switch (verb) {
+  static String verbText(
+    TradeRowVerb verb,
+    AppLocalizations l10n, {
+    bool cashu = false,
+  }) => switch (verb) {
         TradeRowVerb.addInvoice => l10n.tradeVerbAddInvoice,
         TradeRowVerb.payBond => l10n.tradeVerbPayBond,
         TradeRowVerb.claimPayout => l10n.tradeVerbClaimPayout,
-        TradeRowVerb.payInvoice => l10n.tradeVerbPayInvoice,
+        TradeRowVerb.payInvoice =>
+          cashu ? l10n.lockEscrowConfirm : l10n.tradeVerbPayInvoice,
         TradeRowVerb.sendPayment => l10n.tradeVerbSendPayment,
         TradeRowVerb.releaseSats => l10n.tradeVerbReleaseSats,
         TradeRowVerb.rate => l10n.tradeVerbRate,

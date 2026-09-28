@@ -10,7 +10,7 @@ class MessageInput extends StatefulWidget {
   const MessageInput({
     super.key,
     required this.onSendText,
-    required this.onAttachFile,
+    this.onAttachFile,
     this.isAttaching = false,
   });
 
@@ -18,8 +18,9 @@ class MessageInput extends StatefulWidget {
   /// keyboard action). The field is cleared automatically after the callback.
   final void Function(String text) onSendText;
 
-  /// Called when the user taps the attachment button.
-  final VoidCallback onAttachFile;
+  /// Called when the user taps the attachment button. Null hides it, where
+  /// attachments cannot be sent (the web, until #150).
+  final VoidCallback? onAttachFile;
 
   /// When true, replaces the attachment icon with a small progress indicator.
   final bool isAttaching;
@@ -63,27 +64,28 @@ class _MessageInputState extends State<MessageInput> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Attachment button / progress
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: widget.isAttaching
-                ? Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        colors.textSubtle,
+          if (widget.onAttachFile != null)
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: widget.isAttaching
+                  ? Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          colors.textSubtle,
+                        ),
                       ),
+                    )
+                  : IconButton(
+                      icon: Icon(Icons.attach_file, color: colors.textSubtle),
+                      onPressed: widget.onAttachFile,
+                      tooltip: l10n.disputeAttachFile,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                  )
-                : IconButton(
-                    icon: Icon(Icons.attach_file, color: colors.textSubtle),
-                    onPressed: widget.onAttachFile,
-                    tooltip: l10n.disputeAttachFile,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-          ),
+            ),
 
           // Text field
           Expanded(

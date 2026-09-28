@@ -2583,6 +2583,519 @@ abstract class PaymentDestination_Unknown extends PaymentDestination {
 }
 
 /// @nodoc
+mixin _$RestoreProgress {
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function(int found, int toLoad) found,
+    required TResult Function(int done, int toLoad) loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function(int found, int toLoad)? found,
+    TResult? Function(int done, int toLoad)? loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function(int found, int toLoad)? found,
+    TResult Function(int done, int toLoad)? loaded,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(RestoreProgress_Connected value) connected,
+    required TResult Function(RestoreProgress_Found value) found,
+    required TResult Function(RestoreProgress_Loaded value) loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(RestoreProgress_Connected value)? connected,
+    TResult? Function(RestoreProgress_Found value)? found,
+    TResult? Function(RestoreProgress_Loaded value)? loaded,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(RestoreProgress_Connected value)? connected,
+    TResult Function(RestoreProgress_Found value)? found,
+    TResult Function(RestoreProgress_Loaded value)? loaded,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $RestoreProgressCopyWith<$Res> {
+  factory $RestoreProgressCopyWith(
+    RestoreProgress value,
+    $Res Function(RestoreProgress) then,
+  ) = _$RestoreProgressCopyWithImpl<$Res, RestoreProgress>;
+}
+
+/// @nodoc
+class _$RestoreProgressCopyWithImpl<$Res, $Val extends RestoreProgress>
+    implements $RestoreProgressCopyWith<$Res> {
+  _$RestoreProgressCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+abstract class _$$RestoreProgress_ConnectedImplCopyWith<$Res> {
+  factory _$$RestoreProgress_ConnectedImplCopyWith(
+    _$RestoreProgress_ConnectedImpl value,
+    $Res Function(_$RestoreProgress_ConnectedImpl) then,
+  ) = __$$RestoreProgress_ConnectedImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$RestoreProgress_ConnectedImplCopyWithImpl<$Res>
+    extends _$RestoreProgressCopyWithImpl<$Res, _$RestoreProgress_ConnectedImpl>
+    implements _$$RestoreProgress_ConnectedImplCopyWith<$Res> {
+  __$$RestoreProgress_ConnectedImplCopyWithImpl(
+    _$RestoreProgress_ConnectedImpl _value,
+    $Res Function(_$RestoreProgress_ConnectedImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$RestoreProgress_ConnectedImpl extends RestoreProgress_Connected {
+  const _$RestoreProgress_ConnectedImpl() : super._();
+
+  @override
+  String toString() {
+    return 'RestoreProgress.connected()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$RestoreProgress_ConnectedImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function(int found, int toLoad) found,
+    required TResult Function(int done, int toLoad) loaded,
+  }) {
+    return connected();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function(int found, int toLoad)? found,
+    TResult? Function(int done, int toLoad)? loaded,
+  }) {
+    return connected?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function(int found, int toLoad)? found,
+    TResult Function(int done, int toLoad)? loaded,
+    required TResult orElse(),
+  }) {
+    if (connected != null) {
+      return connected();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(RestoreProgress_Connected value) connected,
+    required TResult Function(RestoreProgress_Found value) found,
+    required TResult Function(RestoreProgress_Loaded value) loaded,
+  }) {
+    return connected(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(RestoreProgress_Connected value)? connected,
+    TResult? Function(RestoreProgress_Found value)? found,
+    TResult? Function(RestoreProgress_Loaded value)? loaded,
+  }) {
+    return connected?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(RestoreProgress_Connected value)? connected,
+    TResult Function(RestoreProgress_Found value)? found,
+    TResult Function(RestoreProgress_Loaded value)? loaded,
+    required TResult orElse(),
+  }) {
+    if (connected != null) {
+      return connected(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class RestoreProgress_Connected extends RestoreProgress {
+  const factory RestoreProgress_Connected() = _$RestoreProgress_ConnectedImpl;
+  const RestoreProgress_Connected._() : super._();
+}
+
+/// @nodoc
+abstract class _$$RestoreProgress_FoundImplCopyWith<$Res> {
+  factory _$$RestoreProgress_FoundImplCopyWith(
+    _$RestoreProgress_FoundImpl value,
+    $Res Function(_$RestoreProgress_FoundImpl) then,
+  ) = __$$RestoreProgress_FoundImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({int found, int toLoad});
+}
+
+/// @nodoc
+class __$$RestoreProgress_FoundImplCopyWithImpl<$Res>
+    extends _$RestoreProgressCopyWithImpl<$Res, _$RestoreProgress_FoundImpl>
+    implements _$$RestoreProgress_FoundImplCopyWith<$Res> {
+  __$$RestoreProgress_FoundImplCopyWithImpl(
+    _$RestoreProgress_FoundImpl _value,
+    $Res Function(_$RestoreProgress_FoundImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? found = null, Object? toLoad = null}) {
+    return _then(
+      _$RestoreProgress_FoundImpl(
+        found:
+            null == found
+                ? _value.found
+                : found // ignore: cast_nullable_to_non_nullable
+                    as int,
+        toLoad:
+            null == toLoad
+                ? _value.toLoad
+                : toLoad // ignore: cast_nullable_to_non_nullable
+                    as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$RestoreProgress_FoundImpl extends RestoreProgress_Found {
+  const _$RestoreProgress_FoundImpl({required this.found, required this.toLoad})
+    : super._();
+
+  @override
+  final int found;
+  @override
+  final int toLoad;
+
+  @override
+  String toString() {
+    return 'RestoreProgress.found(found: $found, toLoad: $toLoad)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$RestoreProgress_FoundImpl &&
+            (identical(other.found, found) || other.found == found) &&
+            (identical(other.toLoad, toLoad) || other.toLoad == toLoad));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, found, toLoad);
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$RestoreProgress_FoundImplCopyWith<_$RestoreProgress_FoundImpl>
+  get copyWith =>
+      __$$RestoreProgress_FoundImplCopyWithImpl<_$RestoreProgress_FoundImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function(int found, int toLoad) found,
+    required TResult Function(int done, int toLoad) loaded,
+  }) {
+    return found(this.found, toLoad);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function(int found, int toLoad)? found,
+    TResult? Function(int done, int toLoad)? loaded,
+  }) {
+    return found?.call(this.found, toLoad);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function(int found, int toLoad)? found,
+    TResult Function(int done, int toLoad)? loaded,
+    required TResult orElse(),
+  }) {
+    if (found != null) {
+      return found(this.found, toLoad);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(RestoreProgress_Connected value) connected,
+    required TResult Function(RestoreProgress_Found value) found,
+    required TResult Function(RestoreProgress_Loaded value) loaded,
+  }) {
+    return found(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(RestoreProgress_Connected value)? connected,
+    TResult? Function(RestoreProgress_Found value)? found,
+    TResult? Function(RestoreProgress_Loaded value)? loaded,
+  }) {
+    return found?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(RestoreProgress_Connected value)? connected,
+    TResult Function(RestoreProgress_Found value)? found,
+    TResult Function(RestoreProgress_Loaded value)? loaded,
+    required TResult orElse(),
+  }) {
+    if (found != null) {
+      return found(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class RestoreProgress_Found extends RestoreProgress {
+  const factory RestoreProgress_Found({
+    required final int found,
+    required final int toLoad,
+  }) = _$RestoreProgress_FoundImpl;
+  const RestoreProgress_Found._() : super._();
+
+  int get found;
+  int get toLoad;
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$RestoreProgress_FoundImplCopyWith<_$RestoreProgress_FoundImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$RestoreProgress_LoadedImplCopyWith<$Res> {
+  factory _$$RestoreProgress_LoadedImplCopyWith(
+    _$RestoreProgress_LoadedImpl value,
+    $Res Function(_$RestoreProgress_LoadedImpl) then,
+  ) = __$$RestoreProgress_LoadedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({int done, int toLoad});
+}
+
+/// @nodoc
+class __$$RestoreProgress_LoadedImplCopyWithImpl<$Res>
+    extends _$RestoreProgressCopyWithImpl<$Res, _$RestoreProgress_LoadedImpl>
+    implements _$$RestoreProgress_LoadedImplCopyWith<$Res> {
+  __$$RestoreProgress_LoadedImplCopyWithImpl(
+    _$RestoreProgress_LoadedImpl _value,
+    $Res Function(_$RestoreProgress_LoadedImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? done = null, Object? toLoad = null}) {
+    return _then(
+      _$RestoreProgress_LoadedImpl(
+        done:
+            null == done
+                ? _value.done
+                : done // ignore: cast_nullable_to_non_nullable
+                    as int,
+        toLoad:
+            null == toLoad
+                ? _value.toLoad
+                : toLoad // ignore: cast_nullable_to_non_nullable
+                    as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$RestoreProgress_LoadedImpl extends RestoreProgress_Loaded {
+  const _$RestoreProgress_LoadedImpl({required this.done, required this.toLoad})
+    : super._();
+
+  @override
+  final int done;
+  @override
+  final int toLoad;
+
+  @override
+  String toString() {
+    return 'RestoreProgress.loaded(done: $done, toLoad: $toLoad)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$RestoreProgress_LoadedImpl &&
+            (identical(other.done, done) || other.done == done) &&
+            (identical(other.toLoad, toLoad) || other.toLoad == toLoad));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, done, toLoad);
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$RestoreProgress_LoadedImplCopyWith<_$RestoreProgress_LoadedImpl>
+  get copyWith =>
+      __$$RestoreProgress_LoadedImplCopyWithImpl<_$RestoreProgress_LoadedImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function(int found, int toLoad) found,
+    required TResult Function(int done, int toLoad) loaded,
+  }) {
+    return loaded(done, toLoad);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function(int found, int toLoad)? found,
+    TResult? Function(int done, int toLoad)? loaded,
+  }) {
+    return loaded?.call(done, toLoad);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function(int found, int toLoad)? found,
+    TResult Function(int done, int toLoad)? loaded,
+    required TResult orElse(),
+  }) {
+    if (loaded != null) {
+      return loaded(done, toLoad);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(RestoreProgress_Connected value) connected,
+    required TResult Function(RestoreProgress_Found value) found,
+    required TResult Function(RestoreProgress_Loaded value) loaded,
+  }) {
+    return loaded(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(RestoreProgress_Connected value)? connected,
+    TResult? Function(RestoreProgress_Found value)? found,
+    TResult? Function(RestoreProgress_Loaded value)? loaded,
+  }) {
+    return loaded?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(RestoreProgress_Connected value)? connected,
+    TResult Function(RestoreProgress_Found value)? found,
+    TResult Function(RestoreProgress_Loaded value)? loaded,
+    required TResult orElse(),
+  }) {
+    if (loaded != null) {
+      return loaded(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class RestoreProgress_Loaded extends RestoreProgress {
+  const factory RestoreProgress_Loaded({
+    required final int done,
+    required final int toLoad,
+  }) = _$RestoreProgress_LoadedImpl;
+  const RestoreProgress_Loaded._() : super._();
+
+  int get done;
+  int get toLoad;
+
+  /// Create a copy of RestoreProgress
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$RestoreProgress_LoadedImplCopyWith<_$RestoreProgress_LoadedImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
 mixin _$TradeStep {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({

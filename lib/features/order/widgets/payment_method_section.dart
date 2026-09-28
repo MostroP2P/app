@@ -113,12 +113,16 @@ class PaymentMethodSection extends ConsumerWidget {
                             custom.where((m) => m != method).toList(),
               ),
             _AddMethodChip(
-              onTap:
-                  () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const PaymentMethodPickerScreen(),
-                    ),
+              onTap: () {
+                // Flutter hands focus back to the amount field when the picker
+                // pops, and its keyboard then hides the publish button.
+                FocusManager.instance.primaryFocus?.unfocus();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const PaymentMethodPickerScreen(),
                   ),
+                );
+              },
             ).withAutomationId(AutomationIds.orderCreatePaymentMethodAdd),
           ],
         ),

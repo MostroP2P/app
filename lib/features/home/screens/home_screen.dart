@@ -14,6 +14,7 @@ import 'package:mostro/features/drawer/screens/drawer_menu.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/features/home/widgets/order_book_list.dart';
+import 'package:mostro/features/home/widgets/order_filter_chip.dart';
 import 'package:mostro/features/home/widgets/order_list_empty.dart';
 import 'package:mostro/features/home/widgets/order_sort_sheet.dart';
 import 'package:mostro/features/home/widgets/side_swipe.dart';
@@ -84,6 +85,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final flags = ref.watch(currencyFlagsProvider);
     final orderType = ref.watch(homeOrderTypeProvider);
     final sort = ref.watch(orderSortProvider);
+    final activeFilters = ref.watch(
+      orderFiltersProvider.select((f) => f.activeCount),
+    );
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isDesktop = screenWidth >= AppBreakpoints.desktop;
     void selectSide(OrderType type) =>
@@ -135,6 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           palette: pal,
           count: filteredOrders.length,
           sort: sort,
+          activeFilters: activeFilters,
           // Loading or failed: there is no book yet to count or to sort.
           showsOrders: book.hasValue,
         ),
@@ -396,12 +401,16 @@ class _FilterRow extends StatelessWidget {
     required this.palette,
     required this.count,
     required this.sort,
+    required this.activeFilters,
     required this.showsOrders,
   });
 
   final OrderBookPalette palette;
   final int count;
   final OrderSort sort;
+
+  /// Filters narrowing the book, for the chip's badge (0 = none).
+  final int activeFilters;
 
   /// Whether the book has loaded. Until it has, only the filter chip shows:
   /// "0 orders" and a sort picker over nothing would both be misleading.
@@ -416,41 +425,10 @@ class _FilterRow extends StatelessWidget {
       child: Row(
         children: [
           Flexible(
-            child: Material(
-              color: palette.chipFill,
-              shape: StadiumBorder(side: BorderSide(color: palette.chipBorder)),
-              child: InkWell(
-                customBorder: const StadiumBorder(),
-                onTap: () => showOrderFilterDialog(context),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.filter_alt_outlined,
-                        size: 14,
-                        color: palette.limeIcon,
-                      ),
-                      const SizedBox(width: 7),
-                      Flexible(
-                        child: Text(
-                          l10n.filterButtonLabel,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: palette.textStrong,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            child: OrderFilterChip(
+              palette: palette,
+              activeCount: activeFilters,
+              onTap: () => showOrderFilterDialog(context),
             ),
           ),
           if (showsOrders) ...[

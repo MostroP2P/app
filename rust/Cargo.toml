@@ -1,6 +1,6 @@
 [package]
 name = "rust"
-version = "2.0.5"
+version = "2.0.8"
 license = "AGPL-3.0-or-later"
 edition = "2021"
 
@@ -52,6 +52,9 @@ base64 = "0.22"
 
 # File attachment encryption (ChaCha20-Poly1305)
 chacha20poly1305 = "0.10"
+# Chat attachments (#589): images are decoded and re-encoded before upload so
+# EXIF/GPS never leaves the device. JPEG and PNG only — what may be sent.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 rand = { version = "0.8", features = ["getrandom"] }
 
 # Hashing (nym derivation)
@@ -83,7 +86,7 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 # Cashu wallet (phase C2 of docs/cashu/README.md). Exact-pinned: cdk is pre-1.0
 # and its wallet API moves between minor releases — docs/cashu/cdk-spike.md
 # records what was verified against this version and how to upgrade.
@@ -104,7 +107,9 @@ android_logger = "0.14"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
 indexed_db_futures = "0.4"
-reqwest = { version = "0.12", default-features = false, features = ["json"] }
+# `stream`: a Blossom download is read as it arrives, so the 25 MB cap and the
+# progress bar hold on the web too (nostr/blossom.rs, #589 phase 4).
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream"] }
 # tokio's sync primitives are runtime-agnostic and compile to wasm (no rt/net/fs/time).
 tokio = { version = "1", default-features = false, features = ["sync"] }
 # tokio::time replacement for wasm (sleep/timeout/Instant backed by the browser).
@@ -127,3 +132,8 @@ universal-time = { version = "0.3", default-features = false }
 # `local-relay` feature. Native only — it pulls in `tokio/net`.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 nostr-sdk = { version = "0.45", default-features = false, features = ["local-relay"] }
+# A throwaway HTTP server for the Blossom client tests (nostr/blossom.rs).
+tokio = { version = "1", features = ["net", "io-util"] }
+# A relay that completes the websocket handshake and never answers
+# (nostr/publish.rs). Already in the tree through nostr-sdk's async-wsocket.
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }

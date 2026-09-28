@@ -47,6 +47,14 @@ pub(crate) enum DaemonReply {
         /// The anti-abuse bond the daemon asks for before the trade flow
         /// starts (`pay-bond-invoice`). `None` on nodes without bonds.
         bond: Option<BondRequest>,
+        /// The per-order trade pubkeys the daemon assigned, when the reply
+        /// carries an order payload.
+        ///
+        /// This is the *only* place the client learns the counterparty's trade
+        /// key for this order: the public 38383 event carries the maker's order
+        /// key, which is a different key, and Cashu's escrow is locked to the
+        /// trade keys the daemon holds (phase C5).
+        trade_pubkeys: TradePubkeys,
     },
     /// Daemon acknowledged an add-invoice. The reply doubles as a status
     /// update processed by the per-action arms; the caller only needs the
@@ -63,6 +71,41 @@ pub(crate) enum DaemonReply {
     /// disputes. Correlated by trade pubkey (RestoreSession carries no
     /// request_id) — see take_matching_restore.
     Restored(mostro_core::message::RestoreSessionInfo),
+}
+
+/// Buyer and seller trade pubkeys for one order, as the daemon states them.
+///
+/// Both `None` on a reply that carries no order payload; either may be `None`
+/// on a daemon that predates the field.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct TradePubkeys {
+    pub(crate) buyer: Option<String>,
+    pub(crate) seller: Option<String>,
+}
+
+impl TradePubkeys {
+    fn from_small_order(order: &mostro_core::order::SmallOrder) -> Self {
+        Self {
+            buyer: order.buyer_trade_pubkey.clone(),
+            seller: order.seller_trade_pubkey.clone(),
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.buyer.is_none() && self.seller.is_none()
+    }
+}
+
+/// Read the trade pubkeys out of whichever payload shape carries an order.
+pub(crate) fn trade_pubkeys_from_payload(
+    payload: &Option<mostro_core::message::Payload>,
+) -> TradePubkeys {
+    use mostro_core::message::Payload;
+    match payload {
+        Some(Payload::Order(so)) => TradePubkeys::from_small_order(so),
+        Some(Payload::PaymentRequest(Some(so), _, _)) => TradePubkeys::from_small_order(so),
+        _ => TradePubkeys::default(),
+    }
 }
 
 /// The bond bolt11 a `pay-bond-invoice` carries: `amount_sats` is the
@@ -598,6 +641,240 @@ pub(crate) fn roll_back_dispute_request(trade_pubkey_hex: &str, request_id: u64)
     map.remove(trade_pubkey_hex);
 }
 
+// ── Maker's cancel of its bond window (mostro#996) ──────────────────────────
+
+/// How the daemon answered a maker's `cancel` during `WaitingMakerBond`.
+pub(crate) enum MakerCancelReply {
+    /// The daemon closed the unpublished order and released the bond.
+    Canceled,
+    /// `cant-do`: a daemon without mostro#996, the bond locked first, or
+    /// another refusal — the caller tells them apart.
+    Rejected { reason: String, message: String },
+}
+
+struct MakerCancel {
+    request_id: u64,
+    /// `None` once the caller stopped waiting: a late reply is still
+    /// recognized as the user's own cancel, never as the payment deadline.
+    tx: Option<tokio::sync::oneshot::Sender<MakerCancelReply>>,
+    /// Nonces of earlier cancels on this key that timed out and were then
+    /// retried. Each may still be answered, and its `canceled` is the user's
+    /// own as much as the retry's.
+    ///
+    /// Not capped: a forgotten nonce turns the user's own cancel into a
+    /// payment-deadline notice. The list only grows through user retries,
+    /// each after a 10 s timeout, and the whole record goes when the window
+    /// closes — a `canceled`, the bond's lock, or the local abandon
+    /// ([`forget_maker_cancels`]).
+    superseded: Vec<u64>,
+}
+
+/// Maker cancels in flight, keyed by trade pubkey. Apart from
+/// [`pending_requests`] because that key still holds the create's record,
+/// which waits for the `new-order` of a bond that may yet lock
+/// (docs/ANTI_ABUSE_BOND.md §6.2): the cancel must not take its place.
+/// Keys are per trade, so nothing here outlives the identity that made them.
+static MAKER_CANCELS: OnceLock<std::sync::Mutex<HashMap<String, MakerCancel>>> = OnceLock::new();
+
+fn maker_cancels() -> &'static std::sync::Mutex<HashMap<String, MakerCancel>> {
+    MAKER_CANCELS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Register a maker's cancel on `trade_pubkey_hex` before it is published,
+/// and hand back the channel its reply arrives on. A retry takes the key
+/// over but keeps the nonces it replaces answerable (`superseded`).
+pub(crate) fn register_maker_cancel(
+    trade_pubkey_hex: &str,
+    request_id: u64,
+) -> tokio::sync::oneshot::Receiver<MakerCancelReply> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    if let Ok(mut map) = maker_cancels().lock() {
+        let superseded = match map.remove(trade_pubkey_hex) {
+            Some(MakerCancel {
+                request_id: replaced,
+                mut superseded,
+                ..
+            }) => {
+                superseded.push(replaced);
+                superseded
+            }
+            None => Vec::new(),
+        };
+        map.insert(
+            trade_pubkey_hex.to_string(),
+            MakerCancel {
+                request_id,
+                tx: Some(tx),
+                superseded,
+            },
+        );
+    }
+    rx
+}
+
+/// A `canceled` echoing any cancel this key sent — the live one or one a
+/// retry superseded — closes the order for all of them: the record is
+/// consumed and its live waiter, if any, handed back. `None` when the reply
+/// answers no cancel of this key.
+pub(crate) fn take_maker_cancel(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<Option<tokio::sync::oneshot::Sender<MakerCancelReply>>> {
+    let mut map = maker_cancels().lock().ok()?;
+    let answers = map.get(trade_pubkey_hex).is_some_and(|c| {
+        request_id_matches(c.request_id, got) || got.is_some_and(|id| c.superseded.contains(&id))
+    });
+    if !answers {
+        return None;
+    }
+    map.remove(trade_pubkey_hex).map(|c| c.tx)
+}
+
+/// A `cant-do` echoing a cancel of this key. The live one's hands its waiter
+/// back; the nonces it superseded stay answerable, since the refusal may be
+/// because one of them already closed the order and its `canceled` is late.
+/// A superseded one's only drops that nonce and answers nobody
+/// (`Some(None)`) — the retry waits for its own reply.
+pub(crate) fn take_maker_cancel_refusal(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<Option<tokio::sync::oneshot::Sender<MakerCancelReply>>> {
+    let mut map = maker_cancels().lock().ok()?;
+    let entry = map.get_mut(trade_pubkey_hex)?;
+    if let Some(pos) = got.and_then(|id| entry.superseded.iter().position(|n| *n == id)) {
+        entry.superseded.remove(pos);
+        return Some(None);
+    }
+    if !request_id_matches(entry.request_id, got) {
+        return None;
+    }
+    let tx = entry.tx.take();
+    match entry.superseded.pop() {
+        Some(previous) => entry.request_id = previous,
+        None => {
+            map.remove(trade_pubkey_hex);
+        }
+    }
+    Some(tx)
+}
+
+/// The maker's window on this key is over (the bond locked, the order was
+/// dropped or closed): no reply to any of its cancels can mean anything now.
+pub(crate) fn forget_maker_cancels(trade_pubkey_hex: &str) {
+    if let Ok(mut map) = maker_cancels().lock() {
+        map.remove(trade_pubkey_hex);
+    }
+}
+
+/// The caller stopped waiting (timeout): keep the record for a late reply.
+pub(crate) fn detach_maker_cancel(trade_pubkey_hex: &str, request_id: u64) {
+    if let Ok(mut map) = maker_cancels().lock() {
+        if let Some(c) = map.get_mut(trade_pubkey_hex) {
+            if c.request_id == request_id {
+                c.tx = None;
+            }
+        }
+    }
+}
+
+/// The cancel never left the device: nothing can answer it. The nonces it
+/// superseded still can, so they stay, waiterless.
+pub(crate) fn remove_maker_cancel(trade_pubkey_hex: &str, request_id: u64) {
+    if let Ok(mut map) = maker_cancels().lock() {
+        let Some(entry) = map.get_mut(trade_pubkey_hex) else {
+            return;
+        };
+        if entry.request_id != request_id {
+            return;
+        }
+        match entry.superseded.pop() {
+            Some(previous) => {
+                entry.request_id = previous;
+                entry.tx = None;
+            }
+            None => {
+                map.remove(trade_pubkey_hex);
+            }
+        }
+    }
+}
+
+// ── Seller's Cashu escrow submission (phase C5) ─────────────────────────────
+
+/// How the daemon answered an `add-cashu-escrow`.
+#[derive(Debug)]
+pub(crate) enum CashuLockReply {
+    /// `cashu-escrow-locked`: the daemon stored the escrow and the order is
+    /// active. Also the answer to a re-submission of the same token.
+    Locked,
+    /// `cant-do`: the caller decides what the reason means for the token,
+    /// and Dart localizes it — no prose travels.
+    Rejected { reason: String },
+}
+
+struct CashuLock {
+    request_id: u64,
+    tx: Option<tokio::sync::oneshot::Sender<CashuLockReply>>,
+}
+
+/// Escrow submissions in flight, keyed by the seller's trade pubkey. Apart
+/// from [`pending_requests`] for the same reason as the maker's cancel: the
+/// key may still hold another request's record. One per key — `lock_escrow`
+/// serializes the submissions of an order.
+static CASHU_LOCKS: OnceLock<std::sync::Mutex<HashMap<String, CashuLock>>> = OnceLock::new();
+
+fn cashu_locks() -> &'static std::sync::Mutex<HashMap<String, CashuLock>> {
+    CASHU_LOCKS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Register an escrow submission before it is published and hand back the
+/// channel its answer arrives on.
+pub(crate) fn register_cashu_lock(
+    trade_pubkey_hex: &str,
+    request_id: u64,
+) -> tokio::sync::oneshot::Receiver<CashuLockReply> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    if let Ok(mut map) = cashu_locks().lock() {
+        map.insert(
+            trade_pubkey_hex.to_string(),
+            CashuLock {
+                request_id,
+                tx: Some(tx),
+            },
+        );
+    }
+    rx
+}
+
+/// The submission a reply echoing `got` answers, consumed: `Some(waiter)`
+/// (the waiter absent once the caller timed out), `None` when it answers no
+/// submission of this key.
+pub(crate) fn take_cashu_lock(
+    trade_pubkey_hex: &str,
+    got: Option<u64>,
+) -> Option<Option<tokio::sync::oneshot::Sender<CashuLockReply>>> {
+    let mut map = cashu_locks().lock().ok()?;
+    match map.get(trade_pubkey_hex) {
+        Some(l) if request_id_matches(l.request_id, got) => {
+            map.remove(trade_pubkey_hex).map(|l| l.tx)
+        }
+        _ => None,
+    }
+}
+
+/// The submission never left the device, or its caller stopped waiting:
+/// nothing waits on the answer any more.
+pub(crate) fn forget_cashu_lock(trade_pubkey_hex: &str, request_id: u64) {
+    if let Ok(mut map) = cashu_locks().lock() {
+        if map
+            .get(trade_pubkey_hex)
+            .is_some_and(|l| l.request_id == request_id)
+        {
+            map.remove(trade_pubkey_hex);
+        }
+    }
+}
+
 /// Classify the daemon's first reply to a take into a [`DaemonReply`].
 ///
 /// A take's success reply varies by role, order shape and daemon config —
@@ -637,6 +914,7 @@ pub(crate) fn classify_take_reply(
                         amount_sats: bond_sats,
                         invoice: invoice.clone(),
                     }),
+                    trade_pubkeys: trade_pubkeys_from_payload(payload),
                 }
             }
             // The wire contract requires a PaymentRequest; anything else is
@@ -668,6 +946,7 @@ pub(crate) fn classify_take_reply(
                 amount_sats,
                 hold_invoice: Some(invoice.clone()),
                 bond: None,
+                trade_pubkeys: trade_pubkeys_from_payload(payload),
             }
         }
         Some(Payload::Order(small_order)) => DaemonReply::TakeAccepted {
@@ -683,6 +962,9 @@ pub(crate) fn classify_take_reply(
             },
             hold_invoice: None,
             bond: None,
+            // In Cashu mode this payload *is* the escrow request, and these
+            // two keys are what the escrow gets locked to.
+            trade_pubkeys: TradePubkeys::from_small_order(small_order),
         },
         // Action-only progression reply (payload absent or of another shape):
         // still a genuine acceptance. The take interception consumes the
@@ -696,6 +978,7 @@ pub(crate) fn classify_take_reply(
             amount_sats: None,
             hold_invoice: None,
             bond: None,
+            trade_pubkeys: TradePubkeys::default(),
         },
     }
 }

@@ -277,7 +277,7 @@ void main() {
     expect(bondCancelCopy(TradeUpdateReason.userCanceled), BondCancelCopy.own);
     expect(
       bondCancelCopy(TradeUpdateReason.bondExpired),
-      BondCancelCopy.neutral,
+      BondCancelCopy.expired,
     );
     expect(bondCancelCopy(null), BondCancelCopy.neutral);
   });

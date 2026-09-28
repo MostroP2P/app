@@ -1,6 +1,6 @@
 # Cashu Escrow — Client Implementation Spec & Phased Plan
 
-**Status:** In progress — C0 merged (`mostro-core` 0.14 + wire form pinned); C1a in review
+**Status:** In progress — C0, C1a, C1b, C2, C3 and C4 merged (`mostro-core` 0.14 + wire form pinned; escrow-mode detection and overrides; embedded wallet over cdk and its UI; 2-of-3 escrow primitives); C5 (seller escrow lock) in review (#238)
 **Goal:** ship Cashu as a user-selectable settlement backend alongside Lightning — see §1.1
 **Audience:** contributors implementing Cashu support in this client (appv2)
 **Upstream reference:** [`MostroP2P/mostro` — Cashu escrow spec series](https://github.com/MostroP2P/mostro/tree/main/docs/cashu)
@@ -520,6 +520,53 @@ Buyer side:
   "waiting for seller to lock escrow" state.
 - Handle `Action::CashuEscrowLocked` in `dispatch_mostro_message`: status → `Active`,
   notify "escrow locked — send fiat now", store escrow metadata for later redemption.
+
+**As implemented (#238), checked against mostrod `main` at `f5479e3`** — where it
+departs from the plan above, this is what holds:
+
+- **No fee token yet.** The daemon's `add-cashu-escrow` handler ignores
+  `fee_token` ("fee collection … lands in TA-1f"), so building one would move the
+  seller's sats to a 1-of-1 lock nobody accounts for. The quote reports a zero fee
+  and none is sent; `mostro::node_fee` keeps the `2 * round(fee * amount / 2)`
+  formula and its tests for when the daemon collects it.
+- **No terms on the wire.** In Cashu mode the daemon publishes no Kind 38385 at all
+  (its info job skips itself), and the escrow request carries neither mint nor
+  locktime. So the mint must be known (advertised, or the C1b override) or the lock
+  fails with `CashuMintUnknown` — never an empty URL — and the locktime is the
+  protocol default, the daemon's own `[cashu] escrow_locktime_days = 15`, plus a
+  one-hour margin over its floor.
+- **Correlation.** The submission is answered on its `request_id`: seller ←
+  `cashu-escrow-locked` (the buyer's copy carries no nonce and only activates the
+  trade) or `cant-do`. The waiter lives in its own registry
+  (`mostro::pending::register_cashu_lock`) rather than a `PendingRequestKind`, so it
+  never displaces another request's record on the same trade key.
+- **One swap per escrow.** The daemon answers a re-submission of the **same** token
+  while the order is active with `cashu-escrow-locked` again, and a **different**
+  token with `invalid_cashu_token`. So `lock_escrow` serializes per order, records
+  the token on the trade **before** anything else can fail (and before publishing),
+  and re-sends a recorded token as is — a retry never swaps twice. A re-send names
+  the mint the token was locked at and needs no quote, connection or balance. It
+  also runs by itself when the relay pool comes online (`resubmit_pending_escrows`).
+- **Rejections** (`settle_escrow_rejection`): `invalid_cashu_token` /
+  `invalid_mint_url` retire the token to `cashu_rejected_escrow_tokens` — the daemon
+  never stored it, and it refunds to the seller at its locktime — so the next attempt
+  builds anew; `cashu_mint_unavailable` and the rest keep it for the re-send; an
+  `invalid_order_status` on a re-send means the order no longer waits for the
+  escrow — past active, or closed while the device was offline — and is never
+  reported as a lock (`CashuEscrowOrderMovedOn`).
+- **Never dropped, never swapped twice.** If the store refuses the write after the
+  swap (three attempts), the token is held in memory for the process and found by
+  the next attempt before it could build again; it is written once the daemon
+  confirms, and a failure there surfaces as `CashuEscrowNotPersisted`.
+- **No cancel, no timeout.** In Cashu mode the daemon rejects cancel-type actions
+  (`invalid_action`) and runs no waiting-state timeout, so a locked escrow comes back
+  only through its locktime refund.
+- **Routing.** Every entry to the seller's funding step goes through
+  `sellerFundingPath` (trade card and verb, trade screen, status listener,
+  notification, end of the bond window, take flow), decided on the node's **mode**
+  (`isCashuModeProvider`), not on whether its mint is usable: a Cashu node sends no
+  hold invoice, so a missing mint shows up on the escrow screen as
+  `CashuMintUnknown`. The wallet itself stays gated on `isCashuAvailableProvider`.
 
 - **Done when:** full happy-path segment against a Track-A daemon + nutshell:
   take → seller locks → daemon validates → buyer notified → `fiat-sent` works;

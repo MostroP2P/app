@@ -10,6 +10,7 @@ import 'package:mostro/features/order/models/bond_rules.dart'
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
+import 'package:mostro/features/trades/models/trade_status.dart';
 import 'package:mostro/features/trades/models/trades_list_rules.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/shared/providers/peer_nym_provider.dart';
@@ -72,12 +73,6 @@ class TradeRow {
   /// Built from the claim store alone: the trade row is gone.
   final bool claimOnly;
 }
-
-const _successes = {
-  rust_types.OrderStatus.success,
-  rust_types.OrderStatus.settledByAdmin,
-  rust_types.OrderStatus.completedByAdmin,
-};
 
 /// Every trade of the user as a [TradeRow], unfiltered.
 ///
@@ -161,10 +156,14 @@ TradeRow _row(
             : ref.watch(tradeStatusProvider(order.id)).valueOrNull,
     isTake: !order.isMine,
   );
+  final isSelling = trade.role == rust_types.TradeRole.seller;
+  // Only a trade at its rating step watches the rating: a seller from the
+  // release on (#586), anyone from success.
   final ratedByMe =
       trade.ratedAt != null ||
-      (_successes.contains(status) && ref.watch(ratedByMeProvider(order.id)));
-  final isSelling = trade.role == rust_types.TradeRole.seller;
+      (tradeStatusFor(status, isBuyer: !isSelling) ==
+              TradeStatus.pendingRating &&
+          ref.watch(ratedByMeProvider(order.id)));
   final peer = trade.counterpartyPubkey;
   return TradeRow(
     orderId: order.id,

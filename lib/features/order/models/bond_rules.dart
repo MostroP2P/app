@@ -93,6 +93,10 @@ enum BondCancelCopy {
   /// The user's own cancel: nothing to explain.
   own,
 
+  /// The bond invoice expired unpaid, or the node's payment deadline closed
+  /// the maker's window (mostro#994).
+  expired,
+
   /// No cause known: neutral.
   neutral,
 }
@@ -101,9 +105,9 @@ BondCancelCopy bondCancelCopy(TradeUpdateReason? reason) => switch (reason) {
   TradeUpdateReason.bondLostRace => BondCancelCopy.lostRace,
   TradeUpdateReason.makerCanceled => BondCancelCopy.makerCanceled,
   TradeUpdateReason.userCanceled => BondCancelCopy.own,
+  TradeUpdateReason.bondExpired => BondCancelCopy.expired,
   // A cooperative-cancel request only exists from `active` on, never in
   // the bond window; nothing to explain here.
-  TradeUpdateReason.bondExpired ||
   TradeUpdateReason.cooperativeCancelRequestedByMe ||
   TradeUpdateReason.cooperativeCancelRequestedByPeer ||
   null => BondCancelCopy.neutral,

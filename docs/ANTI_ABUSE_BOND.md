@@ -198,11 +198,20 @@ Consequences for a client:
   the bond locks. The maker's client receives `pay-bond-invoice` on the same
   `request_id` as the `new-order`, and only once the bond locks does the usual
   `new-order` confirmation (the published order) arrive on that same `request_id`.
-- The daemon **rejects `cancel` during `WaitingMakerBond`** (`NotAllowedByStatus`): the
-  cancel handler only widens its pre-trade branch to `Pending | WaitingTakerBond`. A
-  maker who changes their mind simply does not pay; the hold invoice expires and the
-  order-expiry job marks the order `Expired` **without emitting any event or message**
-  to the maker. The client therefore needs a local expiry (§6.2).
+- The maker **can `cancel` during `WaitingMakerBond`** since mostro#996. The daemon
+  closes the order `canceled` in its DB only (it was never published, so no event),
+  releases the bond — which cancels its hold invoice — and answers `canceled` on the
+  cancel's `request_id`. It refuses with `NotAllowedByStatus` once the bond is
+  `locked`, even before the order is published; the order then goes out and is
+  cancelled as any `pending` one. A daemon without #996 refuses every cancel in the
+  window with the same `NotAllowedByStatus`.
+- **The unpaid window has a deadline** since mostro#994:
+  `maker_bond_payment_timeout_seconds` (900 s by default) is the bond invoice's own
+  expiry. Past it the daemon closes the order `expired` (DB only), releases the bond
+  and sends the maker `canceled` with no `request_id`. An operator's close of the same
+  window sends `admin-canceled`. Before #994 the invoice lived for LND's 24 h default
+  and the order expired **without any message**, so the client keeps its local expiry
+  (§6.2) for older daemons.
 - When the bond locks, the daemon publishes the order (`WaitingMakerBond → Pending`)
   and answers `new-order` exactly as for an unbonded order.
 - A `Locked` maker bond stays locked for the whole life of the order — including when a
@@ -279,7 +288,8 @@ bolt11 stays payable (§6.2).
   paid, a payout is already in flight, or the claim window expired. The reason carries
   **no text and no sub-reason**, so the client cannot tell which; it must re-derive the
   state from what it already knows (acks received, deadline passed) — §6.4.
-- `CantDo(NotAllowedByStatus)` on `cancel` while the maker bond is outstanding (§2.8).
+- `CantDo(NotAllowedByStatus)` on a maker's `cancel` in its bond window: the bond
+  locked first, or the daemon predates mostro#996 (§2.8, §6.2).
 - `CantDo(PendingOrderExists)` on a take when another taker already **locked** a bond.
 
 ---
@@ -449,10 +459,37 @@ Rules:
   the bond reply; the eventual `new-order` matches it or, if the process restarted,
   falls back to matching on `(trade pubkey, order id)` against the persisted
   `WaitingMakerBond` trade row.
-- **No cancel.** The daemon refuses `cancel` at `WaitingMakerBond`. The pay-bond screen
-  for a maker shows **Abandon** instead of Cancel: it wipes the local trade row and lets
-  the hold invoice expire server-side. Copy explains that nothing was published and
-  nothing was charged.
+- **Cancel, with a fallback.** The maker's "Don't publish the order" sends `cancel`
+  with a fresh `request_id` and waits up to 10 s for the answer (`cancel_maker_bond`).
+  The waiter lives in its own registry (`pending::register_maker_cancel`), because the
+  create's record on the same trade key still waits for the `new-order` of a bond
+  that may lock.
+  - `canceled` on that nonce: the `canceled` arm wipes the row with `UserCanceled`,
+    then wakes the cancel. Every `canceled` that closes the window — the user's,
+    a late one, or the deadline's — also drops the create's detached record.
+  - `NotAllowedByStatus`: the bond locked first, or the daemon predates #996. Both
+    look the same on the wire, and the node advertises nothing that tells them apart
+    (mostrod main still reports 0.18.8, like the release without #996). So
+    `settle_refused_maker_cancel` **never wipes on a guess**: a `new-order` that
+    arrives later must still find the row. It watches the row for up to 5 s, then
+    looks at the public book under the order's guard.
+    - The row left the window, or the book carries the order: the order is live.
+      The row is reconciled to the lock (as the sweep does), the call returns
+      `BondAlreadyLocked`, and the screen says to cancel it from the order.
+    - No evidence either way: `MakerCancelRefused`, the row kept. Only the user
+      knows whether they paid, so the screen asks. **Remove from this device**
+      runs `abandon_bonded_order`, the local wipe, which still refuses an order the
+      book shows published. **Keep waiting** leaves the row to the confirmation or
+      the local expiry.
+  - No answer: `NoDaemonResponse`, the row stays. The registry keeps the nonce —
+    and those of earlier timed-out attempts a retry superseded, even once the retry
+    itself is refused — so a late `canceled` for any of them is still read as the
+    user's own. None is forgotten while the window is open; all go when it closes
+    (a `canceled`, the bond's lock, or the local abandon).
+  Copy says nothing was published and nothing was charged.
+- **Deadline notice.** A `canceled` with no matching cancel in the maker's window is
+  the daemon's payment deadline (mostro#994): the row is wiped with `BondExpired`, and
+  the screen shows the expiry copy.
 - **Local expiry.** The daemon expires an unpaid maker-bond order silently (§2.8). The
   client uses the decoded bolt11 expiry exactly as in §6.1; as a second bound it also
   uses the order's own `expires_at` (the daemon's pending-order expiry, which is what
@@ -463,7 +500,7 @@ Rules:
   (§7.1), so a maker who closes the app and comes back lands on the pay-bond screen with
   the same bolt11. The only case that loses it is a **fresh device / wiped database**
   restored via `restore-session`; there is no upstream re-request for a maker bond
-  (§6.5), so that order can only be abandoned or left to expire. Proposed upstream
+  (§6.5), so that order can only be cancelled or left to expire. Proposed upstream
   follow-up in §13.
 - **My Order screen** shows the maker-bond state as "Waiting for your bond — the order
   is not published yet", distinct from "Waiting for a taker".
@@ -568,7 +605,7 @@ Two different situations, with different recovery:
     idempotent retry and answers with the same bolt11.
   - Maker: there is no idempotent re-request upstream (`new-order` would create a
     second order). The screen shows the state and the order-expiry countdown; if the
-    user wants out, Abandon (§6.2).
+    user wants out, Cancel (§6.2).
 
 Claims are not part of `RestoreData`; they are restored from the local claim store.
 The daemon's cadence retry of `add-bond-invoice` re-creates any claim the device lost.
@@ -707,7 +744,6 @@ pub struct BondRequest { pub amount_sats: u64, pub invoice: String }
 |---|---|---|
 | `take_order` / `create_order` (existing) | `orders.rs` | return a `TradeInfo` / `OrderInfo` carrying the bond state |
 | `request_bond_invoice_again(order_id)` | `bond.rs` | idempotent retake to recover a lost bolt11 (taker only) |
-| `abandon_bonded_order(order_id)` | `bond.rs` | local wipe for a maker bond the user will not pay |
 | `estimate_bond_sats(order_amount_sats) -> Option<u64>` | `bond.rs` | `max(pct × amount, base)` from the active node's stats; `None` when policy not enabled |
 | `submit_bond_payout_invoice(order_id, invoice)` | `bond.rs` | build + publish the `add-bond-invoice` reply **to `claim.node_pubkey`** (not the active node), set phase `Submitted` |
 | `list_bond_claims()` / `get_bond_claim(order_id)` | `bond.rs` | for My Trades and the claim screen |
@@ -757,7 +793,10 @@ Same skeleton as `pay_lightning_invoice_screen.dart` (QR, amount, copy, share,
   `bond_slash_on_waiting_timeout = true`** (the dispute risk exists on every
   bond-enabled node; the timeout risk is the node-policy switch).
 - Countdown to the bolt11 expiry when `expires_at` is known; nothing otherwise.
-- Taker: **Cancel** (daemon cancel). Maker: **Abandon** (local wipe, copy explains).
+- Taker: **Cancel** (daemon cancel). Maker: **Don't publish** (daemon cancel since
+  mostro#996). When the node refuses it with no sign of a lock
+  (`MakerCancelRefused`), the row stays and a dialog lets the user choose
+  **Remove from this device** or **Keep waiting** (§6.2).
 - Restored without an invoice: "Request the invoice again" (taker) / countdown only
   (maker).
 - On `TradeUpdate` leaving the waiting-bond status: taker-buyer → Trade Detail;
@@ -913,7 +952,7 @@ before.
 | Task | Scope | Files |
 |---|---|---|
 | T2.1 | Create-record correlation: `PayBondInvoice` on a `Create` record ⇒ `DaemonReply::BondRequested`; the record stays pending with `bond_requested = true`; `NewOrder` on such a record flips `WaitingMakerBond → Pending`, `bond → Locked`; fallback match by `(trade pubkey, order id)` when the registry is empty (restart); `create_order` returns `OrderInfo{status = WaitingMakerBond}` and persists the maker row with the bond | `rust/src/mostro/pending.rs`, `rust/src/api/orders.rs` |
-| T2.2 | `abandon_bonded_order(order_id)`; local expiry for `WaitingMakerBond` = min(bolt11 expiry, order `expires_at`) with the same update-then-wipe sequence as T1.2; `cancel_order` returns a `BondCancelNotAllowed` marker when called at `WaitingMakerBond` instead of hitting the daemon | `rust/src/api/bond.rs`, `rust/src/api/orders.rs` |
+| T2.2 | `abandon_bonded_order(order_id)`; local expiry for `WaitingMakerBond` = min(bolt11 expiry, order `expires_at`) with the same update-then-wipe sequence as T1.2; `cancel_order` returns a `BondCancelNotAllowed` marker when called at `WaitingMakerBond` instead of hitting the daemon. *Superseded by the maker cancel of mostro#996 (§6.2)* | `rust/src/api/bond.rs`, `rust/src/api/orders.rs` |
 | T2.3 | Create flow: navigate to the pay-bond screen (maker variant: Abandon, "not published yet" copy); My Order status block for `WaitingMakerBond`; create-form policy block | `add_order_screen.dart`, `pay_bond_invoice_screen.dart`, `my_order_status_block.dart`, l10n |
 
 - **PR-2a** — T2.1 + T2.2 (Rust). Justification: T2.2 is the exit path of the state
@@ -1062,7 +1101,7 @@ after drafting the above.
 | Pay-bond screen, route, restore maps back to it | §8.2, §6.5 | Same; plus explicit "request again" because v2 restores from `RestoreData`, not from a local message log |
 | Seller-as-taker two sequential invoices | §6.1 | Same, with an explicit hand-off banner |
 | Maker bond via the create notifier, same `requestId`, ephemeral session until published | §6.2, T2.1 | Same correlation idea; v2 persists the row immediately (status carries the "unpublished" meaning) instead of keeping it in memory |
-| Maker cannot cancel, abandons locally | §6.2 | Same |
+| Maker cannot cancel, abandons locally | §6.2 | v2 sends the cancel mostro#996 allows, and abandons locally only when an older daemon refuses it |
 | `BondPayoutPhase` reduced from message history | §6.4, §7.1 | v2 stores an explicit claim phase instead of reducing a message log (v2 has no per-order message log to reduce) |
 | Deadline anchored on `slashed_at`, default 15 days | §6.4 | Same |
 | Expired request dropped without navigating | §6.4 | Persisted as `Expired` instead of dropped, so the user can see why nothing is claimable |

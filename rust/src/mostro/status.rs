@@ -34,9 +34,13 @@ pub(crate) fn status_for_action(action: &mostro_core::message::Action) -> Option
         Action::PayBondInvoice => Some(OrderStatus::WaitingTakerBond),
         Action::WaitingSellerToPay => Some(OrderStatus::WaitingPayment),
         Action::WaitingBuyerInvoice => Some(OrderStatus::WaitingBuyerInvoice),
+        // `cashu-escrow-locked` is the Cashu sibling of the hold invoice
+        // being accepted: the daemon stored the escrow and the trade is live,
+        // for both parties (phase C5).
         Action::BuyerTookOrder
         | Action::HoldInvoicePaymentAccepted
-        | Action::BuyerInvoiceAccepted => Some(OrderStatus::Active),
+        | Action::BuyerInvoiceAccepted
+        | Action::CashuEscrowLocked => Some(OrderStatus::Active),
         Action::FiatSentOk => Some(OrderStatus::FiatSent),
         Action::HoldInvoicePaymentSettled | Action::Released => {
             Some(OrderStatus::SettledHoldInvoice)

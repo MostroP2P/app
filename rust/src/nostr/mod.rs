@@ -7,4 +7,6 @@ pub mod order_events;
 pub mod publish;
 pub mod relay_list;
 pub mod relay_pool;
+pub mod relay_probe;
+pub mod req_census;
 pub mod subscriptions;

@@ -334,13 +334,22 @@ class _PayLightningInvoiceScreenState
                   ],
                   Expanded(
                     child: Center(
-                      child: NwcPaymentWidget(
-                        bolt11: invoice,
-                        amountSats: amountSats,
-                        onPaymentSuccess: _onPaymentDetected,
-                        onFallbackToManual:
-                            () => setState(() => _manualMode = true),
-                      ),
+                      // Once the wallet reports the payment, the pay button
+                      // must go: the widget re-enables it on its way out, and
+                      // an already-settled bolt11 sent again fails and drops
+                      // the seller into the manual QR for an invoice they
+                      // already paid (#244). mostrod's confirmation is what
+                      // leaves this screen, and it can take tens of seconds.
+                      child:
+                          _waiting
+                              ? _waitingForConfirmation(l10n)
+                              : NwcPaymentWidget(
+                                bolt11: invoice,
+                                amountSats: amountSats,
+                                onPaymentSuccess: _onPaymentDetected,
+                                onFallbackToManual:
+                                    () => setState(() => _manualMode = true),
+                              ),
                     ),
                   ),
                 ],
@@ -487,18 +496,29 @@ class _PayLightningInvoiceScreenState
     ),
   );
 
-  List<Widget> _footer(AppLocalizations l10n, String invoice) {
+  /// What both payment paths show once the sats are on their way and only
+  /// mostrod's confirmation is missing. Shared so the wallet branch and the
+  /// manual one cannot drift apart (#244).
+  Widget _waitingForConfirmation(AppLocalizations l10n) {
     final book = OrderBookPalette.of(context);
-    if (_waiting) {
-      return [
-        Center(child: CircularProgressIndicator(color: book.lime)),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircularProgressIndicator(color: book.lime),
         const SizedBox(height: AppSpacing.sm),
         Text(
           l10n.waitingForPaymentConfirmation,
           textAlign: TextAlign.center,
           style: TextStyle(color: book.textSecondary),
         ),
-      ];
+      ],
+    );
+  }
+
+  List<Widget> _footer(AppLocalizations l10n, String invoice) {
+    final book = OrderBookPalette.of(context);
+    if (_waiting) {
+      return [_waitingForConfirmation(l10n)];
     }
 
     final copied = _copiedTimer != null;

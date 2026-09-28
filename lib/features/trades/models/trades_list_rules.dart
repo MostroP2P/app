@@ -139,7 +139,7 @@ class TradeRowState {
     required bool ratedByMe,
     required bool canRate,
   }) {
-    var trade = tradeStatusFromOrderStatus(status);
+    var trade = tradeStatusFor(status, isBuyer: isBuyer);
     if (trade == TradeStatus.pendingRating && ratedByMe) {
       trade = TradeStatus.rated;
     }

@@ -13,7 +13,7 @@
 /// arguments — see `api::identity::get_transport_identity_keys`, which
 /// applies the runtime privacy toggle.
 use anyhow::Result;
-use mostro_core::message::{Action, Message, MessageKind, Payload};
+use mostro_core::message::{Action, CashuLockProof, Message, MessageKind, Payload};
 use nostr_sdk::prelude::*;
 use uuid::Uuid;
 
@@ -206,13 +206,16 @@ pub(crate) fn action_message(
     ))
 }
 
-/// Build and wrap a Cancel MostroMessage.
+/// Build and wrap a Cancel MostroMessage. `request_id` is the nonce the
+/// daemon echoes when the caller waits for its answer — the maker's cancel
+/// of its bond window (mostro#996); `None` for the fire-and-forget cancels.
 pub async fn cancel(
     identity_keys: &Keys,
     trade_keys: &Keys,
     mostro_pubkey: &PublicKey,
     order_id: &str,
     trade_index: u32,
+    request_id: Option<u64>,
 ) -> Result<String> {
     simple_action(
         identity_keys,
@@ -221,6 +224,7 @@ pub async fn cancel(
         order_id,
         trade_index,
         Action::Cancel,
+        request_id,
     )
     .await
 }
@@ -229,9 +233,7 @@ pub async fn cancel(
 ///
 /// `request_id` is the correlation nonce the daemon echoes in its reply
 /// (`DisputeInitiatedByYou` or `CantDo`); `open_dispute` relies on it to tell
-/// the genuine reply apart from stale relay-replayed events. This is why the
-/// message is built here instead of through `simple_action`, which sends no
-/// nonce.
+/// the genuine reply apart from stale relay-replayed events.
 pub async fn dispute(
     identity_keys: &Keys,
     trade_keys: &Keys,
@@ -343,6 +345,53 @@ pub async fn add_invoice(
     wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
+/// Seller → Mostro: the funded 2-of-3 escrow token (phase C5).
+///
+/// The Cashu analogue of paying the hold invoice. The daemon re-derives
+/// `{P_B, P_S, P_M}` from the order and rejects a proof whose stated keys
+/// disagree, so these carry the x-only hex of the *trade* keys exactly as the
+/// order holds them — an identity key here would be rejected, and would leak
+/// the user across orders if it were not.
+///
+/// `fee_token` is `None` on a node that charges no fee; a node that does
+/// rejects a submission without one (daemon TA-1f).
+#[allow(clippy::too_many_arguments)]
+pub async fn add_cashu_escrow(
+    identity_keys: &Keys,
+    trade_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    order_id: &str,
+    trade_index: u32,
+    token: &str,
+    mint_url: &str,
+    buyer_pubkey: &str,
+    seller_pubkey: &str,
+    fee_token: Option<String>,
+    request_id: u64,
+) -> Result<String> {
+    let id = Uuid::parse_str(order_id)?;
+
+    let mut proof = CashuLockProof::new(
+        token.to_string(),
+        mint_url.to_string(),
+        buyer_pubkey.to_string(),
+        seller_pubkey.to_string(),
+        mostro_pubkey.to_string(),
+    );
+    if let Some(fee) = fee_token {
+        proof = proof.with_fee_token(fee);
+    }
+
+    let msg = Message::new_order(
+        Some(id),
+        Some(request_id),
+        Some(trade_index as i64),
+        Action::AddCashuEscrow,
+        Some(Payload::CashuLockProof(proof)),
+    );
+    wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /// Internal helper for take-buy / take-sell actions.
@@ -396,9 +445,10 @@ async fn simple_action(
     order_id: &str,
     trade_index: u32,
     action: Action,
+    request_id: Option<u64>,
 ) -> Result<String> {
     let id = Uuid::parse_str(order_id)?;
-    let msg = Message::new_order(Some(id), None, Some(trade_index as i64), action, None);
+    let msg = Message::new_order(Some(id), request_id, Some(trade_index as i64), action, None);
     wrap_message(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 

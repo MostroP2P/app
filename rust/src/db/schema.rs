@@ -117,6 +117,17 @@ CREATE TABLE IF NOT EXISTS trade_keys (
     key_index       INTEGER NOT NULL
 );
 
+-- Chat attachments (#589), cached as downloaded: the blob is still
+-- ChaCha20-Poly1305 ciphertext, keyed by its SHA-256 (the Blossom address).
+-- Decrypted only in memory, when shown. Identity-scoped (clear_identity_data).
+CREATE TABLE IF NOT EXISTS attachment_blobs (
+    sha256          TEXT PRIMARY KEY NOT NULL,
+    data            BLOB NOT NULL,
+    size            INTEGER NOT NULL,
+    created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attachment_blobs_created ON attachment_blobs(created_at);
+
 -- Payout claims on slashed bonds (docs/ANTI_ABUSE_BOND.md §6.4, §7.3).
 -- Independent of `trades`: the winner's row may be gone by the time the
 -- daemon asks for an invoice. Keyed by the issuing node and the order,

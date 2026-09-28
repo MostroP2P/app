@@ -85,3 +85,25 @@ TradeStatus tradeStatusFromOrderStatus(OrderStatus s) => switch (s) {
   OrderStatus.expired => TradeStatus.cancelled,
   OrderStatus.dispute => TradeStatus.disputed,
 };
+
+/// The status a trade shows to one side of it: [tradeStatusFromOrderStatus],
+/// except once the seller has released (#586).
+///
+/// At `settled-hold-invoice` the seller's part is over — getting the sats to
+/// the buyer is Mostro's job — and the daemon says so itself: it sends the
+/// seller `rate` together with the release, and accepts the seller's rating
+/// in that status (mostrod `release.rs`, `rate_user.rs`). So the seller goes
+/// straight to rating instead of waiting on a payout they cannot affect, and
+/// that may take long if it fails and retries. Nothing reaches the seller
+/// after the release either — `purchase-completed` goes to the buyer only.
+///
+/// The buyer keeps [TradeStatus.payoutPending]: those are their sats in
+/// flight, and the daemon refuses the buyer's rating until `success`.
+///
+/// Everything that decides a trade's step for the user — the trade screen,
+/// the rating screen, the trades list and its "needs your action" count —
+/// reads this, so none of them can disagree about whose turn it is.
+TradeStatus tradeStatusFor(OrderStatus s, {required bool isBuyer}) =>
+    s == OrderStatus.settledHoldInvoice && !isBuyer
+        ? TradeStatus.pendingRating
+        : tradeStatusFromOrderStatus(s);

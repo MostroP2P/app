@@ -57,12 +57,26 @@ successfully sent messages.
 Bring the core back in step with the relays after the process was suspended
 (`docs/PUSH_NOTIFICATIONS.md` §10, issue #308); the Dart lifecycle service
 calls it on every `paused → resumed` transition. One pass, in order: a
-reconnect nudge (`connect()` spawns a task for every relay without one, and
-the wait is bounded to 5 s), the bulk kind-14 filter re-issued under its
+reconnect nudge, the bulk kind-14 filter re-issued under its
 stable id (the relay replaces it in place; the replay is ordered by the
 per-order status cursors), the order-book loop, peer chats and dispute chats
 re-armed (each a no-op while its task is alive), the outbox flushed, and the
 push registrations reconciled (`docs/PUSH_NOTIFICATIONS.md` §7.1).
+The reconnect nudge has two parts:
+- **Every relay the SDK holds as `Disconnected` is bounced**: its socket is
+  dropped and a new connection task starts at once
+  (`relay_probe::reconnect_disconnected_now`, all relays together). The OS cuts
+  every socket while the app is in the background, and each relay's own task
+  then sleeps its retry interval (10 s, growing to 60 s). nostr-sdk's
+  `connect()` does not shorten that, so without the bounce a message sent while
+  the user was in another app would arrive only when the interval ran out.
+  Relays that are connected or already connecting are not touched. With no
+  network, it costs one attempt per dropped relay.
+- **Then `connect()`** spawns a task for every relay that has none. The wait is
+  bounded to 5 s.
+
+The pass logs `resume: reconnecting N dropped relay(s) now` when it bounced
+any relay (`docs/RELAYS.md` rule 6).
 Single-flight: calls that arrive while a pass runs wait for it and report
 its outcome with `coalesced = true`. Idempotent over a healthy core. Before
 the pool exists it reports `online = false` and does nothing.

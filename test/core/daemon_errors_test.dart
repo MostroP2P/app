@@ -39,10 +39,17 @@ void main() {
     );
   });
 
+  test('maps the range-with-sats marker of create_order', () {
+    expect(
+      localizedDaemonError(l10n, 'RangeOrderWithSats', fallback: 'x'),
+      l10n.rangeOrderWithSats,
+    );
+  });
+
   test('maps the maker bond cancel marker', () {
     expect(
-      localizedDaemonError(l10n, 'BondCancelNotAllowed', fallback: 'x'),
-      l10n.bondCancelNotAllowed,
+      localizedDaemonError(l10n, 'BondAlreadyLocked', fallback: 'x'),
+      l10n.bondAlreadyLocked,
     );
   });
 
@@ -153,6 +160,15 @@ void main() {
     expect(
       localizedDaemonError(l10n, 'NoDaemonResponse', fallback: 'x'),
       l10n.sessionTimeoutMessage,
+    );
+    expect(
+      localizedDaemonError(l10n, 'NoRelayAccepted', fallback: 'x'),
+      l10n.noRelayAcceptedMessage,
+    );
+    expect(
+      l10n.noRelayAcceptedMessage,
+      isNot(l10n.sessionTimeoutMessage),
+      reason: 'an event that never left the device is not a daemon timeout',
     );
     expect(
       localizedDaemonError(l10n, 'StorageUnavailable: no db', fallback: 'x'),

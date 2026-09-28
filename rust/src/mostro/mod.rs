@@ -4,6 +4,7 @@ pub mod bond_policy;
 pub mod escrow_mode;
 pub mod fsm;
 pub(crate) mod funds_at_risk;
+pub mod node_fee;
 pub(crate) mod pending;
 pub mod pow;
 pub mod protocol_version;

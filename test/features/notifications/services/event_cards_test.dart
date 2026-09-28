@@ -30,6 +30,7 @@ void main() {
     isEnabled: (event) => !disabled.contains(event),
     identityCreatedAt: () async => identityCreatedAt,
     currentLocation: () => location,
+    disputeIdForTrade: (tradeId) => tradeId == 'order-1' ? 'dispute-1' : null,
   );
 
   Future<NotificationsNotifier> openNotifier() async {
@@ -250,6 +251,22 @@ void main() {
       await cards.onChatMessage(message('m1'));
 
       expect(stateOf(notifier), isEmpty);
+    });
+
+    test('no solver card while the dispute chat is on screen', () async {
+      for (final path in [
+        AppRoute.disputeDetailsPath('dispute-1'),
+        AppRoute.disputeChatPath('dispute-1'),
+      ]) {
+        location = path;
+        await cards.onChatMessage(message('s-$path', type: MessageType.admin));
+      }
+      expect(stateOf(notifier), isEmpty);
+
+      // The P2P chat on screen hides the peer's messages, not the solver's.
+      location = AppRoute.chatRoomPath('order-1');
+      await cards.onChatMessage(message('s2', type: MessageType.admin));
+      expect(stateOf(notifier).single.id, 'chat-order-1-solver');
     });
 
     test(

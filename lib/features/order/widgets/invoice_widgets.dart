@@ -819,3 +819,21 @@ class InvoiceValidationRow extends StatelessWidget {
     );
   }
 }
+
+/// The validation row under the invoice field, carrying the `invoice.check`
+/// readout (`docs/automation-contract.md`).
+///
+/// The label is derived from [check] here instead of being passed in, so the
+/// row cannot be labelled with [sentence]: that copy is translated, and
+/// automation reading it would break in every locale but one. Callers choose
+/// what to say; they do not get to choose what it is called.
+Widget invoiceCheckRow({
+  required InvoiceCheck check,
+  required String sentence,
+}) => InvoiceValidationRow(
+  text: sentence,
+  isValid: check is! InvoiceCheckError,
+).withAutomationId(
+  AutomationIds.invoiceCheck,
+  label: invoiceCheckWord(check),
+);

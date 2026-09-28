@@ -35,6 +35,42 @@ fn identity_lock() -> &'static RwLock<Option<IdentityState>> {
     IDENTITY.get_or_init(|| RwLock::new(None))
 }
 
+/// Bumped by every identity deletion, under the write lock: it tells work
+/// that started under one identity apart from the next — even when the same
+/// mnemonic is imported again, which a pubkey comparison would not.
+static IDENTITY_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The generation of the active identity, or `None` without one.
+pub(crate) async fn identity_generation() -> Option<u64> {
+    let guard = identity_lock().read().await;
+    guard
+        .as_ref()
+        .map(|_| IDENTITY_GENERATION.load(std::sync::atomic::Ordering::SeqCst))
+}
+
+/// Run `write` only while the identity of `generation` is still the active
+/// one, else `None` without running it (PR #590 review).
+///
+/// For a write that outlives an await — a network transfer that ends in a
+/// cache write. The read lock is held across `write`, and deletion takes the
+/// write lock to retire the identity before it wipes its data, so a write
+/// that passes this check always lands before the wipe, which then removes
+/// it; one that comes later is refused.
+pub(crate) async fn while_identity_current<T>(
+    generation: u64,
+    write: impl std::future::Future<Output = T>,
+) -> Option<T> {
+    let guard = identity_lock().read().await;
+    let current = guard.is_some()
+        && IDENTITY_GENERATION.load(std::sync::atomic::Ordering::SeqCst) == generation;
+    if !current {
+        return None;
+    }
+    let out = write.await;
+    drop(guard);
+    Some(out)
+}
+
 // ── Trade-key counter publication ────────────────────────────────────────────
 
 /// Derivations are rare and Dart consumes them immediately; a small buffer is
@@ -344,6 +380,9 @@ async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
         bail!("NoIdentity");
     }
     *guard = None;
+    // Under the same lock, so no `while_identity_current` write can start
+    // between the two.
+    IDENTITY_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     drop(guard);
 
     // The push server must stop waking this device for keys the user no
@@ -1183,9 +1222,24 @@ mod tests {
 
         crate::api::logging::forward_log(log::Level::Info, "identity_probe", "before delete");
 
+        // A transfer that started under this identity may still write…
+        let generation = identity_generation().await.expect("an identity is loaded");
+        assert_eq!(
+            while_identity_current(generation, async { 1 }).await,
+            Some(1)
+        );
+
         // Without the data wipe: see `delete_identity_inner`.
         delete_identity_inner(false).await.unwrap();
         assert!(get_identity().await.unwrap().is_none());
+        assert_eq!(identity_generation().await, None);
+
+        // …but once it is deleted, the write is refused without running
+        // (PR #590 review: a paused download must not refill the wiped cache).
+        let mut wrote = false;
+        let refused = while_identity_current(generation, async { wrote = true }).await;
+        assert!(refused.is_none());
+        assert!(!wrote);
         assert!(
             !crate::api::logging::recent_logs()
                 .iter()
@@ -1195,5 +1249,15 @@ mod tests {
 
         // Deleting again fails: there is no identity left.
         assert!(delete_identity().await.is_err());
+
+        // Importing the same mnemonic again is a new generation: the old
+        // transfer stays refused although the pubkey is the same.
+        load_identity_from_mnemonic(words, 0, false, None)
+            .await
+            .unwrap();
+        let reloaded = identity_generation().await.expect("an identity is loaded");
+        assert_ne!(reloaded, generation);
+        assert!(while_identity_current(generation, async {}).await.is_none());
+        delete_identity_inner(false).await.unwrap();
     }
 }

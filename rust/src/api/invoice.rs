@@ -236,6 +236,18 @@ fn network_matches(invoice_network: &str, node_networks: &[String]) -> bool {
 /// mostrod times a waiting step from `taken_at` (`scheduler.rs`), which this
 /// message carries; the invoice screens add the node's `expiration_seconds`
 /// to it for their countdown.
+///
+/// The generation is checked again here, against the row the start is meant
+/// to describe: a value left by an earlier take of the same order is not a
+/// late deadline, it is no deadline at all, and saying so lets the caller
+/// fall back to the row's own `started_at` instead of counting from a step
+/// that ended hours ago (#567).
+///
+/// Defence in depth, not the only line: the dispatcher records a start for
+/// the take's own reply at the interception that consumes it, so the key is
+/// normally on the current generation already. This refuses what a write
+/// path missed — a start left by a take whose messages stopped arriving,
+/// say — instead of counting from a step that ended hours ago.
 pub async fn trade_step_started_at(order_id: String) -> Option<i64> {
     let db = crate::db::app_db::db()?;
     let stored = db
@@ -243,17 +255,42 @@ pub async fn trade_step_started_at(order_id: String) -> Option<i64> {
         .await
         .ok()
         .flatten()?;
-    parse_step_start(&stored).map(|(_, ts)| ts)
+    let (_, ts, stored_index) = parse_step_start(&stored)?;
+    let row_index = db
+        .get_trade_by_order_id(&order_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|trade| trade.trade_key_index);
+    step_start_applies(stored_index, row_index).then_some(ts)
 }
 
-/// Record that the daemon message dated `event_ts` opened `order_id`'s
-/// invoice step in `status` (called from the AddInvoice / PayInvoice arms).
+/// Whether a step start of generation `stored_index` describes the trade the
+/// row is on now.
+///
+/// Unknown on either side is not a mismatch: a value written before
+/// generations existed, or a row that is not there to compare against, leaves
+/// today's behaviour — the start is used, as it was before #567.
+fn step_start_applies(stored_index: Option<u32>, row_index: Option<u32>) -> bool {
+    match (stored_index, row_index) {
+        (Some(stored), Some(row)) => stored == row,
+        _ => true,
+    }
+}
+
+/// Record that the daemon message dated `event_ts`, addressed to trade key
+/// `trade_index`, opened `order_id`'s invoice step in `status` (called from
+/// the AddInvoice / PayInvoice arms).
 ///
 /// Kept apart from the status cursor, which every later accepted status
 /// message advances: a re-sent or follow-up message for the same step must
-/// not push the countdown out. The earliest timestamp of a step is kept; a
-/// different status opens a new step.
-pub(crate) async fn record_invoice_step_start(order_id: &str, status: &str, event_ts: i64) {
+/// not push the countdown out.
+pub(crate) async fn record_invoice_step_start(
+    order_id: &str,
+    status: &str,
+    event_ts: i64,
+    trade_index: u32,
+) {
     // A message dated beyond the tolerated skew is not a trustworthy start.
     let horizon = crate::rt::unix_now()
         .saturating_add(crate::nostr::transport::MAX_CLOCK_SKEW_SECS as i64);
@@ -265,7 +302,7 @@ pub(crate) async fn record_invoice_step_start(order_id: &str, status: &str, even
     };
     let key = crate::db::settings_keys::invoice_step_start(order_id);
     let existing = db.get_setting(&key).await.ok().flatten();
-    let Some(value) = next_step_start(existing.as_deref(), status, event_ts) else {
+    let Some(value) = next_step_start(existing.as_deref(), status, event_ts, trade_index) else {
         return;
     };
     if let Err(e) = db.set_setting(&key, &value).await {
@@ -273,21 +310,67 @@ pub(crate) async fn record_invoice_step_start(order_id: &str, status: &str, even
     }
 }
 
-/// The value to store for a step start of `status` at `event_ts`, or `None`
-/// when the stored one already covers it (same status, same or earlier time).
-fn next_step_start(existing: Option<&str>, status: &str, event_ts: i64) -> Option<String> {
-    if let Some((stored_status, stored_ts)) = existing.and_then(parse_step_start) {
-        if stored_status == status && stored_ts <= event_ts {
-            return None;
-        }
+/// The value to store for a step start of `status` at `event_ts` on trade key
+/// `trade_index`, or `None` when the stored one already covers it.
+///
+/// A step belongs to one trade, not to one status, and neither half of that
+/// can be dropped — each simple rule breaks what the other protects:
+///
+/// | | within one step | across steps |
+/// |---|---|---|
+/// | newest wins (what v1 does) | a re-sent message pushes the deadline out | correct |
+/// | earliest wins (what this did) | correct | sticks in a previous take's past |
+///
+/// So the generation decides first and the timestamp only within it: a newer
+/// trade index opens a new step whatever its status, a lower one is a message
+/// for a superseded key and says nothing about the step now running, and
+/// inside one generation the earliest message of a step is still its start
+/// (issue #567).
+///
+/// **That covers a taker, who gets a fresh key per take, and not a maker,
+/// who keeps one key for the whole life of the order** — mostrod's
+/// taker-cancel path clears only the counterparty's pubkeys
+/// (`edit_pubkeys_order`), so a later take reaches the maker on the same
+/// index and reads here as the same step. The maker's new step is opened by
+/// deleting the key when the order goes back to the book
+/// (`resync_republished_maker_order`), not by anything this function can
+/// tell. Two mechanisms, one per role.
+fn next_step_start(
+    existing: Option<&str>,
+    status: &str,
+    event_ts: i64,
+    trade_index: u32,
+) -> Option<String> {
+    let recorded = || Some(format!("{status}:{event_ts}:{trade_index}"));
+    let Some((stored_status, stored_ts, stored_index)) = existing.and_then(parse_step_start) else {
+        return recorded();
+    };
+    match stored_index {
+        // Addressed to a trade key this order has moved past.
+        Some(stored) if trade_index < stored => None,
+        // A later take: a genuinely new step, which its status cannot tell
+        // apart from the old one — both are `WaitingBuyerInvoice`.
+        Some(stored) if trade_index > stored => recorded(),
+        Some(_) if stored_status == status && stored_ts <= event_ts => None,
+        Some(_) => recorded(),
+        // Written before the generation existed, so it cannot be told apart
+        // from a start left behind by an earlier take. The first message that
+        // can name its own generation replaces it, which heals the stale keys
+        // already on devices running 2.0.x without a migration.
+        None => recorded(),
     }
-    Some(format!("{status}:{event_ts}"))
 }
 
-/// `WaitingPayment:1757712000` → (`WaitingPayment`, 1757712000).
-fn parse_step_start(value: &str) -> Option<(&str, i64)> {
-    let (status, ts) = value.rsplit_once(':')?;
-    Some((status, ts.parse().ok()?))
+/// `WaitingPayment:1757712000:100` → (`WaitingPayment`, 1757712000, Some(100)),
+/// and the generation-less `WaitingPayment:1757712000` → (…, None).
+///
+/// Splits from the left: the status is a status enum's `Debug`, which carries
+/// no colon, and the fields after it are numbers.
+fn parse_step_start(value: &str) -> Option<(&str, i64, Option<u32>)> {
+    let mut parts = value.split(':');
+    let status = parts.next()?;
+    let ts = parts.next()?.parse().ok()?;
+    Some((status, ts, parts.next().and_then(|i| i.parse().ok())))
 }
 
 fn summarize(input: &str) -> Option<Bolt11Summary> {
@@ -344,35 +427,128 @@ mod tests {
 
     #[test]
     fn a_later_message_for_the_same_step_does_not_move_its_start() {
-        let first = next_step_start(None, "WaitingPayment", 1_000).expect("first write");
-        assert_eq!(first, "WaitingPayment:1000");
-        // A re-sent or follow-up PayInvoice dated later keeps the start.
-        assert_eq!(next_step_start(Some(&first), "WaitingPayment", 1_500), None);
-        assert_eq!(next_step_start(Some(&first), "WaitingPayment", 1_000), None);
+        let first = next_step_start(None, "WaitingPayment", 1_000, 7).expect("first write");
+        assert_eq!(first, "WaitingPayment:1000:7");
+        // A re-sent or follow-up PayInvoice dated later keeps the start —
+        // the property this rule exists for.
+        assert_eq!(next_step_start(Some(&first), "WaitingPayment", 1_500, 7), None);
+        assert_eq!(next_step_start(Some(&first), "WaitingPayment", 1_000, 7), None);
         // An earlier copy (relay order) moves it back to the true start.
         assert_eq!(
-            next_step_start(Some(&first), "WaitingPayment", 900).as_deref(),
-            Some("WaitingPayment:900")
+            next_step_start(Some(&first), "WaitingPayment", 900, 7).as_deref(),
+            Some("WaitingPayment:900:7")
         );
     }
 
     #[test]
     fn a_new_status_opens_a_new_step() {
-        let paid = "WaitingPayment:1000";
+        let paid = "WaitingPayment:1000:7";
         assert_eq!(
-            next_step_start(Some(paid), "WaitingBuyerInvoice", 1_600).as_deref(),
-            Some("WaitingBuyerInvoice:1600")
+            next_step_start(Some(paid), "WaitingBuyerInvoice", 1_600, 7).as_deref(),
+            Some("WaitingBuyerInvoice:1600:7")
         );
+    }
+
+    /// #567: retaking the same order opens a step whose status is again
+    /// `WaitingBuyerInvoice`. Without the generation the write was skipped as
+    /// "the same step", and the screen counted from a take 92 minutes old —
+    /// already expired before it opened.
+    #[test]
+    fn a_later_take_opens_a_new_step_under_the_same_status() {
+        let first = "WaitingBuyerInvoice:1000:94";
+        assert_eq!(
+            next_step_start(Some(first), "WaitingBuyerInvoice", 6_520, 100).as_deref(),
+            Some("WaitingBuyerInvoice:6520:100")
+        );
+    }
+
+    /// The worse half of #567: a replayed message on a trade key the order
+    /// has moved past used to walk a correct deadline backwards.
+    #[test]
+    fn a_message_for_a_superseded_trade_key_is_ignored() {
+        let current = "WaitingBuyerInvoice:6520:100";
+        assert_eq!(
+            next_step_start(Some(current), "WaitingBuyerInvoice", 1_000, 94),
+            None
+        );
+        // Not even a different status on the dead key says anything.
+        assert_eq!(
+            next_step_start(Some(current), "WaitingPayment", 1_000, 94),
+            None
+        );
+    }
+
+    /// Values stored by 2.0.x carry no generation, so they cannot be told
+    /// apart from one an earlier take left behind: the first message that can
+    /// name its own replaces it, and a poisoned device heals itself.
+    #[test]
+    fn a_value_without_a_generation_is_replaced() {
+        let legacy = "WaitingBuyerInvoice:1000";
+        assert_eq!(
+            next_step_start(Some(legacy), "WaitingBuyerInvoice", 6_520, 100).as_deref(),
+            Some("WaitingBuyerInvoice:6520:100")
+        );
+        // Even one that the old rule would have kept as "the earliest".
+        assert_eq!(
+            next_step_start(Some(legacy), "WaitingBuyerInvoice", 1_500, 100).as_deref(),
+            Some("WaitingBuyerInvoice:1500:100")
+        );
+    }
+
+    /// The case the write path cannot catch: a retake's own reply is consumed
+    /// by `take_order` and never reaches the arm that records a start, so the
+    /// key still holds the previous take's. The read refuses it, and the
+    /// caller falls back to the row's `started_at` (#567).
+    #[test]
+    fn a_start_from_an_earlier_take_does_not_describe_this_row() {
+        assert!(!step_start_applies(Some(94), Some(100)));
+        assert!(step_start_applies(Some(100), Some(100)));
+    }
+
+    /// Neither unknown is a mismatch: a value written before generations
+    /// existed, or no row to compare against, keeps pre-#567 behaviour rather
+    /// than silently dropping a deadline that may well be right.
+    #[test]
+    fn an_unknown_generation_is_not_a_mismatch() {
+        assert!(step_start_applies(None, Some(100)));
+        assert!(step_start_applies(Some(100), None));
+        assert!(step_start_applies(None, None));
     }
 
     #[test]
     fn unreadable_stored_values_are_replaced() {
         assert_eq!(
-            next_step_start(Some("garbage"), "WaitingPayment", 5).as_deref(),
-            Some("WaitingPayment:5")
+            next_step_start(Some("garbage"), "WaitingPayment", 5, 3).as_deref(),
+            Some("WaitingPayment:5:3")
         );
-        assert_eq!(parse_step_start("WaitingPayment:12"), Some(("WaitingPayment", 12)));
+        assert_eq!(
+            parse_step_start("WaitingPayment:12:3"),
+            Some(("WaitingPayment", 12, Some(3)))
+        );
+        assert_eq!(
+            parse_step_start("WaitingPayment:12"),
+            Some(("WaitingPayment", 12, None))
+        );
         assert_eq!(parse_step_start("WaitingPayment:x"), None);
+    }
+
+    /// Pins how a value this module would never write is read, so the answer
+    /// does not drift silently if the format ever gains a field: an
+    /// unparseable generation reads as "written before generations existed",
+    /// and anything past the third field is ignored. Both then pass the read
+    /// guard, which is the lenient side to be on — a start that cannot name
+    /// its generation is used, not dropped.
+    #[test]
+    fn a_malformed_generation_reads_as_no_generation() {
+        assert_eq!(
+            parse_step_start("WaitingPayment:12:x"),
+            Some(("WaitingPayment", 12, None))
+        );
+        assert_eq!(
+            parse_step_start("WaitingPayment:12:3:9"),
+            Some(("WaitingPayment", 12, Some(3)))
+        );
+        assert!(step_start_applies(None, Some(100)));
     }
 
     #[test]

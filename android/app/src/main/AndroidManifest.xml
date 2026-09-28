@@ -1,10 +1,19 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Network (Nostr relay connections, Blossom HTTP, NWC) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Camera (QR code scanning via mobile_scanner) -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- open_filex ("open with…" for chat attachments) declares these for files
+         in shared storage. The chat only opens copies in the app's own cache,
+         which need none, and Play restricts the media ones: drop them. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
 
     <!-- Vibration for notifications -->
     <uses-permission android:name="android.permission.VIBRATE" />

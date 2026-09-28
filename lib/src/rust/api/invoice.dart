@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `check`, `classify`, `is_lightning_address`, `lnd_network_name`, `network_matches`, `next_step_start`, `normalize`, `parse_step_start`, `record_invoice_step_start`, `rejected_with`, `summarize`
+// These functions are ignored because they are not marked as `pub`: `check`, `classify`, `is_lightning_address`, `lnd_network_name`, `network_matches`, `next_step_start`, `normalize`, `parse_step_start`, `record_invoice_step_start`, `rejected_with`, `step_start_applies`, `summarize`
 
 /// Amount and expiry of `invoice`, or `None` when it is not a well-formed,
 /// correctly signed BOLT11 invoice. A `lightning:` prefix and surrounding
@@ -49,5 +49,17 @@ Future<InvoiceVerdict> checkBuyerInvoice({
 /// mostrod times a waiting step from `taken_at` (`scheduler.rs`), which this
 /// message carries; the invoice screens add the node's `expiration_seconds`
 /// to it for their countdown.
+///
+/// The generation is checked again here, against the row the start is meant
+/// to describe: a value left by an earlier take of the same order is not a
+/// late deadline, it is no deadline at all, and saying so lets the caller
+/// fall back to the row's own `started_at` instead of counting from a step
+/// that ended hours ago (#567).
+///
+/// Defence in depth, not the only line: the dispatcher records a start for
+/// the take's own reply at the interception that consumes it, so the key is
+/// normally on the current generation already. This refuses what a write
+/// path missed — a start left by a take whose messages stopped arriving,
+/// say — instead of counting from a step that ended hours ago.
 Future<PlatformInt64?> tradeStepStartedAt({required String orderId}) =>
     RustLib.instance.api.crateApiInvoiceTradeStepStartedAt(orderId: orderId);

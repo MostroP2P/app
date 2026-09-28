@@ -27,6 +27,8 @@ void main() {
       (OrderStatus.fiatSent, false, TradeRowVerb.releaseSats),
       (OrderStatus.success, true, TradeRowVerb.rate),
       (OrderStatus.success, false, TradeRowVerb.rate),
+      // The seller rates as soon as they have released (#586).
+      (OrderStatus.settledHoldInvoice, false, TradeRowVerb.rate),
     ]) {
       test('$status as ${isBuyer ? 'buyer' : 'seller'} → ${verb.name}', () {
         final row = _row(status, isBuyer: isBuyer);
@@ -46,6 +48,7 @@ void main() {
       (OrderStatus.inProgress, true, TradeChipLabel.inProgress),
       (OrderStatus.active, false, TradeChipLabel.waitingPayment),
       (OrderStatus.fiatSent, true, TradeChipLabel.waitingSats),
+      // The buyer still waits for the payout.
       (OrderStatus.settledHoldInvoice, true, TradeChipLabel.waitingSats),
     ]) {
       test('$status as ${isBuyer ? 'buyer' : 'seller'} → ${chip.name}', () {
@@ -76,6 +79,17 @@ void main() {
       expect(row.group, TradeGroup.closed);
       expect(row.chip, TradeChipLabel.completed);
       expect(row.chipKind, TradeChipKind.done);
+    });
+
+    test('a seller who rated after releasing is done, payout or not', () {
+      // #586: nothing is left for the seller once they released and rated.
+      final row = _row(
+        OrderStatus.settledHoldInvoice,
+        isBuyer: false,
+        ratedByMe: true,
+      );
+      expect(row.group, TradeGroup.closed);
+      expect(row.chip, TradeChipLabel.completed);
     });
 
     test('with no way to rate, a success is completed at once', () {

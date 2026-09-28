@@ -234,29 +234,43 @@ is a decentralized media hosting protocol for Nostr.
 
 **Blob structure**: `[nonce:12][encrypted_data][auth_tag:16]`
 
-**Supported file types**:
-- Images: JPG, PNG, GIF, WEBP (auto-preview in chat)
-- Documents: PDF, DOC, TXT, RTF (download button)
-- Videos: MP4, MOV, AVI, WEBM (download button)
+**Supported file types** (#589, matching v1 v1.4.2):
+- Sent: JPEG, PNG (auto-preview in chat), PDF (download on demand)
+- Received: all v1 types — JPG/PNG, PDF/DOC/DOCX, MP4/MOV/AVI
 - Size limit: 25MB per file
 
-**Blossom server list** (from v1):
-- blossom.primal.net, blossom.band, nostr.media
-- blossom.sector01.com, 24242.io, nosto.re
+**Blossom server list** (v1's `BlossomConfig.defaultServers`, chosen because
+they accept opaque blobs; none promises retention or mirroring, so once the
+local cache evicts a blob it is only as available as the one server holding it):
+- cdn.hzrd149.com, nostr.download, blossom-01.uid.ovh
+- files.sovbit.host, blssm.us
 
 **Upload flow**:
 1. User selects file in Flutter UI.
 2. File bytes passed to Rust via bridge.
-3. Rust encrypts with ChaCha20-Poly1305 using a random nonce.
-4. Encrypted blob uploaded to Blossom server via HTTP PUT.
-5. Blossom URL sent as message content via NIP-59 Gift Wrap.
-6. Recipient downloads blob, decrypts in Rust, displays in Flutter.
+3. Rust recognises it by content; images are re-encoded without metadata.
+4. Rust encrypts with ChaCha20-Poly1305 (random nonce) under the raw ECDH
+   secret with the counterpart — the key v1 uses.
+5. Encrypted blob uploaded with `PUT /upload` (BUD-02), authorised by a
+   kind 24242 event from a throwaway key.
+6. v1's JSON message (`image_encrypted` / `file_encrypted`) sent through the
+   chat envelope.
+7. Recipient downloads the blob, checks its hash, decrypts in Rust in memory,
+   displays in Flutter.
+
+Pinned by a cross-client vector produced with v1's own code
+(`rust/src/crypto/file_enc.rs` tests).
 
 **Download behavior**: Images download and preview automatically. All
 other types show a download button (download-on-demand).
 
-**WASM consideration**: HTTP uploads on web use `reqwest` with
-WASM-compatible backend (fetch API). File size limits apply equally.
+**WASM consideration** (#589 phase 4): the same client runs on the browser's
+`fetch` (reqwest's wasm backend), so the upload is a CORS request from a
+cross-origin isolated page. v1's five servers all answer
+`Access-Control-Allow-Origin: *`; one whose preflight does not name
+`Authorization` refuses the upload and the next is tried. The encrypted blob
+is cached in IndexedDB (100 MB cap), and the web smoke test runs an upload
+and read-back against a Blossom endpoint of its own (`SMOKE_ATTACHMENTS=1`).
 
 **Alternatives considered**:
 - Inline file content in Nostr events: Size-limited, inefficient. Rejected.

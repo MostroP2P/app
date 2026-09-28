@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/features/home/providers/order_book_feed.dart';
+import 'package:mostro/features/home/providers/order_filters_provider.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
 
+// The order-book filters, kept across launches (issue #575): re-exported so a
+// reader of the book needs one import.
+export 'package:mostro/features/home/providers/order_filters_provider.dart';
 export 'package:mostro/src/rust/api/types.dart' show OrderStatus;
 
 // ── Order type ────────────────────────────────────────────────────────────────
@@ -14,46 +18,6 @@ enum OrderType { buy, sell }
 /// "BUY BTC" → OrderType.buy (shows sell orders — taker buys).
 /// "SELL BTC" → OrderType.sell (shows buy orders — taker sells).
 final homeOrderTypeProvider = StateProvider<OrderType>((_) => OrderType.buy);
-
-// ── Filter defaults & providers ──────────────────────────────────────────────
-
-/// Canonical default range for the rating filter.
-const defaultRatingRange = (min: 0.0, max: 5.0);
-
-/// Canonical default range for the premium filter.
-const defaultPremiumRange = (min: -10.0, max: 10.0);
-
-/// Selected fiat currency codes (multi-select). Empty = no filter.
-final currencyFilterProvider = StateProvider<List<String>>((_) => []);
-
-/// Selected payment methods (multi-select). Empty = no filter.
-final paymentMethodFilterProvider = StateProvider<List<String>>((_) => []);
-
-/// Rating range filter. Default = full range.
-final ratingFilterProvider = StateProvider<({double min, double max})>(
-  (_) => defaultRatingRange,
-);
-
-/// Premium range filter. Default = full range.
-final premiumRangeFilterProvider = StateProvider<({double min, double max})>(
-  (_) => defaultPremiumRange,
-);
-
-/// Whether any filter currently narrows the order book.
-final hasActiveOrderFiltersProvider = Provider<bool>((ref) {
-  return ref.watch(currencyFilterProvider).isNotEmpty ||
-      ref.watch(paymentMethodFilterProvider).isNotEmpty ||
-      ref.watch(ratingFilterProvider) != defaultRatingRange ||
-      ref.watch(premiumRangeFilterProvider) != defaultPremiumRange;
-});
-
-/// Resets every order-book filter to its default.
-void clearOrderFilters(WidgetRef ref) {
-  ref.read(currencyFilterProvider.notifier).state = const [];
-  ref.read(paymentMethodFilterProvider.notifier).state = const [];
-  ref.read(ratingFilterProvider.notifier).state = defaultRatingRange;
-  ref.read(premiumRangeFilterProvider.notifier).state = defaultPremiumRange;
-}
 
 // ── Sort ──────────────────────────────────────────────────────────────────────
 
@@ -368,13 +332,13 @@ final tabHasOrdersProvider = Provider.autoDispose<bool>((ref) {
 final filteredOrdersProvider = Provider.autoDispose<List<OrderItem>>((ref) {
   final allOrders = ref.watch(orderBookProvider).valueOrNull ?? [];
   final orderType = ref.watch(homeOrderTypeProvider);
-  final selectedCurrencies = ref.watch(currencyFilterProvider);
-  final selectedPaymentMethods = ref.watch(paymentMethodFilterProvider);
-  final ratingRange = ref.watch(ratingFilterProvider);
-  final premiumRange = ref.watch(premiumRangeFilterProvider);
+  final filters = ref.watch(orderFiltersProvider);
+  final selectedCurrencies = filters.currencies;
+  final ratingRange = filters.rating;
+  final premiumRange = filters.premium;
   final sort = ref.watch(orderSortProvider);
   final selectedMethods = {
-    for (final method in selectedPaymentMethods) method.toLowerCase(),
+    for (final method in filters.paymentMethods) method.toLowerCase(),
   };
 
   return allOrders.where((o) {

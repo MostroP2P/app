@@ -45,6 +45,7 @@ TradeInfo fakeTrade({
     counterpartyPubkey: 'counterparty-$id',
     currentStep: const TradeStep.disputed(),
     tradeKeyIndex: 0,
+    cashuRejectedEscrowTokens: const [],
     startedAt: startedAt,
     holdInvoice: holdInvoice,
     peerRating: peerRating,

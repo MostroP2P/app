@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `all`, `clear_dispute_keys`, `derive_admin_shared_key`, `dispute_store`, `forget_identity_disputes`, `get`, `has_dispute_keys`, `is_order_finished`, `is_peer_placeholder`, `new`, `pending_opens`, `persist_admin_pubkey`, `persist_dispute_origin`, `persisted_order_is_finished`, `record_late_acceptance`, `rehydrate_disputes_from_storage`, `resolve_dispute`, `resubscribe_active_dispute_chats`, `status_allows_dispute`, `try_insert_if_absent_or_resolved`, `update_conditional`, `upsert_or_update`
+// These functions are ignored because they are not marked as `pub`: `all`, `apply_admin_verdict`, `clear_dispute_keys`, `derive_admin_shared_key`, `dispute_store`, `forget_identity_disputes`, `get`, `has_dispute_keys`, `is_order_finished`, `is_peer_placeholder`, `new`, `pending_opens`, `persist_admin_pubkey`, `persist_dispute_origin`, `persisted_order_is_finished`, `record_late_acceptance`, `rehydrate_disputes_from_storage`, `resolve_dispute`, `resubscribe_active_dispute_chats`, `solver_conversation`, `solver_pubkey`, `status_allows_dispute`, `try_insert_if_absent_or_resolved`, `update_conditional`, `upsert_or_update`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DisputeStore`, `PendingOpenGuard`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `drop`
 
@@ -31,16 +31,41 @@ Future<Dispute> openDispute({required String tradeId, String? reason}) =>
       reason: reason,
     );
 
-/// Submit free-text evidence for an open dispute.
+/// Submit free-text evidence for an open dispute, and return it as stored.
 ///
 /// Delivered as an admin-type message in the dispute chat.
 ///
-/// **Errors**: `NoOpenDispute`, `EvidenceEmpty`.
-Future<void> submitEvidence({required String tradeId, required String text}) =>
-    RustLib.instance.api.crateApiDisputesSubmitEvidence(
-      tradeId: tradeId,
-      text: text,
-    );
+/// **Errors**: `EvidenceEmpty`, `NoOpenDispute`, `AdminNotAssigned`,
+/// `TradeNotFound`.
+Future<ChatMessage> submitEvidence({
+  required String tradeId,
+  required String text,
+}) => RustLib.instance.api.crateApiDisputesSubmitEvidence(
+  tradeId: tradeId,
+  text: text,
+);
+
+/// Encrypt, upload and send an image or PDF to the solver (#589 phase 3).
+///
+/// The peer chat's `send_file`, keyed to the solver: the file key is the raw
+/// ECDH between our trade key and the solver's pubkey, as v1 encrypts files
+/// in the dispute chat. The solver is not a push client, so nobody is woken.
+/// `on_attachment_progress(upload_id)` reports progress.
+///
+/// **Errors**: `FileTooLarge`, `UnsupportedFileType`, `InvalidImage`,
+/// `NoOpenDispute`, `AdminNotAssigned`, `TradeNotFound`, `UploadFailed`,
+/// `SendFailed`.
+Future<ChatMessage> sendDisputeFile({
+  required String tradeId,
+  required List<int> fileBytes,
+  required String fileName,
+  required String uploadId,
+}) => RustLib.instance.api.crateApiDisputesSendDisputeFile(
+  tradeId: tradeId,
+  fileBytes: fileBytes,
+  fileName: fileName,
+  uploadId: uploadId,
+);
 
 /// Get dispute details for a trade.
 ///
@@ -76,7 +101,8 @@ Future<DisputeStream> onDisputeUpdated({required String tradeId}) =>
 abstract class DisputeStream implements RustOpaqueInterface {
   /// Poll for the next dispute update matching this trade.
   ///
-  /// `RecvError::Lagged` is handled gracefully: dropped messages are skipped
-  /// and the loop continues rather than terminating the stream.
+  /// `RecvError::Lagged` does not end the stream. The skipped messages may
+  /// have held this trade's latest state (its resolution), so the record as
+  /// it stands now is returned in their place (PR #596 review).
   Future<Dispute> next();
 }

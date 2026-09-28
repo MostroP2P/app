@@ -4,6 +4,81 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.8] - 2026-09-27
+
+### ✨ Features
+
+- **cashu:** C5 — seller escrow lock flow (Track A) ([#238](https://github.com/MostroP2P/app/pull/238)) by @grunch
+- **cashu:** C3 — minimal wallet UI (balance, receive, export) ([#237](https://github.com/MostroP2P/app/pull/237)) by @grunch
+- **bond:** let the maker cancel its unpaid bond window ([#601](https://github.com/MostroP2P/app/pull/601)) by @grunch
+- read the published_at tag on order events ([#602](https://github.com/MostroP2P/app/pull/602)) by @grunch
+- **chat-attachments:** phase 4 — the web build sends, shows and saves files (#589) ([#600](https://github.com/MostroP2P/app/pull/600)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **trades:** don't offer Release again while the node settles it ([#604](https://github.com/MostroP2P/app/pull/604)) by @grunch
+- **chat:** show a sent message once the first relay accepts it ([#603](https://github.com/MostroP2P/app/pull/603)) by @grunch
+- **errors:** tell an unsent message apart from a daemon timeout ([#599](https://github.com/MostroP2P/app/pull/599)) by @grunch
+
+## [2.0.7] - 2026-09-25
+
+### ✨ Features
+
+- **chat-attachments:** phase 3 — the dispute chat, text and files to the solver (#589) ([#596](https://github.com/MostroP2P/app/pull/596)) by @grunch
+- **chat-attachments:** phase 2b — open with…, share, and v1 document cards (#589) ([#595](https://github.com/MostroP2P/app/pull/595)) by @grunch
+- **chat-attachments:** phase 2a — send, show and save images and PDFs (#589) ([#593](https://github.com/MostroP2P/app/pull/593)) by @grunch
+- **chat-attachments:** phase 1 — v1-compatible attachment core ([#590](https://github.com/MostroP2P/app/pull/590)) by @grunch
+- **automation:** add the invoice.check readout for the app's own invoice verdict ([#588](https://github.com/MostroP2P/app/pull/588)) by @Catrya
+
+### 🐛 Bug Fixes
+
+- re-mark the book entry as own when the maker row persists ([#556](https://github.com/MostroP2P/app/pull/556)) by @Forte11Cuba
+- **invoice:** a step start belongs to one trade, not to one status ([#574](https://github.com/MostroP2P/app/pull/574)) by @Catrya
+- **trades:** the seller rates right after releasing ([#587](https://github.com/MostroP2P/app/pull/587)) by @grunch
+- **order-book:** the user's own orders win no highlight chip ([#585](https://github.com/MostroP2P/app/pull/585)) by @grunch
+
+## [2.0.6] - 2026-09-24
+
+### ✨ Features
+
+- **trades:** expose the My Trades empty and error states to automation ([#579](https://github.com/MostroP2P/app/pull/579)) by @Catrya
+- **order-book:** keep the filters across launches ([#576](https://github.com/MostroP2P/app/pull/576)) by @grunch
+- **account:** restore sheet when importing an account (design 20a-20d) ([#559](https://github.com/MostroP2P/app/pull/559)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **relay:** detect and recover a relay that is Connected but not delivering ([#572](https://github.com/MostroP2P/app/pull/572)) by @Catrya
+- **trades:** count the waiting steps to the node's deadline ([#564](https://github.com/MostroP2P/app/pull/564)) by @Catrya
+- **order:** show the waiting state after an NWC payment ([#563](https://github.com/MostroP2P/app/pull/563)) by @Catrya
+- **order:** the take screen keeps Taking… while its own take settles ([#456](https://github.com/MostroP2P/app/pull/456)) by @Catrya
+- **relays:** share one d-tag REQ across watched orders ([#560](https://github.com/MostroP2P/app/pull/560)) by @grunch
+- **order:** one take per tap on the take screen ([#558](https://github.com/MostroP2P/app/pull/558)) by @grunch
+
+## [2.0.5] - 2026-09-22
+
+### ✨ Features
+
+- **orders:** read the order's creation time from the NIP-69 tag ([#550](https://github.com/MostroP2P/app/pull/550)) by @grunch
+- **restore:** rebuild trade rows from the daemon's own record ([#546](https://github.com/MostroP2P/app/pull/546)) by @grunch
+- **account:** warn before replacing an identity with sats in play ([#545](https://github.com/MostroP2P/app/pull/545)) by @grunch
+- **restore:** recover the chat peer from the restore reply ([#544](https://github.com/MostroP2P/app/pull/544)) by @grunch
+- **l10n:** add Dutch (nl) translation ([#537](https://github.com/MostroP2P/app/pull/537)) by @BBakker26
+
+### 🐛 Bug Fixes
+
+- **account:** an identity swap shows the new user without a restart ([#557](https://github.com/MostroP2P/app/pull/557)) by @grunch
+- **trades:** handle takes left Canceled by the old optimistic cancel ([#448](https://github.com/MostroP2P/app/pull/448)) by @Catrya
+- **home:** the order book grid survives an order coming back ([#455](https://github.com/MostroP2P/app/pull/455)) by @Catrya
+- **account:** a new identity starts from zero ([#543](https://github.com/MostroP2P/app/pull/543)) by @grunch
+
+### ♻️ Refactoring
+
+- **l10n:** list languages from the ARB files; fix the own-order header at 2x text ([#542](https://github.com/MostroP2P/app/pull/542)) by @BBakker26
+
+### 🧹 Chores
+
+- **claude:** block commits whose generated code is stale ([#547](https://github.com/MostroP2P/app/pull/547)) by @grunch
+
 ## [2.0.4] - 2026-09-21
 
 ### ✨ Features

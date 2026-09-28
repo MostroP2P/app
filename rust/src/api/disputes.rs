@@ -183,6 +183,12 @@ fn dispute_store() -> &'static DisputeStore {
     DISPUTE_STORE.get_or_init(DisputeStore::new)
 }
 
+/// The solver's pubkey for `trade_id`'s dispute, once one took it — the
+/// counterpart of the dispute chat, whose attachments are keyed to it (#589).
+pub(crate) async fn solver_pubkey(trade_id: &str) -> Option<String> {
+    dispute_store().get(trade_id).await.and_then(|d| d.admin_pubkey)
+}
+
 /// Forget every dispute of the identity being deleted (issue #533). The
 /// store is in memory by design, so without this the next user keeps seeing
 /// the previous one's disputes until the process restarts.
@@ -390,38 +396,20 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
     Ok(stored)
 }
 
-/// Submit free-text evidence for an open dispute.
+/// Submit free-text evidence for an open dispute, and return it as stored.
 ///
 /// Delivered as an admin-type message in the dispute chat.
 ///
-/// **Errors**: `NoOpenDispute`, `EvidenceEmpty`.
-pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
+/// **Errors**: `EvidenceEmpty`, `NoOpenDispute`, `AdminNotAssigned`,
+/// `TradeNotFound`.
+pub async fn submit_evidence(
+    trade_id: String,
+    text: String,
+) -> Result<crate::api::types::ChatMessage> {
     if text.trim().is_empty() {
         bail!("EvidenceEmpty: text must not be empty");
     }
-
-    let dispute = dispute_store()
-        .get(&trade_id)
-        .await
-        .ok_or_else(|| anyhow!("NoOpenDispute: no dispute for trade {trade_id}"))?;
-
-    if dispute.status == DisputeStatus::Resolved {
-        bail!("NoOpenDispute: dispute for trade {trade_id} is already resolved");
-    }
-
-    // Admin pubkey must be known (set by handle_admin_took_dispute).
-    let admin_pubkey_hex = dispute
-        .admin_pubkey
-        .as_deref()
-        .ok_or_else(|| anyhow!("AdminNotAssigned: dispute has no admin yet"))?;
-
-    let admin_pubkey = nostr_sdk::prelude::PublicKey::from_hex(admin_pubkey_hex)
-        .map_err(|e| anyhow!("invalid admin pubkey: {e}"))?;
-
-    // Look up the trade key index.
-    let trade_index = crate::api::orders::trade_key_for_order(&trade_id)
-        .await
-        .ok_or_else(|| anyhow!("TradeNotFound: no trade key for {trade_id}"))?;
+    let (trade_index, admin_pubkey) = solver_conversation(&trade_id).await?;
 
     // Same envelope as the peer chat, keyed to the solver instead of the
     // counterparty: inner kind 1 signed by our trade key, NIP-44 under K_conv,
@@ -438,10 +426,73 @@ pub async fn submit_evidence(trade_id: String, text: String) -> Result<()> {
     // Record it locally so the dispute conversation has history, exactly as a
     // peer message does. Keyed by the inner event id, so our own echo arriving
     // from a relay dedups against this record instead of duplicating it.
-    crate::api::messages::store_outgoing_admin_message(&trade_id, &ctx, &text, &inner).await;
+    let msg =
+        crate::api::messages::store_outgoing_admin_message(&trade_id, &ctx, &text, &inner).await;
 
     log::info!("[disputes] evidence submitted for trade={trade_id}");
-    Ok(())
+    Ok(msg)
+}
+
+/// Encrypt, upload and send an image or PDF to the solver (#589 phase 3).
+///
+/// The peer chat's `send_file`, keyed to the solver: the file key is the raw
+/// ECDH between our trade key and the solver's pubkey, as v1 encrypts files
+/// in the dispute chat. The solver is not a push client, so nobody is woken.
+/// `on_attachment_progress(upload_id)` reports progress.
+///
+/// **Errors**: `FileTooLarge`, `UnsupportedFileType`, `InvalidImage`,
+/// `NoOpenDispute`, `AdminNotAssigned`, `TradeNotFound`, `UploadFailed`,
+/// `SendFailed`.
+pub async fn send_dispute_file(
+    trade_id: String,
+    file_bytes: Vec<u8>,
+    file_name: String,
+    upload_id: String,
+) -> Result<crate::api::types::ChatMessage> {
+    let target = async {
+        let (trade_key_index, admin_pubkey) = solver_conversation(&trade_id).await?;
+        Ok(crate::api::messages::AttachmentTarget {
+            trade_key_index,
+            counterpart_hex: admin_pubkey.to_hex(),
+            channel: crate::api::messages::ChatChannel::Dispute,
+        })
+    };
+    crate::api::messages::send_attachment(&trade_id, file_bytes, file_name, &upload_id, target)
+        .await
+}
+
+/// Our trade key index and the solver's pubkey, for a dispute that can still
+/// be written to: open, not resolved, and taken by a solver.
+async fn solver_conversation(trade_id: &str) -> Result<(u32, nostr_sdk::prelude::PublicKey)> {
+    let dispute = dispute_store()
+        .get(trade_id)
+        .await
+        .ok_or_else(|| anyhow!("NoOpenDispute: no dispute for trade {trade_id}"))?;
+
+    if dispute.status == DisputeStatus::Resolved {
+        bail!("NoOpenDispute: dispute for trade {trade_id} is already resolved");
+    }
+    // The trade row is the other witness: a verdict that reached it but not
+    // this record (a replay dropped, an older build) still closes the chat
+    // (PR #596 review).
+    if persisted_order_is_finished(trade_id).await {
+        bail!("NoOpenDispute: the trade of dispute {trade_id} is finished");
+    }
+
+    // Admin pubkey must be known (set by handle_admin_took_dispute).
+    let admin_pubkey_hex = dispute
+        .admin_pubkey
+        .as_deref()
+        .ok_or_else(|| anyhow!("AdminNotAssigned: dispute has no admin yet"))?;
+
+    let admin_pubkey = nostr_sdk::prelude::PublicKey::from_hex(admin_pubkey_hex)
+        .map_err(|e| anyhow!("invalid admin pubkey: {e}"))?;
+
+    // Look up the trade key index.
+    let trade_index = crate::api::orders::trade_key_for_order(trade_id)
+        .await
+        .ok_or_else(|| anyhow!("TradeNotFound: no trade key for {trade_id}"))?;
+    Ok((trade_index, admin_pubkey))
 }
 
 /// Record a dispute the daemon accepted after `open_dispute` had already
@@ -993,6 +1044,28 @@ pub async fn handle_admin_canceled(trade_id: String) -> Result<()> {
     resolve_dispute(trade_id, DisputeResolution::FundsToSeller).await
 }
 
+/// The dispute side of a verdict the daemon sent (`admin-settled`,
+/// `admin-canceled`): resolve the dispute, which closes its chat and tells
+/// `on_dispute_updated`. The trade row takes the status separately, in the
+/// order dispatcher (PR #596 review: nothing resolved the record before).
+///
+/// A verdict for an order without a dispute record here, or one already
+/// resolved (a replay), changes nothing.
+pub(crate) async fn apply_admin_verdict(order_id: &str, action: &mostro_core::message::Action) {
+    use mostro_core::message::Action;
+    let resolution = match action {
+        Action::AdminSettled => DisputeResolution::FundsToBuyer,
+        Action::AdminCanceled => DisputeResolution::FundsToSeller,
+        _ => return,
+    };
+    if dispute_store().get(order_id).await.is_none() {
+        return;
+    }
+    if let Err(e) = resolve_dispute(order_id.to_string(), resolution).await {
+        log::debug!("[disputes] verdict for order={order_id} not applied: {e}");
+    }
+}
+
 async fn resolve_dispute(trade_id: String, resolution: DisputeResolution) -> Result<()> {
     dispute_store()
         .update_conditional(&trade_id, move |dispute| {
@@ -1026,14 +1099,19 @@ pub struct DisputeStream {
 impl DisputeStream {
     /// Poll for the next dispute update matching this trade.
     ///
-    /// `RecvError::Lagged` is handled gracefully: dropped messages are skipped
-    /// and the loop continues rather than terminating the stream.
+    /// `RecvError::Lagged` does not end the stream. The skipped messages may
+    /// have held this trade's latest state (its resolution), so the record as
+    /// it stands now is returned in their place (PR #596 review).
     pub async fn next(&mut self) -> Result<Dispute> {
         loop {
             match self.rx.recv().await {
                 Ok(dispute) if dispute.trade_id == self.trade_id => return Ok(dispute),
                 Ok(_) => continue, // different trade — keep waiting
-                Err(RecvError::Lagged(_)) => continue, // missed messages; keep going
+                Err(RecvError::Lagged(_)) => {
+                    if let Some(current) = dispute_store().get(&self.trade_id).await {
+                        return Ok(current);
+                    }
+                }
                 Err(RecvError::Closed) => bail!("DisputeStream closed: channel sender dropped"),
             }
         }
@@ -1247,6 +1325,12 @@ mod tests {
             peer_days: None,
             rated_at: None,
             bond: None,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            cashu_mint_url: None,
+            cashu_escrow_token: None,
+            cashu_locked_at: None,
+            cashu_rejected_escrow_tokens: Vec::new(),
         }
     }
 
@@ -1767,6 +1851,72 @@ mod tests {
         assert!(
             err.to_string().contains("AdminNotAssigned"),
             "expected AdminNotAssigned, got: {err}"
+        );
+    }
+
+    /// #589 phase 3: a file goes to the solver only once one took the
+    /// dispute, and never to a dispute that does not exist.
+    #[tokio::test]
+    async fn send_dispute_file_needs_a_solver() {
+        let pdf = b"%PDF-1.4\n%%EOF".to_vec();
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let err = send_dispute_file(trade_id.clone(), pdf.clone(), "r.pdf".into(), "u".into())
+            .await
+            .unwrap_err();
+        assert!(err.to_string().starts_with("NoOpenDispute"), "got: {err}");
+
+        seed_dispute(&trade_id, None).await;
+        let err = send_dispute_file(trade_id, pdf, "r.pdf".into(), "u".into())
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().starts_with("AdminNotAssigned"),
+            "got: {err}"
+        );
+    }
+
+    /// PR #596 review: the daemon's verdict resolves the dispute record —
+    /// before, only the trade row learned of it and the chat stayed open.
+    #[tokio::test]
+    async fn an_admin_verdict_resolves_the_dispute() {
+        use mostro_core::message::Action;
+        let settled = format!("t-{}", uuid::Uuid::new_v4());
+        seed_dispute(&settled, None).await;
+        apply_admin_verdict(&settled, &Action::AdminSettled).await;
+        let d = get_dispute(settled.clone()).await.unwrap().unwrap();
+        assert_eq!(d.status, DisputeStatus::Resolved);
+        assert_eq!(d.resolution, Some(DisputeResolution::FundsToBuyer));
+        // A replay changes nothing.
+        apply_admin_verdict(&settled, &Action::AdminCanceled).await;
+        let d = get_dispute(settled).await.unwrap().unwrap();
+        assert_eq!(d.resolution, Some(DisputeResolution::FundsToBuyer));
+
+        let canceled = format!("t-{}", uuid::Uuid::new_v4());
+        seed_dispute(&canceled, None).await;
+        apply_admin_verdict(&canceled, &Action::AdminCanceled).await;
+        let d = get_dispute(canceled).await.unwrap().unwrap();
+        assert_eq!(d.resolution, Some(DisputeResolution::FundsToSeller));
+
+        // Not a verdict, or no dispute: nothing happens.
+        let other = format!("t-{}", uuid::Uuid::new_v4());
+        seed_dispute(&other, None).await;
+        apply_admin_verdict(&other, &Action::FiatSentOk).await;
+        let d = get_dispute(other).await.unwrap().unwrap();
+        assert_eq!(d.status, DisputeStatus::Open);
+        apply_admin_verdict("no-such-order", &Action::AdminSettled).await;
+    }
+
+    /// The file is judged before the dispute: what could never be sent is
+    /// refused as such, like in the peer chat.
+    #[tokio::test]
+    async fn send_dispute_file_checks_the_file_first() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let err = send_dispute_file(trade_id, b"MZ\x90\x00".to_vec(), "r.pdf".into(), "u".into())
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().starts_with("UnsupportedFileType"),
+            "got: {err}"
         );
     }
 

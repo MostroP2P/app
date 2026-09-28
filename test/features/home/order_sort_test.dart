@@ -101,8 +101,7 @@ void main() {
       final helper = await bookWith([]);
       expect(helper.container.read(hasActiveOrderFiltersProvider), isFalse);
 
-      helper.container.read(premiumRangeFilterProvider.notifier).state =
-          (min: -2.0, max: 10.0);
+      await helper.filter(const OrderFilters(premium: (min: -2.0, max: 10.0)));
 
       expect(helper.container.read(hasActiveOrderFiltersProvider), isTrue);
     });

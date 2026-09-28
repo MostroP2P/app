@@ -182,6 +182,7 @@ void main() {
           counterpartyPubkey: rated.counterpartyPubkey,
           currentStep: rated.currentStep,
           tradeKeyIndex: rated.tradeKeyIndex,
+          cashuRejectedEscrowTokens: const [],
           startedAt: rated.startedAt,
           ratedAt: 2000,
         ),
@@ -287,5 +288,63 @@ void main() {
         expect(c.read(needsActionIdsProvider), {'order-buyer-active'});
       },
     );
+  });
+
+  group('the seller after the release (#586)', () {
+    test(
+      'rating in memory closes the row before the payout completes',
+      () async {
+        // The seller rates at settled-hold-invoice, before any `success`
+        // reaches them — the row must read the in-memory rating then, not
+        // only once the order succeeds.
+        final trade = fakeTrade(
+          id: 'released',
+          status: OrderStatus.settledHoldInvoice,
+          role: TradeRole.seller,
+        );
+        final c = createContainer(
+          overrides: [
+            rawTradesProvider.overrideWith((ref) async => [trade]),
+            bondClaimsProvider.overrideWith((ref) async => const []),
+            tradeStatusProvider(trade.order.id).overrideWith(
+              (ref) => Stream.value(OrderStatus.settledHoldInvoice),
+            ),
+            tradeRatingProvider(trade.order.id).overrideWith(
+              (ref) async => RatingInfo(
+                tradeId: trade.order.id,
+                score: 5,
+                isMine: true,
+                createdAt: intToPlatformInt64(1000),
+              ),
+            ),
+            peerNymProvider(trade.counterpartyPubkey).overrideWith(
+              (ref) async => const NymIdentity(
+                pseudonym: 'peer',
+                iconIndex: 0,
+                colorHue: 0,
+              ),
+            ),
+          ],
+        );
+
+        final row = (await _rows(c)).single;
+        expect(row.state.group, TradeGroup.closed);
+        expect(row.state.chip, TradeChipLabel.completed);
+      },
+    );
+
+    test('not yet rated, the released trade asks the seller to rate', () async {
+      final c = _container([
+        fakeTrade(
+          id: 'released',
+          status: OrderStatus.settledHoldInvoice,
+          role: TradeRole.seller,
+        ),
+      ]);
+
+      final row = (await _rows(c)).single;
+      expect(row.state.needsAction, isTrue);
+      expect(row.state.verb, TradeRowVerb.rate);
+    });
   });
 }

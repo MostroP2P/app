@@ -7,8 +7,8 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `active_chats`, `add_message`, `admin_chat_context`, `advance_cursor`, `budget_ok`, `chat_context`, `chat_is_current`, `chat_still_relevant`, `chat_subscription_id`, `claim_chat`, `clear`, `cursor_key`, `ensure_durable`, `ensure_hydrated`, `forget_identity_chats`, `get_messages`, `guard_key`, `handle_chat_event`, `id_prefix`, `insert`, `is_known`, `is_supported_mime_type`, `load_chat_cursor`, `mark_as_read`, `message_store`, `message_type`, `mime_to_file_type`, `new`, `new`, `new`, `new`, `new`, `next_from`, `notification_backlog`, `notification_candidate_now`, `notification_candidate`, `parse_chat_payload`, `peer_to_wake`, `persist_decrypted_attachment`, `publish_chat_payload_for`, `publish_chat_payload`, `quota_exceeded`, `rebuild_session`, `reject`, `release_chat`, `resubscribe_active_chats`, `run_chat_subscription`, `safe_filename`, `session_or_rebuild`, `stop_chat_subscriptions`, `store_chat_cursor`, `store_outgoing_admin_message`, `subscribe_incoming_chat`, `try_take`, `unread_count_inner`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BoundedIdSet`, `ChatChannel`, `ChatContext`, `ChatRxState`, `MessageStore`, `PublishedChat`, `TokenBucket`
+// These functions are ignored because they are not marked as `pub`: `active_chats`, `add_message`, `admin_chat_context`, `advance_cursor`, `attachment_blob`, `attachment_key_for`, `budget_ok`, `cache_attachment_blob`, `chat_context`, `chat_is_current`, `chat_still_relevant`, `chat_subscription_id`, `claim_chat`, `clear`, `conversation_of`, `counterpart_of`, `cursor_key`, `ensure_durable`, `ensure_hydrated`, `forget_identity_chats`, `get_messages`, `guard_key`, `handle_chat_event`, `id_prefix`, `insert`, `is_known`, `load_chat_cursor`, `mark_as_read`, `message_store`, `message_type`, `new`, `new`, `new`, `new`, `new`, `next_from`, `notification_backlog`, `notification_candidate_now`, `notification_candidate`, `parse_chat_payload`, `peer_to_wake`, `publish_chat_payload_for`, `publish_chat_payload`, `quota_exceeded`, `rebuild_session`, `reject`, `release_chat`, `resubscribe_active_chats`, `run_chat_subscription`, `send_attachment`, `session_or_rebuild`, `set_download_status`, `stop_chat_subscriptions`, `store_chat_cursor`, `store_outgoing_admin_message`, `subscribe_incoming_chat`, `try_take`, `unread_count_inner`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTarget`, `BoundedIdSet`, `ChatChannel`, `ChatContext`, `ChatRxState`, `MessageStore`, `PublishedChat`, `TokenBucket`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `eq`, `fmt`, `fmt`
 
 /// Send an encrypted text message to the trade counterparty.
@@ -42,35 +42,54 @@ Future<void> markAsRead({required String tradeId}) =>
 Future<int> getUnreadCount() =>
     RustLib.instance.api.crateApiMessagesGetUnreadCount();
 
-/// Encrypt, upload, and send a file attachment.
+/// Encrypt, upload and send an image or PDF in the P2P chat (#589).
 ///
-/// Flow:
-/// 1. Validate size (≤ 25 MB) and MIME type.
-/// 2. Derive encryption key from ECDH shared key.
-/// 3. Encrypt with ChaCha20-Poly1305 (`crate::crypto::file_enc`).
-/// 4. Upload encrypted blob to Blossom server.
-/// 5. Send Blossom URL + encryption metadata as NIP-59 message.
+/// 1. Check and clean it ([`crate::attachments::media::prepare_for_send`]):
+///    JPEG, PNG or PDF by content, ≤ 25 MB; images re-encoded without EXIF.
+/// 2. Encrypt with the attachment key — the raw ECDH with the peer, as v1.
+/// 3. Upload the blob to Blossom and keep it, still encrypted, in the cache.
+/// 4. Send the v1 JSON message (`image_encrypted` / `file_encrypted`).
 ///
-/// Returns the sent `ChatMessage` with `has_attachment: true`.
+/// `upload_id` is chosen by the caller: `on_attachment_progress(upload_id)`
+/// reports 0.1 prepared, 0.3 encrypted, 0.9 uploaded, 1.0 sent.
+///
+/// Errors are markers: `FileTooLarge`, `UnsupportedFileType`, `InvalidImage`,
+/// `SessionNotFound`, `PeerUnknown`, `UploadFailed`, `SendFailed`.
 Future<ChatMessage> sendFile({
   required String tradeId,
   required List<int> fileBytes,
   required String fileName,
-  required String mimeType,
+  required String uploadId,
 }) => RustLib.instance.api.crateApiMessagesSendFile(
   tradeId: tradeId,
   fileBytes: fileBytes,
   fileName: fileName,
-  mimeType: mimeType,
+  uploadId: uploadId,
 );
 
-/// Download and decrypt a file attachment.
+/// Fetch and decrypt the attachment of `message_id` (#589).
 ///
-/// Returns a `FileDownloadResult` with the local path to the decrypted file.
-Future<FileDownloadResult> downloadAttachment({required String messageId}) =>
+/// The blob comes from the local cache, or from Blossom — verified against
+/// the hash in its URL, then cached still encrypted. Decrypted in memory
+/// with the key of the conversation it arrived in: the peer's for the P2P
+/// chat, the solver's for the dispute chat. `on_attachment_progress(message_id)`
+/// reports the download.
+///
+/// Errors are markers: `AttachmentNotFound`, `SessionNotFound`, `PeerUnknown`,
+/// `DownloadFailed`, `DecryptionFailed`.
+Future<AttachmentData> downloadAttachment({required String messageId}) =>
     RustLib.instance.api.crateApiMessagesDownloadAttachment(
       messageId: messageId,
     );
+
+/// The web smoke test's attachment round trip (#589 phase 4): encrypt random
+/// bytes, upload them to `server`, download them back, cache and decrypt
+/// them. Only `test/web/smoke` calls it, against its own Blossom endpoint —
+/// the app's uploads always go to the fixed server list.
+///
+/// Errors: `StorageUnavailable` before `init_db`, else the first step's.
+Future<void> attachmentWebProbe({required String server}) =>
+    RustLib.instance.api.crateApiMessagesAttachmentWebProbe(server: server);
 
 /// Get the attachment download status for a message.
 Future<DownloadStatus?> getAttachmentStatus({required String messageId}) =>
@@ -122,35 +141,34 @@ abstract class UnreadCountStream implements RustOpaqueInterface {
   Future<int?> next();
 }
 
-/// Returned by `download_attachment`.
-class FileDownloadResult {
-  /// Absolute path to the decrypted file on the local device.
-  final String localPath;
+/// A decrypted attachment, returned by [`download_attachment`].
+///
+/// Handed over in memory: the plaintext never touches the disk here. Dart
+/// renders it, or writes a temporary file only for an explicit "open with…".
+class AttachmentData {
+  final Uint8List bytes;
   final String fileName;
-  final String mimeType;
-  final BigInt fileSize;
 
-  const FileDownloadResult({
-    required this.localPath,
+  /// What the bytes are, sniffed after decrypting (JPEG, PNG, PDF); for any
+  /// other type, the MIME the sender declared — or `application/octet-stream`
+  /// when the sender declared JPEG, PNG or PDF and the bytes are not.
+  final String mimeType;
+
+  const AttachmentData({
+    required this.bytes,
     required this.fileName,
     required this.mimeType,
-    required this.fileSize,
   });
 
   @override
-  int get hashCode =>
-      localPath.hashCode ^
-      fileName.hashCode ^
-      mimeType.hashCode ^
-      fileSize.hashCode;
+  int get hashCode => bytes.hashCode ^ fileName.hashCode ^ mimeType.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is FileDownloadResult &&
+      other is AttachmentData &&
           runtimeType == other.runtimeType &&
-          localPath == other.localPath &&
+          bytes == other.bytes &&
           fileName == other.fileName &&
-          mimeType == other.mimeType &&
-          fileSize == other.fileSize;
+          mimeType == other.mimeType;
 }

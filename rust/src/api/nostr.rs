@@ -198,6 +198,10 @@ async fn on_pool_online() {
     fetch_and_set_node_capabilities().await;
     drop(capabilities_pending);
     let _ = flush_message_queue().await;
+    // A seller's escrow recorded but never confirmed (the app died or lost
+    // the relays mid-submission) is re-sent now, the same token, no second
+    // swap. Detached: it waits on the daemon, and nothing here may.
+    crate::rt::spawn(crate::api::cashu::resubmit_pending_escrows());
     // Rebuild chat listeners for persisted active trades — sessions are
     // in-memory, so after a restart nothing else would resubscribe.
     // Idempotent: orders with a live chat task are skipped by the
@@ -430,9 +434,11 @@ const RESYNC_CONNECT_WAIT: std::time::Duration = std::time::Duration::from_secs(
 /// SDK reconnects on its own schedule, and nothing else re-checks that every
 /// subscription survived or that the outbox drained. One pass, in order:
 ///
-/// 1. **Reconnect nudge.** `connect()` spawns a connection task for every
-///    relay that has none (a relay whose first attempt failed never got one)
-///    and is a no-op for the rest; the wait is bounded, and the pool's own
+/// 1. **Reconnect nudge.** Every relay the OS cut while the app was away is
+///    bounced so it reconnects now instead of after its retry interval
+///    (`relay_probe::reconnect_disconnected_now`). Then `connect()` spawns a
+///    connection task for every relay that has none (a relay whose first
+///    attempt failed never got one); the wait is bounded, and the pool's own
 ///    state is what gets reported.
 /// 2. **Subscriptions.** The bulk kind-14 filter is re-issued under its stable
 ///    id (the relay replaces it in place and replays the node's history; the
@@ -507,6 +513,16 @@ async fn run_resync() -> ResyncOutcome {
         };
     };
     let client = pool.client();
+    // Relays the OS cut while the app was away sit in their retry interval,
+    // which `connect()` cannot shorten: bounce them first, so a message the
+    // daemon sent meanwhile arrives now rather than 10–60 s from now.
+    let woken = crate::nostr::relay_probe::reconnect_disconnected_now(&client).await;
+    if woken > 0 {
+        crate::api::logging::blog_info(
+            "relay",
+            format!("resume: reconnecting {woken} dropped relay(s) now"),
+        );
+    }
     client.connect().and_wait(RESYNC_CONNECT_WAIT).await;
     let online = pool.connection_state().await == ConnectionState::Online;
     log::info!("[nostr] resync: reconnect nudge settled, online={online}");
@@ -845,6 +861,17 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
                 &mostro_pubkey_hex,
                 crate::mostro::bond_policy::parse_tags(&tags),
             );
+            // The service fee. Only Cashu mode needs it client-side — there the
+            // seller funds the whole fee as its own token — but it rides in the
+            // same event, so reading it here costs nothing.
+            if let Some(fee) = tags
+                .iter()
+                .find(|t| t.first().map(String::as_str) == Some("fee"))
+                .and_then(|t| t.get(1))
+                .and_then(|v| v.trim().parse::<f64>().ok())
+            {
+                crate::mostro::node_fee::set_fee(fee);
+            }
         }
         Ok(None) => {
             log::warn!("[nostr] no Kind 38385 event found — PoW defaults to 0");
