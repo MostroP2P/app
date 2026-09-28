@@ -295,8 +295,6 @@ pub async fn import_from_mnemonic(words: Vec<String>, recover: bool) -> Result<I
     Ok(info)
 }
 
-/// Import identity from an nsec (bech32-encoded Nostr secret key).
-/// Note: nsec import produces a single key with no BIP-39 mnemonic backup.
 /// Restore the persisted backup-confirmed flag for a loaded mnemonic. Guarded on
 /// the public key: a leftover identity blob from a different mnemonic must not
 /// leak its confirmed state onto this one, so a mismatch reads as unconfirmed
@@ -344,11 +342,10 @@ async fn set_backup_confirmed_with<S: Storage>(db: Option<&S>, confirmed: bool) 
     // done and never retry, losing the flag on restart. Setting false (reset /
     // re-arm the reminder) is the fail-safe direction — it converges to the same
     // unconfirmed state on the next restore — so it must not require durability,
-    // or the new-identity re-arm would fail on a memory-only session. The check
-    // is native-only (require_durable_storage is #[cfg(not(wasm32))]); on web the
-    // store is always present since #408, so the save below runs there too.
+    // or the new-identity re-arm would fail on a memory-only session. Durable
+    // storage is required on every platform: web has a real store since #408, so
+    // a confirm that cannot persist is refused there too, not silently accepted.
     if confirmed {
-        #[cfg(not(target_arch = "wasm32"))]
         require_durable_storage(db)?;
     }
     let mut updated = state.identity_info.clone();
@@ -371,6 +368,8 @@ pub async fn reset_backup_confirmation() -> Result<()> {
     set_backup_confirmed(false).await
 }
 
+/// Import identity from an nsec (bech32-encoded Nostr secret key).
+/// Note: nsec import produces a single key with no BIP-39 mnemonic backup.
 pub async fn import_from_nsec(nsec: String) -> Result<IdentityInfo> {
     let keys = Keys::parse(&nsec).map_err(|e| anyhow!("InvalidKey: {e}"))?;
     let public_key = keys.public_key().to_hex();
@@ -582,7 +581,6 @@ pub async fn derive_trade_key() -> Result<TradeKeyInfo> {
 /// Split out so the refusal is testable as a pure decision: asserting it
 /// through `derive_trade_key` would depend on the process-wide `APP_DB` being
 /// uninitialised, which any other test may change first.
-#[cfg(not(target_arch = "wasm32"))]
 fn require_durable_storage<S>(db: Option<&S>) -> Result<()> {
     if db.is_none() {
         bail!("StorageUnavailable: this operation requires durable storage");
