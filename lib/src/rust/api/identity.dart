@@ -79,6 +79,8 @@ Future<void> setBackupConfirmed({required bool confirmed}) => RustLib
 Future<void> resetBackupConfirmation() =>
     RustLib.instance.api.crateApiIdentityResetBackupConfirmation();
 
+/// Import identity from an nsec (bech32-encoded Nostr secret key).
+/// Note: nsec import produces a single key with no BIP-39 mnemonic backup.
 Future<IdentityInfo> importFromNsec({required String nsec}) =>
     RustLib.instance.api.crateApiIdentityImportFromNsec(nsec: nsec);
 
