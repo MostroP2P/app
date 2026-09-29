@@ -2125,7 +2125,8 @@ fn trade_row_from_small_order(
         cooperative_cancel_state: None,
         timeout_at: None,
         // The list dates a trade by this: a replayed row is as old as its
-        // order, not as the replay that rebuilt it.
+        // order, not as the replay that rebuilt it. Right for a maker; the DM
+        // rebuild re-dates its taker rows (#592), the restore's do not yet (#591).
         started_at: order.created_at.filter(|&t| t > 0).unwrap_or(now),
         completed_at: None,
         outcome: None,
@@ -2344,7 +2345,7 @@ async fn rebuild_trade_from_dm(
             | (Some(mostro_core::order::Kind::Buy), TradeRole::Buyer)
     );
     let db = crate::db::app_db::db()?;
-    let trade = trade_row_from_small_order(
+    let mut trade = trade_row_from_small_order(
         order_id,
         order,
         role,
@@ -2354,6 +2355,16 @@ async fn rebuild_trade_from_dm(
         "",
         status.clone(),
     )?;
+    // A taker's trade began at the take, not when the order was published:
+    // an order that sat in the book would make a trade just taken look old
+    // enough for the stale sweep to wipe it (#592). So a taker row is dated
+    // by the message that rebuilt it — for a row the sweep examines, that is
+    // the waiting step's own message — clamped to the local clock. A maker's
+    // trade did begin with its order; its gap in the sweep's age gate is a
+    // different one (#628).
+    if !is_mine {
+        trade.started_at = occurred_at.min(crate::rt::unix_now());
+    }
     store_trade_key_index(order_id, trade_index).await;
     if let Err(e) = persist_trade_row(db, &trade).await {
         crate::api::logging::blog_warn(
@@ -12484,10 +12495,12 @@ mod tests {
         }
     }
 
-    /// A rebuilt row is dated by its order, not by the moment of the replay
-    /// that rebuilt it: the trade list shows `started_at`.
+    /// The shared builder dates a row by its order, not by the moment of the
+    /// message that built it: the trade list shows `started_at`, and a
+    /// maker's trade began with its order. The DM rebuild re-dates its taker
+    /// rows (#592), the restore's do not yet (#591).
     #[test]
-    fn a_rebuilt_row_starts_when_its_order_was_created() {
+    fn the_shared_builder_dates_a_row_by_its_order() {
         let mut order = mostro_core::order::SmallOrder::default();
         order.kind = Some(mostro_core::order::Kind::Sell);
         order.fiat_code = "ARS".into();
@@ -17865,6 +17878,198 @@ mod tests {
             drain_updates(&mut rx, &order_id),
             vec![crate::api::types::OrderStatus::WaitingBuyerInvoice],
         );
+    }
+
+    /// Rebuilds a trade row of a sell order published at `order_created_at`
+    /// from one `action` dated `message_at`, on a fresh trade key, and returns
+    /// the row as persisted. The payload names our key as the seller when
+    /// `as_seller` (the maker); otherwise it names nobody and the action's
+    /// addressee is the side (`AddInvoice`: the buyer, a taker).
+    ///
+    /// The row is read back before its order reaches the book: until then a
+    /// sweep running in a parallel test has no public status for it (no
+    /// pool, so no relay lookup) and keeps it.
+    async fn rebuild_dated_row(
+        action: mostro_core::message::Action,
+        status: mostro_core::order::Status,
+        as_seller: bool,
+        order_created_at: i64,
+        message_at: i64,
+    ) -> crate::api::types::TradeInfo {
+        use mostro_core::message::Payload;
+
+        let path =
+            std::env::temp_dir().join(format!("mostro_rebuild_dated_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+
+        let my_hex = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let so = mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(status),
+            6_307,
+            "EUR".to_string(),
+            None,
+            None,
+            50,
+            "SEPA".to_string(),
+            0,
+            None,
+            as_seller.then(|| my_hex.clone()),
+            None,
+            Some(order_created_at),
+            None,
+        );
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                action,
+                Some(Payload::Order(so)),
+                message_at as u64,
+            ),
+            &format!("test-rebuild-dated-{order_id}"),
+            &my_hex,
+            21,
+        )
+        .await;
+
+        crate::db::app_db::db()
+            .expect("store initialised")
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row rebuilt from the DM")
+    }
+
+    /// Puts a rebuilt sell order in the book as `pending`: a book that has
+    /// not caught up with the take, which the sweep reads instead of asking
+    /// the relays.
+    async fn seed_stale_book(row: &crate::api::types::TradeInfo) {
+        let mut in_book = dummy_order_info(&row.id);
+        in_book.kind = crate::api::types::OrderKind::Sell;
+        in_book.status = crate::api::types::OrderStatus::Pending;
+        in_book.created_at = row.order.created_at;
+        order_book().upsert_order(in_book).await;
+    }
+
+    /// #592: a taker row rebuilt from a late take reply is dated by the
+    /// message that rebuilt it, not by its order. An order that sat in the
+    /// book for a day must not make a trade taken a minute ago look old
+    /// enough for the sweep to wipe it on a book that still says `pending`.
+    #[tokio::test]
+    async fn a_rebuilt_taker_row_of_an_old_order_survives_the_sweep() {
+        // Arrange
+        let now = crate::rt::unix_now();
+        let row = rebuild_dated_row(
+            mostro_core::message::Action::AddInvoice,
+            mostro_core::order::Status::WaitingBuyerInvoice,
+            false,
+            now - 86_400,
+            now - 60,
+        )
+        .await;
+        assert!(!row.order.is_mine, "the buyer of a sell order is its taker");
+        seed_stale_book(&row).await;
+
+        // Act
+        run_stale_sweep_once().await;
+
+        // Assert
+        let row = crate::db::app_db::db()
+            .expect("store initialised")
+            .get_trade_by_order_id(&row.id)
+            .await
+            .expect("lookup")
+            .expect("a trade taken a minute ago was wiped as stale");
+        assert_eq!(row.started_at, now - 60, "dated by the take reply");
+        assert_eq!(
+            row.order.created_at,
+            now - 86_400,
+            "the order keeps its own age"
+        );
+    }
+
+    /// #592: dating the rebuilt row from its message does not switch the
+    /// sweep off. A take reply older than the sweep's age gate, on a book
+    /// that still says `pending`, is the stale trade the sweep exists for.
+    #[tokio::test]
+    async fn a_rebuilt_taker_row_past_the_age_gate_is_still_swept() {
+        // Arrange
+        let now = crate::rt::unix_now();
+        let row = rebuild_dated_row(
+            mostro_core::message::Action::AddInvoice,
+            mostro_core::order::Status::WaitingBuyerInvoice,
+            false,
+            now - 86_400,
+            now - SWEEP_MIN_AGE_SECS - 60,
+        )
+        .await;
+        seed_stale_book(&row).await;
+
+        // Act
+        run_stale_sweep_once().await;
+
+        // Assert
+        assert!(
+            crate::db::app_db::db()
+                .expect("store initialised")
+                .get_trade_by_order_id(&row.id)
+                .await
+                .expect("lookup")
+                .is_none(),
+            "a take older than the gate on a pending book is stale"
+        );
+    }
+
+    /// #592: a daemon clock running ahead of ours — within the skew the
+    /// transport accepts — cannot date a rebuilt taker row in the future.
+    #[tokio::test]
+    async fn a_rebuilt_taker_row_is_never_dated_after_now() {
+        // Arrange
+        let now = crate::rt::unix_now();
+        let ahead = crate::nostr::transport::MAX_CLOCK_SKEW_SECS as i64 / 2;
+
+        // Act
+        let row = rebuild_dated_row(
+            mostro_core::message::Action::AddInvoice,
+            mostro_core::order::Status::WaitingBuyerInvoice,
+            false,
+            now - 86_400,
+            now + ahead,
+        )
+        .await;
+
+        // Assert
+        assert!(
+            (now..=crate::rt::unix_now()).contains(&row.started_at),
+            "dated by the message, clamped to the local clock: {}",
+            row.started_at
+        );
+    }
+
+    /// #592: a maker's trade did begin with its order, so a rebuilt maker
+    /// row keeps the order's creation as its date. No book entry: a maker
+    /// row a day old on a `pending` book is one a parallel sweep resyncs.
+    #[tokio::test]
+    async fn a_rebuilt_maker_row_is_dated_by_its_order() {
+        // Arrange
+        let now = crate::rt::unix_now();
+
+        // Act: our key is the seller of a sell order, so the row is ours.
+        let row = rebuild_dated_row(
+            mostro_core::message::Action::PayInvoice,
+            mostro_core::order::Status::WaitingPayment,
+            true,
+            now - 86_400,
+            now - 60,
+        )
+        .await;
+
+        // Assert
+        assert!(row.order.is_mine, "the seller of a sell order is its maker");
+        assert_eq!(row.started_at, now - 86_400);
     }
 
     /// A redelivered `pay-bond-invoice` (startup replay, reconnect backlog)
