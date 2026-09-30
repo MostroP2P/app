@@ -231,8 +231,8 @@ assets/
 ### Objectives
 
 1. Ensure identity generation happens silently in Rust on first launch, persisted to secure storage before any UI renders.
-2. *(Implemented in Dart)* Track `backup_confirmed` state in `BackupReminderNotifier` (SharedPreferences keys `backupReminderActive` / `backupReminderDismissed`). Migrating this flag to the Rust storage layer (SQLite native / IndexedDB web) is **planned future work**.
-3. *(Planned future work)* Add `get_backup_confirmed()` / `set_backup_confirmed()` / `reset_backup_confirmation()` to the Rust `identity.rs` API surface once the Rust persistence layer is in place.
+2. *(Implemented)* `backup_confirmed` lives in the Rust identity record (a `#[serde(default)]` field on `IdentityInfo`, persisted in the identity JSON blob), durable on every platform (SQLite native, IndexedDB web since #408). The reminder-*scheduling* state (`backupReminderActive` / `backupReminderDismissed` / snooze) stays in Dart SharedPreferences — it is UI scheduling, not identity state.
+3. *(Implemented)* `get_backup_confirmed()` / `set_backup_confirmed()` / `reset_backup_confirmation()` in Rust `identity.rs`. `set` persists before committing in memory (the `trade_key_index` persist-then-commit discipline, #217) and requires durable storage when confirming.
 4. *(Implemented in Dart)* `backupReminderProvider` (`BackupReminderNotifier`) drives the bell icon, notification list, and Account screen. It is pre-seeded synchronously in `main()` via `ProviderScope.overrides` to eliminate the startup loading race.
 5. Implement the pinned backup reminder notification: always first in the list, not removable via swipe, "Mark all as read", or "Clear all".
 6. Implement the `AnimatedBellIcon` widget: red dot (no number) while backup pending; numbered badge after; shake animation on any indicator change.
@@ -243,14 +243,14 @@ assets/
 
 ### Key Files
 
-> **Current implementation note**: backup confirmation state is managed entirely in Dart via `BackupReminderNotifier` and SharedPreferences (`backupReminderActive` / `backupReminderDismissed`). The Rust-side API and schema additions below are **planned future work** for when the Rust persistence layer is extended.
+> **Implementation note**: `backup_confirmed` is owned by the Rust identity record (JSON-blob field, not a schema column) and is durable on all platforms since #408. `BackupCompletedNotifier` reads/writes it through the bridge. Only the reminder *scheduling* keys remain in Dart SharedPreferences.
 
-**Rust core (planned future work):**
+**Rust core (implemented):**
 
 | File | Change |
 |------|--------|
-| `rust/src/api/identity.rs` | Add `get_backup_confirmed() -> bool`, `set_backup_confirmed()`, `reset_backup_confirmation()`. Call `reset_backup_confirmation()` at the end of `generate_new_user()`. Store flag in the `identity` table (`backup_confirmed INTEGER NOT NULL DEFAULT 0`). |
-| `rust/src/db/schema.rs` | Add `backup_confirmed INTEGER NOT NULL DEFAULT 0` column to the identity table. Migration-safe. |
+| `rust/src/api/identity.rs` | `get_backup_confirmed()`, `set_backup_confirmed()`, `reset_backup_confirmation()`. The flag is a `#[serde(default)] backup_confirmed: bool` field on `IdentityInfo`, serialized into the identity JSON blob — no schema column. `create_identity` / `import_from_nsec` start it `false`; `load_identity_from_mnemonic` restores it guarded on the public key. |
+| `rust/src/db/schema.rs` | No change — the identity is a single JSON blob, so `backup_confirmed` needs no column or migration. |
 
 **Dart/Flutter (current implementation):**
 
@@ -280,7 +280,7 @@ assets/
 **Backup reset on new identity**: `IdentityService.regenerate()` atomically writes the new mnemonic before clearing old metadata. After `regenerate()` returns, the Dart layer calls `backupReminderProvider.notifier.showBackupReminder()` to re-activate the badge.
 
 **Constitution compliance**:
-- ⚠️ **I (Rust Core)**: `backup_confirmed` is currently tracked in Dart (SharedPreferences). Migration to Rust storage is planned future work once the persistence layer supports it.
+- ✅ **I (Rust Core)**: `backup_confirmed` is owned by the Rust identity record (durable on all platforms since #408), per Principle I. Only reminder scheduling stays in Dart.
 - ✅ **II (Privacy)**: No analytics. Confirmed state is local-only; never transmitted.
 - ✅ **IV (Offline-First)**: Flag is in SharedPreferences; readable with no connectivity.
 - ✅ **V (Multi-Platform)**: SharedPreferences works on all Flutter platforms without separate code paths.
