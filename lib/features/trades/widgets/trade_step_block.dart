@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
-import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/core/trade_palette.dart';
 import 'package:mostro/features/trades/models/trade_view.dart';
 
@@ -12,6 +12,7 @@ import 'package:mostro/features/trades/models/trade_view.dart';
 class TradeStepBlock extends StatelessWidget {
   const TradeStepBlock({
     super.key,
+    this.summary,
     required this.stepLabel,
     required this.chip,
     required this.chipLabel,
@@ -21,6 +22,10 @@ class TradeStepBlock extends StatelessWidget {
     this.countdown,
     this.statusReadout,
   });
+
+  /// `You sell · 219,500 ARS · 163,069 sats`: what this trade is about,
+  /// above the title of what is happening. Null when not known.
+  final String? summary;
 
   /// `STEP 3 OF 5`, or null when the timeline is hidden.
   final String? stepLabel;
@@ -95,6 +100,18 @@ class TradeStepBlock extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 11),
+          ],
+          if (summary != null) ...[
+            Text(
+              summary!,
+              style: TextStyle(
+                fontFamily: AppFonts.figures,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: book.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 6),
           ],
           _title(hasHeader, book),
           if (body != null) ...[

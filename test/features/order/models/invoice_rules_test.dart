@@ -261,4 +261,17 @@ void main() {
       expect(counterpartStars(null, null), isNull);
     });
   });
+
+  group('nwcInvoiceExpirySecs', () {
+    // Left to the wallet, an NWC invoice may expire inside the node's
+    // `invoice_expiration_window` and be refused by the check on every
+    // try, with nothing the buyer can do about it.
+    test('outlives the node window by the margin', () {
+      expect(nwcInvoiceExpirySecs(600), 600 + kNwcInvoiceExpiryMarginSecs);
+    });
+
+    test('an unknown window still asks for the margin', () {
+      expect(nwcInvoiceExpirySecs(null), kNwcInvoiceExpiryMarginSecs);
+    });
+  });
 }

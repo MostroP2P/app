@@ -1968,6 +1968,14 @@
   "@invoiceNoLongerExpected": {
     "description": "Add-invoice screen: the daemon answered NotAllowedByStatus — the order moved on (usually an earlier submission was accepted) and the app is re-reading its state"
   },
+  "invoiceAwaitingNode": "Sent. The node hasn't answered yet — you'll be taken to the trade as soon as it does.",
+  "@invoiceAwaitingNode": {
+    "description": "Add-invoice screen: the invoice or lightning address was sent but the node has not answered within the wait (Rust marker InvoiceAwaitingDaemon). Not an error: a late answer still moves the trade on (#615)"
+  },
+  "invoiceAwaitingNodeLong": "Still no answer from the node. If the trade doesn't move on, send it again.",
+  "@invoiceAwaitingNodeLong": {
+    "description": "Add-invoice screen: invoiceAwaitingNode once a further minute passes with no answer. A late rejection is only logged, so the buyer is invited to send the invoice again (#615)"
+  },
   "invoiceSubmitInFlight": "An invoice for this order is already being sent. Wait for the reply.",
   "@invoiceSubmitInFlight": {
     "description": "Add-invoice screen: a second submission was refused because an earlier one for the same trade is still waiting for the daemon's reply (Rust marker InvoiceSubmitInFlight)"
@@ -2562,35 +2570,22 @@
   "@tradeWord": {
     "description": "Word 'Trade' used in a notification group title"
   },
-  "notifFilterAll": "All",
-  "@notifFilterAll": {
-    "description": "Notifications filter chip: all"
+  "notifSectionRecent": "Recent",
+  "@notifSectionRecent": {
+    "description": "Notifications screen: header of the notices below the pinned needs-your-action section (issue #610)"
   },
-  "notifFilterDisputes": "Disputes",
-  "@notifFilterDisputes": {
-    "description": "Notifications filter chip: disputes"
-  },
-  "notifFilterDisputesCount": "Disputes · {count}",
-  "@notifFilterDisputesCount": {
-    "description": "Notifications filter chip: disputes with count",
+  "notificationDeletedSnack": "{count, plural, =1{Notification deleted} other{{count} notifications deleted}}",
+  "@notificationDeletedSnack": {
+    "description": "Snack bar after swiping a notification card away; count is how many notices the card held (issue #610)",
     "placeholders": {
       "count": {
         "type": "int"
       }
     }
   },
-  "notifFilterSystem": "System",
-  "@notifFilterSystem": {
-    "description": "Notifications filter chip: system"
-  },
-  "notifFilterSystemCount": "System · {count}",
-  "@notifFilterSystemCount": {
-    "description": "Notifications filter chip: system with count",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
+  "notificationDeletedUndo": "Undo",
+  "@notificationDeletedUndo": {
+    "description": "Snack bar action that brings back the notification card just swiped away"
   },
   "payingStatus": "Paying...",
   "@payingStatus": {

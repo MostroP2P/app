@@ -14,7 +14,14 @@ uses preconfigured defaults.
 **Side effects**: Connects to relays, starts subscriptions for orders
 and messages.
 
-**Errors**: `AlreadyInitialized`, `NoRelays`.
+**Idempotent per process**: a second call in the same process re-attaches
+to the running pool, ignores `relays`, returns `Ok` and runs `resync()` in
+the background. Android can destroy the activity and its Flutter engine
+while the process lives on, so the next launch calls this again against the
+same Rust statics; failing there aborted startup before `runApp` and left
+the app on its splash screen.
+
+**Errors**: `NoRelays`.
 
 ---
 

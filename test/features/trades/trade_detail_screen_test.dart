@@ -10,7 +10,11 @@ import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/features/disputes/providers/disputes_providers.dart'
+    show disputeLookupProvider;
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
@@ -58,10 +62,15 @@ Future<ProviderContainer> _pumpTradeDetail(
   Future<RatingInfo?> Function()? ratingFetch,
   Locale locale = const Locale('en'),
   List<TradeInfo>? trades,
+  List<OrderItem> book = const [],
+  bool roleKnown = true,
   bool privacyMode = false,
+  NotificationsNotifier? notifications,
 }) async {
   final container = createContainer(
     overrides: [
+      if (notifications != null)
+        notificationsProvider.overrideWith((_) => notifications),
       if (privacyMode)
         privacyModeProvider.overrideWith(
           (ref) => PrivacyModeNotifier(initialValue: true),
@@ -69,11 +78,15 @@ Future<ProviderContainer> _pumpTradeDetail(
       if (releaseOrder != null)
         releaseOrderActionProvider.overrideWithValue(releaseOrder),
       if (trades != null) rawTradesProvider.overrideWith((ref) async => trades),
-      tradeRoleProvider.overrideWith((ref) => {orderId: isBuyer}),
+      tradeRoleProvider.overrideWith(
+        (ref) => roleKnown ? {orderId: isBuyer} : <String, bool>{},
+      ),
+      if (!roleKnown)
+        tradeRoleFromDbProvider(orderId).overrideWith((ref) async => null),
       tradeStatusProvider(
         orderId,
       ).overrideWith((ref) => statusUpdates ?? Stream.value(status)),
-      orderBookProvider.overrideWith((ref) => Stream.value(const [])),
+      orderBookProvider.overrideWith((ref) => Stream.value(book)),
       // A waiting step draws its countdown from the step deadline, which
       // without a bridge resolves to "unknown" — and then the screen draws
       // none (#270). The 8a cases below assert the countdown's label, so the
@@ -128,9 +141,12 @@ Future<void> _pumpRoutedTradeDetail(
   Future<void> Function(String)? cancelOrder,
   Stream<OrderStatus>? statusUpdates,
   Stream<List<OrderItem>>? bookUpdates,
+  Future<Dispute?> Function(String tradeId)? disputeLookup,
 }) async {
   final container = createContainer(
     overrides: [
+      if (disputeLookup != null)
+        disputeLookupProvider.overrideWithValue(disputeLookup),
       if (cancelOrder != null)
         cancelOrderActionProvider.overrideWithValue(cancelOrder),
       tradeRoleProvider.overrideWith((ref) => {orderId: true}),
@@ -157,6 +173,13 @@ Future<void> _pumpRoutedTradeDetail(
         builder:
             (_, state) =>
                 TradeDetailScreen(orderId: state.pathParameters['orderId']!),
+      ),
+      GoRoute(
+        path: AppRoute.disputeDetails,
+        builder:
+            (_, state) => Scaffold(
+              body: Text('dispute ${state.pathParameters['disputeId']}'),
+            ),
       ),
     ],
   );
@@ -258,6 +281,54 @@ Finder _anyPopupMenuItem() =>
 final _en = AppLocalizationsEn();
 
 void main() {
+  testWidgets('opening the trade reads its notices, not its chat card (#610)', (
+    tester,
+  ) async {
+    // Arrange
+    final notifications = NotificationsNotifier();
+    final chatCardId = NotificationModel.chatCardId(
+      'order-610',
+      fromSolver: false,
+    );
+    for (final n in [
+      NotificationModel.tradeStatus(
+        orderId: 'order-610',
+        status: 'active',
+        at: DateTime.utc(2026),
+      ),
+      NotificationModel.chatMessages(
+        tradeId: 'order-610',
+        fromSolver: false,
+        count: 1,
+        at: DateTime.utc(2026),
+      ),
+      NotificationModel.tradeStatus(
+        orderId: 'other-order',
+        status: 'active',
+        at: DateTime.utc(2026),
+      ),
+    ]) {
+      await notifications.add(n);
+    }
+
+    // Act
+    await _pumpTradeDetail(
+      tester,
+      orderId: 'order-610',
+      isBuyer: true,
+      status: OrderStatus.active,
+      notifications: notifications,
+    );
+
+    // Assert
+    final read = {for (final n in notifications.state) n.id: n.isRead};
+    expect(read, {
+      'trade-order-610-active': true,
+      chatCardId: false,
+      'trade-other-order-active': false,
+    });
+  });
+
   group('8a · waiting for the counterpart to lock the sats', () {
     testWidgets(
       'buyer: amber chip, no chat, lock note, Cancel trade alone, no dispute',
@@ -1783,6 +1854,165 @@ void main() {
 
       expect(nudges, isEmpty);
       expect(find.text(_en.tradeHeadlineCancelled), findsOneWidget);
+    });
+  });
+
+  group('a range order taken for one amount inside it', () {
+    // The book keeps the range; the trade row holds the slice the take
+    // priced (MostroP2P/app#620).
+    TradeInfo takenRange(OrderStatus status) => fakeTrade(
+      id: 'range',
+      status: status,
+      role: TradeRole.seller,
+      fiatCode: 'ARS',
+      paymentMethod: 'Mercado Pago',
+      isMine: true,
+      fiatAmount: 219500,
+      fiatAmountMin: 10000,
+      fiatAmountMax: 1000000,
+      amountSats: BigInt.from(163069),
+    );
+    final rangeInBook = fakeOrder(
+      id: 'order-range',
+      fiatAmountMin: 10000,
+      fiatAmountMax: 1000000,
+      fiatCode: 'ARS',
+      paymentMethod: 'Mercado Pago',
+      isMine: true,
+    );
+
+    testWidgets('the step card says what was sold, in fiat and sats', (
+      tester,
+    ) async {
+      // Arrange + Act
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-range',
+        isBuyer: false,
+        status: OrderStatus.waitingPayment,
+        trades: [takenRange(OrderStatus.waitingPayment)],
+        book: [rangeInBook],
+      );
+
+      // Assert
+      expect(
+        find.text('${_en.tradesDirectionSell} · 219,500 ARS · 163,069 sats'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('10,000'), findsNothing);
+    });
+
+    testWidgets('the side comes from the row while the role is unknown', (
+      tester,
+    ) async {
+      // Arrange + Act: the role lookup has no answer; the row says seller.
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-range',
+        isBuyer: true,
+        roleKnown: false,
+        status: OrderStatus.waitingPayment,
+        trades: [takenRange(OrderStatus.waitingPayment)],
+        book: [rangeInBook],
+      );
+
+      // Assert
+      expect(
+        find.text('${_en.tradesDirectionSell} · 219,500 ARS · 163,069 sats'),
+        findsOneWidget,
+      );
+      expect(find.textContaining(_en.tradesDirectionBuy), findsNothing);
+    });
+
+    testWidgets('the headline names the slice, not the range', (tester) async {
+      // Arrange + Act
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-range',
+        isBuyer: false,
+        status: OrderStatus.active,
+        trades: [takenRange(OrderStatus.active)],
+        book: [rangeInBook],
+      );
+
+      // Assert
+      expect(
+        find.text(_en.tradeHeadlineActiveSeller('219,500 ARS')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('1000000'), findsNothing);
+    });
+  });
+
+  group('View dispute on a dispute the counterparty opened', () {
+    // The list is only hydrated on resume or when this side opens the
+    // dispute, so the peer's is missing from it; the bridge holds it.
+    testWidgets('asks the bridge and opens the dispute', (tester) async {
+      // Arrange
+      final asked = <String>[];
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: 'order-peer-dispute',
+        status: OrderStatus.dispute,
+        loadTrades:
+            () async => [
+              fakeTrade(
+                id: 'peer-dispute',
+                status: OrderStatus.dispute,
+                role: TradeRole.buyer,
+              ),
+            ],
+        disputeLookup: (tradeId) async {
+          asked.add(tradeId);
+          return Dispute(
+            id: 'dispute-9',
+            tradeId: tradeId,
+            status: DisputeStatus.open,
+            initiatedByMe: false,
+            openedAt: intToPlatformInt64(1000),
+            isRead: false,
+          );
+        },
+      );
+
+      // Act
+      await tester.tap(_filledButtonWithText(_en.viewDisputeButton));
+      await _finishPageTransition(tester);
+
+      // Assert
+      expect(asked, ['order-peer-dispute']);
+      expect(find.text(_en.disputeNotFoundForOrder), findsNothing);
+      expect(find.text('dispute dispute-9'), findsOneWidget);
+      // Let the button's and the snackbar's timers run out.
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('says so when the bridge has none either', (tester) async {
+      // Arrange
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: 'order-no-dispute',
+        status: OrderStatus.dispute,
+        loadTrades:
+            () async => [
+              fakeTrade(
+                id: 'no-dispute',
+                status: OrderStatus.dispute,
+                role: TradeRole.buyer,
+              ),
+            ],
+        disputeLookup: (_) async => null,
+      );
+
+      // Act
+      await tester.tap(_filledButtonWithText(_en.viewDisputeButton));
+      await tester.pump();
+      await tester.pump();
+
+      // Assert
+      expect(find.text(_en.disputeNotFoundForOrder), findsOneWidget);
+      // Let the button's and the snackbar's timers run out.
+      await tester.pump(const Duration(seconds: 5));
     });
   });
 }

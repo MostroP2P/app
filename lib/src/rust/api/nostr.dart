@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_node_capabilities`, `apply_relay_list_event`, `default_relays`, `fetch_and_set_node_capabilities`, `generation_is_newer`, `get_pool`, `load_persisted_relays`, `new`, `note_relay_list_generation`, `on_pool_online`, `persist_relay`, `pool`, `relay_list_seen`, `relay_sync_tx`, `removal_effect`, `resync_with`, `run_resync`, `seed_default_relays`, `select_rates_event`, `tag_value`, `unpersist_relay`, `watch_connection_state`
+// These functions are ignored because they are not marked as `pub`: `apply_node_capabilities`, `apply_relay_list_event`, `default_relays`, `fetch_and_set_node_capabilities`, `generation_is_newer`, `get_pool`, `initialize_in`, `load_persisted_relays`, `new`, `note_relay_list_generation`, `on_pool_online`, `persist_relay`, `pool`, `reattach_existing_pool`, `relay_list_seen`, `relay_sync_tx`, `removal_effect`, `resync_with`, `run_resync`, `seed_default_relays`, `select_rates_event`, `tag_value`, `unpersist_relay`, `watch_connection_state`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ResyncState`
 
 /// Initialize the Nostr client with a relay list.
@@ -17,6 +17,13 @@ import 'types.dart';
 /// user's removals of announced relays restored as the blacklist — and,
 /// when nothing is persisted yet, the compiled-in defaults (which are then
 /// seeded so later runs read them back).
+///
+/// A second call in the same process re-attaches to the pool it already has
+/// and returns `Ok`; `relays` is then ignored. That second call is not a
+/// mistake: Android can destroy the activity — and its Flutter engine — while
+/// the process lives on, and the next launch runs `main()` again against the
+/// same Rust statics. Failing here aborted startup before `runApp`, leaving
+/// the app on its splash screen until the user killed the process.
 Future<void> initialize({List<String>? relays}) =>
     RustLib.instance.api.crateApiNostrInitialize(relays: relays);
 

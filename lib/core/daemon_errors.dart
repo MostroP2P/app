@@ -80,6 +80,11 @@ String localizedDaemonError(
   if (raw.contains('BondAlreadyLocked')) {
     return l10n.bondAlreadyLocked;
   }
+  // An invoice sent and not answered yet: the node may still accept it
+  // (#615). Checked before NoDaemonResponse, which it is not.
+  if (raw.contains('InvoiceAwaitingDaemon')) {
+    return l10n.invoiceAwaitingNode;
+  }
   // The daemon never answered within the reply window.
   if (raw.contains('NoDaemonResponse')) {
     return l10n.sessionTimeoutMessage;

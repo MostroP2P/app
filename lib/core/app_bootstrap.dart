@@ -127,6 +127,11 @@ Future<void> _startup(
   await startup.optional('applying your log settings', () async {
     await settings_api.setLoggingEnabled(enabled: savedSettings.loggingEnabled);
   });
+  // The Rust settings store starts empty at every launch, and the take flow
+  // reads the address from it.
+  await startup.optional('syncing your Lightning address', () async {
+    await syncLightningAddressToCore(savedSettings.defaultLightningAddress);
+  });
 
   // The persistent store (a SQLite file off the web, an IndexedDB database on
   // it, #408). Must come before any trade / order operation that reads or
@@ -267,7 +272,9 @@ Future<void> _startup(
   // Optional — measured with this step forced to fail. The app opens, and the
   // secret words can still be viewed and backed up: they come from secure
   // storage, not from relays, and that is the one thing worth keeping
-  // reachable when the network cannot start.
+  // reachable when the network cannot start. A launch that reuses a live
+  // process (Android destroyed the activity, not the process) finds the pool
+  // already running; Rust re-attaches to it rather than fail.
   //
   // Nothing that needs relays works, though. Adding a relay in Settings fails,
   // because the relay API goes through a pool that never started; the order

@@ -188,12 +188,27 @@ class SembastNotificationsStore {
 
   /// Read the latest stored card in the transaction, including when initial
   /// hydration has not populated the notifier yet. Never save a stale UI copy.
-  Future<List<NotificationModel>> markRead({String? id}) async {
+  ///
+  /// [id] marks one record, [orderId] every notice of that trade except its
+  /// chat cards (see [NotificationModel.readsWithTrade]), neither marks all.
+  Future<List<NotificationModel>> markRead({
+    String? id,
+    String? orderId,
+  }) async {
     final db = await _open();
     return db.transaction((txn) async {
+      final filter =
+          id != null
+              ? Filter.byKey(id)
+              : orderId != null
+              ? Filter.and([
+                Filter.equals('orderId', orderId),
+                Filter.notEquals('type', NotificationType.message.name),
+              ])
+              : null;
       final records = await _store.find(
         txn,
-        finder: id == null ? null : Finder(filter: Filter.byKey(id)),
+        finder: filter == null ? null : Finder(filter: filter),
       );
       final updated = <NotificationModel>[];
       for (final record in records) {
@@ -400,15 +415,24 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
     return _markRead();
   }
 
-  Future<void> _markRead({String? id}) => _mutate(() async {
+  /// Marks every notice of [orderId] read, as the user is looking at the
+  /// trade itself (issue #610). Its chat cards are left to the chat screens,
+  /// which own them: seeing the trade is not reading its messages.
+  Future<void> markOrderAsRead(String orderId) => _markRead(orderId: orderId);
+
+  Future<void> _markRead({String? id, String? orderId}) => _mutate(() async {
+    bool matches(NotificationModel n) =>
+        id != null
+            ? n.id == id
+            : orderId == null || (n.orderId == orderId && n.readsWithTrade);
     try {
       final updated =
           store == null
               ? [
                 for (final n in state)
-                  if (id == null || n.id == id) n.copyWith(isRead: true),
+                  if (matches(n)) n.copyWith(isRead: true),
               ]
-              : await store!.markRead(id: id);
+              : await store!.markRead(id: id, orderId: orderId);
       if (!mounted) return;
       final byId = {for (final n in state) n.id: n};
       for (final n in updated) {

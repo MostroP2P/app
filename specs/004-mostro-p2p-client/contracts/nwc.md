@@ -59,6 +59,23 @@ PaymentResult {
 **Errors**: `NoWalletConnected`, `InvoiceInvalid`, `InsufficientBalance`,
 `PaymentFailed`, `WalletTimeout`.
 
+---
+
+### make_invoice(amount_sats: u64, description: String?, expiry_secs: u64?) → String
+Ask the connected NWC wallet (NIP-47 `make_invoice`) for a BOLT-11 invoice
+of `amount_sats`, converted to msats for the request. Returns the invoice.
+
+- `description`: memo for the invoice; `null` sends none.
+- `expiry_secs`: the invoice lifetime requested from the wallet (NIP-47
+  `expiry`); `null` leaves it to the wallet's default. Callers paying out
+  through Mostro pass the node's `invoice_expiration_window` plus a margin
+  (`nwcInvoiceExpirySecs` in `lib/features/order/models/invoice_rules.dart`):
+  a wallet default inside that window gets the invoice refused. They wait
+  for the node's metadata before asking, since the request is made once.
+
+**Errors**: `InvalidAmount` (zero, or too large to express in msats),
+`NoWalletConnected`, `WalletError`. Not supported on web.
+
 ## Streams
 
 ### on_wallet_status_changed() → Stream<NwcWalletInfo?>

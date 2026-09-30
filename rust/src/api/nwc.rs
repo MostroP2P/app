@@ -158,8 +158,16 @@ pub async fn pay_invoice(bolt11: String) -> Result<PaymentResult> {
 /// `amount_sats` is the invoice amount in satoshis (converted to msats
 /// for the NIP-47 request).  Returns the BOLT-11 invoice string.
 ///
+/// `expiry_secs` asks the wallet for the invoice's lifetime; `None` leaves it
+/// to the wallet's default, which may fall inside the node's
+/// `invoice_expiration_window` and get the invoice refused.
+///
 /// **Errors**: `NoWalletConnected`, `WalletError`.
-pub async fn make_invoice(amount_sats: u64, description: Option<String>) -> Result<String> {
+pub async fn make_invoice(
+    amount_sats: u64,
+    description: Option<String>,
+    expiry_secs: Option<u64>,
+) -> Result<String> {
     if amount_sats == 0 {
         bail!("InvalidAmount: amount_sats must be greater than zero");
     }
@@ -176,7 +184,9 @@ pub async fn make_invoice(amount_sats: u64, description: Option<String>) -> Resu
         )
     };
 
-    client.make_invoice(amount_sats, description).await
+    client
+        .make_invoice(amount_sats, description, expiry_secs)
+        .await
 }
 
 // ── Stream ────────────────────────────────────────────────────────────────────
@@ -271,13 +281,13 @@ mod tests {
 
     #[tokio::test]
     async fn make_invoice_rejects_zero_amount() {
-        let err = make_invoice(0, None).await.unwrap_err();
+        let err = make_invoice(0, None, None).await.unwrap_err();
         assert!(err.to_string().contains("InvalidAmount"));
     }
 
     #[tokio::test]
     async fn make_invoice_rejects_overflow_amount() {
-        let err = make_invoice(u64::MAX, None).await.unwrap_err();
+        let err = make_invoice(u64::MAX, None, None).await.unwrap_err();
         assert!(err.to_string().contains("InvalidAmount"));
     }
 
@@ -285,7 +295,7 @@ mod tests {
     async fn make_invoice_errors_when_not_connected() {
         let _g = wallet_lock().lock().unwrap();
         let _ = disconnect_wallet().await;
-        let err = make_invoice(1000, None).await.unwrap_err();
+        let err = make_invoice(1000, None, None).await.unwrap_err();
         assert!(err.to_string().contains("NoWalletConnected"));
     }
 

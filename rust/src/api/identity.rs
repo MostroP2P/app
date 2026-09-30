@@ -1051,6 +1051,14 @@ mod tests {
         ) -> Result<()> {
             unimplemented!()
         }
+        async fn set_trade_range_slice(
+            &self,
+            _order_id: &str,
+            _fiat_amount: Option<f64>,
+            _amount_sats: Option<u64>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
     }
 
     #[test]

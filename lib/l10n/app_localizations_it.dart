@@ -1545,6 +1545,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'Questo ordine non attende più una fattura. Aggiornamento dello stato…';
 
   @override
+  String get invoiceAwaitingNode =>
+      'Inviata. Il nodo non ha ancora risposto: ti porteremo allo scambio non appena lo farà.';
+
+  @override
+  String get invoiceAwaitingNodeLong =>
+      'Il nodo non ha ancora risposto. Se lo scambio non va avanti, inviala di nuovo.';
+
+  @override
   String get invoiceSubmitInFlight =>
       'Una fattura per questo ordine è già in fase di invio. Attendi la risposta.';
 
@@ -1950,23 +1958,21 @@ class AppLocalizationsIt extends AppLocalizations {
   String get tradeWord => 'Operazione';
 
   @override
-  String get notifFilterAll => 'Tutte';
+  String get notifSectionRecent => 'Recenti';
 
   @override
-  String get notifFilterDisputes => 'Dispute';
-
-  @override
-  String notifFilterDisputesCount(int count) {
-    return 'Dispute · $count';
+  String notificationDeletedSnack(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count notifiche eliminate',
+      one: 'Notifica eliminata',
+    );
+    return '$_temp0';
   }
 
   @override
-  String get notifFilterSystem => 'Sistema';
-
-  @override
-  String notifFilterSystemCount(int count) {
-    return 'Sistema · $count';
-  }
+  String get notificationDeletedUndo => 'Annulla';
 
   @override
   String get payingStatus => 'Pagamento in corso...';

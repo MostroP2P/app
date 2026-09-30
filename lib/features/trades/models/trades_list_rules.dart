@@ -5,9 +5,11 @@ import 'package:mostro/features/order/models/order_detail_rules.dart'
     show estimateSats;
 import 'package:mostro/features/trades/models/trade_status.dart';
 import 'package:mostro/features/trades/models/trade_view.dart';
+import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/order/models/bond_rules.dart'
     show bondClaimEffectivePhase;
-import 'package:mostro/src/rust/api/types.dart' show BondClaimPhase, OrderStatus;
+import 'package:mostro/src/rust/api/types.dart'
+    show BondClaimPhase, OrderStatus;
 
 /// Pure rules of the My Trades list (handoff 11a): which group a trade sits
 /// in, what its one chip says, and which action the row promises. Kept free
@@ -39,6 +41,7 @@ enum TradeRowVerb {
   none,
   addInvoice,
   payBond,
+
   /// The share of a slashed bond waits for the user's invoice
   /// (docs/ANTI_ABUSE_BOND.md §6.4).
   claimPayout,
@@ -362,3 +365,30 @@ String formatFiatAmount({
 /// Whole sats with the locale's thousands separator: `6.900` in `es`.
 String formatSatsCount(int sats, String locale) =>
     NumberFormat.decimalPattern(locale).format(sats);
+
+/// `Vendes · 219.500 ARS · 163.069 sats`: the side, the fiat and, once
+/// known, the sats. [fiatAmount] wins over the range, so a range order taken
+/// for one amount inside it reads as that amount.
+String tradeAmountSummary(
+  AppLocalizations l10n, {
+  required bool isSelling,
+  required double? fiatAmount,
+  required double? fiatAmountMin,
+  required double? fiatAmountMax,
+  required String fiatCode,
+  required int? sats,
+  required String locale,
+}) {
+  final fiat = formatFiatAmount(
+    amount: fiatAmount,
+    min: fiatAmountMin,
+    max: fiatAmountMax,
+    locale: locale,
+  );
+  return [
+    isSelling ? l10n.tradesDirectionSell : l10n.tradesDirectionBuy,
+    '$fiat $fiatCode',
+    if (sats != null && sats > 0)
+      l10n.satsFigureExact(formatSatsCount(sats, locale)),
+  ].join(' · ');
+}

@@ -4,7 +4,7 @@ Auto-generated from all feature plans. Last updated: 2026-09-17
 
 ## Active Technologies
 - Rust stable 1.94+ (core); Dart 3.x / Flutter 3.x (UI shell) (004-mostro-p2p-client)
-- nostr-sdk 0.45+, mostro-core 0.14.6, flutter_rust_bridge 2.11.1, Riverpod (state),
+- nostr-sdk 0.45+, mostro-core 0.16.0, flutter_rust_bridge 2.11.1, Riverpod (state),
   go_router (navigation), sqlx (SQLite, native) / indexed_db_futures (IndexedDB, web),
   sembast (Dart UI-layer state), bip32/bip39 (keys), chacha20poly1305 (file encryption)
 - Sembast (Dart, all platforms) for UI-layer state; SQLite via `sqlx` (Rust, native) /
@@ -61,8 +61,9 @@ flutter gen-l10n                            # after editing lib/l10n/*.arb
   **`test/web/smoke/smoke.mjs`**: it serves the release bundle cross-origin isolated under
   `/app/` and asserts in headless Chrome that the page is isolated, the Flutter view mounted,
   **startup finished** (so the Rust bridge answered), and nothing errored. The bridge signal comes from
-  `lib/core/web/bridge_probe.dart`, which startup sets once it has finished — not at the first
-  Rust call, or a later failure goes unseen — and the startup guard sets on failure (no-op off web) — rename that flag on one side only and the check silently never fires.
+  `lib/core/web/bridge_probe.dart`. Startup sets `mostroBridgeReady` once it has finished, not at the
+  first Rust call, or a later failure goes unseen. The startup guard sets `mostroBridgeError` on failure
+  (no-op off web). Rename either flag on one side only and the check silently never fires.
   The CI run also sets `SMOKE_BOND_STORE=1`: it seeds bond rows (`test/web/smoke/seed/`) into
   IndexedDB, reloads, and compares them with what `lib/core/web/store_probe.dart` read back.
   And `SMOKE_ATTACHMENTS=1`: it serves a Blossom endpoint on a **second origin** and waits for

@@ -50,6 +50,18 @@ pub(crate) fn apply_fields(
     Ok(())
 }
 
+/// `$.order.fiat_amount` and `$.order.amount_sats` exactly as given, `None`
+/// writing a JSON null (`Storage::set_trade_range_slice`).
+pub(crate) fn set_range_slice(
+    trade: &mut Value,
+    fiat_amount: Option<f64>,
+    amount_sats: Option<u64>,
+) -> Result<()> {
+    *field(trade, &["order", "fiat_amount"])? = serde_json::to_value(fiat_amount)?;
+    *field(trade, &["order", "amount_sats"])? = serde_json::to_value(amount_sats)?;
+    Ok(())
+}
+
 /// Stores the counterparty reputation snapshot as JSON numbers.
 pub(crate) fn set_peer_reputation(
     trade: &mut Value,

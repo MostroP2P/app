@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `all`, `apply_admin_verdict`, `clear_dispute_keys`, `derive_admin_shared_key`, `dispute_store`, `forget_identity_disputes`, `get`, `has_dispute_keys`, `is_order_finished`, `is_peer_placeholder`, `new`, `pending_opens`, `persist_admin_pubkey`, `persist_dispute_origin`, `persisted_order_is_finished`, `record_late_acceptance`, `rehydrate_disputes_from_storage`, `resolve_dispute`, `resubscribe_active_dispute_chats`, `solver_conversation`, `solver_pubkey`, `status_allows_dispute`, `try_insert_if_absent_or_resolved`, `update_conditional`, `upsert_or_update`
+// These functions are ignored because they are not marked as `pub`: `all`, `apply_admin_took_dispute`, `apply_admin_verdict`, `clear_dispute_keys`, `derive_admin_shared_key`, `dispute_store`, `forget_identity_disputes`, `get`, `has_dispute_keys`, `is_order_finished`, `is_peer_placeholder`, `is_stale_solver_assignment`, `new`, `note_peer_opened_dispute`, `note_solver_assignment`, `pending_opens`, `persist_admin_pubkey`, `persist_dispute_origin`, `persist_solver_assigned_at`, `persisted_order_is_finished`, `record_late_acceptance`, `recorded_solver_assignment`, `rehydrate_disputes_from_storage`, `resolve_dispute`, `resubscribe_active_dispute_chats`, `solver_assigned_at`, `solver_conversation`, `solver_pubkey`, `status_allows_dispute`, `try_insert_if_absent_or_resolved`, `update_conditional`, `upsert_or_update`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DisputeStore`, `PendingOpenGuard`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `drop`
 
@@ -76,7 +76,9 @@ Future<Dispute?> getDispute({required String tradeId}) =>
 /// Handle an incoming `adminTookDispute` event.
 ///
 /// Extracts the admin pubkey, marks the dispute as `InReview`, and derives
-/// the ECDH admin shared key for dispute chat encryption.
+/// the ECDH admin shared key for dispute chat encryption. Without the event's
+/// time, a solver change is always applied; the daemon path goes through
+/// [`apply_admin_took_dispute`] with it.
 Future<void> handleAdminTookDispute({
   required String tradeId,
   required String adminPubkey,

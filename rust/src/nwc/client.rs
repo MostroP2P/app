@@ -417,6 +417,7 @@ mod native {
             &self,
             amount_sats: u64,
             description: Option<String>,
+            expiry_secs: Option<u64>,
         ) -> Result<String> {
             if self.info.status != WalletStatus::Connected {
                 bail!("NoWalletConnected: wallet is not connected");
@@ -430,7 +431,7 @@ mod native {
                 amount: msats,
                 description,
                 description_hash: None,
-                expiry: None,
+                expiry: expiry_secs,
             });
 
             let response = self.send_request(request).await?;
@@ -496,6 +497,7 @@ impl NwcClient {
         &self,
         _amount_sats: u64,
         _description: Option<String>,
+        _expiry_secs: Option<u64>,
     ) -> anyhow::Result<String> {
         anyhow::bail!("NWC is not supported on web")
     }

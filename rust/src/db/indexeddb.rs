@@ -529,6 +529,7 @@ impl Storage for IndexedDbStorage {
                         .iter()
                         .any(|prefix| key.starts_with(prefix))
                         || key == settings_keys::BOND_CLAIM_RETAINED_NODES
+                        || key == settings_keys::RESTORE_SNAPSHOT
                 })
                 .collect()
         };
@@ -638,6 +639,18 @@ impl Storage for IndexedDbStorage {
     ) -> Result<()> {
         self.patch_trade_by_order_id(order_id, |doc| {
             trade_json::apply_fields(doc, status.as_ref(), hold_invoice.as_deref(), amount_sats)
+        })
+        .await
+    }
+
+    async fn set_trade_range_slice(
+        &self,
+        order_id: &str,
+        fiat_amount: Option<f64>,
+        amount_sats: Option<u64>,
+    ) -> Result<()> {
+        self.patch_trade_by_order_id(order_id, |doc| {
+            trade_json::set_range_slice(doc, fiat_amount, amount_sats)
         })
         .await
     }

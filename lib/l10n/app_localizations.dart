@@ -2806,6 +2806,18 @@ abstract class AppLocalizations {
   /// **'This order is no longer waiting for an invoice. Updating its status…'**
   String get invoiceNoLongerExpected;
 
+  /// Add-invoice screen: the invoice or lightning address was sent but the node has not answered within the wait (Rust marker InvoiceAwaitingDaemon). Not an error: a late answer still moves the trade on (#615)
+  ///
+  /// In en, this message translates to:
+  /// **'Sent. The node hasn\'t answered yet — you\'ll be taken to the trade as soon as it does.'**
+  String get invoiceAwaitingNode;
+
+  /// Add-invoice screen: invoiceAwaitingNode once a further minute passes with no answer. A late rejection is only logged, so the buyer is invited to send the invoice again (#615)
+  ///
+  /// In en, this message translates to:
+  /// **'Still no answer from the node. If the trade doesn\'t move on, send it again.'**
+  String get invoiceAwaitingNodeLong;
+
   /// Add-invoice screen: a second submission was refused because an earlier one for the same trade is still waiting for the daemon's reply (Rust marker InvoiceSubmitInFlight)
   ///
   /// In en, this message translates to:
@@ -3412,35 +3424,23 @@ abstract class AppLocalizations {
   /// **'Trade'**
   String get tradeWord;
 
-  /// Notifications filter chip: all
+  /// Notifications screen: header of the notices below the pinned needs-your-action section (issue #610)
   ///
   /// In en, this message translates to:
-  /// **'All'**
-  String get notifFilterAll;
+  /// **'Recent'**
+  String get notifSectionRecent;
 
-  /// Notifications filter chip: disputes
+  /// Snack bar after swiping a notification card away; count is how many notices the card held (issue #610)
   ///
   /// In en, this message translates to:
-  /// **'Disputes'**
-  String get notifFilterDisputes;
+  /// **'{count, plural, =1{Notification deleted} other{{count} notifications deleted}}'**
+  String notificationDeletedSnack(int count);
 
-  /// Notifications filter chip: disputes with count
+  /// Snack bar action that brings back the notification card just swiped away
   ///
   /// In en, this message translates to:
-  /// **'Disputes · {count}'**
-  String notifFilterDisputesCount(int count);
-
-  /// Notifications filter chip: system
-  ///
-  /// In en, this message translates to:
-  /// **'System'**
-  String get notifFilterSystem;
-
-  /// Notifications filter chip: system with count
-  ///
-  /// In en, this message translates to:
-  /// **'System · {count}'**
-  String notifFilterSystemCount(int count);
+  /// **'Undo'**
+  String get notificationDeletedUndo;
 
   /// NWC pay button label while paying
   ///

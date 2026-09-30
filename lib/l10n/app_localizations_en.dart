@@ -1532,6 +1532,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'This order is no longer waiting for an invoice. Updating its status…';
 
   @override
+  String get invoiceAwaitingNode =>
+      'Sent. The node hasn\'t answered yet — you\'ll be taken to the trade as soon as it does.';
+
+  @override
+  String get invoiceAwaitingNodeLong =>
+      'Still no answer from the node. If the trade doesn\'t move on, send it again.';
+
+  @override
   String get invoiceSubmitInFlight =>
       'An invoice for this order is already being sent. Wait for the reply.';
 
@@ -1935,23 +1943,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tradeWord => 'Trade';
 
   @override
-  String get notifFilterAll => 'All';
+  String get notifSectionRecent => 'Recent';
 
   @override
-  String get notifFilterDisputes => 'Disputes';
-
-  @override
-  String notifFilterDisputesCount(int count) {
-    return 'Disputes · $count';
+  String notificationDeletedSnack(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count notifications deleted',
+      one: 'Notification deleted',
+    );
+    return '$_temp0';
   }
 
   @override
-  String get notifFilterSystem => 'System';
-
-  @override
-  String notifFilterSystemCount(int count) {
-    return 'System · $count';
-  }
+  String get notificationDeletedUndo => 'Undo';
 
   @override
   String get payingStatus => 'Paying...';

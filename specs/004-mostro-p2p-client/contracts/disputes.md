@@ -134,7 +134,7 @@ The Dispute record is **in-memory by design** — its status and resolution come
 back from daemon events, and so, usually, does the solver assignment: the
 offline catch-up channel (`orders.rs`, no `since`) replays `admin-took-dispute`
 on every reconnect, which rebuilds the record and re-arms the dispute chat on
-its own. Two facts are persisted anyway:
+its own. These facts are persisted anyway:
 
 - the **origin** (whether this side opened the dispute), written by a successful
   `open_dispute` under `dispute_mine:<order_id>` (presence is the value). This
@@ -145,6 +145,9 @@ its own. Two facts are persisted anyway:
   replay is bounded by relay retention and by the per-subscription result cap,
   so a long dispute can outlive it. The stored copy is what re-arms the chat
   when the replay no longer covers the assignment.
+- **when that solver was assigned**, under `dispute_admin_at:<order_id>` as
+  `<time>:<pubkey>`, so a replayed older assignment is ignored after a restart
+  (see Solver takeover).
 
 **Rehydration**: on relay (re)connect, dispute records are rebuilt for persisted
 trades that have a stored solver, before dispute-chat listeners are re-armed and
@@ -174,6 +177,48 @@ restart. A trade is finished at `SettledByAdmin`, `CanceledByAdmin`,
   nobody is on the other end of — on every startup;
 - a resolution reaching the dispute store clears them too: the verdicts are
   routed there since #596.
+
+**Solver takeover**: a dispute can change solver. mostrod lets a write solver
+take over an `in-progress` dispute held by a read-only one (for example
+[Serbero](https://github.com/MostroP2P/serbero)), and sends both parties a new
+`admin-took-dispute` with the new pubkey. The record takes the new solver, and
+the dispute chat task, bound to the previous solver's conversation keys, is
+stopped before the new one is armed (the handover releases the claim, closes
+the old REQ and clears the cursor under the chat guard's lock, so no new task
+claims the chat half-way); the chat guard allows one task per order
+and channel, so without the stop the new solver's messages would never be read.
+The peer chat is not touched. The dispute chat's `since` cursor is cleared,
+since it dates the previous conversation and the new solver's clock may be
+behind it. A chat task only writes its cursor while it still owns the chat
+(checked under the guard's lock), so the stopped task, if it was handling an
+event, cannot restore the old cursor. Likewise a task installs its relay
+subscription only while it owns the chat: all tasks of a chat share one
+subscription id, and a task stopped between its claim and its REQ would
+otherwise overwrite the new solver's filter. A listener armed for the previous solver that has not claimed the
+chat yet (rehydration on reconnect) cannot claim it: the claim checks the
+dispute's current solver under the guard's lock.
+
+Each assignment's time (the event's `created_at`) is recorded, and an
+assignment of another solver that is not newer is ignored: the catch-up
+channel replays every `admin-took-dispute`, usually newest first, and the
+previous solver must not come back. Equal seconds cannot be ordered, so the
+current assignment is kept. The time is persisted under
+`dispute_admin_at:<order_id>` and seeded again by rehydration, so the replay
+order does not matter after a restart either. The persisted value names the
+solver it belongs to (`<time>:<pubkey>`), and rehydration ignores it for any
+other solver, since the pubkey and the time are separate best-effort writes.
+An assignment dated beyond the local clock's skew horizon
+(`MAX_CLOCK_SKEW_SECS`) is rejected, like a future-dated chat event: it
+cannot be ordered against the others. Deleting the identity forgets
+the recorded times with its disputes. Assignments are applied one at
+a time (a global lock): the global and per-trade notification tasks can
+dispatch two for the same order at once, and the check, the recorded time,
+the chat restart and the persisted solver must describe the same assignment.
+Rehydration restores each persisted solver and its time under the same lock,
+since a replayed older assignment applied half-way would install the previous
+solver with the newer time. A chat task's own cleanup likewise releases its
+claim and closes its REQ under the chat guard's lock, so a takeover's new task
+cannot install its subscription in between and lose it to the late close.
 
 Sending to the solver (`submit_evidence`, `send_dispute_file`) checks both:
 a resolved record or a finished trade is `NoOpenDispute`.

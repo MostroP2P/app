@@ -820,6 +820,52 @@ class InvoiceValidationRow extends StatelessWidget {
   }
 }
 
+/// A submission the node has not answered yet (#615): the waiting style of
+/// the time banner, not the error one — nothing went wrong, and the screen
+/// moves on by itself when the answer arrives.
+class InvoiceAwaitingRow extends StatelessWidget {
+  const InvoiceAwaitingRow({super.key, required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = InvoicePalette.of(context);
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: pal.timeFill,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: pal.timeBorder),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Icon(
+                Icons.hourglass_top_rounded,
+                size: 14,
+                color: pal.timeInk,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(fontSize: 12, color: pal.timeInk),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// The validation row under the invoice field, carrying the `invoice.check`
 /// readout (`docs/automation-contract.md`).
 ///
@@ -833,7 +879,4 @@ Widget invoiceCheckRow({
 }) => InvoiceValidationRow(
   text: sentence,
   isValid: check is! InvoiceCheckError,
-).withAutomationId(
-  AutomationIds.invoiceCheck,
-  label: invoiceCheckWord(check),
-);
+).withAutomationId(AutomationIds.invoiceCheck, label: invoiceCheckWord(check));

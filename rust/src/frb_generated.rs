@@ -4698,12 +4698,17 @@ fn wire__crate__api__nwc__make_invoice_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_amount_sats = <u64>::sse_decode(&mut deserializer);
             let api_description = <Option<String>>::sse_decode(&mut deserializer);
+            let api_expiry_secs = <Option<u64>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::nwc::make_invoice(api_amount_sats, api_description).await?;
+                        let output_ok = crate::api::nwc::make_invoice(
+                            api_amount_sats,
+                            api_description,
+                            api_expiry_secs,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,

@@ -117,6 +117,20 @@ class _AddLightningInvoiceScreenState
   /// submission, so the user can see why the invoice was refused and fix it.
   String? _lastError;
 
+  /// The last submission reached the relays and the node has not answered
+  /// yet (#615). Not an error: a late acceptance moves the order on and
+  /// [_listenForProgress] takes the screen to the trade.
+  bool _awaitingNode = false;
+
+  /// [_awaitingNode] for over [_awaitingPatience]: a late rejection is only
+  /// logged, never shown, so past this the note invites sending again.
+  /// Safe either way: a late rejection consumed the pending record, and a
+  /// late acceptance makes the daemon refuse the resend with a status the
+  /// screen already recovers from.
+  bool _awaitingLong = false;
+  Timer? _awaitingTimer;
+  static const _awaitingPatience = Duration(seconds: 60);
+
   Timer? _checkTimer;
 
   /// The input and trade amount [_verdict] was computed for; anything else
@@ -189,6 +203,7 @@ class _AddLightningInvoiceScreenState
   void dispose() {
     _checkTimer?.cancel();
     _expiryTimer?.cancel();
+    _awaitingTimer?.cancel();
     _lifecycle.dispose();
     _invoiceController.dispose();
     _focus.dispose();
@@ -269,6 +284,7 @@ class _AddLightningInvoiceScreenState
     _supersede();
     // The daemon's verdict was about the previous input; the new one gets
     // its own local verdict.
+    _stopAwaiting();
     setState(() => _lastError = null);
     final input = _input;
     if (input.isEmpty) return;
@@ -446,8 +462,11 @@ class _AddLightningInvoiceScreenState
     }
   }
 
-  Future<void> _submit(WidgetRef ref) async {
-    if (_submitting || _canceling) return;
+  /// Whether the invoice went out to the daemon — accepted or refused by it.
+  /// False when this side held it back: a check that refuses it, a verdict
+  /// still pending, or an address waiting for the trade amount.
+  Future<bool> _submit(WidgetRef ref) async {
+    if (_submitting || _canceling) return false;
     final input = _input;
     // For Lightning Addresses, the sats amount must be resolved before sending —
     // the Rust side uses it to resolve the address. Bolt11 invoices encode
@@ -457,21 +476,23 @@ class _AddLightningInvoiceScreenState
     // amount, the node's metadata, or the invoice's own expiry — and this
     // also guards the NWC path, which reaches here without the button.
     final check = await _freshCheck(input, resolvedSats);
-    if (!mounted) return;
+    if (!mounted) return false;
     if (check is InvoiceCheckAddress && resolvedSats == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(AppLocalizations.of(context).waitingForTradeAmount),
         ),
       );
-      return;
+      return false;
     }
     if (!invoiceCheckAllowsSubmit(check)) {
       // The row already says why; nothing is sent.
+      debugPrint('[AddLightningInvoiceScreen] invoice held back: $check');
       setState(() {});
-      return;
+      return false;
     }
     final sats = resolvedSats ?? BigInt.one;
+    _stopAwaiting();
     setState(() {
       _submitting = true;
       _lastError = null;
@@ -482,11 +503,12 @@ class _AddLightningInvoiceScreenState
       await submit(widget.orderId, input, sats);
 
       // The status listener may have left already on the same reply.
-      if (!mounted || _navigated) return;
+      if (!mounted || _navigated) return true;
       _navigated = true;
       context.go(AppRoute.tradeDetailPath(widget.orderId));
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return true;
       // sendInvoice now waits for the daemon's reply: an error means the
       // invoice was NOT accepted (CantDo, e.g. invalid invoice, or timeout),
       // so stay on this screen. Strip the Rust error prefix for readability.
@@ -501,6 +523,22 @@ class _AddLightningInvoiceScreenState
       // status it carries is what takes the buyer off this screen.
       final statusRejection = isStatusRejection(msg);
       if (statusRejection) unawaited(_recoverState());
+      // The answer is about the text that was sent. Edited since — the
+      // field stays open while the node is waited on, up to 30 s for an
+      // address — it would label the new input with the old verdict (PR #617
+      // review). The status recovery above still runs: it is not about the
+      // input.
+      if (_input != input) return true;
+      // Sent, not answered yet: the node may still accept it — an address
+      // costs it an LNURL round trip — and the late reply moves the screen
+      // on. Say so, without an error or a snack bar blaming the connection.
+      if (msg.contains('InvoiceAwaitingDaemon')) {
+        setState(() => _awaitingNode = true);
+        _awaitingTimer = Timer(_awaitingPatience, () {
+          if (mounted && _awaitingNode) setState(() => _awaitingLong = true);
+        });
+        return true;
+      }
       final l10n = AppLocalizations.of(context);
       final display =
           statusRejection
@@ -510,9 +548,17 @@ class _AddLightningInvoiceScreenState
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(display)));
+      return true;
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  void _stopAwaiting() {
+    _awaitingTimer?.cancel();
+    _awaitingTimer = null;
+    _awaitingNode = false;
+    _awaitingLong = false;
   }
 
   Future<void> _recoverState() async {
@@ -598,7 +644,17 @@ class _AddLightningInvoiceScreenState
   /// there is none.
   Widget? _errorReadout() {
     final error = _lastError;
-    if (error == null) return null;
+    if (error == null) {
+      if (!_awaitingNode) return null;
+      final l10n = AppLocalizations.of(context);
+      final text =
+          _awaitingLong
+              ? l10n.invoiceAwaitingNodeLong
+              : l10n.invoiceAwaitingNode;
+      return InvoiceAwaitingRow(
+        text: text,
+      ).withAutomationId(AutomationIds.invoiceAwaiting, label: text);
+    }
     return InvoiceValidationRow(
       text: error,
       isValid: false,
@@ -734,16 +790,31 @@ class _AddLightningInvoiceScreenState
               ],
               Expanded(
                 child: Center(
-                  child: NwcInvoiceWidget(
-                    amountSats: sats.toInt(),
-                    generateInvoice: widget.generateInvoice,
-                    onInvoiceConfirmed: (invoice) {
-                      _invoiceController.text = invoice;
-                      _submit(ref);
-                    },
-                    onFallbackToManual:
-                        () => setState(() => _manualMode = true),
-                  ),
+                  // The wallet is asked once, when the widget mounts: before
+                  // the node's window is known the invoice would get the
+                  // margin alone, and a node with a longer window refuses it.
+                  child:
+                      ref.watch(mostroNodeProvider).isLoading
+                          ? const CircularProgressIndicator()
+                          : NwcInvoiceWidget(
+                            amountSats: sats.toInt(),
+                            expirySecs: nwcInvoiceExpirySecs(
+                              _nodeContext().minRemainingSecs,
+                            ),
+                            generateInvoice: widget.generateInvoice,
+                            onInvoiceConfirmed: (invoice) async {
+                              _invoiceController.text = invoice;
+                              // Nothing else moves this screen on when the invoice
+                              // is held back, and the widget has already stopped
+                              // drawing: without the form, the screen stays blank.
+                              final sent = await _submit(ref);
+                              if (!sent && mounted && !_navigated) {
+                                setState(() => _manualMode = true);
+                              }
+                            },
+                            onFallbackToManual:
+                                () => setState(() => _manualMode = true),
+                          ),
                 ),
               ),
               // A generated invoice the daemon refuses needs the same
@@ -864,7 +935,9 @@ class _AddLightningInvoiceScreenState
           validSats: check is InvoiceCheckValid ? check.sats : null,
           isValid: check is InvoiceCheckValid || check is InvoiceCheckAddress,
           isAddress: check is InvoiceCheckAddress,
-          hasError: error != null || check is InvoiceCheckError,
+          // A real verdict, not whatever fills the readout slot: the
+          // waiting note shares it and is not an error (PR #617 review).
+          hasError: _lastError != null || check is InvoiceCheckError,
         ),
         if (error != null) ...[
           const SizedBox(height: 8),

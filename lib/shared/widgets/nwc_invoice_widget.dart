@@ -15,12 +15,16 @@ class NwcInvoiceWidget extends StatefulWidget {
     super.key,
     required this.amountSats,
     required this.onInvoiceConfirmed,
+    this.expirySecs,
     required this.onFallbackToManual,
     this.generateInvoice,
   });
 
   final int amountSats;
   final ValueChanged<String> onInvoiceConfirmed;
+
+  /// Lifetime to ask the wallet for; null leaves it to the wallet.
+  final int? expirySecs;
   final VoidCallback onFallbackToManual;
 
   /// Asks the connected wallet for an invoice. Defaults to NWC; injected by
@@ -48,7 +52,9 @@ class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
 
   Future<void> _generateInvoice() async {
     try {
-      final generate = widget.generateInvoice ?? _makeInvoiceOverNwc;
+      final generate =
+          widget.generateInvoice ??
+          (sats) => _makeInvoiceOverNwc(sats, widget.expirySecs);
       final bolt11 = await generate(widget.amountSats);
       if (!mounted) return;
       setState(() {
@@ -71,10 +77,11 @@ class _NwcInvoiceWidgetState extends State<NwcInvoiceWidget> {
     }
   }
 
-  static Future<String> _makeInvoiceOverNwc(int amountSats) =>
+  static Future<String> _makeInvoiceOverNwc(int amountSats, int? expirySecs) =>
       nwc_api.makeInvoice(
         amountSats: BigInt.from(amountSats),
         description: null,
+        expirySecs: expirySecs == null ? null : BigInt.from(expirySecs),
       );
 
   @override

@@ -4,6 +4,25 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.9] - 2026-09-28
+
+### ✨ Features
+
+- **notifications:** one readable list, trades that need you on top ([#612](https://github.com/MostroP2P/app/pull/612)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **orders:** an unanswered invoice is awaited, not reported as a lost connection ([#617](https://github.com/MostroP2P/app/pull/617)) by @grunch
+- **restore:** a restore snapshot never outlives its identity ([#616](https://github.com/MostroP2P/app/pull/616)) by @grunch
+- **notifications:** opening a notice marks it read ([#611](https://github.com/MostroP2P/app/pull/611)) by @grunch
+- **orders:** opening the method picker releases the amount focus ([#609](https://github.com/MostroP2P/app/pull/609)) by @grunch
+- **orders:** a range order never reads as fixed-price ([#608](https://github.com/MostroP2P/app/pull/608)) by @grunch
+- **relay:** reconnect dropped relays at once on resume ([#607](https://github.com/MostroP2P/app/pull/607)) by @grunch
+
+### 🧹 Chores
+
+- **deps:** bump mostro-core to 0.16.0 ([#613](https://github.com/MostroP2P/app/pull/613)) by @grunch
+
 ## [2.0.8] - 2026-09-27
 
 ### ✨ Features

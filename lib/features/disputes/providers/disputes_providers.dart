@@ -246,6 +246,13 @@ final disputeByTradeIdProvider = Provider.family<DisputeItem?, String>((
       .firstOrNull;
 });
 
+/// The bridge's dispute for a trade, or null. Its own provider so the trade
+/// screen's fallback lookup can be driven in tests without the bridge.
+final disputeLookupProvider =
+    Provider<Future<rust_types.Dispute?> Function(String tradeId)>(
+      (ref) => (tradeId) => disputes_api.getDispute(tradeId: tradeId),
+    );
+
 // ── Hydration (resume) ────────────────────────────────────────────────────────
 
 /// The bridge's dispute record, as the list shows it. The peer's handle and

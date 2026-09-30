@@ -258,6 +258,11 @@ class AutomationIds {
   /// Readout: the daemon's reason for refusing the last submitted invoice.
   /// Present only after a rejection, until the next submission.
   static const String invoiceError = 'invoice.error';
+
+  /// Readout: the last submission reached the relays and the node has not
+  /// answered yet (#615). Present until the screen leaves for the trade, or
+  /// the invoice field is edited, or a new submission starts.
+  static const String invoiceAwaiting = 'invoice.awaiting';
   static const String invoiceCancel = 'invoice.cancel';
   static const String payInvoiceText = 'pay.invoice.text';
 

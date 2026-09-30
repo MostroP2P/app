@@ -65,7 +65,10 @@ void main() {
         Locale('pt', 'BR'),
         Locale('es'),
       ];
-      expect((await stateWith('pt')).language, 'es'); // unsupported stored -> secondary
+      expect(
+        (await stateWith('pt')).language,
+        'es',
+      ); // unsupported stored -> secondary
       expect((await stateWith(null)).language, 'es'); // first run -> secondary
     });
   });
@@ -124,6 +127,92 @@ void main() {
     });
     test('unsupported pt -> device default for both', () async {
       await expectAgreement('pt', 'en');
+    });
+  });
+
+  group('the Lightning address reaches the Rust core', () {
+    // The take flow reads the address from the Rust settings store, which
+    // lives in memory: without these writes Mostro never pays it directly.
+    test('setting and clearing it hands each value to the core', () async {
+      // Arrange
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final synced = <String?>[];
+      final notifier = SettingsNotifier(
+        prefs: prefs,
+        syncLightningAddress: (address) async => synced.add(address),
+      );
+
+      // Act
+      notifier.setDefaultLightningAddress('alice@example.com');
+      notifier.setDefaultLightningAddress(null);
+      await Future<void>.delayed(Duration.zero);
+
+      // Assert
+      expect(synced, ['alice@example.com', null]);
+      expect(prefs.getString('settings.lightningAddress'), isNull);
+    });
+
+    test('a core that refuses the address keeps the saved setting', () async {
+      // Arrange
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final notifier = SettingsNotifier(
+        prefs: prefs,
+        syncLightningAddress:
+            (_) async => throw Exception('InvalidLightningAddress'),
+      );
+
+      // Act
+      notifier.setDefaultLightningAddress('alice@example.com');
+      await Future<void>.delayed(Duration.zero);
+
+      // Assert
+      expect(notifier.state.defaultLightningAddress, 'alice@example.com');
+      expect(prefs.getString('settings.lightningAddress'), 'alice@example.com');
+    });
+
+    test('the saved address is handed to the core at startup', () async {
+      // Arrange
+      final synced = <String?>[];
+
+      // Act
+      await syncLightningAddressToCore(
+        'alice@example.com',
+        sink: (address) async => synced.add(address),
+      );
+
+      // Assert
+      expect(synced, ['alice@example.com']);
+    });
+
+    test('a refused replacement clears the core copy', () async {
+      // Arrange: the core would otherwise keep the previous address and
+      // have Mostro pay it on the next take.
+      final synced = <String?>[];
+
+      // Act
+      await syncLightningAddressToCore(
+        'a@b',
+        sink: (address) async {
+          if (address != null) throw Exception('InvalidLightningAddress');
+          synced.add(address);
+        },
+      );
+
+      // Assert
+      expect(synced, [null]);
+    });
+
+    test('a failed startup sync does not throw', () async {
+      // Act + Assert
+      await expectLater(
+        syncLightningAddressToCore(
+          'alice@example.com',
+          sink: (_) async => throw Exception('bridge down'),
+        ),
+        completes,
+      );
     });
   });
 }

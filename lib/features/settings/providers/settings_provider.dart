@@ -71,14 +71,52 @@ class AppSettingsState {
 // Sentinel to distinguish "not provided" from explicit null in copyWith.
 const _unset = Object();
 
+/// Hands the default Lightning address (null clears it) to the Rust core.
+typedef LightningAddressSink = Future<void> Function(String? address);
+
+Future<void> _pushLightningAddress(String? address) =>
+    settings_api.setDefaultLightningAddress(address: address);
+
+/// Mirrors the saved Lightning address into the Rust settings store, which
+/// lives in memory and is what the take flow reads to have Mostro pay the
+/// address directly. Called at startup and on every change. Never throws:
+/// the setting stays saved on the Dart side, and the add-invoice screen
+/// still pre-fills it.
+///
+/// An address the core refuses clears the core copy instead: it would
+/// otherwise keep the previous address and have Mostro pay one the user
+/// replaced. With none there, a take asks for an invoice.
+Future<void> syncLightningAddressToCore(
+  String? address, {
+  LightningAddressSink? sink,
+}) async {
+  final push = sink ?? _pushLightningAddress;
+  try {
+    await push(address);
+  } catch (e) {
+    debugPrint('[settings] Lightning address not synced to the core: $e');
+    if (address == null) return;
+    try {
+      await push(null);
+    } catch (e) {
+      debugPrint('[settings] stale Lightning address not cleared: $e');
+    }
+  }
+}
+
 // ── Notifier ──────────────────────────────────────────────────────────────────
 
 class SettingsNotifier extends StateNotifier<AppSettingsState> {
-  SettingsNotifier({SharedPreferences? prefs, AppSettingsState? initial})
-      : _prefs = prefs,
+  SettingsNotifier({
+    SharedPreferences? prefs,
+    AppSettingsState? initial,
+    LightningAddressSink? syncLightningAddress,
+  })  : _prefs = prefs,
+        _syncLightningAddress = syncLightningAddress,
         super(initial ?? const AppSettingsState());
 
   final SharedPreferences? _prefs;
+  final LightningAddressSink? _syncLightningAddress;
 
   void setLanguage(String code) {
     final normalized = _normalizeLanguage(code);
@@ -102,6 +140,7 @@ class SettingsNotifier extends StateNotifier<AppSettingsState> {
     } else {
       _prefs?.setString(_kLightningAddress, address);
     }
+    syncLightningAddressToCore(address, sink: _syncLightningAddress);
   }
 
   /// Turns verbose (`Debug`) logging on or off. The Rust core owns the global

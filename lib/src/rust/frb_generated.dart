@@ -441,6 +441,7 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiNwcMakeInvoice({
     required BigInt amountSats,
     String? description,
+    BigInt? expirySecs,
   });
 
   Future<void> crateApiMessagesMarkAsRead({required String tradeId});
@@ -4296,6 +4297,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<String> crateApiNwcMakeInvoice({
     required BigInt amountSats,
     String? description,
+    BigInt? expirySecs,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -4303,6 +4305,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_u_64(amountSats, serializer);
           sse_encode_opt_String(description, serializer);
+          sse_encode_opt_box_autoadd_u_64(expirySecs, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -4315,7 +4318,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiNwcMakeInvoiceConstMeta,
-        argValues: [amountSats, description],
+        argValues: [amountSats, description, expirySecs],
         apiImpl: this,
       ),
     );
@@ -4323,7 +4326,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiNwcMakeInvoiceConstMeta => const TaskConstMeta(
     debugName: "make_invoice",
-    argNames: ["amountSats", "description"],
+    argNames: ["amountSats", "description", "expirySecs"],
   );
 
   @override

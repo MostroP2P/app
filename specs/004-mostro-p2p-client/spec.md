@@ -241,7 +241,7 @@ A user views all their active and historical trades in the My Trades tab. Each c
 
 ### User Story 13 — Notifications Center (Priority: P2)
 
-The user receives in-app notifications for all trade lifecycle events: order taken, payment required, invoice waiting, fiat confirmed, payment settled, rating requested, etc. The notification bell shows a numbered badge for unread items. Tapping a notification navigates to the relevant screen. Users can mark all as read or clear all.
+The user receives in-app notifications for all trade lifecycle events: order taken, payment required, invoice waiting, fiat confirmed, payment settled, rating requested, etc. The notification bell shows a numbered badge for unread items. Tapping a notification navigates to the relevant screen. The Notifications screen is one list with no filter tabs: a trade's notifications share one card, and the trades whose next step is the user's are pinned above the rest. Users can swipe a card away, mark all as read, or clear all (#610).
 
 **Why this priority**: Notifications keep users informed during asynchronous trade steps without requiring them to actively poll.
 
@@ -249,10 +249,15 @@ The user receives in-app notifications for all trade lifecycle events: order tak
 
 **Acceptance Scenarios**:
 
-1. **Given** a trade event occurs, **When** the app receives it, **Then** a notification card appears in the Notifications screen with an icon, title, subtitle, and timestamp.
+1. **Given** a trade event occurs, **When** the app receives it, **Then** it appears in the Notifications screen in its trade's card, with an icon, its whole title, its message and a timestamp. The icon and colour say what the event means to the user: their step, a wait, chat, dispute, or finished. Whose step it is follows the user's side of the trade, so `active` is the buyer's step and the seller's wait. Earlier events of the same trade expand below it as a one-line timeline.
 2. **Given** there are unread notifications, **When** the user looks at the app bar, **Then** the bell shows a numbered badge (pill shape, dark gold) with the unread count and animates.
-3. **Given** the user taps a notification, **When** they navigate to the relevant screen, **Then** the notification is marked as read and its indicator disappears.
+3. **Given** the user taps a notification, **When** they navigate to the relevant screen, **Then** the notification is marked as read and its indicator disappears. The only exception is the resolver's chat card: it opens the trade, and only the dispute chat marks it read (#610).
+3a. **Given** a trade has unread notifications, **When** the user taps "Go to trade" on its card, or opens that trade's detail screen from anywhere, **Then** every notification of that trade is marked read except its chat cards. Seeing the trade is not reading its messages: the chat screens own those cards and mark them read when opened (#610).
 4. **Given** the user opens the overflow menu in Notifications, **When** they tap "Mark all as read", **Then** all notifications are marked read and the badge disappears.
+5. **Given** the user opens Notifications, **When** the list renders, **Then** there are no filter tabs. Trade cards and notifications that belong to no trade share one list, newest first, and a dispute stays in its trade's card, marked in red.
+6. **Given** a trade's next step is the user's, as My Trades decides it from the trade's **current** state, **When** the list renders, **Then** that trade's card sits under a "Needs your action" header above a "Recent" header, and it carries the step (e.g. "Add invoice", "Release sats"). An old notification about a step already taken never pins its trade. With no such trade, neither header is shown.
+7. **Given** a trade card, **When** it renders, **Then** its header names the trade: the user's side, the fiat amount and currency, the sats when fixed, and the payment method with the short order id. When the trade row is gone, the header is the short order id.
+8. **Given** a card in Notifications, **When** the user swipes it away, **Then** it disappears at once and a snack bar offers Undo. A trade card deletes all its notifications. They are deleted only once the snack bar closes without Undo; Undo brings the card back and deletes nothing. There is no per-notification menu.
 
 ---
 

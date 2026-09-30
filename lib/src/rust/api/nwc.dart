@@ -47,12 +47,20 @@ Future<PaymentResult> payInvoice({required String bolt11}) =>
 /// `amount_sats` is the invoice amount in satoshis (converted to msats
 /// for the NIP-47 request).  Returns the BOLT-11 invoice string.
 ///
+/// `expiry_secs` asks the wallet for the invoice's lifetime; `None` leaves it
+/// to the wallet's default, which may fall inside the node's
+/// `invoice_expiration_window` and get the invoice refused.
+///
 /// **Errors**: `NoWalletConnected`, `WalletError`.
-Future<String> makeInvoice({required BigInt amountSats, String? description}) =>
-    RustLib.instance.api.crateApiNwcMakeInvoice(
-      amountSats: amountSats,
-      description: description,
-    );
+Future<String> makeInvoice({
+  required BigInt amountSats,
+  String? description,
+  BigInt? expirySecs,
+}) => RustLib.instance.api.crateApiNwcMakeInvoice(
+  amountSats: amountSats,
+  description: description,
+  expirySecs: expirySecs,
+);
 
 /// Subscribe to wallet status changes.
 Future<WalletStatusStream> onWalletStatusChanged() =>

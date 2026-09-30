@@ -280,6 +280,22 @@ pub(crate) fn take_matching_restore(pubkey_hex: &str, reply_ts: i64) -> Option<P
 /// The marker a request returns when the daemon did not answer in time.
 pub(crate) const NO_DAEMON_RESPONSE: &str = "NoDaemonResponse";
 
+/// The marker `send_invoice` returns when its submission reached the relays
+/// but the daemon has not given a verdict within the reply window (#615).
+/// Not a failure: the pending record outlives the wait, so a late reply is
+/// still applied as the status update it is, and the add-invoice screen
+/// leaves on its own when the order moves on. Distinct from
+/// [NO_DAEMON_RESPONSE] so the UI does not blame the user's connection.
+pub(crate) const INVOICE_AWAITING_DAEMON: &str = "InvoiceAwaitingDaemon";
+
+/// How long `send_invoice` waits for the daemon's verdict. A lightning
+/// address costs the node an LNURL round trip to the address's domain
+/// before it can answer, which can take well over the 10 s a bolt11 needs
+/// (#615).
+pub(crate) fn add_invoice_reply_window(is_address: bool) -> std::time::Duration {
+    std::time::Duration::from_secs(if is_address { 30 } else { 10 })
+}
+
 /// Run [attempt] again, once, if the daemon did not answer the first time.
 ///
 /// Meant for a restore: each attempt derives a fresh trade key and opens its
@@ -1000,6 +1016,24 @@ pub(crate) fn may_reconcile_stored_id(
 
 #[cfg(test)]
 mod tests {
+    /// #615: a lightning address costs the node an LNURL round trip to the
+    /// address's domain before it can answer, so it gets a longer window
+    /// than a bolt11, which it only has to decode.
+    #[test]
+    fn an_address_gets_a_longer_add_invoice_window_than_an_invoice() {
+        use super::add_invoice_reply_window;
+        assert_eq!(add_invoice_reply_window(false).as_secs(), 10);
+        assert!(add_invoice_reply_window(true) >= std::time::Duration::from_secs(30));
+    }
+
+    /// The marker for "sent, no verdict yet" must stay distinct from a
+    /// plain `NoDaemonResponse`: the UI tells the two apart (#615).
+    #[test]
+    fn awaiting_an_invoice_verdict_is_not_a_missing_response() {
+        assert_ne!(super::INVOICE_AWAITING_DAEMON, super::NO_DAEMON_RESPONSE);
+        assert!(!super::INVOICE_AWAITING_DAEMON.contains(super::NO_DAEMON_RESPONSE));
+    }
+
     use super::*;
     use crate::mostro::test_fixtures::small_order_with;
 

@@ -296,20 +296,35 @@ class IdentityService {
     return words;
   }
 
-  static Future<List<String>> _loadExisting(StoredIdentity stored) async {
-    final words = stored.words;
-    final tradeKeyIndex = stored.tradeKeyIndex;
-    final privacyMode = stored.privacyMode;
-    final createdAt = stored.createdAtMillis;
+  static Future<List<String>> _loadExisting(StoredIdentity stored) =>
+      loadExisting(stored);
 
+  /// Loads [stored] into the Rust core, then hands it the saved privacy
+  /// mode: the core's flag lives in memory and starts off at every launch,
+  /// and left there the next trade would be signed with the identity key.
+  @visibleForTesting
+  static Future<List<String>> loadExisting(
+    StoredIdentity stored, {
+    Future<void> Function(StoredIdentity stored)? load,
+    Future<void> Function(bool enabled)? applyPrivacyMode,
+  }) async {
+    await (load ?? _loadIntoCore)(stored);
+    await (applyPrivacyMode ?? _applyPrivacyMode)(stored.privacyMode);
+    return stored.words;
+  }
+
+  static Future<void> _applyPrivacyMode(bool enabled) =>
+      reputation_api.setPrivacyMode(enabled: enabled);
+
+  static Future<void> _loadIntoCore(StoredIdentity stored) async {
+    final createdAt = stored.createdAtMillis;
     final info = await identity_api.loadIdentityFromMnemonic(
-      words: words,
-      tradeKeyIndex: tradeKeyIndex,
-      privacyMode: privacyMode,
+      words: stored.words,
+      tradeKeyIndex: stored.tradeKeyIndex,
+      privacyMode: stored.privacyMode,
       createdAt: createdAt > 0 ? intToPlatformInt64(createdAt ~/ 1000) : null,
     );
 
     debugPrint('[identity] identity loaded — pubkey=${info.publicKey}');
-    return words;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,20 +8,22 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/features/notifications/models/notification_view_rules.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 import 'package:mostro/features/notifications/widgets/bond_slashed_dialog.dart';
 import 'package:mostro/features/notifications/widgets/notification_group_card.dart';
 import 'package:mostro/features/notifications/widgets/system_notification_banner.dart';
 import 'package:mostro/features/cashu/seller_funding_route.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
+import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
 
 /// Notifications screen — Route `/notifications`.
 ///
-/// Trade-related notifications are grouped by order id into collapsible
-/// group cards (latest event shown, earlier events expandable). System
-/// notifications (backup reminder, announcements) render in a separate
-/// banner section at the top. Filter chips narrow the list to dispute
-/// groups or system items.
+/// One list (issue #610): trade-related notifications are grouped by order
+/// id into collapsible group cards (latest event in full, earlier events
+/// expandable), and notices that belong to no trade sit among them by time.
+/// Trades whose next step is the user's right now are pinned above the rest,
+/// under their own header.
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -29,10 +32,10 @@ class NotificationsScreen extends ConsumerStatefulWidget {
       _NotificationsScreenState();
 }
 
-enum _NotificationFilter { all, disputes, system }
-
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
-  _NotificationFilter _filter = _NotificationFilter.all;
+  /// Notices swiped away whose snack bar is still open: hidden at once, so
+  /// the dismissed card leaves the tree, and deleted only if not undone.
+  final Set<String> _hidden = {};
 
   @override
   Widget build(BuildContext context) {
@@ -86,110 +89,130 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     required bool backupActive,
     required List<NotificationModel> notifications,
   }) {
-    final hasContent = backupActive || notifications.isNotEmpty;
+    final visible = [
+      for (final n in notifications)
+        if (!_hidden.contains(n.id)) n,
+    ];
+    final hasContent = backupActive || visible.isNotEmpty;
 
     if (!hasContent) {
       return const _EmptyState();
     }
 
-    // ── Partition: system items vs trade/dispute groups ──
-    final systemItems = <NotificationModel>[];
-    final groups = <String, List<NotificationModel>>{};
-    for (final n in notifications) {
-      final key = n.orderId ?? n.disputeId;
-      if (key == null) {
-        systemItems.add(n);
-      } else {
-        groups.putIfAbsent(key, () => []).add(n);
-      }
-    }
-    systemItems.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    for (final events in groups.values) {
-      events.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    }
-    final sortedGroups =
-        groups.values.toList()
-          ..sort((a, b) => b.first.timestamp.compareTo(a.first.timestamp));
+    // The trades as My Trades sees them: the header of each group, and
+    // whether its next step is the user's. Until they load, every group
+    // shows its short id and nothing is pinned.
+    final rows = ref.watch(tradeRowsProvider).valueOrNull ?? const <TradeRow>[];
+    final rowsById = {for (final r in rows) r.orderId: r};
+    final sections = sectionNotices(
+      visible,
+      needsAction: (id) => rowsById[id]?.state.needsAction ?? false,
+    );
+    final pinned = sections.needsAction.isNotEmpty;
 
-    final disputeGroups =
-        sortedGroups
-            .where((g) => g.any((n) => n.isDisputeNotification))
-            .toList();
-    final systemCount = systemItems.length + (backupActive ? 1 : 0);
-
-    final showSystem =
-        _filter == _NotificationFilter.all ||
-        _filter == _NotificationFilter.system;
-    final visibleGroups = switch (_filter) {
-      _NotificationFilter.all => sortedGroups,
-      _NotificationFilter.disputes => disputeGroups,
-      _NotificationFilter.system => <List<NotificationModel>>[],
+    Widget entryCard(NoticeEntry entry) => switch (entry) {
+      // Keyed by trade so an expanded card stays expanded when it moves.
+      NoticeGroupEntry(:final events) => _Swipeable(
+        key: ValueKey(
+          'group-${events.first.orderId ?? events.first.disputeId}',
+        ),
+        onDismissed: () => _dismiss(events),
+        child: NotificationGroupCard(
+          notifications: events,
+          tradeRow: rowsById[events.first.orderId],
+          isDisputeGroup: events.first.orderId == null,
+          onTapNotification: (n) => _handleTap(context, n),
+          onGoToTrade: () => _goToTrade(context, events),
+        ),
+      ),
+      NoticeSystemEntry(:final notification) => _Swipeable(
+        key: ValueKey('notice-${notification.id}'),
+        onDismissed: () => _dismiss([notification]),
+        child: SystemNotificationBanner(
+          notification: notification,
+          onTap: () => _handleTap(context, notification),
+        ),
+      ),
     };
 
-    final notifier = ref.read(notificationsProvider.notifier);
-
-    return Column(
+    final l10n = AppLocalizations.of(context);
+    return ListView(
+      // #267: add the bottom system-bar inset so the last item isn't
+      // hidden behind the gesture / 3-button navigation bar.
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
+      ),
       children: [
-        _FilterChipsRow(
-          selected: _filter,
-          disputeCount: disputeGroups.length,
-          systemCount: systemCount,
-          onSelected: (f) => setState(() => _filter = f),
-        ),
-        Expanded(
-          child: ListView(
-            // #267: add the bottom system-bar inset so the last item isn't
-            // hidden behind the gesture / 3-button navigation bar.
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              AppSpacing.md + MediaQuery.of(context).viewPadding.bottom,
-            ),
-            children: [
-              // ── System section (banners) ──
-              if (showSystem) ...[
-                if (backupActive) ...[
-                  const _BackupReminderBanner(),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-                for (final n in systemItems) ...[
-                  SystemNotificationBanner(
-                    notification: n,
-                    onMarkRead: () => notifier.markAsRead(n.id),
-                    onDelete: () => notifier.delete(n.id),
-                    onTap: () => _handleTap(context, n),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-              ],
-              // ── Trade groups ──
-              for (final group in visibleGroups) ...[
-                NotificationGroupCard(
-                  notifications: group,
-                  isDisputeGroup: group.first.orderId == null,
-                  onMarkRead: (n) => notifier.markAsRead(n.id),
-                  onDelete: (n) => notifier.delete(n.id),
-                  onTapNotification: (n) => _handleTap(context, n),
-                  onGoToTrade: () => _goToTrade(context, group.first),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
-              if ((!showSystem && visibleGroups.isEmpty) ||
-                  (_filter == _NotificationFilter.system && systemCount == 0))
-                const Padding(
-                  padding: EdgeInsets.only(top: AppSpacing.xxl),
-                  child: _EmptyState(),
-                ),
-            ],
-          ),
-        ),
+        if (backupActive) ...[
+          const _BackupReminderBanner(),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        if (pinned) _SectionHeader(l10n.tradesGroupNeedsAction),
+        for (final entry in sections.needsAction) ...[
+          entryCard(entry),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        if (pinned && sections.recent.isNotEmpty)
+          _SectionHeader(l10n.notifSectionRecent),
+        for (final entry in sections.recent) ...[
+          entryCard(entry),
+          const SizedBox(height: AppSpacing.sm),
+        ],
       ],
     );
   }
 
+  /// A card swiped away (issue #610): hidden now, with an Undo; deleted once
+  /// the snack bar closes any other way — timeout, another swipe, leaving
+  /// the screen. The notifier outlives the screen, so the delete still runs.
+  void _dismiss(List<NotificationModel> events) {
+    final ids = {for (final n in events) n.id};
+    setState(() => _hidden.addAll(ids));
+    final notifier = ref.read(notificationsProvider.notifier);
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    // A second swipe settles the first card's snack bar: it is deleted.
+    messenger.hideCurrentSnackBar();
+    messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(l10n.notificationDeletedSnack(ids.length)),
+            // With an action a snack bar would stay until dismissed, and
+            // the notices would stay hidden without being deleted.
+            persist: false,
+            action: SnackBarAction(
+              label: l10n.notificationDeletedUndo,
+              onPressed: () {},
+            ),
+          ),
+        )
+        .closed
+        .then((reason) async {
+          if (reason != SnackBarClosedReason.action) {
+            await Future.wait([for (final id in ids) notifier.delete(id)]);
+          }
+          // Ids can come back (a chat card is re-created by the next
+          // message), so none stays hidden once settled.
+          if (mounted) setState(() => _hidden.removeAll(ids));
+        });
+  }
+
   /// Footer action of a group card — open the trade (or dispute) detail.
-  void _goToTrade(BuildContext context, NotificationModel n) {
+  /// The user is going to see where the trade stands, so its notices are
+  /// read (issue #610); a dispute group, keyed without an order, by its ids.
+  void _goToTrade(BuildContext context, List<NotificationModel> group) {
+    final n = group.first;
+    final notifier = ref.read(notificationsProvider.notifier);
+    if (n.orderId != null) {
+      notifier.markOrderAsRead(n.orderId!);
+    } else {
+      for (final e in group) {
+        if (!e.isRead) notifier.markAsRead(e.id);
+      }
+    }
     if (n.orderId != null) {
       context.push(AppRoute.tradeDetailPath(n.orderId!));
     } else if (n.disputeId != null) {
@@ -198,6 +221,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   void _handleTap(BuildContext context, NotificationModel n) {
+    // Opening a notice reads it (issue #610). Not awaited: the write must
+    // never hold up the navigation. The resolver's chat card is the
+    // exception: it opens the trade, not the dispute chat that owns its read
+    // state, so the user has not seen those messages yet.
+    if (!n.isRead && !n.isSolverChatCard) {
+      ref.read(notificationsProvider.notifier).markAsRead(n.id);
+    }
     void noId() {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -253,106 +283,74 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
 enum _MenuAction { markAllRead, clearAll }
 
-// ── Filter chips row ──────────────────────────────────────────────────────────
+// ── Swipe to delete ───────────────────────────────────────────────────────────
 
-class _FilterChipsRow extends StatelessWidget {
-  const _FilterChipsRow({
-    required this.selected,
-    required this.disputeCount,
-    required this.systemCount,
-    required this.onSelected,
+/// A card the user can swipe away, either way, to delete it. Screen readers
+/// get the same through a custom action, since a swipe is not one they make.
+class _Swipeable extends StatelessWidget {
+  const _Swipeable({
+    required super.key,
+    required this.onDismissed,
+    required this.child,
   });
 
-  final _NotificationFilter selected;
-  final int disputeCount;
-  final int systemCount;
-  final ValueChanged<_NotificationFilter> onSelected;
+  final VoidCallback onDismissed;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final chips = <(_NotificationFilter, String)>[
-      (_NotificationFilter.all, l10n.notifFilterAll),
-      (
-        _NotificationFilter.disputes,
-        disputeCount > 0
-            ? l10n.notifFilterDisputesCount(disputeCount)
-            : l10n.notifFilterDisputes,
+    final colors = Theme.of(context).extension<AppColors>();
+    final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+    Widget background(Alignment alignment) => Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: red.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(AppRadius.card),
       ),
-      (
-        _NotificationFilter.system,
-        systemCount > 0
-            ? l10n.notifFilterSystemCount(systemCount)
-            : l10n.notifFilterSystem,
-      ),
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
-        0,
-      ),
-      child: Row(
-        children: [
-          for (final (filter, label) in chips) ...[
-            _FilterChip(
-              label: label,
-              isSelected: selected == filter,
-              onTap: () => onSelected(filter),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
-        ],
+      child: Icon(Icons.delete_outline_rounded, color: red),
+    );
+    return Semantics(
+      customSemanticsActions: {
+        CustomSemanticsAction(
+              label: AppLocalizations.of(context).deleteNotificationLabel,
+            ):
+            onDismissed,
+      },
+      child: Dismissible(
+        key: key!,
+        onDismissed: (_) => onDismissed(),
+        background: background(Alignment.centerLeft),
+        secondaryBackground: background(Alignment.centerRight),
+        child: child,
       ),
     );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
+// ── Section header ────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.label);
 
   final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? green.withValues(alpha: 0.15) : cardBg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color:
-                isSelected ? green.withValues(alpha: 0.4) : Colors.transparent,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall!.copyWith(
-            color: isSelected ? green : textSec,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.sm,
+        bottom: AppSpacing.sm,
+        left: AppSpacing.xs,
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: Theme.of(context).textTheme.bodySmall!.copyWith(
+          color: colors?.textSecondary ?? const Color(0xFFB0B3C6),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -421,38 +419,6 @@ class _BackupReminderBanner extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── Type icon (kept per spec — referenced by future phases) ──────────────────
-
-// ignore: unused_element
-class _TypeIcon extends StatelessWidget {
-  const _TypeIcon({required this.type});
-
-  final NotificationType type;
-
-  @override
-  Widget build(BuildContext context) {
-    final (icon, color) = switch (type) {
-      NotificationType.orderUpdate => (
-        Icons.shopping_bag_outlined,
-        Colors.blue,
-      ),
-      NotificationType.tradeUpdate => (Icons.star_outline, Colors.amber),
-      NotificationType.payment => (Icons.bolt_outlined, Colors.yellow),
-      NotificationType.dispute => (Icons.gavel, Colors.red),
-      NotificationType.cancellation => (Icons.cancel_outlined, Colors.orange),
-      NotificationType.message => (Icons.chat_bubble_outline, Colors.teal),
-      NotificationType.system => (Icons.info_outline, Colors.grey),
-      NotificationType.ratingReceived => (Icons.star, Colors.amber),
-      NotificationType.paymentReceived => (Icons.attach_money, Colors.blue),
-      NotificationType.invoiceRequest => (Icons.description, Colors.green),
-      NotificationType.orderTaken => (Icons.add_circle_outline, Colors.green),
-      NotificationType.bondSlashed => (Icons.money_off, Colors.red),
-      NotificationType.bondClaim => (Icons.savings_outlined, Colors.orange),
-    };
-    return Icon(icon, color: color, size: 22);
   }
 }
 

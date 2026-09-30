@@ -281,3 +281,12 @@ String? counterpartStars(double? rating, int? reviews) {
   if (rating == null || reviews == null || reviews <= 0) return null;
   return '★ ${rating.toStringAsFixed(1)}';
 }
+
+/// Lifetime an NWC invoice gets beyond the node's `invoice_expiration_window`.
+const kNwcInvoiceExpiryMarginSecs = 3600;
+
+/// The expiry to ask an NWC wallet for. Left to the wallet's default, the
+/// invoice may expire inside the node's window, and the check refuses it on
+/// every try with nothing the buyer can change.
+int nwcInvoiceExpirySecs(int? nodeWindowSecs) =>
+    (nodeWindowSecs ?? 0) + kNwcInvoiceExpiryMarginSecs;

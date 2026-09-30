@@ -20,7 +20,7 @@
 /// either direction, so nothing here reads or writes a gift wrap.
 use anyhow::{anyhow, Result};
 use mostro_core::message::Message;
-use mostro_core::nip59::{UnwrappedMessage, WrapOptions};
+use mostro_core::transport::{UnwrappedMessage, WrapOptions};
 use mostro_core::transport::{unwrap_incoming, wrap_message_with, Transport};
 use nostr_sdk::prelude::*;
 

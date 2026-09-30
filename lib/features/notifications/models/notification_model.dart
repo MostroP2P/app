@@ -275,6 +275,25 @@ class NotificationModel {
   /// trade rather than the peer chat.
   bool get isSolverChatCard => _isChatCard && _chatFromSolver;
 
+  /// The trade's chat card, peer or solver: see [NotificationModel.chatMessages].
+  bool get isChatCard => _isChatCard;
+
+  /// The trade status a status card announces (the bridge enum's name, e.g.
+  /// `fiatSent`); null for any other notice, and for older status records.
+  String? get tradeStatus => _isTradeStatus ? (detail?[_tradeStatusKey]) : null;
+
+  /// Why the status changed, when the card says (e.g.
+  /// `cooperativeCancelRequestedByPeer`).
+  String? get tradeReason => _isTradeStatus ? (detail?[_tradeReasonKey]) : null;
+
+  /// A payout claim that was paid, rather than one still to claim.
+  bool get isBondClaimPaid => _isBondClaim && _claimPaid;
+
+  /// False for chat notices, which only their chat screen marks read: opening
+  /// the trade is not reading its messages. Mirrored by the store's filter in
+  /// `SembastNotificationsStore.markRead`.
+  bool get readsWithTrade => type != NotificationType.message;
+
   /// Classification for the Disputes filter, including persisted status cards
   /// whose type stays tradeUpdate so tapping still opens the trade detail.
   bool get isDisputeNotification =>
