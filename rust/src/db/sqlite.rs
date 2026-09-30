@@ -642,6 +642,31 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn replace_trades_for_order(&self, order_id: &str, trade: &TradeInfo) -> Result<()> {
+        let data = serde_json::to_string(trade)?;
+        let status = format!("{:?}", trade.order.status);
+        // One transaction: a failure (or a crash) between the delete and the
+        // insert rolls the delete back, so the order keeps its rows.
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM trades WHERE json_extract(data, '$.order.id') = ?")
+            .bind(order_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "INSERT OR REPLACE INTO trades (id, data, status, started_at, completed_at)
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&trade.id)
+        .bind(&data)
+        .bind(&status)
+        .bind(trade.started_at)
+        .bind(trade.completed_at)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn update_trade_order_id(
         &self,
         old_order_id: &str,
@@ -1245,6 +1270,123 @@ mod tests {
         // Unknown order id: no-op, not an error.
         storage.delete_trade_by_order_id("order-missing").await.unwrap();
         assert_eq!(storage.list_trades().await.unwrap().len(), 1);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A taker-shaped row (fresh row id, distinct from the order id) for the
+    /// replace tests.
+    fn replace_test_trade(row_id: &str, order_id: &str) -> crate::api::types::TradeInfo {
+        use crate::api::types::*;
+        TradeInfo {
+            id: row_id.into(),
+            order: OrderInfo {
+                id: order_id.into(),
+                kind: OrderKind::Sell,
+                status: OrderStatus::WaitingBuyerInvoice,
+                amount_sats: None,
+                fiat_amount: Some(100.0),
+                fiat_amount_min: None,
+                fiat_amount_max: None,
+                fiat_code: "CUP".into(),
+                payment_method: "bank".into(),
+                premium: 0.0,
+                creator_pubkey: "maker".into(),
+                created_at: 1,
+                expires_at: None,
+                is_mine: false,
+                rating: 0.0,
+                total_reviews: 0,
+                days_active: 0,
+            },
+            role: TradeRole::Buyer,
+            counterparty_pubkey: String::new(),
+            current_step: TradeStep::Buyer(BuyerStep::OrderTaken),
+            hold_invoice: None,
+            buyer_invoice: None,
+            trade_key_index: 1,
+            cooperative_cancel_state: None,
+            timeout_at: None,
+            started_at: 1,
+            completed_at: None,
+            outcome: None,
+            peer_rating: None,
+            peer_reviews: None,
+            peer_days: None,
+            rated_at: None,
+            bond: None,
+            buyer_trade_pubkey: None,
+            seller_trade_pubkey: None,
+            cashu_mint_url: None,
+            cashu_escrow_token: None,
+            cashu_locked_at: None,
+            cashu_rejected_escrow_tokens: Vec::new(),
+        }
+    }
+
+    /// #566: a new take's row replaces every row of its order — and only of
+    /// its order.
+    #[tokio::test]
+    async fn replace_trades_for_order_leaves_exactly_the_new_row() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        storage.save_trade(&replace_test_trade("old-1", "order-a")).await.unwrap();
+        storage.save_trade(&replace_test_trade("old-2", "order-a")).await.unwrap();
+        storage.save_trade(&replace_test_trade("other", "order-b")).await.unwrap();
+
+        storage
+            .replace_trades_for_order("order-a", &replace_test_trade("new", "order-a"))
+            .await
+            .unwrap();
+
+        let mut ids: Vec<String> = storage
+            .list_trades()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
+        ids.sort();
+        assert_eq!(ids, vec!["new".to_string(), "other".to_string()]);
+
+        drop(storage);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// #566 review round 5: the replacement is one transaction. When the
+    /// insert fails, the delete is rolled back with it — the order keeps the
+    /// row it had, also once the store is reopened, i.e. what a process that
+    /// died halfway finds.
+    #[tokio::test]
+    async fn a_failed_replacement_keeps_the_orders_rows_across_a_reopen() {
+        let path = temp_db_path();
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        storage.save_trade(&replace_test_trade("old", "order-a")).await.unwrap();
+        // A schema trigger (not TEMP: the pool has several connections) that
+        // aborts exactly the replacement's insert.
+        sqlx::query(
+            "CREATE TRIGGER fail_replacement BEFORE INSERT ON trades
+             WHEN NEW.id = 'new'
+             BEGIN SELECT RAISE(ABORT, 'injected insert failure'); END",
+        )
+        .execute(&storage.pool)
+        .await
+        .unwrap();
+
+        let err = storage
+            .replace_trades_for_order("order-a", &replace_test_trade("new", "order-a"))
+            .await;
+        assert!(err.is_err(), "the injected insert failure surfaces");
+
+        drop(storage);
+        let storage = SqliteStorage::open(path.to_str().unwrap()).await.unwrap();
+        let row = storage
+            .get_trade_by_order_id("order-a")
+            .await
+            .unwrap()
+            .expect("the delete was rolled back with the failed insert");
+        assert_eq!(row.id, "old");
 
         drop(storage);
         let _ = std::fs::remove_file(&path);

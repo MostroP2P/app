@@ -1035,6 +1035,13 @@ mod tests {
         async fn delete_trade_by_order_id(&self, _order_id: &str) -> Result<()> {
             unimplemented!()
         }
+        async fn replace_trades_for_order(
+            &self,
+            _order_id: &str,
+            _trade: &crate::api::types::TradeInfo,
+        ) -> Result<()> {
+            unimplemented!()
+        }
         async fn update_trade_order_id(
             &self,
             _old_order_id: &str,
