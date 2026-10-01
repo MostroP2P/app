@@ -6034,7 +6034,8 @@ fn is_maker_waiting_step(status: &OrderStatus) -> bool {
 }
 
 /// The two writes that end a maker's waiting step, **in this order**: the
-/// step start goes first, the row follows.
+/// step start goes first, the row follows. The republish's status cursor is
+/// only written once both are ([`resync_republished_maker_order_in`]).
 ///
 /// They are not one transaction — `trades` and `settings` are separate stores
 /// on both backends — so the order is what makes a partial failure
@@ -6145,6 +6146,18 @@ async fn resync_republished_maker_order(
     kind: &mostro_core::message::MessageKind,
     event_ts: i64,
 ) -> bool {
+    resync_republished_maker_order_in(crate::db::app_db::db(), order_id, kind, event_ts).await
+}
+
+/// [`resync_republished_maker_order`] with the store that ends the step
+/// injected, so a test can make that write fail. The status reads, the guard
+/// and the cursor stay on the app's store.
+async fn resync_republished_maker_order_in(
+    db: Option<&impl Storage>,
+    order_id: &str,
+    kind: &mostro_core::message::MessageKind,
+    event_ts: i64,
+) -> bool {
     let republished_pending = matches!(
         &kind.payload,
         Some(mostro_core::message::Payload::Order(order))
@@ -6162,7 +6175,6 @@ async fn resync_republished_maker_order(
     if status_write_blocked(order_id, &kind.action, event_ts).await {
         return false;
     }
-    record_status_event(order_id, event_ts).await;
     crate::api::logging::blog_info(
         "orders",
         format!(
@@ -6173,8 +6185,21 @@ async fn resync_republished_maker_order(
     order_book()
         .update_order_status(order_id, OrderStatus::Pending)
         .await;
-    if let Some(db) = crate::db::app_db::db() {
-        write_maker_step_end(db, order_id).await;
+    let ended = match db {
+        Some(db) => write_maker_step_end(db, order_id).await,
+        None => false,
+    };
+    // Dated after the write, not before it as every other status write is.
+    // The sweep only ends a maker's step for a `pending` newer than this
+    // cursor (#628). Moved to the republish while the row stayed waiting, the
+    // cursor would make that very `pending` look stale, and nothing would
+    // finish the step again. Left at the take, the sweep retries it. What
+    // this ordering opens is also closed by the sweep: a failed or
+    // interrupted cursor write leaves a `Pending` row that a replayed take
+    // can walk back to waiting, and the republish's `pending` is newer than
+    // that take.
+    if ended {
+        record_status_event(order_id, event_ts).await;
     }
     emit_trade_update_at(order_id, OrderStatus::Pending, None, event_ts);
     true
@@ -7471,7 +7496,7 @@ async fn confirm_payout_completion(order_id: String) {
             Some(crate::api::types::OrderStatus::SettledHoldInvoice) => {}
             _ => return,
         }
-        if fetch_public_order_status(&order_id).await
+        if fetch_public_order_status(&order_id, "payout").await
             == Some(crate::api::types::OrderStatus::Success)
         {
             apply_payout_completed(&order_id).await;
@@ -7560,7 +7585,7 @@ async fn reconcile_restored_history() -> std::collections::HashSet<String> {
     }
     apply_restored_peers(&snapshot).await;
     reconcile_history_with(&snapshot, |oid: String| async move {
-        fetch_public_order_status(&oid).await
+        fetch_public_order_status(&oid, "history").await
     })
     .await
 }
@@ -7816,75 +7841,124 @@ fn spawn_stale_sweep() {
 /// is exactly the case the sweep exists for. An unwindowed `d`-tag query
 /// returns a single addressable event, so it is cheap and no relay replay cap
 /// can hide it.
-async fn fetch_public_order_status(order_id: &str) -> Option<crate::api::types::OrderStatus> {
-    let pool = crate::api::nostr::get_pool().ok()?;
-    let mostro_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey()).ok()?;
-    let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, order_id);
-    let events = match pool
-        .client()
-        .fetch_events(filter)
-        .timeout(std::time::Duration::from_secs(10))
+async fn fetch_public_order_status(
+    order_id: &str,
+    context: &str,
+) -> Option<crate::api::types::OrderStatus> {
+    fetch_public_revision(order_id, context)
         .await
-    {
-        Ok(events) => events,
-        Err(e) => {
-            log::warn!("[orders] sweep: d-tag fetch for {order_id} failed: {e}");
-            return None;
-        }
-    };
-    newest_book_status(events, &mostro_pubkey, order_id)
+        .map(|(_, order)| order.status)
 }
 
 /// The daemon's newest public event for `order_id`, as an order — what the
 /// restore needs to know which side a taker took (§6.5). `None` without a
 /// pool, on a relay failure, or when the daemon never published the order.
 async fn fetch_public_order(order_id: &str) -> Option<OrderInfo> {
+    fetch_public_revision(order_id, "restore")
+        .await
+        .map(|(_, order)| order)
+}
+
+/// [`fetch_order_revision`] on the pool, for the active node. A trade of
+/// another node, after a node switch, is not answered here — as the book,
+/// which only follows the active node, does not answer it either.
+async fn fetch_public_revision(order_id: &str, context: &str) -> Option<(i64, OrderInfo)> {
     let pool = crate::api::nostr::get_pool().ok()?;
     let mostro_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey()).ok()?;
-    let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, order_id);
-    let events = match pool
-        .client()
+    fetch_order_revision(&pool.client(), &mostro_pubkey, order_id, context).await
+}
+
+/// The newest revision of `order_id` any connected relay holds, with the
+/// time the daemon published it. The relays are asked by `d` tag, unwindowed.
+/// Each keeps one revision of the addressable event, not necessarily the
+/// same one, so the newest is picked across their answers.
+async fn fetch_order_revision(
+    client: &nostr_sdk::prelude::Client,
+    mostro_pubkey: &nostr_sdk::prelude::PublicKey,
+    order_id: &str,
+    context: &str,
+) -> Option<(i64, OrderInfo)> {
+    let filter = crate::nostr::order_events::trade_order_filter(mostro_pubkey, order_id);
+    let events = match client
         .fetch_events(filter)
         .timeout(std::time::Duration::from_secs(10))
         .await
     {
         Ok(events) => events,
         Err(e) => {
-            log::warn!("[orders] restore: d-tag fetch for {order_id} failed: {e}");
+            log::warn!("[orders] {context}: d-tag fetch for {order_id} failed: {e}");
             return None;
         }
     };
-    newest_book_order(events, &mostro_pubkey, order_id)
+    newest_book_revision(events, mostro_pubkey, order_id)
 }
 
 /// The newest order among `events` that the daemon published for exactly
-/// `order_id`. The relay was asked for that author and that order; a relay
-/// is not trusted to have honoured either, so both are checked again here:
-/// a genuine daemon event for another order must not move this trade.
-fn newest_book_order(
+/// `order_id`, with that event's time. The relay was asked for that author
+/// and that order; a relay is not trusted to have honoured either, so both
+/// are checked again here: a genuine daemon event for another order must not
+/// move this trade.
+fn newest_book_revision(
     events: impl IntoIterator<Item = nostr_sdk::prelude::Event>,
     mostro_pubkey: &nostr_sdk::prelude::PublicKey,
     order_id: &str,
-) -> Option<OrderInfo> {
+) -> Option<(i64, OrderInfo)> {
     events
         .into_iter()
         .filter(|e| e.pubkey == *mostro_pubkey)
         .filter_map(|e| {
             crate::nostr::order_events::parse_order_event(&e, None)
                 .filter(|order| order.id == order_id)
-                .map(|order| (e.created_at, order))
+                .map(|order| (e.created_at.as_secs() as i64, order))
         })
-        .max_by_key(|(created_at, _)| *created_at)
-        .map(|(_, order)| order)
+        .max_by_key(|(published_at, _)| *published_at)
 }
 
-/// [`newest_book_order`]'s status alone.
-fn newest_book_status(
-    events: impl IntoIterator<Item = nostr_sdk::prelude::Event>,
-    mostro_pubkey: &nostr_sdk::prelude::PublicKey,
+/// Whether a `pending` the daemon published at `pending_at` can say a
+/// maker's taker walked away, given `cursor`, the time of the last daemon
+/// status this client accepted for the order ([`load_status_cursor`]).
+///
+/// Both come from the node's clock, so no local skew enters the comparison.
+/// The cursor always marks a moment the daemon confirmed the waiting step —
+/// the take, or the restore that reported it — so a `pending` published
+/// before it is an older revision a relay still holds, never a republish
+/// (#628). With no cursor there is nothing to date against, and the book's
+/// word is taken as before; with a cursor but no dated revision, there is no
+/// positive signal.
+fn pending_postdates_cursor(pending_at: Option<i64>, cursor: Option<i64>) -> bool {
+    match (pending_at, cursor) {
+        (_, None) => true,
+        (None, Some(_)) => false,
+        (Some(at), Some(cursor)) => at > cursor,
+    }
+}
+
+/// [`sweep_action`] once the public status has been looked up on the relays:
+/// the fetched `revision` (its time, its status) decides when there is one,
+/// the cached `book_status` otherwise, and a maker's resync to `Pending`
+/// also needs that `pending` to be newer than `cursor`
+/// ([`pending_postdates_cursor`]).
+fn dated_sweep_action(
     order_id: &str,
-) -> Option<crate::api::types::OrderStatus> {
-    newest_book_order(events, mostro_pubkey, order_id).map(|order| order.status)
+    is_mine: bool,
+    local_status: &crate::api::types::OrderStatus,
+    book_status: Option<&crate::api::types::OrderStatus>,
+    revision: Option<(i64, crate::api::types::OrderStatus)>,
+    cursor: Option<i64>,
+) -> SweepAction {
+    let (status, published_at) = match revision {
+        Some((at, status)) => (Some(status), Some(at)),
+        None => (book_status.cloned(), None),
+    };
+    match sweep_action(is_mine, local_status, status.as_ref()) {
+        SweepAction::SyncPending if !pending_postdates_cursor(published_at, cursor) => {
+            log::info!(
+                "[orders] sweep: order={order_id} pending published at {published_at:?} predates the last daemon status ({cursor:?}) — keeping the step"
+            );
+            SweepAction::Keep
+        }
+        action => action,
+    }
 }
 
 /// Reconcile trades stuck in waiting states with the daemon's public book.
@@ -7897,6 +7971,24 @@ async fn run_stale_sweep_once() {
     // History a restore replayed and a pass has not settled yet. The orders
     // it just looked up are not looked up again below (PR #524 review).
     let looked_up = reconcile_restored_history().await;
+    sweep_waiting_trades_with(&looked_up, |oid: String| async move {
+        fetch_public_revision(&oid, "sweep")
+            .await
+            .map(|(at, order)| (at, order.status))
+    })
+    .await;
+}
+
+/// The row pass of [`run_stale_sweep_once`], with the relay lookup injected:
+/// `revision` answers an order's newest public revision — the time the
+/// daemon published it and its status — or `None` when no relay did.
+async fn sweep_waiting_trades_with<F, Fut>(
+    looked_up: &std::collections::HashSet<String>,
+    revision: F,
+) where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = Option<(i64, crate::api::types::OrderStatus)>>,
+{
     let Some(db) = crate::db::app_db::db() else {
         return;
     };
@@ -7940,8 +8032,11 @@ async fn run_stale_sweep_once() {
             continue;
         }
         // Age gate: never race the take/propagation window of a live trade.
-        // A settled escrow awaiting its payout is exempt: the payout is
-        // expected promptly and nothing else reports it.
+        // It is what protects a taker's row and any canceled one from a
+        // stale book (#592); a maker's resync to `Pending` is dated against
+        // the status cursor below as well (#628). A settled escrow awaiting
+        // its payout is exempt: the payout is expected promptly and nothing
+        // else reports it.
         let deadline = trade
             .timeout_at
             .unwrap_or(trade.started_at + SWEEP_MIN_AGE_SECS);
@@ -7954,18 +8049,31 @@ async fn run_stale_sweep_once() {
         // cover starts at the observation, and a take accepted inside it
         // advances this cursor (`end_maker_waiting_step`).
         let cursor_before = load_status_cursor(&oid).await;
-        // The book first (free); on a miss, ask the relays for this one order.
-        // A miss is the long-offline case the windowed filter cannot cover.
-        let book_status = match order_book().get_order(&oid).await.map(|o| o.status) {
-            Some(status) => Some(status),
-            None => fetch_public_order_status(&oid).await,
-        };
-
-        match sweep_action(
+        // The book first (free). The relays are asked for this one order —
+        // once — on a miss, the long-offline case the windowed filter cannot
+        // cover, and before a maker's row goes back to `Pending`: the book
+        // keeps no event time, and the `pending` it holds may be a revision
+        // from before the take that a relay still serves (#628).
+        let book_status = order_book().get_order(&oid).await.map(|o| o.status);
+        let from_book = sweep_action(
             trade.order.is_mine,
             &trade.order.status,
             book_status.as_ref(),
-        ) {
+        );
+        let action = if book_status.is_none() || from_book == SweepAction::SyncPending {
+            dated_sweep_action(
+                &oid,
+                trade.order.is_mine,
+                &trade.order.status,
+                book_status.as_ref(),
+                revision(oid.clone()).await,
+                cursor_before,
+            )
+        } else {
+            from_book
+        };
+
+        match action {
             SweepAction::SyncSuccess => {
                 apply_payout_completed(&oid).await;
                 log::info!("[orders] sweep: payout completed for order={oid}");
@@ -13360,14 +13468,18 @@ mod tests {
 
     /// A `Storage` for driving `persist_trade_row` alone, which calls only
     /// `delete_setting` and `save_trade`: its save either fails or parks until
-    /// released. Every other method is `unimplemented!()` — reaching one is a
-    /// test bug, not silent success.
+    /// released. Also for `write_maker_step_end`, which calls
+    /// `delete_setting` then `update_trade_fields`: one of the two fails.
+    /// Every other method is `unimplemented!()` — reaching one is a test bug,
+    /// not silent success.
     enum PersistProbe {
         FailSave,
         PauseSave {
             entered: Arc<tokio::sync::Notify>,
             release: Arc<tokio::sync::Notify>,
         },
+        FailStepStartClear,
+        FailRowWrite,
     }
 
     impl Storage for PersistProbe {
@@ -13394,6 +13506,7 @@ mod tests {
                     release.notified().await;
                     Ok(())
                 }
+                Self::FailStepStartClear | Self::FailRowWrite => unimplemented!(),
             }
         }
         async fn get_trade(&self, _id: &str) -> Result<Option<crate::api::types::TradeInfo>> {
@@ -13529,7 +13642,10 @@ mod tests {
             unimplemented!()
         }
         async fn delete_setting(&self, _key: &str) -> Result<()> {
-            Ok(())
+            match self {
+                Self::FailStepStartClear => anyhow::bail!("injected step start failure"),
+                _ => Ok(()),
+            }
         }
         async fn save_active_mostro_pubkey(&self, _pubkey: &str) -> Result<()> {
             unimplemented!()
@@ -13560,7 +13676,10 @@ mod tests {
             _hold_invoice: Option<String>,
             _amount_sats: Option<u64>,
         ) -> Result<()> {
-            unimplemented!()
+            match self {
+                Self::FailRowWrite => anyhow::bail!("injected row write failure"),
+                _ => unimplemented!(),
+            }
         }
         async fn set_trade_range_slice(
             &self,
@@ -15761,9 +15880,15 @@ mod tests {
         // The daemon put it back on the book; the DM never got through.
         order_info.status = crate::api::types::OrderStatus::Pending;
         order_book().upsert_order(order_info).await;
+        let republished_at = crate::rt::unix_now();
 
         // Act
-        run_stale_sweep_once().await;
+        sweep_with_revisions(&[(
+            &order_id,
+            republished_at,
+            crate::api::types::OrderStatus::Pending,
+        )])
+        .await;
 
         // Assert
         assert_eq!(
@@ -15771,6 +15896,397 @@ mod tests {
             None,
             "the previous take's start survived the sweep"
         );
+    }
+
+    /// The sweep's row pass with the relays answering `revisions` — each an
+    /// order id, the time its newest revision was published and its status —
+    /// and nothing for any other order. The store is shared by every test in
+    /// the process and the pass walks all of it, so a lookup that answered
+    /// other ids would act on their rows.
+    async fn sweep_with_revisions(revisions: &[(&str, i64, crate::api::types::OrderStatus)]) {
+        let revisions: std::collections::HashMap<String, (i64, crate::api::types::OrderStatus)> =
+            revisions
+                .iter()
+                .map(|(id, at, status)| (id.to_string(), (*at, status.clone())))
+                .collect();
+        sweep_waiting_trades_with(&Default::default(), |oid: String| {
+            let revision = revisions.get(&oid).cloned();
+            async move { revision }
+        })
+        .await;
+    }
+
+    /// #628: the maker of an order that sat in the book for a day, taken
+    /// `taken_ago` seconds ago through `take` — the daemon message, dispatched
+    /// as it arrives — with the book reading `pending` again, as on a cold
+    /// start whose relays still hold the revision from before the take.
+    /// Returns the order id and the take's time.
+    async fn maker_taken_after_a_day(
+        kind: crate::api::types::OrderKind,
+        take: mostro_core::message::Action,
+        payload: impl FnOnce(uuid::Uuid) -> Option<mostro_core::message::Payload>,
+        taken_ago: i64,
+        trade_index: u32,
+    ) -> (String, i64) {
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut order_info = dummy_order_info(&order_id);
+        order_info.kind = kind;
+        order_info.status = OrderStatus::Pending;
+        order_info.is_mine = true;
+        order_book().upsert_order(order_info.clone()).await;
+        let mut row = cancel_test_row(order_info.clone());
+        row.id = order_id.clone();
+        row.role = match row.order.kind {
+            crate::api::types::OrderKind::Sell => TradeRole::Seller,
+            crate::api::types::OrderKind::Buy => TradeRole::Buyer,
+        };
+        row.trade_key_index = trade_index;
+        row.started_at = crate::rt::unix_now() - 24 * 3600;
+        db.save_trade(&row).await.expect("save the maker's row");
+        let taken_at = crate::rt::unix_now() - taken_ago;
+        dispatch_mostro_message(
+            daemon_message(order_uuid, take, payload(order_uuid), taken_at as u64),
+            &format!("test-628-take-{order_id}"),
+            &format!("ff00{trade_index:04x}"),
+            trade_index,
+        )
+        .await;
+        // The stale revision, read back on a cold start.
+        order_book().upsert_order(order_info).await;
+        (order_id, taken_at)
+    }
+
+    async fn row_status(order_id: &str) -> OrderStatus {
+        crate::db::app_db::db()
+            .expect("store initialised")
+            .get_trade_by_order_id(order_id)
+            .await
+            .expect("lookup")
+            .expect("row kept")
+            .order
+            .status
+    }
+
+    /// The case the issue reproduced on regtest: a buy order's maker, taken
+    /// through the payload-less `waiting-seller-to-pay`.
+    #[tokio::test]
+    async fn a_buy_order_taken_after_a_day_in_the_book_keeps_its_step() {
+        // Arrange
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            |_| None,
+            60,
+            628,
+        )
+        .await;
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+
+        // Act: the relays hold only the revision published at creation.
+        sweep_with_revisions(&[(&order_id, taken_at - 24 * 3600, OrderStatus::Pending)]).await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+    }
+
+    /// A sell order's maker when the taker brought no invoice.
+    #[tokio::test]
+    async fn a_sell_order_waiting_for_the_buyers_invoice_keeps_its_step() {
+        // Arrange
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Sell,
+            Action::WaitingBuyerInvoice,
+            |_| None,
+            60,
+            629,
+        )
+        .await;
+        assert_eq!(
+            row_status(&order_id).await,
+            OrderStatus::WaitingBuyerInvoice
+        );
+
+        // Act
+        sweep_with_revisions(&[(&order_id, taken_at - 24 * 3600, OrderStatus::Pending)]).await;
+
+        // Assert
+        assert_eq!(
+            row_status(&order_id).await,
+            OrderStatus::WaitingBuyerInvoice
+        );
+    }
+
+    /// A sell order's maker asked to pay the hold invoice: the step and the
+    /// start its countdown reads both survive.
+    #[tokio::test]
+    async fn a_sell_order_asked_for_the_hold_invoice_keeps_its_step_and_start() {
+        // Arrange
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Sell,
+            Action::PayInvoice,
+            |uuid| {
+                let mut order = pending_small_order(uuid);
+                order.status = Some(mostro_core::order::Status::WaitingPayment);
+                Some(Payload::PaymentRequest(
+                    Some(order),
+                    "lnbc1holdinvoice".into(),
+                    None,
+                ))
+            },
+            60,
+            630,
+        )
+        .await;
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+
+        // Act
+        sweep_with_revisions(&[(&order_id, taken_at - 24 * 3600, OrderStatus::Pending)]).await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            Some(taken_at),
+        );
+    }
+
+    /// Past the age gate too: a `pending` from before the take is stale
+    /// however long ago the take was. Were the order republished, that
+    /// revision would be dated after the take.
+    #[tokio::test]
+    async fn a_pending_from_before_the_take_is_stale_whatever_the_takes_age() {
+        // Arrange
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            |_| None,
+            SWEEP_MIN_AGE_SECS + 300,
+            631,
+        )
+        .await;
+
+        // Act
+        sweep_with_revisions(&[(&order_id, taken_at - 1, OrderStatus::Pending)]).await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+    }
+
+    /// The republish the sweep exists for: dated after the take, it ends the
+    /// step.
+    #[tokio::test]
+    async fn a_pending_published_after_the_take_ends_the_step() {
+        // Arrange
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Sell,
+            Action::PayInvoice,
+            |uuid| {
+                let mut order = pending_small_order(uuid);
+                order.status = Some(mostro_core::order::Status::WaitingPayment);
+                Some(Payload::PaymentRequest(
+                    Some(order),
+                    "lnbc1holdinvoice".into(),
+                    None,
+                ))
+            },
+            SWEEP_MIN_AGE_SECS + 300,
+            632,
+        )
+        .await;
+
+        // Act
+        sweep_with_revisions(&[(
+            &order_id,
+            taken_at + SWEEP_MIN_AGE_SECS,
+            OrderStatus::Pending,
+        )])
+        .await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::Pending);
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            None,
+        );
+    }
+
+    /// The daemon's `new-order` putting a maker's order back in the book,
+    /// dated `at`.
+    fn republished(order_id: &str, at: i64) -> mostro_core::message::MessageKind {
+        let uuid = uuid::Uuid::parse_str(order_id).expect("order uuid");
+        daemon_message(
+            uuid,
+            Action::NewOrder,
+            Some(Payload::Order(pending_small_order(uuid))),
+            at as u64,
+        )
+        .message
+        .get_inner_message_kind()
+        .clone()
+    }
+
+    /// PR review: the republish is accepted but the write that ends the step
+    /// fails. The row stays waiting, so the cursor must stay at the take:
+    /// moved to the republish, it would make the republish's own `pending`
+    /// look stale to the sweep for good. Once storage is back, the sweep ends
+    /// the step.
+    async fn a_failed_step_end_is_finished_by_the_sweep(probe: PersistProbe, trade_index: u32) {
+        // Arrange: a maker's buy order taken a while ago.
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Buy,
+            Action::PayInvoice,
+            |uuid| {
+                let mut order = pending_small_order(uuid);
+                order.status = Some(mostro_core::order::Status::WaitingPayment);
+                Some(Payload::PaymentRequest(
+                    Some(order),
+                    "lnbc1holdinvoice".into(),
+                    None,
+                ))
+            },
+            SWEEP_MIN_AGE_SECS + 300,
+            trade_index,
+        )
+        .await;
+        let republished_at = taken_at + SWEEP_MIN_AGE_SECS;
+        let kind = republished(&order_id, republished_at);
+
+        // Act: the republish lands on a store that fails to end the step.
+        {
+            let _guard = lock_order(&order_id).await;
+            assert!(
+                resync_republished_maker_order_in(Some(&probe), &order_id, &kind, republished_at)
+                    .await
+            );
+        }
+
+        // Assert: the row is still waiting, the cursor still at the take.
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+        assert_eq!(load_status_cursor(&order_id).await, Some(taken_at));
+
+        // Act: storage is back; a relay serves the republish's revision,
+        // published in the same second as the `new-order`.
+        sweep_with_revisions(&[(&order_id, republished_at, OrderStatus::Pending)]).await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::Pending);
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            None,
+        );
+    }
+
+    #[tokio::test]
+    async fn a_republish_whose_step_start_is_not_cleared_is_finished_by_the_sweep() {
+        a_failed_step_end_is_finished_by_the_sweep(PersistProbe::FailStepStartClear, 636).await;
+    }
+
+    #[tokio::test]
+    async fn a_republish_whose_row_is_not_written_is_finished_by_the_sweep() {
+        a_failed_step_end_is_finished_by_the_sweep(PersistProbe::FailRowWrite, 637).await;
+    }
+
+    /// The other side of the ordering: a republish that is written dates the
+    /// cursor, so an older replay of the take cannot walk the row back.
+    #[tokio::test]
+    async fn a_written_republish_moves_the_cursor() {
+        // Arrange
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            |_| None,
+            SWEEP_MIN_AGE_SECS + 300,
+            638,
+        )
+        .await;
+        let republished_at = taken_at + SWEEP_MIN_AGE_SECS;
+        let kind = republished(&order_id, republished_at);
+
+        // Act
+        {
+            let _guard = lock_order(&order_id).await;
+            assert!(resync_republished_maker_order(&order_id, &kind, republished_at).await);
+        }
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::Pending);
+        assert_eq!(load_status_cursor(&order_id).await, Some(republished_at));
+        assert!(
+            status_write_blocked(&order_id, &Action::WaitingSellerToPay, taken_at).await,
+            "a replay of the take must not walk the republished order back"
+        );
+    }
+
+    /// No relay answered: the book's `pending` carries no date, so it is no
+    /// positive signal against a take the daemon confirmed.
+    #[tokio::test]
+    async fn without_a_dated_revision_the_book_alone_does_not_end_the_step() {
+        // Arrange
+        let (order_id, _) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            |_| None,
+            60,
+            633,
+        )
+        .await;
+
+        // Act
+        sweep_with_revisions(&[]).await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+    }
+
+    /// The cached book says `pending`, the relays' newest revision says
+    /// `in-progress`: the newest decides.
+    #[tokio::test]
+    async fn the_newest_revision_overrules_the_cached_book() {
+        // Arrange
+        let (order_id, taken_at) = maker_taken_after_a_day(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            |_| None,
+            60,
+            634,
+        )
+        .await;
+
+        // Act
+        sweep_with_revisions(&[(&order_id, taken_at, OrderStatus::InProgress)]).await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
+    }
+
+    /// The restore is the other writer of the status cursor: a maker row it
+    /// brought back in its waiting step is dated by the daemon's reply, and a
+    /// `pending` older than that reply is stale as well.
+    #[tokio::test]
+    async fn a_maker_row_restored_waiting_keeps_its_step_against_an_older_pending() {
+        use mostro_core::order::{Kind, Status};
+        // Arrange
+        let db = bond_test_db().await;
+        let own = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let order = own_order(Kind::Buy, Status::WaitingPayment, Some(&own), None);
+        let order_id = order.id.unwrap().to_string();
+        let sent_at = crate::rt::unix_now() - 60;
+        assert!(persist_restored_trade_row(db, &order, &own, 635, sent_at).await);
+        let row = db.get_trade_by_order_id(&order_id).await.unwrap().unwrap();
+        assert!(row.order.is_mine, "the buyer of a buy order is its maker");
+        assert_eq!(row.order.status, OrderStatus::WaitingPayment);
+        let mut book = dummy_order_info(&order_id);
+        book.status = OrderStatus::Pending;
+        book.is_mine = true;
+        order_book().upsert_order(book).await;
+
+        // Act
+        sweep_with_revisions(&[(&order_id, sent_at - 3600, OrderStatus::Pending)]).await;
+
+        // Assert
+        assert_eq!(row_status(&order_id).await, OrderStatus::WaitingPayment);
     }
 
     /// The maker's half of #567, which the generation on the key cannot
@@ -16239,6 +16755,55 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_pending_ends_a_makers_step_only_when_newer_than_the_cursor() {
+        assert!(pending_postdates_cursor(Some(11), Some(10)));
+        assert!(!pending_postdates_cursor(Some(10), Some(10)));
+        assert!(!pending_postdates_cursor(Some(9), Some(10)));
+        // No cursor: nothing to date against, the book's word stands.
+        assert!(pending_postdates_cursor(None, None));
+        assert!(pending_postdates_cursor(Some(9), None));
+        // A cursor but no dated revision: no positive signal.
+        assert!(!pending_postdates_cursor(None, Some(10)));
+    }
+
+    /// The fetched revision decides over the cached book, for every action
+    /// and not only the maker's resync.
+    #[test]
+    fn the_dated_sweep_action_reads_the_fetched_revision() {
+        use crate::api::types::OrderStatus as S;
+        let waiting = S::WaitingPayment;
+        let pending = Some(&S::Pending);
+        let maker = |book, revision, cursor| {
+            dated_sweep_action("o", true, &waiting, book, revision, cursor)
+        };
+        assert_eq!(
+            maker(pending, Some((5, S::Canceled)), Some(10)),
+            SweepAction::Wipe
+        );
+        assert_eq!(
+            maker(pending, Some((20, S::InProgress)), Some(10)),
+            SweepAction::Keep
+        );
+        assert_eq!(
+            maker(pending, Some((20, S::Pending)), Some(10)),
+            SweepAction::SyncPending
+        );
+        assert_eq!(
+            maker(pending, Some((5, S::Pending)), Some(10)),
+            SweepAction::Keep
+        );
+        // No revision: the book, dated by nothing.
+        assert_eq!(maker(pending, None, None), SweepAction::SyncPending);
+        assert_eq!(maker(pending, None, Some(10)), SweepAction::Keep);
+        assert_eq!(maker(None, None, Some(10)), SweepAction::Keep);
+        // A taker's row is not dated here (#592).
+        assert_eq!(
+            dated_sweep_action("o", false, &waiting, None, Some((5, S::Pending)), Some(10)),
+            SweepAction::Wipe
+        );
+    }
+
     /// A relay is asked for the daemon's event about one order; what comes
     /// back is checked for both. A genuine daemon event about another order,
     /// or an event about this order from another key, reports nothing.
@@ -16268,27 +16833,100 @@ mod tests {
         let mine = "308e1272-d5f4-47e6-bd97-3504baea9c23";
         let other = "9b2d8f7e-1c3a-4e5b-8f6d-0a1b2c3d4e5f";
         let pk = daemon.public_key();
+        let newest = |events: Vec<nostr_sdk::prelude::Event>| {
+            newest_book_revision(events, &pk, mine).map(|(at, order)| (at, order.status))
+        };
         assert_eq!(
-            newest_book_status([event(&daemon, other, "success", 20)], &pk, mine),
+            newest(vec![event(&daemon, other, "success", 20)]),
             None,
             "the daemon's success for another order says nothing about this one"
         );
         assert_eq!(
-            newest_book_status([event(&stranger, mine, "success", 20)], &pk, mine),
+            newest(vec![event(&stranger, mine, "success", 20)]),
             None,
             "a success from another key is not the daemon's"
         );
         assert_eq!(
-            newest_book_status(
-                [
-                    event(&daemon, mine, "in-progress", 10),
-                    event(&daemon, other, "success", 30),
-                    event(&daemon, mine, "success", 20),
-                ],
-                &pk,
-                mine
-            ),
-            Some(S::Success)
+            newest(vec![
+                event(&daemon, mine, "in-progress", 10),
+                event(&daemon, other, "success", 30),
+                event(&daemon, mine, "success", 20),
+            ]),
+            Some((20, S::Success)),
+            "the newest of this order's revisions, with its time"
+        );
+    }
+
+    /// A Kind 38383 order is addressable: one relay keeps one revision, and
+    /// two relays need not keep the same one. Across both, the newest wins —
+    /// the cold start of #628, one relay still serving the `pending` from
+    /// before the take and another the node's `in-progress`.
+    #[tokio::test]
+    async fn the_revision_is_the_newest_across_relays() {
+        use crate::api::types::OrderStatus as S;
+        use nostr_sdk::local_relay::MockRelay;
+        use nostr_sdk::prelude::*;
+
+        // Arrange
+        let daemon = Keys::generate();
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let revision = |status: &str, at: u64| {
+            EventBuilder::new(Kind::from(38383u16), "")
+                .tags([
+                    Tag::parse(["d", order_id.as_str()]).unwrap(),
+                    Tag::parse(["k", "buy"]).unwrap(),
+                    Tag::parse(["s", status]).unwrap(),
+                    Tag::parse(["f", "USD"]).unwrap(),
+                    Tag::parse(["pm", "cash"]).unwrap(),
+                    Tag::parse(["premium", "0"]).unwrap(),
+                    Tag::parse(["amt", "0"]).unwrap(),
+                    Tag::parse(["fa", "100"]).unwrap(),
+                    Tag::parse(["z", "order"]).unwrap(),
+                ])
+                .custom_created_at(Timestamp::from_secs(at))
+                .finalize(&daemon)
+                .unwrap()
+        };
+        let stale = MockRelay::run().await.expect("mock relay");
+        let fresh = MockRelay::run().await.expect("mock relay");
+        let (stale_url, fresh_url) = (stale.url().await, fresh.url().await);
+        let client = Client::new();
+        for url in [&stale_url, &fresh_url] {
+            client.add_relay(url).await.expect("add relay");
+            client
+                .try_connect_relay(url, std::time::Duration::from_secs(3))
+                .await
+                .expect("connect");
+        }
+        client
+            .send_event(&revision("pending", 1_000))
+            .to([&stale_url])
+            .await
+            .expect("stale revision stored");
+        client
+            .send_event(&revision("in-progress", 2_000))
+            .to([&fresh_url])
+            .await
+            .expect("fresh revision stored");
+
+        // Act
+        let both = fetch_order_revision(&client, &daemon.public_key(), &order_id, "test").await;
+        client
+            .remove_relay(&fresh_url)
+            .await
+            .expect("drop the fresh relay");
+        let stale_only =
+            fetch_order_revision(&client, &daemon.public_key(), &order_id, "test").await;
+
+        // Assert
+        assert_eq!(
+            both.map(|(at, order)| (at, order.status)),
+            Some((2_000, S::InProgress))
+        );
+        assert_eq!(
+            stale_only.map(|(at, order)| (at, order.status)),
+            Some((1_000, S::Pending)),
+            "a lone stale relay answers with its old date, which the sweep then refuses"
         );
     }
 

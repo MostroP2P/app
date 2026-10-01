@@ -805,6 +805,24 @@ ambiguous `in-progress` marker changes nothing. Every action requires a
 positive daemon signal; the clock only triggers the check. The sweep also
 drops keyless in-memory sessions older than 24h and logs counters.
 
+The window protects a taker's row, and any row the book shows canceled, from
+a stale book (#592). It does not protect a maker's row: `started_at` is the
+order's creation, and a take does not move it. So before a maker's row goes
+back to `Pending`, the sweep asks the relays once for the order's newest
+revision. This is the same lookup it makes when the book does not hold the
+order, and that revision's status decides. A `pending` counts only when the
+daemon published it **after** the order's status cursor, the last daemon
+status this client accepted (from the take or from a restore). Both times
+come from the node's clock. An older `pending` is a revision from before the
+take that a relay still serves, and the step is kept however long ago the
+take was (#628). When no relay answers, the book's `pending` carries no date
+and the step is kept as well. Only an order with no cursor at all follows
+the book as before. The daemon's `new-order` moves that cursor only once the
+step's end is written: a failed write leaves it at the take, and the sweep
+finishes the step from the republish's own `pending`. The price: when no
+relay of the user holds a real republish's revision and its `new-order`
+never landed, the step waits until one of the two arrives.
+
 `process_gift_wrap_rumor` MUST update **both** the in-memory order book
 (`order_book().update_order_status`) **and** the persisted trade row
 (`db.update_trade_fields`) on every status transition, otherwise UI
