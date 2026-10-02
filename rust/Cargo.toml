@@ -38,6 +38,9 @@ thiserror = "1"
 # Utilities
 uuid = { version = "1", features = ["v4"] }
 hex = "0.4"
+# Version bounds on announcements (nostr/announcements.rs). Already in the
+# tree; the bounds follow semver precedence, pre-releases included.
+semver = "1"
 
 # Logging
 log = "0.4"

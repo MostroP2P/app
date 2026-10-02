@@ -1,3 +1,4 @@
+pub mod announcements;
 pub mod blossom;
 pub mod coalesce;
 pub mod first_answer;
