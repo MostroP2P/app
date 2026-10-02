@@ -341,16 +341,18 @@ impl Drop for LoopGuard {
 /// with an empty allowlist it does nothing at all.
 pub async fn subscribe_announcements() {
     let authors = announcements::allowed_authors();
-    let Some(filter) = announcement_filter(&authors, Timestamp::now()) else {
-        log::debug!("[announcements] allowlist empty: no subscription");
-        return;
-    };
     let version = announcements::app_version();
+    // Even with no key left to subscribe to: a release that retires the last
+    // one must still sweep what that key left in the cache.
     if let Some(db) = crate::db::app_db::db() {
         if let Err(e) = restore(db, &authors, Timestamp::now(), &version).await {
             log::warn!("[announcements] re-checking the cache failed: {e}");
         }
     }
+    let Some(filter) = announcement_filter(&authors, Timestamp::now()) else {
+        log::debug!("[announcements] allowlist empty: no subscription");
+        return;
+    };
     if LOOP_ACTIVE
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_err()
@@ -906,6 +908,18 @@ mod tests {
         assert_eq!(current.len(), 1);
         assert_eq!(current[0].announcement.author, kept.public_key());
         assert_eq!(db.list_announcements().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn an_emptied_allowlist_still_clears_the_cache() {
+        let db = store().await;
+        let keys = Keys::generate();
+        ingest_now(&db, &draft("a").sign(&keys), &[keys.public_key()]).await;
+
+        let current = restore(&db, &[], now(), &app()).await.unwrap();
+
+        assert!(current.is_empty());
+        assert!(db.list_announcements().await.unwrap().is_empty());
     }
 
     #[tokio::test]
