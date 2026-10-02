@@ -463,6 +463,33 @@ pub trait Storage: Send + Sync {
     /// Remove one claim. No-op when absent.
     async fn delete_bond_claim(&self, node_pubkey: &str, order_id: &str) -> Result<()>;
 
+    // ── Announcements (specs/006-announcement-channel §5.4) ─────────────────
+    //
+    // Device-scoped: [`Self::clear_identity_data`] leaves them alone, since
+    // they are addressed to the install, not to a user. The defaults keep
+    // nothing, for stores with no cache: announcements then show only while
+    // a relay serves them. SQLite and IndexedDB both implement all three.
+
+    /// Insert or replace the announcement at its address.
+    async fn save_announcement(
+        &self,
+        _announcement: &crate::nostr::announcement_reader::StoredAnnouncement,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    /// Every stored announcement, newest `created_at` first.
+    async fn list_announcements(
+        &self,
+    ) -> Result<Vec<crate::nostr::announcement_reader::StoredAnnouncement>> {
+        Ok(Vec::new())
+    }
+
+    /// Remove the announcement at `address`. No-op when absent.
+    async fn delete_announcement(&self, _address: &str) -> Result<()> {
+        Ok(())
+    }
+
     // ── Chat attachment cache (#589) ──────────────────────────────────────────
 
     /// Keep an attachment's blob, **still encrypted**, under its SHA-256, so

@@ -244,6 +244,9 @@ async fn on_pool_online() {
     // listener startup, which can fail while keys or connectivity are
     // missing — coming online is the retry point (PR #254 review).
     crate::api::disputes::resubscribe_active_dispute_chats().await;
+    // Project announcements (specs/006 §5.1), last: nothing above waits for
+    // them. With an empty allowlist this does nothing at all.
+    crate::nostr::announcement_reader::subscribe_announcements().await;
 }
 
 /// Add a new relay and connect to it.
@@ -564,6 +567,8 @@ async fn run_resync() -> ResyncOutcome {
     crate::api::orders::subscribe_orders().await;
     crate::api::messages::resubscribe_active_chats().await;
     crate::api::disputes::resubscribe_active_dispute_chats().await;
+    // Also the foreground re-check of the announcement cache (specs/006 §5.4).
+    crate::nostr::announcement_reader::subscribe_announcements().await;
     // Whatever a relay that is up right now still lacks. The ones still
     // reconnecting get theirs from the repair task as they connect, so a pass
     // that ran offline no longer leaves the session deaf.

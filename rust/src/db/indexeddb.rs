@@ -28,7 +28,7 @@ use crate::db::{settings_keys, trade_json, web_lock, Storage};
 use crate::queue::outbox::QueuedMessage;
 
 /// Bumped when a store is added; `open_db` creates whatever is missing.
-const DB_VERSION: u32 = 5;
+const DB_VERSION: u32 = 6;
 const MESSAGES_STORE: &str = "messages";
 const SETTINGS_STORE: &str = "settings";
 const TRADES_STORE: &str = "trades";
@@ -43,13 +43,16 @@ const BOND_CLAIMS_STORE: &str = "bond_claims";
 /// cache can be trimmed without loading every blob.
 const ATTACHMENT_BLOBS_STORE: &str = "attachment_blobs";
 const ATTACHMENT_INDEX_STORE: &str = "attachment_blob_index";
+/// Announcements (specs/006 §5.4), a `StoredAnnouncement` JSON per address.
+/// Device-scoped: `clear_identity_data` leaves it alone.
+const ANNOUNCEMENTS_STORE: &str = "announcements";
 /// The single identity document's key, mirroring SQLite's `id = 1` row.
 const IDENTITY_KEY: &str = "1";
 /// Origin-wide lock names (see [`web_lock`]): one per store whose documents
 /// are read, changed and written back as a whole.
 const TRADES_LOCK: &str = "mostro:db:trades";
 const OUTBOX_LOCK: &str = "mostro:db:queued_messages";
-const ALL_STORES: [&str; 11] = [
+const ALL_STORES: [&str; 12] = [
     MESSAGES_STORE,
     SETTINGS_STORE,
     TRADES_STORE,
@@ -61,6 +64,7 @@ const ALL_STORES: [&str; 11] = [
     BOND_CLAIMS_STORE,
     ATTACHMENT_BLOBS_STORE,
     ATTACHMENT_INDEX_STORE,
+    ANNOUNCEMENTS_STORE,
 ];
 
 /// Map an opaque JS-side error into an `anyhow` error the trait can carry.
@@ -758,6 +762,41 @@ impl Storage for IndexedDbStorage {
             &crate::api::types::bond_claim_key(node_pubkey, order_id),
         )
         .await
+    }
+
+    // ── Announcements — whole-document, keyed by address ─────────────────────
+
+    async fn save_announcement(
+        &self,
+        announcement: &crate::nostr::announcement_reader::StoredAnnouncement,
+    ) -> Result<()> {
+        let json = serde_json::to_string(announcement)?;
+        self.put_string(ANNOUNCEMENTS_STORE, &announcement.address, &json)
+            .await
+    }
+
+    async fn list_announcements(
+        &self,
+    ) -> Result<Vec<crate::nostr::announcement_reader::StoredAnnouncement>> {
+        let mut announcements: Vec<crate::nostr::announcement_reader::StoredAnnouncement> = self
+            .get_all_strings(ANNOUNCEMENTS_STORE)
+            .await?
+            .into_iter()
+            .filter_map(|json| match serde_json::from_str(&json) {
+                Ok(announcement) => Some(announcement),
+                Err(e) => {
+                    log::warn!("[db] skipping announcement: deserialization failed: {e}");
+                    None
+                }
+            })
+            .collect();
+        // Same order as SQLite: newest first, then by address.
+        announcements.sort_by_key(|a| (std::cmp::Reverse(a.created_at), a.address.clone()));
+        Ok(announcements)
+    }
+
+    async fn delete_announcement(&self, address: &str) -> Result<()> {
+        self.delete_key(ANNOUNCEMENTS_STORE, address).await
     }
 
     // ── Chat attachment cache (#589 phase 4) — encrypted blobs only ─────────

@@ -852,6 +852,50 @@ impl Storage for SqliteStorage {
         Ok(())
     }
 
+    async fn save_announcement(
+        &self,
+        announcement: &crate::nostr::announcement_reader::StoredAnnouncement,
+    ) -> Result<()> {
+        let data = serde_json::to_string(announcement)?;
+        sqlx::query(
+            "INSERT OR REPLACE INTO announcements (address, data, created_at) VALUES (?, ?, ?)",
+        )
+        .bind(&announcement.address)
+        .bind(&data)
+        .bind(announcement.created_at as i64)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn list_announcements(
+        &self,
+    ) -> Result<Vec<crate::nostr::announcement_reader::StoredAnnouncement>> {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT address, data FROM announcements ORDER BY created_at DESC, address",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut announcements = Vec::with_capacity(rows.len());
+        for (address, data) in rows {
+            match serde_json::from_str(&data) {
+                Ok(announcement) => announcements.push(announcement),
+                Err(e) => {
+                    log::warn!("[db] skipping announcement {address}: deserialization failed: {e}")
+                }
+            }
+        }
+        Ok(announcements)
+    }
+
+    async fn delete_announcement(&self, address: &str) -> Result<()> {
+        sqlx::query("DELETE FROM announcements WHERE address = ?")
+            .bind(address)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn save_attachment_blob(&self, sha256: &str, blob: &[u8]) -> Result<()> {
         sqlx::query(
             "INSERT OR REPLACE INTO attachment_blobs (sha256, data, size, created_at)

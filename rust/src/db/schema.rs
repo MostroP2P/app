@@ -1,6 +1,6 @@
 /// Database schema version. Currently unused at runtime — kept as a reference
 /// for future migration logic (e.g. ALTER TABLE guards or schema-diff checks).
-pub const SCHEMA_VERSION: u32 = 4;
+pub const SCHEMA_VERSION: u32 = 5;
 
 /// One-off rebuild for databases created while `messages` still carried a
 /// foreign key to `trades(id)` (schema v2). SQLite cannot drop a FK in place,
@@ -141,4 +141,14 @@ CREATE TABLE IF NOT EXISTS bond_claims (
     updated_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_bond_claims_node ON bond_claims(node_pubkey, phase);
+
+-- Announcements from the project's keys (specs/006-announcement-channel §5.4):
+-- the signed event as received, re-verified on every restore, and its
+-- read/dismissed state. Device-scoped, so an identity wipe keeps it. At most
+-- 20 rows, the newest by `created_at`.
+CREATE TABLE IF NOT EXISTS announcements (
+    address         TEXT PRIMARY KEY NOT NULL,   -- "38387:<author hex>:<d>"
+    data            TEXT NOT NULL,               -- JSON-serialised StoredAnnouncement
+    created_at      INTEGER NOT NULL
+);
 "#;
