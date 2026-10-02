@@ -2,7 +2,8 @@
 
 **Feature Branch**: `006-announcement-channel`
 **Created**: 2026-08-26
-**Status**: Draft — nothing is built
+**Status**: In progress — step 1 of §10 (parsing and the allowlist) is built, in
+`rust/src/nostr/announcements.rs`
 **Input**: Give the project one authenticated way to reach people already running the
 app — "update to 2.1", "the node is down for maintenance", "this relay is gone" —
 without a backend, an account, an email address, or a push token.
@@ -139,7 +140,7 @@ reader (§5), and nothing else in this document may contradict it.
 |---|---|
 | Kind | `38387` — addressable, **reserved in the Mostro protocol's `3838x` block for this and nothing else** |
 | Author | one of the keys in §4.1, and nothing else |
-| `d` tag | announcement id: stable, opaque, unique per announcement |
+| `d` tag | announcement id: stable, opaque, unique per announcement, never empty |
 | `expiration` tag | NIP-40, **required** — see §5.5 |
 | `content` | the JSON of §3.2 |
 
@@ -234,9 +235,9 @@ way to fail it.
 | `v` | yes | schema version, `1` today. An unknown `v` is **ignored**, never rendered best-effort |
 | `severity` | yes | one of `info`, `warning`, `critical` — see §3.4 |
 | `locales` | yes | must contain **exactly** `en`, `es`, `fr`, `de`, `it`, `nl`. A missing one, or an unknown extra one, makes the announcement **invalid** |
-| `locales[x].title` | yes | ≤ 80 characters after trimming |
-| `locales[x].body` | yes | ≤ 500 characters after trimming |
-| `url` | no | exactly one action link, `https` scheme only |
+| `locales[x].title` | yes | not blank, ≤ 80 characters after trimming |
+| `locales[x].body` | yes | not blank, ≤ 500 characters after trimming |
+| `url` | no | exactly one action link, `https` scheme only, no credentials (`user@`); the app keeps the URL as parsed, not as sent |
 
 All six required is deliberately stricter than "must contain `en`". A fallback to English
 is a bug that ships quietly: the Italian reader gets English, nothing is logged, and the
@@ -340,7 +341,7 @@ Three rules:
    key the app derives (`m/44'/1237'/38383'/0/N`).
 2. **The constant holds `npub`, not hex.** It is what a human checks against the value
    published on mostro.network or in the README. Decoding goes through `nostr-sdk`
-   (`PublicKey::parse`) in Rust — never a Dart bech32 implementation, per the golden rule.
+   (`PublicKey::from_bech32`, which refuses hex) in Rust — never a Dart bech32 implementation, per the golden rule.
 3. **An entry that fails to decode is dropped with a `log::warn!`, and the rest still
    work.** A typo in one constant must not silence the channel.
 
