@@ -544,7 +544,11 @@ mod tests {
         let b = Keys::generate().public_key();
         let a_npub = a.to_bech32().unwrap();
         let b_npub = b.to_bech32().unwrap();
-        let typo = format!("{}x", &a_npub[..a_npub.len() - 1]);
+        // Swap the last character for a different one: bech32 catches any
+        // single substitution. Always writing 'x' turned the "typo" back into
+        // `a_npub` whenever that already ended in 'x' (one key in 32).
+        let (head, last) = a_npub.split_at(a_npub.len() - 1);
+        let typo = format!("{head}{}", if last == "x" { 'q' } else { 'x' });
 
         let decoded = decode_allowlist(&[&a_npub, &typo, "", &b_npub]);
 
