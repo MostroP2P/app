@@ -17,7 +17,18 @@ relay URL, and hex secret.
 **Side effects**: Stores encrypted credentials in secure storage.
 Connects to wallet relay(s). Queries wallet info.
 
-**Errors**: `InvalidNwcUri`, `ConnectionFailed`, `StorageError`.
+**Errors**: each is a prefix on the error text, which the connect screen
+reads to tell the user what to do.
+- `InvalidNwcUri`: the URI does not parse, or no request can be built from
+  it (a wallet pubkey that is not a valid point). Only this one blames the URI.
+- `WalletRejected`: the wallet answered `get_info` with `UNAUTHORIZED` (a
+  revoked connection) or `RESTRICTED`. Retrying does not help; a new
+  connection URI does.
+- `ConnectionFailed`: a relay could not be added, nothing answered, or the
+  wallet answered with an error a retry can clear (`RATE_LIMITED`,
+  `INTERNAL`, ...).
+- `Unsupported`: the web build, which has no NWC client.
+- `StorageError`.
 
 ---
 

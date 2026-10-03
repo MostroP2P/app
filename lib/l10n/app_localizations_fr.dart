@@ -2490,6 +2490,21 @@ class AppLocalizationsFr extends AppLocalizations {
   String get nwcWalletNotConnected => 'Non connecté';
 
   @override
+  String get nwcUnavailableOnWeb => 'Indisponible sur le web';
+
+  @override
+  String get nwcUnsupportedOnWebMessage =>
+      'La version web ne peut pas encore connecter de portefeuille NWC. Utilisez l\'app Android ou de bureau.';
+
+  @override
+  String get nwcWalletUnreachableMessage =>
+      'Impossible de joindre votre portefeuille. Vérifiez qu\'il est en ligne et réessayez.';
+
+  @override
+  String get nwcWalletRejectedMessage =>
+      'Votre portefeuille a refusé cette connexion. Créez une nouvelle connexion dans votre portefeuille et collez cette URI.';
+
+  @override
   String relaysConnectedOfTotal(int connected, int total) {
     return '$connected sur $total connectés';
   }

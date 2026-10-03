@@ -39,7 +39,6 @@ mod native {
 
     #[derive(Debug, serde::Deserialize)]
     struct Nip47Error {
-        #[allow(dead_code)]
         code: String,
         message: String,
     }
@@ -81,6 +80,13 @@ mod native {
             error: raw.error,
             result: raw.result,
         })
+    }
+
+    /// NIP-47 error codes that refuse this connection itself: no wallet behind
+    /// the app's key (a revoked connection), or one not allowed `get_info`.
+    /// Retrying cannot fix either; a new connection URI can.
+    pub(super) fn refuses_connection(code: &str) -> bool {
+        matches!(code, "UNAUTHORIZED" | "RESTRICTED")
     }
 
     /// Timeout for NIP-47 request → response round-trips.
@@ -160,7 +166,7 @@ mod native {
                 client
                     .add_relay(relay_url.clone())
                     .await
-                    .map_err(|e| anyhow!("Failed to add relay {relay_url}: {e}"))?;
+                    .map_err(|e| anyhow!("ConnectionFailed: could not add relay {relay_url}: {e}"))?;
             }
 
             // Wait for at least one relay to be actually connected before
@@ -214,7 +220,9 @@ mod native {
             crate::api::logging::blog_info("nwc", format!("→ {method}"));
             let event = request
                 .to_event(&self.uri, self.cipher)
-                .map_err(|e| anyhow!("Failed to build NIP-47 request event: {e}"))?;
+                // Only the URI can make this fail: a wallet pubkey that is 64
+                // hex characters but no curve point parses, then breaks here.
+                .map_err(|e| anyhow!("InvalidNwcUri: cannot build a NIP-47 request from it: {e}"))?;
 
             // 1. Start listening for Kind 23195 responses from the wallet
             //    BEFORE sending the request to avoid a race condition.
@@ -310,6 +318,11 @@ mod native {
             let response = self.send_request(Request::get_info()).await?;
 
             if let Some(err) = response.error {
+                // Only a refusal of this connection asks for a new one. A busy,
+                // rate-limiting or briefly broken wallet is worth another try.
+                if refuses_connection(&err.code) {
+                    bail!("WalletRejected: {err}");
+                }
                 bail!("NWC get_info error: {err}");
             }
 
@@ -478,7 +491,9 @@ pub struct NwcClient {
 #[cfg(target_arch = "wasm32")]
 impl NwcClient {
     pub async fn new(_uri_str: &str) -> anyhow::Result<Self> {
-        anyhow::bail!("NWC is not supported on web")
+        // `Unsupported:` is what the connect screen keys on to say so, rather
+        // than blame the URI it never read.
+        anyhow::bail!("Unsupported: NWC is not supported on web")
     }
 
     pub async fn get_info(&mut self) -> anyhow::Result<crate::api::types::NwcWalletInfo> {
@@ -546,6 +561,20 @@ mod tests {
             Nip47Ciphers::NIP44V2,
             "when both are offered the newer cipher wins"
         );
+    }
+
+    /// Only a refusal of the connection is reported as one; codes that a
+    /// retry can clear (NIP-47 says RATE_LIMITED "should retry") are not.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn only_a_refused_connection_is_a_rejection() {
+        use super::native::refuses_connection;
+
+        assert!(refuses_connection("UNAUTHORIZED"));
+        assert!(refuses_connection("RESTRICTED"));
+        for code in ["RATE_LIMITED", "INTERNAL", "OTHER", "NOT_IMPLEMENTED", "UNSUPPORTED_ENCRYPTION"] {
+            assert!(!refuses_connection(code), "{code}");
+        }
     }
 
     /// The `encryption` tag is read off the wallet's kind 13194 info event;

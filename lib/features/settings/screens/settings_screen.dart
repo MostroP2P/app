@@ -14,6 +14,7 @@ import 'package:mostro/features/settings/models/settings_rows.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/features/settings/providers/notification_prefs_provider.dart';
+import 'package:mostro/features/settings/nwc_connect_failure.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/providers/relays_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
@@ -222,6 +223,15 @@ class SettingsScreen extends ConsumerWidget {
     WidgetRef ref,
     AppLocalizations l10n,
   ) {
+    // Said here, before the user pastes a URI into a screen that can only
+    // fail: the web build has no NWC client.
+    if (!nwcSupported) {
+      return SettingsRow(
+        icon: Icons.account_balance_wallet_outlined,
+        label: l10n.nwcWalletSettingTitle,
+        value: l10n.nwcUnavailableOnWeb,
+      ).withAutomationId(AutomationIds.settingsWallet);
+    }
     final wallet = ref.watch(nwcProvider);
     return SettingsRow(
       icon: Icons.account_balance_wallet_outlined,

@@ -2485,6 +2485,21 @@ class AppLocalizationsEs extends AppLocalizations {
   String get nwcWalletNotConnected => 'Sin conectar';
 
   @override
+  String get nwcUnavailableOnWeb => 'No disponible en la web';
+
+  @override
+  String get nwcUnsupportedOnWebMessage =>
+      'La versión web aún no puede conectar una billetera NWC. Usa la app de Android o de escritorio.';
+
+  @override
+  String get nwcWalletUnreachableMessage =>
+      'No se pudo contactar con tu billetera. Comprueba que esté en línea e inténtalo de nuevo.';
+
+  @override
+  String get nwcWalletRejectedMessage =>
+      'Tu billetera rechazó esta conexión. Crea una nueva conexión en tu billetera y pega esa URI.';
+
+  @override
   String relaysConnectedOfTotal(int connected, int total) {
     return '$connected de $total conectados';
   }

@@ -8,6 +8,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/settings_palette.dart';
+import 'package:mostro/features/settings/nwc_connect_failure.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -354,13 +355,16 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
     } catch (e) {
       if (!mounted) return;
       debugPrint('[nwc] connection failed: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context).nwcConnectionFailedMessage,
-          ),
-        ),
-      );
+      final l10n = AppLocalizations.of(context);
+      final message = switch (classifyNwcConnectError(e)) {
+        NwcConnectFailure.invalidUri => l10n.nwcConnectionFailedMessage,
+        NwcConnectFailure.unsupported => l10n.nwcUnsupportedOnWebMessage,
+        NwcConnectFailure.rejected => l10n.nwcWalletRejectedMessage,
+        NwcConnectFailure.unreachable => l10n.nwcWalletUnreachableMessage,
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
