@@ -124,6 +124,11 @@ class SettingsScreen extends ConsumerWidget {
                 merge: false,
               ),
               _relaysRow(context, ref, l10n),
+              SettingsRow(
+                icon: Icons.workspace_premium_outlined,
+                label: l10n.reputationSettingTitle,
+                onTap: () => context.push(AppRoute.reputation),
+              ).withAutomationId(AutomationIds.settingsReputation),
             ],
           ),
           const SizedBox(height: settingsGroupGap),

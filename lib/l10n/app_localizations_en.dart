@@ -4173,4 +4173,46 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get reputationFiguresNote =>
       'Imported reputation is added to the one you have here; your counterparties see them merged.';
+
+  @override
+  String get reputationSettingTitle => 'Reputation';
+
+  @override
+  String get reputationImportCardBody =>
+      'Bring the reputation you earned on lnp2pBot or on another Mostro to this one.';
+
+  @override
+  String get reputationExportTitle => 'Export my reputation';
+
+  @override
+  String get reputationExportCardBody =>
+      'Get a signed copy of the reputation you earned on this Mostro, to import it on another one.';
+
+  @override
+  String get reputationExportConfirmTitle => 'Export to this identity?';
+
+  @override
+  String reputationExportConfirmBody(String npub) {
+    return 'Your reputation on this Mostro will be exported for this identity:\n\n$npub\n\nOnce exported, it is bound to it: exporting it for another identity later needs an authorization signed with this one.';
+  }
+
+  @override
+  String get reputationExportConfirmButton => 'Export';
+
+  @override
+  String get reputationExported =>
+      'Your reputation is ready. Switch to the Mostro where you want it and import it; it is valid for 7 days.';
+
+  @override
+  String get reputationRebindBody =>
+      'Moving to a new identity? Sign here, with the identity your reputation is bound to now, an authorization for the new one, then use it from the new identity.';
+
+  @override
+  String get reputationNewIdentityHint => 'New identity (npub)';
+
+  @override
+  String get reputationRebindSign => 'Sign authorization';
+
+  @override
+  String get reputationInvalidIdentity => 'That is not a valid npub.';
 }

@@ -4207,4 +4207,46 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String get reputationFiguresNote =>
       'Geïmporteerde reputatie wordt opgeteld bij die van hier; je tegenpartijen zien ze samen.';
+
+  @override
+  String get reputationSettingTitle => 'Reputatie';
+
+  @override
+  String get reputationImportCardBody =>
+      'Breng de reputatie die je op lnp2pBot of een andere Mostro verdiende naar deze.';
+
+  @override
+  String get reputationExportTitle => 'Mijn reputatie exporteren';
+
+  @override
+  String get reputationExportCardBody =>
+      'Haal een ondertekende kopie op van de reputatie die je op deze Mostro verdiende, om ze op een andere te importeren.';
+
+  @override
+  String get reputationExportConfirmTitle => 'Exporteren naar deze identiteit?';
+
+  @override
+  String reputationExportConfirmBody(String npub) {
+    return 'Je reputatie op deze Mostro wordt geëxporteerd voor deze identiteit:\n\n$npub\n\nNa het exporteren is ze eraan gekoppeld: later exporteren voor een andere identiteit vereist een toestemming ondertekend met deze.';
+  }
+
+  @override
+  String get reputationExportConfirmButton => 'Exporteren';
+
+  @override
+  String get reputationExported =>
+      'Je reputatie is klaar. Schakel over naar de Mostro waar je ze wilt en importeer ze; ze is 7 dagen geldig.';
+
+  @override
+  String get reputationRebindBody =>
+      'Stap je over op een nieuwe identiteit? Onderteken hier, met de identiteit waaraan je reputatie nu gekoppeld is, een toestemming voor de nieuwe en gebruik die vanaf de nieuwe identiteit.';
+
+  @override
+  String get reputationNewIdentityHint => 'Nieuwe identiteit (npub)';
+
+  @override
+  String get reputationRebindSign => 'Toestemming ondertekenen';
+
+  @override
+  String get reputationInvalidIdentity => 'Dat is geen geldige npub.';
 }

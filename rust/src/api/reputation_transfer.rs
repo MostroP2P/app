@@ -204,7 +204,7 @@ pub async fn get_pending_reputation_attestation() -> Result<Option<ReputationAtt
 pub async fn sign_reputation_rebind(issuer: String, new_identity: String) -> Result<String> {
     let bound = identity_keys().await?;
     let issuer = PublicKey::from_hex(issuer.trim())?;
-    let new_identity = PublicKey::from_hex(new_identity.trim())?;
+    let new_identity = PublicKey::parse(new_identity.trim())?;
     let event = ReputationRebind::build(
         &bound,
         &issuer,
