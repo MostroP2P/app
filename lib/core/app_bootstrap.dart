@@ -230,6 +230,7 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
 
   _warmNodeInfoCache();
 
+  final nwcUriStore = NwcUriStore(prefs: prefs);
   final container = ProviderContainer(
     overrides: [
       firstRunProvider.overrideWith(
@@ -241,16 +242,13 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
       settingsProvider.overrideWith(
         (ref) => SettingsNotifier(prefs: prefs, initial: savedSettings),
       ),
-      nwcProvider.overrideWith((ref) => NwcNotifier(prefs: prefs)),
+      nwcProvider.overrideWith((ref) => NwcNotifier(store: nwcUriStore)),
       mostroPubkeyProvider.overrideWith((ref) => activeMostroPubkey),
     ],
   );
 
   // Restore NWC wallet connection if a URI was saved from a previous session.
-  final savedNwcUri = prefs.getString(kNwcUriKey);
-  if (savedNwcUri != null) {
-    _restoreNwcConnection(savedNwcUri, container);
-  }
+  _restoreNwcConnection(nwcUriStore, container);
 
   _consumeBondSlashed(bondSlashedStream, container);
   _consumeBondClaims(bondClaimStream, container);
@@ -348,10 +346,14 @@ void _warmNodeInfoCache() {
   );
 }
 
-/// Reconnect a previously saved NWC wallet in the background.
-void _restoreNwcConnection(String nwcUri, ProviderContainer container) {
+/// Reconnect a previously saved NWC wallet in the background. Reading it
+/// from secure storage is a platform round trip, so that happens here too,
+/// off the path to the first frame.
+void _restoreNwcConnection(NwcUriStore store, ProviderContainer container) {
   Future.microtask(() async {
     try {
+      final nwcUri = await store.load();
+      if (nwcUri == null) return;
       final info = await nwc_api.connectWallet(nwcUri: nwcUri);
       container
           .read(nwcProvider.notifier)

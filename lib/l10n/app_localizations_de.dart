@@ -1196,6 +1196,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get walletDisconnectedMessage => 'Wallet getrennt';
 
   @override
+  String get nwcNotSavedMessage =>
+      'Wallet verbunden, aber dieses Gerät konnte sie nicht speichern. Nach einem Neustart musst du sie erneut verbinden.';
+
+  @override
+  String get nwcNotForgottenMessage =>
+      'Wallet getrennt, aber dieses Gerät konnte die Verbindung nicht löschen. Widerrufe sie zur Sicherheit in deiner Wallet.';
+
+  @override
   String get relayLabel => 'Relay';
 
   @override

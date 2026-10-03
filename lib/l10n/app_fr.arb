@@ -348,6 +348,8 @@
   "scanQrButtonLabel": "Scanner QR",
   "connectButtonLabel": "Connecter",
   "walletDisconnectedMessage": "Portefeuille déconnecté",
+  "nwcNotSavedMessage": "Portefeuille connecté, mais cet appareil n'a pas pu l'enregistrer. Vous devrez le reconnecter après un redémarrage.",
+  "nwcNotForgottenMessage": "Portefeuille déconnecté, mais cet appareil n'a pas pu effacer la connexion. Révoquez-la dans votre portefeuille par sécurité.",
   "relayLabel": "Relais",
   "disconnectButtonLabel": "Déconnecter",
   "relaysMoreSuffix": "(+{count} de plus)",

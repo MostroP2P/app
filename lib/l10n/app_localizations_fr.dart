@@ -1192,6 +1192,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get walletDisconnectedMessage => 'Portefeuille déconnecté';
 
   @override
+  String get nwcNotSavedMessage =>
+      'Portefeuille connecté, mais cet appareil n\'a pas pu l\'enregistrer. Vous devrez le reconnecter après un redémarrage.';
+
+  @override
+  String get nwcNotForgottenMessage =>
+      'Portefeuille déconnecté, mais cet appareil n\'a pas pu effacer la connexion. Révoquez-la dans votre portefeuille par sécurité.';
+
+  @override
   String get relayLabel => 'Relais';
 
   @override

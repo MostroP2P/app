@@ -348,6 +348,8 @@
   "scanQrButtonLabel": "QR scannen",
   "connectButtonLabel": "Verbinden",
   "walletDisconnectedMessage": "Wallet getrennt",
+  "nwcNotSavedMessage": "Wallet verbunden, aber dieses Gerät konnte sie nicht speichern. Nach einem Neustart musst du sie erneut verbinden.",
+  "nwcNotForgottenMessage": "Wallet getrennt, aber dieses Gerät konnte die Verbindung nicht löschen. Widerrufe sie zur Sicherheit in deiner Wallet.",
   "relayLabel": "Relay",
   "disconnectButtonLabel": "Trennen",
   "relaysMoreSuffix": "(+{count} weitere)",

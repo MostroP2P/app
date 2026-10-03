@@ -1188,6 +1188,14 @@ class AppLocalizationsNl extends AppLocalizations {
   String get walletDisconnectedMessage => 'Wallet losgekoppeld';
 
   @override
+  String get nwcNotSavedMessage =>
+      'Wallet verbonden, maar dit apparaat kon hem niet opslaan. Na een herstart moet je hem opnieuw koppelen.';
+
+  @override
+  String get nwcNotForgottenMessage =>
+      'Wallet ontkoppeld, maar dit apparaat kon de koppeling niet wissen. Trek hem voor de zekerheid in je wallet in.';
+
+  @override
   String get relayLabel => 'Relay';
 
   @override

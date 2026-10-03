@@ -1498,6 +1498,14 @@
   "@walletDisconnectedMessage": {
     "description": "Snackbar shown after disconnecting the wallet"
   },
+  "nwcNotSavedMessage": "Wallet connected, but this device could not save it. You will have to connect it again after a restart.",
+  "@nwcNotSavedMessage": {
+    "description": "Snackbar when the wallet connected but secure storage refused to save its URI"
+  },
+  "nwcNotForgottenMessage": "Wallet disconnected, but this device could not erase the connection. Revoke it in your wallet to be sure.",
+  "@nwcNotForgottenMessage": {
+    "description": "Snackbar when the wallet was disconnected but secure storage refused to erase its URI"
+  },
   "relayLabel": "Relay",
   "@relayLabel": {
     "description": "Label for a single relay row on the Wallet Settings screen"

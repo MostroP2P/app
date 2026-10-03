@@ -1190,6 +1190,14 @@ class AppLocalizationsIt extends AppLocalizations {
   String get walletDisconnectedMessage => 'Wallet disconnesso';
 
   @override
+  String get nwcNotSavedMessage =>
+      'Wallet connesso, ma questo dispositivo non è riuscito a salvarlo. Dovrai ricollegarlo dopo un riavvio.';
+
+  @override
+  String get nwcNotForgottenMessage =>
+      'Wallet disconnesso, ma questo dispositivo non è riuscito a cancellare la connessione. Revocala nel tuo wallet per sicurezza.';
+
+  @override
   String get relayLabel => 'Relay';
 
   @override

@@ -348,6 +348,8 @@
   "scanQrButtonLabel": "QR scannen",
   "connectButtonLabel": "Verbinden",
   "walletDisconnectedMessage": "Wallet losgekoppeld",
+  "nwcNotSavedMessage": "Wallet verbonden, maar dit apparaat kon hem niet opslaan. Na een herstart moet je hem opnieuw koppelen.",
+  "nwcNotForgottenMessage": "Wallet ontkoppeld, maar dit apparaat kon de koppeling niet wissen. Trek hem voor de zekerheid in je wallet in.",
   "relayLabel": "Relay",
   "disconnectButtonLabel": "Verbreken",
   "relaysMoreSuffix": "(+{count} meer)",

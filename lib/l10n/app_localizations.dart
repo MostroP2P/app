@@ -2188,6 +2188,18 @@ abstract class AppLocalizations {
   /// **'Wallet disconnected'**
   String get walletDisconnectedMessage;
 
+  /// Snackbar when the wallet connected but secure storage refused to save its URI
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet connected, but this device could not save it. You will have to connect it again after a restart.'**
+  String get nwcNotSavedMessage;
+
+  /// Snackbar when the wallet was disconnected but secure storage refused to erase its URI
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet disconnected, but this device could not erase the connection. Revoke it in your wallet to be sure.'**
+  String get nwcNotForgottenMessage;
+
   /// Label for a single relay row on the Wallet Settings screen
   ///
   /// In en, this message translates to:

@@ -1177,6 +1177,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get walletDisconnectedMessage => 'Wallet disconnected';
 
   @override
+  String get nwcNotSavedMessage =>
+      'Wallet connected, but this device could not save it. You will have to connect it again after a restart.';
+
+  @override
+  String get nwcNotForgottenMessage =>
+      'Wallet disconnected, but this device could not erase the connection. Revoke it in your wallet to be sure.';
+
+  @override
   String get relayLabel => 'Relay';
 
   @override

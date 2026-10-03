@@ -348,6 +348,8 @@
   "scanQrButtonLabel": "Scansiona QR",
   "connectButtonLabel": "Connetti",
   "walletDisconnectedMessage": "Wallet disconnesso",
+  "nwcNotSavedMessage": "Wallet connesso, ma questo dispositivo non è riuscito a salvarlo. Dovrai ricollegarlo dopo un riavvio.",
+  "nwcNotForgottenMessage": "Wallet disconnesso, ma questo dispositivo non è riuscito a cancellare la connessione. Revocala nel tuo wallet per sicurezza.",
   "relayLabel": "Relay",
   "disconnectButtonLabel": "Disconnetti",
   "relaysMoreSuffix": "(+{count} altri)",

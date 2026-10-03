@@ -348,6 +348,8 @@
   "scanQrButtonLabel": "Escanear QR",
   "connectButtonLabel": "Conectar",
   "walletDisconnectedMessage": "Wallet desconectada",
+  "nwcNotSavedMessage": "Billetera conectada, pero este dispositivo no pudo guardarla. Tendrás que conectarla de nuevo tras reiniciar.",
+  "nwcNotForgottenMessage": "Billetera desconectada, pero este dispositivo no pudo borrar la conexión. Revócala en tu billetera para estar seguro.",
   "relayLabel": "Relay",
   "disconnectButtonLabel": "Desconectar",
   "relaysMoreSuffix": "(+{count} más)",

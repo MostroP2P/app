@@ -14,8 +14,13 @@ Parse NWC URI and establish connection to wallet service.
 **Validation**: URI MUST be valid NWC format with pubkey, at least one
 relay URL, and hex secret.
 
-**Side effects**: Stores encrypted credentials in secure storage.
-Connects to wallet relay(s). Queries wallet info.
+**Side effects**: Connects to wallet relay(s). Queries wallet info. The
+Dart layer keeps the URI, secret included, in `FlutterSecureStorage` next to
+the mnemonic (`NwcUriStore`: Keychain / Keystore; on web the browser storage
+the mnemonic has). A copy left in SharedPreferences by an earlier version is
+moved there once and removed; every later save or disconnect removes it too,
+whether or not secure storage accepted the change, and the screen says so
+when it did not.
 
 **Errors**: `InvalidNwcUri`, `ConnectionFailed`, `StorageError`.
 
