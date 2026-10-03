@@ -7,9 +7,11 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_book_palette.dart';
+import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/reputation/lnp2pbot.dart';
 import 'package:mostro/features/reputation/reputation_api.dart';
 import 'package:mostro/features/reputation/reputation_errors.dart';
+import 'package:mostro/features/reputation/widgets/reputation_controls.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
@@ -101,6 +103,7 @@ class _ImportReputationScreenState
     final l10n = AppLocalizations.of(context);
     final book = OrderBookPalette.of(context);
     final attestation = _attestation;
+    final settings = SettingsPalette.of(context);
     return Scaffold(
       backgroundColor: book.bg,
       appBar: redesignAppBar(
@@ -125,9 +128,9 @@ class _ImportReputationScreenState
             style: TextStyle(color: book.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 14),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.send_outlined),
-            label: Text(l10n.reputationOpenLnp2pbot),
+          ReputationSecondaryButton(
+            icon: Icons.send_outlined,
+            label: l10n.reputationOpenLnp2pbot,
             onPressed: _openBot,
           ).withAutomationId(AutomationIds.reputationImportOpenBot),
           const SizedBox(height: 14),
@@ -138,13 +141,25 @@ class _ImportReputationScreenState
             style: TextStyle(color: book.textPrimary, fontSize: 12),
             decoration: InputDecoration(
               hintText: l10n.reputationPasteHint,
-              border: const OutlineInputBorder(),
+              hintStyle: TextStyle(color: settings.placeholder, fontSize: 12),
+              filled: false,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: settings.fieldUnderline),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: settings.fieldUnderlineFocus,
+                  width: 1.5,
+                ),
+              ),
             ),
           ).withAutomationId(AutomationIds.reputationImportInput),
           const SizedBox(height: 8),
-          FilledButton(
+          ReputationPrimaryButton(
+            label: l10n.reputationCheck,
             onPressed: _busy ? null : _check,
-            child: Text(l10n.reputationCheck),
           ).withAutomationId(AutomationIds.reputationImportCheck),
           if (_error != null) ...[
             const SizedBox(height: 12),
@@ -162,9 +177,9 @@ class _ImportReputationScreenState
                 style: TextStyle(color: book.limeText),
               )
             else
-              FilledButton(
+              ReputationPrimaryButton(
+                label: l10n.reputationImportConfirm,
                 onPressed: _busy ? null : _import,
-                child: Text(l10n.reputationImportConfirm),
               ).withAutomationId(AutomationIds.reputationImportConfirm),
           ],
         ],
