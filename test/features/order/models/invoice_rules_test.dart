@@ -274,4 +274,15 @@ void main() {
       expect(nwcInvoiceExpirySecs(null), kNwcInvoiceExpiryMarginSecs);
     });
   });
+
+  group('copyLeadsInvoice', () {
+    test('off the web the wallet link leads until it finds no app', () {
+      expect(copyLeadsInvoice(isWeb: false, noWalletApp: false), isFalse);
+      expect(copyLeadsInvoice(isWeb: false, noWalletApp: true), isTrue);
+    });
+
+    test('on the web copy always leads: a browser never reports no app', () {
+      expect(copyLeadsInvoice(isWeb: true, noWalletApp: false), isTrue);
+    });
+  });
 }

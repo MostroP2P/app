@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/core/invoice_palette.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
+import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
@@ -450,15 +452,20 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (open)
+                    if (open) ...[
                       BondAmountRow(
                         label: l10n.bondRefundableLabel,
                         sats: amountSats,
                         remaining: remaining,
                         hours: l10n.invoiceCountdownHours,
                         unit: l10n.satsUnitLabel,
-                      )
-                    else ...[
+                      ),
+                      // Opening the explainer keeps the QR: it opens by
+                      // default, so hiding it left a first-time payer with
+                      // only the wallet link.
+                      const SizedBox(height: 11),
+                      _qr(l10n, invoice),
+                    ] else ...[
                       InvoiceHeroCard(
                         label: l10n.bondRefundableLabel,
                         sats: amountSats,
@@ -524,7 +531,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                         maker: maker,
                       )
                     else
-                      ..._footer(l10n, invoice, open: open, maker: maker),
+                      ..._footer(l10n, invoice, maker: maker),
                   ],
                 ),
               ),
@@ -640,7 +647,6 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
   List<Widget> _footer(
     AppLocalizations l10n,
     String invoice, {
-    required bool open,
     required bool maker,
   }) {
     final book = OrderBookPalette.of(context);
@@ -657,17 +663,19 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     }
     final copied = _copiedTimer != null;
     final copyIcon = copied ? Icons.check : Icons.copy;
+    final copyLeads = copyLeadsInvoice(
+      isWeb: kIsWeb,
+      noWalletApp: _noWalletApp,
+    );
     final secondaries = Row(
       children: [
         Expanded(
           child: InvoiceSecondaryButton(
-            icon: _noWalletApp ? Icons.bolt : copyIcon,
-            iconColor: !_noWalletApp && copied ? book.lime : null,
-            label: _noWalletApp ? l10n.invoiceOpenWallet : l10n.copyButtonLabel,
+            icon: copyLeads ? Icons.bolt : copyIcon,
+            iconColor: !copyLeads && copied ? book.lime : null,
+            label: copyLeads ? l10n.invoiceOpenWallet : l10n.copyButtonLabel,
             onPressed:
-                _noWalletApp
-                    ? () => _openWallet(invoice)
-                    : () => _copy(invoice),
+                copyLeads ? () => _openWallet(invoice) : () => _copy(invoice),
           ),
         ),
         const SizedBox(width: 9),
@@ -683,7 +691,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     return [
       // Without an app for `lightning:` links, `Copy` is the primary action
       // and the wallet link drops to a secondary one.
-      if (_noWalletApp)
+      if (copyLeads)
         InvoicePrimaryButton(
           icon: copyIcon,
           label: l10n.copyButtonLabel,
@@ -695,8 +703,8 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
           label: l10n.invoiceOpenWallet,
           onPressed: () => _openWallet(invoice),
         ),
-      // 14b hides copy / share: whoever is reading is not scanning.
-      if (!open) ...[const SizedBox(height: 9), secondaries],
+      const SizedBox(height: 9),
+      secondaries,
       const SizedBox(height: 4),
       _leaveLink(l10n, maker: maker),
     ];
@@ -712,7 +720,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     required bool open,
     required bool maker,
   }) {
-    if (_waiting) return _footer(l10n, invoice, open: open, maker: maker);
+    if (_waiting) return _footer(l10n, invoice, maker: maker);
     return [
       NwcPaymentWidget(
         bolt11: invoice,

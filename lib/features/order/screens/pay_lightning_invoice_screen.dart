@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -531,7 +532,7 @@ class _PayLightningInvoiceScreenState
     );
 
     return [
-      if (_noWalletApp) ...[
+      if (copyLeadsInvoice(isWeb: kIsWeb, noWalletApp: _noWalletApp)) ...[
         InvoicePrimaryButton(
           icon: copyIcon,
           label: l10n.copyButtonLabel,

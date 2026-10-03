@@ -21,6 +21,16 @@ import 'package:mostro/src/rust/api/types.dart'
 String invoiceOrderTag(String orderId) =>
     '#${orderId.length <= 8 ? orderId : orderId.substring(0, 8)}';
 
+// ── Wallet hand-off ───────────────────────────────────────────────────────────
+
+/// Whether `Copy` leads the footer and `Open in my wallet` drops to a
+/// secondary action. Off the web that happens once a `lightning:` link found
+/// no app. A browser never says so: it hands the link to whatever the OS has
+/// registered — a desktop Bitcoin wallet that cannot pay Lightning, say — and
+/// `launchUrl` reports success either way.
+bool copyLeadsInvoice({required bool isWeb, required bool noWalletApp}) =>
+    isWeb || noWalletApp;
+
 // ── Amounts ───────────────────────────────────────────────────────────────────
 
 const _thinSpace = ' ';

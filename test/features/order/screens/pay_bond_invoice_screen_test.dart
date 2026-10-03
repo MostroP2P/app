@@ -158,16 +158,20 @@ void main() {
     expect(find.text('Open in my wallet'), findsNothing);
   });
 
-  testWidgets('14b: opening the explainer hides the QR and copy / share', (
+  testWidgets('14b: opening the explainer keeps the QR and copy / share', (
     tester,
   ) async {
+    // The explainer opens by default: hiding the QR there left a first-time
+    // payer with only the wallet link, which a browser may hand to a wallet
+    // that cannot pay Lightning.
     await _pump(tester, trade: fakeTrade(bond: _bond()));
     await tester.tap(find.text('Why Mostro asks for a deposit'));
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(QrImageView), findsNothing);
-    expect(find.text('Copy'), findsNothing);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
     expect(find.text('Read the documentation'), findsOneWidget);
     expect(
       find.textContaining(
@@ -187,7 +191,7 @@ void main() {
     tester,
   ) async {
     await _pump(tester, trade: fakeTrade(bond: _bond()), explainerOpen: true);
-    expect(find.byType(QrImageView), findsNothing);
+    expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('Read the documentation'), findsOneWidget);
   });
 
