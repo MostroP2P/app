@@ -589,6 +589,23 @@ pub async fn own_orders(
     wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
+/// Build a reputation request (`export-reputation` or `import-reputation`,
+/// MostroP2P/protocol reputation_transfer.md): the `order` wrapper with no
+/// id. Both act on the identity, so `identity_keys` must be the real
+/// identity — the daemon refuses a request without an identity proof.
+/// `request_id` is the nonce the daemon echoes in its reply.
+pub async fn reputation_request(
+    identity_keys: &Keys,
+    trade_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    request_id: u64,
+    action: Action,
+    payload: Payload,
+) -> Result<String> {
+    let msg = Message::new_order(None, Some(request_id), None, action, Some(payload));
+    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -819,6 +836,57 @@ mod tests {
         assert_eq!(kind.request_id, Some(42));
         assert_eq!(kind.trade_index, Some(3));
         assert!(matches!(kind.action, Action::NewOrder));
+    }
+
+    /// A reputation request reaches the node in the `order` wrapper with no
+    /// id, its nonce and payload intact, and the identity proven (the daemon
+    /// refuses it without the proof).
+    #[tokio::test]
+    async fn a_reputation_request_carries_the_identity_proof_and_its_nonce() {
+        use mostro_core::message::ReputationExportRequest;
+        let identity_keys = Keys::generate();
+        let trade_keys = Keys::generate();
+        let mostro_keys = Keys::generate();
+        let _pow = crate::mostro::pow::test_support::lock_pow();
+        crate::mostro::pow::set_pows(&mostro_keys.public_key().to_hex(), 0, None);
+        crate::mostro::protocol_version::set_protocol_version(
+            &mostro_keys.public_key().to_hex(),
+            Some(2),
+        );
+        let destination = identity_keys.public_key().to_hex();
+        let json = reputation_request(
+            &identity_keys,
+            &trade_keys,
+            &mostro_keys.public_key(),
+            77,
+            Action::ExportReputation,
+            Payload::ReputationExportRequest(ReputationExportRequest {
+                destination: destination.clone(),
+                rebind: None,
+            }),
+        )
+        .await
+        .unwrap();
+
+        let event = Event::from_json(&json).unwrap();
+        assert_eq!(event.pubkey, trade_keys.public_key(), "authored by the trade key");
+        let unwrapped = transport::unwrap_mostro_message(&mostro_keys, &event)
+            .await
+            .unwrap()
+            .expect("message must decrypt for the recipient");
+        assert_eq!(unwrapped.identity, identity_keys.public_key());
+        assert!(matches!(unwrapped.message, Message::Order(_)));
+        let kind = unwrapped.message.get_inner_message_kind();
+        assert_eq!(kind.request_id, Some(77));
+        assert_eq!(kind.id, None);
+        assert_eq!(kind.action, Action::ExportReputation);
+        assert!(kind.verify());
+        match kind.get_payload() {
+            Some(Payload::ReputationExportRequest(request)) => {
+                assert_eq!(request.destination, destination)
+            }
+            other => panic!("unexpected payload {other:?}"),
+        }
     }
 
     /// The outgoing take messages must carry the caller's request_id — the

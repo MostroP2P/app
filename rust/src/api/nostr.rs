@@ -903,6 +903,9 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
             // the person who takes a case over (#637). A fetch without the tag
             // retracts an older announcement. See mostro::serbero.
             crate::mostro::serbero::set_from_tags(&mostro_pubkey_hex, &tags);
+            // Whether it exports or imports reputation; a fetch without the
+            // tags retracts an older answer. See mostro::reputation_support.
+            crate::mostro::reputation_support::set_from_tags(&mostro_pubkey_hex, &tags);
             // The service fee. Only Cashu mode needs it client-side — there the
             // seller funds the whole fee as its own token — but it rides in the
             // same event, so reading it here costs nothing.
@@ -924,6 +927,7 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
             crate::mostro::bond_policy::clear();
             // Nor a Serbero: retract an older announcement of this node.
             crate::mostro::serbero::set_from_tags(&mostro_pubkey_hex, &[]);
+            crate::mostro::reputation_support::set_from_tags(&mostro_pubkey_hex, &[]);
         }
         Err(e) => {
             log::warn!("[nostr] failed to fetch Kind 38385 for node capabilities: {e}");
@@ -937,6 +941,8 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
             // Same reasoning: a stale bond policy would pre-warn (or fail to
             // pre-warn) for the wrong node.
             crate::mostro::bond_policy::clear();
+            // Nor send reputation requests the node may not understand.
+            crate::mostro::reputation_support::set_from_tags(&mostro_pubkey_hex, &[]);
         }
     }
 }

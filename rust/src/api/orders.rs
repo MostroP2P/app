@@ -9926,13 +9926,13 @@ async fn last_trade_index(sender_keys: &nostr_sdk::prelude::Keys) -> Result<Opti
 /// A correlation nonce the daemon echoes in its reply. Random, not
 /// time-derived, so a replayed reply from an earlier request cannot match;
 /// never 0, which is indistinguishable from "unset".
-fn fresh_request_id() -> u64 {
+pub(crate) fn fresh_request_id() -> u64 {
     use rand::RngCore;
     rand::rngs::OsRng.next_u64().max(1)
 }
 
 /// How the daemon answered a self-contained request (see [`ask_daemon`]).
-enum DaemonAnswer {
+pub(crate) enum DaemonAnswer {
     /// The reply `is_reply` recognised, echoing the request's nonce, and the
     /// node's timestamp on it.
     Reply(Box<mostro_core::message::MessageKind>, i64),
@@ -9955,7 +9955,37 @@ async fn ask_daemon(
     label: &str,
     is_reply: fn(&mostro_core::message::MessageKind, u64) -> bool,
 ) -> Result<DaemonAnswer> {
-    use crate::rt::time::{timeout, Duration};
+    // This query, unlike the restore itself, has a fallback (the payload
+    // maximum), so a shorter wait halves the worst-case restore latency
+    // against a silent daemon.
+    ask_daemon_with(
+        sender_keys,
+        mostro_pubkey,
+        request_id,
+        event_json,
+        label,
+        is_reply,
+        crate::rt::time::Duration::from_secs(5),
+        "restore",
+    )
+    .await
+}
+
+/// [`ask_daemon`] with the reply window and the log category the caller
+/// chooses: a request the user waits for, with no fallback, can afford a
+/// longer window than the restore's.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn ask_daemon_with(
+    sender_keys: &nostr_sdk::prelude::Keys,
+    mostro_pubkey: &nostr_sdk::prelude::PublicKey,
+    request_id: u64,
+    event_json: &str,
+    label: &str,
+    is_reply: fn(&mostro_core::message::MessageKind, u64) -> bool,
+    reply_window: crate::rt::time::Duration,
+    log_category: &str,
+) -> Result<DaemonAnswer> {
+    use crate::rt::time::timeout;
     use nostr_sdk::prelude::{ClientNotification, StreamExt};
 
     let mostro_pubkey = *mostro_pubkey;
@@ -9968,12 +9998,9 @@ async fn ask_daemon(
     // arrive in the gap between subscribe and the first recv.
     let mut rx = client.notifications();
 
-    // This query, unlike the restore itself, has a fallback (the payload
-    // maximum), so a shorter wait halves the worst-case restore latency
-    // against a silent daemon. Shared by the relay-side auto-close and the
-    // outer wait loop — both started at subscribe below, so the two budgets
+    // `reply_window` is shared by the relay-side auto-close and the outer
+    // wait loop — both started at subscribe below, so the two budgets
     // actually run together.
-    const REPLY_TIMEOUT: Duration = Duration::from_secs(5);
 
     // limit(0): live-only, same rationale as subscribe_daemon_messages — the
     // reply is published after we subscribe, and we never want a replayed
@@ -9996,9 +10023,9 @@ async fn ask_daemon(
     // back to the payload maximum by design).
     let close_opts = nostr_sdk::prelude::SubscribeAutoCloseOptions::default()
         .exit_policy(nostr_sdk::prelude::ReqExitPolicy::WaitDurationAfterEOSE(
-            REPLY_TIMEOUT,
+            reply_window,
         ))
-        .timeout(Some(REPLY_TIMEOUT));
+        .timeout(Some(reply_window));
     if let Err(e) = client.subscribe(filter).close_on(close_opts).await {
         log::warn!("[orders] {label} subscribe failed: {e}");
         return Ok(DaemonAnswer::Silent);
@@ -10008,10 +10035,10 @@ async fn ask_daemon(
     let start = crate::rt::time::Instant::now();
 
     publish_event_json(event_json).await?;
-    crate::api::logging::blog_info("restore", format!("{label} published — waiting for daemon"));
+    crate::api::logging::blog_info(log_category, format!("{label} published — waiting for daemon"));
 
     loop {
-        let remaining = REPLY_TIMEOUT.saturating_sub(start.elapsed());
+        let remaining = reply_window.saturating_sub(start.elapsed());
         if remaining.is_zero() {
             break;
         }

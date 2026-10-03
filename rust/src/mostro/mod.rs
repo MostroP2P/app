@@ -12,6 +12,7 @@ pub mod push;
 pub mod rates;
 pub(crate) mod reputation;
 pub mod restore_history;
+pub mod reputation_support;
 pub mod serbero;
 pub mod session;
 pub mod trade_index;
