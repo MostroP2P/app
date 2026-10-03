@@ -18,3 +18,21 @@ String databaseLocation({required bool isWeb, String? dataDir}) {
   }
   return '$dir/mostro.db';
 }
+
+/// Opens the persistent store on every platform, the web included (#408).
+///
+/// [dataDir] and [initDb] are the real `appDataDirPath` and `rust_api.initDb`
+/// in the app; taken as arguments so this runs in a test without Rust.
+/// [dataDir] is not called on the web, where there is no file system to ask.
+Future<void> openDatabase({
+  required bool isWeb,
+  required Future<String> Function() dataDir,
+  required Future<void> Function({required String path}) initDb,
+}) async {
+  await initDb(
+    path: databaseLocation(
+      isWeb: isWeb,
+      dataDir: isWeb ? null : await dataDir(),
+    ),
+  );
+}

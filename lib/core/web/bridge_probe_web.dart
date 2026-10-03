@@ -17,21 +17,22 @@ import 'dart:js_interop';
 // which is exactly what writing a named global is.
 import 'dart:js_interop_unsafe';
 
-/// Set to `true` once a Rust bridge call has completed successfully.
+/// Set to `true` once startup has finished, bridge calls included.
 const kBridgeReadyFlag = 'mostroBridgeReady';
 
-/// Set to the error string when that call threw instead.
+/// Set to the error string when a bridge call or startup itself failed.
 const kBridgeErrorFlag = 'mostroBridgeError';
 
-/// Publishes a successful Rust bridge round-trip to the page.
+/// Publishes that startup finished, so the Rust bridge answered too.
 void markBridgeReady() {
   globalContext.setProperty(kBridgeReadyFlag.toJS, true.toJS);
 }
 
-/// Publishes a failed Rust bridge round-trip, with [error] for the CI log.
+/// Publishes a failure, with [error] for the CI log.
 ///
-/// The app itself keeps going — the caller already treats this failure as
-/// non-fatal — but a build that reaches here is not deployable.
+/// Either a bridge call the app survives (startup keeps going, degraded) or a
+/// fatal startup failure the guard caught. A build that reaches here is not
+/// deployable either way.
 void markBridgeFailed(Object error) {
   globalContext.setProperty(kBridgeErrorFlag.toJS, error.toString().toJS);
 }
