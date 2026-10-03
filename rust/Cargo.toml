@@ -25,7 +25,7 @@ nostr = { version = "0.45", default-features = false, features = ["std", "nip04"
 # requires nostr 0.45. The Cashu wire form pinned by `mostro/cashu_wire.rs` and
 # documented in docs/cashu/README.md §2 was confirmed against 0.14.1 and is
 # unchanged since.
-mostro-core = "0.16.0"
+mostro-core = { git = "https://github.com/MostroP2P/mostro-core", branch = "feat/reputation-merge" }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

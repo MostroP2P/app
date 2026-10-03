@@ -40,6 +40,12 @@ pub mod settings_keys {
     /// history (#614).
     pub const RESTORE_SNAPSHOT: &str = "restore_snapshot";
 
+    /// A reputation attestation the identity exported and has not imported
+    /// yet, as the event JSON it came in (`api::reputation_transfer`).
+    /// Identity-scoped: it names the identity that requested it, and is of
+    /// no use to the next one.
+    pub const PENDING_REPUTATION_ATTESTATION: &str = "pending_reputation_attestation";
+
     // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────
 
     /// The master toggle, `"true"` / `"false"`; absent reads as enabled.
@@ -212,8 +218,8 @@ pub mod settings_keys {
     pub const TRADE_WIPED_PREFIX: &str = "trade_wiped:";
 
     /// Every per-order key family above. The single identity-scoped keys —
-    /// [`BOND_CLAIM_RETAINED_NODES`] and [`RESTORE_SNAPSHOT`] — are dropped
-    /// by name next to them.
+    /// [`BOND_CLAIM_RETAINED_NODES`], [`RESTORE_SNAPSHOT`] and
+    /// [`PENDING_REPUTATION_ATTESTATION`] — are dropped by name next to them.
     /// All of it describes trades of the identity that wrote it, so
     /// [`super::Storage::clear_identity_data`] drops it with the rows. What
     /// is left in the store is device preference: the active node, custom
