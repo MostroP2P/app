@@ -4161,4 +4161,79 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
       'Ils verrouillent les sats dans l\'escrow. Une fois verrouillé, c\'est à vous de payer le fiat.';
+
+  @override
+  String get reputationNodeDoesNotExport =>
+      'Ce Mostro n\'exporte pas la réputation.';
+
+  @override
+  String get reputationNodeDoesNotImport =>
+      'Ce Mostro n\'importe pas la réputation.';
+
+  @override
+  String get reputationIdentityRequired =>
+      'La réputation ne peut être transférée que depuis un compte qui la conserve. Désactivez le mode confidentialité totale et réessayez.';
+
+  @override
+  String get reputationNotEligible =>
+      'Votre compte ne peut pas encore exporter sa réputation : il lui faut au moins 10 échanges terminés et 5 évaluations reçues.';
+
+  @override
+  String get reputationBoundToOtherIdentity =>
+      'Votre réputation là-bas est déjà liée à une autre identité. Autorisez le transfert depuis l\'identité à laquelle elle est liée.';
+
+  @override
+  String get reputationInvalidRebind =>
+      'L\'autorisation de transférer votre réputation n\'est pas valide ou a expiré. Créez-en une nouvelle.';
+
+  @override
+  String get reputationExpiredAttestation =>
+      'Cette réputation a expiré. Redemandez-la à sa source.';
+
+  @override
+  String get reputationUntrustedIssuer =>
+      'Ce Mostro n\'accepte pas la réputation de cette source.';
+
+  @override
+  String get reputationIdentityMismatch =>
+      'Cette réputation a été émise pour une autre identité que celle que vous utilisez.';
+
+  @override
+  String get reputationAlreadyImported =>
+      'Cette réputation a déjà été importée sur ce Mostro.';
+
+  @override
+  String get reputationInvalidAttestation =>
+      'Ce n\'est pas une réputation valide. Redemandez-la à sa source.';
+
+  @override
+  String get reputationImportTitle => 'Importer la réputation';
+
+  @override
+  String get reputationImportIntro =>
+      'Apportez sur ce Mostro la réputation gagnée sur lnp2pBot ou sur un autre Mostro. L\'import relie les deux comptes : la source et ce Mostro savent qu\'ils appartiennent à la même personne.';
+
+  @override
+  String get reputationOpenLnp2pbot => 'L\'obtenir de lnp2pBot';
+
+  @override
+  String get reputationPasteHint => 'Collez la réputation reçue';
+
+  @override
+  String get reputationCheck => 'Vérifier';
+
+  @override
+  String get reputationImported => 'Votre réputation a été importée.';
+
+  @override
+  String get reputationImportConfirm => 'Importer sur ce Mostro';
+
+  @override
+  String reputationFigures(int reviews, String rating, int days) {
+    return '$reviews évaluations reçues, $rating en moyenne, échange depuis $days jours';
+  }
+
+  @override
+  String get reputationFiguresNote =>
+      'La réputation importée s\'ajoute à celle que vous avez ici ; vos contreparties les voient fusionnées.';
 }

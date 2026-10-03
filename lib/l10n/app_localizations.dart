@@ -6855,6 +6855,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'They\'re locking the sats in escrow. Once it\'s locked, it\'s your turn to pay the fiat.'**
   String get tradeBodyWaitingPaymentBuyerCashu;
+
+  /// No description provided for @reputationNodeDoesNotExport.
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro does not export reputation.'**
+  String get reputationNodeDoesNotExport;
+
+  /// No description provided for @reputationNodeDoesNotImport.
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro does not import reputation.'**
+  String get reputationNodeDoesNotImport;
+
+  /// No description provided for @reputationIdentityRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Reputation can only be moved from an account that keeps its reputation. Turn off full privacy mode and try again.'**
+  String get reputationIdentityRequired;
+
+  /// No description provided for @reputationNotEligible.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account cannot export its reputation yet: it needs at least 10 completed trades and 5 ratings received.'**
+  String get reputationNotEligible;
+
+  /// No description provided for @reputationBoundToOtherIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation there is already bound to another identity. Authorize the move from the identity it is bound to.'**
+  String get reputationBoundToOtherIdentity;
+
+  /// No description provided for @reputationInvalidRebind.
+  ///
+  /// In en, this message translates to:
+  /// **'The authorization to move your reputation is invalid or has expired. Create a new one.'**
+  String get reputationInvalidRebind;
+
+  /// No description provided for @reputationExpiredAttestation.
+  ///
+  /// In en, this message translates to:
+  /// **'This reputation has expired. Request it again from its source.'**
+  String get reputationExpiredAttestation;
+
+  /// No description provided for @reputationUntrustedIssuer.
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro does not accept reputation from that source.'**
+  String get reputationUntrustedIssuer;
+
+  /// No description provided for @reputationIdentityMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'This reputation was issued for another identity than the one you are using.'**
+  String get reputationIdentityMismatch;
+
+  /// No description provided for @reputationAlreadyImported.
+  ///
+  /// In en, this message translates to:
+  /// **'This reputation was already imported on this Mostro.'**
+  String get reputationAlreadyImported;
+
+  /// No description provided for @reputationInvalidAttestation.
+  ///
+  /// In en, this message translates to:
+  /// **'This is not a valid reputation. Request it again from its source.'**
+  String get reputationInvalidAttestation;
+
+  /// No description provided for @reputationImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import reputation'**
+  String get reputationImportTitle;
+
+  /// No description provided for @reputationImportIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Bring the reputation you earned on lnp2pBot or on another Mostro to this one. Importing links the two accounts: the source and this Mostro learn they belong to the same person.'**
+  String get reputationImportIntro;
+
+  /// No description provided for @reputationOpenLnp2pbot.
+  ///
+  /// In en, this message translates to:
+  /// **'Get it from lnp2pBot'**
+  String get reputationOpenLnp2pbot;
+
+  /// No description provided for @reputationPasteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the reputation you received'**
+  String get reputationPasteHint;
+
+  /// No description provided for @reputationCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get reputationCheck;
+
+  /// No description provided for @reputationImported.
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation was imported.'**
+  String get reputationImported;
+
+  /// No description provided for @reputationImportConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Import into this Mostro'**
+  String get reputationImportConfirm;
+
+  /// No description provided for @reputationFigures.
+  ///
+  /// In en, this message translates to:
+  /// **'{reviews} ratings received, {rating} on average, trading for {days} days'**
+  String reputationFigures(int reviews, String rating, int days);
+
+  /// No description provided for @reputationFiguresNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported reputation is added to the one you have here; your counterparties see them merged.'**
+  String get reputationFiguresNote;
 }
 
 class _AppLocalizationsDelegate

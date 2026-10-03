@@ -4132,4 +4132,79 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
       'Ze vergrendelen de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om de fiat te betalen.';
+
+  @override
+  String get reputationNodeDoesNotExport =>
+      'Deze Mostro exporteert geen reputatie.';
+
+  @override
+  String get reputationNodeDoesNotImport =>
+      'Deze Mostro importeert geen reputatie.';
+
+  @override
+  String get reputationIdentityRequired =>
+      'Reputatie kan alleen worden verplaatst vanaf een account dat zijn reputatie bewaart. Zet de volledige privacymodus uit en probeer het opnieuw.';
+
+  @override
+  String get reputationNotEligible =>
+      'Je account kan zijn reputatie nog niet exporteren: er zijn minstens 10 voltooide transacties en 5 ontvangen beoordelingen nodig.';
+
+  @override
+  String get reputationBoundToOtherIdentity =>
+      'Je reputatie daar is al gekoppeld aan een andere identiteit. Geef toestemming voor de verplaatsing vanuit de identiteit waaraan ze gekoppeld is.';
+
+  @override
+  String get reputationInvalidRebind =>
+      'De toestemming om je reputatie te verplaatsen is ongeldig of verlopen. Maak een nieuwe aan.';
+
+  @override
+  String get reputationExpiredAttestation =>
+      'Deze reputatie is verlopen. Vraag ze opnieuw aan bij de bron.';
+
+  @override
+  String get reputationUntrustedIssuer =>
+      'Deze Mostro accepteert geen reputatie van die bron.';
+
+  @override
+  String get reputationIdentityMismatch =>
+      'Deze reputatie is uitgegeven voor een andere identiteit dan die je gebruikt.';
+
+  @override
+  String get reputationAlreadyImported =>
+      'Deze reputatie is al geïmporteerd op deze Mostro.';
+
+  @override
+  String get reputationInvalidAttestation =>
+      'Dit is geen geldige reputatie. Vraag ze opnieuw aan bij de bron.';
+
+  @override
+  String get reputationImportTitle => 'Reputatie importeren';
+
+  @override
+  String get reputationImportIntro =>
+      'Breng de reputatie die je op lnp2pBot of op een andere Mostro hebt verdiend naar deze. Importeren koppelt de twee accounts: de bron en deze Mostro weten dat ze van dezelfde persoon zijn.';
+
+  @override
+  String get reputationOpenLnp2pbot => 'Ophalen bij lnp2pBot';
+
+  @override
+  String get reputationPasteHint => 'Plak de ontvangen reputatie';
+
+  @override
+  String get reputationCheck => 'Controleren';
+
+  @override
+  String get reputationImported => 'Je reputatie is geïmporteerd.';
+
+  @override
+  String get reputationImportConfirm => 'Importeren in deze Mostro';
+
+  @override
+  String reputationFigures(int reviews, String rating, int days) {
+    return '$reviews ontvangen beoordelingen, gemiddeld $rating, handelt al $days dagen';
+  }
+
+  @override
+  String get reputationFiguresNote =>
+      'Geïmporteerde reputatie wordt opgeteld bij die van hier; je tegenpartijen zien ze samen.';
 }
