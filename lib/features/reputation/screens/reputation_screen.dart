@@ -7,10 +7,12 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_book_palette.dart';
+import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/reputation/npub.dart';
 import 'package:mostro/features/reputation/reputation_api.dart';
 import 'package:mostro/features/reputation/reputation_errors.dart';
+import 'package:mostro/features/reputation/widgets/reputation_controls.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
@@ -113,6 +115,7 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final book = OrderBookPalette.of(context);
+    final settings = SettingsPalette.of(context);
     final support = ref.read(reputationApiProvider).support();
     final privacy = ref.watch(privacyModeProvider);
     final body = TextStyle(color: book.textMuted, fontSize: 13);
@@ -143,12 +146,12 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
             children: [
               Text(l10n.reputationImportCardBody, style: body),
               const SizedBox(height: 10),
-              FilledButton(
+              ReputationSecondaryButton(
+                label: l10n.reputationImportTitle,
                 onPressed:
                     privacy
                         ? null
                         : () => context.push(AppRoute.importReputation),
-                child: Text(l10n.reputationImportTitle),
               ).withAutomationId(AutomationIds.reputationOpenImport),
             ],
           ),
@@ -160,9 +163,9 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
                     : [
                       Text(l10n.reputationExportCardBody, style: body),
                       const SizedBox(height: 10),
-                      FilledButton(
+                      ReputationPrimaryButton(
+                        label: l10n.reputationExportTitle,
                         onPressed: privacy || _busy ? null : _export,
-                        child: Text(l10n.reputationExportTitle),
                       ).withAutomationId(AutomationIds.reputationExport),
                       if (_exported != null) ...[
                         const SizedBox(height: 10),
@@ -177,15 +180,33 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
                         controller: _newIdentity,
                         style: TextStyle(color: book.textPrimary),
                         decoration: InputDecoration(
+                          isDense: true,
                           hintText: l10n.reputationNewIdentityHint,
+                          hintStyle: TextStyle(color: settings.placeholder),
+                          filled: false,
+                          contentPadding: const EdgeInsets.only(
+                            top: 6,
+                            bottom: 8,
+                          ),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: settings.fieldUnderline,
+                            ),
+                          ),
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: settings.fieldUnderlineFocus,
+                              width: 1.5,
+                            ),
+                          ),
                         ),
                       ).withAutomationId(
                         AutomationIds.reputationRebindIdentity,
                       ),
                       const SizedBox(height: 8),
-                      OutlinedButton(
+                      ReputationSecondaryButton(
+                        label: l10n.reputationRebindSign,
                         onPressed: privacy ? null : () => _signRebind(issuer),
-                        child: Text(l10n.reputationRebindSign),
                       ).withAutomationId(AutomationIds.reputationRebindSign),
                       if (_rebind != null) _Copyable(text: _rebind!),
                     ],
@@ -223,7 +244,7 @@ class _Card extends StatelessWidget {
               title!,
               style: TextStyle(
                 color: book.textPrimary,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
