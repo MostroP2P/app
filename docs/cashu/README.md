@@ -201,8 +201,8 @@ And the NUT-11 secret the seller's wallet must construct for each escrow proof
      (`BondPolicy { unsupported, disabled, enabled }` in
      `lib/features/about/models/mostro_instance.dart`) and the `fetch_and_set_pow`
      fetch hook (`rust/src/api/nostr.rs`).
-   - Native/WASM split: the NWC client's `#[cfg(target_arch = "wasm32")]` stub
-     (`rust/src/nwc/client.rs`).
+   - Native/WASM split: the Cashu wallet's typed `#[cfg(target_arch = "wasm32")]`
+     stub (`rust/src/cashu/mod.rs`).
    - Request correlation: `PendingRequestKind` in `rust/src/api/orders.rs`.
 
 ---

@@ -2490,6 +2490,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get nwcWalletNotConnected => 'Non connecté';
 
   @override
+  String get nwcWalletUnreachableMessage =>
+      'Impossible de joindre votre portefeuille. Vérifiez qu\'il est en ligne et réessayez.';
+
+  @override
+  String get nwcWalletRejectedMessage =>
+      'Votre portefeuille a refusé cette connexion. Créez une nouvelle connexion dans votre portefeuille et collez cette URI.';
+
+  @override
+  String get nwcRelayBlockedOnWebMessage =>
+      'Le relais de ce portefeuille utilise ws://, qu\'une page web sécurisée ne peut pas ouvrir. Utilisez un relais wss:// ou l\'app Android ou de bureau.';
+
+  @override
   String relaysConnectedOfTotal(int connected, int total) {
     return '$connected sur $total connectés';
   }
