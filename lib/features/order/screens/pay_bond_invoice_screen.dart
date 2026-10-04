@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/core/invoice_palette.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
+import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
@@ -43,8 +45,9 @@ const _docsUrl = 'https://mostro.network/docs-english/';
 ///
 /// The taker pays the bond hold invoice the daemon asks for before the trade
 /// starts (`docs/ANTI_ABUSE_BOND.md` §6.1). 14a puts the amount first, the
-/// three things that can happen to it, and the wallet as the primary action;
-/// 14b is the same scroll with the long explanation open. Mostro detects the
+/// three things that can happen to it, and the wallet as the primary action
+/// (Copy on web, see [copyLeadsInvoice]); 14b is the same scroll with the
+/// long explanation open, the QR still under the amount. Mostro detects the
 /// payment and the trade moves on: the screen leaves on its own.
 class PayBondInvoiceScreen extends ConsumerStatefulWidget {
   const PayBondInvoiceScreen({super.key, required this.orderId});
@@ -487,7 +490,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (open)
+                    if (open) ...[
                       BondAmountRow(
                         label: l10n.bondRefundableLabel,
                         sats: amountSats,
@@ -496,8 +499,17 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                         timeLabel: l10n.bondPayWithinLabel,
                         hours: l10n.invoiceCountdownHours,
                         unit: l10n.satsUnitLabel,
-                      )
-                    else ...[
+                      ),
+                      // Opening the explainer keeps the QR: it opens by
+                      // default, so hiding it left a first-time payer with
+                      // only the wallet link. The QR is then the one node
+                      // that carries the bolt11 for automation.
+                      const SizedBox(height: 12),
+                      _qr(l10n, invoice).withAutomationId(
+                        AutomationIds.bondInvoiceText,
+                        label: invoice,
+                      ),
+                    ] else ...[
                       InvoiceHeroCard(
                         label: l10n.bondRefundableLabel,
                         sats: amountSats,
@@ -569,11 +581,10 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                         l10n,
                         invoice,
                         amountSats: amountSats,
-                        open: open,
                         maker: maker,
                       )
                     else
-                      ..._footer(l10n, invoice, open: open, maker: maker),
+                      ..._footer(l10n, invoice, maker: maker),
                   ],
                 ),
               ),
@@ -681,7 +692,6 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
   List<Widget> _footer(
     AppLocalizations l10n,
     String invoice, {
-    required bool open,
     required bool maker,
   }) {
     final book = OrderBookPalette.of(context);
@@ -698,17 +708,19 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     }
     final copied = _copiedTimer != null;
     final copyIcon = copied ? Icons.check : Icons.copy;
+    final copyLeads = copyLeadsInvoice(
+      isWeb: kIsWeb,
+      noWalletApp: _noWalletApp,
+    );
     final secondaries = Row(
       children: [
         Expanded(
           child: InvoiceSecondaryButton(
-            icon: _noWalletApp ? Icons.bolt : copyIcon,
-            iconColor: !_noWalletApp && copied ? book.lime : null,
-            label: _noWalletApp ? l10n.invoiceOpenWallet : l10n.copyButtonLabel,
+            icon: copyLeads ? Icons.bolt : copyIcon,
+            iconColor: !copyLeads && copied ? book.lime : null,
+            label: copyLeads ? l10n.invoiceOpenWallet : l10n.copyButtonLabel,
             onPressed:
-                _noWalletApp
-                    ? () => _openWallet(invoice)
-                    : () => _copy(invoice),
+                copyLeads ? () => _openWallet(invoice) : () => _copy(invoice),
           ),
         ),
         const SizedBox(width: 8),
@@ -722,9 +734,9 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       ],
     );
     return [
-      // Without an app for `lightning:` links, `Copy` is the primary action
-      // and the wallet link drops to a secondary one.
-      if (_noWalletApp)
+      // `Copy` leads when [copyLeadsInvoice] says so; the wallet link then
+      // drops to a secondary action.
+      if (copyLeads)
         InvoicePrimaryButton(
           icon: copyIcon,
           label: l10n.copyButtonLabel,
@@ -736,29 +748,30 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
           label: l10n.invoiceOpenWallet,
           onPressed: () => _openWallet(invoice),
         ),
-      // 14b hides copy / share: whoever is reading is not scanning.
-      if (!open) ...[const SizedBox(height: 8), secondaries],
+      const SizedBox(height: 8),
+      secondaries,
       const SizedBox(height: 4),
       _leaveLink(l10n, maker: maker),
     ];
   }
 
   /// The wallet pays: one button, the fallback to manual payment lives in
-  /// the widget, the cancel link stays. When the QR card is hidden (14b)
-  /// the widget's readout carries the bolt11 for automation instead.
+  /// the widget, the cancel link stays. The QR above carries the bolt11 for
+  /// automation in both states, so the widget does not.
   List<Widget> _nwcFooter(
     AppLocalizations l10n,
     String invoice, {
     required int amountSats,
-    required bool open,
     required bool maker,
   }) {
-    if (_waiting) return _footer(l10n, invoice, open: open, maker: maker);
+    if (_waiting) return _footer(l10n, invoice, maker: maker);
     return [
       NwcPaymentWidget(
         bolt11: invoice,
         amountSats: amountSats,
-        invoiceAutomationId: open ? AutomationIds.bondInvoiceText : null,
+        // The screen's QR carries `bond.invoice.text`; the widget's default
+        // id is the hold invoice's (`pay.invoice.text`), wrong here.
+        invoiceAutomationId: null,
         onPaymentSuccess: _onPaymentDetected,
         onFallbackToManual: () => setState(() => _manualMode = true),
       ),
