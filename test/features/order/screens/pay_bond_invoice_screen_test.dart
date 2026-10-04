@@ -2,6 +2,8 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 import 'package:mostro/features/about/models/mostro_instance.dart' as instance;
 import 'package:mostro/core/app_theme.dart';
@@ -161,16 +163,20 @@ void main() {
     expect(find.text('Open in my wallet'), findsNothing);
   });
 
-  testWidgets('14b: opening the explainer hides the QR and copy / share', (
+  testWidgets('14b: opening the explainer keeps the QR and copy / share', (
     tester,
   ) async {
+    // The explainer opens by default: hiding the QR there left a first-time
+    // payer with only the wallet link, which a browser may hand to a wallet
+    // that cannot pay Lightning.
     await _pump(tester, trade: fakeTrade(bond: _bond()));
     await tester.tap(find.text('Why Mostro asks for a deposit'));
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(QrImageView), findsNothing);
-    expect(find.text('Copy'), findsNothing);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
     expect(find.text('Read the documentation'), findsOneWidget);
     expect(
       find.textContaining(
@@ -189,7 +195,7 @@ void main() {
     tester,
   ) async {
     await _pump(tester, trade: fakeTrade(bond: _bond()), explainerOpen: true);
-    expect(find.byType(QrImageView), findsNothing);
+    expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('Read the documentation'), findsOneWidget);
   });
 
@@ -208,6 +214,35 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // The bolt11 is otherwise only drawn as a QR, so automation reads it from
+  // `bond.invoice.text`: exactly one node, whether the explainer is open
+  // (the default on a fresh install) and whether a wallet is connected.
+  for (final walletConnected in [false, true]) {
+    testWidgets('14b: the open explainer exposes the bolt11 once '
+        '(wallet connected: $walletConnected)', (tester) async {
+      await _pump(
+        tester,
+        trade: fakeTrade(bond: _bond()),
+        explainerOpen: true,
+        walletConnected: walletConnected,
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is AutomationId && w.id == AutomationIds.bondInvoiceText,
+        ),
+        findsOneWidget,
+      );
+      // The hold invoice's id belongs to the hold-invoice screen.
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is AutomationId && w.id == AutomationIds.payInvoiceText,
+        ),
+        findsNothing,
+      );
+    });
+  }
 
   testWidgets('a row without its bolt11 offers the same-take re-request', (
     tester,
