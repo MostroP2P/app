@@ -35,6 +35,16 @@ RelayHealth relayHealth(RelayInfo relay) {
 String relayDisplayUrl(String url) =>
     url.replaceFirst(RegExp(r'^wss?://', caseSensitive: false), '');
 
+/// `https://mint.cashu.space/` → `mint.cashu.space`.
+///
+/// The mint is who holds the sats in Cashu mode, and the host is the part of
+/// its URL that says who that is; the full URL stays in the row's accessible
+/// label and on the clipboard. A URL with no host is shown as it came.
+String mintDisplayHost(String url) {
+  final host = Uri.tryParse(url)?.host;
+  return (host == null || host.isEmpty) ? url : host;
+}
+
 /// Connected / enabled tally behind `Relays → 3 de 4 conectados`.
 ///
 /// [total] counts the relays the user has enabled, not every row: a relay

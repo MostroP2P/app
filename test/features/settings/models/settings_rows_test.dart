@@ -57,6 +57,20 @@ void main() {
     });
   });
 
+  group('mintDisplayHost', () {
+    test('keeps only the host, which is what says who holds the sats', () {
+      expect(mintDisplayHost('https://mint.cashu.space/'), 'mint.cashu.space');
+      expect(
+        mintDisplayHost('https://mint.example.com:3338/path'),
+        'mint.example.com',
+      );
+    });
+
+    test('shows a URL with no host as it came', () {
+      expect(mintDisplayHost('not a url'), 'not a url');
+    });
+  });
+
   group('RelayTally', () {
     test('counts only the relays the user enabled', () {
       final tally = RelayTally.of([

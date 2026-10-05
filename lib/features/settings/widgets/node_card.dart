@@ -8,6 +8,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/node_selector_palette.dart';
 import 'package:mostro/features/settings/models/node_display.dart';
 import 'package:mostro/features/settings/models/node_selector_rules.dart';
+import 'package:mostro/features/settings/models/settings_rows.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/node_stats.dart';
@@ -839,11 +840,8 @@ class _TrustRow extends StatelessWidget {
 
   /// `https://mint.cashu.space/` → `mint.cashu.space`. The mint changes who
   /// holds the sats, so it is always shown; a malformed URL is shown raw.
-  static String _mintHost(String? url) {
-    if (url == null) return '—';
-    final host = Uri.tryParse(url)?.host;
-    return (host == null || host.isEmpty) ? url : host;
-  }
+  static String _mintHost(String? url) =>
+      url == null ? '—' : mintDisplayHost(url);
 }
 
 /// `2` / `1.5`: the node's bond percentage without a trailing `.0`.

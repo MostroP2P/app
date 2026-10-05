@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -89,19 +90,28 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: settingsGroupGap),
           SettingsGroup(
             header: l10n.settingsGroupPayments,
+            // The rows follow the backend the active node settles over, never
+            // both: a Cashu node has no invoice step and no bond (bonds are
+            // Lightning-only, docs/ANTI_ABUSE_BOND.md), so a Lightning address
+            // or an NWC wallet does nothing there, and on a Lightning node
+            // there is no mint. A node that has not said yet reads as
+            // Lightning, as everywhere else.
             rows: [
-              _lightningAddressRow(context, ref, l10n, settings),
-              _walletRow(context, ref, l10n),
-              // Shown only when the active node actually settles over Cashu:
-              // on a Lightning node the feature does not exist as far as the
-              // user is concerned, and an entry point that leads to a
-              // permanently empty wallet would be worse than none.
-              if (ref.watch(isCashuAvailableProvider))
-                SettingsRow(
-                  icon: Icons.savings_outlined,
-                  label: l10n.cashuWalletTitle,
-                  onTap: () => context.push(AppRoute.cashuWallet),
-                ),
+              if (ref.watch(isCashuModeProvider)) ...[
+                _mintRow(context, ref, l10n),
+                // The wallet needs a mint to talk to: a Cashu node that
+                // publishes none gets the mint row's warning instead of an
+                // entry to a wallet that can never fill.
+                if (ref.watch(isCashuAvailableProvider))
+                  SettingsRow(
+                    icon: Icons.savings_outlined,
+                    label: l10n.cashuWalletTitle,
+                    onTap: () => context.push(AppRoute.cashuWallet),
+                  ),
+              ] else ...[
+                _lightningAddressRow(context, ref, l10n, settings),
+                _walletRow(context, ref, l10n),
+              ],
             ],
           ),
           const SizedBox(height: settingsGroupGap),
@@ -214,6 +224,43 @@ class SettingsScreen extends ConsumerWidget {
       tone:
           address == null ? SettingsValueTone.warn : SettingsValueTone.neutral,
       onTap: () => _showLightningAddressDialog(context, ref),
+    );
+  }
+
+  /// `Mint → mint.cashu.space`: the mint the active node pins for every
+  /// escrow, which is who holds the sats while a trade is open. It is the
+  /// node's own mint — there is no per-order choice — so the row informs
+  /// rather than edits, and a tap copies the full URL. Amber when the node
+  /// runs Cashu and publishes no mint: nothing can trade there.
+  Widget _mintRow(BuildContext context, WidgetRef ref, AppLocalizations l10n) {
+    final url = ref.watch(escrowModeProvider).valueOrNull?.mintUrl;
+    return SettingsRow(
+      icon: Icons.account_balance_outlined,
+      label: l10n.settingsMintLabel,
+      value:
+          url == null ? l10n.settingsMintNotAdvertised : mintDisplayHost(url),
+      valueIsData: url != null,
+      semanticValue: url,
+      tone: url == null ? SettingsValueTone.warn : SettingsValueTone.neutral,
+      // A copy mark, not the chevron: the row leads nowhere.
+      trailing:
+          url == null
+              ? null
+              : Icon(
+                Icons.copy_rounded,
+                size: 14,
+                color: SettingsPalette.of(context).dotOffline,
+              ),
+      onTap:
+          url == null
+              ? null
+              : () async {
+                final messenger = ScaffoldMessenger.of(context);
+                await Clipboard.setData(ClipboardData(text: url));
+                messenger.showSnackBar(
+                  SnackBar(content: Text(l10n.settingsMintCopied)),
+                );
+              },
     );
   }
 

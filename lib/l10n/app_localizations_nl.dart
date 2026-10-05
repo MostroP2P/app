@@ -4183,4 +4183,13 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get messageMenuHint => 'Berichtmenu openen';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintNotAdvertised => 'Niet opgegeven';
+
+  @override
+  String get settingsMintCopied => 'Mint-URL gekopieerd';
 }

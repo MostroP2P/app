@@ -1270,5 +1270,8 @@
   "messageMenuHint": "Berichtmenu openen",
   "moreReactions": "Meer reacties",
   "messageReactionLabel": "Reactie: {emoji}",
-  "reactionSendFailed": "De reactie kon niet worden verstuurd. Probeer het opnieuw."
+  "reactionSendFailed": "De reactie kon niet worden verstuurd. Probeer het opnieuw.",
+  "settingsMintLabel": "Mint",
+  "settingsMintNotAdvertised": "Niet opgegeven",
+  "settingsMintCopied": "Mint-URL gekopieerd"
 }

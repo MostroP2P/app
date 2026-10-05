@@ -1270,5 +1270,8 @@
   "moreReactions": "Weitere Reaktionen",
   "messageReactionLabel": "Reaktion: {emoji}",
   "reactionSendFailed": "Die Reaktion konnte nicht gesendet werden. Bitte versuche es erneut.",
-  "messageMenuHint": "Nachrichtenmenü öffnen"
+  "messageMenuHint": "Nachrichtenmenü öffnen",
+  "settingsMintLabel": "Mint",
+  "settingsMintNotAdvertised": "Nicht angegeben",
+  "settingsMintCopied": "Mint-URL kopiert"
 }

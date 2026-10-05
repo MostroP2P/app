@@ -6939,6 +6939,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open the message menu'**
   String get messageMenuHint;
+
+  /// Settings, Payments group — row naming the Cashu mint the active node uses; shown only when the node runs Cashu
+  ///
+  /// In en, this message translates to:
+  /// **'Mint'**
+  String get settingsMintLabel;
+
+  /// Settings — value of the mint row when the node says it runs Cashu but publishes no mint, so trades cannot run
+  ///
+  /// In en, this message translates to:
+  /// **'Not advertised'**
+  String get settingsMintNotAdvertised;
+
+  /// Snackbar after tapping the mint row in Settings, which copies the mint's full URL
+  ///
+  /// In en, this message translates to:
+  /// **'Mint URL copied'**
+  String get settingsMintCopied;
 }
 
 class _AppLocalizationsDelegate

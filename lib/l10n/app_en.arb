@@ -4352,5 +4352,17 @@
   "messageMenuHint": "Open the message menu",
   "@messageMenuHint": {
     "description": "Screen-reader hint of a chat message: what tapping it (or holding an attachment) opens"
+  },
+  "settingsMintLabel": "Mint",
+  "@settingsMintLabel": {
+    "description": "Settings, Payments group — row naming the Cashu mint the active node uses; shown only when the node runs Cashu"
+  },
+  "settingsMintNotAdvertised": "Not advertised",
+  "@settingsMintNotAdvertised": {
+    "description": "Settings — value of the mint row when the node says it runs Cashu but publishes no mint, so trades cannot run"
+  },
+  "settingsMintCopied": "Mint URL copied",
+  "@settingsMintCopied": {
+    "description": "Snackbar after tapping the mint row in Settings, which copies the mint's full URL"
   }
 }

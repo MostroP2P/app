@@ -4149,4 +4149,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageMenuHint => 'Open the message menu';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintNotAdvertised => 'Not advertised';
+
+  @override
+  String get settingsMintCopied => 'Mint URL copied';
 }

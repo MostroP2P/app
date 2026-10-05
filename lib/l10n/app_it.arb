@@ -1270,5 +1270,8 @@
   "moreReactions": "Altre reazioni",
   "messageReactionLabel": "Reazione: {emoji}",
   "reactionSendFailed": "Impossibile inviare la reazione. Riprova.",
-  "messageMenuHint": "Apri il menu del messaggio"
+  "messageMenuHint": "Apri il menu del messaggio",
+  "settingsMintLabel": "Mint",
+  "settingsMintNotAdvertised": "Non dichiarata",
+  "settingsMintCopied": "URL del mint copiato"
 }
