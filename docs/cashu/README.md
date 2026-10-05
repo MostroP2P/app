@@ -211,12 +211,14 @@ And the NUT-11 secret the seller's wallet must construct for each escrow proof
 
 The client already fetches the daemon's **Kind 38385 instance-info event** (tag
 `z = "info"`) via `fetch_mostro_instance_tags` (`rust/src/api/nostr.rs`) and parses it in
-`MostroInstance.fromTags` (Dart). Today the event advertises LND parameters
-(`lnd_version`, `hold_invoice_*`, …) and the bond policy — **nothing about Cashu yet**.
+`MostroInstance.fromTags` (Dart). A Lightning node advertises its LND parameters
+(`lnd_version`, `hold_invoice_*`, …) and the bond policy; since
+[MostroP2P/mostro#1045](https://github.com/MostroP2P/mostro/pull/1045) every node also
+says which backend it runs.
 
-### 4.1 Upstream proposal (to be PR'd to `mostrod`)
+### 4.1 Upstream tags (shipped in MostroP2P/mostro#1045)
 
-Add these tags to the 38385 info event when the daemon boots in Cashu mode:
+The proposal below was for these tags on the 38385 info event of a daemon in Cashu mode:
 
 ```
 ["escrow_mode", "cashu"]                      // absent or "lightning" => Lightning
@@ -225,8 +227,18 @@ Add these tags to the 38385 info event when the daemon boots in Cashu mode:
 ["cashu_settlement_margin_days", "3"]          // Track B FiatSent guard
 ```
 
-This is symmetric with what the daemon already publishes for LND and costs one small
-upstream PR (tags come straight from `Settings::get_cashu()`).
+mostro#1045 shipped the first three: a Lightning node publishes `escrow_mode =
+"lightning"`, and a Cashu node — which before it published no info event at all —
+publishes `escrow_mode`, `cashu_mint_url` and `cashu_escrow_locktime_days`, without the
+`lnd_*` and `*invoice*` tags. `cashu_settlement_margin_days` is not published; the
+client reads it as absent (`None`), which nothing gates on. A missing `escrow_mode` still
+means a daemon older than the PR, read as Lightning (`Unknown`).
+
+What the client shows follows the mode, never both backends at once: About lists the
+Cashu group or the Lightning group (`nodeTechSections`), and Settings → Payments shows
+the node's mint (and the Cashu wallet when the mint is usable) on a Cashu node, the
+Lightning address and NWC wallet rows otherwise — a Cashu node has no invoice step and
+no bond, so those rows do nothing there.
 
 ### 4.2 Client-side representation
 
@@ -710,7 +722,7 @@ recoverable failure and lost user money:
 |---|---|---|
 | 1 | ~~**Escrow-request wire form** not yet published~~ — **RESOLVED in C0.** It reuses existing types, which is why nothing was added to `mostro-core` for it. Per daemon branch `feat/cashu-ta2-take-flow` (`show_cashu_escrow_request`, `src/util.rs`): seller ← `Action::WaitingSellerToPay` + `Payload::Order(SmallOrder)` (`status = WaitingPayment`, both trade pubkeys, `buyer_invoice = None`); buyer ← same action, **no payload**. `mint_url` / `P_M` / locktime are *not* in the request — they come from the 38385 tags (C1) and the known Mostro pubkey. | C5 classifies by payload shape (§4.4) as planned: in Lightning the seller gets `PayInvoice` + `PaymentRequest`; in Cashu it gets `WaitingSellerToPay` + `Order`. `cashu_wire.rs::escrow_request_rides_on_an_unmodified_small_order` pins the assumption that makes this safe. Still to confirm when Track A merges: the daemon branch has diverged from its `main`. |
 | 2 | **cdk wasm compatibility** unknown; cdk is pre-1.0 with a moving API | wasm stub from day one (C2), web deferred to C9; pin exact cdk version in lockfile; upgrade only deliberately |
-| 3 | **38385 cashu tags don't exist upstream yet** | C1 ships the dev override so work can proceed — but the override is a **developer** affordance and users never see it. Per §1.1 the feature is only usable once a node advertises Cashu **itself**, so the upstream PR in §4.1 is a **release blocker**, not a convenience. Land it early; it is a handful of tags read from `Settings::get_cashu()` |
+| 3 | ~~**38385 cashu tags don't exist upstream yet**~~ — **RESOLVED by MostroP2P/mostro#1045** (§4.1): a Cashu node advertises itself, so detection works without the override. | C1 ships the dev override so work can proceed — but the override is a **developer** affordance and users never see it. Per §1.1 the feature is only usable once a node advertises Cashu **itself**, so the upstream PR in §4.1 is a **release blocker**, not a convenience. Land it early; it is a handful of tags read from `Settings::get_cashu()` |
 | 4 | `mostro-core` 0.13.1 → 0.14.x breakage | isolated in C0, the smallest possible PR |
 | 5 | **Buyer offline at release** — signatures sent P2P while buyer away | NIP-59 events wait on relays; startup scan for unredeemed trades (C6); nothing expires except the (15-day) locktime, and C6's margin guard protects the fiat step |
 | 6 | **Crash between receiving signatures and redeeming** | persist signatures before swap; redeem is retriable until proofs are spent; reconciliation via NUT-07 in C10 |
