@@ -52,11 +52,11 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1402734238;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1416694705;
 
 // Section: executor
 
-flutter_rust_bridge::frb_generated_default_handler!();
+pub use crate::api::bridge_handler::FLUTTER_RUST_BRIDGE_HANDLER;
 
 // Section: wire_funcs
 
@@ -4733,12 +4733,17 @@ fn wire__crate__api__nwc__make_invoice_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_amount_sats = <u64>::sse_decode(&mut deserializer);
             let api_description = <Option<String>>::sse_decode(&mut deserializer);
+            let api_expiry_secs = <Option<u64>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::nwc::make_invoice(api_amount_sats, api_description).await?;
+                        let output_ok = crate::api::nwc::make_invoice(
+                            api_amount_sats,
+                            api_description,
+                            api_expiry_secs,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6960,6 +6965,83 @@ fn wire__crate__api__settings__set_theme_impl(
         },
     )
 }
+fn wire__crate__api__disputes__share_chat_key_with_solver_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "share_chat_key_with_solver",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_trade_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::disputes::share_chat_key_with_solver(api_trade_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__disputes__solver_role_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "solver_role",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_trade_id = <String>::sse_decode(&mut deserializer);
+            let api_solver_pubkey = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::disputes::solver_role(api_trade_id, api_solver_pubkey)
+                                .await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__bond__submit_bond_payout_invoice_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -8159,6 +8241,7 @@ impl SseDecode for crate::api::types::Dispute {
         let mut var_openedAt = <i64>::sse_decode(deserializer);
         let mut var_resolvedAt = <Option<i64>>::sse_decode(deserializer);
         let mut var_isRead = <bool>::sse_decode(deserializer);
+        let mut var_chatKeyShared = <bool>::sse_decode(deserializer);
         return crate::api::types::Dispute {
             id: var_id,
             trade_id: var_tradeId,
@@ -8170,6 +8253,7 @@ impl SseDecode for crate::api::types::Dispute {
             opened_at: var_openedAt,
             resolved_at: var_resolvedAt,
             is_read: var_isRead,
+            chat_key_shared: var_chatKeyShared,
         };
     }
 }
@@ -9255,6 +9339,7 @@ impl SseDecode for crate::api::types::OrderInfo {
         let mut var_rating = <f64>::sse_decode(deserializer);
         let mut var_totalReviews = <u32>::sse_decode(deserializer);
         let mut var_daysActive = <u32>::sse_decode(deserializer);
+        let mut var_makerSince = <Option<i64>>::sse_decode(deserializer);
         return crate::api::types::OrderInfo {
             id: var_id,
             kind: var_kind,
@@ -9273,6 +9358,7 @@ impl SseDecode for crate::api::types::OrderInfo {
             rating: var_rating,
             total_reviews: var_totalReviews,
             days_active: var_daysActive,
+            maker_since: var_makerSince,
         };
     }
 }
@@ -9548,6 +9634,18 @@ impl SseDecode for crate::api::types::SlashCause {
     }
 }
 
+impl SseDecode for crate::api::types::SolverRole {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::types::SolverRole::Assistant,
+            1 => crate::api::types::SolverRole::Human,
+            _ => unreachable!("Invalid variant for SolverRole: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::ThemeMode {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9581,6 +9679,7 @@ impl SseDecode for crate::api::types::TradeInfo {
         let mut var_peerRating = <Option<f64>>::sse_decode(deserializer);
         let mut var_peerReviews = <Option<u32>>::sse_decode(deserializer);
         let mut var_peerDays = <Option<u32>>::sse_decode(deserializer);
+        let mut var_peerSince = <Option<i64>>::sse_decode(deserializer);
         let mut var_ratedAt = <Option<i64>>::sse_decode(deserializer);
         let mut var_bond = <Option<crate::api::types::BondInfo>>::sse_decode(deserializer);
         let mut var_buyerTradePubkey = <Option<String>>::sse_decode(deserializer);
@@ -9606,6 +9705,7 @@ impl SseDecode for crate::api::types::TradeInfo {
             peer_rating: var_peerRating,
             peer_reviews: var_peerReviews,
             peer_days: var_peerDays,
+            peer_since: var_peerSince,
             rated_at: var_ratedAt,
             bond: var_bond,
             buyer_trade_pubkey: var_buyerTradePubkey,
@@ -10269,17 +10369,24 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         174 => wire__crate__api__settings__set_theme_impl(port, ptr, rust_vec_len, data_len),
-        175 => wire__crate__api__bond__submit_bond_payout_invoice_impl(
+        175 => wire__crate__api__disputes__share_chat_key_with_solver_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        176 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
-        177 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
-        178 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
-        179 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
-        180 => {
+        176 => wire__crate__api__disputes__solver_role_impl(port, ptr, rust_vec_len, data_len),
+        177 => wire__crate__api__bond__submit_bond_payout_invoice_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        178 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
+        179 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
+        181 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
+        182 => {
             wire__crate__api__invoice__trade_step_started_at_impl(port, ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),
@@ -11173,6 +11280,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::Dispute {
             self.opened_at.into_into_dart().into_dart(),
             self.resolved_at.into_into_dart().into_dart(),
             self.is_read.into_into_dart().into_dart(),
+            self.chat_key_shared.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -11798,6 +11906,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::OrderInfo {
             self.rating.into_into_dart().into_dart(),
             self.total_reviews.into_into_dart().into_dart(),
             self.days_active.into_into_dart().into_dart(),
+            self.maker_since.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -12169,6 +12278,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::SlashCause>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::types::SolverRole {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Assistant => 0.into_dart(),
+            Self::Human => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::SolverRole {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::types::SolverRole>
+    for crate::api::types::SolverRole
+{
+    fn into_into_dart(self) -> crate::api::types::SolverRole {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::types::ThemeMode {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -12207,6 +12334,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::TradeInfo {
             self.peer_rating.into_into_dart().into_dart(),
             self.peer_reviews.into_into_dart().into_dart(),
             self.peer_days.into_into_dart().into_dart(),
+            self.peer_since.into_into_dart().into_dart(),
             self.rated_at.into_into_dart().into_dart(),
             self.bond.into_into_dart().into_dart(),
             self.buyer_trade_pubkey.into_into_dart().into_dart(),
@@ -13184,6 +13312,7 @@ impl SseEncode for crate::api::types::Dispute {
         <i64>::sse_encode(self.opened_at, serializer);
         <Option<i64>>::sse_encode(self.resolved_at, serializer);
         <bool>::sse_encode(self.is_read, serializer);
+        <bool>::sse_encode(self.chat_key_shared, serializer);
     }
 }
 
@@ -14098,6 +14227,7 @@ impl SseEncode for crate::api::types::OrderInfo {
         <f64>::sse_encode(self.rating, serializer);
         <u32>::sse_encode(self.total_reviews, serializer);
         <u32>::sse_encode(self.days_active, serializer);
+        <Option<i64>>::sse_encode(self.maker_since, serializer);
     }
 }
 
@@ -14352,6 +14482,22 @@ impl SseEncode for crate::api::types::SlashCause {
     }
 }
 
+impl SseEncode for crate::api::types::SolverRole {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::types::SolverRole::Assistant => 0,
+                crate::api::types::SolverRole::Human => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::types::ThemeMode {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -14391,6 +14537,7 @@ impl SseEncode for crate::api::types::TradeInfo {
         <Option<f64>>::sse_encode(self.peer_rating, serializer);
         <Option<u32>>::sse_encode(self.peer_reviews, serializer);
         <Option<u32>>::sse_encode(self.peer_days, serializer);
+        <Option<i64>>::sse_encode(self.peer_since, serializer);
         <Option<i64>>::sse_encode(self.rated_at, serializer);
         <Option<crate::api::types::BondInfo>>::sse_encode(self.bond, serializer);
         <Option<String>>::sse_encode(self.buyer_trade_pubkey, serializer);

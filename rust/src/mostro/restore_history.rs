@@ -327,6 +327,7 @@ mod tests {
             privacy_mode: false,
             trade_key_index,
             created_at: 0,
+            backup_confirmed: false,
         };
         assert!(snapshot(Some("aa")).applies_to(Some(&loaded("aa", 97))));
         assert!(snapshot(Some("aa")).applies_to(Some(&loaded("AA", 120))));
