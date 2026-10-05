@@ -488,6 +488,43 @@ mod tests {
     }
 
     #[test]
+    fn the_info_event_a_cashu_daemon_publishes_is_a_usable_cashu_node() {
+        // Arrange — the event mostrod publishes in Cashu mode since
+        // MostroP2P/mostro#1045: no lnd_* or invoice tags, and no settlement
+        // margin either.
+        let tags = vec![
+            tag("escrow_mode", "cashu"),
+            tag("cashu_mint_url", "https://mint.cubabitcoin.org"),
+            tag("cashu_escrow_locktime_days", "15"),
+            tag("fee", "0.01"),
+            tag("pow_first_contact", "0"),
+            tag("protocol_version", "2"),
+            tag("bond_enabled", "false"),
+            tag("maintenance_mode", "false"),
+            tag("z", "info"),
+        ];
+
+        // Act
+        let (mode, config) = parse_tags(&tags);
+        let resolved = resolve(&EscrowModeInputs {
+            from_tags: mode,
+            tag_config: config.clone(),
+            ..Default::default()
+        });
+
+        // Assert — the node's own tags open the Cashu paths, no override.
+        assert_eq!(mode, EscrowMode::Cashu);
+        assert_eq!(
+            config.mint_url.as_deref(),
+            Some("https://mint.cubabitcoin.org")
+        );
+        assert_eq!(config.escrow_locktime_days, Some(15));
+        assert_eq!(config.settlement_margin_days, None);
+        assert!(resolved.is_cashu_usable());
+        assert!(!resolved.is_overridden);
+    }
+
+    #[test]
     fn an_explicit_lightning_tag_is_lightning() {
         // Arrange / Act
         let (mode, _) = parse_tags(&[tag("escrow_mode", "lightning")]);

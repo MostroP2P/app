@@ -887,8 +887,9 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
                 crate::mostro::protocol_version::parse_protocol_version(&tags),
             );
 
-            // Today's daemons publish no escrow tags at all, so this resolves
-            // to Unknown — which keeps every Cashu path shut. See escrow_mode.
+            // `escrow_mode` and the `cashu_*` tags (MostroP2P/mostro#1045). A
+            // daemon older than that publishes none, which resolves to
+            // Unknown — and that keeps every Cashu path shut. See escrow_mode.
             let (mode, config) = escrow_mode::parse_tags(&tags);
             escrow_mode::set_from_tags(mode, config);
 
