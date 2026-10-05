@@ -394,13 +394,19 @@ class InvoicePrimaryButton extends StatelessWidget {
                 else
                   Icon(icon, size: 16, color: ink),
                 const SizedBox(width: 8),
+                // One line, shrunk to fit at large text sizes, rather than
+                // breaking the word (DS-L10N-2).
                 Flexible(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: ink,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: ink,
+                      ),
                     ),
                   ),
                 ),
@@ -452,13 +458,18 @@ class InvoiceSecondaryButton extends StatelessWidget {
               children: [
                 Icon(icon, size: 14, color: iconColor ?? pal.secondaryInk),
                 const SizedBox(width: 6),
+                // One line, shrunk to fit, as the primary button.
                 Flexible(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: pal.secondaryInk,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: pal.secondaryInk,
+                      ),
                     ),
                   ),
                 ),

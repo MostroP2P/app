@@ -225,12 +225,16 @@ class BondExplainerBody extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    linkLabel,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: palette.validIcon,
+                  // Wraps rather than overflows: at 2x text the label does
+                  // not fit one line at 320 dp in every language (DS-A11Y-4).
+                  Flexible(
+                    child: Text(
+                      linkLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: palette.validIcon,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),

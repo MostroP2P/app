@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
@@ -48,6 +49,8 @@ Future<void> _pump(
   Future<void> Function(String)? cancel,
   Future<void> Function(String)? abandon,
   Future<bool> Function(String)? closeExpired,
+  Locale locale = const Locale('en'),
+  double textScale = 1,
 }) async {
   SharedPreferences.setMockInitialValues({
     kBondExplainerOpenKey: explainerOpen,
@@ -83,7 +86,14 @@ Future<void> _pump(
         theme: buildDarkTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        locale: const Locale('en'),
+        locale: locale,
+        builder:
+            (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
         home: const PayBondInvoiceScreen(orderId: 'order-1'),
       ),
     ),
@@ -214,6 +224,47 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // DS-A11Y-4: the action bar this change touches fits at 320 dp wide and
+  // 2x text in every language, with the explanation open (the default):
+  // nothing overflows and each label stays on one line, as in
+  // order_detail_golden_test.dart.
+  for (final locale in AppLocalizations.supportedLocales) {
+    testWidgets(
+      '14b: the action bar fits at 320 dp, 2x text, ${locale.languageCode}',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(320, 640);
+        addTearDown(tester.view.reset);
+
+        await _pump(
+          tester,
+          trade: fakeTrade(bond: _bond()),
+          explainerOpen: true,
+          locale: locale,
+          textScale: 2,
+        );
+
+        expect(tester.takeException(), isNull);
+        final l10n = lookupAppLocalizations(locale);
+        for (final label in [
+          l10n.copyButtonLabel,
+          l10n.shareButtonLabel,
+          l10n.invoiceOpenWallet,
+        ]) {
+          final button = find.text(label);
+          await tester.scrollUntilVisible(button, 200);
+          expect(button.hitTestable(), findsOneWidget, reason: label);
+          final text = tester.renderObject<RenderParagraph>(button);
+          final line = text.getFullHeightForCaret(
+            const TextPosition(offset: 0),
+          );
+          expect(text.size.height, lessThan(line * 1.5), reason: label);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   // The bolt11 is otherwise only drawn as a QR, so automation reads it from
   // `bond.invoice.text`: exactly one node, whether the explainer is open
