@@ -374,7 +374,7 @@ void main() {
       // Assert — the distinction is what lets About stay honest instead of
       // claiming the node confirmed Lightning.
       expect(instance.escrowMode, EscrowMode.unknown);
-      expect(instance.cashuMintUrl, isNull);
+      expect(instance.cashuMintUrls, isEmpty);
     });
 
     test('an explicit lightning tag is lightning', () {
@@ -405,7 +405,7 @@ void main() {
       }));
 
       expect(instance.escrowMode, EscrowMode.cashu);
-      expect(instance.cashuMintUrl, 'https://mint.example.com');
+      expect(instance.cashuMintUrls, ['https://mint.example.com']);
       expect(instance.cashuEscrowLocktimeDays, 15);
       expect(instance.cashuSettlementMarginDays, 3);
     });
@@ -418,8 +418,8 @@ void main() {
         'cashu_escrow_locktime_days': '15',
       }));
 
-      // Assert — consumers key off nullability; a stale tag is not live data.
-      expect(instance.cashuMintUrl, isNull);
+      // Assert — a stale tag is not live data.
+      expect(instance.cashuMintUrls, isEmpty);
       expect(instance.cashuEscrowLocktimeDays, isNull);
     });
 
@@ -452,14 +452,44 @@ void main() {
       );
     });
 
-    test('a cashu node with a blank mint reports none', () {
+    test('a cashu node with a blank mint lists none', () {
       final instance = MostroInstance.fromTags(_tagsWith({
         'escrow_mode': 'cashu',
         'cashu_mint_url': '   ',
       }));
 
       expect(instance.escrowMode, EscrowMode.cashu);
-      expect(instance.cashuMintUrl, isNull);
+      expect(instance.cashuMintUrls, isEmpty);
+    });
+
+    test('a cashu node lists every mint it accepts, as Rust does', () {
+      // mostro#1047: one tag, a value per mint — here with a repeat and a
+      // blank, which Rust's `parse_tags` drops too.
+      final instance = MostroInstance.fromTags(const [
+        ['d', 'npub_test'],
+        ['escrow_mode', 'cashu'],
+        [
+          'cashu_mint_url',
+          'https://mint.a.com',
+          ' https://mint.b.com ',
+          'https://mint.a.com',
+          ' ',
+        ],
+      ]);
+
+      expect(instance.cashuMintUrls, [
+        'https://mint.a.com',
+        'https://mint.b.com',
+      ]);
+    });
+
+    test('a cashu node without the mint tag accepts any mint', () {
+      final instance = MostroInstance.fromTags(
+        _tagsWith({'escrow_mode': 'cashu'}),
+      );
+
+      expect(instance.escrowMode, EscrowMode.cashu);
+      expect(instance.cashuMintUrls, isEmpty);
     });
 
     test('malformed day counts are dropped without costing the mint', () {
@@ -472,7 +502,7 @@ void main() {
 
       expect(instance.cashuEscrowLocktimeDays, isNull);
       expect(instance.cashuSettlementMarginDays, isNull);
-      expect(instance.cashuMintUrl, 'https://mint.example.com');
+      expect(instance.cashuMintUrls, ['https://mint.example.com']);
     });
 
     test('fee percentage formatting is unchanged', () {

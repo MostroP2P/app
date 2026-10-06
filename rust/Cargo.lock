@@ -2596,8 +2596,9 @@ dependencies = [
 
 [[package]]
 name = "mostro-core"
-version = "0.16.0"
-source = "git+https://github.com/MostroP2P/mostro-core?branch=feat%2Freputation-merge#64ad62d065901773cf84668c8f0ef3583cf7a8b4"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f32dc52494235b038bd10ee7464f21fb5ec825d1c5d7da862963d4a2809af705"
 dependencies = [
  "bitcoin",
  "chrono",
@@ -3424,7 +3425,7 @@ dependencies = [
 
 [[package]]
 name = "rust"
-version = "2.0.10"
+version = "2.0.13"
 dependencies = [
  "android_logger 0.14.1",
  "anyhow",

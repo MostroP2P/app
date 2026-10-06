@@ -286,6 +286,15 @@ is_read: bool
 has_attachment: bool
 attachment: AttachmentInfo?
 created_at: i64
+reactions: Vec<ChatReaction>   # serde default: empty for messages stored before reactions
+```
+
+### ChatReaction
+```text
+sender_pubkey: String    # trade key of the party who reacted (verified inner signature)
+emoji: String            # empty: withdrawn, kept so an older re-wrapped reaction changes nothing
+created_at: i64          # inner created_at; per party, the newest holds
+event_id: String         # inner id; breaks a tie within one second (lowest wins)
 ```
 
 ### AttachmentInfo

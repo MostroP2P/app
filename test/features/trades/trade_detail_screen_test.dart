@@ -477,6 +477,34 @@ void main() {
       expect(find.text(_en.cancelTradeDialogContent), findsNothing);
     });
 
+    testWidgets('a dispute keeps the request: the buyer can accept it', (
+      tester,
+    ) async {
+      // mostrod leaves the request in place when a dispute opens; the
+      // counterparty's cancel then ends the trade and closes the dispute.
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-coop-dispute',
+        isBuyer: true,
+        status: OrderStatus.dispute,
+        trades: [
+          fakeTrade(
+            id: 'coop-dispute',
+            status: OrderStatus.dispute,
+            cooperativeCancelState: CooperativeCancelState.requestedByPeer,
+          ),
+        ],
+      );
+
+      expect(find.text(_en.tradeCancelRequestedByPeerNotice), findsOneWidget);
+      expect(_filledButtonWithText(_en.viewDisputeButton), findsOneWidget);
+      expect(_outlinedButtonWithText(_en.acceptCancelButton), findsOneWidget);
+
+      await tester.tap(_outlinedButtonWithText(_en.acceptCancelButton));
+      await _settle(tester);
+      expect(find.text(_en.cancelTradeDialogContentAccept), findsOneWidget);
+    });
+
     testWidgets('a settled trade shows no stale request', (tester) async {
       await _pumpTradeDetail(
         tester,
@@ -1007,7 +1035,10 @@ void main() {
       },
     );
 
-    testWidgets('buyer + disputed: View dispute only', (tester) async {
+    testWidgets('buyer + disputed: View dispute and Cancel, no Release', (
+      tester,
+    ) async {
+      // mostrod accepts a cooperative cancel from either party in `dispute`.
       await _pumpTradeDetail(
         tester,
         orderId: 'order-6',
@@ -1016,7 +1047,9 @@ void main() {
       );
 
       expect(_filledButtonWithText(_en.viewDisputeButton), findsOneWidget);
-      expect(find.byType(OutlinedButton), findsNothing);
+      expect(_outlinedButtonWithText(_en.cancelTradeButton), findsOneWidget);
+      expect(_outlinedButtonWithText(_en.releaseSatsButton), findsNothing);
+      expect(_outlinedButtonWithText(_en.openDisputeButton), findsNothing);
     });
 
     testWidgets('cancelled: the reason, Close, no chat, no timeline', (
@@ -1428,6 +1461,31 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    // DS-A11Y-4: the disputed bar gained the buyer's Cancel; the seller's
+    // carries Release and Cancel side by side under View dispute.
+    for (final isBuyer in [true, false]) {
+      testWidgets('the disputed bar in German, 320dp, 2x text '
+          '(isBuyer: $isBuyer)', (tester) async {
+        tester.view.physicalSize = const Size(320, 760);
+        tester.view.devicePixelRatio = 1.0;
+        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+        await _pumpTradeDetail(
+          tester,
+          orderId: 'order-de-dispute-$isBuyer',
+          isBuyer: isBuyer,
+          status: OrderStatus.dispute,
+          locale: const Locale('de'),
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(OutlinedButton), findsNWidgets(isBuyer ? 1 : 2));
+      });
+    }
   });
 
   group('the cancel dialog says what the cancel does', () {
@@ -1458,6 +1516,8 @@ void main() {
       ),
       (OrderStatus.active, 'cooperative', l10n.cancelTradeDialogContent),
       (OrderStatus.fiatSent, 'cooperative', l10n.cancelTradeDialogContent),
+      // mostrod cancels from `dispute` as from `active`.
+      (OrderStatus.dispute, 'cooperative', l10n.cancelTradeDialogContent),
     ]) {
       testWidgets('${status.name}: the $kind cancel', (tester) async {
         await _pumpTradeDetail(
@@ -1971,6 +2031,7 @@ void main() {
             initiatedByMe: false,
             openedAt: intToPlatformInt64(1000),
             isRead: false,
+            chatKeyShared: false,
           );
         },
       );

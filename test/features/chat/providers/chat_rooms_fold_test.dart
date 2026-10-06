@@ -32,6 +32,7 @@ ChatMessage _msg({
   isRead: isRead,
   hasAttachment: false,
   createdAt: at,
+  reactions: const [],
 );
 
 ChatRoomState _foldInto(ChatRoomState room, ChatMessage msg) {

@@ -57,7 +57,7 @@ MostroNodeStats _stats(
   List<String> accepted = const ['ARS', 'VES'],
   double? feePct = 0.6,
   String escrowMode = 'lightning',
-  String? mint,
+  List<String> mints = const [],
   bool? bondRequired = false,
 }) => MostroNodeStats(
   pubkey: pubkey,
@@ -68,7 +68,7 @@ MostroNodeStats _stats(
   maxOrderAmount: BigInt.from(2000000),
   acceptedCurrencies: accepted,
   escrowMode: escrowMode,
-  cashuMintUrl: mint,
+  cashuMintUrls: mints,
   bond: BondPolicyInfo(
     policy: switch (bondRequired) {
       true => BondPolicy.enabled,
@@ -115,7 +115,7 @@ final _fixtureStats = {
     orders: {'CUP': 6},
     accepted: ['CUP', 'USD'],
     escrowMode: 'cashu',
-    mint: 'https://mint.cashu.space',
+    mints: const ['https://mint.cashu.space'],
   ),
   _customPubkey: _stats(_customPubkey, infoSeenAt: _now, orders: {'ARS': 40}),
 };

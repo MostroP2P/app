@@ -33,7 +33,7 @@ Each channel keeps its **own** durable `since` cursor
 dispute) and its own subscription ids, so the two independent streams can
 never suppress or tear down each other. Messages persist locally after
 validation; the `since` cursor advances only past durably persisted
-messages. Supports encrypted file attachments via Blossom servers.
+messages, and only once the stored catch-up is over (EOSE). Supports encrypted file attachments via Blossom servers.
 
 **Security requirements implemented** (see the protocol spec for the
 normative list):
@@ -101,6 +101,9 @@ normative list):
   - *UI.* `ChatRowState` decides from the persisted row (`TradeRow.rowStatus`
     and `completedAt`), as Rust does: the book's live status may run ahead
     of the row, and the composer must not drop out while it catches up.
+- Catch-up and the token bucket: a relay still serving its stored backlog
+  (no EOSE on its current connection) is not metered, even after another
+  relay's EOSE: rejecting older stored events would lose them for good.
 - Isolation: chat runs on its own task and bounded channels; it can never
   block the order state machine, the daemon transport, or a dispute.
 - Push wake: once a peer message or attachment pointer reached the relays,
@@ -134,6 +137,70 @@ late UI timer still shows. No row yet, or a read error, keeps the cached
 session.
 
 **Errors**: `NoActiveTrade`, `TradeNotFound`, `MessageEmpty`.
+
+---
+
+### send_reaction(trade_id: String, message_id: String, emoji: String) → ChatMessage
+React to the counterparty's message, or withdraw the reaction with an empty
+`emoji` (protocol chat.md, "Reactions"; #690).
+
+**Validation**: `emoji` ≤ 64 bytes. The target is a peer-chat message the
+counterparty wrote, named by its inner event id.
+
+**Side effects**: Wraps an inner **kind 7** event with one `e` tag (the
+target's inner id) in the chat envelope and publishes it. It is dated one
+second after the user's previous reaction to that message when that one is
+not older, so a quick change is never settled by id. Unlike a message, a
+reaction no relay accepted is **not** kept, and it wakes nobody. Once
+published it is folded into the target (`ChatMessage.reactions`), persisted
+with it and emitted on `on_message_updated`.
+
+Sends run one at a time, so two quick taps are dated in the order they
+were made. A reaction that would have to be dated past the receivers' clock
+tolerance (60 s ahead: the previous one came from a device whose clock runs
+ahead) fails with `SendFailed` instead of being published and dropped.
+
+**Errors**: `ReactionTooLarge`, `MessageNotFound`, `ReactionNotAllowed`,
+`SendFailed`.
+
+**Receiving**: an incoming kind 7 passes the same validation as a message
+(step 11 checks its one `e` tag and its size) and is folded into its target:
+one per party, the newest `created_at` holding, ties to the lowest id. A
+reaction to the reactor's own message, or on the dispute channel, is
+dropped. One whose target has not arrived is held in memory — one per
+party and target, at most 256 per trade — until it does. Stored catch-up is served
+newest first, so no channel's cursor moves until it is over — EOSE from
+every connected relay that held the subscription, a relay that drops the
+connection meanwhile no longer awaited, and one that delivers with no EOSE on its
+current connection (joined late, or reconnected and given the subscription
+again; connections are told apart by the relay's count of them) awaited
+from then on, the persisted cursor going back to the subscription's start,
+which its replay begins from: passing
+a newer event before an older one arrives would lose the older one on a
+restart. After that, the peer cursor still stops at a held reaction's floor
+(where the catch-up started, or the live cursor) until the reaction is
+stored with its target, which is older, so a restart fetches both again. Every
+minute, whatever else the client receives, the chat re-checks its cursor,
+so an expired floor (below) or a relay gone while awaited lets it go without
+another event. A relay's CLOSED for the subscription stops it being awaited
+(a refused REQ never sends EOSE) without marking its connection done:
+`live_subs` issues the REQ again on that connection, and its replay reopens
+catch-up like a reconnect's. A reaction
+held for more than 10 minutes stops holding the cursor back (its target was
+refused by the retention quota, or names nothing) but stays held in case the
+target comes. If the target's write fails, its reactions are held again
+until a retry stores it. Otherwise a reaction is passed
+only once durably stored. While any message of the trade is in memory
+only (its write, or that of a reaction it carries, failed — received or
+sent), the cursor stays put until a retry stores it, or a restart fetches
+it again. Every write of a message row (a new message,
+a reaction, `mark_as_read`, the retry of a failed write) happens under the
+store's write lock, and so does recording whether it was stored, so none
+writes an older copy over another — on web the read flag rewrites whole
+rows. A reaction is never a message: no unread count, no
+`on_new_message`, no notification. An inner kind this client does not
+implement (`UnsupportedInnerKind`, a typed error) is dropped and passed
+without counting toward the flood breaker.
 
 ---
 
@@ -175,6 +242,16 @@ or an open chat. Repeated deliveries must preserve read/delete state. Card write
 reads and deletes commit and publish in invocation order. Mark-read operates on the
 latest persisted record even before UI hydration; a read during event processing
 suppresses that pending event, even if the user has since left the chat.
+
+### on_message_updated(trade_id: String) → MessageUpdateStream
+Emits a stored message of the trade again when it changes: a reaction to
+it, received or sent. Never a new message, so nothing that counts unread
+messages or raises notifications listens to it. It opens with the trade's
+messages that carry reactions, read once subscribed, so a reaction applied
+between the caller's history read and the subscription still arrives; a
+receiver that lags gets that snapshot again instead of a gap. The screen
+keeps an update for a message it does not show yet and applies it when the
+message is added.
 
 ### on_unread_count_changed() → Stream<u32>
 Emits when the global unread message count changes.

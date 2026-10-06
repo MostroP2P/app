@@ -109,8 +109,10 @@ class MostroNodeStats {
   /// (see [`escrow_mode::EscrowMode::as_marker`]).
   final String escrowMode;
 
-  /// Mint the node pins for Cashu escrow; only set when the mode is Cashu.
-  final String? cashuMintUrl;
+  /// Mints the node accepts for Cashu escrow (MostroP2P/mostro#1047), in
+  /// its order. On a Cashu node, empty means it accepts any mint; on any
+  /// other node it is always empty.
+  final List<String> cashuMintUrls;
 
   /// The node's full anti-abuse bond policy (`docs/ANTI_ABUSE_BOND.md`
   /// §3.4): three-state, with every parameter gated on `Enabled`.
@@ -140,7 +142,7 @@ class MostroNodeStats {
     this.maxOrderAmount,
     required this.acceptedCurrencies,
     required this.escrowMode,
-    this.cashuMintUrl,
+    required this.cashuMintUrls,
     required this.bond,
     this.bondRequired,
     this.bondPct,
@@ -158,7 +160,7 @@ class MostroNodeStats {
       maxOrderAmount.hashCode ^
       acceptedCurrencies.hashCode ^
       escrowMode.hashCode ^
-      cashuMintUrl.hashCode ^
+      cashuMintUrls.hashCode ^
       bond.hashCode ^
       bondRequired.hashCode ^
       bondPct.hashCode ^
@@ -178,7 +180,7 @@ class MostroNodeStats {
           maxOrderAmount == other.maxOrderAmount &&
           acceptedCurrencies == other.acceptedCurrencies &&
           escrowMode == other.escrowMode &&
-          cashuMintUrl == other.cashuMintUrl &&
+          cashuMintUrls == other.cashuMintUrls &&
           bond == other.bond &&
           bondRequired == other.bondRequired &&
           bondPct == other.bondPct &&

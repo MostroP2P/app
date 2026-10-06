@@ -58,6 +58,7 @@ rust_types.ChatMessage attachmentMessage({
   hasAttachment: true,
   attachment: attachment,
   createdAt: intToPlatformInt64(createdAt),
+  reactions: const [],
 );
 
 /// Records calls and answers with what the test set.

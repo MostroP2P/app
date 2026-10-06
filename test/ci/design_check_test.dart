@@ -552,6 +552,211 @@ final field = TextField(
     );
   });
 
+  /// The theme's radius tokens carry v1's roles: a card at 12, a button and
+  /// an input at 8, a chip at 6. On the scale or not, each is the wrong
+  /// shape for the job its name promises.
+  group('DS-SHP-4: no v1 radius token', () {
+    test('flags the tokens whose role the redesign changed', () {
+      expect(
+        breaks('''
+final a = BorderRadius.circular(AppRadius.card);
+final b = BorderRadius.circular(AppRadius.button);
+final c = BorderRadius.circular(AppRadius.input);
+final d = BorderRadius.circular(AppRadius.chip);
+'''),
+        ['DS-SHP-4@1', 'DS-SHP-4@2', 'DS-SHP-4@3', 'DS-SHP-4@4'],
+      );
+    });
+
+    test('allows the redesign tokens', () {
+      expect(
+        breaks('''
+final a = BorderRadius.circular(AppRadius.modal);
+final b = BorderRadius.circular(AppRadius.cta);
+final c = BorderRadius.circular(AppRadius.bubble);
+'''),
+        isEmpty,
+      );
+    });
+  });
+
+  /// A `textTheme` role is a font size that never appears as a literal:
+  /// the theme's are v1's scale, and a role it leaves out is Material's.
+  group('DS-TYP-4: textTheme roles on the scale', () {
+    test('flags a role the theme sets off the scale, or not at all', () {
+      expect(
+        breaks('''
+final a = Theme.of(context).textTheme.headlineSmall;
+final b = theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600);
+final c = Theme.of(context).textTheme.titleMedium;
+'''),
+        ['DS-TYP-4@1', 'DS-TYP-4@2', 'DS-TYP-4@3'],
+      );
+    });
+
+    test('allows the roles the theme sets on the scale', () {
+      expect(
+        breaks('''
+final a = Theme.of(context).textTheme.bodyMedium;
+final b = theme.textTheme.bodySmall;
+final c = theme.textTheme.labelLarge;
+final d = theme.textTheme.labelSmall;
+final e = theme.textTheme.apply(bodyColor: pal.textBody);
+final f = theme.textTheme.copyWith(bodySmall: s);
+final g = Theme.of(context).textTheme.merge(other);
+'''),
+        isEmpty,
+      );
+    });
+  });
+
+  /// A break is reported on the line of the widget call. A pull request that
+  /// edits an argument of a theme-default button leaves that line untouched,
+  /// and the first version of the check let it through (#657). Outside a
+  /// class, the top-level function or variable is read whole, like a class.
+  group('a call a changed line falls inside', () {
+    const source = '''
+final a = FilledButton.icon(
+  onPressed: f,
+  icon: const Icon(Icons.download_outlined),
+  label: Text(l),
+);
+final b = Text(t);
+''';
+
+    test('is checked whole', () {
+      expect(breaks(source, lines: {3}), ['DS-CMP-17@1']);
+    });
+
+    test('is not reported for a change outside it', () {
+      expect(breaks(source, lines: {6}), isEmpty);
+    });
+
+    test('is read for every rule, not only a missing style', () {
+      const helper = '''
+Widget framed(Widget child) {
+  return Padding(
+    padding: const EdgeInsets.all(13),
+    child: child,
+  );
+}
+final pad = EdgeInsets.all(11);
+''';
+      expect(breaks(helper, lines: {4}), ['DS-SPC-2@3']);
+    });
+  });
+
+  /// A class with one changed line is read whole (guide §0): touching a
+  /// legacy screen means leaving the class it touched free of *auto* breaks.
+  group('a class a changed line falls inside', () {
+    const source = '''
+class _ScreenState extends State<Screen> with TickerProviderStateMixin {
+  void _receive() {
+    _prompt(_askForToken);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Padding(padding: const EdgeInsets.all(13), child: c),
+    );
+  }
+}
+
+final top = EdgeInsets.all(13);
+
+class _Card<T extends Object> extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Scaffold(body: b);
+}
+''';
+
+    test('is checked whole', () {
+      expect(breaks(source, lines: {3}), ['DS-CMP-18@8', 'DS-SPC-2@9']);
+    });
+
+    test('leaves the code around it alone', () {
+      expect(breaks(source, lines: {18}), ['DS-CMP-18@18']);
+      expect(breaks(source, lines: {14}), ['DS-SPC-2@14']);
+    });
+
+    test('is found past mixin applications and extension reads', () {
+      const tricky = '''
+class _Mixed = Base with Mixin;
+Widget helper(BuildContext context) {
+  final colors = Theme.of(context).extension<Palette>()!;
+  return Scaffold(body: b);
+}
+mixin _Look on Widget {
+  Widget frame() => Scaffold(body: b);
+  void touched() {}
+}
+extension _Pad on Widget {
+  Widget pad() => Padding(padding: const EdgeInsets.all(13), child: this);
+}
+enum _Kind { a, b }
+''';
+      expect(breaks(tricky, lines: {1}), isEmpty);
+      expect(breaks(tricky, lines: {3}), ['DS-CMP-18@4']);
+      expect(breaks(tricky, lines: {8}), ['DS-CMP-18@7']);
+      expect(breaks(tricky, lines: {12}), ['DS-SPC-2@11']);
+    });
+  });
+
+  /// The Cashu wallet screen as #657 left it: the pull request changed one
+  /// icon and the `_receive` body inside a v1 screen, and the check, reading
+  /// only those lines, approved a theme-default scaffold, app bar, two
+  /// stadium buttons, a v1 card radius and an 18-sp headline.
+  test('catches the legacy screen #657 changed one line of', () {
+    const source = '''
+class _CashuWalletScreenState extends ConsumerState<CashuWalletScreen> {
+  Future<void> _receive() async {
+    final token = await _prompt(_askForToken);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColors>()!;
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.cashuWalletTitle)),
+      body: ListView(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: Text(
+              balance,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: _receive,
+            icon: const Icon(Icons.download_outlined),
+            label: Text(l10n.cashuReceiveButton),
+          ),
+          OutlinedButton.icon(
+            onPressed: _send,
+            icon: const Icon(Icons.upload_outlined),
+            label: Text(l10n.cashuSendButton),
+          ),
+        ],
+      ),
+    );
+  }
+}
+''';
+    expect(breaks(source, lines: {3, 24}), [
+      'DS-COL-11@8',
+      'DS-CMP-18@9',
+      'DS-CMP-12@10',
+      'DS-SHP-4@15',
+      'DS-TYP-4@19',
+      'DS-CMP-17@22',
+      'DS-CMP-17@27',
+    ]);
+  });
+
   group('what it does not read', () {
     test('comments and strings', () {
       expect(
@@ -647,5 +852,37 @@ final d = EdgeInsets.all(13);
       final row = ruleRow('DS-ICO-3').split('|')[2];
       expect(numbersIn(row.substring(row.indexOf('sizes:'))), iconSizes);
     });
+
+    /// A rule marked *auto* that the check never reports is a promise CI
+    /// does not keep; one it reports unmarked is a break nobody can look up.
+    test('the rules marked auto are the ones it reports', () {
+      final marked = {
+        for (final row in guide.split('\n'))
+          if (RegExp(
+            r'^\| DS-[A-Z0-9]+-\d+ \|.*\|\s*[^|]*\bauto\b[^|]*\|$',
+          ).hasMatch(row))
+            row.split('|')[1].trim(),
+      };
+      final checker = File('tool/design/design_check.dart').readAsStringSync();
+      final reported = {
+        for (final m in RegExp(r"'(DS-[A-Z0-9]+-\d+)'").allMatches(checker))
+          m[1]!,
+      };
+      expect(reported, marked);
+    });
+  });
+
+  /// The `textTheme` roles the check allows are the ones the theme sets on
+  /// the type scale. A theme change that moves one must move the check too.
+  test('agrees with the textTheme in lib/core/app_theme.dart', () {
+    final theme = File('lib/core/app_theme.dart').readAsStringSync();
+    final block = theme.substring(theme.indexOf('textTheme: TextTheme('));
+    final onScale = {
+      for (final m in RegExp(
+        r'(\w+): TextStyle\(\s*fontSize: (\d+)',
+      ).allMatches(block.substring(0, block.indexOf('\n    ),'))))
+        if (fontSizes.contains(num.parse(m[2]!))) m[1]!,
+    };
+    expect(onScale, textThemeRoles);
   });
 }

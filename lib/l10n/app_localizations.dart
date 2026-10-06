@@ -250,41 +250,95 @@ abstract class AppLocalizations {
   /// **'The order was cooperatively cancelled. No funds were transferred.'**
   String get disputeCoopCancelMessage;
 
-  /// Dispute chat screen title when trading as seller (peer is the buyer)
-  ///
-  /// In en, this message translates to:
-  /// **'Dispute with Buyer: {handle}'**
-  String disputeWithBuyer(String handle);
-
-  /// Dispute chat screen title when trading as buyer (peer is the seller)
-  ///
-  /// In en, this message translates to:
-  /// **'Dispute with Seller: {handle}'**
-  String disputeWithSeller(String handle);
-
   /// Sub-title showing the truncated order/trade ID
   ///
   /// In en, this message translates to:
   /// **'Order {orderId}'**
   String orderLabel(String orderId);
 
-  /// Status chip label for a newly opened dispute
-  ///
-  /// In en, this message translates to:
-  /// **'Initiated'**
-  String get disputeInitiated;
-
-  /// Status chip label for a dispute under admin review
-  ///
-  /// In en, this message translates to:
-  /// **'In progress'**
-  String get disputeInProgress;
-
-  /// Status chip label for a resolved/closed dispute
+  /// Dispute info card chip: the dispute ended without a verdict (e.g. a cooperative cancel)
   ///
   /// In en, this message translates to:
   /// **'Closed'**
   String get disputeStatusClosed;
+
+  /// Dispute info card title: the counterparty's role (seller or buyer) and pseudonym
+  ///
+  /// In en, this message translates to:
+  /// **'Dispute with {role}: {counterparty}'**
+  String disputeWith(String role, String counterparty);
+
+  /// Role name for the seller, used inside disputeWith
+  ///
+  /// In en, this message translates to:
+  /// **'Seller'**
+  String get seller;
+
+  /// Role name for the buyer, used inside disputeWith
+  ///
+  /// In en, this message translates to:
+  /// **'Buyer'**
+  String get buyer;
+
+  /// Dispute info card chip: opened, no solver yet
+  ///
+  /// In en, this message translates to:
+  /// **'Initiated'**
+  String get disputeStatusInitiated;
+
+  /// Dispute info card chip: a solver has the dispute
+  ///
+  /// In en, this message translates to:
+  /// **'In-progress'**
+  String get disputeStatusInProgress;
+
+  /// Dispute info card chip: a solver's verdict ended the dispute
+  ///
+  /// In en, this message translates to:
+  /// **'Resolved'**
+  String get disputeStatusResolved;
+
+  /// Dispute info card: status sentence while a solver reviews the dispute (or one has taken it)
+  ///
+  /// In en, this message translates to:
+  /// **'This dispute is currently in progress. A solver is reviewing your case.'**
+  String get disputeInProgress;
+
+  /// Dispute info card: first instruction bullet
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for a solver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.'**
+  String get disputeInstruction1;
+
+  /// Dispute info card: second instruction bullet
+  ///
+  /// In en, this message translates to:
+  /// **'The final decision will be made based on the evidence presented.'**
+  String get disputeInstruction2;
+
+  /// Dispute info card: third instruction bullet
+  ///
+  /// In en, this message translates to:
+  /// **'If you don\'t respond, the system will assume you don\'t want to cooperate and you might lose the dispute.'**
+  String get disputeInstruction3;
+
+  /// Dispute info card: status sentence when the user (buyer) opened the dispute and no solver took it yet
+  ///
+  /// In en, this message translates to:
+  /// **'You opened this dispute against the seller {counterparty}, please read carefully below:'**
+  String disputeOpenedByYouAgainstSeller(String counterparty);
+
+  /// Dispute info card: status sentence when the user (seller) opened the dispute and no solver took it yet
+  ///
+  /// In en, this message translates to:
+  /// **'You opened this dispute against the buyer {counterparty}, please read carefully below:'**
+  String disputeOpenedByYouAgainstBuyer(String counterparty);
+
+  /// Dispute info card: status sentence when the peer opened the dispute and no solver took it yet
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for admin assignment'**
+  String get disputeWaitingForAdmin;
 
   /// Resolution text shown to the seller when admin released funds to the buyer
   ///
@@ -489,12 +543,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Coming soon'**
   String get comingSoonMessage;
-
-  /// Trade status chip label: active
-  ///
-  /// In en, this message translates to:
-  /// **'Active'**
-  String get tradeStatusActive;
 
   /// Trade status chip label: completed
   ///
@@ -2680,7 +2728,7 @@ abstract class AppLocalizations {
   /// **'Trade Information'**
   String get tradeInformationTitle;
 
-  /// Label for the order ID field
+  /// Dispute info card: label over the order ID
   ///
   /// In en, this message translates to:
   /// **'Order ID'**
@@ -2697,6 +2745,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sats Amount'**
   String get satsAmountLabel;
+
+  /// User information panel: the counterparty shared no reputation for this order (full privacy) or it has not arrived yet
+  ///
+  /// In en, this message translates to:
+  /// **'This user\'s reputation is not available'**
+  String get peerReputationUnavailable;
 
   /// Label for the status field
   ///
@@ -2716,41 +2770,11 @@ abstract class AppLocalizations {
   /// **'Created'**
   String get createdLabel;
 
-  /// Placeholder note in the trade information panel
-  ///
-  /// In en, this message translates to:
-  /// **'Details wired when trade provider available (Phase 10+)'**
-  String get tradeDetailsPlaceholder;
-
   /// Title of the user information panel
   ///
   /// In en, this message translates to:
   /// **'User Information'**
   String get userInformationTitle;
-
-  /// Label for the peer public key
-  ///
-  /// In en, this message translates to:
-  /// **'Peer\'s Public Key'**
-  String get peerPublicKeyLabel;
-
-  /// Label for the shared key
-  ///
-  /// In en, this message translates to:
-  /// **'Your Shared Key'**
-  String get yourSharedKeyLabel;
-
-  /// Placeholder note for the shared key
-  ///
-  /// In en, this message translates to:
-  /// **'Available after bridge integration (Phase 10+)'**
-  String get sharedKeyPlaceholder;
-
-  /// Safety note about the shared key
-  ///
-  /// In en, this message translates to:
-  /// **'Keep your shared key safe — it is needed for dispute resolution'**
-  String get sharedKeySafetyNote;
 
   /// File type chip: video
   ///
@@ -3172,13 +3196,13 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{Select 1 star} other{Select {count} stars}}'**
   String selectStarTooltip(int count);
 
-  /// Title of the dispute info card
+  /// App bar title of the dispute chat screen once the dispute is found (v1's title)
   ///
   /// In en, this message translates to:
   /// **'Dispute Details'**
   String get disputeDetailsTitle;
 
-  /// Label for the dispute ID field
+  /// Dispute info card: label over the dispute ID
   ///
   /// In en, this message translates to:
   /// **'Dispute ID'**
@@ -3657,12 +3681,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Mint'**
   String get aboutCashuMintUrlLabel;
-
-  /// About screen — shown when a node says it runs Cashu but publishes no mint, which means trades cannot run
-  ///
-  /// In en, this message translates to:
-  /// **'Not advertised'**
-  String get aboutCashuMintNotAdvertised;
 
   /// About screen — Cashu escrow locktime row label
   ///
@@ -6790,11 +6808,11 @@ abstract class AppLocalizations {
   /// **'Your escrow is locked but the node has not confirmed it. Retrying is safe — it will not lock a second time.'**
   String get lockEscrowPendingSubmission;
 
-  /// Escrow error — the node published no mint (CashuMintUnknown)
+  /// Escrow error — the node accepts several mints, or any, so each order names its own, and this build can only lock on a node with a single mint (CashuMintNotSupported, MostroP2P/mostro#1047)
   ///
   /// In en, this message translates to:
-  /// **'This node has not published its mint, so there is nowhere to lock the escrow.'**
-  String get lockEscrowMintUnknown;
+  /// **'This node lets each order choose its mint, and this version of the app can only lock an escrow on a node with a single mint.'**
+  String get lockEscrowMintNotSupported;
 
   /// Escrow error — submitted, but the device could not save the token (CashuEscrowNotPersisted)
   ///
@@ -6855,6 +6873,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'They\'re locking the sats in escrow. Once it\'s locked, it\'s your turn to pay the fiat.'**
   String get tradeBodyWaitingPaymentBuyerCashu;
+
+  /// Dispute chat app bar: tooltip of the action that sends the solver the peer chat key (#415)
+  ///
+  /// In en, this message translates to:
+  /// **'Share the chat key with the resolver'**
+  String get shareChatKeyAction;
+
+  /// Title of the dialog confirming that the peer chat key goes to the dispute solver
+  ///
+  /// In en, this message translates to:
+  /// **'Share the chat key with the resolver?'**
+  String get shareChatKeyTitle;
+
+  /// Body of the dialog confirming that the peer chat key goes to the dispute solver: what the solver can read, and only that
+  ///
+  /// In en, this message translates to:
+  /// **'If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterparty in this order, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.'**
+  String get shareChatKeyBody;
+
+  /// Confirm button of the dialog that shares the peer chat key with the solver
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareChatKeyConfirm;
+
+  /// Dispute chat app bar: tooltip of the share-chat-key action once the chat key went to the current solver (it can still be sent again)
+  ///
+  /// In en, this message translates to:
+  /// **'Chat key shared with the resolver'**
+  String get chatKeySharedIndicator;
+
+  /// Error in the share-chat-key dialog: the counterparty or trade key of this order is not known on this device
+  ///
+  /// In en, this message translates to:
+  /// **'The chat key of this trade is not available on this device.'**
+  String get shareChatKeyUnavailable;
+
+  /// «…» in a chat message's menu, and the title of the sheet with every emoji
+  ///
+  /// In en, this message translates to:
+  /// **'More reactions'**
+  String get moreReactions;
+
+  /// Screen-reader label of the reaction shown under a chat message
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction: {emoji}'**
+  String messageReactionLabel(String emoji);
+
+  /// Snackbar shown when a reaction to a chat message could not be sent
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send the reaction. Please try again.'**
+  String get reactionSendFailed;
+
+  /// Screen-reader hint of a chat message: what tapping it (or holding an attachment) opens
+  ///
+  /// In en, this message translates to:
+  /// **'Open the message menu'**
+  String get messageMenuHint;
+
+  /// Mint of a Cashu node that lists no mint and so accepts any the order's maker picks (MostroP2P/mostro#1047): value in Settings, About and the node selector
+  ///
+  /// In en, this message translates to:
+  /// **'Any mint'**
+  String get cashuAnyMint;
+
+  /// Settings, Payments group — label of a row naming a Cashu mint the active node accepts (one row per mint); shown only when the node runs Cashu
+  ///
+  /// In en, this message translates to:
+  /// **'Mint'**
+  String get settingsMintLabel;
+
+  /// Snackbar after tapping a mint row in Settings, which copies the mint's full URL
+  ///
+  /// In en, this message translates to:
+  /// **'Mint URL copied'**
+  String get settingsMintCopied;
 }
 
 class _AppLocalizationsDelegate

@@ -35,6 +35,26 @@ RelayHealth relayHealth(RelayInfo relay) {
 String relayDisplayUrl(String url) =>
     url.replaceFirst(RegExp(r'^wss?://', caseSensitive: false), '');
 
+/// `https://mint.cashu.space/` → `mint.cashu.space`.
+///
+/// The mint is who holds the sats in Cashu mode, and the host is the part of
+/// its URL that says who that is; the full URL stays in the row's accessible
+/// label and on the clipboard. A URL with no host is shown as it came.
+String mintDisplayHost(String url) {
+  final host = Uri.tryParse(url)?.host;
+  return (host == null || host.isEmpty) ? url : host;
+}
+
+/// One line for every mint a Cashu node accepts: `mint.a.com`, or
+/// `mint.a.com +2` when it accepts more, or [anyMint] when it lists none and so
+/// accepts any (MostroP2P/mostro#1047). For a line too short to list them all,
+/// like the node selector's.
+String mintSummary(List<String> urls, {required String anyMint}) {
+  if (urls.isEmpty) return anyMint;
+  final first = mintDisplayHost(urls.first);
+  return urls.length == 1 ? first : '$first +${urls.length - 1}';
+}
+
 /// Connected / enabled tally behind `Relays → 3 de 4 conectados`.
 ///
 /// [total] counts the relays the user has enabled, not every row: a relay

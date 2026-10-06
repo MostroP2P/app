@@ -8,6 +8,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/node_selector_palette.dart';
 import 'package:mostro/features/settings/models/node_display.dart';
 import 'package:mostro/features/settings/models/node_selector_rules.dart';
+import 'package:mostro/features/settings/models/settings_rows.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/node_stats.dart';
@@ -794,7 +795,10 @@ class _TrustRow extends StatelessWidget {
 
     final custody = switch (s?.escrowMode) {
       'lightning' => l10n.nodeCustodyLightning,
-      'cashu' => l10n.nodeCustodyCashu(_mintHost(s?.cashuMintUrl)),
+      // The mint changes who holds the sats, so it is always shown.
+      'cashu' => l10n.nodeCustodyCashu(
+        mintSummary(s?.cashuMintUrls ?? const [], anyMint: l10n.cashuAnyMint),
+      ),
       _ => l10n.nodeCustodyUnknown,
     };
 
@@ -818,7 +822,7 @@ class _TrustRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.shield_outlined, size: 13, color: book.textTertiary),
+          Icon(Icons.shield_outlined, size: 12, color: book.textTertiary),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -835,14 +839,6 @@ class _TrustRow extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  /// `https://mint.cashu.space/` → `mint.cashu.space`. The mint changes who
-  /// holds the sats, so it is always shown; a malformed URL is shown raw.
-  static String _mintHost(String? url) {
-    if (url == null) return '—';
-    final host = Uri.tryParse(url)?.host;
-    return (host == null || host.isEmpty) ? url : host;
   }
 }
 

@@ -54,7 +54,12 @@ hardening".
   escrows against the node's configured mint; anything beyond that is out of scope.
   This bounds the wallet's **feature set**, not its quality bar — within that scope it
   handles real money and is held to it.
-- No per-order mint negotiation (upstream constraint: the daemon pins a single `mint_url`).
+- No mint of the client's own choosing beyond what the node accepts. Since
+  [MostroP2P/mostro#1047](https://github.com/MostroP2P/mostro/pull/1047) the **maker**
+  picks each order's mint, among the node's `[cashu] mint_urls` (or any public mint when
+  the list is empty), and the taker accepts it by taking. This client reads the list and
+  each order's mint; picking one when creating an order, and a wallet that follows the
+  order's mint, are still to come (see §4.1).
 - No change of any kind to the Lightning flows. Cashu code is **additive and inert**
   unless the active Mostro node is in Cashu mode. Lightning stays fully supported: this is
   a choice offered to users, never a migration imposed on them.
@@ -211,12 +216,14 @@ And the NUT-11 secret the seller's wallet must construct for each escrow proof
 
 The client already fetches the daemon's **Kind 38385 instance-info event** (tag
 `z = "info"`) via `fetch_mostro_instance_tags` (`rust/src/api/nostr.rs`) and parses it in
-`MostroInstance.fromTags` (Dart). Today the event advertises LND parameters
-(`lnd_version`, `hold_invoice_*`, …) and the bond policy — **nothing about Cashu yet**.
+`MostroInstance.fromTags` (Dart). A Lightning node advertises its LND parameters
+(`lnd_version`, `hold_invoice_*`, …) and the bond policy; since
+[MostroP2P/mostro#1045](https://github.com/MostroP2P/mostro/pull/1045) every node also
+says which backend it runs.
 
-### 4.1 Upstream proposal (to be PR'd to `mostrod`)
+### 4.1 Upstream tags (shipped in MostroP2P/mostro#1045 and #1047)
 
-Add these tags to the 38385 info event when the daemon boots in Cashu mode:
+The proposal below was for these tags on the 38385 info event of a daemon in Cashu mode:
 
 ```
 ["escrow_mode", "cashu"]                      // absent or "lightning" => Lightning
@@ -225,8 +232,36 @@ Add these tags to the 38385 info event when the daemon boots in Cashu mode:
 ["cashu_settlement_margin_days", "3"]          // Track B FiatSent guard
 ```
 
-This is symmetric with what the daemon already publishes for LND and costs one small
-upstream PR (tags come straight from `Settings::get_cashu()`).
+mostro#1045 shipped the first three: a Lightning node publishes `escrow_mode =
+"lightning"`, and a Cashu node publishes `escrow_mode`, `cashu_mint_url` and
+`cashu_escrow_locktime_days`, without the `lnd_*` and `*invoice*` tags.
+`cashu_settlement_margin_days` is not published; the client reads it as absent (`None`),
+which nothing gates on. A missing `escrow_mode` still means a daemon older than the PR,
+read as Lightning (`Unknown`).
+
+mostro#1047 made the mint per order. The info tag lists **every** mint the node accepts,
+one value each (`["cashu_mint_url", m1, m2]`), and is **absent** on an open node, which
+accepts any mint whose host is public. Each Cashu order event names its mint
+(`["cashu_mint_url", url]` on the 38383), the maker sends it in `new-order`
+(`SmallOrder.cashu_mint_url`, mostro-core 0.17.1), and the escrow request the seller gets
+names it too. What the client does with that today:
+
+- `escrow_mode::CashuNodeConfig.mint_urls` and `MostroInstance.cashuMintUrls` hold the
+  list (trimmed, no blanks or repeats, in the node's order); `OrderInfo.cashu_mint_url`
+  holds an order's mint, from the book tag or the escrow request.
+- The wallet binds to **one** mint, so the gate (`is_cashu_mode`, `isCashuAvailable`) opens
+  only on a node that accepts exactly one (`single_mint()`). On a node that accepts
+  several, or any, the lock fails with `CashuMintNotSupported`, and so does an order whose
+  mint is not the wallet's, before any swap.
+- What the client shows follows the mode, never both backends at once. About lists the
+  Cashu group, one Mint row per mint or "Any mint", or the Lightning group
+  (`nodeTechSections`). Settings → Payments shows the same mint rows (a tap copies the
+  URL) and the Cashu wallet when the node pins one mint on a Cashu node, the Lightning
+  address and NWC wallet rows otherwise — a Cashu node has no invoice step and no bond,
+  so those rows do nothing there. The node selector shows `mint.a.com +2` or "Any mint".
+- Still to build: choosing the mint when creating an order (`new-order` sends none, which
+  a node with exactly one mint defaults), and a wallet that locks at the order's mint, so
+  that multi-mint and open nodes can trade.
 
 ### 4.2 Client-side representation
 
@@ -529,10 +564,11 @@ departs from the plan above, this is what holds:
   seller's sats to a 1-of-1 lock nobody accounts for. The quote reports a zero fee
   and none is sent; `mostro::node_fee` keeps the `2 * round(fee * amount / 2)`
   formula and its tests for when the daemon collects it.
-- **No terms on the wire.** In Cashu mode the daemon publishes no Kind 38385 at all
-  (its info job skips itself), and the escrow request carries neither mint nor
-  locktime. So the mint must be known (advertised, or the C1b override) or the lock
-  fails with `CashuMintUnknown` — never an empty URL — and the locktime is the
+- **No terms on the wire.** When this was built the daemon published no Kind 38385 in
+  Cashu mode and the escrow request carried neither mint nor locktime. So the lock
+  binds to the node's single mint (advertised since mostro#1045, or the C1b override)
+  or fails with `CashuMintNotSupported` — never an empty URL; since mostro#1047 it also
+  refuses an order whose own mint is another (§4.1) — and the locktime is the
   protocol default, the daemon's own `[cashu] escrow_locktime_days = 15`, plus a
   one-hour margin over its floor.
 - **Correlation.** The submission is answered on its `request_id`: seller ←
@@ -565,8 +601,8 @@ departs from the plan above, this is what holds:
   `sellerFundingPath` (trade card and verb, trade screen, status listener,
   notification, end of the bond window, take flow), decided on the node's **mode**
   (`isCashuModeProvider`), not on whether its mint is usable: a Cashu node sends no
-  hold invoice, so a missing mint shows up on the escrow screen as
-  `CashuMintUnknown`. The wallet itself stays gated on `isCashuAvailableProvider`.
+  hold invoice, so a node without a single mint shows up on the escrow screen as
+  `CashuMintNotSupported`. The wallet itself stays gated on `isCashuAvailableProvider`.
 
 - **Done when:** full happy-path segment against a Track-A daemon + nutshell:
   take → seller locks → daemon validates → buyer notified → `fiat-sent` works;
@@ -708,9 +744,9 @@ recoverable failure and lost user money:
 
 | # | Risk / open question | Mitigation |
 |---|---|---|
-| 1 | ~~**Escrow-request wire form** not yet published~~ — **RESOLVED in C0.** It reuses existing types, which is why nothing was added to `mostro-core` for it. Per daemon branch `feat/cashu-ta2-take-flow` (`show_cashu_escrow_request`, `src/util.rs`): seller ← `Action::WaitingSellerToPay` + `Payload::Order(SmallOrder)` (`status = WaitingPayment`, both trade pubkeys, `buyer_invoice = None`); buyer ← same action, **no payload**. `mint_url` / `P_M` / locktime are *not* in the request — they come from the 38385 tags (C1) and the known Mostro pubkey. | C5 classifies by payload shape (§4.4) as planned: in Lightning the seller gets `PayInvoice` + `PaymentRequest`; in Cashu it gets `WaitingSellerToPay` + `Order`. `cashu_wire.rs::escrow_request_rides_on_an_unmodified_small_order` pins the assumption that makes this safe. Still to confirm when Track A merges: the daemon branch has diverged from its `main`. |
+| 1 | ~~**Escrow-request wire form** not yet published~~ — **RESOLVED in C0.** It reuses existing types, which is why nothing was added to `mostro-core` for it. Per daemon branch `feat/cashu-ta2-take-flow` (`show_cashu_escrow_request`, `src/util.rs`): seller ← `Action::WaitingSellerToPay` + `Payload::Order(SmallOrder)` (`status = WaitingPayment`, both trade pubkeys, `buyer_invoice = None`); buyer ← same action, **no payload**. `P_M` and the locktime are *not* in the request — they come from the known Mostro pubkey and the 38385 tags (C1); since mostro#1047 the request names the order's mint (`SmallOrder.cashu_mint_url`). | C5 classifies by payload shape (§4.4) as planned: in Lightning the seller gets `PayInvoice` + `PaymentRequest`; in Cashu it gets `WaitingSellerToPay` + `Order`. `cashu_wire.rs::escrow_request_names_the_order_mint_and_nothing_else_cashu` pins the assumption that makes this safe. Still to confirm when Track A merges: the daemon branch has diverged from its `main`. |
 | 2 | **cdk wasm compatibility** unknown; cdk is pre-1.0 with a moving API | wasm stub from day one (C2), web deferred to C9; pin exact cdk version in lockfile; upgrade only deliberately |
-| 3 | **38385 cashu tags don't exist upstream yet** | C1 ships the dev override so work can proceed — but the override is a **developer** affordance and users never see it. Per §1.1 the feature is only usable once a node advertises Cashu **itself**, so the upstream PR in §4.1 is a **release blocker**, not a convenience. Land it early; it is a handful of tags read from `Settings::get_cashu()` |
+| 3 | ~~**38385 cashu tags don't exist upstream yet**~~ — **RESOLVED by MostroP2P/mostro#1045 and #1047** (§4.1): a Cashu node advertises itself and the mints it accepts, so detection works without the override. | C1 ships the dev override so work can proceed — but the override is a **developer** affordance and users never see it. Per §1.1 the feature is only usable once a node advertises Cashu **itself**, so the upstream PR in §4.1 is a **release blocker**, not a convenience. Land it early; it is a handful of tags read from `Settings::get_cashu()` |
 | 4 | `mostro-core` 0.13.1 → 0.14.x breakage | isolated in C0, the smallest possible PR |
 | 5 | **Buyer offline at release** — signatures sent P2P while buyer away | NIP-59 events wait on relays; startup scan for unredeemed trades (C6); nothing expires except the (15-day) locktime, and C6's margin guard protects the fiat step |
 | 6 | **Crash between receiving signatures and redeeming** | persist signatures before swap; redeem is retriable until proofs are spent; reconciliation via NUT-07 in C10 |

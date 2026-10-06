@@ -109,6 +109,7 @@ void main() {
         adminPubkey: 'solver',
         openedAt: 1234,
         isRead: false,
+        chatKeyShared: false,
       );
 
       // Act
@@ -139,6 +140,7 @@ void main() {
         adminPubkey: 'solver',
         openedAt: 1234,
         isRead: false,
+        chatKeyShared: false,
       );
 
       await routine().run();
@@ -207,6 +209,7 @@ void main() {
         initiatedByMe: false,
         openedAt: 1234,
         isRead: false,
+        chatKeyShared: false,
       );
       updates.add(null);
       await run;
@@ -226,6 +229,7 @@ void main() {
       initiatedByMe: true,
       openedAt: 1234,
       isRead: false,
+      chatKeyShared: false,
     );
     await routine().run();
     container.read(disputeNotifierProvider.notifier).markRead('d1');

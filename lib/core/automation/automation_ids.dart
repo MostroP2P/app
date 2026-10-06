@@ -223,6 +223,11 @@ class AutomationIds {
   static const String tradeRateSubmit = 'trade.rate.submit';
   static const String tradeRateClose = 'trade.rate.close';
   static const String tradeViewDispute = 'trade.dispute.view';
+
+  /// Dispute chat: sends the solver the peer chat key, behind a confirmation.
+  static const String disputeShareKey = 'dispute.shareKey';
+  static const String disputeShareKeyConfirm = 'dispute.shareKey.confirm';
+  static const String disputeShareKeyCancel = 'dispute.shareKey.cancel';
   static const String tradeClose = 'trade.close';
 
   /// Star [score] (1-5) on the rating screen.

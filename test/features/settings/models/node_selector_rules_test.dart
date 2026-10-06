@@ -28,7 +28,7 @@ MostroNodeStats _stats({
   maxOrderAmount: max,
   acceptedCurrencies: accepted,
   escrowMode: 'lightning',
-  cashuMintUrl: null,
+  cashuMintUrls: const [],
   bond: BondPolicyInfo(
     policy: switch (bondRequired) {
       true => BondPolicy.enabled,

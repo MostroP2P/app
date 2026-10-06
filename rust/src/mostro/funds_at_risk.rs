@@ -157,6 +157,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role,
             counterparty_pubkey: String::new(),

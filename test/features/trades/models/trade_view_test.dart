@@ -134,7 +134,11 @@ void main() {
   });
 
   group('outside the happy path', () {
-    test('dispute: view it; only the seller may still release or cancel', () {
+    test('dispute: view it; the seller may still release, either side may '
+        'cancel', () {
+      // mostrod routes a cancel in `dispute` through the same cooperative
+      // flow as `active` and `fiat-sent`, from either party (cancel.rs,
+      // `cancel_active_order`); only the release is the seller's alone.
       final seller = view(TradeStatus.disputed, isBuyer: false);
       expect(seller.chip, TradeChip.dispute);
       expect(seller.primary, TradePrimaryAction.viewDispute);
@@ -145,7 +149,8 @@ void main() {
       expect(seller.step, -1);
 
       final buyer = view(TradeStatus.disputed, isBuyer: true);
-      expect(buyer.secondary, isEmpty);
+      expect(buyer.primary, TradePrimaryAction.viewDispute);
+      expect(buyer.secondary, [TradeSecondaryAction.cancel]);
     });
 
     test('cancelled: just Close, no timeline', () {
@@ -193,7 +198,11 @@ void main() {
 /// again is not an action, so the bar drops `Cancel` and keeps the rest.
 void cancelRequestTests() {
   group('a cancel request of this side is pending', () {
-    for (final status in [TradeStatus.active, TradeStatus.fiatSent]) {
+    for (final status in [
+      TradeStatus.active,
+      TradeStatus.fiatSent,
+      TradeStatus.disputed,
+    ]) {
       for (final isBuyer in [true, false]) {
         test(
           'no second cancel, everything else stays ($status, isBuyer: $isBuyer)',
@@ -222,19 +231,17 @@ void cancelRequestTests() {
       }
     }
 
-    test(
-      'the flag outlives the request: a dispute keeps the seller\'s cancel',
-      () {
-        // The row is never cleared; a dispute opened after an unanswered
-        // request must not lose the seller's own cancel action.
-        final v = TradeView.of(
-          status: TradeStatus.disputed,
-          isBuyer: false,
-          cancelRequested: true,
-        );
-        expect(v.secondary, contains(TradeSecondaryAction.cancel));
-      },
-    );
+    test('a dispute does not close the request: asking again stays out', () {
+      // mostrod never clears `cancel_initiator_pubkey`, and opening a
+      // dispute leaves it alone: the requester's second cancel is refused
+      // (`InvalidPubkey`), and the counterparty's completes the cancel.
+      final v = TradeView.of(
+        status: TradeStatus.disputed,
+        isBuyer: false,
+        cancelRequested: true,
+      );
+      expect(v.secondary, [TradeSecondaryAction.release]);
+    });
 
     test('no request can be open before active: the flag changes nothing', () {
       final v = TradeView.of(

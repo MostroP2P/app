@@ -8,9 +8,22 @@ import 'package:mostro/l10n/app_localizations.dart';
 /// upper-case label, in the palette — lime for the user's turn, amber for a
 /// wait, neutral once closed, coral for a dispute.
 class TradeListChip extends StatelessWidget {
-  const TradeListChip({super.key, required this.label});
+  const TradeListChip({super.key, required TradeChipLabel this.label})
+    : kind = null,
+      caption = null;
 
-  final TradeChipLabel label;
+  /// The same chip for a status the list has no label of its own for: the
+  /// chat's trade panel names the status as the trade header does
+  /// ([caption]), in the colours of its [kind].
+  const TradeListChip.status({
+    super.key,
+    required TradeChipKind this.kind,
+    required String this.caption,
+  }) : label = null;
+
+  final TradeChipLabel? label;
+  final TradeChipKind? kind;
+  final String? caption;
 
   static String text(TradeChipLabel label, AppLocalizations l10n) =>
       switch (label) {
@@ -30,9 +43,10 @@ class TradeListChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final pal = ActivityPalette.of(context);
     final kind =
+        this.kind ??
         TradeRowState(
           group: TradeGroup.inProgress,
-          chip: label,
+          chip: label!,
           verb: TradeRowVerb.none,
         ).chipKind;
     final (bg, border, ink, dot) = switch (kind) {
@@ -78,7 +92,8 @@ class TradeListChip extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            text(label, AppLocalizations.of(context)).toUpperCase(),
+            (caption ?? text(label!, AppLocalizations.of(context)))
+                .toUpperCase(),
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,

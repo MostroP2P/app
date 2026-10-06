@@ -206,11 +206,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
   }
 
   /// The wire-level status a screen status stands for, where a cancel
-  /// request can be open: only `active` and `fiatSent` map back one-to-one;
-  /// everything else is a status no request is open in.
+  /// request can be open: only `active`, `fiatSent` and `disputed` map back
+  /// one-to-one; everything else is a status no request is open in.
   static OrderStatus _orderStatus(TradeStatus status) => switch (status) {
     TradeStatus.active => OrderStatus.active,
     TradeStatus.fiatSent => OrderStatus.fiatSent,
+    TradeStatus.disputed => OrderStatus.dispute,
     _ => OrderStatus.pending,
   };
 
@@ -1130,23 +1131,42 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-        child: Row(
+        // Id on the left, date on the right; the date takes a line of its
+        // own when both do not fit, and the id ellipsizes when even it alone
+        // does not (German at 2x text, 320dp: DS-A11Y-4).
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
           children: [
-            Text(l10n.tradeIdLabel, style: faint),
-            const SizedBox(width: 8),
-            // The visible id is shortened; the readout carries the whole id.
-            Text(
-              _shortId(widget.orderId),
-              style: TextStyle(
-                fontFamily: AppFonts.figures,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: book.textTertiary,
-              ),
-            ).withAutomationId(AutomationIds.orderId, label: widget.orderId),
-            const SizedBox(width: 8),
-            Icon(Icons.copy_outlined, size: 13, color: book.textTertiary),
-            const Spacer(),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l10n.tradeIdLabel, style: faint),
+                const SizedBox(width: 8),
+                // The visible id is shortened; the readout carries the whole
+                // id.
+                Flexible(
+                  child: Text(
+                    _shortId(widget.orderId),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: AppFonts.figures,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: book.textTertiary,
+                    ),
+                  ).withAutomationId(
+                    AutomationIds.orderId,
+                    label: widget.orderId,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.copy_outlined, size: 12, color: book.textTertiary),
+              ],
+            ),
             if (order != null)
               Text(_createdLabel(l10n, order.createdAt), style: faint),
           ],

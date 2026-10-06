@@ -147,6 +147,17 @@ pub mod settings_keys {
         format!("{DISPUTE_MINE_PREFIX}{order_id}")
     }
 
+    /// Per-order marker that this side sent the dispute's solver the chat
+    /// key (#415). The value is the solver's pubkey (hex): a takeover brings
+    /// a solver who never got it, so the marker only counts for that solver.
+    pub const DISPUTE_KEY_SHARED_PREFIX: &str = "dispute_key_shared:";
+
+    /// Build the settings key marking that `order_id`'s chat key went to its
+    /// dispute solver. Persisted so a restart never offers to send it twice.
+    pub fn dispute_key_shared(order_id: &str) -> String {
+        format!("{DISPUTE_KEY_SHARED_PREFIX}{order_id}")
+    }
+
     /// Per-order status replay cursor — the `created_at` (unix seconds,
     /// decimal string) of the newest daemon message whose status write was
     /// applied, clamped to the local clock. Full key is
@@ -224,12 +235,13 @@ pub mod settings_keys {
     /// [`super::Storage::clear_identity_data`] drops it with the rows. What
     /// is left in the store is device preference: the active node, custom
     /// nodes, node caches, push token and toggle, developer overrides.
-    pub const IDENTITY_SCOPED_PREFIXES: [&str; 8] = [
+    pub const IDENTITY_SCOPED_PREFIXES: [&str; 9] = [
         CHAT_CURSOR_PREFIX,
         DISPUTE_ADMIN_PREFIX,
         DISPUTE_ADMIN_AT_PREFIX,
         DISPUTE_NODE_PREFIX,
         DISPUTE_MINE_PREFIX,
+        DISPUTE_KEY_SHARED_PREFIX,
         STATUS_CURSOR_PREFIX,
         INVOICE_STEP_PREFIX,
         TRADE_WIPED_PREFIX,

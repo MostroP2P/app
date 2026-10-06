@@ -1,114 +1,121 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/chat/models/info_panel_rules.dart';
+import 'package:mostro/features/chat/providers/chat_providers.dart';
+import 'package:mostro/features/chat/widgets/trade_state_header.dart';
+import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/order/widgets/order_detail_cards.dart';
+import 'package:mostro/features/trades/models/trades_list_rules.dart';
+import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/features/trades/widgets/trade_list_chip.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/counterpart_reputation_row.dart';
 import 'package:mostro/shared/widgets/nym_avatar.dart';
+import 'package:mostro/src/rust/api/types.dart';
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
-
-void _copyToClipboard(BuildContext context, String text) {
-  Clipboard.setData(ClipboardData(text: text));
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(AppLocalizations.of(context).aboutCopiedToClipboard),
-      duration: const Duration(seconds: 2),
-    ),
-  );
-}
+/// The share of the screen height a panel may take before it scrolls, so
+/// the conversation under it keeps room at large text sizes.
+const double _panelMaxHeightFraction = 0.35;
 
 // ── TradeInformationTab ───────────────────────────────────────────────────────
 
-/// Expandable panel showing trade / order details.
+/// The chat room's trade panel, opened from the app bar's info icon: order
+/// id, fiat and sats amounts, status, payment method and creation date.
 ///
-/// Field values are placeholder dashes until the trade provider is wired
-/// (Phase 10+).
-class TradeInformationTab extends StatelessWidget {
-  const TradeInformationTab({
-    super.key,
-    required this.orderId,
-  });
+/// It reads the providers the sticky trade header reads, so the two never
+/// disagree: the status is the header's ([tradePanelStatus]), and the figures
+/// come from the trade row, then the order the header resolves
+/// ([TradePanelFacts]). A figure the trade does not carry leaves its row
+/// out rather than showing a placeholder.
+class TradeInformationTab extends ConsumerWidget {
+  const TradeInformationTab({super.key, required this.orderId});
 
   final String orderId;
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final locale = Localizations.localeOf(context).toString();
+    final order = ref.watch(chatTradeOrderProvider(orderId)).valueOrNull;
+    final trade = ref.watch(tradeInfoProvider(orderId)).valueOrNull;
+    final live = ref.watch(tradeStatusProvider(orderId)).valueOrNull;
+    final facts = TradePanelFacts.of(trade, order);
+    final status = tradePanelStatus(live: live, order: order, trade: trade);
+    final sats = facts?.sats;
+    final paymentMethod = facts?.paymentMethod;
+
+    return _PanelCard(
+      title: l10n.tradeInformationTitle,
+      children: [
+        OrderIdRow(orderId: orderId),
+        if (facts != null && facts.hasFiat)
+          OrderDataRow(
+            icon: Icons.payments_outlined,
+            label: l10n.fiatAmountLabel,
+            value: OrderDataValue(_fiat(facts, locale)),
+          ),
+        if (sats != null)
+          OrderDataRow(
+            icon: Icons.bolt_outlined,
+            label: l10n.satsAmountLabel,
+            value: OrderDataValue(
+              l10n.satsAmount(formatSatsCount(sats, locale)),
+            ),
+          ),
+        if (status != null) _StatusRow(status: status),
+        if (paymentMethod != null)
+          OrderPaymentMethodsRow(
+            label: l10n.paymentMethodLabel,
+            paymentMethod: paymentMethod,
+          ),
+        if (facts != null)
+          OrderDataRow(
+            icon: Icons.calendar_today_outlined,
+            label: l10n.createdLabel,
+            // The own-order and trade screens' date format.
+            value: OrderDataValue(
+              DateFormat.yMMMd(locale).add_Hm().format(facts.createdAt),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// `23.478 ARS`, or the range of an order not yet taken for one amount.
+  static String _fiat(TradePanelFacts facts, String locale) {
+    final amount = formatFiatAmount(
+      amount: facts.fiatAmount,
+      min: facts.fiatAmountMin,
+      max: facts.fiatAmountMax,
+      locale: locale,
+    );
+    return '$amount ${facts.fiatCode}';
+  }
+}
+
+/// The status row: the header's word, in the trades list's chip.
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({required this.status});
+
+  final OrderStatus status;
+
+  @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
-    final textTheme = Theme.of(context).textTheme;
-
-    return Card(
-      margin: const EdgeInsets.all(AppSpacing.md),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Section header
-            Text(
-              AppLocalizations.of(context).tradeInformationTitle,
-              style: textTheme.headlineSmall,
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            // Order ID (copyable)
-            _InfoRow(
-              label: AppLocalizations.of(context).orderIdLabel,
-              value: orderId,
-              colors: colors,
-              textTheme: textTheme,
-              copyable: true,
-            ),
-            _InfoRow(
-              label: AppLocalizations.of(context).fiatAmountLabel,
-              value: '—',
-              colors: colors,
-              textTheme: textTheme,
-            ),
-            _InfoRow(
-              label: AppLocalizations.of(context).satsAmountLabel,
-              value: '—',
-              colors: colors,
-              textTheme: textTheme,
-            ),
-            _InfoRow(
-              label: AppLocalizations.of(context).statusLabel,
-              value: null, // rendered as chip below
-              colors: colors,
-              textTheme: textTheme,
-              customValue: _StatusChip(colors: colors),
-            ),
-            _InfoRow(
-              label: AppLocalizations.of(context).paymentMethodLabel,
-              value: '—',
-              colors: colors,
-              textTheme: textTheme,
-            ),
-            _InfoRow(
-              label: AppLocalizations.of(context).createdLabel,
-              value: '—',
-              colors: colors,
-              textTheme: textTheme,
-            ),
-
-            const SizedBox(height: AppSpacing.md),
-
-            // Phase note
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: colors.backgroundInput,
-                borderRadius: BorderRadius.circular(AppRadius.chip),
-              ),
-              child: Text(
-                AppLocalizations.of(context).tradeDetailsPlaceholder,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colors.textSubtle,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
-          ],
+    final l10n = AppLocalizations.of(context);
+    final filter = orderStatusToFilter(status);
+    return OrderDataRow(
+      icon: Icons.flag_outlined,
+      label: l10n.statusLabel,
+      // One line like every chip; a long translation at large text on a
+      // narrow phone shrinks to the row instead of overflowing it.
+      value: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: TradeListChip.status(
+          kind: tradePanelChipKind(filter),
+          caption: filter.localizedLabel(l10n),
         ),
       ),
     );
@@ -117,204 +124,111 @@ class TradeInformationTab extends StatelessWidget {
 
 // ── UserInformationTab ────────────────────────────────────────────────────────
 
-/// Expandable panel showing peer identity details.
-class UserInformationTab extends StatelessWidget {
-  const UserInformationTab({
-    super.key,
-    required this.peerHandle,
-    required this.peerPubkey,
-    required this.peerIconIndex,
-    required this.peerColorHue,
-  });
+/// The chat room's user panel, opened from the app bar's user icon: the
+/// alias and avatar this order's peer has in the chat header, and their
+/// public reputation ([peerReputation]).
+///
+/// No key is shown here. The peer's trade key means nothing to a user, and
+/// the chat's shared key never reaches Dart: it goes to a dispute's solver
+/// from Rust (#415).
+class UserInformationTab extends ConsumerWidget {
+  const UserInformationTab({super.key, required this.room});
 
-  final String peerHandle;
-  final String peerPubkey;
-  final int peerIconIndex;
-  final int peerColorHue;
+  /// The room the chat header renders, so alias and avatar are the same.
+  final ChatRoomState room;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final book = OrderBookPalette.of(context);
     final textTheme = Theme.of(context).textTheme;
+    final trade = ref.watch(tradeInfoProvider(room.orderId)).valueOrNull;
+    final order = ref.watch(chatTradeOrderProvider(room.orderId)).valueOrNull;
+    final reputation = peerReputation(trade, order);
+    // The row's own role first; the room's until the row loads.
+    final counterpartIsBuyer = switch (trade?.role) {
+      TradeRole.seller => true,
+      TradeRole.buyer => false,
+      null => room.isSelling,
+    };
 
-    return Card(
-      margin: const EdgeInsets.all(AppSpacing.md),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return _PanelCard(
+      title: l10n.userInformationTitle,
+      children: [
+        // Avatar + handle, as the chat header shows them.
+        Row(
           children: [
-            // Section header
-            Text(AppLocalizations.of(context).userInformationTitle,
-                style: textTheme.headlineSmall),
-            const SizedBox(height: AppSpacing.md),
-
-            // Avatar + handle
-            Row(
-              children: [
-                NymAvatar(
-                  pseudonym: peerHandle,
-                  iconIndex: peerIconIndex,
-                  colorHue: peerColorHue,
-                  size: 56,
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Text(
-                  peerHandle,
-                  style: textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colors.textPrimary,
-                  ),
-                ),
-              ],
+            NymAvatar(
+              pseudonym: room.peerHandle,
+              iconIndex: room.peerIconIndex,
+              colorHue: room.peerColorHue,
+              size: 56,
             ),
-            const SizedBox(height: AppSpacing.lg),
-
-            // Peer public key
-            Text(
-              AppLocalizations.of(context).peerPublicKeyLabel,
-              style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            GestureDetector(
-              onTap: () => _copy(context, peerPubkey),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
               child: Text(
-                peerPubkey,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colors.blueAccent,
-                  fontFamily: 'monospace',
+                room.displayHandle(l10n),
+                style: textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: book.textPrimary,
                 ),
-                softWrap: true,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-
-            // Shared key
-            Text(
-              AppLocalizations.of(context).yourSharedKeyLabel,
-              style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              AppLocalizations.of(context).sharedKeyPlaceholder,
-              style: textTheme.bodySmall?.copyWith(
-                color: colors.textSubtle,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-
-            // Safety note
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: colors.backgroundInput,
-                borderRadius: BorderRadius.circular(AppRadius.chip),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 14,
-                    color: colors.textSubtle,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      AppLocalizations.of(context).sharedKeySafetyNote,
-                      style: textTheme.bodySmall
-                          ?.copyWith(color: colors.textSubtle),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: AppSpacing.lg),
+        if (reputation != null)
+          CounterpartReputationRow(
+            rating: reputation.rating,
+            reviews: reputation.reviews,
+            days: reputation.days,
+            counterpartIsBuyer: counterpartIsBuyer,
+          )
+        else
+          Text(
+            l10n.peerReputationUnavailable,
+            style: TextStyle(fontSize: 13, color: book.textSecondary),
+          ),
+      ],
     );
   }
-
-  void _copy(BuildContext context, String text) =>
-      _copyToClipboard(context, text);
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    required this.colors,
-    required this.textTheme,
-    this.copyable = false,
-    this.customValue,
-  });
+/// The frame both panels share, unchanged from before they were wired: a
+/// card with the panel's title over its rows. Its content scrolls once it
+/// outgrows [_panelMaxHeightFraction] of the screen, so the conversation
+/// under it keeps room at large text sizes.
+class _PanelCard extends StatelessWidget {
+  const _PanelCard({required this.title, required this.children});
 
-  final String label;
-  final String? value;
-  final AppColors colors;
-  final TextTheme textTheme;
-  final bool copyable;
-  final Widget? customValue;
+  final String title;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
-            ),
+    final textTheme = Theme.of(context).textTheme;
+
+    return Card(
+      margin: const EdgeInsets.all(AppSpacing.md),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight:
+              MediaQuery.sizeOf(context).height * _panelMaxHeightFraction,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Section header
+              Text(title, style: textTheme.headlineSmall),
+              const SizedBox(height: AppSpacing.md),
+              ...children,
+            ],
           ),
-          Expanded(
-            child: customValue ??
-                GestureDetector(
-                  onTap: copyable && value != null
-                      ? () => _copyToClipboard(context, value!)
-                      : null,
-                  child: Text(
-                    value ?? '—',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: copyable ? colors.textLink : colors.textSecondary,
-                    ),
-                  ),
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.colors});
-
-  final AppColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.statusActive.$1,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
-      ),
-      child: Text(
-        AppLocalizations.of(context).tradeStatusActive,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.statusActive.$2,
-              fontWeight: FontWeight.w500,
-            ),
+        ),
       ),
     );
   }

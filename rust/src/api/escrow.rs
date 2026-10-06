@@ -26,7 +26,8 @@ fn snapshot() -> EscrowModeInfo {
 
     EscrowModeInfo {
         mode: resolved.mode.as_marker().to_string(),
-        mint_url: resolved.config.mint_url.clone(),
+        mint_url: resolved.config.single_mint().map(str::to_string),
+        mint_urls: resolved.config.mint_urls.clone(),
         escrow_locktime_days: resolved.config.escrow_locktime_days,
         settlement_margin_days: resolved.config.settlement_margin_days,
         is_overridden: resolved.is_overridden,
@@ -232,7 +233,7 @@ mod tests {
         escrow_mode::set_from_tags(
             EscrowMode::Cashu,
             CashuNodeConfig {
-                mint_url: Some("https://mint.example.com".to_string()),
+                mint_urls: vec!["https://mint.example.com".to_string()],
                 escrow_locktime_days: Some(15),
                 settlement_margin_days: Some(3),
             },
@@ -244,10 +245,36 @@ mod tests {
         // Assert
         assert_eq!(info.mode, "cashu");
         assert_eq!(info.mint_url.as_deref(), Some("https://mint.example.com"));
+        assert_eq!(info.mint_urls, ["https://mint.example.com"]);
         assert_eq!(info.escrow_locktime_days, Some(15));
         assert_eq!(info.settlement_margin_days, Some(3));
         assert!(info.is_cashu_available);
         assert!(!info.is_overridden);
+    }
+
+    #[tokio::test]
+    async fn a_node_with_several_mints_lists_them_and_pins_none() {
+        // Arrange — mostro#1047: the maker picks among the node's mints.
+        let _g = escrow_lock();
+        escrow_mode::set_from_tags(
+            EscrowMode::Cashu,
+            CashuNodeConfig {
+                mint_urls: vec![
+                    "https://mint.a.com".to_string(),
+                    "https://mint.b.com".to_string(),
+                ],
+                ..Default::default()
+            },
+        );
+
+        // Act
+        let info = get_escrow_mode();
+
+        // Assert — every mint for the screens, none for the wallet to bind to.
+        assert_eq!(info.mode, "cashu");
+        assert_eq!(info.mint_urls, ["https://mint.a.com", "https://mint.b.com"]);
+        assert_eq!(info.mint_url, None);
+        assert!(!info.is_cashu_available);
     }
 
     #[tokio::test]
@@ -427,7 +454,7 @@ mod tests {
         escrow_mode::set_from_tags(
             EscrowMode::Cashu,
             CashuNodeConfig {
-                mint_url: Some("https://mint.example.com".to_string()),
+                mint_urls: vec!["https://mint.example.com".to_string()],
                 ..Default::default()
             },
         );

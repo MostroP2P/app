@@ -165,6 +165,7 @@ void main() {
         isRead: false,
         hasAttachment: false,
         createdAt: kTradesNow.millisecondsSinceEpoch ~/ 1000,
+        reactions: const [],
       ),
     );
     await withClock(Clock.fixed(kTradesNow), () => tester.pumpAndSettle());

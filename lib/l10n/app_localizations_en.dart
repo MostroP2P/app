@@ -85,28 +85,61 @@ class AppLocalizationsEn extends AppLocalizations {
       'The order was cooperatively cancelled. No funds were transferred.';
 
   @override
-  String disputeWithBuyer(String handle) {
-    return 'Dispute with Buyer: $handle';
-  }
-
-  @override
-  String disputeWithSeller(String handle) {
-    return 'Dispute with Seller: $handle';
-  }
-
-  @override
   String orderLabel(String orderId) {
     return 'Order $orderId';
   }
 
   @override
-  String get disputeInitiated => 'Initiated';
-
-  @override
-  String get disputeInProgress => 'In progress';
-
-  @override
   String get disputeStatusClosed => 'Closed';
+
+  @override
+  String disputeWith(String role, String counterparty) {
+    return 'Dispute with $role: $counterparty';
+  }
+
+  @override
+  String get seller => 'Seller';
+
+  @override
+  String get buyer => 'Buyer';
+
+  @override
+  String get disputeStatusInitiated => 'Initiated';
+
+  @override
+  String get disputeStatusInProgress => 'In-progress';
+
+  @override
+  String get disputeStatusResolved => 'Resolved';
+
+  @override
+  String get disputeInProgress =>
+      'This dispute is currently in progress. A solver is reviewing your case.';
+
+  @override
+  String get disputeInstruction1 =>
+      'Wait for a solver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.';
+
+  @override
+  String get disputeInstruction2 =>
+      'The final decision will be made based on the evidence presented.';
+
+  @override
+  String get disputeInstruction3 =>
+      'If you don\'t respond, the system will assume you don\'t want to cooperate and you might lose the dispute.';
+
+  @override
+  String disputeOpenedByYouAgainstSeller(String counterparty) {
+    return 'You opened this dispute against the seller $counterparty, please read carefully below:';
+  }
+
+  @override
+  String disputeOpenedByYouAgainstBuyer(String counterparty) {
+    return 'You opened this dispute against the buyer $counterparty, please read carefully below:';
+  }
+
+  @override
+  String get disputeWaitingForAdmin => 'Waiting for admin assignment';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -237,9 +270,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get comingSoonMessage => 'Coming soon';
-
-  @override
-  String get tradeStatusActive => 'Active';
 
   @override
   String get tradeStatusCompleted => 'Completed';
@@ -1468,6 +1498,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get satsAmountLabel => 'Sats Amount';
 
   @override
+  String get peerReputationUnavailable =>
+      'This user\'s reputation is not available';
+
+  @override
   String get statusLabel => 'Status';
 
   @override
@@ -1477,25 +1511,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createdLabel => 'Created';
 
   @override
-  String get tradeDetailsPlaceholder =>
-      'Details wired when trade provider available (Phase 10+)';
-
-  @override
   String get userInformationTitle => 'User Information';
-
-  @override
-  String get peerPublicKeyLabel => 'Peer\'s Public Key';
-
-  @override
-  String get yourSharedKeyLabel => 'Your Shared Key';
-
-  @override
-  String get sharedKeyPlaceholder =>
-      'Available after bridge integration (Phase 10+)';
-
-  @override
-  String get sharedKeySafetyNote =>
-      'Keep your shared key safe — it is needed for dispute resolution';
 
   @override
   String get fileTypeVideo => 'Video';
@@ -2105,9 +2121,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aboutCashuMintUrlLabel => 'Mint';
-
-  @override
-  String get aboutCashuMintNotAdvertised => 'Not advertised';
 
   @override
   String get aboutCashuLocktimeLabel => 'Escrow locktime';
@@ -4056,8 +4069,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your escrow is locked but the node has not confirmed it. Retrying is safe — it will not lock a second time.';
 
   @override
-  String get lockEscrowMintUnknown =>
-      'This node has not published its mint, so there is nowhere to lock the escrow.';
+  String get lockEscrowMintNotSupported =>
+      'This node lets each order choose its mint, and this version of the app can only lock an escrow on a node with a single mint.';
 
   @override
   String get lockEscrowNotRecorded =>
@@ -4098,4 +4111,48 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
       'They\'re locking the sats in escrow. Once it\'s locked, it\'s your turn to pay the fiat.';
+
+  @override
+  String get shareChatKeyAction => 'Share the chat key with the resolver';
+
+  @override
+  String get shareChatKeyTitle => 'Share the chat key with the resolver?';
+
+  @override
+  String get shareChatKeyBody =>
+      'If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterparty in this order, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.';
+
+  @override
+  String get shareChatKeyConfirm => 'Share';
+
+  @override
+  String get chatKeySharedIndicator => 'Chat key shared with the resolver';
+
+  @override
+  String get shareChatKeyUnavailable =>
+      'The chat key of this trade is not available on this device.';
+
+  @override
+  String get moreReactions => 'More reactions';
+
+  @override
+  String messageReactionLabel(String emoji) {
+    return 'Reaction: $emoji';
+  }
+
+  @override
+  String get reactionSendFailed =>
+      'Couldn\'t send the reaction. Please try again.';
+
+  @override
+  String get messageMenuHint => 'Open the message menu';
+
+  @override
+  String get cashuAnyMint => 'Any mint';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintCopied => 'Mint URL copied';
 }

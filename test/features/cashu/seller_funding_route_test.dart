@@ -39,9 +39,9 @@ void main() {
     );
   });
 
-  test('a Cashu node without a usable mint still routes as Cashu', () async {
+  test('a Cashu node without a single mint still routes as Cashu', () async {
     // CodeRabbit on #238: such a node sends no hold invoice, so the seller
-    // must land on the escrow screen (and read CashuMintUnknown there), never
+    // must land on the escrow screen (and read CashuMintNotSupported there), never
     // wait on the Lightning step. The wallet stays gated on availability.
     final container = ProviderContainer(
       overrides: [
@@ -50,6 +50,7 @@ void main() {
             const EscrowModeInfo(
               mode: 'cashu',
               mintUrl: null,
+              mintUrls: [],
               escrowLocktimeDays: null,
               settlementMarginDays: null,
               isOverridden: true,

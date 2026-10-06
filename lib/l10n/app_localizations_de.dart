@@ -87,28 +87,62 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Bestellung wurde kooperativ storniert. Es wurden keine Mittel übertragen.';
 
   @override
-  String disputeWithBuyer(String handle) {
-    return 'Streit mit Käufer: $handle';
-  }
-
-  @override
-  String disputeWithSeller(String handle) {
-    return 'Streit mit Verkäufer: $handle';
-  }
-
-  @override
   String orderLabel(String orderId) {
     return 'Bestellung $orderId';
   }
 
   @override
-  String get disputeInitiated => 'Eingeleitet';
-
-  @override
-  String get disputeInProgress => 'In Bearbeitung';
-
-  @override
   String get disputeStatusClosed => 'Geschlossen';
+
+  @override
+  String disputeWith(String role, String counterparty) {
+    return 'Streitfall mit $role: $counterparty';
+  }
+
+  @override
+  String get seller => 'Verkäufer';
+
+  @override
+  String get buyer => 'Käufer';
+
+  @override
+  String get disputeStatusInitiated => 'Eingeleitet';
+
+  @override
+  String get disputeStatusInProgress => 'In Bearbeitung';
+
+  @override
+  String get disputeStatusResolved => 'Gelöst';
+
+  @override
+  String get disputeInProgress =>
+      'Dieser Streitfall wird derzeit bearbeitet. Ein Schlichter prüft deinen Fall.';
+
+  @override
+  String get disputeInstruction1 =>
+      'Warte darauf, dass ein Schlichter deinen Streitfall übernimmt. Sobald er da ist, teile alle relevanten Beweise mit, um die Situation zu klären.';
+
+  @override
+  String get disputeInstruction2 =>
+      'Die endgültige Entscheidung wird auf Basis der vorgelegten Beweise getroffen.';
+
+  @override
+  String get disputeInstruction3 =>
+      'Wenn du nicht antwortest, geht das System davon aus, dass du nicht kooperieren möchtest, und du könntest den Streitfall verlieren.';
+
+  @override
+  String disputeOpenedByYouAgainstSeller(String counterparty) {
+    return 'Du hast diesen Streitfall gegen den Verkäufer $counterparty eröffnet, bitte lies das Folgende sorgfältig durch:';
+  }
+
+  @override
+  String disputeOpenedByYouAgainstBuyer(String counterparty) {
+    return 'Du hast diesen Streitfall gegen den Käufer $counterparty eröffnet, bitte lies das Folgende sorgfältig durch:';
+  }
+
+  @override
+  String get disputeWaitingForAdmin =>
+      'Wartet auf Zuweisung eines Administrators';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -239,9 +273,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get comingSoonMessage => 'Demnächst verfügbar';
-
-  @override
-  String get tradeStatusActive => 'Aktiv';
 
   @override
   String get tradeStatusCompleted => 'Abgeschlossen';
@@ -1481,13 +1512,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get tradeInformationTitle => 'Trade-Informationen';
 
   @override
-  String get orderIdLabel => 'Bestell-ID';
+  String get orderIdLabel => 'Order-ID';
 
   @override
   String get fiatAmountLabel => 'Fiat-Betrag';
 
   @override
   String get satsAmountLabel => 'Sats-Betrag';
+
+  @override
+  String get peerReputationUnavailable =>
+      'Die Reputation dieses Nutzers ist nicht verfügbar';
 
   @override
   String get statusLabel => 'Status';
@@ -1499,25 +1534,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get createdLabel => 'Erstellt';
 
   @override
-  String get tradeDetailsPlaceholder =>
-      'Details verfügbar, sobald der Trade-Provider bereit ist (Phase 10+)';
-
-  @override
   String get userInformationTitle => 'Benutzerinformationen';
-
-  @override
-  String get peerPublicKeyLabel => 'Öffentlicher Schlüssel des Partners';
-
-  @override
-  String get yourSharedKeyLabel => 'Dein gemeinsamer Schlüssel';
-
-  @override
-  String get sharedKeyPlaceholder =>
-      'Verfügbar nach der Bridge-Integration (Phase 10+)';
-
-  @override
-  String get sharedKeySafetyNote =>
-      'Bewahre deinen gemeinsamen Schlüssel sicher auf — er wird für die Streitbeilegung benötigt';
 
   @override
   String get fileTypeVideo => 'Video';
@@ -2132,9 +2149,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get aboutCashuMintUrlLabel => 'Mint';
-
-  @override
-  String get aboutCashuMintNotAdvertised => 'Nicht angegeben';
 
   @override
   String get aboutCashuLocktimeLabel => 'Treuhand-Sperrfrist';
@@ -4109,8 +4123,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Deine Treuhand ist gesperrt, aber der Node hat sie nicht bestätigt. Ein erneuter Versuch ist sicher — es wird kein zweites Mal gesperrt.';
 
   @override
-  String get lockEscrowMintUnknown =>
-      'Dieser Node hat seine Mint nicht veröffentlicht, daher gibt es keinen Ort, um den Escrow zu sperren.';
+  String get lockEscrowMintNotSupported =>
+      'Dieser Node lässt jede Order ihre Mint wählen, und diese App-Version kann den Escrow nur auf einem Node mit einer einzigen Mint sperren.';
 
   @override
   String get lockEscrowNotRecorded =>
@@ -4151,4 +4165,49 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
       'Die Gegenseite sperrt die Sats im Escrow. Sobald er gesperrt ist, bist du dran, den Fiat-Betrag zu zahlen.';
+
+  @override
+  String get shareChatKeyAction => 'Chat-Schlüssel mit dem Schlichter teilen';
+
+  @override
+  String get shareChatKeyTitle => 'Chat-Schlüssel mit dem Schlichter teilen?';
+
+  @override
+  String get shareChatKeyBody =>
+      'Wenn du bestätigst, kann der Schlichter dieses Streitfalls den gesamten Chat zwischen dir und deinem Gegenüber in dieser Order lesen, und nur diesen Chat: nicht die Chats deiner früheren oder späteren Trades. Das kann nicht rückgängig gemacht werden. Das Teilen ist freiwillig, hilft dem Schlichter aber, den Streitfall schneller zu lösen.';
+
+  @override
+  String get shareChatKeyConfirm => 'Teilen';
+
+  @override
+  String get chatKeySharedIndicator =>
+      'Chat-Schlüssel mit dem Schlichter geteilt';
+
+  @override
+  String get shareChatKeyUnavailable =>
+      'Der Chat-Schlüssel dieses Trades ist auf diesem Gerät nicht verfügbar.';
+
+  @override
+  String get moreReactions => 'Weitere Reaktionen';
+
+  @override
+  String messageReactionLabel(String emoji) {
+    return 'Reaktion: $emoji';
+  }
+
+  @override
+  String get reactionSendFailed =>
+      'Die Reaktion konnte nicht gesendet werden. Bitte versuche es erneut.';
+
+  @override
+  String get messageMenuHint => 'Nachrichtenmenü öffnen';
+
+  @override
+  String get cashuAnyMint => 'Beliebige Mint';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintCopied => 'Mint-URL kopiert';
 }

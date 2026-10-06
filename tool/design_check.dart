@@ -1,7 +1,7 @@
 /// Checks UI code against the design guide (`.specify/DESIGN_SYSTEM.md`).
 ///
 /// ```sh
-/// dart tool/design_check.dart                 # lines changed since origin/main
+/// dart tool/design_check.dart                 # code touched since origin/main
 /// dart tool/design_check.dart --base <ref>    # ... since another ref
 /// dart tool/design_check.dart --all           # every line: the §14 debt
 /// ```
@@ -77,7 +77,7 @@ Future<void> main(List<String> args) async {
     }
   }
 
-  final scope = all ? 'lib/' : 'the lines changed since $base';
+  final scope = all ? 'lib/' : 'the code touched since $base';
   if (violations.isEmpty) {
     stdout.writeln(
       'Design guide: no breaks in $scope (${checked.length} files).',

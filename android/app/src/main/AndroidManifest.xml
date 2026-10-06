@@ -25,7 +25,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
-        android:label="mostro"
+        android:label="Mostro"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

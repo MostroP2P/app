@@ -20,14 +20,19 @@
 /// bounded channels; a chat failure or flood must never block the order state
 /// machine, the daemon transport, or opening a dispute.
 ///
-/// Streams: `on_new_message(trade_id)`, `on_unread_count_changed()`,
-/// `on_attachment_progress(message_id)`.
+/// Reactions (protocol chat.md, "Reactions") are inner kind 7 events. They are
+/// stored on the message they answer, never as messages of their own, and
+/// reach the screen through `on_message_updated`: they count as no unread,
+/// raise no notification and wake nobody.
+///
+/// Streams: `on_new_message(trade_id)`, `on_message_updated(trade_id)`,
+/// `on_unread_count_changed()`, `on_attachment_progress(message_id)`.
 use anyhow::{anyhow, bail, Result};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::{broadcast, RwLock};
 
-use crate::api::types::{AttachmentInfo, ChatMessage, DownloadStatus, MessageType};
+use crate::api::types::{AttachmentInfo, ChatMessage, ChatReaction, DownloadStatus, MessageType};
 use crate::db::Storage;
 use crate::nostr::blossom;
 
@@ -49,6 +54,35 @@ pub struct AttachmentData {
 
 // ── Message store ─────────────────────────────────────────────────────────────
 
+/// Per trade, the reactions whose targets are not stored yet.
+type HeldReactions = HashMap<String, VecDeque<HeldReaction>>;
+
+/// A reaction waiting for its target.
+#[derive(Debug, Clone)]
+struct HeldReaction {
+    target_id: String,
+    reaction: ChatReaction,
+    /// The peer chat's cursor when it arrived. The cursor stays there until
+    /// the reaction is stored: its target is older than the reaction and
+    /// not here yet, so a restart must fetch both again.
+    floor: i64,
+    /// When it was first held, by our clock: past [`HELD_FLOOR_SECS`] it no
+    /// longer holds the cursor back.
+    held_at: i64,
+}
+
+/// How long a held reaction keeps the peer cursor back. A target served in
+/// the same catch-up arrives within seconds; one that has not come by then
+/// (refused by the retention quota, or an id that names nothing) must not
+/// pin the cursor for the life of the trade, refetching every later event on
+/// each start. Past it the reaction stays held, and still lands if its
+/// target comes.
+const HELD_FLOOR_SECS: i64 = 600;
+
+/// How long a quiet chat waits before re-checking its cursor (an expired
+/// held-reaction floor).
+const CURSOR_RECHECK: crate::rt::time::Duration = crate::rt::time::Duration::from_secs(60);
+
 struct MessageStore {
     /// Messages keyed by trade_id. Write-through cache over the `messages`
     /// table: adds persist immediately, reads hydrate from the DB once per
@@ -59,6 +93,14 @@ struct MessageStore {
     hydrated: Arc<RwLock<std::collections::HashSet<String>>>,
     /// Broadcast channel for new messages (payload = trade_id of new message).
     new_message_tx: broadcast::Sender<ChatMessage>,
+    /// Broadcast channel for a stored message that changed: today, a reaction
+    /// to it. Kept apart from `new_message_tx`, which feeds unread counts and
+    /// notifications.
+    updated_tx: broadcast::Sender<ChatMessage>,
+    /// Reactions whose target has not arrived yet, per trade: catch-up does
+    /// not keep order, and relays usually serve the newest event first.
+    /// Memory only and bounded by [`MAX_HELD_REACTIONS_PER_TRADE`].
+    held_reactions: Arc<RwLock<HeldReactions>>,
     /// Broadcast channel for global unread count changes.
     unread_tx: broadcast::Sender<u32>,
     /// Broadcast channel for attachment progress (payload = (message_id, progress 0.0–1.0)).
@@ -73,6 +115,7 @@ struct MessageStore {
 impl MessageStore {
     fn new() -> Self {
         let (new_message_tx, _) = broadcast::channel(64);
+        let (updated_tx, _) = broadcast::channel(64);
         let (unread_tx, _) = broadcast::channel(16);
         let (attachment_tx, _) = broadcast::channel(64);
         Self {
@@ -80,6 +123,8 @@ impl MessageStore {
             non_durable: Arc::new(RwLock::new(std::collections::HashSet::new())),
             hydrated: Arc::new(RwLock::new(std::collections::HashSet::new())),
             new_message_tx,
+            updated_tx,
+            held_reactions: Arc::new(RwLock::new(HashMap::new())),
             unread_tx,
             attachment_tx,
         }
@@ -119,41 +164,224 @@ impl MessageStore {
     /// platform offers). The chat `since` cursor must only advance past
     /// events whose messages returned `true` — otherwise a failed write plus
     /// an advanced cursor loses the message permanently.
-    async fn add_message(&self, msg: ChatMessage) -> bool {
+    async fn add_message(&self, mut msg: ChatMessage) -> bool {
         // Hydrate first so the persisted history is not masked by a fresher
         // in-memory entry created before the first read.
         self.ensure_hydrated(&msg.trade_id).await;
-        {
+        // Folding in the held reactions, storing and persisting happen under
+        // one write lock, taken before the held reactions' (the order
+        // `apply_reaction` uses too): a reaction arriving meanwhile is either
+        // held before this drains it, or finds the message — never neither —
+        // and no other write of this message reaches the database between.
+        let stored = {
             let mut store = self.messages.write().await;
+            let folded = self.fold_held_reactions(&mut msg).await;
             store
                 .entry(msg.trade_id.clone())
                 .or_default()
                 .push(msg.clone());
-        }
-        // Write-through: chat history and the durable replay dedup both live
-        // in the `messages` table. Failure is logged, never propagated — a
-        // full disk must not take the chat (let alone the trade) down.
-        let stored = match crate::db::app_db::db() {
-            Some(db) => match db.save_message(&msg).await {
-                Ok(()) => true,
-                Err(e) => {
-                    log::warn!("[messages] persist failed id={}: {e}", msg.id);
-                    false
-                }
-            },
-            None => true,
+            // Write-through: chat history and the durable replay dedup both
+            // live in the `messages` table. Failure is logged, never
+            // propagated — a full disk must not take the chat (let alone the
+            // trade) down.
+            let stored = match crate::db::app_db::db() {
+                Some(db) => match db.save_message(&msg).await {
+                    Ok(()) => true,
+                    Err(e) => {
+                        log::warn!("[messages] persist failed id={}: {e}", msg.id);
+                        false
+                    }
+                },
+                None => true,
+            };
+            // Not durable yet: the folded reactions keep holding the cursor
+            // back, or a later event could carry it past them and their
+            // target. They are folded again on the retry.
+            if !stored && !folded.is_empty() {
+                self.held_reactions
+                    .write()
+                    .await
+                    .entry(msg.trade_id.clone())
+                    .or_default()
+                    .extend(folded);
+            }
+            // Recorded before the lock goes, with the write it describes:
+            // another write of this row can't slip in between and be
+            // undone by this one's outcome.
+            self.note_durability(&msg.trade_id, &msg.id, stored).await;
+            stored
         };
-        // Keep memory-only ids distinct from durably committed ones — the
-        // receive path consults this before advancing the cursor.
-        if stored {
-            self.non_durable.write().await.remove(&msg.id);
-        } else {
-            self.non_durable.write().await.insert(msg.id.clone());
-        }
         let _ = self.new_message_tx.send(msg.clone());
         let unread = self.unread_count_inner().await;
         let _ = self.unread_tx.send(unread);
         stored
+    }
+
+    /// Keep memory-only ids distinct from durably committed ones — the
+    /// receive path consults this before advancing the cursor.
+    ///
+    /// A stored row also carries every reaction held again when an earlier
+    /// write of it failed (they were folded into it in memory): those stop
+    /// holding the cursor back, whichever write stored it.
+    async fn note_durability(&self, trade_id: &str, id: &str, durable: bool) {
+        if durable {
+            self.non_durable.write().await.remove(id);
+            if let Some(list) = self.held_reactions.write().await.get_mut(trade_id) {
+                list.retain(|h| h.target_id != id);
+            }
+        } else {
+            self.non_durable.write().await.insert(id.to_string());
+        }
+    }
+
+    /// Whether a message of `trade_id` is in memory only: its write failed and
+    /// no retry has stored it yet.
+    async fn has_unsaved(&self, trade_id: &str) -> bool {
+        // Copied out, so `non_durable` is never held while waiting for
+        // `messages`: writers take them the other way round.
+        let unsaved = self.non_durable.read().await.clone();
+        if unsaved.is_empty() {
+            return false;
+        }
+        self.messages
+            .read()
+            .await
+            .get(trade_id)
+            .is_some_and(|msgs| msgs.iter().any(|m| unsaved.contains(&m.id)))
+    }
+
+    /// Fold a reaction into the message `target_id` of `trade_id`, persist the
+    /// message and announce it on `updated_tx`. `floor` is the chat's cursor
+    /// when it arrived, kept by [`Self::held_floor`] if the target is not
+    /// here.
+    async fn apply_reaction(
+        &self,
+        trade_id: &str,
+        target_id: &str,
+        reaction: ChatReaction,
+        floor: i64,
+    ) -> ReactionOutcome {
+        self.ensure_hydrated(trade_id).await;
+        let (updated, durable) = {
+            let mut store = self.messages.write().await;
+            let target = store
+                .get_mut(trade_id)
+                .and_then(|msgs| msgs.iter_mut().find(|m| m.id == target_id));
+            let Some(target) = target else {
+                // Still under the messages lock: `add_message` cannot store
+                // the target between this miss and the hold.
+                self.hold_reaction(trade_id, target_id, reaction, floor)
+                    .await;
+                return ReactionOutcome::Held;
+            };
+            if !reaction_allowed(target, &reaction) {
+                return ReactionOutcome::Refused;
+            }
+            if !merge_reaction(&mut target.reactions, reaction) {
+                return ReactionOutcome::Unchanged;
+            }
+            let updated = target.clone();
+            // Saved under the lock, so the row written is the message as it
+            // is now: a `mark_as_read` or another reaction waits for it
+            // instead of being overwritten by an older copy.
+            let durable = match crate::db::app_db::db() {
+                Some(db) => match db.save_message(&updated).await {
+                    Ok(()) => true,
+                    Err(e) => {
+                        log::warn!("[messages] persist reaction failed id={}: {e}", updated.id);
+                        false
+                    }
+                },
+                None => true,
+            };
+            // A failed write marks the message memory-only, so
+            // `ensure_durable` retries it, reaction included, and the cursor
+            // stays put meanwhile. Recorded under the lock, with the write.
+            self.note_durability(trade_id, &updated.id, durable).await;
+            (updated, durable)
+        };
+        let _ = self.updated_tx.send(updated.clone());
+        ReactionOutcome::Applied {
+            message: Box::new(updated),
+            durable,
+        }
+    }
+
+    /// Keep a reaction until its target arrives: one per party and target,
+    /// the newest, so a re-wrapped copy takes no extra room. Past
+    /// [`MAX_HELD_REACTIONS_PER_TRADE`] the oldest held goes: a target that
+    /// never comes must not grow memory.
+    async fn hold_reaction(
+        &self,
+        trade_id: &str,
+        target_id: &str,
+        reaction: ChatReaction,
+        floor: i64,
+    ) {
+        let mut held = self.held_reactions.write().await;
+        let list = held.entry(trade_id.to_string()).or_default();
+        if let Some(kept) = list.iter_mut().find(|kept| {
+            kept.target_id == target_id && kept.reaction.sender_pubkey == reaction.sender_pubkey
+        }) {
+            let mut one = vec![kept.reaction.clone()];
+            if merge_reaction(&mut one, reaction) {
+                kept.reaction = one.remove(0);
+            }
+            kept.floor = kept.floor.min(floor);
+            return;
+        }
+        if list.len() >= MAX_HELD_REACTIONS_PER_TRADE {
+            list.pop_front();
+        }
+        list.push_back(HeldReaction {
+            target_id: target_id.to_string(),
+            reaction,
+            floor,
+            held_at: unix_now(),
+        });
+    }
+
+    /// The lowest cursor a reaction still held for `trade_id` arrived at: the
+    /// peer chat's cursor must not pass it, or a restart before the target
+    /// arrives loses the reaction, and the target too, which is older.
+    async fn held_floor(&self, trade_id: &str) -> Option<i64> {
+        self.held_floor_at(trade_id, unix_now()).await
+    }
+
+    /// [`Self::held_floor`] as of `now`: reactions held for longer than
+    /// [`HELD_FLOOR_SECS`] no longer count.
+    async fn held_floor_at(&self, trade_id: &str, now: i64) -> Option<i64> {
+        let held = self.held_reactions.read().await;
+        held.get(trade_id)?
+            .iter()
+            .filter(|h| now - h.held_at <= HELD_FLOOR_SECS)
+            .map(|h| h.floor)
+            .min()
+    }
+
+    /// Fold the reactions held for `msg` into it, and return them: they are
+    /// held again if `msg` cannot be stored.
+    async fn fold_held_reactions(&self, msg: &mut ChatMessage) -> Vec<HeldReaction> {
+        let mine = {
+            let mut held = self.held_reactions.write().await;
+            let Some(list) = held.get_mut(&msg.trade_id) else {
+                return Vec::new();
+            };
+            let (mine, rest): (VecDeque<_>, VecDeque<_>) =
+                list.drain(..).partition(|h| h.target_id == msg.id);
+            if rest.is_empty() {
+                held.remove(&msg.trade_id);
+            } else {
+                *list = rest;
+            }
+            mine
+        };
+        for held in &mine {
+            if reaction_allowed(msg, &held.reaction) {
+                merge_reaction(&mut msg.reactions, held.reaction.clone());
+            }
+        }
+        mine.into()
     }
 
     /// `true` if this message id was already accepted, in memory or on disk.
@@ -188,25 +416,30 @@ impl MessageStore {
         if !self.non_durable.read().await.contains(id) {
             return true;
         }
-        let copy = {
-            let store = self.messages.read().await;
-            store
-                .get(trade_id)
-                .and_then(|msgs| msgs.iter().find(|m| m.id == id).cloned())
-        };
+        // Under the write lock, like every other write of a message row: a
+        // reaction or a read flag saved meanwhile is never put back by an
+        // older copy, and the row written is the one the cursor relies on.
+        let store = self.messages.write().await;
+        let copy = store
+            .get(trade_id)
+            .and_then(|msgs| msgs.iter().find(|m| m.id == id).cloned());
         let (Some(db), Some(msg)) = (crate::db::app_db::db(), copy) else {
             return false;
         };
-        match db.save_message(&msg).await {
+        // The outcome is recorded before the lock goes: a later write of
+        // this row that fails cannot have its marker cleared by this success.
+        let durable = match db.save_message(&msg).await {
             Ok(()) => {
-                self.non_durable.write().await.remove(id);
+                self.note_durability(trade_id, id, true).await;
                 true
             }
             Err(e) => {
                 log::warn!("[messages] persist retry failed id={id}: {e}");
                 false
             }
-        }
+        };
+        drop(store);
+        durable
     }
 
     /// `true` when storing one more incoming message of `incoming_bytes`
@@ -278,12 +511,15 @@ impl MessageStore {
                 m.is_read = true;
             }
         }
-        drop(store);
+        // Written under the lock, like every other write of a message row:
+        // on web the read flag is set by rewriting whole rows, which would
+        // otherwise put back a copy taken before a reaction was saved.
         if let Some(db) = crate::db::app_db::db() {
             if let Err(e) = db.mark_messages_read(trade_id).await {
                 log::warn!("[messages] mark_messages_read failed trade={trade_id}: {e}");
             }
         }
+        drop(store);
         let unread = self.unread_count_inner().await;
         let _ = self.unread_tx.send(unread);
     }
@@ -295,6 +531,7 @@ impl MessageStore {
         self.messages.write().await.clear();
         self.hydrated.write().await.clear();
         self.non_durable.write().await.clear();
+        self.held_reactions.write().await.clear();
         let _ = self.unread_tx.send(0);
     }
 
@@ -305,6 +542,56 @@ impl MessageStore {
             .flat_map(|msgs| msgs.iter())
             .filter(|m| !m.is_read && !m.is_mine)
             .count() as u32
+    }
+}
+
+/// Reactions held per trade while their targets have not arrived.
+const MAX_HELD_REACTIONS_PER_TRADE: usize = 256;
+
+/// What became of a reaction handed to [`MessageStore::apply_reaction`].
+#[derive(Debug)]
+enum ReactionOutcome {
+    /// The target now carries it; `durable` as for `add_message`.
+    Applied {
+        message: Box<ChatMessage>,
+        durable: bool,
+    },
+    /// Not newer than what the target holds from that party: a re-delivery,
+    /// or a re-wrapped older reaction (chat.md, step 12).
+    Unchanged,
+    /// The target is not here yet: held until it arrives.
+    Held,
+    /// Not a reaction this chat shows: on the reactor's own message, or on a
+    /// message that is not of the peer chat.
+    Refused,
+}
+
+/// Whether `target` can show `reaction`: only the other party's messages of
+/// the peer chat take one (chat.md, "Reactions").
+fn reaction_allowed(target: &ChatMessage, reaction: &ChatReaction) -> bool {
+    target.message_type == MessageType::Peer && target.sender_pubkey != reaction.sender_pubkey
+}
+
+/// Fold `reaction` into `reactions`: one per party, the newest holding and a
+/// tie going to the lowest event id, so both sides settle on the same one
+/// whatever order they received them in. `true` when `reactions` changed.
+fn merge_reaction(reactions: &mut Vec<ChatReaction>, reaction: ChatReaction) -> bool {
+    match reactions
+        .iter_mut()
+        .find(|held| held.sender_pubkey == reaction.sender_pubkey)
+    {
+        None => {
+            reactions.push(reaction);
+            true
+        }
+        Some(held) => {
+            let newer = reaction.created_at > held.created_at
+                || (reaction.created_at == held.created_at && reaction.event_id < held.event_id);
+            if newer {
+                *held = reaction;
+            }
+            newer
+        }
     }
 }
 
@@ -368,6 +655,22 @@ pub(crate) async fn publish_chat_payload_for(
     publish_chat_payload(ctx, payload).await.map(|p| p.inner)
 }
 
+/// [`publish_chat_payload_for`] for a message that only counts once a relay
+/// holds it, such as the chat key sent to a solver (#415): when none takes
+/// it, it fails with `SendFailed` instead of being kept as sent.
+pub(crate) async fn publish_delivered_chat_payload_for(
+    ctx: &ChatContext,
+    payload: &str,
+) -> Result<nostr_sdk::prelude::Event> {
+    let published = publish_chat_payload(ctx, payload)
+        .await
+        .map_err(|e| anyhow!("SendFailed: {e}"))?;
+    if !published.delivered {
+        bail!("SendFailed: no relay accepted the message");
+    }
+    Ok(published.inner)
+}
+
 /// A chat envelope handed to the pool.
 struct PublishedChat {
     /// The signed inner event: the message's durable identity.
@@ -403,6 +706,7 @@ pub(crate) async fn store_outgoing_admin_message(
         has_attachment: false,
         attachment: None,
         created_at: inner.created_at.as_secs() as i64,
+        reactions: Vec::new(),
     };
     let _ = message_store().add_message(msg.clone()).await;
     msg
@@ -412,6 +716,13 @@ async fn publish_chat_payload(ctx: &ChatContext, payload: &str) -> Result<Publis
     let (outer, inner) =
         crate::nostr::transport::mostro_wrap(&ctx.trade_keys, &ctx.conv, &ctx.sign, payload)
             .await?;
+    publish_wrapped(outer, inner).await
+}
+
+async fn publish_wrapped(
+    outer: nostr_sdk::prelude::Event,
+    inner: nostr_sdk::prelude::Event,
+) -> Result<PublishedChat> {
     let pool = crate::api::nostr::get_pool().map_err(|_| anyhow!("relay pool not ready"))?;
     // Back on the first relay that accepts it: the message is in the
     // conversation from then on, and a relay that never answers no longer
@@ -507,10 +818,131 @@ pub async fn send_message(trade_id: String, content: String) -> Result<ChatMessa
         has_attachment: false,
         attachment: None,
         created_at,
+        reactions: Vec::new(),
     };
 
     let _ = message_store().add_message(msg.clone()).await;
     Ok(msg)
+}
+
+/// React to the counterparty's message `message_id` with `emoji`, or withdraw
+/// the reaction with an empty `emoji` (protocol chat.md, "Reactions").
+///
+/// Only a peer-chat message the counterparty wrote takes one. Unlike a
+/// message, a reaction is not kept when no relay takes it — the counterparty
+/// would never see it — and it wakes nobody.
+///
+/// Returns the message with the reaction applied; the same value reaches
+/// `on_message_updated`. Errors carry a stable marker: `ReactionTooLarge`,
+/// `MessageNotFound`, `ReactionNotAllowed` or `SendFailed`.
+pub async fn send_reaction(
+    trade_id: String,
+    message_id: String,
+    emoji: String,
+) -> Result<ChatMessage> {
+    if emoji.len() > crate::nostr::transport::MAX_REACTION_BYTES {
+        bail!("ReactionTooLarge: {} bytes", emoji.len());
+    }
+    // One send at a time: each is dated after the reaction it replaces,
+    // which only holds if the next one reads that reaction once applied.
+    // Two taps in one second would otherwise share a date and be settled by
+    // their ids, not their order.
+    static SENDING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _sending = SENDING.lock().await;
+    let target = message_store()
+        .get_messages(&trade_id)
+        .await
+        .into_iter()
+        .find(|m| m.id == message_id)
+        .ok_or_else(|| anyhow!("MessageNotFound: {message_id}"))?;
+    if target.message_type != MessageType::Peer || target.is_mine {
+        bail!("ReactionNotAllowed: only the counterparty's messages take a reaction");
+    }
+    // A message that reached us has its inner id as id; nothing else can be
+    // named by the counterparty.
+    let target_id = nostr_sdk::prelude::EventId::from_hex(&message_id)
+        .map_err(|_| anyhow!("ReactionNotAllowed: {message_id} is not an event id"))?;
+
+    let session = session_or_rebuild(&trade_id)
+        .await
+        .ok_or_else(|| anyhow!("SendFailed: no session for trade {trade_id}"))?;
+    let peer_hex = session
+        .peer_pubkey
+        .as_deref()
+        .ok_or_else(|| anyhow!("SendFailed: counterparty not known yet"))?;
+    let ctx = chat_context(session.trade_key_index, peer_hex)
+        .await
+        .map_err(|e| anyhow!("SendFailed: {e}"))?;
+    let me = ctx.trade_keys.public_key().to_hex();
+
+    // Strictly after our previous reaction to this message: two changes in
+    // one second would otherwise be settled by their ids, not their order.
+    let previous = target
+        .reactions
+        .iter()
+        .find(|r| r.sender_pubkey == me)
+        .map(|r| r.created_at);
+    let created_at = reaction_time(unix_now(), previous)
+        .ok_or_else(|| anyhow!("SendFailed: the previous reaction is dated too far ahead"))?;
+
+    let (outer, inner) = crate::nostr::transport::mostro_wrap_reaction(
+        &ctx.trade_keys,
+        &ctx.conv,
+        &ctx.sign,
+        &target_id,
+        &emoji,
+        nostr_sdk::prelude::Timestamp::from_secs(created_at as u64),
+    )
+    .await?;
+    let published = publish_wrapped(outer, inner)
+        .await
+        .map_err(|e| anyhow!("SendFailed: {e}"))?;
+    if !published.delivered {
+        bail!("SendFailed: no relay accepted the reaction");
+    }
+
+    let reaction = ChatReaction {
+        sender_pubkey: me,
+        emoji,
+        created_at: published.inner.created_at.as_secs() as i64,
+        event_id: published.inner.id.to_hex(),
+    };
+    match message_store()
+        .apply_reaction(&trade_id, &message_id, reaction, created_at)
+        .await
+    {
+        ReactionOutcome::Applied { message, .. } => Ok(*message),
+        // Our own echo got here first, which already applied it.
+        ReactionOutcome::Unchanged => message_store()
+            .get_messages(&trade_id)
+            .await
+            .into_iter()
+            .find(|m| m.id == message_id)
+            .ok_or_else(|| anyhow!("MessageNotFound: {message_id}")),
+        // Published, yet not shown: the message changed under us. Report it
+        // as it stands rather than a failure that did not happen.
+        ReactionOutcome::Held | ReactionOutcome::Refused => message_store()
+            .get_messages(&trade_id)
+            .await
+            .into_iter()
+            .find(|m| m.id == message_id)
+            .ok_or_else(|| anyhow!("MessageNotFound: {message_id}")),
+    }
+}
+
+/// When a new reaction is dated: now, or one second after the sender's
+/// previous reaction to that message when that is later. `None` when that
+/// would be further ahead of our clock than receivers accept
+/// (`MAX_CLOCK_SKEW_SECS`): the previous one came from a device whose clock
+/// runs ahead, or quick changes piled up. Publishing it anyway would show
+/// here and be dropped by the counterparty.
+fn reaction_time(now: i64, previous: Option<i64>) -> Option<i64> {
+    let at = match previous {
+        Some(previous) if previous >= now => previous + 1,
+        _ => now,
+    };
+    let limit = now.saturating_add(crate::nostr::transport::MAX_CLOCK_SKEW_SECS as i64);
+    (at <= limit).then_some(at)
 }
 
 /// Get all messages for a trade, ordered by creation time (oldest first).
@@ -693,6 +1125,7 @@ pub(crate) async fn send_attachment(
         has_attachment: true,
         attachment: Some(attachment),
         created_at: published.inner.created_at.as_secs() as i64,
+        reactions: Vec::new(),
     };
     let _ = message_store().add_message(msg.clone()).await;
     Ok(msg)
@@ -934,6 +1367,33 @@ pub async fn on_unread_count_changed() -> Result<UnreadCountStream> {
     Ok(UnreadCountStream { rx })
 }
 
+/// Stream that emits a trade's messages again when they change after being
+/// stored: a reaction to one of them, received or sent. Never a new message.
+///
+/// It opens with the trade's messages that carry reactions, read once it is
+/// subscribed: a reaction applied between the caller's history read and the
+/// subscription still arrives. A receiver that lags behind gets the same
+/// snapshot again instead of a gap.
+pub async fn on_message_updated(trade_id: String) -> Result<MessageUpdateStream> {
+    let rx = message_store().updated_tx.subscribe();
+    let pending = reacted_messages(&trade_id).await;
+    Ok(MessageUpdateStream {
+        rx,
+        trade_id,
+        pending,
+    })
+}
+
+/// The trade's messages carrying a reaction, withdrawn ones included.
+async fn reacted_messages(trade_id: &str) -> VecDeque<ChatMessage> {
+    message_store()
+        .get_messages(trade_id)
+        .await
+        .into_iter()
+        .filter(|m| !m.reactions.is_empty())
+        .collect()
+}
+
 /// Stream that emits attachment upload/download progress (0.0–1.0).
 pub async fn on_attachment_progress(message_id: String) -> Result<AttachmentProgressStream> {
     let rx = message_store().attachment_tx.subscribe();
@@ -954,6 +1414,33 @@ impl MessageStream {
                 Ok(msg) if msg.trade_id == self.trade_id => return Some(msg),
                 Ok(_) => continue, // different trade
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => return None,
+            }
+        }
+    }
+}
+
+/// See [`on_message_updated`].
+pub struct MessageUpdateStream {
+    rx: broadcast::Receiver<ChatMessage>,
+    trade_id: String,
+    /// A snapshot still to hand out: at the start, and after a lag.
+    pending: VecDeque<ChatMessage>,
+}
+
+impl MessageUpdateStream {
+    pub async fn next(&mut self) -> Option<ChatMessage> {
+        loop {
+            if let Some(msg) = self.pending.pop_front() {
+                return Some(msg);
+            }
+            match self.rx.recv().await {
+                Ok(msg) if msg.trade_id == self.trade_id => return Some(msg),
+                Ok(_) => continue, // different trade
+                // Updates were dropped: hand out the current state instead.
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    self.pending = reacted_messages(&self.trade_id).await;
+                }
                 Err(broadcast::error::RecvError::Closed) => return None,
             }
         }
@@ -1569,7 +2056,32 @@ struct ChatRxState {
     /// are stored catch-up already bounded by the filter `limit`.
     live: bool,
     cursor: i64,
+    /// The newest event passed so far. The cursor follows it, except that
+    /// the peer chat's stops at a reaction still held (`held_floor`) and
+    /// catches up once that is stored.
+    wanted: i64,
+    /// The cursor this subscription started from. Catch-up serves the
+    /// newest events first, so by the time a reaction arrives the cursor may
+    /// already be past its older target; this is where both are safe.
+    start_cursor: i64,
     flooded: bool,
+    /// Every relay that held the subscription has sent EOSE: stored
+    /// catch-up is over and the cursor may move. `live` turns on at the first
+    /// one, for the token bucket; this waits for the slowest, which may
+    /// still be serving older events newest first.
+    caught_up: bool,
+    /// The relays whose EOSE is still to come. Empty in tests, which call
+    /// [`Self::caught_up`] themselves.
+    awaiting_eose: std::collections::HashSet<String>,
+    /// Relays that have sent EOSE, each with the connection it came on (the
+    /// relay's count of connections, see `connection_of`). An event from a relay with no EOSE on its
+    /// current connection — it joined late, or reconnected and got the
+    /// subscription again from `live_subs` — is a replay of stored events,
+    /// newest first: catch-up starts over for that relay.
+    eose_seen: HashMap<String, u64>,
+    /// The event being handled comes from a relay still in catch-up: like
+    /// any stored backlog, the token bucket lets it through (`budget_ok`).
+    from_catch_up: bool,
     /// The chat claim this state belongs to: cursor writes are gated on it
     /// still owning the chat. `None` only in tests that run no task.
     generation: Option<u64>,
@@ -1584,7 +2096,13 @@ impl ChatRxState {
             consecutive_rejected: 0,
             live: false,
             cursor,
+            wanted: cursor,
+            start_cursor: cursor,
             flooded: false,
+            caught_up: false,
+            awaiting_eose: std::collections::HashSet::new(),
+            eose_seen: HashMap::new(),
+            from_catch_up: false,
             generation,
         }
     }
@@ -1607,7 +2125,9 @@ impl ChatRxState {
 
     /// Live-stream budget check (no-op during stored catch-up).
     fn budget_ok(&mut self, order_id: &str) -> bool {
-        if !self.live {
+        // Stored backlog is bounded by the filter's `limit`; metering it
+        // would reject older events for good, the cursor passing them.
+        if !self.live || self.from_catch_up {
             return true;
         }
         if self.bucket.try_take(crate::rt::time::Instant::now()) {
@@ -1618,22 +2138,125 @@ impl ChatRxState {
         }
     }
 
+    async fn persist_cursor(&self, order_id: &str) {
+        match self.generation {
+            Some(generation) => {
+                store_chat_cursor_if_current(self.channel, order_id, generation, self.cursor).await
+            }
+            None => store_chat_cursor(self.channel, order_id, self.cursor).await,
+        }
+    }
+
     /// Advance the persisted cursor to `event_ts` clamped to our own clock,
     /// so a counterparty dating events at the skew-tolerance edge can never
     /// push it into the future and silence the conversation. Callers only
     /// invoke this once the corresponding message is durably stored (or was
     /// already known/durable).
+    ///
+    /// Stored catch-up comes newest first, so until it is over (EOSE) the
+    /// cursor stays where this subscription started: passing a newer event
+    /// before an older one arrives would lose the older one on a restart.
+    /// [`Self::caught_up`] moves it then. On the peer chat it also stops at
+    /// the floor of a reaction still held for a target that has not arrived
+    /// (`held_floor`).
     async fn advance_cursor(&mut self, order_id: &str, event_ts: i64) {
-        let accepted = event_ts.min(unix_now());
+        self.wanted = self.wanted.max(event_ts.min(unix_now()));
+        self.settle_cursor(order_id).await;
+    }
+
+    /// Stored catch-up is over: the cursor may now pass what it delivered.
+    async fn caught_up(&mut self, order_id: &str) {
+        self.live = true;
+        self.caught_up = true;
+        self.settle_cursor(order_id).await;
+    }
+
+    /// One relay's EOSE: from the first the token bucket meters arrivals;
+    /// once every relay that held the subscription has sent one, catch-up
+    /// is over.
+    async fn eose_from(&mut self, order_id: &str, relay: &str, connection: u64) {
+        self.live = true;
+        self.eose_seen.insert(relay.to_string(), connection);
+        self.awaiting_eose.remove(relay);
+        if self.awaiting_eose.is_empty() {
+            self.caught_up(order_id).await;
+        }
+    }
+
+    /// `relay` closed the subscription (CLOSED). It sends no EOSE, so it is
+    /// no longer awaited; nor is its connection marked done: `live_subs`
+    /// issues the REQ again on that same connection, and the replay that
+    /// follows must reopen catch-up (and take the cursor back) like any
+    /// other.
+    async fn closed_by(&mut self, order_id: &str, relay: &str) {
+        self.eose_seen.remove(relay);
+        self.awaiting_eose.remove(relay);
+        if self.awaiting_eose.is_empty() {
+            self.caught_up(order_id).await;
+        }
+    }
+
+    /// An event from `relay`, on its connection `connection`. A relay with
+    /// no EOSE on that connection is replaying stored events newest first —
+    /// it joined late or reconnected — so the cursor waits for its EOSE as
+    /// for the others', and its backlog skips the token bucket.
+    ///
+    /// Its REQ is the recorded one, `since` the subscription's start, so it
+    /// may replay events older than a cursor already persisted: the cursor
+    /// goes back to that start, or a restart halfway through would skip
+    /// them.
+    async fn event_from(&mut self, order_id: &str, relay: &str, connection: u64) {
+        if self.eose_seen.get(relay) != Some(&connection) {
+            self.eose_seen.remove(relay);
+            if self.awaiting_eose.insert(relay.to_string()) {
+                self.caught_up = false;
+                if self.cursor > self.start_cursor {
+                    self.cursor = self.start_cursor;
+                    self.persist_cursor(order_id).await;
+                }
+            }
+        }
+        self.from_catch_up = self.awaiting_eose.contains(relay);
+    }
+
+    /// Stop waiting for relays that dropped the connection: their catch-up
+    /// starts over on a reconnect and cannot hold this one back for good.
+    async fn forget_gone_relays(&mut self, order_id: &str, client: &nostr_sdk::prelude::Client) {
+        if self.caught_up || self.awaiting_eose.is_empty() {
+            return;
+        }
+        let connected: std::collections::HashSet<String> = client
+            .relays()
+            .await
+            .into_iter()
+            .filter(|(_, relay)| relay.status() == nostr_sdk::prelude::RelayStatus::Connected)
+            .map(|(url, _)| url.to_string())
+            .collect();
+        self.awaiting_eose.retain(|url| connected.contains(url));
+        if self.awaiting_eose.is_empty() && self.live {
+            self.caught_up(order_id).await;
+        }
+    }
+
+    /// Move the cursor as far as [`Self::wanted`], short of a held
+    /// reaction's floor. Also run on a quiet chat, so a floor that expired
+    /// with no event after it still lets the cursor go.
+    async fn settle_cursor(&mut self, order_id: &str) {
+        // A message of this trade whose write failed — received, or a
+        // reaction this device sent — keeps the cursor where it is until a
+        // retry stores it: a later event passing it would leave it behind,
+        // never fetched again.
+        if !self.caught_up || message_store().has_unsaved(order_id).await {
+            return;
+        }
+        let floor = match self.channel {
+            ChatChannel::Peer => message_store().held_floor(order_id).await,
+            ChatChannel::Dispute => None,
+        };
+        let accepted = floor.map_or(self.wanted, |floor| self.wanted.min(floor));
         if accepted > self.cursor {
             self.cursor = accepted;
-            match self.generation {
-                Some(generation) => {
-                    store_chat_cursor_if_current(self.channel, order_id, generation, accepted)
-                        .await
-                }
-                None => store_chat_cursor(self.channel, order_id, accepted).await,
-            }
+            self.persist_cursor(order_id).await;
         }
     }
 }
@@ -1732,19 +2355,40 @@ async fn run_chat_subscription(
     );
 
     let mut state = ChatRxState::new(channel, cursor, Some(generation));
+    state.awaiting_eose = relays_holding(&client, &sub_id).await;
+    // On its own clock: the notification stream is the whole client's, so
+    // waiting for a quiet stream would hardly ever reach the re-check.
+    let mut last_recheck = crate::rt::time::Instant::now();
 
     loop {
         // The trade ended and `stop_chat_subscriptions` took the chat back.
         if !chat_is_current(channel, order_id, generation).await {
             return;
         }
-        match rx.next().await {
+        // Every minute, whatever else arrives, the cursor is re-checked: a
+        // held reaction's floor can expire with no event after it, and a
+        // relay awaited for its EOSE can have gone.
+        let wait = CURSOR_RECHECK.saturating_sub(last_recheck.elapsed());
+        let next = crate::rt::time::timeout(wait, rx.next()).await;
+        if last_recheck.elapsed() >= CURSOR_RECHECK {
+            last_recheck = crate::rt::time::Instant::now();
+            state.forget_gone_relays(order_id, &client).await;
+            state.settle_cursor(order_id).await;
+        }
+        let Ok(notification) = next else {
+            continue;
+        };
+        match notification {
             Some(ClientNotification::Event {
+                relay_url,
                 subscription_id,
                 event,
-                ..
             }) => {
                 if subscription_id == sub_id {
+                    let connection = connection_of(&client, &relay_url).await;
+                    state
+                        .event_from(order_id, &relay_url.to_string(), connection)
+                        .await;
                     handle_chat_event(
                         channel,
                         order_id,
@@ -1761,13 +2405,33 @@ async fn run_chat_subscription(
                     return;
                 }
             }
-            Some(ClientNotification::Message { message, .. }) => {
-                // EOSE for one of our subscriptions: stored catch-up is over,
-                // the token bucket meters everything from here on.
-                if let nostr_sdk::prelude::RelayMessage::EndOfStoredEvents(sid) = *message {
-                    if *sid == sub_id {
-                        state.live = true;
+            Some(ClientNotification::Message {
+                relay_url, message, ..
+            }) => {
+                // EOSE for one of our subscriptions: that relay's stored
+                // catch-up is over. A CLOSED (auth-required, a rate limit)
+                // never comes with one: that relay is no longer awaited, but
+                // its connection is not marked done either, since `live_subs`
+                // issues the REQ again on it and that replay is a catch-up.
+                //
+                // The connection is read now, not when the relay sent it: an
+                // EOSE still queued while the relay reconnects is taken for
+                // the new connection's. The SDK says neither which
+                // connection a message came on nor when a relay reconnects,
+                // and the window is the queue's latency.
+                match &*message {
+                    nostr_sdk::prelude::RelayMessage::EndOfStoredEvents(sid) if **sid == sub_id => {
+                        let connection = connection_of(&client, &relay_url).await;
+                        state
+                            .eose_from(order_id, &relay_url.to_string(), connection)
+                            .await;
                     }
+                    nostr_sdk::prelude::RelayMessage::Closed {
+                        subscription_id, ..
+                    } if **subscription_id == sub_id => {
+                        state.closed_by(order_id, &relay_url.to_string()).await;
+                    }
+                    _ => {}
                 }
             }
             // The SDK's notification stream ends on shutdown; lag under
@@ -1776,6 +2440,37 @@ async fn run_chat_subscription(
             Some(ClientNotification::Shutdown) | None => break,
         }
     }
+}
+
+/// Which connection of `relay` this is: how many times it has connected. A
+/// reconnect counts one more, which is how a replayed catch-up is told from
+/// live traffic — even two connections within the same second, which the
+/// relay's `connected_at` (whole seconds) would not tell apart.
+async fn connection_of(
+    client: &nostr_sdk::prelude::Client,
+    relay: &nostr_sdk::prelude::RelayUrl,
+) -> u64 {
+    match client.relay(relay).await {
+        Ok(Some(relay)) => relay.stats().success() as u64,
+        _ => 0,
+    }
+}
+
+/// The connected relays that hold subscription `id`: the ones whose stored
+/// catch-up the chat cursor waits for.
+async fn relays_holding(
+    client: &nostr_sdk::prelude::Client,
+    id: &nostr_sdk::prelude::SubscriptionId,
+) -> std::collections::HashSet<String> {
+    let mut holding = std::collections::HashSet::new();
+    for (url, relay) in client.relays().await {
+        if relay.status() == nostr_sdk::prelude::RelayStatus::Connected
+            && relay.subscription(id).await.is_some()
+        {
+            holding.insert(url.to_string());
+        }
+    }
+    holding
 }
 
 /// Validate and store one incoming chat-envelope event (see
@@ -1820,6 +2515,19 @@ async fn handle_chat_event(
         nostr_sdk::prelude::Timestamp::now(),
     ) {
         Ok(inner) => inner,
+        // A kind this client does not implement is an extension of the
+        // protocol, not abuse: dropped without feeding the flood breaker, and
+        // passed, since fetching it again would change nothing.
+        Err(e)
+            if e.downcast_ref::<crate::nostr::transport::UnsupportedInnerKind>()
+                .is_some() =>
+        {
+            log::debug!("[messages] incoming-chat skipped order={order_id}: {e}");
+            state
+                .advance_cursor(order_id, event.created_at.as_secs() as i64)
+                .await;
+            return;
+        }
         Err(e) => {
             // Only the counterparty can author a validly-signed outer event,
             // so failures here are attributable.
@@ -1829,6 +2537,11 @@ async fn handle_chat_event(
         }
     };
     state.consecutive_rejected = 0;
+
+    if inner.kind == nostr_sdk::prelude::Kind::Reaction {
+        handle_reaction(channel, order_id, &inner, event, state).await;
+        return;
+    }
 
     // Step 12 — durable replay dedup on the inner id, fail-closed: a lookup
     // error drops the event (and leaves the cursor put, so it is re-fetched
@@ -1869,6 +2582,13 @@ async fn handle_chat_event(
     // reconstructs, but never as unread.
     let is_echo = inner.pubkey == *my_trade_pubkey;
     let (content, attachment) = parse_chat_payload(&inner.content);
+    // Another device of ours sent the solver the chat key (#415): this one
+    // must stop offering it too.
+    if channel == ChatChannel::Dispute && is_echo && attachment.is_none() {
+        if let Some(solver) = allowed_signers.iter().find(|k| *k != my_trade_pubkey) {
+            crate::api::disputes::note_chat_key_share_echo(order_id, solver, &content).await;
+        }
+    }
 
     let msg = ChatMessage {
         id: inner_id,
@@ -1883,6 +2603,7 @@ async fn handle_chat_event(
         // Presentation orders by the inner timestamp, which the relative
         // bound has already tied to the outer one.
         created_at: inner.created_at.as_secs() as i64,
+        reactions: Vec::new(),
     };
 
     log::debug!("[messages] incoming-chat rx order={order_id} id={}", msg.id);
@@ -1892,6 +2613,61 @@ async fn handle_chat_event(
         state
             .advance_cursor(order_id, event.created_at.as_secs() as i64)
             .await;
+    }
+}
+
+/// An accepted reaction (`mostro_unwrap` checked its shape). It is never a
+/// message: stored on its target, the newest per party holding, which is
+/// also what makes a re-wrapped one harmless (chat.md, step 12).
+async fn handle_reaction(
+    channel: ChatChannel,
+    order_id: &str,
+    inner: &nostr_sdk::prelude::Event,
+    event: &nostr_sdk::prelude::Event,
+    state: &mut ChatRxState,
+) {
+    let at = event.created_at.as_secs() as i64;
+    // Reactions are defined for the peer chat only: here a kind like any
+    // other this channel does not implement.
+    if channel != ChatChannel::Peer {
+        state.advance_cursor(order_id, at).await;
+        return;
+    }
+    let Some(target) = crate::nostr::transport::reaction_target(inner) else {
+        return;
+    };
+    let target = target.to_hex();
+    let reaction = ChatReaction {
+        sender_pubkey: inner.pubkey.to_hex(),
+        emoji: inner.content.clone(),
+        created_at: inner.created_at.as_secs() as i64,
+        event_id: inner.id.to_hex(),
+    };
+    // Live events come in order, so a missing target is older than the
+    // cursor only in catch-up, where it is still on its way.
+    let floor = if state.caught_up {
+        state.cursor
+    } else {
+        state.start_cursor
+    };
+    let outcome = message_store()
+        .apply_reaction(order_id, &target, reaction, floor)
+        .await;
+    log::debug!("[messages] incoming-chat reaction order={order_id} → {outcome:?}");
+    // The cursor passes only what is durably stored, as for a message.
+    let passed = match outcome {
+        ReactionOutcome::Applied { durable, .. } => durable,
+        // Already shown: as durable as the message holding it, whose write
+        // gets one retry here if it failed.
+        ReactionOutcome::Unchanged => message_store().ensure_durable(order_id, &target).await,
+        // In memory only until its target arrives: the cursor's floor
+        // (`held_floor`) keeps it where it was meanwhile, so a restart
+        // fetches the reaction and its older target again.
+        ReactionOutcome::Held => true,
+        ReactionOutcome::Refused => true,
+    };
+    if passed {
+        state.advance_cursor(order_id, at).await;
     }
 }
 
@@ -2031,12 +2807,19 @@ pub(crate) fn chat_still_relevant(trade: &crate::api::types::TradeInfo) -> bool 
     chat_still_relevant_at(trade, unix_now())
 }
 
+/// Whether `peer` can be `trade`'s counterparty: known, and not the Mostro
+/// node a pre-#334 row seeded it with (see [`chat_still_relevant`]). Keys
+/// derived with the node would open no conversation of this trade.
+pub(crate) fn plausible_counterparty(trade: &crate::api::types::TradeInfo, peer: &str) -> bool {
+    !peer.is_empty()
+        && peer != trade.order.creator_pubkey
+        && peer != crate::config::active_mostro_pubkey()
+}
+
 /// [`chat_still_relevant`] at `now` (Unix seconds).
 pub(crate) fn chat_still_relevant_at(trade: &crate::api::types::TradeInfo, now: i64) -> bool {
     use crate::api::types::OrderStatus::*;
-    let peer_known = !trade.counterparty_pubkey.is_empty()
-        && trade.counterparty_pubkey != trade.order.creator_pubkey
-        && trade.counterparty_pubkey != crate::config::active_mostro_pubkey();
+    let peer_known = plausible_counterparty(trade, &trade.counterparty_pubkey);
     let live = trade.outcome.is_none()
         && matches!(
             trade.order.status,
@@ -2196,6 +2979,7 @@ mod tests {
             has_attachment: false,
             attachment: None,
             created_at: index,
+            reactions: Vec::new(),
         }
     }
 
@@ -2355,6 +3139,7 @@ mod tests {
                     has_attachment: false,
                     attachment: None,
                     created_at: index as i64 + 1,
+                    reactions: Vec::new(),
                 })
                 .await;
         }
@@ -2511,6 +3296,7 @@ mod tests {
             has_attachment: false,
             attachment: None,
             created_at: unix_now(),
+            reactions: Vec::new(),
         };
         store.add_message(incoming).await;
 
@@ -2581,6 +3367,7 @@ mod tests {
             has_attachment: true,
             attachment: Some(fake_att),
             created_at: unix_now(),
+            reactions: Vec::new(),
         };
         store.add_message(msg).await;
 
@@ -2612,6 +3399,7 @@ mod tests {
             has_attachment: false,
             attachment: None,
             created_at: unix_now(),
+            reactions: Vec::new(),
         };
         // Add the same logical id twice (different objects).
         store.add_message(msg.clone()).await;
@@ -2757,6 +3545,7 @@ mod tests {
                 has_attachment: false,
                 attachment: None,
                 created_at: unix_now(),
+                reactions: Vec::new(),
             })
             .await;
         assert!(!store.quota_exceeded(&trade_id, 5).await);
@@ -2802,6 +3591,8 @@ mod tests {
 
         let generation = claim_chat(ChatChannel::Dispute, &order).await.expect("claim");
         let mut state = ChatRxState::new(ChatChannel::Dispute, 0, Some(generation));
+        state.live = true;
+        state.caught_up = true;
         state.advance_cursor(&order, now - 20).await;
         assert_eq!(
             db.get_setting(&key).await.unwrap(),
@@ -3003,6 +3794,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: "peer".into(),
@@ -3249,6 +4041,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: counterparty.into(),
@@ -3556,6 +4349,7 @@ mod tests {
                 has_attachment: false,
                 attachment: None,
                 created_at: unix_now(),
+                reactions: Vec::new(),
             })
             .await;
 
@@ -3582,6 +4376,7 @@ mod tests {
             has_attachment: false,
             attachment: None,
             created_at: unix_now(),
+            reactions: Vec::new(),
         };
         message_store().add_message(unrelated).await;
 
@@ -3597,11 +4392,686 @@ mod tests {
             has_attachment: false,
             attachment: None,
             created_at: unix_now(),
+            reactions: Vec::new(),
         };
         message_store().add_message(target.clone()).await;
 
         let received = stream.next().await.expect("should receive a message");
         assert_eq!(received.trade_id, trade_id);
         assert_eq!(received.content, "hello");
+    }
+
+    // ── Reactions (protocol chat.md, "Reactions") ────────────────────────────
+
+    fn reaction(sender: &str, emoji: &str, created_at: i64, event_id: &str) -> ChatReaction {
+        ChatReaction {
+            sender_pubkey: sender.to_string(),
+            emoji: emoji.to_string(),
+            created_at,
+            event_id: event_id.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_message_stored_before_reactions_still_loads() {
+        let stored = r#"{"id":"m","trade_id":"t","sender_pubkey":"p","content":"hi",
+            "message_type":"Peer","is_mine":false,"is_read":true,"has_attachment":false,
+            "attachment":null,"created_at":1}"#;
+
+        let msg: ChatMessage = serde_json::from_str(stored).unwrap();
+
+        assert!(msg.reactions.is_empty());
+    }
+
+    #[test]
+    fn the_newest_reaction_of_a_party_holds() {
+        let mut held = Vec::new();
+
+        assert!(merge_reaction(&mut held, reaction("bob", "👍", 10, "b")));
+        assert!(merge_reaction(&mut held, reaction("bob", "❤️", 11, "c")));
+        assert!(
+            !merge_reaction(&mut held, reaction("bob", "👍", 10, "b")),
+            "a re-wrapped older reaction changes nothing"
+        );
+
+        assert_eq!(held, vec![reaction("bob", "❤️", 11, "c")]);
+    }
+
+    #[test]
+    fn a_tie_goes_to_the_lowest_event_id_whatever_the_order() {
+        let low = reaction("bob", "👍", 10, "aa");
+        let high = reaction("bob", "😂", 10, "bb");
+        let mut one = Vec::new();
+        let mut other = Vec::new();
+
+        merge_reaction(&mut one, low.clone());
+        merge_reaction(&mut one, high.clone());
+        merge_reaction(&mut other, high);
+        merge_reaction(&mut other, low.clone());
+
+        assert_eq!(one, vec![low.clone()]);
+        assert_eq!(other, vec![low]);
+    }
+
+    #[test]
+    fn a_withdrawal_is_kept_so_an_older_reaction_stays_out() {
+        let mut held = Vec::new();
+        merge_reaction(&mut held, reaction("bob", "👍", 10, "b"));
+        merge_reaction(&mut held, reaction("bob", "", 12, "d"));
+
+        assert!(!merge_reaction(&mut held, reaction("bob", "👍", 10, "b")));
+        assert_eq!(held, vec![reaction("bob", "", 12, "d")]);
+    }
+
+    #[test]
+    fn a_change_within_a_second_is_dated_after_the_one_it_replaces() {
+        assert_eq!(reaction_time(100, None), Some(100));
+        assert_eq!(reaction_time(100, Some(99)), Some(100));
+        assert_eq!(reaction_time(100, Some(100)), Some(101));
+        assert_eq!(reaction_time(100, Some(101)), Some(102));
+    }
+
+    #[test]
+    fn a_change_is_never_dated_past_what_receivers_accept() {
+        let skew = crate::nostr::transport::MAX_CLOCK_SKEW_SECS as i64;
+
+        assert_eq!(reaction_time(100, Some(100 + skew - 1)), Some(100 + skew));
+        assert_eq!(reaction_time(100, Some(100 + skew)), None);
+    }
+
+    #[test]
+    fn only_the_other_partys_peer_messages_take_a_reaction() {
+        let mut msg = notification_test_message("t", 1);
+        msg.sender_pubkey = "alice".to_string();
+
+        assert!(reaction_allowed(&msg, &reaction("bob", "👍", 1, "a")));
+        assert!(!reaction_allowed(&msg, &reaction("alice", "👍", 1, "a")));
+        msg.message_type = MessageType::Admin;
+        assert!(!reaction_allowed(&msg, &reaction("bob", "👍", 1, "a")));
+    }
+
+    #[tokio::test]
+    async fn clearing_the_store_drops_held_reactions() {
+        let store = MessageStore::new();
+        let msg = ChatMessage {
+            sender_pubkey: "alice".to_string(),
+            ..notification_test_message("held-trade", 1)
+        };
+        let outcome = store
+            .apply_reaction("held-trade", &msg.id, reaction("bob", "👍", 1, "a"), 1)
+            .await;
+        assert!(matches!(outcome, ReactionOutcome::Held));
+
+        store.clear().await;
+        store.add_message(msg).await;
+
+        assert!(store.get_messages("held-trade").await[0]
+            .reactions
+            .is_empty());
+    }
+
+    /// Alice's side of a peer chat with Bob, fed through `handle_chat_event`.
+    struct AliceChat {
+        alice: nostr_sdk::prelude::Keys,
+        bob: nostr_sdk::prelude::Keys,
+        conv: nostr_sdk::prelude::Keys,
+        sign: nostr_sdk::prelude::Keys,
+        order_id: String,
+        state: ChatRxState,
+    }
+
+    impl AliceChat {
+        fn new() -> Self {
+            use nostr_sdk::prelude::Keys;
+            let alice = Keys::generate();
+            let bob = Keys::generate();
+            let (conv, sign) =
+                crate::crypto::chat_keys::derive_chat_keys(&alice, &bob.public_key()).unwrap();
+            Self {
+                alice,
+                bob,
+                conv,
+                sign,
+                order_id: uuid::Uuid::new_v4().to_string(),
+                state: ChatRxState::new(ChatChannel::Peer, 0, None),
+            }
+        }
+
+        async fn receive(&mut self, outer: &nostr_sdk::prelude::Event) {
+            handle_chat_event(
+                ChatChannel::Peer,
+                &self.order_id,
+                &[self.alice.public_key(), self.bob.public_key()],
+                &self.conv,
+                &self.sign.public_key(),
+                &self.alice.public_key(),
+                outer,
+                &mut self.state,
+            )
+            .await;
+        }
+
+        /// A message by `author`, wrapped but not received yet.
+        async fn message(
+            &self,
+            author: &nostr_sdk::prelude::Keys,
+            text: &str,
+        ) -> (nostr_sdk::prelude::Event, nostr_sdk::prelude::Event) {
+            crate::nostr::transport::mostro_wrap(author, &self.conv, &self.sign, text)
+                .await
+                .unwrap()
+        }
+
+        /// Bob's reaction to `target`, wrapped but not received yet.
+        async fn bob_reacts(
+            &self,
+            target: &nostr_sdk::prelude::EventId,
+            emoji: &str,
+        ) -> nostr_sdk::prelude::Event {
+            self.bob_reacts_at(target, emoji, unix_now()).await
+        }
+
+        async fn bob_reacts_at(
+            &self,
+            target: &nostr_sdk::prelude::EventId,
+            emoji: &str,
+            at: i64,
+        ) -> nostr_sdk::prelude::Event {
+            crate::nostr::transport::mostro_wrap_reaction(
+                &self.bob,
+                &self.conv,
+                &self.sign,
+                target,
+                emoji,
+                nostr_sdk::prelude::Timestamp::from_secs(at as u64),
+            )
+            .await
+            .unwrap()
+            .0
+        }
+
+        /// The relay's EOSE: stored catch-up is over.
+        async fn caught_up(&mut self) {
+            let order = self.order_id.clone();
+            self.state.caught_up(&order).await;
+        }
+
+        async fn messages(&self) -> Vec<ChatMessage> {
+            get_messages(self.order_id.clone()).await.unwrap()
+        }
+    }
+
+    #[tokio::test]
+    async fn a_reaction_lands_on_its_message_and_is_never_a_message() {
+        let mut chat = AliceChat::new();
+        let (outer, inner) = chat.message(&chat.alice.clone(), "fiat sent").await;
+        chat.receive(&outer).await; // her own echo
+        let mut updates = on_message_updated(chat.order_id.clone()).await.unwrap();
+        let mut news = message_store().new_message_tx.subscribe();
+
+        let reaction = chat.bob_reacts(&inner.id, "👍").await;
+        chat.receive(&reaction).await;
+
+        let msgs = chat.messages().await;
+        assert_eq!(msgs.len(), 1, "a reaction is not a message");
+        assert_eq!(msgs[0].reactions.len(), 1);
+        assert_eq!(msgs[0].reactions[0].emoji, "👍");
+        assert_eq!(
+            msgs[0].reactions[0].sender_pubkey,
+            chat.bob.public_key().to_hex()
+        );
+        assert!(msgs.iter().all(|m| m.is_read), "nothing new to read");
+        let updated = tokio::time::timeout(std::time::Duration::from_secs(1), updates.next())
+            .await
+            .expect("the screen hears about the change")
+            .unwrap();
+        assert_eq!(updated.id, inner.id.to_hex());
+        while let Ok(msg) = news.try_recv() {
+            assert_ne!(
+                msg.trade_id, chat.order_id,
+                "no new-message event, so no notification"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_reaction_before_its_message_waits_for_it() {
+        let mut chat = AliceChat::new();
+        let (outer, inner) = chat
+            .message(&chat.alice.clone(), "sent from her laptop")
+            .await;
+
+        let reaction = chat.bob_reacts(&inner.id, "😂").await;
+        chat.receive(&reaction).await;
+        assert!(chat.messages().await.is_empty());
+        chat.receive(&outer).await;
+
+        let msgs = chat.messages().await;
+        assert_eq!(msgs[0].reactions.len(), 1);
+        assert_eq!(msgs[0].reactions[0].emoji, "😂");
+    }
+
+    #[tokio::test]
+    async fn a_reaction_to_ones_own_message_is_not_shown() {
+        let mut chat = AliceChat::new();
+        let (outer, inner) = chat.message(&chat.bob.clone(), "hello").await;
+        chat.receive(&outer).await;
+
+        let reaction = chat.bob_reacts(&inner.id, "❤️").await;
+        chat.receive(&reaction).await;
+
+        assert!(chat.messages().await[0].reactions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_unsupported_inner_kind_never_trips_the_flood_breaker() {
+        let mut chat = AliceChat::new();
+
+        for _ in 0..FLOOD_TRIP_REJECTIONS + 5 {
+            let (outer, _) = crate::nostr::transport::wrap_inner(
+                &chat.bob,
+                &chat.conv,
+                &chat.sign,
+                nostr_sdk::prelude::EventBuilder::new(
+                    nostr_sdk::prelude::Kind::Custom(30023),
+                    "an article",
+                ),
+                nostr_sdk::prelude::Timestamp::now(),
+            )
+            .unwrap();
+            chat.receive(&outer).await;
+        }
+        chat.caught_up().await;
+
+        assert!(!chat.state.flooded);
+        assert_eq!(chat.state.consecutive_rejected, 0);
+        assert!(chat.messages().await.is_empty());
+        assert!(
+            chat.state.cursor > 0,
+            "fetching them again would change nothing"
+        );
+    }
+
+    #[tokio::test]
+    async fn catch_up_keeps_the_cursor_until_it_is_over() {
+        let mut chat = AliceChat::new();
+        let now = unix_now();
+        let (older, _) = crate::nostr::transport::wrap_inner(
+            &chat.bob,
+            &chat.conv,
+            &chat.sign,
+            nostr_sdk::prelude::EventBuilder::new(nostr_sdk::prelude::Kind::TextNote, "older"),
+            nostr_sdk::prelude::Timestamp::from_secs((now - 20) as u64),
+        )
+        .unwrap();
+        let (newest, _) = chat.message(&chat.bob.clone(), "newest").await;
+
+        // Newest first, as relays serve stored events.
+        chat.receive(&newest).await;
+        assert_eq!(
+            chat.state.cursor, 0,
+            "a restart now would still fetch the older one"
+        );
+        chat.receive(&older).await;
+        chat.caught_up().await;
+
+        assert!(chat.state.cursor >= newest.created_at.as_secs() as i64 - 1);
+    }
+
+    #[tokio::test]
+    async fn a_held_reaction_keeps_the_cursor_until_its_message_arrives() {
+        let mut chat = AliceChat::new();
+        chat.caught_up().await;
+        let (outer, inner) = chat.message(&chat.alice.clone(), "laptop").await;
+
+        let reaction = chat.bob_reacts(&inner.id, "👍").await;
+        chat.receive(&reaction).await;
+        assert_eq!(chat.state.cursor, 0, "only memory holds it");
+        chat.receive(&outer).await;
+
+        assert!(chat.state.cursor > 0);
+        assert_eq!(chat.messages().await[0].reactions[0].emoji, "👍");
+    }
+
+    #[tokio::test]
+    async fn a_held_reaction_keeps_the_cursor_before_its_older_target() {
+        let mut chat = AliceChat::new();
+        let now = unix_now();
+        let (target_outer, target) = crate::nostr::transport::wrap_inner(
+            &chat.alice,
+            &chat.conv,
+            &chat.sign,
+            nostr_sdk::prelude::EventBuilder::new(nostr_sdk::prelude::Kind::TextNote, "paid"),
+            nostr_sdk::prelude::Timestamp::from_secs((now - 20) as u64),
+        )
+        .unwrap();
+        let reaction = chat.bob_reacts_at(&target.id, "👍", now - 10).await;
+        let (newest, _) = chat.message(&chat.bob.clone(), "anyone there?").await;
+
+        // Catch-up, newest first, ends before the target arrives.
+        chat.receive(&newest).await;
+        chat.receive(&reaction).await;
+        chat.caught_up().await;
+        assert_eq!(
+            chat.state.cursor, 0,
+            "a restart must fetch the reaction and its older target again"
+        );
+        chat.receive(&target_outer).await;
+
+        assert!(chat.state.cursor >= newest.created_at.as_secs() as i64 - 1);
+        assert_eq!(chat.messages().await.len(), 2);
+        let paid = chat
+            .messages()
+            .await
+            .into_iter()
+            .find(|m| m.content == "paid");
+        assert_eq!(paid.unwrap().reactions[0].emoji, "👍");
+    }
+
+    #[tokio::test]
+    async fn an_expired_floor_lets_a_quiet_chat_cursor_go() {
+        let mut chat = AliceChat::new();
+        chat.caught_up().await;
+        let reaction = chat
+            .bob_reacts(&nostr_sdk::prelude::EventId::from_byte_array([9; 32]), "👍")
+            .await;
+        let (later, _) = chat.message(&chat.bob.clone(), "hello?").await;
+        chat.receive(&reaction).await;
+        chat.receive(&later).await;
+        assert_eq!(chat.state.cursor, 0, "the target that never comes holds it");
+
+        // Ten minutes on, with nothing else arriving.
+        for held in message_store()
+            .held_reactions
+            .write()
+            .await
+            .get_mut(&chat.order_id)
+            .unwrap()
+            .iter_mut()
+        {
+            held.held_at -= HELD_FLOOR_SECS + 1;
+        }
+        let order = chat.order_id.clone();
+        chat.state.settle_cursor(&order).await;
+
+        assert!(chat.state.cursor >= later.created_at.as_secs() as i64 - 1);
+    }
+
+    #[tokio::test]
+    async fn the_cursor_waits_for_every_relays_eose() {
+        let mut chat = AliceChat::new();
+        let (newest, _) = chat.message(&chat.bob.clone(), "newest").await;
+        chat.state.awaiting_eose = ["wss://fast".to_string(), "wss://slow".to_string()].into();
+        chat.receive(&newest).await;
+        let order = chat.order_id.clone();
+
+        chat.state.eose_from(&order, "wss://fast", 1).await;
+        assert!(chat.state.live, "the token bucket meters from the first");
+        assert_eq!(
+            chat.state.cursor, 0,
+            "the slow relay may still serve older ones"
+        );
+        chat.state.eose_from(&order, "wss://slow", 1).await;
+
+        assert!(chat.state.cursor >= newest.created_at.as_secs() as i64 - 1);
+    }
+
+    #[tokio::test]
+    async fn an_unsaved_message_keeps_the_cursor_until_a_retry_stores_it() {
+        let mut chat = AliceChat::new();
+        chat.caught_up().await;
+        // A reaction this device sent whose write failed leaves its target
+        // in memory only, as a failed incoming write does.
+        let (outer, inner) = chat.message(&chat.alice.clone(), "target").await;
+        chat.receive(&outer).await;
+        let cursor = chat.state.cursor;
+        message_store()
+            .non_durable
+            .write()
+            .await
+            .insert(inner.id.to_hex());
+        let (later, _) = chat.message(&chat.bob.clone(), "after the failure").await;
+
+        chat.receive(&later).await;
+        assert_eq!(
+            chat.state.cursor, cursor,
+            "a restart fetches the unsaved one again"
+        );
+        message_store()
+            .non_durable
+            .write()
+            .await
+            .remove(&inner.id.to_hex());
+        let order = chat.order_id.clone();
+        chat.state.settle_cursor(&order).await;
+
+        assert!(chat.state.cursor >= later.created_at.as_secs() as i64 - 1);
+    }
+
+    #[tokio::test]
+    async fn a_relay_that_joins_late_reopens_catch_up() {
+        let mut state = ChatRxState::new(ChatChannel::Peer, 0, None);
+        state.caught_up = true;
+        state.eose_seen.insert("wss://early".to_string(), 1);
+
+        state.event_from("o", "wss://early", 1).await;
+        assert!(state.caught_up, "a relay past its EOSE is live");
+        assert!(!state.from_catch_up);
+        state.event_from("o", "wss://late", 1).await;
+
+        assert!(!state.caught_up);
+        assert!(state.awaiting_eose.contains("wss://late"));
+        assert!(state.from_catch_up, "its backlog skips the token bucket");
+    }
+
+    #[tokio::test]
+    async fn a_relay_that_reconnects_reopens_catch_up_from_the_start() {
+        let mut state = ChatRxState::new(ChatChannel::Peer, 100, None);
+        state.caught_up = true;
+        state.cursor = 150; // persisted after the first catch-up
+        state.eose_seen.insert("wss://relay".to_string(), 1);
+
+        // Same relay, a later connection: the subscription was repaired,
+        // with the recorded since = 100.
+        state.event_from("o", "wss://relay", 2).await;
+
+        assert!(!state.caught_up);
+        assert!(state.awaiting_eose.contains("wss://relay"));
+        assert_eq!(state.cursor, 100, "back to what the replay starts from");
+    }
+
+    #[tokio::test]
+    async fn a_closed_subscription_replayed_on_the_same_connection_is_a_catch_up() {
+        let mut state = ChatRxState::new(ChatChannel::Peer, 100, None);
+        state.awaiting_eose.insert("wss://relay".to_string());
+
+        state.closed_by("o", "wss://relay").await;
+        assert!(state.caught_up, "a refused REQ holds nothing back");
+        state.cursor = 150;
+        // `live_subs` issues the REQ again on the same connection.
+        state.event_from("o", "wss://relay", 1).await;
+
+        assert!(!state.caught_up);
+        assert!(state.from_catch_up);
+        assert_eq!(state.cursor, 100, "back to what the replay starts from");
+    }
+
+    #[tokio::test]
+    async fn a_relay_still_in_catch_up_skips_the_token_bucket() {
+        let mut state = ChatRxState::new(ChatChannel::Peer, 0, None);
+        state.live = true; // another relay already sent EOSE
+        state.awaiting_eose.insert("wss://slow".to_string());
+
+        state.event_from("o", "wss://slow", 1).await;
+        let accepted = (0..RATE_CAPACITY as u32 * 3)
+            .filter(|_| state.budget_ok("order-x"))
+            .count();
+
+        assert_eq!(accepted, RATE_CAPACITY as usize * 3);
+        assert_eq!(state.consecutive_rejected, 0);
+    }
+
+    #[tokio::test]
+    async fn the_update_stream_opens_with_the_reacted_messages() {
+        let mut chat = AliceChat::new();
+        let (outer, inner) = chat.message(&chat.alice.clone(), "reacted").await;
+        let (plain, _) = chat.message(&chat.alice.clone(), "plain").await;
+        chat.receive(&outer).await;
+        chat.receive(&plain).await;
+        chat.receive(&chat.bob_reacts(&inner.id, "👍").await).await;
+
+        let mut updates = on_message_updated(chat.order_id.clone()).await.unwrap();
+        let first = updates.next().await.unwrap();
+
+        assert_eq!(first.content, "reacted");
+        assert!(updates.pending.is_empty(), "the plain one is not resent");
+    }
+
+    #[tokio::test]
+    async fn a_lagging_update_stream_gets_the_snapshot_again() {
+        let mut chat = AliceChat::new();
+        let (outer, inner) = chat.message(&chat.alice.clone(), "reacted").await;
+        chat.receive(&outer).await;
+        chat.receive(&chat.bob_reacts(&inner.id, "👍").await).await;
+        let mut updates = on_message_updated(chat.order_id.clone()).await.unwrap();
+        updates.next().await.unwrap();
+
+        // More updates than the channel holds, none read.
+        let other = notification_test_message("another-trade", 1);
+        for _ in 0..100 {
+            let _ = message_store().updated_tx.send(other.clone());
+        }
+        let next = tokio::time::timeout(std::time::Duration::from_secs(1), updates.next())
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(next.content, "reacted");
+    }
+
+    #[tokio::test]
+    async fn an_older_reaction_received_again_changes_nothing() {
+        let mut chat = AliceChat::new();
+        chat.caught_up().await;
+        let (outer, inner) = chat.message(&chat.alice.clone(), "paid").await;
+        chat.receive(&outer).await;
+        let now = unix_now();
+        let first = chat.bob_reacts_at(&inner.id, "👍", now - 2).await;
+        let second = chat.bob_reacts_at(&inner.id, "", now - 1).await;
+        chat.receive(&first).await;
+        chat.receive(&second).await;
+
+        // After a restart: the outer-id LRU is empty again.
+        chat.state = ChatRxState::new(ChatChannel::Peer, 0, None);
+        chat.receive(&first).await;
+        chat.caught_up().await;
+
+        let reactions = &chat.messages().await[0].reactions;
+        assert_eq!(reactions.len(), 1);
+        assert_eq!(reactions[0].emoji, "", "the withdrawal holds");
+        assert!(chat.state.cursor > 0, "nothing left to fetch again");
+    }
+
+    #[tokio::test]
+    async fn a_re_wrapped_reaction_takes_one_held_place() {
+        let store = MessageStore::new();
+        for _ in 0..3 {
+            store
+                .apply_reaction("t", "target", reaction("bob", "👍", 1, "a"), 1)
+                .await;
+        }
+        store
+            .apply_reaction("t", "target", reaction("bob", "😂", 2, "b"), 2)
+            .await;
+
+        let held = store.held_reactions.read().await;
+        assert_eq!(held["t"].len(), 1);
+        assert_eq!(held["t"][0].reaction.emoji, "😂", "the newest is kept");
+    }
+
+    #[tokio::test]
+    async fn a_reaction_held_too_long_stops_holding_the_cursor() {
+        let store = MessageStore::new();
+        store
+            .apply_reaction("t", "never-comes", reaction("bob", "👍", 1, "a"), 42)
+            .await;
+        let now = unix_now();
+
+        assert_eq!(store.held_floor_at("t", now).await, Some(42));
+        assert_eq!(
+            store.held_floor_at("t", now + HELD_FLOOR_SECS + 1).await,
+            None
+        );
+        assert_eq!(
+            store.held_reactions.read().await["t"].len(),
+            1,
+            "still held"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stored_row_releases_the_reactions_held_again_for_it() {
+        let store = MessageStore::new();
+        let msg = ChatMessage {
+            sender_pubkey: "alice".to_string(),
+            ..notification_test_message("re-held", 1)
+        };
+        store.add_message(msg.clone()).await;
+        // As after a failed write of the target: its reaction held again.
+        store
+            .hold_reaction("re-held", &msg.id, reaction("bob", "👍", 1, "a"), 0)
+            .await;
+        assert!(store.held_floor("re-held").await.is_some());
+
+        // Another reaction stores the row.
+        store
+            .apply_reaction("re-held", &msg.id, reaction("bob", "😂", 2, "b"), 0)
+            .await;
+
+        assert_eq!(store.held_floor("re-held").await, None);
+    }
+
+    #[tokio::test]
+    async fn held_reactions_are_bounded_oldest_first() {
+        let store = MessageStore::new();
+        for i in 0..=MAX_HELD_REACTIONS_PER_TRADE {
+            store
+                .apply_reaction(
+                    "t",
+                    &format!("target-{i}"),
+                    reaction("bob", "👍", 1, "a"),
+                    1,
+                )
+                .await;
+        }
+
+        let held = store.held_reactions.read().await;
+        assert_eq!(held["t"].len(), MAX_HELD_REACTIONS_PER_TRADE);
+        assert_eq!(held["t"][0].target_id, "target-1");
+    }
+
+    #[tokio::test]
+    async fn send_reaction_refuses_what_the_protocol_does_not_allow() {
+        let mut chat = AliceChat::new();
+        let (outer, inner) = chat.message(&chat.alice.clone(), "mine").await;
+        chat.receive(&outer).await;
+        let id = inner.id.to_hex();
+
+        let own = send_reaction(chat.order_id.clone(), id.clone(), "👍".into()).await;
+        let unknown = send_reaction(chat.order_id.clone(), "nope".into(), "👍".into()).await;
+        let too_long = send_reaction(chat.order_id.clone(), id, "😀".repeat(17)).await;
+
+        assert!(own
+            .unwrap_err()
+            .to_string()
+            .starts_with("ReactionNotAllowed"));
+        assert!(unknown
+            .unwrap_err()
+            .to_string()
+            .starts_with("MessageNotFound"));
+        assert!(too_long
+            .unwrap_err()
+            .to_string()
+            .starts_with("ReactionTooLarge"));
     }
 }

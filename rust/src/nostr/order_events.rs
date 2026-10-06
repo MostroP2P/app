@@ -99,6 +99,11 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
 
     let (rating, total_reviews, days_active, maker_since) =
         parse_rating_tag(get("rating").as_deref());
+    // A Cashu order names its escrow mint (mostro#1047); a Lightning one has
+    // no such tag.
+    let cashu_mint_url = get("cashu_mint_url")
+        .map(|url| url.trim().to_string())
+        .filter(|url| !url.is_empty());
 
     Some(OrderInfo {
         id,
@@ -119,6 +124,7 @@ pub fn parse_order_event(event: &Event, my_pubkey: Option<&PublicKey>) -> Option
         total_reviews,
         days_active,
         maker_since,
+        cashu_mint_url,
     })
 }
 
@@ -374,6 +380,26 @@ mod tests {
             Some(value) => order_event_tagged(revision_at, &[("published_at", value)]),
             None => order_event_tagged(revision_at, &[]),
         }
+    }
+
+    /// A Cashu order names its escrow mint (mostro#1047); a Lightning order
+    /// carries no such tag.
+    #[test]
+    fn a_cashu_order_names_its_mint() {
+        let cashu = order_event_tagged(1_000, &[("cashu_mint_url", " https://mint.a.com ")]);
+        let lightning = order_event_tagged(1_000, &[]);
+
+        assert_eq!(
+            parse_order_event(&cashu, None)
+                .unwrap()
+                .cashu_mint_url
+                .as_deref(),
+            Some("https://mint.a.com")
+        );
+        assert_eq!(
+            parse_order_event(&lightning, None).unwrap().cashu_mint_url,
+            None
+        );
     }
 
     /// A later revision (published at 5_000) keeps the order's creation time

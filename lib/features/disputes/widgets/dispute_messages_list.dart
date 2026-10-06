@@ -7,6 +7,7 @@ import 'package:mostro/features/chat/widgets/encrypted_file_message.dart';
 import 'package:mostro/features/chat/widgets/encrypted_image_message.dart';
 import 'package:mostro/features/chat/widgets/upload_bubble.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
+import 'package:mostro/features/disputes/widgets/dispute_info_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 
@@ -42,7 +43,7 @@ int? takeoverLineIndex(
 /// Scrollable list of dispute messages with info card and optional banners.
 ///
 /// Slot order (always shown in this sequence):
-///   1. [DisputeInfoCard] — always first
+///   1. [DisputeInfoCard] — always first, then [outcome] once resolved
 ///   2. "Solver assigned" banner — shown when status is `inReview` and no
 ///      messages yet; it names Serbero while Serbero holds the dispute
 ///   3. [DisputeMessageBubble] entries — sorted by `createdAt`, deduped by
@@ -61,6 +62,7 @@ class DisputeMessagesList extends StatefulWidget {
     this.onRetryUpload,
     this.onDiscardUpload,
     this.roleOf = _unknownIsAPerson,
+    this.outcome,
   });
 
   final DisputeItem dispute;
@@ -72,6 +74,11 @@ class DisputeMessagesList extends StatefulWidget {
   /// Who a solver pubkey is, as Rust decided it (#637).
   final SolverRoleOf roleOf;
 
+  /// The resolved dispute's outcome, under the info card. It scrolls with
+  /// the card, as v1's resolution box inside its card does, so a tall one
+  /// never squeezes the conversation.
+  final Widget? outcome;
+
   static rust_types.SolverRole _unknownIsAPerson(String? _) =>
       rust_types.SolverRole.human;
 
@@ -79,15 +86,31 @@ class DisputeMessagesList extends StatefulWidget {
   State<DisputeMessagesList> createState() => _DisputeMessagesListState();
 }
 
+/// How many frames [_DisputeMessagesListState._jumpToLatest] corrects its
+/// jump for before it gives up.
+const _maxJumpPasses = 4;
+
 class _DisputeMessagesListState extends State<DisputeMessagesList> {
   final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.messages.isNotEmpty) _jumpToLatest();
+  }
 
   @override
   void didUpdateWidget(DisputeMessagesList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.messages.length != oldWidget.messages.length ||
         widget.uploads.length != oldWidget.uploads.length) {
-      _scrollToBottom();
+      // The history arriving lands on the latest message at once, as in v1:
+      // the info card above it can fill the screen (#680).
+      if (oldWidget.messages.isEmpty && oldWidget.uploads.isEmpty) {
+        _jumpToLatest();
+      } else {
+        _scrollToBottom();
+      }
     }
   }
 
@@ -100,6 +123,22 @@ class _DisputeMessagesListState extends State<DisputeMessagesList> {
           curve: Curves.easeOut,
         );
       }
+    });
+  }
+
+  /// Jumps to the end once laid out, then again after each frame until the
+  /// end stays put: the list only estimates the length of messages it has
+  /// not laid out, and laying them out can move the end either way. A jump
+  /// past a shorter real end would otherwise spring back on screen.
+  void _jumpToLatest([int passesLeft = _maxJumpPasses]) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      if (position.pixels == position.maxScrollExtent && !position.outOfRange) {
+        return;
+      }
+      position.jumpTo(position.maxScrollExtent);
+      if (passesLeft > 1) _jumpToLatest(passesLeft - 1);
     });
   }
 
@@ -144,9 +183,9 @@ class _DisputeMessagesListState extends State<DisputeMessagesList> {
       controller: _scrollController,
       slivers: [
         // 1. Info card (always first)
-        SliverToBoxAdapter(
-          child: DisputeInfoCard(dispute: widget.dispute, colors: colors),
-        ),
+        SliverToBoxAdapter(child: DisputeInfoCard(dispute: widget.dispute)),
+        if (widget.outcome case final outcome?)
+          SliverToBoxAdapter(child: outcome),
 
         // 2. "Solver assigned" banner (inReview + no messages)
         if (isInReview && deduped.isEmpty)
@@ -193,114 +232,6 @@ class _DisputeMessagesListState extends State<DisputeMessagesList> {
         // Bottom padding
         const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
       ],
-    );
-  }
-}
-
-// ── DisputeInfoCard ───────────────────────────────────────────────────────────
-
-/// Always-first card showing order/dispute IDs and dispute details.
-class DisputeInfoCard extends StatelessWidget {
-  const DisputeInfoCard({
-    super.key,
-    required this.dispute,
-    required this.colors,
-  });
-
-  final DisputeItem dispute;
-  final AppColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Card(
-      margin: const EdgeInsets.all(AppSpacing.md),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppLocalizations.of(context).disputeDetailsTitle,
-              style: textTheme.bodyLarge?.copyWith(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _IdRow(
-              label: AppLocalizations.of(context).orderIdLabel,
-              value: dispute.tradeId,
-              colors: colors,
-              textTheme: textTheme,
-            ),
-            _IdRow(
-              label: AppLocalizations.of(context).disputeIdLabel,
-              value: dispute.id,
-              colors: colors,
-              textTheme: textTheme,
-            ),
-            if (dispute.reason != null) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                AppLocalizations.of(context).disputeReasonLabel(dispute.reason!),
-                style: textTheme.bodySmall?.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _IdRow extends StatelessWidget {
-  const _IdRow({
-    required this.label,
-    required this.value,
-    required this.colors,
-    required this.textTheme,
-  });
-
-  final String label;
-  final String value;
-  final AppColors colors;
-  final TextTheme textTheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Clipboard.setData(ClipboardData(text: value));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).aboutCopiedToClipboard),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          children: [
-            Text(
-              '$label: ',
-              style: textTheme.bodySmall?.copyWith(color: colors.textSubtle),
-            ),
-            Expanded(
-              child: Text(
-                value,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colors.blueAccent,
-                  fontFamily: 'monospace',
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

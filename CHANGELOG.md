@@ -4,6 +4,51 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.12] - 2026-10-05
+
+### ✨ Features
+
+- **chat:** tap a message to open its menu, as in Telegram ([#697](https://github.com/MostroP2P/app/pull/697)) by @grunch
+- **icon:** gold-ringed icon on Linux, Windows and macOS ([#696](https://github.com/MostroP2P/app/pull/696)) by @grunch
+- ring the v2 icon in gold and add a dark launch screen ([#694](https://github.com/MostroP2P/app/pull/694)) by @grunch
+- **chat:** react to a counterpart's message ([#692](https://github.com/MostroP2P/app/pull/692)) by @grunch
+- **chat:** hold a message for a second to open its menu ([#691](https://github.com/MostroP2P/app/pull/691)) by @grunch
+
+## [2.0.11] - 2026-10-04
+
+### ✨ Features
+
+- **disputes:** send the chat key to the solver in one tap ([#681](https://github.com/MostroP2P/app/pull/681)) by @grunch
+- **disputes:** open the dispute chat with v1's info card ([#683](https://github.com/MostroP2P/app/pull/683)) by @grunch
+- **chat:** real trade and peer info panels ([#678](https://github.com/MostroP2P/app/pull/678)) by @grunch
+- **reputation:** read since and compute the age at display time ([#664](https://github.com/MostroP2P/app/pull/664)) by @grunch
+- **announcements:** parse kind 38387 and hold the author allowlist ([#662](https://github.com/MostroP2P/app/pull/662)) by @grunch
+- **push:** turn web push on from a repository variable, and say when it stops ([#660](https://github.com/MostroP2P/app/pull/660)) by @grunch
+- **web:** make the web build an installable app with Mostro's identity ([#659](https://github.com/MostroP2P/app/pull/659)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **chat:** fit the chat screen at 320 dp with 2x text ([#682](https://github.com/MostroP2P/app/pull/682)) by @grunch
+- **design:** catch v1 by what a widget leaves to the theme ([#673](https://github.com/MostroP2P/app/pull/673)) by @grunch
+- **android:** give notifications a status bar icon instead of a square ([#670](https://github.com/MostroP2P/app/pull/670)) by @Catrya
+- **automation:** remove the dead trade.rate identifier and the test gap that hid it ([#583](https://github.com/MostroP2P/app/pull/583)) by @Catrya
+- **web:** add the worker's tap listener before importing the FCM SDK ([#668](https://github.com/MostroP2P/app/pull/668)) by @grunch
+- **web:** make a replaced chat-wake notice alert again ([#667](https://github.com/MostroP2P/app/pull/667)) by @grunch
+- **web:** run every bridge call on the main thread ([#666](https://github.com/MostroP2P/app/pull/666)) by @grunch
+- **order-book:** offer the payment methods the book actually carries ([#632](https://github.com/MostroP2P/app/pull/632)) by @BBakker26
+
+### ♻️ Refactoring
+
+- **db:** drop get_trade and name the trade row's two identities ([#578](https://github.com/MostroP2P/app/pull/578)) by @Catrya
+
+### 📚 Documentation
+
+- **design:** make the design system a guide UI changes are judged against ([#671](https://github.com/MostroP2P/app/pull/671)) by @grunch
+
+### 👷 Build & CI
+
+- **design:** check UI pull requests against the design guide ([#672](https://github.com/MostroP2P/app/pull/672)) by @grunch
+
 ## [2.0.10] - 2026-10-01
 
 ### ✨ Features

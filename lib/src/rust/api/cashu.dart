@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `active_wallet`, `build_and_record_escrow`, `changes`, `ensure_enabled`, `escrow_op_lock`, `forget_held_escrow`, `held_escrows`, `hold_unrecorded_escrow`, `lifecycle_lock`, `load_trade`, `notify`, `now_secs`, `proof_store_path`, `record_escrow_token`, `recorded_or_held_escrow`, `resubmit_pending_escrows`, `retire_escrow_token`, `same_mint`, `settle_escrow_rejection`, `sibling_store_path`, `snapshot`, `submit_escrow`, `wallet_lock`
+// These functions are ignored because they are not marked as `pub`: `active_wallet`, `build_and_record_escrow`, `canonical_mint`, `changes`, `ensure_enabled`, `escrow_op_lock`, `forget_held_escrow`, `held_escrows`, `hold_unrecorded_escrow`, `lifecycle_lock`, `load_trade`, `notify`, `now_secs`, `proof_store_path`, `record_escrow_token`, `recorded_or_held_escrow`, `resubmit_pending_escrows`, `retire_escrow_token`, `same_mint`, `settle_escrow_rejection`, `sibling_store_path`, `snapshot`, `submit_escrow`, `wallet_lock`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `SubmitError`
 
 /// Connect the wallet to the mint the active node pins, unless already connected.
@@ -76,7 +76,7 @@ Future<void> cashuDisconnect() =>
 /// through the developer override — and the locktime falls back to the
 /// protocol default, never to a guess.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuOrderAmountUnknown`, `CashuMintUnknown`,
+/// **Errors**: `CashuNotEnabled`, `CashuOrderAmountUnknown`, `CashuMintNotSupported`,
 /// `CashuNotConnected`, `CashuBalanceUnknown`.
 Future<CashuEscrowQuote> cashuEscrowQuote({required String orderId}) =>
     RustLib.instance.api.crateApiCashuCashuEscrowQuote(orderId: orderId);
@@ -99,7 +99,7 @@ Future<CashuEscrowQuote> cashuEscrowQuote({required String orderId}) =>
 ///    [`settle_escrow_rejection`] turns into the next step.
 ///
 /// **Errors** (stable markers): `CashuNotEnabled`, `CashuNotConnected`,
-/// `CashuMintUnknown`, `CashuInsufficientFunds`, `NotTheSeller`,
+/// `CashuMintNotSupported`, `CashuInsufficientFunds`, `NotTheSeller`,
 /// `CashuEscrowOrderMovedOn`,
 /// `CashuEscrowRequestMissing`, `CashuWrongTradeKey`, `DeviceClockInvalid`,
 /// `CashuEscrowNotPersisted`, `CashuEscrowRejected: <reason>`,

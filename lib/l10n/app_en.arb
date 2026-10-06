@@ -97,24 +97,6 @@
   "@disputeCoopCancelMessage": {
     "description": "Body text in the cooperative-cancel resolved banner"
   },
-  "disputeWithBuyer": "Dispute with Buyer: {handle}",
-  "@disputeWithBuyer": {
-    "description": "Dispute chat screen title when trading as seller (peer is the buyer)",
-    "placeholders": {
-      "handle": {
-        "type": "String"
-      }
-    }
-  },
-  "disputeWithSeller": "Dispute with Seller: {handle}",
-  "@disputeWithSeller": {
-    "description": "Dispute chat screen title when trading as buyer (peer is the seller)",
-    "placeholders": {
-      "handle": {
-        "type": "String"
-      }
-    }
-  },
   "orderLabel": "Order {orderId}",
   "@orderLabel": {
     "description": "Sub-title showing the truncated order/trade ID",
@@ -124,17 +106,79 @@
       }
     }
   },
-  "disputeInitiated": "Initiated",
-  "@disputeInitiated": {
-    "description": "Status chip label for a newly opened dispute"
-  },
-  "disputeInProgress": "In progress",
-  "@disputeInProgress": {
-    "description": "Status chip label for a dispute under admin review"
-  },
   "disputeStatusClosed": "Closed",
   "@disputeStatusClosed": {
-    "description": "Status chip label for a resolved/closed dispute"
+    "description": "Dispute info card chip: the dispute ended without a verdict (e.g. a cooperative cancel)"
+  },
+  "disputeWith": "Dispute with {role}: {counterparty}",
+  "@disputeWith": {
+    "description": "Dispute info card title: the counterparty's role (seller or buyer) and pseudonym",
+    "placeholders": {
+      "role": {
+        "type": "String"
+      },
+      "counterparty": {
+        "type": "String"
+      }
+    }
+  },
+  "seller": "Seller",
+  "@seller": {
+    "description": "Role name for the seller, used inside disputeWith"
+  },
+  "buyer": "Buyer",
+  "@buyer": {
+    "description": "Role name for the buyer, used inside disputeWith"
+  },
+  "disputeStatusInitiated": "Initiated",
+  "@disputeStatusInitiated": {
+    "description": "Dispute info card chip: opened, no solver yet"
+  },
+  "disputeStatusInProgress": "In-progress",
+  "@disputeStatusInProgress": {
+    "description": "Dispute info card chip: a solver has the dispute"
+  },
+  "disputeStatusResolved": "Resolved",
+  "@disputeStatusResolved": {
+    "description": "Dispute info card chip: a solver's verdict ended the dispute"
+  },
+  "disputeInProgress": "This dispute is currently in progress. A solver is reviewing your case.",
+  "@disputeInProgress": {
+    "description": "Dispute info card: status sentence while a solver reviews the dispute (or one has taken it)"
+  },
+  "disputeInstruction1": "Wait for a solver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.",
+  "@disputeInstruction1": {
+    "description": "Dispute info card: first instruction bullet"
+  },
+  "disputeInstruction2": "The final decision will be made based on the evidence presented.",
+  "@disputeInstruction2": {
+    "description": "Dispute info card: second instruction bullet"
+  },
+  "disputeInstruction3": "If you don't respond, the system will assume you don't want to cooperate and you might lose the dispute.",
+  "@disputeInstruction3": {
+    "description": "Dispute info card: third instruction bullet"
+  },
+  "disputeOpenedByYouAgainstSeller": "You opened this dispute against the seller {counterparty}, please read carefully below:",
+  "@disputeOpenedByYouAgainstSeller": {
+    "description": "Dispute info card: status sentence when the user (buyer) opened the dispute and no solver took it yet",
+    "placeholders": {
+      "counterparty": {
+        "type": "String"
+      }
+    }
+  },
+  "disputeOpenedByYouAgainstBuyer": "You opened this dispute against the buyer {counterparty}, please read carefully below:",
+  "@disputeOpenedByYouAgainstBuyer": {
+    "description": "Dispute info card: status sentence when the user (seller) opened the dispute and no solver took it yet",
+    "placeholders": {
+      "counterparty": {
+        "type": "String"
+      }
+    }
+  },
+  "disputeWaitingForAdmin": "Waiting for admin assignment",
+  "@disputeWaitingForAdmin": {
+    "description": "Dispute info card: status sentence when the peer opened the dispute and no solver took it yet"
   },
   "disputeLostFundsToBuyer": "The dispute resolver settled the dispute in the buyer's favour. The sats were released to the buyer.",
   "@disputeLostFundsToBuyer": {
@@ -289,10 +333,6 @@
   "comingSoonMessage": "Coming soon",
   "@comingSoonMessage": {
     "description": "Generic coming-soon placeholder message"
-  },
-  "tradeStatusActive": "Active",
-  "@tradeStatusActive": {
-    "description": "Trade status chip label: active"
   },
   "tradeStatusCompleted": "Completed",
   "@tradeStatusCompleted": {
@@ -1871,7 +1911,7 @@
   },
   "orderIdLabel": "Order ID",
   "@orderIdLabel": {
-    "description": "Label for the order ID field"
+    "description": "Dispute info card: label over the order ID"
   },
   "fiatAmountLabel": "Fiat Amount",
   "@fiatAmountLabel": {
@@ -1880,6 +1920,10 @@
   "satsAmountLabel": "Sats Amount",
   "@satsAmountLabel": {
     "description": "Label for the sats amount field"
+  },
+  "peerReputationUnavailable": "This user's reputation is not available",
+  "@peerReputationUnavailable": {
+    "description": "User information panel: the counterparty shared no reputation for this order (full privacy) or it has not arrived yet"
   },
   "statusLabel": "Status",
   "@statusLabel": {
@@ -1893,29 +1937,9 @@
   "@createdLabel": {
     "description": "Label for the created date field"
   },
-  "tradeDetailsPlaceholder": "Details wired when trade provider available (Phase 10+)",
-  "@tradeDetailsPlaceholder": {
-    "description": "Placeholder note in the trade information panel"
-  },
   "userInformationTitle": "User Information",
   "@userInformationTitle": {
     "description": "Title of the user information panel"
-  },
-  "peerPublicKeyLabel": "Peer's Public Key",
-  "@peerPublicKeyLabel": {
-    "description": "Label for the peer public key"
-  },
-  "yourSharedKeyLabel": "Your Shared Key",
-  "@yourSharedKeyLabel": {
-    "description": "Label for the shared key"
-  },
-  "sharedKeyPlaceholder": "Available after bridge integration (Phase 10+)",
-  "@sharedKeyPlaceholder": {
-    "description": "Placeholder note for the shared key"
-  },
-  "sharedKeySafetyNote": "Keep your shared key safe — it is needed for dispute resolution",
-  "@sharedKeySafetyNote": {
-    "description": "Safety note about the shared key"
   },
   "fileTypeVideo": "Video",
   "@fileTypeVideo": {
@@ -2368,11 +2392,11 @@
   },
   "disputeDetailsTitle": "Dispute Details",
   "@disputeDetailsTitle": {
-    "description": "Title of the dispute info card"
+    "description": "App bar title of the dispute chat screen once the dispute is found (v1's title)"
   },
   "disputeIdLabel": "Dispute ID",
   "@disputeIdLabel": {
-    "description": "Label for the dispute ID field"
+    "description": "Dispute info card: label over the dispute ID"
   },
   "disputeReasonLabel": "Reason: {reason}",
   "@disputeReasonLabel": {
@@ -2753,10 +2777,6 @@
   "aboutCashuMintUrlLabel": "Mint",
   "@aboutCashuMintUrlLabel": {
     "description": "About screen — Cashu mint URL row label"
-  },
-  "aboutCashuMintNotAdvertised": "Not advertised",
-  "@aboutCashuMintNotAdvertised": {
-    "description": "About screen — shown when a node says it runs Cashu but publishes no mint, which means trades cannot run"
   },
   "aboutCashuLocktimeLabel": "Escrow locktime",
   "@aboutCashuLocktimeLabel": {
@@ -4273,8 +4293,8 @@
   "@lockEscrowRetry": {"description": "Escrow screen \u2014 resubmits an escrow that was locked but whose message did not reach the node"},
   "lockEscrowPendingSubmission": "Your escrow is locked but the node has not confirmed it. Retrying is safe \u2014 it will not lock a second time.",
   "@lockEscrowPendingSubmission": {"description": "Escrow screen \u2014 shown when a token exists locally but the submission may not have arrived"},
-  "lockEscrowMintUnknown": "This node has not published its mint, so there is nowhere to lock the escrow.",
-  "@lockEscrowMintUnknown": {"description": "Escrow error — the node published no mint (CashuMintUnknown)"},
+  "lockEscrowMintNotSupported": "This node lets each order choose its mint, and this version of the app can only lock an escrow on a node with a single mint.",
+  "@lockEscrowMintNotSupported": {"description": "Escrow error — the node accepts several mints, or any, so each order names its own, and this build can only lock on a node with a single mint (CashuMintNotSupported, MostroP2P/mostro#1047)"},
   "lockEscrowNotRecorded": "The escrow reached the node, but this device could not save a copy of it. The trade can go on, but this device cannot reclaim the escrow.",
   "@lockEscrowNotRecorded": {"description": "Escrow error — submitted, but the device could not save the token (CashuEscrowNotPersisted)"},
   "lockEscrowRejectedToken": "The node did not accept this escrow. It was set aside — it comes back to you when its lock expires — and the next attempt locks a new one.",
@@ -4294,5 +4314,51 @@
   "tradeWaitingPaymentSellerInstructionCashu": "Lock your ecash in the escrow at the node's mint. That starts the trade, and it comes back to you if the node disappears.",
   "@tradeWaitingPaymentSellerInstructionCashu": {"description": "Trade screen instruction for the seller on a Cashu node: lock the escrow"},
   "tradeBodyWaitingPaymentBuyerCashu": "They're locking the sats in escrow. Once it's locked, it's your turn to pay the fiat.",
-  "@tradeBodyWaitingPaymentBuyerCashu": {"description": "Trade screen body for the buyer while the seller locks the Cashu escrow"}
+  "@tradeBodyWaitingPaymentBuyerCashu": {"description": "Trade screen body for the buyer while the seller locks the Cashu escrow"},
+  "shareChatKeyAction": "Share the chat key with the resolver",
+  "@shareChatKeyAction": {"description": "Dispute chat app bar: tooltip of the action that sends the solver the peer chat key (#415)"},
+  "shareChatKeyTitle": "Share the chat key with the resolver?",
+  "@shareChatKeyTitle": {"description": "Title of the dialog confirming that the peer chat key goes to the dispute solver"},
+  "shareChatKeyBody": "If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterparty in this order, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.",
+  "@shareChatKeyBody": {"description": "Body of the dialog confirming that the peer chat key goes to the dispute solver: what the solver can read, and only that"},
+  "shareChatKeyConfirm": "Share",
+  "@shareChatKeyConfirm": {"description": "Confirm button of the dialog that shares the peer chat key with the solver"},
+  "chatKeySharedIndicator": "Chat key shared with the resolver",
+  "@chatKeySharedIndicator": {"description": "Dispute chat app bar: tooltip of the share-chat-key action once the chat key went to the current solver (it can still be sent again)"},
+  "shareChatKeyUnavailable": "The chat key of this trade is not available on this device.",
+  "@shareChatKeyUnavailable": {"description": "Error in the share-chat-key dialog: the counterparty or trade key of this order is not known on this device"},
+  "moreReactions": "More reactions",
+  "@moreReactions": {
+    "description": "«…» in a chat message's menu, and the title of the sheet with every emoji"
+  },
+  "messageReactionLabel": "Reaction: {emoji}",
+  "@messageReactionLabel": {
+    "description": "Screen-reader label of the reaction shown under a chat message",
+    "placeholders": {
+      "emoji": {
+        "type": "String",
+        "example": "👍"
+      }
+    }
+  },
+  "reactionSendFailed": "Couldn't send the reaction. Please try again.",
+  "@reactionSendFailed": {
+    "description": "Snackbar shown when a reaction to a chat message could not be sent"
+  },
+  "messageMenuHint": "Open the message menu",
+  "@messageMenuHint": {
+    "description": "Screen-reader hint of a chat message: what tapping it (or holding an attachment) opens"
+  },
+  "cashuAnyMint": "Any mint",
+  "@cashuAnyMint": {
+    "description": "Mint of a Cashu node that lists no mint and so accepts any the order's maker picks (MostroP2P/mostro#1047): value in Settings, About and the node selector"
+  },
+  "settingsMintLabel": "Mint",
+  "@settingsMintLabel": {
+    "description": "Settings, Payments group — label of a row naming a Cashu mint the active node accepts (one row per mint); shown only when the node runs Cashu"
+  },
+  "settingsMintCopied": "Mint URL copied",
+  "@settingsMintCopied": {
+    "description": "Snackbar after tapping a mint row in Settings, which copies the mint's full URL"
+  }
 }

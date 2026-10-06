@@ -136,6 +136,30 @@ void main() {
       expect(_row(sections, 'Mint').style, TechValueStyle.wrapped);
     });
 
+    test('a Cashu node gets one mint row per mint it accepts', () {
+      // mostro#1047: the maker picks one of these per order.
+      final sections = nodeTechSections(
+        MostroInstance.fromTags(const [
+          ['d', 'npub_test'],
+          ['escrow_mode', 'cashu'],
+          ['cashu_mint_url', 'https://mint.a.com', 'https://mint.b.com'],
+        ]),
+        _en,
+      );
+
+      final mints = sections
+          .expand((s) => s.rows)
+          .where((r) => r.label == 'Mint')
+          .map((r) => r.value);
+      expect(mints, ['https://mint.a.com', 'https://mint.b.com']);
+    });
+
+    test('a Cashu node that lists no mint says it accepts any', () {
+      final sections = nodeTechSections(_node({'escrow_mode': 'cashu'}), _en);
+
+      expect(_row(sections, 'Mint').value, 'Any mint');
+    });
+
     test('a legacy node keeps the key, the currencies and the bond status', () {
       final sections = nodeTechSections(_node(), _en);
 

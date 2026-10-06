@@ -1,7 +1,8 @@
 /// The rules of `.specify/DESIGN_SYSTEM.md` a machine can check, run on the
-/// lines a pull request adds or changes under `lib/` (the "Design guide" CI
-/// job). Older code that breaks them is the guide's §14 debt: it is reported
-/// only once a pull request touches the line.
+/// code a pull request touches under `lib/` (the "Design guide" CI job):
+/// each top-level declaration with a changed line, read whole. Older code
+/// that breaks them is the guide's §14 debt: it is reported once a pull
+/// request touches its class.
 ///
 /// Pure: `tool/design_check.dart` collects the diff and the files.
 ///
@@ -21,6 +22,11 @@ const spacing = <num>{0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32};
 
 /// Icon sizes (DS-ICO-3).
 const iconSizes = <num>{12, 14, 16, 18, 20, 22, 24, 32, 44, 48};
+
+/// The `textTheme` roles `lib/core/app_theme.dart` sets on the type scale
+/// (DS-TYP-4). The others are v1's 32/24/20/18/16, or Material's defaults
+/// for a role the theme leaves out.
+const textThemeRoles = {'bodyMedium', 'bodySmall', 'labelLarge', 'labelSmall'};
 
 /// One break of a rule.
 class Violation {
@@ -81,8 +87,10 @@ Map<String, Set<int>> addedLines(String diff) {
   return result;
 }
 
-/// The breaks in [source], the content of [path]. With [lines], only those
-/// (1-based) lines are reported.
+/// The breaks in [source], the content of [path]. With [lines], the
+/// (1-based) lines a pull request changed, only the code they touch is
+/// reported: every top-level declaration one falls inside (a class, mixin,
+/// enum, extension, function or variable), read whole (guide §0).
 List<Violation> scan(String path, String source, {Set<int>? lines}) {
   final views = _mask(source);
   final code = views.code;
@@ -104,11 +112,24 @@ List<Violation> scan(String path, String source, {Set<int>? lines}) {
     return lo + 1;
   }
 
+  // A declaration with one changed line is read whole: touching a legacy
+  // screen leaves the class or function it touched free of breaks (#657).
+  final touched =
+      lines == null
+          ? null
+          : {
+            ...lines,
+            for (final (start, end) in _declarations(code))
+              if (lines.any((l) => l >= lineOf(start) && l <= lineOf(end)))
+                for (var l = lineOf(start); l <= lineOf(end); l++) l,
+          };
+
   final ignored = _ignores(source, code, lineStarts);
   final found = <Violation>[];
+
   void report(int offset, String rule, String message) {
     final line = lineOf(offset);
-    if (lines != null && !lines.contains(line)) return;
+    if (touched != null && !touched.contains(line)) return;
     if (ignored[line]?.contains(rule) ?? false) return;
     found.add(Violation(path: path, line: line, rule: rule, message: message));
   }
@@ -177,6 +198,24 @@ List<Violation> scan(String path, String source, {Set<int>? lines}) {
     );
   }
 
+  // A theme role is a font size with no literal in sight: the theme's are
+  // v1's scale, and one it leaves out falls back to Material's.
+  // Only the role getters: `copyWith`, `apply` and `merge` are TextTheme's
+  // own API, not a size.
+  for (final m in RegExp(
+    r'\btextTheme\s*\??\.\s*((?:display|headline|title|body|label)'
+    r'(?:Large|Medium|Small))\b',
+  ).allMatches(code)) {
+    if (textThemeRoles.contains(m[1])) continue;
+    report(
+      m.start,
+      'DS-TYP-4',
+      '`textTheme.${m[1]}` is off the type scale (the theme gives it a v1 '
+          'size, 32/24/20/18/16, or Material\'s default): set a size from '
+          '§3.2 and a palette color',
+    );
+  }
+
   // DS-TYP-7: text scaling is never turned off or clamped.
   for (final m in RegExp(
     r'\bTextScaler\.noScaling\b|\bMediaQuery\.with(?:No|Clamped)TextScaling\b'
@@ -213,6 +252,23 @@ List<Violation> scan(String path, String source, {Set<int>? lines}) {
     r'\b(?:BorderRadius|Radius)\.circular\s*\(',
   ).allMatches(code)) {
     checkLiterals(m.end, _close(code, m.end - 1), radii, 'DS-SHP-1', 'radius');
+  }
+
+  // DS-SHP-4: the theme's radius tokens that still carry v1's roles.
+  const v1Radii = {
+    'card': '12, and a card is 18 (DS-CMP-8)',
+    'button': '8, and an in-page call to action is 16 (DS-CMP-3)',
+    'input': '8, and a boxed input is 14 (DS-CMP-11)',
+    'chip': '6, off the scale, and a chip is a pill, 999 (DS-CMP-9)',
+  };
+  for (final m in RegExp(
+    r'\bAppRadius\.(card|button|input|chip)\b',
+  ).allMatches(code)) {
+    report(
+      m.start,
+      'DS-SHP-4',
+      '`AppRadius.${m[1]}` is a v1 radius: it is ${v1Radii[m[1]]}',
+    );
   }
 
   // DS-SPC-2: paddings, gaps and spacing on the 2-pt scale.
@@ -397,6 +453,49 @@ List<Violation> scan(String path, String source, {Set<int>? lines}) {
     (a, b) => a.line != b.line ? a.line - b.line : a.rule.compareTo(b.rule),
   );
   return found;
+}
+
+/// The `(start, end)` offsets of every top-level declaration in [code] (a
+/// class, mixin, enum, extension, function or variable, with the annotations
+/// above it), from its first character to the `;` or `}` that ends it.
+List<(int, int)> _declarations(String code) {
+  final found = <(int, int)>[];
+  int? start;
+  var depth = 0;
+  for (var i = 0; i < code.length; i++) {
+    final c = code[i];
+    if (start == null) {
+      if (c.trim().isEmpty) continue;
+      start = i;
+    }
+    if (c == '(' || c == '[' || c == '{') {
+      depth++;
+    } else if (c == ')' || c == ']' || c == '}') {
+      depth--;
+      // A body ends the declaration; a literal (`final m = {...};`) or a
+      // closure (`final f = () {...}.call();`) goes on to its `;`.
+      if (depth == 0 && c == '}' && !_continues(code, i + 1)) {
+        found.add((start, i));
+        start = null;
+      }
+    } else if (c == ';' && depth == 0) {
+      found.add((start, i));
+      start = null;
+    }
+  }
+  if (start != null) found.add((start, code.length - 1));
+  return found;
+}
+
+/// Whether the expression before [from] goes on: the next non-blank
+/// character continues it rather than starting a declaration.
+bool _continues(String code, int from) {
+  for (var i = from; i < code.length; i++) {
+    final c = code[i];
+    if (c.trim().isEmpty) continue;
+    return ';,.)]?:'.contains(c);
+  }
+  return false;
 }
 
 /// The rules silenced per line by `// design-check: ignore DS-XXX-N — reason`.

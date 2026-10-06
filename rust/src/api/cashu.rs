@@ -85,10 +85,27 @@ fn lifecycle_lock() -> &'static tokio::sync::Mutex<()> {
 /// wallet stale — the funds it manages belong to the previous node's mint — and
 /// that is true both of a wallet about to be installed and of one already
 /// running, so both paths ask this question.
+///
+/// Also how an order's own mint is matched against the wallet's. Both compare
+/// in the daemon's canonical form ([`canonical_mint`]): the node lists its
+/// mints as configured but publishes an order's mint canonicalised, so the
+/// same mint can arrive spelled two ways.
 fn same_mint(bound_to: &str, resolved_now: Option<&str>) -> bool {
     resolved_now
-        .map(|current| current.trim_end_matches('/') == bound_to.trim_end_matches('/'))
+        .map(|current| canonical_mint(current) == canonical_mint(bound_to))
         .unwrap_or(false)
+}
+
+/// A mint URL as mostrod stores an order's mint (`normalize_mint_url`,
+/// MostroP2P/mostro#1047): parsed, so scheme and host are lower-cased and a
+/// default port dropped, without a trailing slash. A value that does not
+/// parse is compared as written, minus that slash.
+fn canonical_mint(url: &str) -> String {
+    let trimmed = url.trim();
+    match nostr_sdk::prelude::Url::parse(trimmed) {
+        Ok(parsed) => parsed.as_str().trim_end_matches('/').to_string(),
+        Err(_) => trimmed.trim_end_matches('/').to_string(),
+    }
 }
 
 /// A handle to the live wallet, once it is established that it is the wallet
@@ -113,11 +130,11 @@ async fn active_wallet() -> Result<Arc<CashuWallet>> {
         .ok_or_else(|| anyhow::anyhow!("CashuNotConnected"))?;
 
     let resolved = escrow_mode::get_resolved();
-    if !same_mint(wallet.mint_url(), resolved.config.mint_url.as_deref()) {
+    if !same_mint(wallet.mint_url(), resolved.config.single_mint()) {
         log::warn!(
             "[cashu] wallet is bound to {}, the active node resolves to {:?}",
             wallet.mint_url(),
-            resolved.config.mint_url
+            resolved.config.single_mint()
         );
         bail!("CashuMintChanged");
     }
@@ -130,11 +147,12 @@ fn ensure_enabled() -> Result<()> {
     if escrow_mode::is_cashu_mode() {
         return Ok(());
     }
-    // A Cashu node with no mint to reach: the seller is routed to the escrow
-    // screen on the mode alone (there is no hold invoice on such a node), so
-    // it must say what is missing rather than "not Cashu".
+    // A Cashu node that pins no single mint (it accepts several, or any):
+    // the seller is routed to the escrow screen on the mode alone (there is no
+    // hold invoice on such a node), so it must say why it cannot lock rather
+    // than "not Cashu".
     if escrow_mode::get_resolved().mode.is_cashu() {
-        bail!("CashuMintUnknown");
+        bail!("CashuMintNotSupported");
     }
     bail!("CashuNotEnabled")
 }
@@ -206,13 +224,13 @@ pub async fn cashu_connect() -> Result<CashuWalletStatus> {
         let live = wallet_lock().read().await.clone();
         if let Some(wallet) = live {
             let resolved = escrow_mode::get_resolved();
-            if same_mint(wallet.mint_url(), resolved.config.mint_url.as_deref()) {
+            if same_mint(wallet.mint_url(), resolved.config.single_mint()) {
                 return Ok(snapshot().await);
             }
             log::info!(
                 "[cashu] dropping the wallet bound to {}: the active node now resolves to {:?}",
                 wallet.mint_url(),
-                resolved.config.mint_url
+                resolved.config.single_mint()
             );
             *wallet_lock().write().await = None;
         }
@@ -222,7 +240,8 @@ pub async fn cashu_connect() -> Result<CashuWalletStatus> {
     // have cleared it — handled rather than unwrapped.
     let mint_url = escrow_mode::get_resolved()
         .config
-        .mint_url
+        .single_mint()
+        .map(str::to_string)
         .ok_or_else(|| anyhow::anyhow!("CashuNotEnabled"))?;
 
     let seed = crate::api::identity::current_bip39_seed().await?;
@@ -236,10 +255,10 @@ pub async fn cashu_connect() -> Result<CashuWalletStatus> {
     // should be bound to, and installing anyway would leave the wallet pointing
     // at the previous node's mint.
     let resolved_now = escrow_mode::get_resolved();
-    if !same_mint(&mint_url, resolved_now.config.mint_url.as_deref()) {
+    if !same_mint(&mint_url, resolved_now.config.single_mint()) {
         log::warn!(
             "[cashu] discarding a wallet for {mint_url}: the active node now resolves to {:?}",
-            resolved_now.config.mint_url
+            resolved_now.config.single_mint()
         );
         bail!("CashuNotEnabled");
     }
@@ -331,7 +350,7 @@ pub async fn cashu_disconnect() -> Result<()> {
 /// through the developer override — and the locktime falls back to the
 /// protocol default, never to a guess.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuOrderAmountUnknown`, `CashuMintUnknown`,
+/// **Errors**: `CashuNotEnabled`, `CashuOrderAmountUnknown`, `CashuMintNotSupported`,
 /// `CashuNotConnected`, `CashuBalanceUnknown`.
 pub async fn cashu_escrow_quote(order_id: String) -> Result<crate::api::types::CashuEscrowQuote> {
     ensure_enabled()?;
@@ -349,13 +368,24 @@ pub async fn cashu_escrow_quote(order_id: String) -> Result<crate::api::types::C
     let fee_sats = 0;
 
     let resolved = escrow_mode::get_resolved();
-    // An escrow locked at the wrong mint is rejected only after the swap, so an
-    // unknown mint fails here instead of defaulting to an empty URL.
+    // An escrow locked at the wrong mint is rejected only after the swap, so a
+    // node that pins no single mint fails here instead of guessing one.
     let mint_url = resolved
         .config
-        .mint_url
-        .filter(|url| !url.trim().is_empty())
-        .ok_or_else(|| anyhow::anyhow!("CashuMintUnknown"))?;
+        .single_mint()
+        .map(str::to_string)
+        .ok_or_else(|| anyhow::anyhow!("CashuMintNotSupported"))?;
+    // The order names its own mint (mostro#1047), and the node refuses a
+    // token locked anywhere else only after the swap: an order on a mint the
+    // wallet is not bound to stops here.
+    if let Some(order_mint) = trade.order.cashu_mint_url.as_deref() {
+        if !same_mint(&mint_url, Some(order_mint)) {
+            log::warn!(
+                "[cashu] order {order_id} escrows at {order_mint}, the wallet's mint is {mint_url}"
+            );
+            bail!("CashuMintNotSupported");
+        }
+    }
 
     // Connect before reading the balance. An unconnected wallet reports zero,
     // and a quote that reports zero turns into "insufficient funds" on a wallet
@@ -482,7 +512,7 @@ const RECORD_ATTEMPTS: usize = 3;
 ///    [`settle_escrow_rejection`] turns into the next step.
 ///
 /// **Errors** (stable markers): `CashuNotEnabled`, `CashuNotConnected`,
-/// `CashuMintUnknown`, `CashuInsufficientFunds`, `NotTheSeller`,
+/// `CashuMintNotSupported`, `CashuInsufficientFunds`, `NotTheSeller`,
 /// `CashuEscrowOrderMovedOn`,
 /// `CashuEscrowRequestMissing`, `CashuWrongTradeKey`, `DeviceClockInvalid`,
 /// `CashuEscrowNotPersisted`, `CashuEscrowRejected: <reason>`,
@@ -540,8 +570,9 @@ pub async fn lock_escrow(order_id: String) -> Result<()> {
     // mismatch comes back as `invalid_mint_url`, which retires it.
     let fallback_mint = escrow_mode::get_resolved()
         .config
-        .mint_url
-        .unwrap_or_default();
+        .single_mint()
+        .unwrap_or_default()
+        .to_string();
     let recorded = trade.cashu_escrow_token.as_deref().map(|token| {
         (
             trade
@@ -951,6 +982,15 @@ mod tests {
         // Trailing slashes are a formatting difference, not a different mint.
         assert!(same_mint(mint, Some("https://mint.example.com/")));
         assert!(same_mint("https://mint.example.com/", Some(mint)));
+        // So are host case and a default port: the node lists a mint as
+        // configured, and publishes an order's mint canonicalised.
+        assert!(same_mint(mint, Some("HTTPS://Mint.Example.com:443/")));
+        assert!(same_mint(
+            "http://Mint.example.com:80",
+            Some("http://mint.example.com")
+        ));
+        // A port that is not the default is a different mint.
+        assert!(!same_mint(mint, Some("https://mint.example.com:8443")));
 
         // The node switched to a different Cashu node — drop it.
         assert!(!same_mint(mint, Some("https://other.example.com")));
@@ -1002,6 +1042,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Seller,
             counterparty_pubkey: counterparty_pubkey.to_string(),
@@ -1094,10 +1135,11 @@ mod tests {
     // The globals lock must span the call it guards; nothing else in this
     // test awaits on it.
     #[allow(clippy::await_holding_lock)]
-    async fn a_cashu_node_without_a_mint_says_so_rather_than_not_cashu() {
-        // Arrange — the node runs Cashu (override) but names no mint: routing
-        // sends the seller to the escrow screen, which must explain why it
-        // cannot lock, not claim the node is not Cashu.
+    async fn a_cashu_node_without_a_single_mint_says_so_rather_than_not_cashu() {
+        // Arrange — the node runs Cashu (override) and pins no mint, as an
+        // open node or one that accepts several: routing sends the seller to
+        // the escrow screen, which must explain why it cannot lock, not claim
+        // the node is not Cashu.
         let _g = escrow_lock();
         escrow_mode::set_overrides(escrow_mode::EscrowOverrides {
             mode: escrow_mode::EscrowModeOverride::ForceCashu,
@@ -1108,7 +1150,35 @@ mod tests {
         let err = lock_escrow("any-order".to_string()).await.unwrap_err();
 
         // Assert
-        assert_eq!(err.to_string(), "CashuMintUnknown");
+        assert_eq!(err.to_string(), "CashuMintNotSupported");
+    }
+
+    #[tokio::test]
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
+    async fn an_order_on_another_mint_is_refused_before_any_swap() {
+        // Arrange — a single-mint node, and an order that names another mint
+        // (mostro#1047): a token locked at the wallet's mint would be refused
+        // only after the swap.
+        let _g = escrow_lock();
+        escrow_mode::set_from_tags(
+            escrow_mode::EscrowMode::Cashu,
+            escrow_mode::CashuNodeConfig {
+                mint_urls: vec!["https://mint.a.com".to_string()],
+                ..Default::default()
+            },
+        );
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let db = store().await;
+        let mut trade = seller_trade(&order_id, Some("02"), "");
+        trade.order.cashu_mint_url = Some("https://mint.b.com".to_string());
+        db.save_trade(&trade).await.unwrap();
+
+        // Act
+        let err = cashu_escrow_quote(order_id).await.unwrap_err();
+
+        // Assert
+        assert_eq!(err.to_string(), "CashuMintNotSupported");
     }
 
     #[tokio::test]

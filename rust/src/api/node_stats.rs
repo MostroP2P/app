@@ -69,8 +69,10 @@ pub struct MostroNodeStats {
     /// Stable marker: `unknown` / `lightning` / `cashu`
     /// (see [`escrow_mode::EscrowMode::as_marker`]).
     pub escrow_mode: String,
-    /// Mint the node pins for Cashu escrow; only set when the mode is Cashu.
-    pub cashu_mint_url: Option<String>,
+    /// Mints the node accepts for Cashu escrow (MostroP2P/mostro#1047), in
+    /// its order. On a Cashu node, empty means it accepts any mint; on any
+    /// other node it is always empty.
+    pub cashu_mint_urls: Vec<String>,
     /// The node's full anti-abuse bond policy (`docs/ANTI_ABUSE_BOND.md`
     /// §3.4): three-state, with every parameter gated on `Enabled`.
     pub bond: BondPolicyInfo,
@@ -98,7 +100,7 @@ impl MostroNodeStats {
             max_order_amount: None,
             accepted_currencies: Vec::new(),
             escrow_mode: escrow_mode::EscrowMode::Unknown.as_marker().to_string(),
-            cashu_mint_url: None,
+            cashu_mint_urls: Vec::new(),
             bond: BondPolicyInfo::default(),
             bond_required: None,
             bond_pct: None,
@@ -160,10 +162,10 @@ fn apply_info_tags(stats: &mut MostroNodeStats, tags: &[Vec<String>], seen_at: i
 
     let (mode, cashu) = escrow_mode::parse_tags(tags);
     stats.escrow_mode = mode.as_marker().to_string();
-    stats.cashu_mint_url = if mode.is_cashu() {
-        cashu.mint_url
+    stats.cashu_mint_urls = if mode.is_cashu() {
+        cashu.mint_urls
     } else {
-        None
+        Vec::new()
     };
 
     stats.bond = bond_policy::parse_tags(tags);
@@ -670,6 +672,7 @@ mod tests {
             total_reviews: 0,
             days_active: 0,
             maker_since: None,
+            cashu_mint_url: None,
         }
     }
 
@@ -716,10 +719,7 @@ mod tests {
         assert_eq!(s.max_order_amount, Some(2_000_000));
         assert_eq!(s.accepted_currencies, vec!["ARS", "VES", "BRL"]);
         assert_eq!(s.escrow_mode, "cashu");
-        assert_eq!(
-            s.cashu_mint_url.as_deref(),
-            Some("https://mint.cashu.space")
-        );
+        assert_eq!(s.cashu_mint_urls, ["https://mint.cashu.space"]);
         assert_eq!(s.bond_required, Some(true));
         assert_eq!(s.bond_pct, Some(2.0));
         assert_eq!(s.bond.policy, BondPolicy::Enabled);
@@ -767,7 +767,7 @@ mod tests {
         assert!(s.accepted_currencies.is_empty());
         // No escrow_mode tag → unknown, and the mint is not surfaced.
         assert_eq!(s.escrow_mode, "unknown");
-        assert_eq!(s.cashu_mint_url, None);
+        assert!(s.cashu_mint_urls.is_empty());
         // Bond explicitly disabled → the pct is not surfaced either.
         assert_eq!(s.bond_required, Some(false));
         assert_eq!(s.bond_pct, None);

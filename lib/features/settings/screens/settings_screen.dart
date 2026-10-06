@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -89,19 +90,28 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: settingsGroupGap),
           SettingsGroup(
             header: l10n.settingsGroupPayments,
+            // The rows follow the backend the active node settles over, never
+            // both: a Cashu node has no invoice step and no bond (bonds are
+            // Lightning-only, docs/ANTI_ABUSE_BOND.md), so a Lightning address
+            // or an NWC wallet does nothing there, and on a Lightning node
+            // there is no mint. A node that has not said yet reads as
+            // Lightning, as everywhere else.
             rows: [
-              _lightningAddressRow(context, ref, l10n, settings),
-              _walletRow(context, ref, l10n),
-              // Shown only when the active node actually settles over Cashu:
-              // on a Lightning node the feature does not exist as far as the
-              // user is concerned, and an entry point that leads to a
-              // permanently empty wallet would be worse than none.
-              if (ref.watch(isCashuAvailableProvider))
-                SettingsRow(
-                  icon: Icons.savings_outlined,
-                  label: l10n.cashuWalletTitle,
-                  onTap: () => context.push(AppRoute.cashuWallet),
-                ),
+              if (ref.watch(isCashuModeProvider)) ...[
+                ..._mintRows(context, ref, l10n),
+                // The wallet binds to one mint: shown only on a node that
+                // pins one. On a node that accepts several, or any, each
+                // order names its own, which the wallet cannot follow yet.
+                if (ref.watch(isCashuAvailableProvider))
+                  SettingsRow(
+                    icon: Icons.savings_outlined,
+                    label: l10n.cashuWalletTitle,
+                    onTap: () => context.push(AppRoute.cashuWallet),
+                  ),
+              ] else ...[
+                _lightningAddressRow(context, ref, l10n, settings),
+                _walletRow(context, ref, l10n),
+              ],
             ],
           ),
           const SizedBox(height: settingsGroupGap),
@@ -154,7 +164,7 @@ class SettingsScreen extends ConsumerWidget {
                   'Mostro',
                   style: TextStyle(fontSize: 11, color: book.textTertiary),
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(width: 8),
                 Text(
                   ref.watch(appVersionProvider).valueOrNull ?? '',
                   style: TextStyle(
@@ -215,6 +225,52 @@ class SettingsScreen extends ConsumerWidget {
           address == null ? SettingsValueTone.warn : SettingsValueTone.neutral,
       onTap: () => _showLightningAddressDialog(context, ref),
     );
+  }
+
+  /// `Mint → mint.cashu.space`, one row per mint the active node accepts
+  /// (MostroP2P/mostro#1047): who may hold the sats while a trade is open.
+  /// The maker picks one per order, so the rows inform rather than edit, and
+  /// a tap copies the full URL. A node that lists none accepts any mint, and
+  /// one row says so.
+  List<Widget> _mintRows(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) {
+    final urls = ref.watch(escrowModeProvider).valueOrNull?.mintUrls ?? [];
+    if (urls.isEmpty) {
+      return [
+        SettingsRow(
+          icon: Icons.account_balance_outlined,
+          label: l10n.settingsMintLabel,
+          // Nothing to copy or open, so no tap and no chevron.
+          value: l10n.cashuAnyMint,
+        ),
+      ];
+    }
+    return [
+      for (final url in urls)
+        SettingsRow(
+          icon: Icons.account_balance_outlined,
+          label: l10n.settingsMintLabel,
+          value: mintDisplayHost(url),
+          valueIsData: true,
+          semanticValue: url,
+          // A copy mark, not the chevron: the row leads nowhere.
+          trailing: Icon(
+            Icons.copy_rounded,
+            size: 14,
+            color: SettingsPalette.of(context).dotOffline,
+          ),
+          onTap: () async {
+            final messenger = ScaffoldMessenger.of(context);
+            await Clipboard.setData(ClipboardData(text: url));
+            messenger.showSnackBar(
+              SnackBar(content: Text(l10n.settingsMintCopied)),
+            );
+          },
+        ),
+    ];
   }
 
   Widget _walletRow(

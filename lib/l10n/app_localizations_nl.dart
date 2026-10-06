@@ -87,28 +87,61 @@ class AppLocalizationsNl extends AppLocalizations {
       'De order is in overleg geannuleerd. Er is geen geld overgemaakt.';
 
   @override
-  String disputeWithBuyer(String handle) {
-    return 'Dispuut met koper: $handle';
-  }
-
-  @override
-  String disputeWithSeller(String handle) {
-    return 'Dispuut met verkoper: $handle';
-  }
-
-  @override
   String orderLabel(String orderId) {
     return 'Order $orderId';
   }
 
   @override
-  String get disputeInitiated => 'Geopend';
-
-  @override
-  String get disputeInProgress => 'In behandeling';
-
-  @override
   String get disputeStatusClosed => 'Gesloten';
+
+  @override
+  String disputeWith(String role, String counterparty) {
+    return 'Dispuut met $role: $counterparty';
+  }
+
+  @override
+  String get seller => 'Verkoper';
+
+  @override
+  String get buyer => 'Koper';
+
+  @override
+  String get disputeStatusInitiated => 'Geopend';
+
+  @override
+  String get disputeStatusInProgress => 'In behandeling';
+
+  @override
+  String get disputeStatusResolved => 'Opgelost';
+
+  @override
+  String get disputeInProgress =>
+      'Dit dispuut is in behandeling. Een solver bekijkt je zaak.';
+
+  @override
+  String get disputeInstruction1 =>
+      'Wacht tot een solver je dispuut oppakt. Deel daarna al het bewijs dat helpt om de situatie duidelijk te maken.';
+
+  @override
+  String get disputeInstruction2 =>
+      'De uiteindelijke beslissing wordt genomen op grond van het aangedragen bewijs.';
+
+  @override
+  String get disputeInstruction3 =>
+      'Reageer je niet, dan gaat het systeem ervan uit dat je niet wilt meewerken en kun je het dispuut verliezen.';
+
+  @override
+  String disputeOpenedByYouAgainstSeller(String counterparty) {
+    return 'Jij hebt dit dispuut geopend tegen verkoper $counterparty; lees hieronder aandachtig verder:';
+  }
+
+  @override
+  String disputeOpenedByYouAgainstBuyer(String counterparty) {
+    return 'Jij hebt dit dispuut geopend tegen koper $counterparty; lees hieronder aandachtig verder:';
+  }
+
+  @override
+  String get disputeWaitingForAdmin => 'Wacht op toewijzing van een beheerder';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -239,9 +272,6 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get comingSoonMessage => 'Komt binnenkort';
-
-  @override
-  String get tradeStatusActive => 'Actief';
 
   @override
   String get tradeStatusCompleted => 'Afgerond';
@@ -1480,6 +1510,10 @@ class AppLocalizationsNl extends AppLocalizations {
   String get satsAmountLabel => 'Aantal sats';
 
   @override
+  String get peerReputationUnavailable =>
+      'De reputatie van deze gebruiker is niet beschikbaar';
+
+  @override
   String get statusLabel => 'Status';
 
   @override
@@ -1489,25 +1523,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get createdLabel => 'Aangemaakt';
 
   @override
-  String get tradeDetailsPlaceholder =>
-      'Details worden aangesloten zodra de trade-provider er is (fase 10+)';
-
-  @override
   String get userInformationTitle => 'Gebruikersgegevens';
-
-  @override
-  String get peerPublicKeyLabel => 'Publieke sleutel van de ander';
-
-  @override
-  String get yourSharedKeyLabel => 'Je gedeelde sleutel';
-
-  @override
-  String get sharedKeyPlaceholder =>
-      'Beschikbaar na de bridge-integratie (fase 10+)';
-
-  @override
-  String get sharedKeySafetyNote =>
-      'Bewaar je gedeelde sleutel goed: die is nodig om een dispuut op te lossen';
 
   @override
   String get fileTypeVideo => 'Video';
@@ -2119,9 +2135,6 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get aboutCashuMintUrlLabel => 'Mint';
-
-  @override
-  String get aboutCashuMintNotAdvertised => 'Niet opgegeven';
 
   @override
   String get aboutCashuLocktimeLabel => 'Locktime van de escrow';
@@ -4090,8 +4103,8 @@ class AppLocalizationsNl extends AppLocalizations {
       'Je escrow is vergrendeld, maar de node heeft het nog niet bevestigd. Opnieuw proberen is veilig — hij wordt niet een tweede keer vergrendeld.';
 
   @override
-  String get lockEscrowMintUnknown =>
-      'Deze node heeft zijn mint niet gepubliceerd, dus er is geen plek om de escrow te vergrendelen.';
+  String get lockEscrowMintNotSupported =>
+      'Deze node laat elke order zijn eigen mint kiezen, en deze versie van de app kan de escrow alleen vergrendelen op een node met één mint.';
 
   @override
   String get lockEscrowNotRecorded =>
@@ -4132,4 +4145,48 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
       'Ze vergrendelen de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om de fiat te betalen.';
+
+  @override
+  String get shareChatKeyAction => 'Chatsleutel delen met de solver';
+
+  @override
+  String get shareChatKeyTitle => 'Chatsleutel delen met de solver?';
+
+  @override
+  String get shareChatKeyBody =>
+      'Als je bevestigt, kan de solver van dit dispuut de hele chat tussen jou en je tegenpartij in deze order lezen, en alleen die chat: niet de chats van je eerdere of latere trades. Dit kan niet ongedaan worden gemaakt. Delen is optioneel, maar het helpt de solver het dispuut sneller op te lossen.';
+
+  @override
+  String get shareChatKeyConfirm => 'Delen';
+
+  @override
+  String get chatKeySharedIndicator => 'Chatsleutel gedeeld met de solver';
+
+  @override
+  String get shareChatKeyUnavailable =>
+      'De chatsleutel van deze trade is niet beschikbaar op dit apparaat.';
+
+  @override
+  String get moreReactions => 'Meer reacties';
+
+  @override
+  String messageReactionLabel(String emoji) {
+    return 'Reactie: $emoji';
+  }
+
+  @override
+  String get reactionSendFailed =>
+      'De reactie kon niet worden verstuurd. Probeer het opnieuw.';
+
+  @override
+  String get messageMenuHint => 'Berichtmenu openen';
+
+  @override
+  String get cashuAnyMint => 'Elke mint';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintCopied => 'Mint-URL gekopieerd';
 }

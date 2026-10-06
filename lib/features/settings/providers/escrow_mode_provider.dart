@@ -26,18 +26,20 @@ final escrowModeProvider = StreamProvider<EscrowModeInfo>((ref) async* {
 /// Whether a Cashu path may run against the active node.
 ///
 /// The single question the rest of the app asks. Mirrors Rust's
-/// `is_cashu_mode()`: the mode must be Cashu **and** there must be a usable
-/// mint. False while loading and on error, so every Cashu path stays shut
+/// `is_cashu_mode()`: the mode must be Cashu **and** the node must pin a single
+/// mint for the wallet to bind to (one that accepts several, or any, does not
+/// yet). False while loading and on error, so every Cashu path stays shut
 /// unless the node was positively identified.
 final isCashuAvailableProvider = Provider<bool>((ref) {
   return ref.watch(escrowModeProvider).valueOrNull?.isCashuAvailable ?? false;
 });
 
-/// Whether the active node settles over Cashu at all — usable mint or not.
+/// Whether the active node settles over Cashu at all — single mint or not.
 ///
 /// What **routing** asks: a Cashu node sends no hold invoice, so a seller
-/// must reach the escrow screen even when the mint is missing, and see
-/// `CashuMintUnknown` there rather than wait for an invoice that never comes.
+/// must reach the escrow screen even when the node pins no single mint, and
+/// see `CashuMintNotSupported` there rather than wait for an invoice that
+/// never comes.
 /// Whether a Cashu path may actually run is still [isCashuAvailableProvider].
 final isCashuModeProvider = Provider<bool>((ref) {
   return ref.watch(escrowModeProvider).valueOrNull?.mode == 'cashu';

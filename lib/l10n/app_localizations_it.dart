@@ -86,28 +86,62 @@ class AppLocalizationsIt extends AppLocalizations {
       'L\'ordine è stato annullato cooperativamente. Nessun fondo è stato trasferito.';
 
   @override
-  String disputeWithBuyer(String handle) {
-    return 'Controversia con l\'Acquirente: $handle';
-  }
-
-  @override
-  String disputeWithSeller(String handle) {
-    return 'Controversia con il Venditore: $handle';
-  }
-
-  @override
   String orderLabel(String orderId) {
     return 'Ordine $orderId';
   }
 
   @override
-  String get disputeInitiated => 'Avviato';
+  String get disputeStatusClosed => 'Chiusa';
 
   @override
-  String get disputeInProgress => 'In corso';
+  String disputeWith(String role, String counterparty) {
+    return 'Controversia con $role: $counterparty';
+  }
 
   @override
-  String get disputeStatusClosed => 'Chiuso';
+  String get seller => 'Venditore';
+
+  @override
+  String get buyer => 'Compratore';
+
+  @override
+  String get disputeStatusInitiated => 'Avviata';
+
+  @override
+  String get disputeStatusInProgress => 'In corso';
+
+  @override
+  String get disputeStatusResolved => 'Risolta';
+
+  @override
+  String get disputeInProgress =>
+      'Questa disputa è attualmente in corso. Un risolutore sta esaminando il tuo caso.';
+
+  @override
+  String get disputeInstruction1 =>
+      'Attendi che un risolutore prenda in carico la tua disputa. Una volta arrivato, condividi qualsiasi prova rilevante per aiutare a chiarire la situazione.';
+
+  @override
+  String get disputeInstruction2 =>
+      'La decisione finale sarà presa sulla base delle prove presentate.';
+
+  @override
+  String get disputeInstruction3 =>
+      'Se non rispondi, il sistema presumerà che tu non voglia collaborare e potresti perdere la disputa.';
+
+  @override
+  String disputeOpenedByYouAgainstSeller(String counterparty) {
+    return 'Hai aperto questa disputa contro il venditore $counterparty, leggi attentamente di seguito:';
+  }
+
+  @override
+  String disputeOpenedByYouAgainstBuyer(String counterparty) {
+    return 'Hai aperto questa disputa contro l\'acquirente $counterparty, leggi attentamente di seguito:';
+  }
+
+  @override
+  String get disputeWaitingForAdmin =>
+      'In attesa di assegnazione amministratore';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -239,9 +273,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get comingSoonMessage => 'Prossimamente';
-
-  @override
-  String get tradeStatusActive => 'Attivo';
 
   @override
   String get tradeStatusCompleted => 'Completato';
@@ -1472,13 +1503,17 @@ class AppLocalizationsIt extends AppLocalizations {
   String get tradeInformationTitle => 'Informazioni operazione';
 
   @override
-  String get orderIdLabel => 'ID ordine';
+  String get orderIdLabel => 'ID Ordine';
 
   @override
   String get fiatAmountLabel => 'Importo fiat';
 
   @override
   String get satsAmountLabel => 'Importo in sats';
+
+  @override
+  String get peerReputationUnavailable =>
+      'La reputazione di questo utente non è disponibile';
 
   @override
   String get statusLabel => 'Stato';
@@ -1490,25 +1525,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get createdLabel => 'Creata';
 
   @override
-  String get tradeDetailsPlaceholder =>
-      'Dettagli disponibili quando il provider di operazioni sarà pronto (Fase 10+)';
-
-  @override
   String get userInformationTitle => 'Informazioni utente';
-
-  @override
-  String get peerPublicKeyLabel => 'Chiave pubblica del peer';
-
-  @override
-  String get yourSharedKeyLabel => 'La tua chiave condivisa';
-
-  @override
-  String get sharedKeyPlaceholder =>
-      'Disponibile dopo l\'integrazione del bridge (Fase 10+)';
-
-  @override
-  String get sharedKeySafetyNote =>
-      'Conserva la tua chiave condivisa al sicuro — è necessaria per la risoluzione delle dispute';
 
   @override
   String get fileTypeVideo => 'Video';
@@ -1794,7 +1811,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get disputeDetailsTitle => 'Dettagli della disputa';
 
   @override
-  String get disputeIdLabel => 'ID disputa';
+  String get disputeIdLabel => 'ID Controversia';
 
   @override
   String disputeReasonLabel(String reason) {
@@ -2122,9 +2139,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get aboutCashuMintUrlLabel => 'Mint';
-
-  @override
-  String get aboutCashuMintNotAdvertised => 'Non dichiarata';
 
   @override
   String get aboutCashuLocktimeLabel => 'Blocco del deposito';
@@ -4097,8 +4111,8 @@ class AppLocalizationsIt extends AppLocalizations {
       'Il tuo deposito è bloccato ma il nodo non lo ha confermato. Riprovare è sicuro: non verrà bloccato una seconda volta.';
 
   @override
-  String get lockEscrowMintUnknown =>
-      'Questo nodo non ha pubblicato il suo mint, quindi non c\'è dove bloccare l\'escrow.';
+  String get lockEscrowMintNotSupported =>
+      'Questo nodo lascia che ogni ordine scelga il proprio mint, e questa versione dell\'app può bloccare l\'escrow solo su un nodo con un solo mint.';
 
   @override
   String get lockEscrowNotRecorded =>
@@ -4139,4 +4153,50 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
       'Stanno bloccando i sats nell\'escrow. Una volta bloccato, tocca a te pagare il fiat.';
+
+  @override
+  String get shareChatKeyAction =>
+      'Condividi la chiave della chat con il mediatore';
+
+  @override
+  String get shareChatKeyTitle =>
+      'Condividere la chiave della chat con il mediatore?';
+
+  @override
+  String get shareChatKeyBody =>
+      'Se confermi, il mediatore di questa controversia potrà leggere l\'intera chat tra te e la tua controparte in questo ordine, e solo quella chat: non le chat delle tue operazioni precedenti o successive. L\'operazione non può essere annullata. La condivisione è facoltativa, ma aiuta il mediatore a risolvere la controversia più rapidamente.';
+
+  @override
+  String get shareChatKeyConfirm => 'Condividi';
+
+  @override
+  String get chatKeySharedIndicator =>
+      'Chiave della chat condivisa con il mediatore';
+
+  @override
+  String get shareChatKeyUnavailable =>
+      'La chiave della chat di questa operazione non è disponibile su questo dispositivo.';
+
+  @override
+  String get moreReactions => 'Altre reazioni';
+
+  @override
+  String messageReactionLabel(String emoji) {
+    return 'Reazione: $emoji';
+  }
+
+  @override
+  String get reactionSendFailed => 'Impossibile inviare la reazione. Riprova.';
+
+  @override
+  String get messageMenuHint => 'Apri il menu del messaggio';
+
+  @override
+  String get cashuAnyMint => 'Qualsiasi mint';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintCopied => 'URL del mint copiato';
 }

@@ -4,7 +4,7 @@ Auto-generated from all feature plans. Last updated: 2026-09-17
 
 ## Active Technologies
 - Rust stable 1.94+ (core); Dart 3.x / Flutter 3.x (UI shell) (004-mostro-p2p-client)
-- nostr-sdk 0.45+, mostro-core 0.16.0, flutter_rust_bridge 2.11.1, Riverpod (state),
+- nostr-sdk 0.45+, mostro-core 0.17.1, flutter_rust_bridge 2.11.1, Riverpod (state),
   go_router (navigation), sqlx (SQLite, native) / indexed_db_futures (IndexedDB, web),
   sembast (Dart UI-layer state), bip32/bip39 (keys), chacha20poly1305 (file encryption)
 - Sembast (Dart, all platforms) for UI-layer state; SQLite via `sqlx` (Rust, native) /
@@ -179,7 +179,8 @@ bridged by flutter_rust_bridge.
 - **UI changes are judged against `.specify/DESIGN_SYSTEM.md`**, whose rules have IDs (`DS-COL-1`…).
   New UI code keeps every MUST; its §14 lists the older code that does not, as debt, never as
   a precedent to copy. A change that needs a different value changes the guide first.
-  The **Design guide** CI job runs its *auto* rules on the changed lines of `lib/`
+  The **Design guide** CI job runs its *auto* rules on every class (or top-level function)
+  a change touches under `lib/`, read whole — one changed line in a legacy screen's class means migrating that class
   (`dart tool/design_check.dart` locally; `--all` lists the whole debt).
 - Update this `CLAUDE.md` when guidelines, tooling, or core tech change.
 
@@ -216,6 +217,10 @@ bridged by flutter_rust_bridge.
   `tool/release/downloads.dart`. None of these builds is vendor-signed or notarized.
 - **The macOS app is sandboxed**: without `com.apple.security.network.client` in
   `macos/Runner/*.entitlements` it builds, launches and reaches no relay.
+- **Desktop icons come from `tool/launcher_icon/build_sources.py`**, not `flutter_launcher_icons`
+  (no Linux target, single-size `.ico`). On Wayland, Linux shows the icon of the desktop entry
+  `install.sh` adds, found by the app ID — `linux/packaging/` files are named after
+  `APPLICATION_ID` and must stay so (`test/ci/desktop_icons_test.dart`).
 - **Release notes and `CHANGELOG.md` are generated** by `tool/release_notes.dart`, one entry
   per merged PR grouped by the conventional-commit type of its **title**. Don't hand-edit
   `CHANGELOG.md`; fix the PR title.

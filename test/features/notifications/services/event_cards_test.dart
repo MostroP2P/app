@@ -76,6 +76,7 @@ void main() {
     isRead: false,
     hasAttachment: false,
     createdAt: at,
+    reactions: const [],
   );
 
   group('tradeCardEvent', () {

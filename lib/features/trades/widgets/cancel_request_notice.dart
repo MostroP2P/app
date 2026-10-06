@@ -16,17 +16,18 @@ import 'package:mostro/src/rust/api/types.dart'
 /// `cooperativeCancelState` is the only trace of it — Rust records it from
 /// the daemon's `cooperative-cancel-initiated-by-{you,peer}`, and from this
 /// side's own cancel before the daemon confirms. Shown while the trade is
-/// still open; a settled trade has a status that says how it ended, and a
-/// dispute supersedes the request. Nothing otherwise.
+/// still open, a dispute included: mostrod leaves the request in place when
+/// one opens, and the counterparty's cancel still ends the trade. A settled
+/// trade has a status that says how it ended. Nothing otherwise.
 class CancelRequestNotice extends ConsumerWidget {
   const CancelRequestNotice({super.key, required this.orderId});
 
   final String orderId;
 
   /// Statuses the request is still open in. From `active` on only, and not
-  /// once a dispute or an outcome took over.
+  /// once an outcome took over.
   static bool requestIsOpen(OrderStatus status) => switch (status) {
-    OrderStatus.active || OrderStatus.fiatSent => true,
+    OrderStatus.active || OrderStatus.fiatSent || OrderStatus.dispute => true,
     _ => false,
   };
 

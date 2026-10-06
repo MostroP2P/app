@@ -332,21 +332,20 @@ void main() {
       expect(find.text('0.18.0'), findsNothing);
     });
 
-    testWidgets(
-      'a Cashu node with no mint says so rather than showing nothing',
-      (tester) async {
-        // Arrange — a misconfigured node: it claims Cashu but published no mint,
-        // so no trade can run against it.
-        await _pumpWithNode(
-          tester,
-          MostroInstance.fromTags(_tags({'escrow_mode': 'cashu'})),
-        );
+    testWidgets('a Cashu node that lists no mint says it accepts any', (
+      tester,
+    ) async {
+      // Arrange — an open node (mostro#1047): it lists no mint, and each
+      // order's maker picks one.
+      await _pumpWithNode(
+        tester,
+        MostroInstance.fromTags(_tags({'escrow_mode': 'cashu'})),
+      );
 
-        // Assert
-        expect(find.text('CASHU ESCROW'), findsOneWidget);
-        expect(find.text('Not advertised'), findsOneWidget);
-      },
-    );
+      // Assert
+      expect(find.text('CASHU ESCROW'), findsOneWidget);
+      expect(find.text('Any mint'), findsOneWidget);
+    });
   });
 
   group('NodeTechnicalDataScreen (12b) — copy', () {

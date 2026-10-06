@@ -86,28 +86,62 @@ class AppLocalizationsFr extends AppLocalizations {
       'La commande a été annulée coopérativement. Aucun fonds n\'a été transféré.';
 
   @override
-  String disputeWithBuyer(String handle) {
-    return 'Litige avec l\'Acheteur : $handle';
-  }
-
-  @override
-  String disputeWithSeller(String handle) {
-    return 'Litige avec le Vendeur : $handle';
-  }
-
-  @override
   String orderLabel(String orderId) {
     return 'Commande $orderId';
   }
 
   @override
-  String get disputeInitiated => 'Initié';
-
-  @override
-  String get disputeInProgress => 'En cours';
-
-  @override
   String get disputeStatusClosed => 'Fermé';
+
+  @override
+  String disputeWith(String role, String counterparty) {
+    return 'Différend avec $role : $counterparty';
+  }
+
+  @override
+  String get seller => 'Vendeur';
+
+  @override
+  String get buyer => 'Acheteur';
+
+  @override
+  String get disputeStatusInitiated => 'Initié';
+
+  @override
+  String get disputeStatusInProgress => 'En cours';
+
+  @override
+  String get disputeStatusResolved => 'Résolu';
+
+  @override
+  String get disputeInProgress =>
+      'Ce différend est actuellement en cours. Un résolveur examine votre cas.';
+
+  @override
+  String get disputeInstruction1 =>
+      'Attendez qu\'un résolveur prenne votre différend. Une fois qu\'il arrive, partagez toute preuve pertinente pour aider à clarifier la situation.';
+
+  @override
+  String get disputeInstruction2 =>
+      'La décision finale sera prise basée sur les preuves présentées.';
+
+  @override
+  String get disputeInstruction3 =>
+      'Si vous ne répondez pas, le système supposera que vous ne voulez pas coopérer et vous pourriez perdre le différend.';
+
+  @override
+  String disputeOpenedByYouAgainstSeller(String counterparty) {
+    return 'Vous avez ouvert ce différend contre le vendeur $counterparty, veuillez lire attentivement ci-dessous :';
+  }
+
+  @override
+  String disputeOpenedByYouAgainstBuyer(String counterparty) {
+    return 'Vous avez ouvert ce différend contre l\'acheteur $counterparty, veuillez lire attentivement ci-dessous :';
+  }
+
+  @override
+  String get disputeWaitingForAdmin =>
+      'En attente d\'assignation d\'administrateur';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -240,9 +274,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get comingSoonMessage => 'Bientôt disponible';
-
-  @override
-  String get tradeStatusActive => 'Actif';
 
   @override
   String get tradeStatusCompleted => 'Terminé';
@@ -1477,13 +1508,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeInformationTitle => 'Informations sur la transaction';
 
   @override
-  String get orderIdLabel => 'ID de l\'ordre';
+  String get orderIdLabel => 'ID de commande';
 
   @override
   String get fiatAmountLabel => 'Montant fiat';
 
   @override
   String get satsAmountLabel => 'Montant en sats';
+
+  @override
+  String get peerReputationUnavailable =>
+      'La réputation de cet utilisateur n\'est pas disponible';
 
   @override
   String get statusLabel => 'Statut';
@@ -1495,25 +1530,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get createdLabel => 'Créé';
 
   @override
-  String get tradeDetailsPlaceholder =>
-      'Détails disponibles lorsque le fournisseur de transactions sera prêt (Phase 10+)';
-
-  @override
   String get userInformationTitle => 'Informations utilisateur';
-
-  @override
-  String get peerPublicKeyLabel => 'Clé publique du pair';
-
-  @override
-  String get yourSharedKeyLabel => 'Votre clé partagée';
-
-  @override
-  String get sharedKeyPlaceholder =>
-      'Disponible après l\'intégration du pont (Phase 10+)';
-
-  @override
-  String get sharedKeySafetyNote =>
-      'Conservez votre clé partagée en sécurité — elle est nécessaire pour la résolution des litiges';
 
   @override
   String get fileTypeVideo => 'Vidéo';
@@ -1800,7 +1817,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get disputeDetailsTitle => 'Détails du litige';
 
   @override
-  String get disputeIdLabel => 'ID du litige';
+  String get disputeIdLabel => 'ID du différend';
 
   @override
   String disputeReasonLabel(String reason) {
@@ -2126,9 +2143,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get aboutCashuMintUrlLabel => 'Mint';
-
-  @override
-  String get aboutCashuMintNotAdvertised => 'Non annoncé';
 
   @override
   String get aboutCashuLocktimeLabel => 'Verrouillage du séquestre';
@@ -4119,8 +4133,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Votre séquestre est verrouillé mais le nœud ne l\'a pas confirmé. Réessayer est sans risque : il ne sera pas verrouillé une seconde fois.';
 
   @override
-  String get lockEscrowMintUnknown =>
-      'Ce nœud n\'a pas publié son mint : il n\'y a nulle part où verrouiller l\'escrow.';
+  String get lockEscrowMintNotSupported =>
+      'Ce nœud laisse chaque ordre choisir son mint, et cette version de l\'app ne peut verrouiller l\'escrow que sur un nœud à mint unique.';
 
   @override
   String get lockEscrowNotRecorded =>
@@ -4161,4 +4175,48 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
       'Ils verrouillent les sats dans l\'escrow. Une fois verrouillé, c\'est à vous de payer le fiat.';
+
+  @override
+  String get shareChatKeyAction => 'Partager la clé du chat avec le médiateur';
+
+  @override
+  String get shareChatKeyTitle => 'Partager la clé du chat avec le médiateur ?';
+
+  @override
+  String get shareChatKeyBody =>
+      'Si vous confirmez, le médiateur de ce litige pourra lire l\'intégralité du chat entre vous et votre contrepartie pour cet ordre, et uniquement ce chat : pas ceux de vos transactions passées ou futures. Cette action est irréversible. Le partage est facultatif, mais il aide le médiateur à résoudre le litige plus vite.';
+
+  @override
+  String get shareChatKeyConfirm => 'Partager';
+
+  @override
+  String get chatKeySharedIndicator => 'Clé du chat partagée avec le médiateur';
+
+  @override
+  String get shareChatKeyUnavailable =>
+      'La clé du chat de cette transaction n\'est pas disponible sur cet appareil.';
+
+  @override
+  String get moreReactions => 'Plus de réactions';
+
+  @override
+  String messageReactionLabel(String emoji) {
+    return 'Réaction : $emoji';
+  }
+
+  @override
+  String get reactionSendFailed =>
+      'Impossible d\'envoyer la réaction. Veuillez réessayer.';
+
+  @override
+  String get messageMenuHint => 'Ouvrir le menu du message';
+
+  @override
+  String get cashuAnyMint => 'N\'importe quel mint';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintCopied => 'URL du mint copiée';
 }

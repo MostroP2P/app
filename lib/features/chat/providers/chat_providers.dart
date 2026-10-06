@@ -311,6 +311,19 @@ final incomingMessageProvider = StreamProvider.autoDispose
       }
     });
 
+/// Stream provider that emits a trade's messages again when they change after
+/// being stored — a reaction to one of them, received or sent — so
+/// [ChatRoomScreen] can replace its copy. Never a new message.
+final messageUpdatesProvider = StreamProvider.autoDispose
+    .family<rust_types.ChatMessage, String>((ref, tradeId) async* {
+      final stream = await messages_api.onMessageUpdated(tradeId: tradeId);
+      while (true) {
+        final msg = await stream.next();
+        if (msg == null) break;
+        yield msg;
+      }
+    });
+
 /// FutureProvider that loads the full message history for a trade once.
 ///
 /// [ChatRoomScreen] seeds its local state from this, then appends live

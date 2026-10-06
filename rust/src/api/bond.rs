@@ -601,6 +601,7 @@ mod tests {
             total_reviews: 0,
             days_active: 0,
             maker_since: None,
+            cashu_mint_url: None,
         };
         let trade = TradeInfo {
             id: "t1".into(),
