@@ -40,10 +40,13 @@ pub mod settings_keys {
     /// history (#614).
     pub const RESTORE_SNAPSHOT: &str = "restore_snapshot";
 
-    /// A reputation attestation the identity exported and has not imported
-    /// yet, as the event JSON it came in (`api::reputation_transfer`).
-    /// Identity-scoped: it names the identity that requested it, and is of
-    /// no use to the next one.
+    /// The reputation attestation the identity exported last and has not
+    /// imported yet, as the event JSON it came in
+    /// (`api::reputation_transfer`). One slot for all nodes. It names the
+    /// requested destination — the identity itself, or another one the user
+    /// carries it to. Identity-scoped: the export bound the source account to
+    /// that destination on this identity's request, so it is of no use to
+    /// the next identity.
     pub const PENDING_REPUTATION_ATTESTATION: &str = "pending_reputation_attestation";
 
     // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────

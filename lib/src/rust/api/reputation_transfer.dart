@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `ask`, `identity_keys`, `is_export_reply`, `is_import_reply`, `new`, `parse`, `refusal`
+// These functions are ignored because they are not marked as `pub`: `ask`, `check_exported`, `check_importable`, `event_id`, `identity_keys`, `is_export_reply`, `is_import_reply`, `new`, `parse`, `pubkey`, `refusal`, `while_still_current`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`
 
 /// What the active node advertises, as of its last capability fetch.
@@ -45,6 +45,9 @@ Future<ReputationAttestationInfo> importReputation({
 );
 
 /// The attestation exported last and not imported yet, while still valid.
+/// One slot for all nodes: a later export replaces it. An expired one is
+/// dropped; one refused for another reason (a clock behind the issuer's)
+/// is kept, as it may verify later.
 Future<ReputationAttestationInfo?> getPendingReputationAttestation() =>
     RustLib.instance.api
         .crateApiReputationTransferGetPendingReputationAttestation();
