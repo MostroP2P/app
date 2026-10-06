@@ -47,8 +47,9 @@ The answer must be signed by the advertised issuer key and name the requested
 destination. It is then kept as the **pending attestation**, but only while
 the identity that asked is still the active one.
 
-**Errors**: `ReputationExportUnsupported`, `PrivacyModeEnabled`,
-`InvalidPubkey`, `NoDaemonResponse`, `InvalidPayload`,
+**Errors**: `ReputationExportUnsupported`, `StorageUnavailable` (checked
+before anything is sent), `PrivacyModeEnabled`, `InvalidPubkey`,
+`NoDaemonResponse`, `InvalidPayload`,
 `InvalidReputationAttestation`, the node's `CantDoReason` by name, and
 `NoIdentity` when the identity was deleted or replaced before the answer
 arrived (nothing is stored).
@@ -80,6 +81,8 @@ JSON text), under the same identity guard as the export.
 The attestation exported last and not imported yet, while it still verifies.
 An expired one is deleted and reads as null; one refused for another reason
 (e.g. a local clock behind the issuer's) reads as null but is kept.
+Read under the identity guard, so it never returns an identity's attestation
+after that identity was deleted or replaced; null when no identity is loaded.
 
 ---
 

@@ -116,6 +116,10 @@ pub async fn export_reputation(
     let Some(issuer) = reputation_support::get(&node).issuer else {
         bail!("ReputationExportUnsupported: the node does not export reputation");
     };
+    // Checked before the node binds the account: an attestation that cannot
+    // be kept must not be reported as kept.
+    let db = crate::db::app_db::db()
+        .ok_or_else(|| anyhow::anyhow!("StorageUnavailable: the attestation could not be kept"))?;
     // Taken before the keys: an identity swapped in between reads as a
     // different generation, never as the one that asked.
     let generation = identity_generation().await;
@@ -145,11 +149,7 @@ pub async fn export_reputation(
     // replaced: a write after its wipe would hand this attestation to the
     // next identity.
     while_still_current(generation, async {
-        if let Some(db) = crate::db::app_db::db() {
-            db.set_setting(PENDING_REPUTATION_ATTESTATION, &json)
-                .await?;
-        }
-        Ok(())
+        db.set_setting(PENDING_REPUTATION_ATTESTATION, &json).await
     })
     .await?;
     Ok(ReputationAttestationInfo::new(&attestation, json))
@@ -202,29 +202,32 @@ pub async fn get_pending_reputation_attestation() -> Result<Option<ReputationAtt
     let Some(db) = crate::db::app_db::db() else {
         return Ok(None);
     };
-    let generation = identity_generation().await;
-    let Some(json) = db.get_setting(PENDING_REPUTATION_ATTESTATION).await? else {
+    let Some(generation) = identity_generation().await else {
         return Ok(None);
     };
-    match ReputationAttestation::parse_json(&json, Timestamp::now(), ATTESTATION_LIFETIME_SECS) {
-        Ok((attestation, _)) => Ok(Some(ReputationAttestationInfo::new(&attestation, json))),
-        Err(AttestationError::Expired) => {
-            log::info!("[reputation] the pending attestation expired; dropping it");
-            if let Some(generation) = generation {
-                while_identity_current(generation, async {
-                    let pending = db.get_setting(PENDING_REPUTATION_ATTESTATION).await?;
-                    if pending.as_deref() == Some(json.as_str()) {
-                        db.delete_setting(PENDING_REPUTATION_ATTESTATION).await?;
-                    }
-                    anyhow::Ok(())
-                })
-                .await
-                .transpose()?;
+    // Read under the identity guard: a wipe that starts meanwhile waits for
+    // it, so the slot read is always the active identity's.
+    let read = while_identity_current(generation, async {
+        let Some(json) = db.get_setting(PENDING_REPUTATION_ATTESTATION).await? else {
+            return Ok(None);
+        };
+        match ReputationAttestation::parse_json(&json, Timestamp::now(), ATTESTATION_LIFETIME_SECS)
+        {
+            Ok((attestation, _)) => Ok(Some(ReputationAttestationInfo::new(&attestation, json))),
+            Err(AttestationError::Expired) => {
+                log::info!("[reputation] the pending attestation expired; dropping it");
+                // An export may have replaced it since the read.
+                let pending = db.get_setting(PENDING_REPUTATION_ATTESTATION).await?;
+                if pending.as_deref() == Some(json.as_str()) {
+                    db.delete_setting(PENDING_REPUTATION_ATTESTATION).await?;
+                }
+                Ok(None)
             }
-            Ok(None)
+            Err(_) => Ok(None),
         }
-        Err(_) => Ok(None),
-    }
+    })
+    .await;
+    read.unwrap_or(Ok(None))
 }
 
 /// Sign, with the identity the reputation at `issuer` is bound to now, the
