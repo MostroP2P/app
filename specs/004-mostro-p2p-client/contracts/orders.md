@@ -810,12 +810,25 @@ Covers cancellations whose daemon message the app never received (closed or
 offline when the daemon's waiting window expired). Runs 60s after the
 order subscription starts, then every 30 minutes: waiting trades past
 their window (`timeout_at`, else `started_at + 900`) are checked against
-the public book — `pending` republish wipes taker rows (handing the order
-back to the book, as the `Canceled` wipe does) and resyncs maker
-rows to `Pending`; an outright cancel wipes; absence from the book or the
-ambiguous `in-progress` marker changes nothing. Every action requires a
-positive daemon signal; the clock only triggers the check. The sweep also
-drops keyless in-memory sessions older than 24h and logs counters.
+the public book, or, when the book has no entry, against the newest revision
+the relays hold for that one order — `pending` republish wipes taker rows
+(handing the order back to the book, as the `Canceled` wipe does) and
+resyncs maker rows to `Pending`; an outright cancel wipes; absence from the
+book or the ambiguous `in-progress` marker changes nothing. Every action
+requires a positive daemon signal; the clock only triggers the check. The
+sweep also drops keyless in-memory sessions older than 24h and logs counters.
+
+A `pending` older than the take is not a republish (#628). Neither age gate
+protects against one: a maker's `started_at` is the order's creation, which
+a take does not move, and a taker's `timeout_at` is the client's take + 900 s
+while the daemon may still be waiting. So the book never holds one for a
+waiting trade of ours (*Public status vs. trade status*), and a revision
+fetched on a book miss is dated the same way: strictly older than the
+order's status cursor, it changes nothing.
+
+A `success` for a row still at `SettledHoldInvoice` completes it, dated by
+the revision that carried it (#642): the one already fetched on a book miss,
+otherwise one lookup, since the book keeps no time.
 
 `process_gift_wrap_rumor` MUST update **both** the in-memory order book
 (`order_book().update_order_status`) **and** the persisted trade row
@@ -846,6 +859,19 @@ ever learned from daemon messages, so:
   back to the public view (see *Daemon cancellation semantics*). A
   `canceled` that reaches a never-active trade of ours wipes it instead of
   being written to it (same section).
+- The book feed (`ingest_order_event`) lets a `pending` past that gate, so a
+  republish reaches the book. For an order of ours still waiting on its take
+  (`WaitingPayment`, `WaitingBuyerInvoice`, `InProgress`) it MUST date that
+  `pending` first (#628). Relays do not all hold an order's newest revision,
+  and after a cold start or on a refetch one that lags still serves the
+  `pending` from before the take. The order's status cursor dates the take:
+  it is the last daemon status this client accepted, in the node's clock,
+  like the event's `created_at`. A `pending` strictly older than it leaves
+  the entry at the local status. One from the same second or later applies,
+  and so does any `pending` without a cursor to compare. The bond windows
+  are not waiting steps: a `WaitingTakerBond` order publishes as `pending`.
+  The d-tag path needs no such check, since `wire_status_applies` never lets
+  a `pending` replace a waiting status there.
 - Both paths MUST accept only events authored by the active node: a d-tag is
   public, and a `canceled` deletes a trade row. The live book subscription
   and the refetch drop other authors before ingesting; `subscribe_single_order`
