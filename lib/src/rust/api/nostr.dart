@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_node_capabilities`, `apply_relay_list_event`, `default_relays`, `fetch_and_set_node_capabilities`, `generation_is_newer`, `get_pool`, `initialize_in`, `load_persisted_relays`, `new`, `note_relay_list_generation`, `on_pool_online`, `persist_relay`, `pool`, `reattach_existing_pool`, `relay_list_seen`, `relay_sync_tx`, `removal_effect`, `resync_with`, `run_resync`, `seed_default_relays`, `select_rates_event`, `tag_value`, `unpersist_relay`, `watch_connection_state`
+// These functions are ignored because they are not marked as `pub`: `apply_node_capabilities`, `apply_relay_list_event`, `default_relays`, `fetch_and_set_node_capabilities`, `generation_is_newer`, `get_pool`, `initialize_in`, `load_persisted_relays`, `new`, `note_relay_list_generation`, `on_pool_online`, `persist_relay`, `pool`, `reattach_existing_pool`, `refresh_rates`, `relay_list_seen`, `relay_sync_tx`, `removal_effect`, `resync_with`, `run_resync`, `seed_default_relays`, `select_rates_event`, `tag_value`, `unpersist_relay`, `watch_connection_state`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ResyncState`
 
 /// Initialize the Nostr client with a relay list.
@@ -136,6 +136,19 @@ Future<double?> fetchExchangeRate({
   mostroPubkeyHex: mostroPubkeyHex,
   fiatCode: fiatCode,
 );
+
+/// The price providers `mostro_pubkey_hex` says its rates come from, as the
+/// `source` tag of the same Kind 30078 event names them (`yadio`,
+/// `coingecko`, `eltoque`…), in its order.
+///
+/// `None` when there is nothing to tell: the node publishes no rates event,
+/// the one on the relay has expired or is unusable, or it names no provider.
+/// `Err` as for [`fetch_exchange_rate`]. Shares its per-node cache, so the
+/// technical data screen costs no relay query once a price was read.
+Future<List<String>?> fetchPriceSources({required String mostroPubkeyHex}) =>
+    RustLib.instance.api.crateApiNostrFetchPriceSources(
+      mostroPubkeyHex: mostroPubkeyHex,
+    );
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConnectionStateStream>>
 abstract class ConnectionStateStream implements RustOpaqueInterface {

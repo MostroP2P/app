@@ -735,17 +735,47 @@ pub async fn fetch_exchange_rate(
     fiat_code: String,
 ) -> Result<Option<f64>> {
     use crate::mostro::rates;
-    use nostr_sdk::prelude::*;
-    use std::time::Duration;
 
     let now = crate::rt::unix_now();
     if let Some(rate) = rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now) {
         return Ok(Some(rate));
     }
+    refresh_rates(&mostro_pubkey_hex, now).await?;
+    Ok(rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now))
+}
+
+/// The price providers `mostro_pubkey_hex` says its rates come from, as the
+/// `source` tag of the same Kind 30078 event names them (`yadio`,
+/// `coingecko`, `eltoque`…), in its order.
+///
+/// `None` when there is nothing to tell: the node publishes no rates event,
+/// the one on the relay has expired or is unusable, or it names no provider.
+/// `Err` as for [`fetch_exchange_rate`]. Shares its per-node cache, so the
+/// technical data screen costs no relay query once a price was read.
+pub async fn fetch_price_sources(mostro_pubkey_hex: String) -> Result<Option<Vec<String>>> {
+    use crate::mostro::rates;
+
+    let now = crate::rt::unix_now();
+    let sources = match rates::cached_sources(&mostro_pubkey_hex, now) {
+        Some(sources) => sources,
+        None => {
+            refresh_rates(&mostro_pubkey_hex, now).await?;
+            rates::cached_sources(&mostro_pubkey_hex, now).unwrap_or_default()
+        }
+    };
+    Ok((!sources.is_empty()).then_some(sources))
+}
+
+/// Fetch `mostro_pubkey_hex`'s rates event and cache what it says, or clear
+/// the cache when it has nothing usable to say.
+async fn refresh_rates(mostro_pubkey_hex: &str, now: i64) -> Result<()> {
+    use crate::mostro::rates;
+    use nostr_sdk::prelude::*;
+    use std::time::Duration;
 
     let client = pool()?.client();
 
-    let pubkey = nostr_sdk::prelude::PublicKey::from_hex(&mostro_pubkey_hex)
+    let pubkey = nostr_sdk::prelude::PublicKey::from_hex(mostro_pubkey_hex)
         .map_err(|e| anyhow::anyhow!("invalid pubkey hex: {e}"))?;
 
     let filter = Filter::new()
@@ -763,7 +793,7 @@ pub async fn fetch_exchange_rate(
     let Some(event) = select_rates_event(events, &pubkey) else {
         log::warn!("[rates] node {mostro_pubkey_hex} published no usable kind 30078 event");
         rates::clear();
-        return Ok(None);
+        return Ok(());
     };
 
     let expires_at = rates::expires_at(
@@ -774,17 +804,18 @@ pub async fn fetch_exchange_rate(
         // A relay that ignores NIP-40 must not let a zombie price through.
         log::warn!("[rates] discarding expired kind 30078 event from {mostro_pubkey_hex}");
         rates::clear();
-        return Ok(None);
+        return Ok(());
     }
 
     let Some(parsed) = rates::parse_rates_content(&event.content) else {
         log::warn!("[rates] unusable kind 30078 payload from {mostro_pubkey_hex}");
         rates::clear();
-        return Ok(None);
+        return Ok(());
     };
 
-    rates::store(&mostro_pubkey_hex, parsed, expires_at);
-    Ok(rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now))
+    let sources = rates::parse_sources(tag_value(&event, "source").as_deref());
+    rates::store(mostro_pubkey_hex, parsed, sources, expires_at);
+    Ok(())
 }
 
 /// The newest authentic rates event among `events`, or `None`.
