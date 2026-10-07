@@ -335,7 +335,7 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
     try {
       final info = await nwc_api.connectWallet(nwcUri: uri);
       if (!mounted) return;
-      ref
+      final saved = await ref
           .read(nwcProvider.notifier)
           .setConnected(
             NwcWalletState(
@@ -346,10 +346,15 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
             ),
             nwcUri: uri,
           );
+      if (!mounted) return;
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.walletConnectedMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            saved ? l10n.walletConnectedMessage : l10n.nwcNotSavedMessage,
+          ),
+        ),
+      );
       if (context.canPop()) context.pop();
     } catch (e) {
       if (!mounted) return;
@@ -373,12 +378,17 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
     } catch (e) {
       debugPrint('[nwc] disconnect failed: $e');
     }
-    ref.read(nwcProvider.notifier).setDisconnected();
+    final forgotten = await ref.read(nwcProvider.notifier).setDisconnected();
     if (!mounted) return;
     setState(() => _busy = false);
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(AppLocalizations.of(context).walletDisconnectedMessage),
+        content: Text(
+          forgotten
+              ? l10n.walletDisconnectedMessage
+              : l10n.nwcNotForgottenMessage,
+        ),
       ),
     );
   }
