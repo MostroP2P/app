@@ -971,6 +971,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutFiatCurrenciesLabel => 'Devises fiat';
 
   @override
+  String get aboutPriceSourceLabel => 'Source';
+
+  @override
+  String get aboutPriceSection => 'Prix';
+
+  @override
   String get aboutMostroVersionLabel => 'Version Mostro';
 
   @override

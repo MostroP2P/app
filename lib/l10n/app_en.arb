@@ -1239,6 +1239,14 @@
   "@aboutFiatCurrenciesLabel": {
     "description": "About screen — Fiat Currencies row label"
   },
+  "aboutPriceSourceLabel": "Source",
+  "@aboutPriceSourceLabel": {
+    "description": "Technical data row, in the Price group: the price providers the Mostro node takes its exchange rates from (Yadio, CoinGecko, El Toque…), as its rates event names them"
+  },
+  "aboutPriceSection": "Price",
+  "@aboutPriceSection": {
+    "description": "Technical data group title: the node's exchange rates, holding the price source row"
+  },
   "aboutMostroVersionLabel": "Mostro Version",
   "@aboutMostroVersionLabel": {
     "description": "About screen — Mostro Version row label"

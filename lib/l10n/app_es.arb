@@ -281,6 +281,8 @@
   "aboutNodeRetry": "Reintentar",
   "aboutLightningNetworkSection": "Red Lightning",
   "aboutFiatCurrenciesLabel": "Monedas fiat",
+  "aboutPriceSourceLabel": "Fuente",
+  "aboutPriceSection": "Precio",
   "aboutMostroVersionLabel": "Versión de Mostro",
   "aboutMostroCommitLabel": "Commit de Mostro",
   "aboutHoldInvoiceExpLabel": "Vencimiento de hold invoice",

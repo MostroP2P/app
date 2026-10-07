@@ -69,6 +69,7 @@ Future<ProviderContainer> _pump(
   WidgetTester tester,
   Widget home, {
   required List<Override> overrides,
+  List<String>? priceSources,
 }) async {
   tester.view.physicalSize = const Size(1200, 4000);
   tester.view.devicePixelRatio = 1.0;
@@ -79,6 +80,7 @@ Future<ProviderContainer> _pump(
     overrides: [
       appVersionProvider.overrideWith((ref) async => '2.0.0'),
       activeNodeNameProvider.overrideWith((ref) => 'Mostro'),
+      priceSourcesProvider.overrideWith((ref) async => priceSources),
       ...overrides,
     ],
   );
@@ -155,6 +157,24 @@ void main() {
       expect(find.text('CONNECTED NODE'), findsOneWidget);
       // Three limit cells plus the field count.
       expect(find.text('—'), findsNWidgets(4));
+    });
+
+    testWidgets('counts the price source among the technical fields', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const AboutScreen(),
+        priceSources: const ['yadio'],
+        overrides: [
+          mostroNodeProvider.overrideWith(
+            (ref) async => MostroInstance.fromTags(_tags({})),
+          ),
+        ],
+      );
+
+      // Public key, fiat currencies, price source and bond status.
+      expect(find.text('4 fields'), findsOneWidget);
     });
 
     testWidgets('offers a retry when the node does not answer', (tester) async {
@@ -393,6 +413,36 @@ void main() {
       expect(find.text('00007cb3…95d23f91'), findsOneWidget);
       expect(find.bySemanticsLabel(_pubkey), findsOneWidget);
       semantics.dispose();
+    });
+  });
+
+  group('price source (12b)', () {
+    testWidgets('names the providers the node takes its prices from', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const NodeTechnicalDataScreen(),
+        priceSources: const ['coingecko', 'yadio'],
+        overrides: [
+          mostroNodeProvider.overrideWith(
+            (ref) async => MostroInstance.fromTags(_tags({})),
+          ),
+        ],
+      );
+
+      expect(find.text('PRICE'), findsOneWidget);
+      expect(find.text('Source'), findsNWidgets(2));
+      expect(find.text('CoinGecko'), findsOneWidget);
+      expect(find.text('Yadio'), findsOneWidget);
+    });
+
+    testWidgets('has no price group when the node publishes no prices', (
+      tester,
+    ) async {
+      await _pumpWithNode(tester, MostroInstance.fromTags(_tags({})));
+
+      expect(find.text('PRICE'), findsNothing);
     });
   });
 }

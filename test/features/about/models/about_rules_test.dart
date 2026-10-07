@@ -84,6 +84,71 @@ void main() {
     });
   });
 
+  group('price sources', () {
+    test('read by the providers\' names', () {
+      expect(
+        [
+          'yadio',
+          'coingecko',
+          'currency_api',
+          'blockchain',
+          'eltoque',
+          'nostr',
+        ].map(priceSourceName),
+        [
+          'Yadio',
+          'CoinGecko',
+          'Currency API',
+          'Blockchain.com',
+          'El Toque',
+          'Nostr',
+        ],
+      );
+    });
+
+    test('a provider the app does not know reads as the node sent it', () {
+      expect(priceSourceName('newsource'), 'newsource');
+    });
+
+    test('get a group of their own, one row each, after the bond', () {
+      final without = nodeTechSections(_handoffNode, _en);
+      final sections = nodeTechSections(
+        _handoffNode,
+        _en,
+        priceSources: const ['blockchain', 'coingecko', 'yadio'],
+      );
+
+      expect(sections.map((s) => s.title), [
+        'Mostro',
+        'Anti-abuse Bond',
+        'Price',
+        'Lightning Network',
+      ]);
+      expect(sections[2].rows.map((r) => (r.label, r.value)), [
+        ('Source', 'Blockchain.com'),
+        ('Source', 'CoinGecko'),
+        ('Source', 'Yadio'),
+      ]);
+      // The other groups are unchanged.
+      expect(
+        sections.first.rows.map((r) => r.label),
+        without.first.rows.map((r) => r.label),
+      );
+      expect(nodeFieldCount(sections), nodeFieldCount(without) + 3);
+    });
+
+    test('a node that names none has no price group', () {
+      for (final sources in [null, const <String>[]]) {
+        final sections = nodeTechSections(
+          _handoffNode,
+          _en,
+          priceSources: sources,
+        );
+        expect(sections.map((s) => s.title), isNot(contains('Price')));
+      }
+    });
+  });
+
   group('nodeTechSections', () {
     test('the handoff node lists its rows in the handoff order', () {
       final sections = nodeTechSections(_handoffNode, _en);

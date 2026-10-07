@@ -256,7 +256,7 @@ class _BrandCard extends StatelessWidget {
               excludeFromSemantics: true,
             ),
           ),
-          const SizedBox(width: 13),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,12 +265,12 @@ class _BrandCard extends StatelessWidget {
                 Text(
                   'Mostro',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 17,
                     fontWeight: FontWeight.w600,
                     color: book.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text(
                   l10n.footerTagline,
                   style: TextStyle(fontSize: 11, color: book.textSecondary),
@@ -283,7 +283,7 @@ class _BrandCard extends StatelessWidget {
             label: '${l10n.aboutVersionLabel} $appVersion',
             excludeSemantics: true,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: pal.pillFill,
                 borderRadius: BorderRadius.circular(999),
@@ -354,7 +354,7 @@ class _ConnectedNodeCard extends ConsumerWidget {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       name,
@@ -367,7 +367,7 @@ class _ConnectedNodeCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 9),
+                  const SizedBox(width: 8),
                   Semantics(
                     label: pubkey,
                     excludeSemantics: true,
@@ -428,7 +428,7 @@ class _LimitCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final book = OrderBookPalette.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: AboutPalette.of(context).cell,
         borderRadius: BorderRadius.circular(12),
@@ -442,7 +442,7 @@ class _LimitCell extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 10, color: book.textSecondary),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -475,7 +475,15 @@ class _TechnicalDataCard extends ConsumerWidget {
     final unavailable = node == null && !nodeAsync.isLoading;
     final value =
         node != null
-            ? l10n.aboutFieldCount(nodeFieldCount(nodeTechSections(node, l10n)))
+            ? l10n.aboutFieldCount(
+              nodeFieldCount(
+                nodeTechSections(
+                  node,
+                  l10n,
+                  priceSources: ref.watch(priceSourcesProvider).valueOrNull,
+                ),
+              ),
+            )
             : unavailable
             ? l10n.aboutNodeRetry
             : missingFigure;

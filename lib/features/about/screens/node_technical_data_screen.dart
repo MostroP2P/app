@@ -28,8 +28,11 @@ class NodeTechnicalDataScreen extends ConsumerWidget {
     final node = nodeAsync.valueOrNull;
 
     final app = appTechSection(appVersion, appGitCommit, l10n);
+    final priceSources = ref.watch(priceSourcesProvider).valueOrNull;
     final nodeSections =
-        node == null ? const <TechSection>[] : nodeTechSections(node, l10n);
+        node == null
+            ? const <TechSection>[]
+            : nodeTechSections(node, l10n, priceSources: priceSources);
     final clipboard =
         node == null
             ? null
@@ -95,7 +98,12 @@ class NodeTechnicalDataScreen extends ConsumerWidget {
                 l10n.aboutNodeUnavailable,
                 action: TextButton(
                   onPressed: () => ref.invalidate(mostroNodeProvider),
-                  child: Text(l10n.aboutNodeRetry),
+                  child: Text(
+                    l10n.aboutNodeRetry,
+                    style: TextStyle(
+                      color: OrderBookPalette.of(context).limeText,
+                    ),
+                  ),
                 ),
               ),
           ],

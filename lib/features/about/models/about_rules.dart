@@ -119,6 +119,20 @@ class NodeLimits {
   final String fee;
 }
 
+/// The price providers mostrod can aggregate (`mostro/src/price/provider.rs`)
+/// by their published names; an id it adds later reads as sent.
+const _priceSourceNames = {
+  'yadio': 'Yadio',
+  'coingecko': 'CoinGecko',
+  'currency_api': 'Currency API',
+  'blockchain': 'Blockchain.com',
+  'eltoque': 'El Toque',
+  'nostr': 'Nostr',
+};
+
+/// A price provider by its published name (`coingecko` → `CoinGecko`).
+String priceSourceName(String id) => _priceSourceNames[id] ?? id;
+
 // ── 12b · sections ────────────────────────────────────────────────────────────
 
 /// The app's own group, first on 12b and first in the clipboard block.
@@ -143,10 +157,26 @@ TechSection appTechSection(
 /// Every group of node fields 12b lists, empty groups dropped. The anti-abuse
 /// bond group always has its status row; the settlement group is Cashu or
 /// Lightning, never both, because About reports what this node runs.
-List<TechSection> nodeTechSections(MostroInstance node, AppLocalizations l10n) {
+/// [priceSources] are the providers the node names for its prices
+/// ([priceSourceName]), null when it publishes none.
+List<TechSection> nodeTechSections(
+  MostroInstance node,
+  AppLocalizations l10n, {
+  List<String>? priceSources,
+}) {
   return [
     TechSection('Mostro', _mostroRows(node, l10n)),
     TechSection(l10n.aboutAntiAbuseBondSection, _bondRows(node, l10n)),
+    // One row per provider, as the Cashu group lists its mints; dropped
+    // whole when the node names none.
+    TechSection(l10n.aboutPriceSection, [
+      for (final id in priceSources ?? const <String>[])
+        TechRow(
+          l10n.aboutPriceSourceLabel,
+          priceSourceName(id),
+          TechValueStyle.text,
+        ),
+    ]),
     if (node.escrowMode == EscrowMode.cashu)
       TechSection(l10n.aboutCashuEscrowSection, _cashuRows(node, l10n))
     else

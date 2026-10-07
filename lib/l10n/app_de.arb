@@ -281,6 +281,8 @@
   "aboutNodeRetry": "Erneut versuchen",
   "aboutLightningNetworkSection": "Lightning-Netzwerk",
   "aboutFiatCurrenciesLabel": "Fiat-Währungen",
+  "aboutPriceSourceLabel": "Quelle",
+  "aboutPriceSection": "Preis",
   "aboutMostroVersionLabel": "Mostro-Version",
   "aboutMostroCommitLabel": "Mostro-Commit",
   "aboutHoldInvoiceExpLabel": "Hold-Invoice-Ablauf",

@@ -969,6 +969,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get aboutFiatCurrenciesLabel => 'Valute fiat';
 
   @override
+  String get aboutPriceSourceLabel => 'Fonte';
+
+  @override
+  String get aboutPriceSection => 'Prezzo';
+
+  @override
   String get aboutMostroVersionLabel => 'Versione Mostro';
 
   @override

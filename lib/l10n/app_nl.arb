@@ -281,6 +281,8 @@
   "aboutNodeRetry": "Opnieuw",
   "aboutLightningNetworkSection": "Lightning Network",
   "aboutFiatCurrenciesLabel": "Fiatvaluta",
+  "aboutPriceSourceLabel": "Bron",
+  "aboutPriceSection": "Prijs",
   "aboutMostroVersionLabel": "Mostro-versie",
   "aboutMostroCommitLabel": "Mostro-commit",
   "aboutHoldInvoiceExpLabel": "Verlooptijd hold invoice",

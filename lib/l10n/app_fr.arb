@@ -281,6 +281,8 @@
   "aboutNodeRetry": "Réessayer",
   "aboutLightningNetworkSection": "Réseau Lightning",
   "aboutFiatCurrenciesLabel": "Devises fiat",
+  "aboutPriceSourceLabel": "Source",
+  "aboutPriceSection": "Prix",
   "aboutMostroVersionLabel": "Version Mostro",
   "aboutMostroCommitLabel": "Commit Mostro",
   "aboutHoldInvoiceExpLabel": "Expiration de la hold invoice",
