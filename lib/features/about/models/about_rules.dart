@@ -131,7 +131,7 @@ const _priceSourceNames = {
 };
 
 /// A price provider by its published name (`coingecko` → `CoinGecko`).
-String priceSourceName(String id) => _priceSourceNames[id] ?? id;
+String priceSourceName(String id) => _priceSourceNames[id.toLowerCase()] ?? id;
 
 // ── 12b · sections ────────────────────────────────────────────────────────────
 

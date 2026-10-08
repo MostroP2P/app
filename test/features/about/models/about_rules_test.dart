@@ -108,6 +108,8 @@ void main() {
 
     test('a provider the app does not know reads as the node sent it', () {
       expect(priceSourceName('newsource'), 'newsource');
+      expect(priceSourceName('CustomProvider'), 'CustomProvider');
+      expect(priceSourceName('CoinGecko'), 'CoinGecko');
     });
 
     test('get a group of their own, one row each, after the bond', () {

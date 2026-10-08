@@ -82,15 +82,16 @@ pub fn parse_rates_content(content: &str) -> Option<HashMap<String, f64>> {
 /// the sorted, comma-separated providers that contributed to the table
 /// (`yadio`, `coingecko,yadio`, see `mostro/src/price/manager.rs`).
 ///
-/// Trimmed, lower-cased and deduplicated in order; empty when the tag is
-/// missing or names nothing, which says no more than that the node did not
-/// tell.
+/// Trimmed and deduplicated in order, ignoring case, with the first spelling
+/// kept, so a provider the app has no name for reads as the node wrote it.
+/// Empty when the tag is missing or names nothing, which says no more than
+/// that the node did not tell.
 pub fn parse_sources(tag: Option<&str>) -> Vec<String> {
     let mut sources: Vec<String> = Vec::new();
     for id in tag.unwrap_or_default().split(',') {
-        let id = id.trim().to_lowercase();
-        if !id.is_empty() && !sources.contains(&id) {
-            sources.push(id);
+        let id = id.trim();
+        if !id.is_empty() && !sources.iter().any(|seen| seen.eq_ignore_ascii_case(id)) {
+            sources.push(id.to_string());
         }
     }
     sources
@@ -302,7 +303,11 @@ mod tests {
         );
         assert_eq!(
             parse_sources(Some(" Yadio , ,eltoque,yadio")),
-            vec!["yadio", "eltoque"]
+            vec!["Yadio", "eltoque"]
+        );
+        assert_eq!(
+            parse_sources(Some("CustomProvider,customprovider")),
+            vec!["CustomProvider"]
         );
     }
 

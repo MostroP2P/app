@@ -740,8 +740,8 @@ pub async fn fetch_exchange_rate(
     if let Some(rate) = rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now) {
         return Ok(Some(rate));
     }
-    refresh_rates(&mostro_pubkey_hex, now).await?;
-    Ok(rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now))
+    let fetched = refresh_rates(&mostro_pubkey_hex, now).await?;
+    Ok(fetched.and_then(|(rates, _)| rates.get(&fiat_code.to_uppercase()).copied()))
 }
 
 /// The price providers `mostro_pubkey_hex` says its rates come from, as the
@@ -758,17 +758,24 @@ pub async fn fetch_price_sources(mostro_pubkey_hex: String) -> Result<Option<Vec
     let now = crate::rt::unix_now();
     let sources = match rates::cached_sources(&mostro_pubkey_hex, now) {
         Some(sources) => sources,
-        None => {
-            refresh_rates(&mostro_pubkey_hex, now).await?;
-            rates::cached_sources(&mostro_pubkey_hex, now).unwrap_or_default()
-        }
+        None => refresh_rates(&mostro_pubkey_hex, now)
+            .await?
+            .map(|(_, sources)| sources)
+            .unwrap_or_default(),
     };
     Ok((!sources.is_empty()).then_some(sources))
 }
 
 /// Fetch `mostro_pubkey_hex`'s rates event and cache what it says, or clear
 /// the cache when it has nothing usable to say.
-async fn refresh_rates(mostro_pubkey_hex: &str, now: i64) -> Result<()> {
+///
+/// Returns the table and providers it read, `None` when it cleared. Callers
+/// answer from this, not from a second cache read: the cache holds one node,
+/// and a concurrent refresh can replace or clear it before they look.
+async fn refresh_rates(
+    mostro_pubkey_hex: &str,
+    now: i64,
+) -> Result<Option<(std::collections::HashMap<String, f64>, Vec<String>)>> {
     use crate::mostro::rates;
     use nostr_sdk::prelude::*;
     use std::time::Duration;
@@ -793,7 +800,7 @@ async fn refresh_rates(mostro_pubkey_hex: &str, now: i64) -> Result<()> {
     let Some(event) = select_rates_event(events, &pubkey) else {
         log::warn!("[rates] node {mostro_pubkey_hex} published no usable kind 30078 event");
         rates::clear();
-        return Ok(());
+        return Ok(None);
     };
 
     let expires_at = rates::expires_at(
@@ -804,18 +811,18 @@ async fn refresh_rates(mostro_pubkey_hex: &str, now: i64) -> Result<()> {
         // A relay that ignores NIP-40 must not let a zombie price through.
         log::warn!("[rates] discarding expired kind 30078 event from {mostro_pubkey_hex}");
         rates::clear();
-        return Ok(());
+        return Ok(None);
     }
 
     let Some(parsed) = rates::parse_rates_content(&event.content) else {
         log::warn!("[rates] unusable kind 30078 payload from {mostro_pubkey_hex}");
         rates::clear();
-        return Ok(());
+        return Ok(None);
     };
 
     let sources = rates::parse_sources(tag_value(&event, "source").as_deref());
-    rates::store(mostro_pubkey_hex, parsed, sources, expires_at);
-    Ok(())
+    rates::store(mostro_pubkey_hex, parsed.clone(), sources.clone(), expires_at);
+    Ok(Some((parsed, sources)))
 }
 
 /// The newest authentic rates event among `events`, or `None`.
