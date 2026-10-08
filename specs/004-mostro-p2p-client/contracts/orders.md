@@ -33,13 +33,72 @@ a stale replay:
 - **create**: reconciled — the daemon UUID is bound to the attempt's trade
   index, and the maker row is persisted from the echoed order itself (#394;
   the payload is the published order, min/max included).
-- **take**: the nonce-correlated late reply itself is consumed by the waiter
-  interception and dropped whole — it never reaches the per-action arms. The
-  row it failed to establish is rebuilt by the NEXT daemon message carrying an
-  order, or by the next start's replay, where no in-memory record remains to
-  intercept (#394: role from the payload's trade pubkeys, or
-  AddInvoice ⇒ buyer / PayInvoice ⇒ seller where mostrod omits them; never
-  guessed).
+- **take**: reconciled — the nonce-correlated late reply is consumed as the
+  take's (so a stale replay still touches nothing) and then falls through to
+  the normal dispatch, which rebuilds the row and pushes the UI, with no
+  restart (#566). The row is built from the pending record's own snapshot of
+  the taken book order — same order, same role, same range amount, same
+  classification of the reply the live waiter would have applied — through
+  the live path's row builder, so it is the live path's row: a fresh id, the
+  taker's first step, and `started_at` / `timeout_at` anchored to the reply.
+  Not the generic #394 row (dated by the order's creation, no `timeout_at`),
+  which the sweep's age gate would read as stale the moment it landed and
+  wipe while the book still said `pending`. This holds with or without an
+  order payload: mostrod answers a take-sell that carried a default
+  lightning address with `waiting-seller-to-pay` and no payload. What the
+  snapshot declines — a reply naming another order under the same nonce —
+  falls back to the #394 rebuild from the message (role from the payload's
+  trade pubkeys, or AddInvoice ⇒ buyer / PayInvoice ⇒ seller where mostrod
+  omits them; never guessed). The snapshot is in-memory, so it only
+  reconciles while the app runs; after a restart the replay takes the #394
+  rebuild, and a payload-less reply has nothing to rebuild from — the trade
+  lands with the seller's `hold-invoice-payment-accepted`, which does carry
+  the order. A late `pay-bond-invoice` is the exception on both rebuilds:
+  excluded on purpose (its amount is the bond, not the order), the daemon's
+  idempotent re-send owns that recovery.
+  A late take lands exactly like a live one (`wire_accepted_take`, shared
+  with `take_order`): the single-order watch is opened, the session is
+  installed on this take's trade key, and a counterparty an earlier reveal
+  captured is written to the row, and the row is announced only once it
+  is durable (`reconcile_late_take`).
+  The record also proves the take's generation: a row an **earlier** take
+  of the same order left behind (a lower `trade_key_index` — its `Canceled`
+  never reached us) is replaced by the new row, as `persist_confirmed_take`
+  does on the live path. **Built first, written after**: the new row must
+  exist and the status cursor must admit the reply (only the cursor — the
+  terminal guard would read the earlier row's status as this take's) before
+  anything is written. The replacement is **one storage transaction**
+  (`Storage::replace_trades_for_order`): whatever fails, or if the process
+  dies halfway, the order keeps the earlier row. The reply is never applied
+  to the earlier row: when it proves no row of its own (a late
+  `pay-bond-invoice`, a cursor-refused reply) it is dropped with that row
+  left in place.
+  A **store failure is retried locally**, not left to a redelivery: nostr-sdk
+  never notifies an event id its client already saw (the client's shared
+  events tracker), so no relay copy, reconnect or resync brings the same
+  reply back within the session. The reply and its take record are kept and
+  dispatched again after 5 s, 30 s and 2 min (`retry_late_take`), through the
+  whole dispatcher; after the last attempt the take is given up and logged,
+  and a restart's replay rebuilds what the message itself proves. That
+  matters most for a reply with no order payload, whose only source of a row
+  is the record. The attempts are identity-scoped tasks: the identity
+  teardown (`release_identity_subscriptions`) first **aborts every one and
+  waits until each has stopped** (`forget_late_take_retries`) — also one
+  already inside the reconcile, and one that already landed and settled its
+  take but is still running its action arm (settling ends the retry
+  bookkeeping, not the task's ownership, which lasts until the task
+  finishes) — before it clears anything, so what a retry wrote before it
+  stopped is removed by the rest of the teardown and nothing is written
+  after. A **first** attempt already running when the identity goes is no
+  task the teardown can stop; the teardown bumps an epoch the dispatch read
+  as it began, and a retry that attempt schedules afterwards is refused —
+  no attempt, no task, no take record put back. Nothing is announced, and the binding
+  (`store_trade_key_index`) does not move, before the row is durable.
+  On the web the replacement also needs the origin-wide lock (Web Locks):
+  its read of the earlier rows cannot join its write transaction, so
+  without that lock another context could scan the same rows in between.
+  `replace_trades_for_order` then refuses without writing, and the local
+  retry tries again.
 - **add-invoice**: acknowledged and passed through — the reply doubles as a
   status update, which the per-action arms process as usual.
 - **dispute**: reconciled — `record_late_acceptance` persists the accepted
@@ -198,8 +257,10 @@ and `shared_key` set (same index — kept, since replacing it would drop the
 chat keys that path exists to establish, #334).
 That persistence half runs under the per-order lock (see *Per-order
 serialization*), acquired after the reply and never around the wait for it.
-On rejection or timeout **nothing is persisted** — no phantom trade, and no
-session: a take that fails never leaves one behind.
+On rejection or timeout **nothing is persisted** at that point — no phantom
+trade, and no session. A timeout is not final, though: a genuine reply that
+arrives after it lands the trade later, wired up as this path would have
+(see *Daemon confirmation & request correlation*).
 
 The row is created with an **empty `counterparty_pubkey`**: a book
 order's `creator_pubkey` is the Mostro node (the 38383 event author),
@@ -442,8 +503,11 @@ action requests the user must react to promptly — `WaitingBuyerInvoice` /
 `WaitingPayment` drive the app-wide auto-navigation to the add-invoice /
 pay-invoice screens (`TradeActionListener`, which resolves the trade role
 so the counterparty's informational copy of those statuses never
-navigates). Take replies produce no emission: the take waiter consumes
-them before the dispatch arms run. Screens filter by `order_id`.
+navigates). A take reply consumed by a waiting `take_order` produces no
+emission: the caller persists the row itself, before any dispatch arm runs.
+A late one — its waiter timed out — does: the dispatch prologue lands the
+row and emits its status once, and the arm that follows sees the row
+already holding it (#566). Screens filter by `order_id`.
 
 ```text
 TradeUpdate {
@@ -606,7 +670,7 @@ what rebuilds sessions after one.
 | Action                             | Payload variant                                     | Effect on the local trade row                                                    |
 |------------------------------------|-----------------------------------------------------|----------------------------------------------------------------------------------|
 | `WaitingBuyerInvoice`              | (status sync)                                       | `status → WaitingBuyerInvoice`                                                   |
-| `AddInvoice`                       | `Payload::Order(small_order)`                       | Maker-buyer path (a taker's nonce-correlated copy is consumed by the take interception, even when late): `status → WaitingBuyerInvoice` (payload status, fallback `status_for_action`), `amount_sats ← small_order.amount` when > 0 — synced to book **and** DB so `tradeAmountProvider` sees the sats. Keyed by the message's order id (`trade_index` is `None`). The follow-up `AddInvoice` with a `Payload::Peer` (counterparty reputation) is ignored. A payload status of `settled-hold-invoice` is the payout-failure replacement request (mostrod `check_failure_retries`, retries exhausted) and also maps to `WaitingBuyerInvoice` — persisting the settled status would hide the request and strand the payout. |
+| `AddInvoice`                       | `Payload::Order(small_order)`                       | Maker-buyer path, and a late taker copy right after the prologue rebuilt its row (#566; a live taker copy is consumed by the take interception): `status → WaitingBuyerInvoice` (payload status, fallback `status_for_action`), `amount_sats ← small_order.amount` when > 0 — synced to book **and** DB so `tradeAmountProvider` sees the sats. Keyed by the message's order id (`trade_index` is `None`). The follow-up `AddInvoice` with a `Payload::Peer` (counterparty reputation) is ignored. A payload status of `settled-hold-invoice` is the payout-failure replacement request (mostrod `check_failure_retries`, retries exhausted) and also maps to `WaitingBuyerInvoice` — persisting the settled status would hide the request and strand the payout. |
 | `InvoiceUpdated`                   | (status sync)                                       | `status → SettledHoldInvoice`: mostrod sends this only from `pay_new_invoice`, when the buyer's replacement payout invoice is accepted on a settled escrow — the payout is pending again on the new invoice |
 | `PayInvoice`                       | `Payload::PaymentRequest(small_order, bolt11, amt)` | `hold_invoice ← bolt11`, `amount_sats ← amt ?? small_order.amount`, `status → WaitingPayment` |
 | `BuyerTookOrder` / `HoldInvoicePaymentAccepted` | `SmallOrder` with `status = active`      | `status → Active` (routed through `map_core_status` kebab-case). The peer reveal happens in the pre-dispatch capture above, not in this arm. |

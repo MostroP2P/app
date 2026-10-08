@@ -387,6 +387,21 @@ pub trait Storage: Send + Sync {
     /// no matching trade exists.
     async fn delete_trade_by_order_id(&self, order_id: &str) -> Result<()>;
 
+    /// Replace every persisted trade of `order_id` with `trade`, in ONE
+    /// transaction: either the order ends up with exactly `trade`, or it
+    /// keeps the rows it had — never neither, whatever fails and even if the
+    /// process dies halfway. For a new take that supersedes a row an earlier
+    /// take of the same order left behind (#566).
+    ///
+    /// May refuse with an `Err` and change nothing when it cannot isolate the
+    /// replacement from other writers — on the web, when the browser grants
+    /// no origin-wide lock. Callers retry.
+    async fn replace_trades_for_order(
+        &self,
+        order_id: &str,
+        trade: &crate::api::types::TradeInfo,
+    ) -> Result<()>;
+
     /// Update the order ID inside a persisted trade (e.g. local UUID → daemon UUID).
     ///
     /// Loads the trade whose `order.id == old_order_id`, replaces `order.id`
