@@ -173,8 +173,9 @@ class IdentityService {
   /// Replaces any currently loaded identity. Throws if [words] is not a valid
   /// 12- or 24-word BIP-39 phrase.
   static Future<void> importAndStore(List<String> words) async {
-    await identity_api.deleteIdentity();
-    await identity_api.importFromMnemonic(words: words, recover: false);
+    await _replaceLoadedIdentity(
+      () => identity_api.importFromMnemonic(words: words, recover: false),
+    );
 
     await _storage.write(key: _kMnemonic, value: words.join(' '));
     await Future.wait([
@@ -219,22 +220,7 @@ class IdentityService {
   static Future<List<String>> regenerate() async {
     // Clear Rust's in-memory identity state first — createIdentity() returns
     // AlreadyExists if any identity is currently loaded.
-    // deleteIdentity() may throw if no identity is loaded (e.g. fresh install
-    // followed immediately by regenerate); ignore that case and proceed.
-    try {
-      await identity_api.deleteIdentity();
-    } catch (e) {
-      final msg = e.toString().toLowerCase();
-      if (!msg.contains('noidentity') &&
-          !msg.contains('no identity') &&
-          !msg.contains('not loaded')) {
-        rethrow;
-      }
-      debugPrint(
-        '[identity] regenerate: no identity loaded, skipping deleteIdentity',
-      );
-    }
-    final result = await identity_api.createIdentity();
+    final result = await _replaceLoadedIdentity(identity_api.createIdentity);
     final words = result.mnemonicWords;
 
     // Write new mnemonic first — this is the critical write.
@@ -273,6 +259,63 @@ class IdentityService {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
+
+  /// Delete the identity Rust holds, then [install] the one replacing it.
+  ///
+  /// Once the deletion has gone through, Rust no longer serves the previous
+  /// identity — its subscriptions, push registrations and in-memory stores
+  /// are given back — while the screen and secure storage still hold it. So
+  /// when [install] is refused after that (`PendingWipeFailed`, issue #555,
+  /// or words the core rejects), that identity is loaded again before the
+  /// error goes on, and the session is never left without one (review of
+  /// #573). A deletion that is itself refused (`WipeNotRecorded`) gave
+  /// nothing up, and nothing is reloaded.
+  static Future<T> _replaceLoadedIdentity<T>(
+    Future<T> Function() install,
+  ) async {
+    final retired = await _deleteLoadedIdentity();
+    try {
+      return await install();
+    } catch (_) {
+      if (retired) await _reloadRetiredIdentity();
+      rethrow;
+    }
+  }
+
+  /// Load the identity secure storage still holds into the core again, and
+  /// have Rust rebuild what its deletion gave up. Never throws: the caller
+  /// reports the refusal that brought it here, and a reload that fails too
+  /// leaves the next launch to load it.
+  static Future<void> _reloadRetiredIdentity() async {
+    try {
+      final stored = StoredIdentity.fromEntries(await _storage.readAll());
+      if (stored == null) return;
+      await _loadExisting(stored);
+      await identity_api.restoreIdentitySession();
+      debugPrint('[identity] replacement refused — previous identity reloaded');
+    } catch (e) {
+      debugPrint('[identity] previous identity not reloaded: $e');
+    }
+  }
+
+  /// Delete the identity Rust holds, if it holds one, and say whether it did.
+  /// An empty slot is not an error for a replacement: a fresh install
+  /// followed at once by a regeneration has none.
+  static Future<bool> _deleteLoadedIdentity() async {
+    try {
+      await identity_api.deleteIdentity();
+      return true;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (!msg.contains('noidentity') &&
+          !msg.contains('no identity') &&
+          !msg.contains('not loaded')) {
+        rethrow;
+      }
+      debugPrint('[identity] no identity loaded, nothing to delete');
+      return false;
+    }
+  }
 
   static Future<List<String>> _createAndStore() async {
     final result = await identity_api.createIdentity();

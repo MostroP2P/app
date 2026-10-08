@@ -9387,6 +9387,49 @@ pub(crate) async fn release_identity_subscriptions() {
     forget_processed_daemon_messages();
 }
 
+/// Open again, for an identity loaded back in the same session, what
+/// [`release_identity_subscriptions`] gave back — the way a cold start opens
+/// them (`_run_order_subscription`, `on_pool_online`).
+///
+/// For a replacement refused after its deletion went through (review of
+/// #573): the previous identity is loaded again, and without this nothing of
+/// its trades would reach the session until a restart. The per-trade
+/// receivers and REQs stay closed, as after a restart: the bulk kind-14 feed
+/// covers every key. Before the pool exists there is nothing to re-arm —
+/// coming online opens all of it.
+pub(crate) async fn restore_identity_subscriptions() {
+    seed_global_dm_coverage().await;
+    resubscribe_global_dm_filter().await;
+    if let Ok(pool) = crate::api::nostr::get_pool() {
+        resync_watched_orders(&pool.client()).await;
+    }
+    // Also installs the trade sessions the deletion cleared.
+    crate::api::messages::resubscribe_active_chats().await;
+}
+
+/// Mark the book entries of the loaded identity's own orders again, which
+/// [`forget_book_ownership`] handed back to the public view.
+///
+/// A cold start learns them from the trade rows as each Kind 38383 arrives
+/// (`classify_ingested_order`); in the same session the entries are already
+/// in the book, and would read as strangers' until their next revision. A
+/// row that cannot be read leaves the marks to that next revision.
+pub(crate) async fn reclaim_book_ownership() {
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    let trades = match db.list_trades().await {
+        Ok(trades) => trades,
+        Err(e) => {
+            log::warn!("[orders] own orders not re-marked in the book: {e}");
+            return;
+        }
+    };
+    for trade in trades.iter().filter(|trade| trade.order.is_mine) {
+        order_book().claim_mine(&trade.order.id).await;
+    }
+}
+
 /// Give back the per-trade relay subscriptions of a trade that ended (#523):
 /// its place in the shared d-tag REQ, its daemon-message watcher and its
 /// chat REQs. They used to linger until a 30-minute idle, or the whole

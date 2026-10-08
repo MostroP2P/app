@@ -1172,6 +1172,26 @@ class AppLocalizationsNl extends AppLocalizations {
       'Sla je 12 woorden op. Het kost een minuut.';
 
   @override
+  String get pendingWipeBannerTitle =>
+      'De gegevens van de vorige gebruiker staan nog op dit apparaat';
+
+  @override
+  String get pendingWipeBannerBody =>
+      'Bij het verwijderen van de vorige identiteit konden de trades en chats niet van dit apparaat worden gewist. De app probeert het opnieuw wanneer een nieuwe gebruiker wordt aangemaakt of geïmporteerd.';
+
+  @override
+  String get pendingWipeBlockedMessage =>
+      'De gegevens van de vorige gebruiker konden niet van dit apparaat worden verwijderd, dus de nieuwe gebruiker is niet ingesteld. Probeer het opnieuw.';
+
+  @override
+  String get wipeNotRecordedMessage =>
+      'De huidige gebruiker kon niet veilig worden verwijderd, dus er is niets gewijzigd. Probeer het opnieuw.';
+
+  @override
+  String get identitySwapStorageUnavailableMessage =>
+      'De opslag van het apparaat is nu niet beschikbaar, dus de huidige gebruiker is behouden en er is niets gewijzigd. Start de app opnieuw en probeer het nog eens.';
+
+  @override
   String get failedToSaveBackupStatusMessage =>
       'De back-upstatus kon niet worden opgeslagen. Probeer het opnieuw.';
 

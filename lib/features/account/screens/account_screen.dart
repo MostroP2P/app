@@ -48,6 +48,7 @@ class AccountScreen extends ConsumerStatefulWidget {
     @visibleForTesting this.debugRestoreRun,
     @visibleForTesting this.debugPrivacyMode,
     @visibleForTesting this.debugRestartOrders,
+    @visibleForTesting this.debugPendingWipe,
   });
 
   /// Test-only word source for `Show words`, so widget tests do not reach the
@@ -73,6 +74,10 @@ class AccountScreen extends ConsumerStatefulWidget {
   /// Test seam: the book re-subscription behind `Actualizar`.
   final Future<void> Function()? debugRestartOrders;
 
+  /// Test seam: whether a failed identity wipe is pending retry (issue #555),
+  /// instead of the bridge's answer.
+  final Future<bool> Function()? debugPendingWipe;
+
   @override
   ConsumerState<AccountScreen> createState() => _AccountScreenState();
 }
@@ -88,10 +93,48 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   bool _copied = false;
   Timer? _copiedTimer;
 
+  /// Whether the previous identity's data wipe is still pending (issue #555).
+  bool _pendingWipe = false;
+
   @override
   void initState() {
     super.initState();
     unawaited(_loadPublicKey());
+    unawaited(_loadPendingWipe());
+  }
+
+  /// Whether the core refused the new identity because the previous one's
+  /// data wipe failed again (`PendingWipeFailed`, issue #555). That is neither
+  /// a bad phrase nor a generation error, so it gets its own message, and the
+  /// deletion just before it may have set the marker the banner reads.
+  static bool _isPendingWipeFailure(Object e) =>
+      e.toString().contains('PendingWipeFailed');
+
+  /// Whether the core refused to delete the current identity because it could
+  /// not record the wipe as pending (`WipeNotRecorded`, issue #555). Nothing
+  /// was given up: the current user stays, and the message says so.
+  static bool _isWipeNotRecorded(Object e) =>
+      e.toString().contains('WipeNotRecorded');
+
+  /// Whether the core refused to delete the current identity because this
+  /// session has no database (`StorageUnavailable`, review of #573): nothing
+  /// was given up, and no retry can succeed until the app restarts.
+  static bool _isStorageUnavailable(Object e) =>
+      e.toString().contains('StorageUnavailable');
+
+  /// A failed read hides the banner rather than breaking the screen: the
+  /// marker is diagnostic, and the retry itself does not depend on it being
+  /// shown.
+  Future<void> _loadPendingWipe() async {
+    try {
+      final pending =
+          await (widget.debugPendingWipe?.call() ??
+              identity_api.hasPendingIdentityWipe());
+      if (!mounted) return;
+      setState(() => _pendingWipe = pending);
+    } catch (e) {
+      debugPrint('[account] pending-wipe flag unavailable: $e');
+    }
   }
 
   Future<void> _loadPublicKey() async {
@@ -197,8 +240,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           fit: StackFit.expand,
           children: [
             BackupFillViewport(
-              gap: 11,
+              gap: 12,
               blocks: [
+                if (_pendingWipe) const _PendingWipeBanner(),
                 if (backedUp)
                   _SecretWordsCard(
                     words: _words,
@@ -388,9 +432,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                   final swap = _IdentitySwap.of(context);
                   Navigator.pop(dialogContext);
                   try {
-                    // Atomically replaces the stored identity: new mnemonic is
-                    // written before old data is cleared, so there is no window
-                    // where the user is left without a valid identity.
+                    // The new mnemonic is stored only once the core holds the
+                    // new identity; a refusal after the deletion loads the
+                    // previous one again (IdentityService), so the session is
+                    // never left without one.
                     await (widget.debugRegenerate?.call() ??
                         IdentityService.regenerate());
                   } catch (e) {
@@ -398,12 +443,19 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     swap.messenger.showSnackBar(
                       SnackBar(
                         content: Text(
-                          kDebugMode
+                          _isPendingWipeFailure(e)
+                              ? swap.l10n.pendingWipeBlockedMessage
+                              : _isWipeNotRecorded(e)
+                              ? swap.l10n.wipeNotRecordedMessage
+                              : _isStorageUnavailable(e)
+                              ? swap.l10n.identitySwapStorageUnavailableMessage
+                              : kDebugMode
                               ? 'Failed to generate identity: $e'
                               : swap.l10n.failedToGenerateIdentityMessage,
                         ),
                       ),
                     );
+                    if (_isPendingWipeFailure(e)) unawaited(_loadPendingWipe());
                     return;
                   }
                   // Only reset and navigate once the new identity exists.
@@ -436,10 +488,19 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       swap.messenger.showSnackBar(
         SnackBar(
           content: Text(
-            kDebugMode ? 'Import failed: $e' : l10n.invalidMnemonicMessage,
+            _isPendingWipeFailure(e)
+                ? l10n.pendingWipeBlockedMessage
+                : _isWipeNotRecorded(e)
+                ? l10n.wipeNotRecordedMessage
+                : _isStorageUnavailable(e)
+                ? l10n.identitySwapStorageUnavailableMessage
+                : kDebugMode
+                ? 'Import failed: $e'
+                : l10n.invalidMnemonicMessage,
           ),
         ),
       );
+      if (_isPendingWipeFailure(e)) unawaited(_loadPendingWipe());
       return;
     }
     // Before the recovery below, not after: what it brings back belongs to
@@ -605,7 +666,7 @@ class _BackupBanner extends StatelessWidget {
     final pal = BackupPalette.of(context);
     final l10n = AppLocalizations.of(context);
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(18),
       side: BorderSide(color: pal.amberBorder),
     );
 
@@ -618,7 +679,7 @@ class _BackupBanner extends StatelessWidget {
           onTap: onTap,
           customBorder: shape,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             child: Row(
               children: [
                 Icon(Icons.shield_outlined, size: 20, color: pal.amber),
@@ -662,6 +723,73 @@ class _BackupBanner extends StatelessWidget {
   }
 }
 
+// ── issue #555 · Pending-wipe warning ─────────────────────────────────────────
+
+/// Shown while a failed identity wipe is pending retry: the previous
+/// identity's rows are still on this device, the deletion itself reported
+/// success, and this banner is the one trace the user gets. Informational
+/// only — the retry belongs to the next identity creation or import, the
+/// point where the tables hold nothing a live identity would lose (#555).
+///
+/// A live region (DS-A11Y-2): the marker is read after the screen is up, so
+/// the banner can appear while the user is already on it.
+class _PendingWipeBanner extends StatelessWidget {
+  const _PendingWipeBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final pal = BackupPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Material(
+        color: pal.amberFill,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: pal.amberBorder),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.warning_amber_rounded, size: 20, color: pal.amber),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.pendingWipeBannerTitle,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: pal.amberTitle,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      l10n.pendingWipeBannerBody,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: book.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── 15b · Secret words ────────────────────────────────────────────────────────
 
 class _SecretWordsCard extends StatelessWidget {
@@ -690,7 +818,7 @@ class _SecretWordsCard extends StatelessWidget {
 
     return _Card(
       padding: const EdgeInsets.all(14),
-      gap: 9,
+      gap: 10,
       children: [
         _CardHeader(
           icon: Icons.key_rounded,
@@ -702,14 +830,14 @@ class _SecretWordsCard extends StatelessWidget {
           Material(
             color: pal.revealFill,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: pal.revealBorder),
             ),
             child: InkWell(
               onTap: loading ? null : onReveal,
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(14),
               child: Padding(
-                padding: const EdgeInsets.all(11),
+                padding: const EdgeInsets.all(12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -725,10 +853,10 @@ class _SecretWordsCard extends StatelessWidget {
                     else
                       Icon(
                         Icons.visibility_outlined,
-                        size: 15,
+                        size: 16,
                         color: book.limeText,
                       ),
-                    const SizedBox(width: 7),
+                    const SizedBox(width: 8),
                     Text(
                       l10n.showWordsButton,
                       style: TextStyle(
@@ -772,7 +900,7 @@ class _BackedUpChip extends StatelessWidget {
     final book = OrderBookPalette.of(context);
     final pal = BackupPalette.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: pal.chipFill,
         borderRadius: BorderRadius.circular(999),
@@ -780,7 +908,7 @@ class _BackedUpChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_rounded, size: 11, color: pal.accent),
+          Icon(Icons.check_rounded, size: 12, color: pal.accent),
           const SizedBox(width: 4),
           Text(
             AppLocalizations.of(context).backedUpBadgeLabel,
@@ -855,7 +983,7 @@ class _PrivacyCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return _Card(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       gap: 12,
       children: [
         _CardHeader(
@@ -865,7 +993,7 @@ class _PrivacyCard extends StatelessWidget {
             onPressed: onInfo,
             icon: Icon(
               Icons.info_outline_rounded,
-              size: 15,
+              size: 16,
               color: book.textTertiary,
             ),
             tooltip: l10n.moreInformationTooltip,
@@ -1010,20 +1138,20 @@ class _AccountActions extends StatelessWidget {
           leading: Icons.person_add_alt_1_outlined,
           onPressed: onGenerate,
         ).withAutomationId(AutomationIds.keysGenerate),
-        const SizedBox(height: 9),
+        const SizedBox(height: 10),
         Row(
           children: [
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: onImport,
-                icon: const Icon(Icons.download_rounded, size: 15),
+                icon: const Icon(Icons.download_rounded, size: 16),
                 label: Text(l10n.importMostroUserButton),
                 style: outline.copyWith(
-                  padding: const WidgetStatePropertyAll(EdgeInsets.all(13)),
+                  padding: const WidgetStatePropertyAll(EdgeInsets.all(12)),
                 ),
               ).withAutomationId(AutomationIds.keysImport),
             ),
-            const SizedBox(width: 9),
+            const SizedBox(width: 10),
             OutlinedButton(
               onPressed: onRefresh,
               style: outline.copyWith(
@@ -1061,7 +1189,7 @@ class _Card extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: OrderBookPalette.of(context).surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1091,7 +1219,7 @@ class _CardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 17, color: BackupPalette.of(context).accent),
+        Icon(icon, size: 18, color: BackupPalette.of(context).accent),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -1155,6 +1283,7 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final book = OrderBookPalette.of(context);
     return MostroDialog(
       title: l10n.importMnemonicDialogTitle,
       content: TextField(
@@ -1166,6 +1295,14 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
         decoration: InputDecoration(
           hintText: l10n.importMnemonicHintText,
           errorText: _error,
+          // Every state set here: what is left out comes from v1's theme,
+          // fill and underline included (DS-CMP-19).
+          filled: false,
+          border: _fieldBorder(book.border),
+          enabledBorder: _fieldBorder(book.border),
+          focusedBorder: _fieldBorder(book.borderHighlight),
+          errorBorder: _fieldBorder(book.sell),
+          focusedErrorBorder: _fieldBorder(book.sell),
         ),
         onChanged: (_) {
           if (_error != null) setState(() => _error = null);
@@ -1179,3 +1316,9 @@ class _ImportMnemonicDialogState extends State<_ImportMnemonicDialog> {
     );
   }
 }
+
+/// The boxed outline of the import dialog's phrase field, in [color].
+OutlineInputBorder _fieldBorder(Color color) => OutlineInputBorder(
+  borderRadius: BorderRadius.circular(14),
+  borderSide: BorderSide(color: color),
+);

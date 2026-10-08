@@ -643,6 +643,134 @@ void main() {
     });
   });
 
+  // Issue #555: the core refuses a new identity while the previous one's data
+  // wipe keeps failing, and the user must be told that is why.
+  group('a pending wipe that fails again', () {
+    testWidgets('refuses the generation, saying why, and keeps the old state', (
+      tester,
+    ) async {
+      final container = await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: true,
+        onRegenerate:
+            () async => throw StateError('AnyhowException(PendingWipeFailed)'),
+      );
+      await _seedPreviousUser(container);
+
+      await _generate(tester);
+
+      expect(find.text(l10n.pendingWipeBlockedMessage), findsOneWidget);
+      expect(find.text('home'), findsNothing);
+      expect(container.read(tradeRoleProvider), {'old': true});
+    });
+
+    testWidgets('refuses the import, not as a bad phrase', (tester) async {
+      await _pumpAccount(
+        tester,
+        reminderArmed: true,
+        backedUp: false,
+        onImport:
+            (_) async => throw StateError('AnyhowException(PendingWipeFailed)'),
+      );
+
+      await _submitImport(tester, l10n);
+
+      expect(find.text(l10n.pendingWipeBlockedMessage), findsOneWidget);
+      expect(find.text(l10n.invalidMnemonicMessage), findsNothing);
+      expect(find.text('home'), findsNothing);
+    });
+  });
+
+  // Review round 3 of #555: a deletion that cannot record its pending wipe
+  // is refused before anything is given up. The current user stays, and the
+  // message must say so — not blame the phrase, nor a previous user's data.
+  group('a deletion that cannot record its wipe', () {
+    testWidgets('refuses the generation and keeps the current user', (
+      tester,
+    ) async {
+      final container = await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: true,
+        onRegenerate:
+            () async => throw StateError('AnyhowException(WipeNotRecorded)'),
+      );
+      await _seedPreviousUser(container);
+
+      await _generate(tester);
+
+      expect(find.text(l10n.wipeNotRecordedMessage), findsOneWidget);
+      expect(find.text(l10n.pendingWipeBlockedMessage), findsNothing);
+      expect(find.text('home'), findsNothing);
+      expect(container.read(tradeRoleProvider), {'old': true});
+    });
+
+    testWidgets('refuses the import, not as a bad phrase', (tester) async {
+      await _pumpAccount(
+        tester,
+        reminderArmed: true,
+        backedUp: false,
+        onImport:
+            (_) async => throw StateError('AnyhowException(WipeNotRecorded)'),
+      );
+
+      await _submitImport(tester, l10n);
+
+      expect(find.text(l10n.wipeNotRecordedMessage), findsOneWidget);
+      expect(find.text(l10n.invalidMnemonicMessage), findsNothing);
+      expect(find.text('home'), findsNothing);
+    });
+  });
+
+  // Review of #573, finding 2: a session without a database refuses every
+  // swap until the store comes back. Retrying cannot help there, so the
+  // message must not ask for one — it says what will.
+  group('a session without a database', () {
+    testWidgets('refuses the generation and says a restart is needed', (
+      tester,
+    ) async {
+      final container = await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: true,
+        onRegenerate:
+            () async => throw StateError('AnyhowException(StorageUnavailable)'),
+      );
+      await _seedPreviousUser(container);
+
+      await _generate(tester);
+
+      expect(
+        find.text(l10n.identitySwapStorageUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(find.text(l10n.wipeNotRecordedMessage), findsNothing);
+      expect(find.text('home'), findsNothing);
+      expect(container.read(tradeRoleProvider), {'old': true});
+    });
+
+    testWidgets('refuses the import, not as a bad phrase', (tester) async {
+      await _pumpAccount(
+        tester,
+        reminderArmed: true,
+        backedUp: false,
+        onImport:
+            (_) async =>
+                throw StateError('AnyhowException(StorageUnavailable)'),
+      );
+
+      await _submitImport(tester, l10n);
+
+      expect(
+        find.text(l10n.identitySwapStorageUnavailableMessage),
+        findsOneWidget,
+      );
+      expect(find.text(l10n.invalidMnemonicMessage), findsNothing);
+      expect(find.text('home'), findsNothing);
+    });
+  });
+
   group('generating a new identity', () {
     testWidgets('still arms the reminder and clears the backed-up flag', (
       tester,

@@ -52,8 +52,12 @@ Future<void> _pumpAccount(
   WidgetTester tester, {
   required bool backedUp,
   Future<String?> Function()? publicKey,
+  Future<bool> Function()? pendingWipe,
+  Size size = const Size(360, 760),
+  Locale locale = const Locale('en'),
+  double textScale = 1,
 }) async {
-  tester.view.physicalSize = const Size(360, 760);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
@@ -72,10 +76,21 @@ Future<void> _pumpAccount(
       ],
       child: MaterialApp(
         theme: buildDarkTheme(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: AccountScreen(debugWords: _words, debugPublicKey: publicKey),
+        builder:
+            (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+        home: AccountScreen(
+          debugWords: _words,
+          debugPublicKey: publicKey,
+          debugPendingWipe: pendingWipe,
+        ),
       ),
     ),
   );
@@ -113,6 +128,69 @@ void main() {
 
       expect(find.text(l10n.backupNowButton), findsNothing);
       expect(find.text(l10n.backupBannerTitle), findsOneWidget);
+    });
+  });
+
+  group('pending wipe (issue #555)', () {
+    testWidgets('the warning shows only while the marker is set', (
+      tester,
+    ) async {
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        pendingWipe: () async => true,
+      );
+
+      expect(find.text(l10n.pendingWipeBannerTitle), findsOneWidget);
+      expect(find.text(l10n.pendingWipeBannerBody), findsOneWidget);
+    });
+
+    // DS-A11Y-2: the marker is read after the screen is up, so the warning
+    // appears while the user watches and must be announced.
+    testWidgets('the warning is announced when it appears', (tester) async {
+      final pending = Completer<bool>();
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        pendingWipe: () => pending.future,
+      );
+      expect(find.text(l10n.pendingWipeBannerTitle), findsNothing);
+
+      pending.complete(true);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(find.text(l10n.pendingWipeBannerTitle)),
+        isSemantics(isLiveRegion: true),
+      );
+    });
+
+    // DS-SPC-5: 320 dp, 2× text, German — next to the backup banner, the
+    // case the warning shares the screen with the longest copy.
+    testWidgets('fits at 320 dp with 2× text in German', (tester) async {
+      final de = await AppLocalizations.delegate.load(const Locale('de'));
+      await _pumpAccount(
+        tester,
+        backedUp: false,
+        pendingWipe: () async => true,
+        size: const Size(320, 760),
+        locale: const Locale('de'),
+        textScale: 2,
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text(de.pendingWipeBannerTitle), findsOneWidget);
+      expect(find.text(de.pendingWipeBannerBody), findsOneWidget);
+    });
+
+    testWidgets('no marker, no warning', (tester) async {
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        pendingWipe: () async => false,
+      );
+
+      expect(find.text(l10n.pendingWipeBannerTitle), findsNothing);
     });
   });
 

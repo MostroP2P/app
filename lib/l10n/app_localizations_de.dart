@@ -1180,6 +1180,26 @@ class AppLocalizationsDe extends AppLocalizations {
       'Sichere deine 12 Wörter — es dauert 60 Sekunden.';
 
   @override
+  String get pendingWipeBannerTitle =>
+      'Die Daten des vorherigen Nutzers sind noch auf diesem Gerät';
+
+  @override
+  String get pendingWipeBannerBody =>
+      'Beim Löschen der vorherigen Identität konnten deren Trades und Chats nicht von diesem Gerät entfernt werden. Die App versucht es erneut, sobald ein neuer Nutzer erstellt oder importiert wird.';
+
+  @override
+  String get pendingWipeBlockedMessage =>
+      'Die Daten des vorherigen Nutzers konnten nicht von diesem Gerät entfernt werden, daher wurde der neue Nutzer nicht eingerichtet. Bitte versuche es erneut.';
+
+  @override
+  String get wipeNotRecordedMessage =>
+      'Der aktuelle Nutzer konnte nicht sicher entfernt werden, daher wurde nichts geändert. Bitte versuche es erneut.';
+
+  @override
+  String get identitySwapStorageUnavailableMessage =>
+      'Der Speicher des Geräts ist gerade nicht verfügbar, daher wurde der aktuelle Nutzer beibehalten und nichts geändert. Starte die App neu und versuche es erneut.';
+
+  @override
   String get failedToSaveBackupStatusMessage =>
       'Sicherungsstatus konnte nicht gespeichert werden. Bitte versuche es erneut.';
 

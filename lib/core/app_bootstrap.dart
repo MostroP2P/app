@@ -190,9 +190,10 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   try {
     await IdentityService.initialize();
   } catch (e, st) {
-    debugPrint(
-      '[main] Identity init failed — secure storage unavailable: $e\n$st',
-    );
+    // Not only secure storage: a first launch over a database that still
+    // holds a deleted identity's rows is refused (`PendingWipeFailed`) until
+    // the wipe can be retried from the Account screen (issue #555).
+    debugPrint('[main] Identity init failed: $e\n$st');
   }
 
   // Subscribe to bond-slashed notices BEFORE relay delivery starts, so the
