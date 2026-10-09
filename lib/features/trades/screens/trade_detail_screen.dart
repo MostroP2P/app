@@ -1441,6 +1441,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
               automationId: AutomationIds.tradeRelease,
               onPressed: _releaseOrder,
             ),
+            TradeSecondaryAction.addInvoice => TradeSecondarySpec(
+              label: l10n.addLightningInvoiceButton,
+              automationId: AutomationIds.tradeAddInvoice,
+              onPressed:
+                  () async =>
+                      context.push(AppRoute.addInvoicePath(widget.orderId)),
+            ),
           },
     ];
 

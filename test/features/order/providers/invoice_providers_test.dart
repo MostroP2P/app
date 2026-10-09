@@ -48,6 +48,23 @@ void main() {
     },
   );
 
+  test(
+    'a settled escrow has no deadline, whatever step start is on record',
+    () async {
+      // mostrod's scheduler times only the waiting steps: the buyer's
+      // replacement invoice after the release has no window.
+      final deadline = await _deadline(
+        trade: fakeTrade(
+          isMine: false,
+          startedAt: _started,
+          status: OrderStatus.settledHoldInvoice,
+        ),
+        stepStart: _started,
+      );
+      expect(deadline, isNull);
+    },
+  );
+
   test('a maker without a recorded step start has no deadline', () async {
     // Their started_at is when the order was created, not when it was taken.
     final deadline = await _deadline(

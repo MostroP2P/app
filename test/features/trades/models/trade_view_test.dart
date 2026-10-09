@@ -116,6 +116,12 @@ void main() {
       expect(v.primary, TradePrimaryAction.none);
       expect(v.chip, TradeChip.waiting);
     });
+
+    test('payout pending: the new invoice is the buyer\'s one secondary', () {
+      final v = view(TradeStatus.payoutPending, isBuyer: true);
+      expect(v.secondary, [TradeSecondaryAction.addInvoice]);
+      expect(v.showsTimer, isFalse);
+    });
   });
 
   group('8e · completed', () {
