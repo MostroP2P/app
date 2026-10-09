@@ -977,6 +977,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutPriceSection => 'Price';
 
   @override
+  String get aboutPriceSourcesFootnote =>
+      'Price sources are the providers behind the rates the node publishes now; one that failed or was set aside is not listed.';
+
+  @override
   String get aboutMostroVersionLabel => 'Mostro Version';
 
   @override

@@ -989,6 +989,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get aboutPriceSection => 'Precio';
 
   @override
+  String get aboutPriceSourcesFootnote =>
+      'Las fuentes de precio son los proveedores de las tasas que el nodo publica ahora; uno que falló o se descartó no aparece.';
+
+  @override
   String get aboutMostroVersionLabel => 'Versión de Mostro';
 
   @override

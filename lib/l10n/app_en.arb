@@ -1253,11 +1253,15 @@
   },
   "aboutPriceSourceLabel": "Source",
   "@aboutPriceSourceLabel": {
-    "description": "Technical data row, in the Price group: the price providers the Mostro node takes its exchange rates from (Yadio, CoinGecko, El Toque…), as its rates event names them"
+    "description": "Technical data row, in the Price group: a price provider behind the exchange rates the Mostro node publishes now (Yadio, CoinGecko, El Toque…), as its rates event names them"
   },
   "aboutPriceSection": "Price",
   "@aboutPriceSection": {
     "description": "Technical data group title: the node's exchange rates, holding the price source row"
+  },
+  "aboutPriceSourcesFootnote": "Price sources are the providers behind the rates the node publishes now; one that failed or was set aside is not listed.",
+  "@aboutPriceSourcesFootnote": {
+    "description": "Technical data footnote, added when the Price group is shown: the sources are the providers of the rates published now, not every provider the node is configured with"
   },
   "aboutMostroVersionLabel": "Mostro Version",
   "@aboutMostroVersionLabel": {

@@ -34,14 +34,23 @@ final mostroNodeProvider = FutureProvider.autoDispose<MostroInstance?>((
 });
 
 /// The price providers the active node names in its rates event (Kind 30078,
-/// `source` tag): `yadio`, `coingecko`, `eltoque`… Null when the node
-/// publishes no rates, or names no provider. Read from the cache the order
-/// form's rates already fill, so it seldom costs a relay query.
+/// `source` tag): `yadio`, `coingecko`, `eltoque`…, those behind the revision
+/// it published. Null when the node publishes no rates, or names no
+/// provider. Answered from the cache the order form's rates fill while that
+/// table is valid; otherwise a relay query, and one on every read for a node
+/// that publishes no rates.
 final priceSourcesProvider = FutureProvider.autoDispose<List<String>?>(
   (ref) => nostr_api.fetchPriceSources(
     mostroPubkeyHex: ref.watch(activeMostroPubkeyProvider),
   ),
 );
+
+/// Fetch the node's info and its price sources again: About's retry, after
+/// either came back empty while the relays were out of reach.
+void retryNodeFetches(WidgetRef ref) {
+  ref.invalidate(mostroNodeProvider);
+  ref.invalidate(priceSourcesProvider);
+}
 
 /// Display name of the active node (kind 0 metadata or the name the user gave
 /// a custom node), or `null` while the registry loads or when it has none.

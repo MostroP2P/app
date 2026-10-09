@@ -56,7 +56,7 @@ class NodeTechnicalDataScreen extends ConsumerWidget {
                 ? null
                 : CopyIconButton(
                   text: clipboard,
-                  size: 17,
+                  size: 18,
                   color: pal.accent,
                   tooltip: l10n.aboutCopyAllData,
                   copiedLabel: l10n.aboutCopiedToClipboard,
@@ -90,14 +90,18 @@ class NodeTechnicalDataScreen extends ConsumerWidget {
               ),
             ],
             if (node != null)
-              AboutNote(l10n.aboutTechnicalFootnote)
+              AboutNote(
+                (priceSources ?? const []).isNotEmpty
+                    ? '${l10n.aboutTechnicalFootnote} ${l10n.aboutPriceSourcesFootnote}'
+                    : l10n.aboutTechnicalFootnote,
+              )
             else if (nodeAsync.isLoading)
               AboutNote(l10n.aboutNodeLoadingText)
             else
               AboutNote(
                 l10n.aboutNodeUnavailable,
                 action: TextButton(
-                  onPressed: () => ref.invalidate(mostroNodeProvider),
+                  onPressed: () => retryNodeFetches(ref),
                   child: Text(
                     l10n.aboutNodeRetry,
                     style: TextStyle(

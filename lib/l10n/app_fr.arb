@@ -286,6 +286,7 @@
   "aboutFiatCurrenciesLabel": "Devises fiat",
   "aboutPriceSourceLabel": "Source",
   "aboutPriceSection": "Prix",
+  "aboutPriceSourcesFootnote": "Les sources de prix sont les fournisseurs des taux que le nœud publie en ce moment ; un fournisseur en panne ou écarté n'apparaît pas.",
   "aboutMostroVersionLabel": "Version Mostro",
   "aboutMostroCommitLabel": "Commit Mostro",
   "aboutHoldInvoiceExpLabel": "Expiration de la hold invoice",

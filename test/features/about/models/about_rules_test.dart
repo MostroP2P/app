@@ -119,10 +119,17 @@ void main() {
       );
     });
 
+    // The Rust side keeps the node's spelling, so a known provider must be
+    // recognised in any case the node writes it in.
+    test('a known provider is named whatever case the node writes', () {
+      expect(priceSourceName('YADIO'), 'Yadio');
+      expect(priceSourceName('ElToque'), 'El Toque');
+      expect(priceSourceName('Currency_API'), 'Currency API');
+    });
+
     test('a provider the app does not know reads as the node sent it', () {
       expect(priceSourceName('newsource'), 'newsource');
       expect(priceSourceName('CustomProvider'), 'CustomProvider');
-      expect(priceSourceName('CoinGecko'), 'CoinGecko');
     });
 
     test('get a group of their own, one row each, after the bond', () {
@@ -144,12 +151,32 @@ void main() {
         ('Source', 'CoinGecko'),
         ('Source', 'Yadio'),
       ]);
-      // The other groups are unchanged.
-      expect(
-        sections.first.rows.map((r) => r.label),
-        without.first.rows.map((r) => r.label),
-      );
+      // Every other group is unchanged, rows and values.
+      List<String> shown(Iterable<TechSection> groups) => [
+        for (final group in groups)
+          for (final row in group.rows)
+            '${group.title} · ${row.label}: ${row.value}',
+      ];
+      expect(shown(sections.where((s) => s.title != 'Price')), shown(without));
       expect(nodeFieldCount(sections), nodeFieldCount(without) + 3);
+    });
+
+    test('are copied with the rest of the technical data', () {
+      final text = technicalDataClipboard(
+        app: appTechSection('2.0.0', 'deadbeefcafe', _en),
+        limits: NodeLimits.of(_handoffNode, _en),
+        nodeSections: nodeTechSections(
+          _handoffNode,
+          _en,
+          priceSources: const ['coingecko', 'yadio'],
+        ),
+        l10n: _en,
+      );
+
+      expect(
+        text.split('\n'),
+        containsAllInOrder(['Source: CoinGecko', 'Source: Yadio']),
+      );
     });
 
     test('a node that names none has no price group', () {

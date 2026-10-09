@@ -1804,7 +1804,7 @@ abstract class AppLocalizations {
   /// **'Fiat Currencies'**
   String get aboutFiatCurrenciesLabel;
 
-  /// Technical data row, in the Price group: the price providers the Mostro node takes its exchange rates from (Yadio, CoinGecko, El Toque…), as its rates event names them
+  /// Technical data row, in the Price group: a price provider behind the exchange rates the Mostro node publishes now (Yadio, CoinGecko, El Toque…), as its rates event names them
   ///
   /// In en, this message translates to:
   /// **'Source'**
@@ -1815,6 +1815,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Price'**
   String get aboutPriceSection;
+
+  /// Technical data footnote, added when the Price group is shown: the sources are the providers of the rates published now, not every provider the node is configured with
+  ///
+  /// In en, this message translates to:
+  /// **'Price sources are the providers behind the rates the node publishes now; one that failed or was set aside is not listed.'**
+  String get aboutPriceSourcesFootnote;
 
   /// About screen — Mostro Version row label
   ///

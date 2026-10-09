@@ -286,6 +286,7 @@
   "aboutFiatCurrenciesLabel": "Fiat-Währungen",
   "aboutPriceSourceLabel": "Quelle",
   "aboutPriceSection": "Preis",
+  "aboutPriceSourcesFootnote": "Die Preisquellen sind die Anbieter hinter den Kursen, die der Knoten gerade veröffentlicht; ein ausgefallener oder aussortierter Anbieter fehlt.",
   "aboutMostroVersionLabel": "Mostro-Version",
   "aboutMostroCommitLabel": "Mostro-Commit",
   "aboutHoldInvoiceExpLabel": "Hold-Invoice-Ablauf",
