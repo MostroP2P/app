@@ -385,8 +385,16 @@ pub(crate) async fn record_payout_amount(
     let Some(value) = next_payout_amount(existing.as_deref(), sats, event_ts, trade_index) else {
         return;
     };
+    // A repeat only moves the date: the screen has nothing new to read.
+    let shown = existing
+        .as_deref()
+        .and_then(parse_payout_amount)
+        .map(|(stored_sats, _, stored_index)| (stored_sats, stored_index));
     match db.set_setting(&key, &value).await {
-        Ok(()) => crate::api::trade_touch::touch_trade(order_id),
+        Ok(()) if shown != Some((sats, trade_index)) => {
+            crate::api::trade_touch::touch_trade(order_id)
+        }
+        Ok(()) => {}
         Err(e) => {
             log::warn!("[invoice] could not record payout amount for order={order_id}: {e}")
         }
@@ -415,9 +423,12 @@ pub(crate) async fn payout_amount_of(order_id: &str) -> Option<u64> {
 /// The value to store for a payout of `sats` said at `event_ts` on trade key
 /// `trade_index`, or `None` when the stored one stands.
 ///
-/// A later take wins, a message for a superseded key says nothing, and within
-/// one take the newest message wins: the node asks for the same amount every
-/// time, so only an earlier take's can differ.
+/// A later take wins and a message for a superseded key says nothing. Within
+/// one trade key the newest message wins, and a repeat of the same amount
+/// still moves the date: a maker keeps one key for every take of the order,
+/// a market-priced order is priced again on each, and a replay delivers the
+/// takes' messages in any order. Left on its first date, a repeat would let
+/// an earlier take's amount, dated in between, replace the current one.
 fn next_payout_amount(
     existing: Option<&str>,
     sats: u64,
@@ -429,7 +440,9 @@ fn next_payout_amount(
         Some((stored_sats, stored_ts, stored_index)) => match trade_index.cmp(&stored_index) {
             std::cmp::Ordering::Less => false,
             std::cmp::Ordering::Greater => true,
-            std::cmp::Ordering::Equal => event_ts >= stored_ts && sats != stored_sats,
+            std::cmp::Ordering::Equal => {
+                event_ts > stored_ts || (event_ts == stored_ts && sats != stored_sats)
+            }
         },
     };
     replaces.then(|| format!("{sats}:{event_ts}:{trade_index}"))
@@ -527,8 +540,13 @@ mod tests {
     fn a_payout_amount_follows_the_take_it_was_said_for() {
         let first = next_payout_amount(None, 311, 1_000, 7).expect("first write");
         assert_eq!(first, "311:1000:7");
-        // The node asks for the same amount again: nothing to write.
-        assert_eq!(next_payout_amount(Some(&first), 311, 1_500, 7), None);
+        // The same message again: nothing to write.
+        assert_eq!(next_payout_amount(Some(&first), 311, 1_000, 7), None);
+        // The same amount, said later: only its date moves.
+        assert_eq!(
+            next_payout_amount(Some(&first), 311, 1_500, 7).as_deref(),
+            Some("311:1500:7")
+        );
         // A later take, priced again, replaces it whatever its date.
         assert_eq!(
             next_payout_amount(Some(&first), 290, 900, 8).as_deref(),
@@ -538,6 +556,16 @@ mod tests {
         assert_eq!(next_payout_amount(Some("290:900:8"), 311, 2_000, 7), None);
         // Within one take, an older message never overrides a newer one.
         assert_eq!(next_payout_amount(Some(&first), 300, 900, 7), None);
+    }
+
+    /// A maker keeps one trade key for every take, so a replay can deliver a
+    /// repeat of the current amount before an earlier take's, dated between
+    /// the two. The repeat's date is what keeps the earlier amount out.
+    #[test]
+    fn a_repeated_payout_amount_keeps_an_older_one_out() {
+        let first = next_payout_amount(None, 311, 1_000, 7).expect("first write");
+        let repeat = next_payout_amount(Some(&first), 311, 1_500, 7).expect("date moves");
+        assert_eq!(next_payout_amount(Some(&repeat), 300, 1_200, 7), None);
     }
 
     #[test]
