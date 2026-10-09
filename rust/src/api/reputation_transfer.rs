@@ -135,6 +135,7 @@ pub async fn export_reputation(
     let reply = ask(
         &node,
         &identity,
+        generation,
         Action::ExportReputation,
         payload,
         is_export_reply,
@@ -149,6 +150,7 @@ pub async fn export_reputation(
     // replaced: a write after its wipe would hand this attestation to the
     // next identity.
     while_still_current(generation, async {
+        let _slot = pending_slot().lock().await;
         db.set_setting(PENDING_REPUTATION_ATTESTATION, &json).await
     })
     .await?;
@@ -170,6 +172,7 @@ pub async fn import_reputation(attestation_json: String) -> Result<ReputationAtt
     ask(
         &node,
         &identity,
+        generation,
         Action::ImportReputation,
         Payload::ReputationAttestation(attestation_json.clone()),
         is_import_reply,
@@ -181,6 +184,7 @@ pub async fn import_reputation(attestation_json: String) -> Result<ReputationAtt
         let Some(db) = crate::db::app_db::db() else {
             return Ok(());
         };
+        let _slot = pending_slot().lock().await;
         let pending = db.get_setting(PENDING_REPUTATION_ATTESTATION).await?;
         if pending.as_deref().and_then(event_id) == Some(attestation.id.to_hex()) {
             db.delete_setting(PENDING_REPUTATION_ATTESTATION).await?;
@@ -208,6 +212,9 @@ pub async fn get_pending_reputation_attestation() -> Result<Option<ReputationAtt
     // Read under the identity guard: a wipe that starts meanwhile waits for
     // it, so the slot read is always the active identity's.
     let read = while_identity_current(generation, async {
+        // Held from the read to the drop, so the attestation dropped is the
+        // one read, never one an export wrote since.
+        let _slot = pending_slot().lock().await;
         let Some(json) = db.get_setting(PENDING_REPUTATION_ATTESTATION).await? else {
             return Ok(None);
         };
@@ -216,11 +223,7 @@ pub async fn get_pending_reputation_attestation() -> Result<Option<ReputationAtt
             Ok((attestation, _)) => Ok(Some(ReputationAttestationInfo::new(&attestation, json))),
             Err(AttestationError::Expired) => {
                 log::info!("[reputation] the pending attestation expired; dropping it");
-                // An export may have replaced it since the read.
-                let pending = db.get_setting(PENDING_REPUTATION_ATTESTATION).await?;
-                if pending.as_deref() == Some(json.as_str()) {
-                    db.delete_setting(PENDING_REPUTATION_ATTESTATION).await?;
-                }
+                db.delete_setting(PENDING_REPUTATION_ATTESTATION).await?;
                 Ok(None)
             }
             Err(_) => Ok(None),
@@ -256,6 +259,15 @@ async fn identity_keys() -> Result<Keys> {
         bail!("PrivacyModeEnabled: reputation portability needs the identity key");
     }
     crate::api::identity::get_active_keys().await
+}
+
+/// Held around every read-and-write of the pending slot. The identity guard
+/// is a shared lock, so without it an export's write could land between a
+/// cleanup's comparison and its delete, and be the one deleted. Always taken
+/// inside the identity guard, never around it.
+fn pending_slot() -> &'static tokio::sync::Mutex<()> {
+    static SLOT: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
+    SLOT.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
 /// Run `write` only while the identity of `generation` is still active;
@@ -333,11 +345,23 @@ fn is_import_reply(kind: &MessageKind, request_id: u64) -> bool {
     kind.action == Action::ReputationImported && kind.request_id == Some(request_id)
 }
 
+/// `NoIdentity` unless the identity of generation `asked` is still the active
+/// one `now`. Deletion bumps the generation under the identity write lock, so
+/// an unchanged one means no identity was swapped in between.
+fn same_identity(asked: Option<u64>, now: Option<u64>) -> Result<()> {
+    match (asked, now) {
+        (Some(asked), Some(now)) if asked == now => Ok(()),
+        _ => bail!("NoIdentity: the identity changed before the request was sent"),
+    }
+}
+
 /// Send one reputation request from a fresh trade key with the identity
-/// proof, and wait for the node's answer to it.
+/// proof, and wait for the node's answer to it. `generation` is the one taken
+/// before `identity` was read.
 async fn ask(
     node: &str,
     identity: &Keys,
+    generation: Option<u64>,
     action: Action,
     payload: Payload,
     is_reply: fn(&MessageKind, u64) -> bool,
@@ -345,6 +369,11 @@ async fn ask(
     let mostro_pubkey = PublicKey::from_hex(node)?;
     let trade_key_info = crate::api::identity::derive_trade_key().await?;
     let trade_keys = crate::api::identity::get_active_trade_keys(trade_key_info.index).await?;
+    // The proof and the trade key must come from one identity: a swap since
+    // `identity` was read would sign the request with both. The derivation
+    // takes the identity write lock, so it cannot run under
+    // `while_identity_current`; the generation is checked after it instead.
+    same_identity(generation, identity_generation().await)?;
     let request_id = fresh_request_id();
     let label = format!("{action:?}");
     let event_json = crate::mostro::actions::reputation_request(
@@ -403,6 +432,23 @@ mod tests {
                 _ => "InvalidReputationAttestation",
             };
             assert!(error.starts_with(expected), "{name}: {error}");
+        }
+    }
+
+    #[test]
+    fn a_request_goes_out_only_from_the_identity_that_asked() {
+        assert!(same_identity(Some(3), Some(3)).is_ok());
+        for (asked, now) in [
+            (Some(3), Some(4)),
+            (Some(3), None),
+            (None, Some(3)),
+            (None, None),
+        ] {
+            let error = same_identity(asked, now).unwrap_err().to_string();
+            assert!(
+                error.starts_with("NoIdentity"),
+                "{asked:?} → {now:?}: {error}"
+            );
         }
     }
 
