@@ -56,6 +56,19 @@ arrived (nothing is stored).
 
 ---
 
+### check_reputation_import(attestation_json: String) → ReputationAttestationInfo
+Run every local check `import_reputation` makes, without sending anything: the
+node advertises `reputation_import_issuers`, privacy mode is off, and the
+attestation verifies, names the user's identity and is signed by a key the
+node trusts. The import screen calls it on Check, so a refusal shows before
+the user commits to the import.
+
+**Errors**: `ReputationImportUnsupported`, `PrivacyModeEnabled`,
+`InvalidReputationAttestation`, `ExpiredReputationAttestation`,
+`ReputationIdentityMismatch`, `UntrustedReputationIssuer`.
+
+---
+
 ### import_reputation(attestation_json: String) → ReputationAttestationInfo
 Import an attestation into the active node. Checked locally first: it verifies,
 names the user's identity, and is signed by a key the node advertises it

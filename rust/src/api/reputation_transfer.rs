@@ -157,18 +157,29 @@ pub async fn export_reputation(
     Ok(ReputationAttestationInfo::new(&attestation, json))
 }
 
+/// Run, without sending anything, every check [`import_reputation`] makes
+/// before it asks the node: the active node imports, the identity key is
+/// usable (not in privacy mode), and the attestation verifies, names the
+/// user's identity and comes from a key the node trusts. The screen calls it
+/// on Check, so a refusal shows before the user commits to an import.
+pub async fn check_reputation_import(
+    attestation_json: String,
+) -> Result<ReputationAttestationInfo> {
+    let node = crate::config::active_mostro_pubkey();
+    let (_, attestation) = importable(&node, &attestation_json).await?;
+    Ok(ReputationAttestationInfo::new(
+        &attestation,
+        attestation_json,
+    ))
+}
+
 /// Import `attestation_json` into the active node. It must name the user's
 /// identity and be signed by a key the node advertises it trusts; the node
 /// runs the full checks and answers `reputation-imported` or a refusal.
 pub async fn import_reputation(attestation_json: String) -> Result<ReputationAttestationInfo> {
     let node = crate::config::active_mostro_pubkey();
-    let Some(trusted) = reputation_support::get(&node).import_issuers else {
-        bail!("ReputationImportUnsupported: the node does not import reputation");
-    };
     let generation = identity_generation().await;
-    let identity = identity_keys().await?;
-    let attestation = parse(&attestation_json)?;
-    check_importable(&attestation, &identity.public_key(), &trusted)?;
+    let (identity, attestation) = importable(&node, &attestation_json).await?;
     ask(
         &node,
         &identity,
@@ -307,6 +318,19 @@ fn check_exported(
         bail!("InvalidReputationAttestation: not the node's issuer key, or another identity");
     }
     Ok(())
+}
+
+/// The local checks of an import into `node`, in order: the node imports,
+/// the identity key is usable, the attestation verifies and passes
+/// [`check_importable`]. Returns the identity keys and the attestation.
+async fn importable(node: &str, json: &str) -> Result<(Keys, ReputationAttestation)> {
+    let Some(trusted) = reputation_support::get(node).import_issuers else {
+        bail!("ReputationImportUnsupported: the node does not import reputation");
+    };
+    let identity = identity_keys().await?;
+    let attestation = parse(json)?;
+    check_importable(&attestation, &identity.public_key(), &trusted)?;
+    Ok((identity, attestation))
 }
 
 /// What can be checked before an import is sent: the attestation names
@@ -610,5 +634,24 @@ mod tests {
             .unwrap_err()
             .to_string()
             .starts_with("NoIdentity"));
+    }
+
+    #[tokio::test]
+    async fn checking_an_import_on_a_node_that_does_not_import_is_refused_up_front() {
+        // Arrange: a valid attestation; the active node never advertised
+        // `reputation_import_issuers` (no test records support for it).
+        let v = vectors();
+        let json = v["attestation"]["valid"]["json"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        // Act
+        let result = check_reputation_import(json).await;
+
+        // Assert: refused by the capability gate, before the identity or the
+        // attestation is looked at.
+        let error = result.unwrap_err().to_string();
+        assert!(error.starts_with("ReputationImportUnsupported"), "{error}");
     }
 }
