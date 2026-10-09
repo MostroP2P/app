@@ -4,6 +4,21 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.16] - 2026-10-09
+
+### ✨ Features
+
+- **account:** show the user's own reputation ([#784](https://github.com/MostroP2P/app/pull/784)) by @grunch
+- **about:** show the node's deposit, currencies and order expiry on About ([#767](https://github.com/MostroP2P/app/pull/767)) by @Catrya
+- **onboarding:** choose the Mostro node after the walkthrough ([#780](https://github.com/MostroP2P/app/pull/780)) by @grunch
+- **mascot:** the easter eggs wear the rest of the sticker set ([#782](https://github.com/MostroP2P/app/pull/782)) by @grunch
+- **mascot:** trade steps and app events wear their sticker ([#781](https://github.com/MostroP2P/app/pull/781)) by @grunch
+- **install:** offer to install the web app once, on mobile ([#779](https://github.com/MostroP2P/app/pull/779)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **#389:** guard startup so a failure names the step instead of a blank page ([#405](https://github.com/MostroP2P/app/pull/405)) by @Matobi98
+
 ## [2.0.15] - 2026-10-08
 
 ### ✨ Features
