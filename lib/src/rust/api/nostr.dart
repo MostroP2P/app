@@ -139,12 +139,14 @@ Future<double?> fetchExchangeRate({
 
 /// The price providers `mostro_pubkey_hex` says its rates come from, as the
 /// `source` tag of the same Kind 30078 event names them (`yadio`,
-/// `coingecko`, `eltoque`…), in its order.
+/// `coingecko`, `eltoque`…), in its order. mostrod names the providers behind
+/// the revision it published, not every one it is configured with.
 ///
 /// `None` when there is nothing to tell: the node publishes no rates event,
 /// the one on the relay has expired or is unusable, or it names no provider.
-/// `Err` as for [`fetch_exchange_rate`]. Shares its per-node cache, so the
-/// technical data screen costs no relay query once a price was read.
+/// `Err` as for [`fetch_exchange_rate`]. Shares its per-node cache, so it
+/// costs no relay query while a table read for a price is still valid; a node
+/// that publishes no rates is asked again on every call.
 Future<List<String>?> fetchPriceSources({required String mostroPubkeyHex}) =>
     RustLib.instance.api.crateApiNostrFetchPriceSources(
       mostroPubkeyHex: mostroPubkeyHex,

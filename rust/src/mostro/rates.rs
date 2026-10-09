@@ -86,16 +86,22 @@ pub fn parse_rates_content(content: &str) -> Option<HashMap<String, f64>> {
 /// kept, so a provider the app has no name for reads as the node wrote it.
 /// Empty when the tag is missing or names nothing, which says no more than
 /// that the node did not tell.
+///
+/// At most [`MAX_SOURCES`]: the tag is the node's to write, and mostrod names
+/// six providers at most.
 pub fn parse_sources(tag: Option<&str>) -> Vec<String> {
-    let mut sources: Vec<String> = Vec::new();
-    for id in tag.unwrap_or_default().split(',') {
-        let id = id.trim();
-        if !id.is_empty() && !sources.iter().any(|seen| seen.eq_ignore_ascii_case(id)) {
-            sources.push(id.to_string());
-        }
-    }
-    sources
+    let mut seen = std::collections::HashSet::new();
+    tag.unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty() && seen.insert(id.to_ascii_lowercase()))
+        .take(MAX_SOURCES)
+        .map(str::to_string)
+        .collect()
 }
+
+/// How many providers [`parse_sources`] keeps from one `source` tag.
+pub const MAX_SOURCES: usize = 16;
 
 /// When a rates event published at `created_at` stops being usable, from its
 /// NIP-40 `expiration` tag when it carries one. See [`MAX_LIFETIME_SECS`] for
@@ -146,11 +152,15 @@ pub fn cached_sources(node: &str, now: i64) -> Option<Vec<String>> {
     Some(snapshot.sources.clone())
 }
 
-/// Drop the snapshot. Called when a fetch finds no usable event, so an
+/// Drop `node`'s snapshot. Called when a fetch finds no usable event, so an
 /// unreachable or de-configured price source stops answering from the last
-/// good one.
-pub fn clear() {
-    *SNAPSHOT.write().unwrap_or_else(|e| e.into_inner()) = None;
+/// good one. Another node's snapshot stays: a fetch for one node says nothing
+/// about another's prices.
+pub fn clear(node: &str) {
+    let mut guard = SNAPSHOT.write().unwrap_or_else(|e| e.into_inner());
+    if guard.as_ref().is_some_and(|snapshot| snapshot.node == node) {
+        *guard = None;
+    }
 }
 
 #[cfg(test)]
@@ -164,7 +174,7 @@ mod tests {
 
     impl Drop for Guard {
         fn drop(&mut self) {
-            clear();
+            *SNAPSHOT.write().unwrap_or_else(|e| e.into_inner()) = None;
         }
     }
 
@@ -289,9 +299,25 @@ mod tests {
         assert_eq!(cached_rate("node-a", "USD", 999), None);
 
         store("node-a", usd(50_000.0), vec![], 1_000);
-        clear();
+        clear("node-a");
 
         assert_eq!(cached_rate("node-a", "USD", 999), None);
+    }
+
+    /// A fetch for a node no longer active lands after the switch: what it
+    /// found missing must not evict the active node's prices.
+    #[test]
+    fn a_clear_for_another_node_keeps_the_snapshot() {
+        let _guard = lock();
+        store("node-b", usd(50_000.0), vec!["yadio".into()], 1_000);
+
+        clear("node-a");
+
+        assert_eq!(cached_rate("node-b", "USD", 999), Some(50_000.0));
+        assert_eq!(
+            cached_sources("node-b", 999),
+            Some(vec!["yadio".to_string()])
+        );
     }
 
     #[test]
@@ -309,6 +335,22 @@ mod tests {
             parse_sources(Some("CustomProvider,customprovider")),
             vec!["CustomProvider"]
         );
+    }
+
+    /// The tag is the node's to write: a buggy or hostile one naming
+    /// thousands of providers costs a bounded parse and a bounded list.
+    #[test]
+    fn a_source_tag_keeps_at_most_max_sources_providers() {
+        let tag = (0..20_000)
+            .map(|i| format!("p{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let sources = parse_sources(Some(&tag));
+
+        assert_eq!(sources.len(), MAX_SOURCES);
+        assert_eq!(sources.first().map(String::as_str), Some("p0"));
+        assert_eq!(sources.last().map(String::as_str), Some("p15"));
     }
 
     #[test]
