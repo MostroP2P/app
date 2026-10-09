@@ -1329,5 +1329,13 @@
   "pwaInstallStepsTitle": "Mostro zum Home-Bildschirm hinzufügen",
   "pwaInstallStepShare": "Tippe in der Leiste deines Browsers auf „Teilen“.",
   "pwaInstallStepAdd": "Wähle „Zum Home-Bildschirm“.",
-  "pwaInstallStepsDone": "Verstanden"
+  "pwaInstallStepsDone": "Verstanden",
+  "myReputationTitle": "Deine Reputation",
+  "myReputationReviews": "{count, plural, =1{1 Bewertung} other{{count} Bewertungen}}",
+  "myReputationSince": "seit {date}",
+  "myReputationNoReviews": "Noch keine Bewertungen. Deine Reputation beginnt mit deinem ersten bewerteten Handel.",
+  "myReputationPrivacyMode": "Im vollständigen Privatsphäre-Modus wird keine Reputation geführt. Wähle unten den Reputationsmodus, um eine aufzubauen.",
+  "myReputationLoading": "Dein Knoten wird gefragt…",
+  "myReputationUnavailable": "Dein Knoten hat noch nicht geantwortet.",
+  "myReputationOnNode": "Auf {node}"
 }

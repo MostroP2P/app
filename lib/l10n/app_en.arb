@@ -4564,5 +4564,52 @@
   "pwaInstallStepsDone": "Got it",
   "@pwaInstallStepsDone": {
     "description": "Closes the iOS install steps sheet"
+  },
+  "myReputationTitle": "Your reputation",
+  "@myReputationTitle": {
+    "description": "Title of the Account card showing the user's own reputation on the active node"
+  },
+  "myReputationReviews": "{count, plural, =1{1 rating} other{{count} ratings}}",
+  "@myReputationReviews": {
+    "description": "Number of ratings the user has received, on their own reputation card",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "myReputationSince": "since {date}",
+  "@myReputationSince": {
+    "description": "Date of the user's first trade on their reputation card; date is a localized month and year",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "myReputationNoReviews": "No ratings yet. Your reputation starts with your first rated trade.",
+  "@myReputationNoReviews": {
+    "description": "Own reputation card when the node has no ratings for the user"
+  },
+  "myReputationPrivacyMode": "Full privacy mode keeps no reputation. Choose reputation mode below to build one.",
+  "@myReputationPrivacyMode": {
+    "description": "Own reputation card in full privacy mode, where no reputation exists"
+  },
+  "myReputationLoading": "Asking your node…",
+  "@myReputationLoading": {
+    "description": "Own reputation card while the node is asked and nothing is cached"
+  },
+  "myReputationUnavailable": "Your node has not answered yet.",
+  "@myReputationUnavailable": {
+    "description": "Own reputation card when the node has never answered"
+  },
+  "myReputationOnNode": "On {node}",
+  "@myReputationOnNode": {
+    "description": "Names the node the reputation belongs to",
+    "placeholders": {
+      "node": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -1329,5 +1329,13 @@
   "pwaInstallStepsTitle": "Ajoutez Mostro à votre écran d’accueil",
   "pwaInstallStepShare": "Appuyez sur le bouton Partager dans la barre de votre navigateur.",
   "pwaInstallStepAdd": "Choisissez « Sur l’écran d’accueil ».",
-  "pwaInstallStepsDone": "Compris"
+  "pwaInstallStepsDone": "Compris",
+  "myReputationTitle": "Votre réputation",
+  "myReputationReviews": "{count, plural, =1{1 note} other{{count} notes}}",
+  "myReputationSince": "depuis {date}",
+  "myReputationNoReviews": "Aucune note pour l'instant. Votre réputation commence avec votre premier échange noté.",
+  "myReputationPrivacyMode": "Le mode confidentialité totale ne conserve aucune réputation. Choisissez le mode réputation ci-dessous pour en bâtir une.",
+  "myReputationLoading": "Interrogation de votre nœud…",
+  "myReputationUnavailable": "Votre nœud n'a pas encore répondu.",
+  "myReputationOnNode": "Sur {node}"
 }

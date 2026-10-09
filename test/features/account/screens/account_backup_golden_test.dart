@@ -12,6 +12,7 @@ import 'package:mostro/features/account/screens/account_screen.dart';
 import 'package:mostro/features/account/screens/backup_ritual_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
+import '../../../support/my_reputation_fixtures.dart';
 import '../../../support/provider_harness.dart';
 
 /// Goldens of the Account and backup redesign (`design_handoff_cuenta_respaldo`):
@@ -39,6 +40,7 @@ const _challenge = [1, 5, 8];
 Widget _app(Brightness brightness, Widget home, {required bool backedUp}) {
   final container = createContainer(
     overrides: [
+      ...myReputationOverrides(cached: sampleMyReputation),
       backupCompletedProvider.overrideWith(
         (ref) => BackupCompletedNotifier(initialValue: backedUp),
       ),

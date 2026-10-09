@@ -1329,5 +1329,13 @@
   "pwaInstallStepsTitle": "Zet Mostro op je beginscherm",
   "pwaInstallStepShare": "Tik op de deelknop in de balk van je browser.",
   "pwaInstallStepAdd": "Kies ‘Zet op beginscherm’.",
-  "pwaInstallStepsDone": "Begrepen"
+  "pwaInstallStepsDone": "Begrepen",
+  "myReputationTitle": "Jouw reputatie",
+  "myReputationReviews": "{count, plural, =1{1 beoordeling} other{{count} beoordelingen}}",
+  "myReputationSince": "sinds {date}",
+  "myReputationNoReviews": "Nog geen beoordelingen. Je reputatie begint bij je eerste beoordeelde ruil.",
+  "myReputationPrivacyMode": "De volledige privacymodus houdt geen reputatie bij. Kies hieronder de reputatiemodus om er een op te bouwen.",
+  "myReputationLoading": "Je node wordt gevraagd…",
+  "myReputationUnavailable": "Je node heeft nog niet geantwoord.",
+  "myReputationOnNode": "Op {node}"
 }

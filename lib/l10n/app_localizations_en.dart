@@ -4353,4 +4353,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pwaInstallStepsDone => 'Got it';
+
+  @override
+  String get myReputationTitle => 'Your reputation';
+
+  @override
+  String myReputationReviews(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ratings',
+      one: '1 rating',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String myReputationSince(String date) {
+    return 'since $date';
+  }
+
+  @override
+  String get myReputationNoReviews =>
+      'No ratings yet. Your reputation starts with your first rated trade.';
+
+  @override
+  String get myReputationPrivacyMode =>
+      'Full privacy mode keeps no reputation. Choose reputation mode below to build one.';
+
+  @override
+  String get myReputationLoading => 'Asking your node…';
+
+  @override
+  String get myReputationUnavailable => 'Your node has not answered yet.';
+
+  @override
+  String myReputationOnNode(String node) {
+    return 'On $node';
+  }
 }

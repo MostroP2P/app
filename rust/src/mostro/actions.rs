@@ -589,6 +589,29 @@ pub async fn own_orders(
     wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
 }
 
+/// Build a `UserInfo` request: the reputation the node holds for the
+/// identity in the proof (<https://mostro.network/protocol/user_info.html>).
+///
+/// Same key split as [`last_trade_index`]: the rumor is authored by
+/// `trade_keys`, the identity travels only inside the encrypted proof, and the
+/// node answers the trade key. The action lives in the `restore` wrapper and
+/// carries no payload; `request_id` is the nonce the node echoes.
+pub async fn user_info(
+    identity_keys: &Keys,
+    trade_keys: &Keys,
+    mostro_pubkey: &PublicKey,
+    request_id: u64,
+) -> Result<String> {
+    let msg = Message::Restore(MessageKind::new(
+        None,
+        Some(request_id),
+        None,
+        Action::UserInfo,
+        None,
+    ));
+    wrap_message_first_contact(identity_keys, trade_keys, mostro_pubkey, &msg).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1037,5 +1060,43 @@ mod tests {
         // public author.
         assert_eq!(unwrapped.identity, identity_keys.public_key());
     }
-}
 
+    /// `user-info` wire contract: a `restore`-wrapped request with no payload
+    /// and our nonce, authored by the trade key, with the identity only in the
+    /// proof — the reputation belongs to the identity, and the outer kind 14
+    /// must never name it.
+    #[tokio::test]
+    async fn user_info_is_a_restore_request_by_the_trade_key() {
+        let identity_keys = Keys::generate();
+        let trade_keys = Keys::generate();
+        let mostro_keys = Keys::generate();
+
+        let _pow = crate::mostro::pow::test_support::lock_pow();
+        crate::mostro::pow::set_pows(&mostro_keys.public_key().to_hex(), 0, None);
+        crate::mostro::protocol_version::set_protocol_version(
+            &mostro_keys.public_key().to_hex(),
+            Some(2),
+        );
+
+        let json = user_info(&identity_keys, &trade_keys, &mostro_keys.public_key(), 77)
+            .await
+            .unwrap();
+        let event = Event::from_json(&json).unwrap();
+        assert_eq!(event.pubkey, trade_keys.public_key());
+        let unwrapped = transport::unwrap_mostro_message(&mostro_keys, &event)
+            .await
+            .unwrap()
+            .expect("message must decrypt for the recipient");
+        assert!(
+            matches!(unwrapped.message, Message::Restore(_)),
+            "the node refuses user-info outside the restore wrapper"
+        );
+        assert!(unwrapped.message.verify());
+        let kind = unwrapped.message.get_inner_message_kind();
+        assert_eq!(kind.action, Action::UserInfo);
+        assert!(kind.payload.is_none());
+        assert!(kind.id.is_none());
+        assert_eq!(kind.request_id, Some(77));
+        assert_eq!(unwrapped.identity, identity_keys.public_key());
+    }
+}

@@ -471,6 +471,7 @@ pub async fn funds_at_risk() -> Result<Vec<crate::api::types::FundsAtRisk>> {
 pub(crate) async fn forget_identity_state() {
     crate::api::disputes::forget_identity_disputes().await;
     crate::api::reputation::forget_identity_ratings().await;
+    crate::api::my_reputation::forget_identity_reputation().await;
     crate::mostro::session::session_manager().clear().await;
     crate::mostro::bond_claims::set_claim_nodes(std::iter::empty());
     crate::mostro::bond_claims::clear_retained();
@@ -868,6 +869,7 @@ mod tests {
             "pub(crate) async fn forget_identity_state()",
             "crate::api::disputes::forget_identity_disputes().await;
              crate::api::reputation::forget_identity_ratings().await;
+             crate::api::my_reputation::forget_identity_reputation().await;
              crate::mostro::session::session_manager().clear().await;
              crate::mostro::bond_claims::set_claim_nodes(std::iter::empty());
              crate::mostro::bond_claims::clear_retained();

@@ -525,8 +525,7 @@ impl Storage for IndexedDbStorage {
                     settings_keys::IDENTITY_SCOPED_PREFIXES
                         .iter()
                         .any(|prefix| key.starts_with(prefix))
-                        || key == settings_keys::BOND_CLAIM_RETAINED_NODES
-                        || key == settings_keys::RESTORE_SNAPSHOT
+                        || settings_keys::IDENTITY_SCOPED_KEYS.contains(&key.as_str())
                 })
                 .collect()
         };

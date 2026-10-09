@@ -1329,5 +1329,13 @@
   "pwaInstallStepsTitle": "Agrega Mostro a tu pantalla de inicio",
   "pwaInstallStepShare": "Toca el botón Compartir en la barra de tu navegador.",
   "pwaInstallStepAdd": "Elige «Agregar a pantalla de inicio».",
-  "pwaInstallStepsDone": "Entendido"
+  "pwaInstallStepsDone": "Entendido",
+  "myReputationTitle": "Tu reputación",
+  "myReputationReviews": "{count, plural, =1{1 calificación} other{{count} calificaciones}}",
+  "myReputationSince": "desde {date}",
+  "myReputationNoReviews": "Aún no tienes calificaciones. Tu reputación empieza con tu primer intercambio calificado.",
+  "myReputationPrivacyMode": "El modo de privacidad total no guarda reputación. Elige el modo reputación abajo para construirla.",
+  "myReputationLoading": "Consultando a tu nodo…",
+  "myReputationUnavailable": "Tu nodo aún no ha respondido.",
+  "myReputationOnNode": "En {node}"
 }

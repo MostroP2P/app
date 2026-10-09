@@ -271,6 +271,9 @@ pub async fn submit_rating(trade_id: String, score: u8) -> Result<()> {
                         );
                     }
                 }
+                // The counterpart has likely rated the user by now, so the
+                // user's own reputation is asked for again (issue #755).
+                crate::api::my_reputation::spawn_refresh("rating sent");
             }
             Err(e) => {
                 // Rollback: remove the reservation so the caller can retry.
@@ -687,5 +690,24 @@ mod tests {
             err.to_string().contains("AlreadyRated"),
             "persisted marker must block a second rating, got: {err}"
         );
+    }
+
+    /// The user's own reputation is asked for again once they rate their
+    /// counterpart, and only once the rating went out: by then the
+    /// counterpart has had the time to rate them too (issue #755).
+    #[test]
+    fn a_sent_rating_refreshes_the_users_reputation() {
+        use crate::source_guard::{item_body, production_code};
+        let body = item_body(
+            &production_code(include_str!("reputation.rs")),
+            "pub async fn submit_rating(trade_id: String, score: u8) -> Result<()>",
+        )
+        .unwrap();
+        let sent = body.find("Ok(())=>{").expect("the sent arm");
+        let refreshed = body
+            .find("crate::api::my_reputation::spawn_refresh(\"ratingsent\");")
+            .expect("refreshes the user's reputation");
+        let failed = body.find("Err(e)=>{").expect("the failed arm");
+        assert!(sent < refreshed && refreshed < failed);
     }
 }

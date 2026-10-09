@@ -7293,6 +7293,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Got it'**
   String get pwaInstallStepsDone;
+
+  /// Title of the Account card showing the user's own reputation on the active node
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation'**
+  String get myReputationTitle;
+
+  /// Number of ratings the user has received, on their own reputation card
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 rating} other{{count} ratings}}'**
+  String myReputationReviews(int count);
+
+  /// Date of the user's first trade on their reputation card; date is a localized month and year
+  ///
+  /// In en, this message translates to:
+  /// **'since {date}'**
+  String myReputationSince(String date);
+
+  /// Own reputation card when the node has no ratings for the user
+  ///
+  /// In en, this message translates to:
+  /// **'No ratings yet. Your reputation starts with your first rated trade.'**
+  String get myReputationNoReviews;
+
+  /// Own reputation card in full privacy mode, where no reputation exists
+  ///
+  /// In en, this message translates to:
+  /// **'Full privacy mode keeps no reputation. Choose reputation mode below to build one.'**
+  String get myReputationPrivacyMode;
+
+  /// Own reputation card while the node is asked and nothing is cached
+  ///
+  /// In en, this message translates to:
+  /// **'Asking your node…'**
+  String get myReputationLoading;
+
+  /// Own reputation card when the node has never answered
+  ///
+  /// In en, this message translates to:
+  /// **'Your node has not answered yet.'**
+  String get myReputationUnavailable;
+
+  /// Names the node the reputation belongs to
+  ///
+  /// In en, this message translates to:
+  /// **'On {node}'**
+  String myReputationOnNode(String node);
 }
 
 class _AppLocalizationsDelegate

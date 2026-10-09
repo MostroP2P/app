@@ -48,6 +48,7 @@ import 'package:mostro/features/notifications/providers/notifications_provider.d
 import 'package:mostro/features/notifications/services/event_cards.dart';
 import 'package:mostro/core/app_routes.dart' show appRouter;
 import 'package:mostro/src/rust/api/messages.dart' as messages_api;
+import 'package:mostro/src/rust/api/my_reputation.dart' as my_reputation_api;
 
 /// Starts the application.
 ///
@@ -312,6 +313,7 @@ Future<void> _startup(
     _watchConnectionState();
 
     final nodeInfoWarmed = _warmNodeInfoCache();
+    unawaited(_refreshMyReputation());
 
     final container = ProviderContainer(
       overrides: [
@@ -448,6 +450,16 @@ void _mirrorTradeKeyIndex(identity_api.TradeKeyIndexStream stream) {
 Future<void> _warmNodeInfoCache() =>
     node_stats_api.refreshMostroNodeInfoCache().catchError((Object e) {
       debugPrint('[main] node info warm-up failed: $e');
+    });
+
+/// Ask the active node for the user's own reputation (`user-info`, #755), so
+/// Account opens on a fresh answer. Never awaited: Rust keeps it, the screen
+/// asks again when it opens, and full privacy mode sends nothing.
+Future<void> _refreshMyReputation() => my_reputation_api
+    .refreshMyReputation()
+    .then<void>((_) {})
+    .catchError((Object e) {
+      debugPrint('[main] own reputation refresh failed: $e');
     });
 
 /// Reconnect a previously saved NWC wallet in the background.

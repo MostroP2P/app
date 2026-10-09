@@ -11,6 +11,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/features/account/providers/backup_reminder_provider.dart';
+import 'package:mostro/features/account/providers/my_reputation_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/account/restore/restore_run.dart';
 import 'package:mostro/features/account/restore/restore_sheet.dart';
@@ -20,8 +21,11 @@ import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/my_reputation.dart' show MyReputation;
 import 'package:mostro/src/rust/api/types.dart'
     show FundsAtRisk, FundsAtRiskReason;
+
+import '../../support/my_reputation_fixtures.dart';
 
 /// What the backup state is after an identity swap: generating a mnemonic
 /// arms the reminder, importing one the user already holds must not (#530).
@@ -46,6 +50,7 @@ Future<ProviderContainer> _pumpAccount(
   Future<List<FundsAtRisk>> Function()? fundsAtRisk,
   bool privacyMode = false,
   Object? privacyError,
+  MyReputation? Function()? reputation,
 }) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
@@ -53,6 +58,7 @@ Future<ProviderContainer> _pumpAccount(
 
   final container = ProviderContainer(
     overrides: [
+      ...myReputationOverrides(readCached: reputation),
       backupReminderProvider.overrideWith(
         (ref) => BackupReminderNotifier(initialValue: reminderArmed),
       ),
@@ -150,7 +156,7 @@ Future<void> _seedPreviousUser(ProviderContainer container) async {
 
 /// Import the seed, up to the restore sheet if one opens.
 Future<void> _submitImport(WidgetTester tester, AppLocalizations l10n) async {
-  await tester.tap(find.bySemanticsIdentifier(AutomationIds.keysImport));
+  await _tapFooter(tester, AutomationIds.keysImport);
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField), _seed);
   await tester.tap(find.widgetWithText(FilledButton, l10n.importButtonLabel));
@@ -170,10 +176,19 @@ Future<void> _import(WidgetTester tester, AppLocalizations l10n) async {
   }
 }
 
+/// Tap a footer button of Account, scrolled into view first: below the
+/// cards it starts under the fold on a 360 × 760 screen.
+Future<void> _tapFooter(WidgetTester tester, String identifier) async {
+  final button = find.bySemanticsIdentifier(identifier);
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
+  await tester.tap(button);
+}
+
 /// Tap `Generate`, up to whatever opens first: the funds-at-risk warning or
 /// the usual confirmation.
 Future<void> _tapGenerate(WidgetTester tester) async {
-  await tester.tap(find.bySemanticsIdentifier(AutomationIds.keysGenerate));
+  await _tapFooter(tester, AutomationIds.keysGenerate);
   await tester.pumpAndSettle();
 }
 
@@ -259,7 +274,7 @@ void main() {
         onRecover: (_) => never.future,
       );
 
-      await tester.tap(find.bySemanticsIdentifier(AutomationIds.keysImport));
+      await _tapFooter(tester, AutomationIds.keysImport);
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), _seed);
       await tester.tap(
@@ -423,6 +438,29 @@ void main() {
       expect(container.read(chatReadStatusProvider), isEmpty);
       expect(container.read(backupReminderProvider), isTrue);
       expect(container.read(backupCompletedProvider), isFalse);
+    });
+
+    // #755: the reputation shown is the identity's; the next user's is
+    // asked for, never inherited.
+    testWidgets('reputation is gone after generating a new user', (
+      tester,
+    ) async {
+      MyReputation? cached = sampleMyReputation;
+      final container = await _pumpAccount(
+        tester,
+        reminderArmed: false,
+        backedUp: true,
+        onRegenerate: () async => cached = null,
+        reputation: () => cached,
+      );
+      expect(
+        container.read(myReputationProvider).reputation,
+        sampleMyReputation,
+      );
+
+      await _generate(tester);
+
+      expect(container.read(myReputationProvider).reputation, isNull);
     });
 
     testWidgets('is gone after an import the screen did not outlive', (
@@ -611,7 +649,7 @@ void main() {
         fundsAtRisk: () async => risks,
       );
 
-      await tester.tap(find.bySemanticsIdentifier(AutomationIds.keysImport));
+      await _tapFooter(tester, AutomationIds.keysImport);
       await tester.pumpAndSettle();
 
       expect(find.text(l10n.fundsAtRiskTitle), findsOneWidget);

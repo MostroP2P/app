@@ -1329,5 +1329,13 @@
   "pwaInstallStepsTitle": "Aggiungi Mostro alla schermata Home",
   "pwaInstallStepShare": "Tocca il pulsante Condividi nella barra del browser.",
   "pwaInstallStepAdd": "Scegli «Aggiungi a schermata Home».",
-  "pwaInstallStepsDone": "Ho capito"
+  "pwaInstallStepsDone": "Ho capito",
+  "myReputationTitle": "La tua reputazione",
+  "myReputationReviews": "{count, plural, =1{1 valutazione} other{{count} valutazioni}}",
+  "myReputationSince": "dal {date}",
+  "myReputationNoReviews": "Nessuna valutazione per ora. La tua reputazione inizia con il tuo primo scambio valutato.",
+  "myReputationPrivacyMode": "La modalità privacy totale non conserva alcuna reputazione. Scegli la modalità reputazione qui sotto per costruirne una.",
+  "myReputationLoading": "Chiedo al tuo nodo…",
+  "myReputationUnavailable": "Il tuo nodo non ha ancora risposto.",
+  "myReputationOnNode": "Su {node}"
 }

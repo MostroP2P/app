@@ -414,6 +414,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
 - **FR-048**: The rating interface MUST display 5 tappable stars; the Submit button MUST remain disabled until at least 1 star is selected.
 - **FR-049**: Rating MUST be optional — users MUST be able to close the rating prompt without any penalty.
 - **FR-050**: Accumulated reputation (average rating, total reviews, days active) MUST be visible on order cards in the public order book.
+- **FR-050a**: The Account screen MUST show the user's own reputation on the active node, as the node answers `user-info` (rating, ratings received, date of the first trade, and the node's name when it has one). The app MUST ask the node at startup, when the Account screen opens, when the user picks another node, and once the user has rated the counterpart of a trade (not when the trade reaches `success`: the counterpart has not rated them yet), and MUST keep the last answer per identity and node so the screen shows it before a new one arrives. Zero ratings MUST read as "no reputation yet", never as a `0.0` rating. In full privacy mode the app MUST NOT send `user-info` and the screen MUST say that no reputation is kept in that mode (#755).
 
 **NWC Integration**
 

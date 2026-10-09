@@ -1,6 +1,6 @@
 [package]
 name = "rust"
-version = "2.0.15"
+version = "2.0.16"
 license = "AGPL-3.0-or-later"
 edition = "2021"
 
@@ -25,7 +25,7 @@ nostr = { version = "0.45", default-features = false, features = ["std", "nip04"
 # requires nostr 0.45. The Cashu wire form pinned by `mostro/cashu_wire.rs` and
 # documented in docs/cashu/README.md §2 was confirmed against 0.14.1 and is
 # unchanged since.
-mostro-core = "0.17.1"
+mostro-core = "0.17.3"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

@@ -4391,4 +4391,42 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get pwaInstallStepsDone => 'Begrepen';
+
+  @override
+  String get myReputationTitle => 'Jouw reputatie';
+
+  @override
+  String myReputationReviews(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count beoordelingen',
+      one: '1 beoordeling',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String myReputationSince(String date) {
+    return 'sinds $date';
+  }
+
+  @override
+  String get myReputationNoReviews =>
+      'Nog geen beoordelingen. Je reputatie begint bij je eerste beoordeelde ruil.';
+
+  @override
+  String get myReputationPrivacyMode =>
+      'De volledige privacymodus houdt geen reputatie bij. Kies hieronder de reputatiemodus om er een op te bouwen.';
+
+  @override
+  String get myReputationLoading => 'Je node wordt gevraagd…';
+
+  @override
+  String get myReputationUnavailable => 'Je node heeft nog niet geantwoord.';
+
+  @override
+  String myReputationOnNode(String node) {
+    return 'Op $node';
+  }
 }

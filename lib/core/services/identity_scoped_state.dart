@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:mostro/features/account/providers/my_reputation_provider.dart';
 import 'package:mostro/features/cashu/providers/cashu_wallet_provider.dart';
 import 'package:mostro/features/chat/attachments/attachment_launcher.dart';
 import 'package:mostro/features/chat/attachments/attachment_providers.dart';
@@ -57,6 +58,9 @@ Future<void> resetIdentityScopedState(ProviderContainer container) async {
   container.invalidate(cashuWalletProvider);
   // A trade step of the previous user still waiting for the mascot.
   container.invalidate(mascotCueProvider);
+  // The previous user's reputation (#755): rebuilt from the new identity's
+  // cache, which Rust keys by identity.
+  container.invalidate(myReputationProvider);
   // Persisted (sembast), so it needs a real wipe, not just an invalidation.
   final notices = container.read(notificationsProvider).length;
   await container.read(notificationsProvider.notifier).wipeForIdentityChange();

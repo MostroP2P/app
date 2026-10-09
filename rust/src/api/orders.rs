@@ -10217,13 +10217,13 @@ async fn last_trade_index(sender_keys: &nostr_sdk::prelude::Keys) -> Result<Opti
 /// A correlation nonce the daemon echoes in its reply. Random, not
 /// time-derived, so a replayed reply from an earlier request cannot match;
 /// never 0, which is indistinguishable from "unset".
-fn fresh_request_id() -> u64 {
+pub(crate) fn fresh_request_id() -> u64 {
     use rand::RngCore;
     rand::rngs::OsRng.next_u64().max(1)
 }
 
 /// How the daemon answered a self-contained request (see [`ask_daemon`]).
-enum DaemonAnswer {
+pub(crate) enum DaemonAnswer {
     /// The reply `is_reply` recognised, echoing the request's nonce, and the
     /// node's timestamp on it.
     Reply(Box<mostro_core::message::MessageKind>, i64),
@@ -10238,7 +10238,7 @@ enum DaemonAnswer {
 /// `wait_for_dm`), not a `pending_requests` record. The reply is a kind 14
 /// authored by the node and addressed to `sender_keys`; the subscription is
 /// live before the publish so the reply cannot be missed.
-async fn ask_daemon(
+pub(crate) async fn ask_daemon(
     sender_keys: &nostr_sdk::prelude::Keys,
     mostro_pubkey: &nostr_sdk::prelude::PublicKey,
     request_id: u64,
@@ -10556,6 +10556,20 @@ pub async fn restore_session() -> Result<mostro_core::message::RestoreSessionInf
 
 #[cfg(test)]
 mod tests {
+    /// A trade reaching `success` does not ask for the user's own
+    /// reputation: the counterpart has not rated them yet. The rating the
+    /// user sends does (issue #755).
+    #[test]
+    fn a_completed_trade_does_not_ask_for_the_users_reputation() {
+        use crate::source_guard::{item_body, production_code};
+        let body = item_body(
+            &production_code(include_str!("orders.rs")),
+            "async fn record_completion(db: &impl Storage, order_id: &str, at: i64)",
+        )
+        .unwrap();
+        assert!(!body.contains("my_reputation"));
+    }
+
     #[tokio::test]
     async fn replayed_peer_reputation_preserves_its_daemon_timestamp() {
         use mostro_core::message::{Action, Payload, Peer};

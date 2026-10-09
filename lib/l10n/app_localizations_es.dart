@@ -4386,4 +4386,42 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pwaInstallStepsDone => 'Entendido';
+
+  @override
+  String get myReputationTitle => 'Tu reputación';
+
+  @override
+  String myReputationReviews(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count calificaciones',
+      one: '1 calificación',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String myReputationSince(String date) {
+    return 'desde $date';
+  }
+
+  @override
+  String get myReputationNoReviews =>
+      'Aún no tienes calificaciones. Tu reputación empieza con tu primer intercambio calificado.';
+
+  @override
+  String get myReputationPrivacyMode =>
+      'El modo de privacidad total no guarda reputación. Elige el modo reputación abajo para construirla.';
+
+  @override
+  String get myReputationLoading => 'Consultando a tu nodo…';
+
+  @override
+  String get myReputationUnavailable => 'Tu nodo aún no ha respondido.';
+
+  @override
+  String myReputationOnNode(String node) {
+    return 'En $node';
+  }
 }
