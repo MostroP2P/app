@@ -106,6 +106,16 @@ void main() {
       expect(v.showsTimer, isFalse);
       expect(v.showsChat, isTrue);
     });
+
+    // mostrod takes a replacement invoice while the order is settled and no
+    // payout is in flight: after a failed payout, and before one starts. The
+    // buyer still waits, so it is not the screen's primary action (DS-CMP-3).
+    test('payout pending: the buyer can give a new invoice', () {
+      final v = view(TradeStatus.payoutPending, isBuyer: true);
+      expect(v.hasActions, isTrue);
+      expect(v.primary, TradePrimaryAction.none);
+      expect(v.chip, TradeChip.waiting);
+    });
   });
 
   group('8e · completed', () {

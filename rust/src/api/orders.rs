@@ -22529,6 +22529,248 @@ mod tests {
             "a failed handoff must release the lock, not strand it"
         );
     }
+
+    // ── The payout amount ───────────────────────────────────────────────
+    //
+    // The node pays the buyer `amount - fee` and asks for exactly that in
+    // `add-invoice` and `hold-invoice-payment-accepted`. The order's Kind 38383
+    // events and the restore's `orders` reply carry the order amount instead.
+
+    /// The order amount, as Kind 38383 and the restore's `orders` reply carry it.
+    const ORDER_SATS: u64 = 313;
+    /// What the node pays the buyer: the order amount minus the buyer's fee.
+    const PAYOUT_SATS: u64 = 311;
+
+    fn payout_test_order(
+        order_uuid: uuid::Uuid,
+        status: mostro_core::order::Status,
+        amount: u64,
+        buyer: Option<&str>,
+        seller: Option<&str>,
+    ) -> mostro_core::order::SmallOrder {
+        mostro_core::order::SmallOrder::new(
+            Some(order_uuid),
+            Some(mostro_core::order::Kind::Sell),
+            Some(status),
+            amount as i64,
+            "CUP".to_string(),
+            None,
+            None,
+            200,
+            "Saldo".to_string(),
+            0,
+            buyer.map(str::to_string),
+            seller.map(str::to_string),
+            None,
+            Some(1_790_000_000),
+            None,
+        )
+    }
+
+    /// The daemon's message `action` for `order_uuid` carrying `so`, sent at `at`.
+    async fn dispatch_payout_message(
+        order_uuid: uuid::Uuid,
+        action: mostro_core::message::Action,
+        so: mostro_core::order::SmallOrder,
+        at: u64,
+    ) {
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                action.clone(),
+                Some(mostro_core::message::Payload::Order(so)),
+                at,
+            ),
+            &format!("payout-{order_uuid}-{action:?}-{at}"),
+            "ff00ff7480",
+            1,
+        )
+        .await;
+    }
+
+    /// The `add-invoice` asking the buyer for the payout, with the order in `status`.
+    async fn dispatch_add_invoice(
+        order_uuid: uuid::Uuid,
+        status: mostro_core::order::Status,
+        at: u64,
+    ) {
+        dispatch_payout_message(
+            order_uuid,
+            mostro_core::message::Action::AddInvoice,
+            payout_test_order(order_uuid, status, PAYOUT_SATS, None, None),
+            at,
+        )
+        .await;
+    }
+
+    /// A taker-buyer's trade waiting for its invoice, in the book and the store.
+    async fn waiting_buyer_trade(db: &impl crate::db::Storage, order_id: &str) {
+        let mut taken = wire_order(order_id, OrderStatus::WaitingBuyerInvoice);
+        taken.amount_sats = None;
+        order_book().upsert_order(taken.clone()).await;
+        db.save_trade(&cancel_test_row(taken)).await.unwrap();
+    }
+
+    async fn payout_of(order_id: &str) -> Option<u64> {
+        payout_amount(order_id.to_string()).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_book_feed_leaves_the_payout_amount_alone() {
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        waiting_buyer_trade(db, &order_id).await;
+        dispatch_add_invoice(order_uuid, mostro_core::order::Status::WaitingBuyerInvoice, 2_000)
+            .await;
+
+        // What a refetch of the book (Refresh user, a node switch) ingests.
+        ingest_order_event_with(
+            &book_event_amt(&order_id, "in-progress", &ORDER_SATS.to_string()),
+            Publish::WhenBatchEnds,
+        )
+        .await;
+
+        assert_eq!(payout_of(&order_id).await, Some(PAYOUT_SATS));
+    }
+
+    #[tokio::test]
+    async fn the_order_subscription_leaves_the_payout_amount_alone() {
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        waiting_buyer_trade(db, &order_id).await;
+        dispatch_add_invoice(order_uuid, mostro_core::order::Status::WaitingBuyerInvoice, 2_000)
+            .await;
+
+        let mut revision = wire_order(&order_id, OrderStatus::InProgress);
+        revision.amount_sats = Some(ORDER_SATS);
+        apply_single_order_update(revision, Some(2_100)).await;
+
+        assert_eq!(payout_of(&order_id).await, Some(PAYOUT_SATS));
+    }
+
+    /// A restore rebuilds the row from the `orders` reply, then the history
+    /// replays the `add-invoice`, older than the restore.
+    #[tokio::test]
+    async fn a_restore_then_the_replayed_add_invoice_gives_the_payout_amount() {
+        use mostro_core::order::Status;
+        let db = bond_test_db().await;
+        let own = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let peer = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let restored = payout_test_order(
+            order_uuid,
+            Status::WaitingBuyerInvoice,
+            ORDER_SATS,
+            Some(&own),
+            Some(&peer),
+        );
+        assert!(persist_restored_trade_row(db, &restored, &own, 1, 3_000).await);
+
+        dispatch_add_invoice(order_uuid, Status::WaitingBuyerInvoice, 2_000).await;
+
+        assert_eq!(payout_of(&order_id).await, Some(PAYOUT_SATS));
+    }
+
+    /// The same restore with the replayed `add-invoice` arriving first.
+    #[tokio::test]
+    async fn the_replayed_add_invoice_then_a_restore_gives_the_payout_amount() {
+        use mostro_core::order::Status;
+        let db = bond_test_db().await;
+        let own = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let peer = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        store_trade_key_index(&order_id, 1).await;
+
+        dispatch_add_invoice(order_uuid, Status::WaitingBuyerInvoice, 2_000).await;
+        let restored = payout_test_order(
+            order_uuid,
+            Status::WaitingBuyerInvoice,
+            ORDER_SATS,
+            Some(&own),
+            Some(&peer),
+        );
+        persist_restored_trade_row(db, &restored, &own, 1, 3_000).await;
+
+        assert_eq!(payout_of(&order_id).await, Some(PAYOUT_SATS));
+    }
+
+    /// After a failed payout the daemon asks for a new invoice while the order
+    /// still reads `settled-hold-invoice`; a restore reports that status.
+    #[tokio::test]
+    async fn a_restore_after_a_failed_payout_gives_the_payout_amount() {
+        use mostro_core::order::Status;
+        let db = bond_test_db().await;
+        let own = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let peer = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let restored = payout_test_order(
+            order_uuid,
+            Status::SettledHoldInvoice,
+            ORDER_SATS,
+            Some(&own),
+            Some(&peer),
+        );
+        assert!(persist_restored_trade_row(db, &restored, &own, 1, 3_000).await);
+
+        dispatch_add_invoice(order_uuid, Status::SettledHoldInvoice, 2_000).await;
+
+        assert_eq!(payout_of(&order_id).await, Some(PAYOUT_SATS));
+    }
+
+    /// A buyer who gave the invoice up front never gets an `add-invoice`: the
+    /// payout amount arrives in `hold-invoice-payment-accepted`.
+    #[tokio::test]
+    async fn hold_invoice_payment_accepted_gives_the_buyer_the_payout_amount() {
+        use mostro_core::order::Status;
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut waiting = wire_order(&order_id, OrderStatus::WaitingPayment);
+        waiting.amount_sats = Some(ORDER_SATS);
+        order_book().upsert_order(waiting.clone()).await;
+        db.save_trade(&cancel_test_row(waiting)).await.unwrap();
+
+        dispatch_payout_message(
+            order_uuid,
+            mostro_core::message::Action::HoldInvoicePaymentAccepted,
+            payout_test_order(order_uuid, Status::Active, PAYOUT_SATS, None, None),
+            2_000,
+        )
+        .await;
+
+        assert_eq!(payout_of(&order_id).await, Some(PAYOUT_SATS));
+    }
+
+    /// `buyer-took-order` carries what the seller pays (amount plus fee): it is
+    /// not a payout and must not become one.
+    #[tokio::test]
+    async fn buyer_took_order_is_not_a_payout_amount() {
+        use mostro_core::order::Status;
+        let db = bond_test_db().await;
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        let mut waiting = wire_order(&order_id, OrderStatus::WaitingPayment);
+        waiting.amount_sats = None;
+        order_book().upsert_order(waiting.clone()).await;
+        let mut row = cancel_test_row(waiting);
+        row.role = TradeRole::Seller;
+        db.save_trade(&row).await.unwrap();
+
+        dispatch_payout_message(
+            order_uuid,
+            mostro_core::message::Action::BuyerTookOrder,
+            payout_test_order(order_uuid, Status::Active, ORDER_SATS + 2, None, None),
+            2_000,
+        )
+        .await;
+
+        assert_eq!(payout_of(&order_id).await, None);
+    }
 }
 
 #[cfg(test)]
