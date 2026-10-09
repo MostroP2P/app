@@ -75,6 +75,17 @@ from relay.
 
 ---
 
+### payout_amount(order_id: String) → u64?
+The sats the node pays the buyer: `amount - fee`, the amount the payout
+invoice must carry. Only `add-invoice` (the take reply included) and the
+buyer's `hold-invoice-payment-accepted` say it; it is recorded before their
+status gate, so a copy replayed after a restore still sets it. Never the
+order amount, which Kind 38383 and a restore's `orders` reply carry. `None`
+until one of them arrives. Kept per order and trade key generation, cleared
+with the row and when a maker's order goes back to the book.
+
+---
+
 ### create_order(params: NewOrderParams) → OrderInfo
 Publish a new order to the Mostro network.
 
@@ -606,12 +617,12 @@ what rebuilds sessions after one.
 | Action                             | Payload variant                                     | Effect on the local trade row                                                    |
 |------------------------------------|-----------------------------------------------------|----------------------------------------------------------------------------------|
 | `WaitingBuyerInvoice`              | (status sync)                                       | `status → WaitingBuyerInvoice`                                                   |
-| `AddInvoice`                       | `Payload::Order(small_order)`                       | Maker-buyer path (a taker's nonce-correlated copy is consumed by the take interception, even when late): `status → WaitingBuyerInvoice` (payload status, fallback `status_for_action`), `amount_sats ← small_order.amount` when > 0 — synced to book **and** DB so `tradeAmountProvider` sees the sats. Keyed by the message's order id (`trade_index` is `None`). The follow-up `AddInvoice` with a `Payload::Peer` (counterparty reputation) is ignored. A payload status of `settled-hold-invoice` is the payout-failure replacement request (mostrod `check_failure_retries`, retries exhausted) and also maps to `WaitingBuyerInvoice` — persisting the settled status would hide the request and strand the payout. |
+| `AddInvoice`                       | `Payload::Order(small_order)`                       | Maker-buyer path (a taker's nonce-correlated copy is consumed by the take interception, even when late): `status → WaitingBuyerInvoice` (payload status, fallback `status_for_action`), `amount_sats ← small_order.amount` when > 0, synced to book and DB; the same amount is recorded as the payout (`payout_amount`) before the status gate, which is what `tradeAmountProvider` reads. Keyed by the message's order id (`trade_index` is `None`). The follow-up `AddInvoice` with a `Payload::Peer` (counterparty reputation) is ignored. A payload status of `settled-hold-invoice` is the payout-failure replacement request (mostrod `check_failure_retries`, retries exhausted) and also maps to `WaitingBuyerInvoice` — persisting the settled status would hide the request and strand the payout. |
 | `InvoiceUpdated`                   | (status sync)                                       | `status → SettledHoldInvoice`: mostrod sends this only from `pay_new_invoice`, when the buyer's replacement payout invoice is accepted on a settled escrow — the payout is pending again on the new invoice |
 | `PayInvoice`                       | `Payload::PaymentRequest(small_order, bolt11, amt)` | `hold_invoice ← bolt11`, `amount_sats ← amt ?? small_order.amount`, `status → WaitingPayment` |
-| `BuyerTookOrder` / `HoldInvoicePaymentAccepted` | `SmallOrder` with `status = active`      | `status → Active` (routed through `map_core_status` kebab-case). The peer reveal happens in the pre-dispatch capture above, not in this arm. |
+| `BuyerTookOrder` / `HoldInvoicePaymentAccepted` | `SmallOrder` with `status = active`      | `status → Active` (routed through `map_core_status` kebab-case). The peer reveal happens in the pre-dispatch capture above, not in this arm. The buyer's `HoldInvoicePaymentAccepted` carries the payout amount (`amount - fee`), recorded before the status gate; the seller's `BuyerTookOrder` carries `amount + fee` and records nothing. |
 | `FiatSentOk`                       | (status sync)                                       | `status → FiatSent`                                                              |
-| `HoldInvoicePaymentSettled` / `Released` | (status sync)                                 | `status → SettledHoldInvoice`: the seller's escrow settled, the buyer payout is still pending; shown as `payout-pending`, not as completion |
+| `HoldInvoicePaymentSettled` / `Released` | (status sync)                                 | `status → SettledHoldInvoice`: the seller's escrow settled, the buyer payout is still pending; shown as `payout-pending`, not as completion. The buyer may give a replacement invoice there (mostrod `pay_new_invoice`): an outlined Add invoice action, not their turn, and the payout screen draws no countdown, since mostrod times no settled escrow |
 | `PurchaseCompleted`                | (status sync)                                       | `status → Success`: the buyer payout completed; only now may either party rate |
 | `CooperativeCancelInitiatedByYou` / `CooperativeCancelInitiatedByPeer` | (none)     | No status change (the protocol has no cancel-requested status): `cooperative_cancel_state → RequestedByMe` / `RequestedByPeer` on the row, and a `TradeUpdate` with the row's **current** status (`Active` or `FiatSent`) and reason `CooperativeCancelRequestedByMe` / `CooperativeCancelRequestedByPeer`, so the trade screen and the Notifications cards announce the request. Gated like a status sync (terminal row, cursor). |
 | `CooperativeCancelAccepted`        | (status sync)                                       | `status → CooperativelyCanceled`                                                 |
