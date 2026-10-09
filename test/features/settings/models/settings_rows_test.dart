@@ -57,6 +57,41 @@ void main() {
     });
   });
 
+  group('mintDisplayHost', () {
+    test('keeps the host of a mint URL', () {
+      expect(mintDisplayHost('https://mint.cashu.space/'), 'mint.cashu.space');
+      expect(mintDisplayHost('http://localhost:3338'), 'localhost');
+    });
+
+    test('passes a host-less value through unchanged', () {
+      expect(mintDisplayHost('not a url'), 'not a url');
+    });
+  });
+
+  group('mintSummary', () {
+    test('names the one mint by its host', () {
+      expect(
+        mintSummary(const ['https://mint.a.com'], anyMint: 'Any mint'),
+        'mint.a.com',
+      );
+    });
+
+    test('names the first mint and counts the rest', () {
+      expect(
+        mintSummary(const [
+          'https://mint.a.com',
+          'https://mint.b.com',
+          'https://mint.c.com',
+        ], anyMint: 'Any mint'),
+        'mint.a.com +2',
+      );
+    });
+
+    test('says any mint when the node lists none', () {
+      expect(mintSummary(const [], anyMint: 'Any mint'), 'Any mint');
+    });
+  });
+
   group('RelayTally', () {
     test('counts only the relays the user enabled', () {
       final tally = RelayTally.of([

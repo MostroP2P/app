@@ -71,8 +71,9 @@ final disputeChatProvider = StateNotifierProvider.autoDispose
       return notifier;
     });
 
-/// The Rust calls behind the dispute chat's text and refresh, in one place a
-/// test can replace (the files go through `AttachmentGateway.sendToSolver`).
+/// The Rust calls behind the dispute chat's text, chat key share and refresh,
+/// in one place a test can replace (the files go through
+/// `AttachmentGateway.sendToSolver`).
 class DisputeChatGateway {
   const DisputeChatGateway();
 
@@ -82,6 +83,11 @@ class DisputeChatGateway {
     required String tradeId,
     required String text,
   }) => disputes_api.submitEvidence(tradeId: tradeId, text: text);
+
+  /// Sends the solver the peer chat key (#415): built and sent in Rust, so
+  /// the key reaches Dart only inside the returned message.
+  Future<rust_types.ChatMessage> shareChatKey(String tradeId) =>
+      disputes_api.shareChatKeyWithSolver(tradeId: tradeId);
 
   Future<rust_types.Dispute?> getDispute(String tradeId) =>
       disputes_api.getDispute(tradeId: tradeId);

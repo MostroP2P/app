@@ -4,7 +4,7 @@ Auto-generated from all feature plans. Last updated: 2026-09-17
 
 ## Active Technologies
 - Rust stable 1.94+ (core); Dart 3.x / Flutter 3.x (UI shell) (004-mostro-p2p-client)
-- nostr-sdk 0.45+, mostro-core 0.16.0, flutter_rust_bridge 2.11.1, Riverpod (state),
+- nostr-sdk 0.45+, mostro-core 0.17.1, flutter_rust_bridge 2.11.1, Riverpod (state),
   go_router (navigation), sqlx (SQLite, native) / indexed_db_futures (IndexedDB, web),
   sembast (Dart UI-layer state), bip32/bip39 (keys), chacha20poly1305 (file encryption)
 - Sembast (Dart, all platforms) for UI-layer state; SQLite via `sqlx` (Rust, native) /
@@ -67,9 +67,10 @@ flutter gen-l10n                            # after editing lib/l10n/*.arb
 - Static greps pass on a page that dies at runtime, so that workflow also runs
   **`test/web/smoke/smoke.mjs`**: it serves the release bundle cross-origin isolated under
   `/app/` and asserts in headless Chrome that the page is isolated, the Flutter view mounted,
-  a **Rust bridge call returned**, and nothing errored. The bridge signal comes from
-  `lib/core/web/bridge_probe.dart`, which `main()` sets after its first successful Rust call
-  (no-op off web) — rename that flag on one side only and the check silently never fires.
+  **startup finished** (so the Rust bridge answered), and nothing errored. The bridge signal comes from
+  `lib/core/web/bridge_probe.dart`. Startup sets `mostroBridgeReady` once it has finished, not at the
+  first Rust call, or a later failure goes unseen. The startup guard sets `mostroBridgeError` on failure
+  (no-op off web). Rename either flag on one side only and the check silently never fires.
   The CI run also sets `SMOKE_BOND_STORE=1`: it seeds bond rows (`test/web/smoke/seed/`) into
   IndexedDB, reloads, and compares them with what `lib/core/web/store_probe.dart` read back.
   And `SMOKE_ATTACHMENTS=1`: it serves a Blossom endpoint on a **second origin** and waits for
@@ -167,6 +168,11 @@ bridged by flutter_rust_bridge.
 - **All user-facing strings are Dart-level** (Flutter l10n): `lib/l10n/app_{en,es,fr,de,it,nl}.arb`,
   config `l10n.yaml`, generated `AppLocalizations` via `flutter gen-l10n`, used with
   `AppLocalizations.of(context)`.
+- **One exception, deliberate:** `lib/core/startup_failure.dart` hard-codes its
+  English. It is the surface shown when startup fails before `runApp`, and
+  localization is one of the things that can be what failed — a rescue screen
+  that needs what broke is a second blank page (#389). Do not "fix" it into l10n.
+  The guide records it too (`.specify/DESIGN_SYSTEM.md` §13).
 - **Rust does not translate.** Rust returns data or a stable marker/code (e.g. `NoDaemonResponse`);
   Dart maps it to a localized string. Don't hardcode user-facing prose in Rust.
   (Known debt: some `CantDo` errors still return English prose directly — should become markers.)
@@ -179,7 +185,9 @@ bridged by flutter_rust_bridge.
 - **UI changes are judged against `.specify/DESIGN_SYSTEM.md`**, whose rules have IDs (`DS-COL-1`…).
   New UI code keeps every MUST; its §14 lists the older code that does not, as debt, never as
   a precedent to copy. A change that needs a different value changes the guide first.
-  The **Design guide** CI job runs its *auto* rules on the changed lines of `lib/`
+  The **Design guide** CI job runs its *auto* rules on every class (or top-level function)
+  a change touches under `lib/`, read whole — and on a **screen** (`screens/`) the whole
+  file: one changed line in a legacy screen means migrating all of it
   (`dart tool/design_check.dart` locally; `--all` lists the whole debt).
 - Update this `CLAUDE.md` when guidelines, tooling, or core tech change.
 
@@ -216,6 +224,10 @@ bridged by flutter_rust_bridge.
   `tool/release/downloads.dart`. None of these builds is vendor-signed or notarized.
 - **The macOS app is sandboxed**: without `com.apple.security.network.client` in
   `macos/Runner/*.entitlements` it builds, launches and reaches no relay.
+- **Desktop icons come from `tool/launcher_icon/build_sources.py`**, not `flutter_launcher_icons`
+  (no Linux target, single-size `.ico`). On Wayland, Linux shows the icon of the desktop entry
+  `install.sh` adds, found by the app ID — `linux/packaging/` files are named after
+  `APPLICATION_ID` and must stay so (`test/ci/desktop_icons_test.dart`).
 - **Release notes and `CHANGELOG.md` are generated** by `tool/release_notes.dart`, one entry
   per merged PR grouped by the conventional-commit type of its **title**. Don't hand-edit
   `CHANGELOG.md`; fix the PR title.
@@ -258,7 +270,8 @@ bridged by flutter_rust_bridge.
   `settings` key family (add its prefix to `IDENTITY_SCOPED_PREFIXES`), a process-wide store,
   a non-`autoDispose` provider — must be added to the matching one, or it leaks into the next
   user's session. The stores are process-wide and tests run in parallel, which is why the
-  identity lifecycle test calls `delete_identity_inner(false)`.
+  identity lifecycle test exercises `delete_identity_inner` with a throwaway store and effect
+  doubles (#553).
 - **`OrderInfo::created_at` is when the order was created, not the event's time.** It comes from
   the NIP-69 `published_at` tag (mostro#1000), then the legacy `created_at` tag (daemon builds
   between mostro#971 and #1000), then the event's time on older nodes; a tag value is capped at

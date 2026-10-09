@@ -6,9 +6,9 @@ import 'package:intl/intl.dart';
 
 import 'package:mostro/core/activity_palette.dart';
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
-import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
@@ -37,7 +37,7 @@ class BondClaimBanner extends ConsumerWidget {
       deadlineAt: platformInt64ToInt(claim.deadlineAt),
       now: now,
     );
-    final sats = formatInvoiceSats(claim.amountSats.toInt());
+    final sats = formatInvoiceSats(claim.amountSats.toInt(), l10n.localeName);
     final locale = Localizations.localeOf(context).toString();
     String date(int secs) => DateFormat.yMMMd(
       locale,
@@ -128,6 +128,18 @@ class BondClaimBanner extends ConsumerWidget {
                 child: FilledButton(
                   onPressed:
                       () => context.push(AppRoute.bondPayoutPath(orderId)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: book.lime,
+                    foregroundColor: book.onLime,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontFamily: AppFonts.ui,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   child: Text(
                     phase == BondClaimPhase.pending
                         ? l10n.bondBannerAddInvoice

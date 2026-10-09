@@ -11,6 +11,7 @@ import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/input_source_action.dart';
 import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/nwc.dart' as nwc_api;
@@ -138,6 +139,9 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
     final book = OrderBookPalette.of(context);
     final pal = SettingsPalette.of(context);
     final focused = _uriFocus.hasFocus;
+    // Read once, so whether Scan QR works and the reason it gives cannot
+    // disagree.
+    final canScan = canScanQr();
     return DecoratedBox(
       decoration: BoxDecoration(
         color: book.surface,
@@ -175,6 +179,9 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
               ),
               decoration: InputDecoration(
                 isDense: true,
+                // The card is the field's surface: left to the theme, v1's
+                // fill would paint behind the underline (DS-CMP-19).
+                filled: false,
                 // The real scheme rather than `NWC URI`: the user recognises
                 // what is already on their clipboard.
                 hintText: l10n.nwcUriPlaceholder,
@@ -184,7 +191,7 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
                   fontWeight: FontWeight.w500,
                   color: pal.placeholder,
                 ),
-                contentPadding: const EdgeInsets.only(bottom: 9),
+                contentPadding: const EdgeInsets.only(bottom: 10),
                 enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: pal.fieldUnderline),
                 ),
@@ -203,7 +210,7 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
                 // Scanning is the real path; pasting is the exception, so it
                 // stays neutral and scanning carries the lime tint.
                 Expanded(
-                  child: _SecondaryAction(
+                  child: InputSourceAction(
                     icon: Icons.content_paste_outlined,
                     label: l10n.pasteButtonLabel,
                     onTap: _pasteUri,
@@ -211,10 +218,16 @@ class _NwcWalletScreenState extends ConsumerState<NwcWalletScreen> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _SecondaryAction(
+                  child: InputSourceAction(
                     icon: Icons.qr_code_scanner,
                     label: l10n.scanQrButtonLabel,
-                    onTap: () => setState(() => _showScanner = true),
+                    // Where there is no camera, the scanner would only be a
+                    // second paste field over this one: off, and says why.
+                    onTap:
+                        canScan
+                            ? () => setState(() => _showScanner = true)
+                            : null,
+                    tooltip: canScan ? null : l10n.qrScanUnavailable,
                     accent: true,
                   ),
                 ),
@@ -627,67 +640,6 @@ class _ActionBar extends StatelessWidget {
           18 + MediaQuery.of(context).viewPadding.bottom,
         ),
         child: child,
-      ),
-    );
-  }
-}
-
-/// `Pegar` and `Escanear QR`: same shape, different weight — [accent] carries
-/// the lime tint of the path the user is meant to take.
-class _SecondaryAction extends StatelessWidget {
-  const _SecondaryAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.accent = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final book = OrderBookPalette.of(context);
-    final pal = SettingsPalette.of(context);
-    final ink = accent ? book.limeInk : book.textBody;
-    return Material(
-      color: accent ? pal.scanFill : pal.buttonFill,
-      borderRadius: const BorderRadius.all(Radius.circular(14)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.all(Radius.circular(14)),
-            border: Border.all(
-              color: accent ? pal.scanBorder : pal.buttonBorder,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 14, color: ink),
-              const SizedBox(width: 6),
-              // Half a 360 px screen is tight for `Escanear QR` and tighter
-              // for the longer translations: ellipsize rather than overflow.
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: accent ? FontWeight.w600 : FontWeight.w500,
-                    color: ink,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

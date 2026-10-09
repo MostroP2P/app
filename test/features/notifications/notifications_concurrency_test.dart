@@ -48,6 +48,7 @@ void main() {
         isRead: false,
         hasAttachment: false,
         createdAt: 1000,
+        reactions: [],
       ),
     );
     location = AppRoute.chatRoomPath('order-1');

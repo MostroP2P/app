@@ -76,6 +76,7 @@ void main() {
     isRead: false,
     hasAttachment: false,
     createdAt: at,
+    reactions: const [],
   );
 
   group('tradeCardEvent', () {
@@ -132,6 +133,21 @@ void main() {
       await cards.onTradeUpdate(update(OrderStatus.active));
 
       expect(stateOf(notifier), hasLength(1));
+    });
+
+    test('a re-stated status raises nothing, even with no card yet', () async {
+      // A restore and a reputation re-read re-state a status as `replayed`,
+      // dated now (#770): on a fresh install no card exists to dedupe it
+      // against, and the identity's date cannot tell it from news.
+      await cards.onTradeUpdate(
+        update(OrderStatus.success, reason: TradeUpdateReason.replayed),
+      );
+      await cards.onTradeUpdate(update(OrderStatus.active));
+      await cards.onTradeUpdate(
+        update(OrderStatus.active, reason: TradeUpdateReason.replayed),
+      );
+
+      expect(stateOf(notifier).map((n) => n.id), ['trade-order-1-active']);
     });
 
     test('a later status on the same order adds its own card', () async {

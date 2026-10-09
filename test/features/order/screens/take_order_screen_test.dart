@@ -17,12 +17,14 @@ import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
+import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/l10n/app_localizations_en.dart';
 import 'package:mostro/src/rust/api/types.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 import '../../../support/fake_orders.dart';
+import '../../../support/explanatory_note_finders.dart';
 import '../../../support/fake_trades.dart';
 import '../../../support/provider_harness.dart';
 
@@ -131,6 +133,7 @@ OrderItem _order({
   int tradeCount = 16,
   int daysActive = 219,
   Duration expiresIn = const Duration(hours: 23, minutes: 12),
+  int minutesAgo = 3,
 }) => fakeOrder(
   id: _id,
   kind: kind,
@@ -145,7 +148,7 @@ OrderItem _order({
   rating: rating,
   tradeCount: tradeCount,
   daysActive: daysActive,
-  minutesAgo: 3,
+  minutesAgo: minutesAgo,
   expiresAt: kFakeNow.add(expiresIn),
 );
 
@@ -161,13 +164,88 @@ TextSpan _figureOf(WidgetTester tester, String prefix) {
 }
 
 void main() {
+  // DS-CMP-21 (#723): a time left says what runs out and sits in the body,
+  // never as a bare clock in the app bar, and hours never read as `23:12`.
+  group('TakeOrderScreen countdown', () {
+    testWidgets('announces turning urgent once, not every tick', (
+      tester,
+    ) async {
+      var now = kFakeNow;
+      await withClock(Clock(() => now), () async {
+        // Created 3 minutes ago: a short window, urgent under a minute.
+        await _pump(
+          tester,
+          order: _order(expiresIn: const Duration(minutes: 1, seconds: 2)),
+        );
+        tester.takeAnnouncements();
+
+        for (var i = 0; i < 8; i++) {
+          now = now.add(const Duration(seconds: 1));
+          await tester.pump(const Duration(seconds: 1));
+        }
+
+        expect(
+          [for (final a in tester.takeAnnouncements()) a.message],
+          ['Expires in 00:59'],
+        );
+      });
+    });
+
+    testWidgets('is a labeled row of the data card, not an app-bar clock', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(tester, order: _order());
+
+        final row = find.ancestor(
+          of: find.text('Expires in'),
+          matching: find.byType(OrderDataRow),
+        );
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(of: row, matching: find.text('23 h 12')),
+          findsOneWidget,
+        );
+        expect(find.text('23:12'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.byIcon(Icons.schedule_rounded),
+          ),
+          findsNothing,
+        );
+      });
+    });
+
+    testWidgets('names the end in the same row once the order is gone', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(expiresIn: const Duration(seconds: -1)),
+        );
+
+        final row = find.ancestor(
+          of: find.text('Closed'),
+          matching: find.byType(OrderDataRow),
+        );
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(of: row, matching: find.text('Status')),
+          findsOneWidget,
+        );
+      });
+    });
+  });
+
   group('TakeOrderScreen buying BTC', () {
     testWidgets('shows what is paid, received, and who sells', (tester) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(tester, order: _order());
 
         expect(find.text('Buy BTC'), findsOneWidget);
-        expect(find.text('23:12'), findsOneWidget);
+        expect(find.text('23 h 12'), findsOneWidget);
         expect(find.text('You pay'), findsOneWidget);
         expect(find.text('1,000'), findsOneWidget);
         expect(find.text('You receive'), findsOneWidget);
@@ -186,6 +264,20 @@ void main() {
         );
         expect(find.text('Take order'), findsOneWidget);
         expect(find.text('Close'), findsNothing);
+      });
+    });
+
+    testWidgets('explains the escrow in a body note led by the lock', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(tester, order: _order());
+        expectExplanatoryNote(
+          tester,
+          find.textContaining('the seller locks the sats'),
+          notInside: find.byType(OrderDetailActionBar),
+        );
+        expect(find.byIcon(Icons.shield_outlined), findsNothing);
       });
     });
 
@@ -234,6 +326,75 @@ void main() {
       });
     });
 
+    // DS-CMP-23: one hero, left-aligned, its unit on the figure's baseline.
+    testWidgets(
+      'the hero states the currency beside the figure, not in a chip',
+      (tester) async {
+        await withClock(Clock.fixed(kFakeNow), () async {
+          await _pump(tester, order: _order());
+
+          expect(find.byType(OrderCurrencyChip), findsNothing);
+          final label = tester.widget<Text>(find.text('You pay'));
+          expect(label.style?.fontSize, 12);
+          expect(label.style?.color, _book.textSecondary);
+          final figure = tester.widget<Text>(find.text('1,000'));
+          expect(figure.style?.fontSize, 38);
+          expect(figure.style?.fontWeight, FontWeight.w700);
+          final unit = tester.widget<Text>(find.text('ARS'));
+          expect(unit.style?.fontSize, 15);
+          expect(unit.style?.color, _book.textSecondary);
+          // Left-aligned: the label and the figure share their start edge,
+          // and the unit follows the figure on its line.
+          final figureBox = tester.getRect(find.text('1,000'));
+          expect(tester.getTopLeft(find.text('You pay')).dx, figureBox.left);
+          final unitBox = tester.getRect(find.text('ARS'));
+          expect(unitBox.left, greaterThan(figureBox.right));
+          expect(unitBox.bottom, lessThanOrEqualTo(figureBox.bottom));
+          expect(unitBox.top, greaterThan(figureBox.top));
+        });
+      },
+    );
+
+    testWidgets(
+      'the amount received stacks under the one paid, in lime at 19',
+      (tester) async {
+        await withClock(Clock.fixed(kFakeNow), () async {
+          await _pump(tester, order: _order());
+
+          final line = tester.widget<Text>(find.text('≈ 1,000 sats'));
+          final figure = (line.textSpan! as TextSpan).children![1] as TextSpan;
+          expect(figure.text, '≈ 1,000');
+          expect(figure.style?.fontSize, 19);
+          expect(figure.style?.color, _book.limeInk);
+          final receive = tester.getRect(find.text('You receive'));
+          expect(receive.left, tester.getTopLeft(find.text('1,000')).dx);
+          expect(
+            tester.getTopLeft(find.text('≈ 1,000 sats')).dy,
+            greaterThanOrEqualTo(receive.bottom),
+          );
+        });
+      },
+    );
+
+    testWidgets('a range too wide for 38 drops to 26 rather than truncate', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(
+            fiatAmount: null,
+            fiatAmountMin: 100000,
+            fiatAmountMax: 2500000,
+          ),
+        );
+
+        final figure = tester.widget<Text>(find.text('100,000 – 2,500,000'));
+        expect(figure.style?.fontSize, 26);
+        expect(figure.overflow, isNot(TextOverflow.ellipsis));
+      });
+    });
+
     testWidgets('introduces a maker nobody rated as new', (tester) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(
@@ -258,9 +419,14 @@ void main() {
 
     testWidgets('urges under five minutes', (tester) async {
       await withClock(Clock.fixed(kFakeNow), () async {
+        // A day-long order: under DS-CMP-21 only a window of 15 minutes or
+        // less waits for the last minute.
         await _pump(
           tester,
-          order: _order(expiresIn: const Duration(minutes: 4, seconds: 59)),
+          order: _order(
+            expiresIn: const Duration(minutes: 4, seconds: 59),
+            minutesAgo: 24 * 60 - 5,
+          ),
         );
         expect(_colorOf(tester, '04:59'), _dark.danger);
       });
@@ -498,6 +664,53 @@ void main() {
       });
     });
 
+    testWidgets('dies in place when the daemon says the order moved on', (
+      tester,
+    ) async {
+      // `CantDo(InvalidOrderStatus)`: the order is no longer pending, so
+      // it cannot be taken again, whoever moved it (#719).
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(),
+          take:
+              ({required orderId, required role, fiatAmount}) async =>
+                  throw Exception('AnyhowException(CantDo:InvalidOrderStatus)'),
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('No longer available'), findsOneWidget);
+        expect(find.text(en.orderNoLongerActive), findsOneWidget);
+        expect(find.textContaining('InvalidOrderStatus'), findsNothing);
+      });
+    });
+
+    testWidgets('never shows the raw text of an error it cannot map', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(),
+          take:
+              ({required orderId, required role, fiatAmount}) async =>
+                  throw Exception('AnyhowException(CantDo:SomeNewReason)'),
+        );
+
+        await tester.tap(find.text('Take order'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Could not take the order. Please try again.'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('SomeNewReason'), findsNothing);
+        expect(find.text('Take order'), findsOneWidget);
+      });
+    });
+
     testWidgets('warns about the deposit on a node that bonds takers', (
       tester,
     ) async {
@@ -517,6 +730,28 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Take order'), findsOneWidget);
+      });
+    });
+
+    testWidgets('puts the deposit in the same body note as the escrow', (
+      tester,
+    ) async {
+      await withClock(Clock.fixed(kFakeNow), () async {
+        await _pump(
+          tester,
+          order: _order(),
+          node: const instance.MostroInstance(
+            pubKey: 'node',
+            bondPolicy: instance.BondPolicy.enabled,
+            bondApplyTo: instance.BondApplyTo.take,
+          ),
+          bondEstimate: 1500,
+        );
+        expectExplanatoryNote(
+          tester,
+          find.textContaining(en.takeOrderBondNoticeEstimate('1,500')),
+          notInside: find.byType(OrderDetailActionBar),
+        );
       });
     });
 

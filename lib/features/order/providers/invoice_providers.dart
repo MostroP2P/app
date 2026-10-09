@@ -13,6 +13,17 @@ import 'package:mostro/src/rust/api/invoice.dart' as invoice_api;
 /// advertised its own.
 const kDefaultInvoiceStepSeconds = 900;
 
+/// The whole window of an invoice step: the node's `expiration_seconds`, or
+/// mostrod's default until the node advertises its own. It sets when the
+/// step's countdown turns urgent (DS-CMP-21).
+final invoiceStepWindowProvider = Provider.autoDispose<Duration>(
+  (ref) => Duration(
+    seconds:
+        ref.watch(mostroNodeProvider).valueOrNull?.expirationSeconds ??
+        kDefaultInvoiceStepSeconds,
+  ),
+);
+
 /// What the add-invoice screen asks about the buyer's input.
 typedef InvoiceCheckRequest =
     ({

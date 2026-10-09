@@ -2,53 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/trade_palette.dart';
-
-/// Urgency of the remaining time, which sets the countdown's colour.
-enum CountdownTier {
-  /// An hour or more left.
-  calm,
-
-  /// Under an hour.
-  underHour,
-
-  /// Under five minutes: the bar turns coral too.
-  urgent,
-}
-
-const _hour = Duration(hours: 1);
-const _fiveMinutes = Duration(minutes: 5);
-
-/// `23:57` (h:mm) from an hour up, `12:40` (mm:ss) below. Never `23:57:48`:
-/// seconds at that scale force a repaint every second and decide nothing.
-String formatTradeCountdown(Duration remaining) {
-  if (remaining <= Duration.zero) return '00:00';
-  if (remaining >= _hour) {
-    final minutes = (remaining.inMinutes % 60).toString().padLeft(2, '0');
-    return '${remaining.inHours}:$minutes';
-  }
-  final minutes = remaining.inMinutes.toString().padLeft(2, '0');
-  final seconds = (remaining.inSeconds % 60).toString().padLeft(2, '0');
-  return '$minutes:$seconds';
-}
-
-CountdownTier countdownTier(Duration remaining) {
-  if (remaining < _fiveMinutes) return CountdownTier.urgent;
-  if (remaining < _hour) return CountdownTier.underHour;
-  return CountdownTier.calm;
-}
-
-/// How long until the displayed value changes: every second from an hour
-/// down (at exactly `1:00` the next value is `59:59`, one second later),
-/// otherwise at the next whole minute, so an hour-scale clock repaints once
-/// a minute and lands exactly on the hour.
-Duration nextCountdownTick(Duration remaining) {
-  if (remaining <= _hour) return const Duration(seconds: 1);
-  final intoMinute = remaining.inSeconds % 60;
-  return Duration(seconds: intoMinute == 0 ? 60 : intoMinute);
-}
+import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/countdown.dart';
+import 'package:mostro/shared/widgets/countdown_urgency_announcer.dart';
 
 /// The countdown of the step block: label + time, a progress bar that fills
-/// with the elapsed share of the window, and an optional note.
+/// with the elapsed share of the window, and an optional note. Formatted and
+/// toned by the shared countdown (DS-CMP-21); [total] is its window.
 class TradeCountdown extends StatelessWidget {
   const TradeCountdown({
     super.key,
@@ -75,11 +35,12 @@ class TradeCountdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final book = OrderBookPalette.of(context);
     final trade = TradePalette.of(context);
-    final tier = countdownTier(remaining);
-    final color = switch (tier) {
-      CountdownTier.urgent => trade.timerUrgent,
-      CountdownTier.underHour => trade.timerWait,
-      CountdownTier.calm => isWaiting ? trade.timerWait : trade.timerActive,
+    final l10n = AppLocalizations.of(context);
+    final tone = countdownTone(remaining, window: total);
+    final color = switch (tone) {
+      CountdownTone.urgent => trade.timerUrgent,
+      CountdownTone.warning => trade.timerWait,
+      CountdownTone.calm => isWaiting ? trade.timerWait : trade.timerActive,
     };
     final elapsed =
         total > Duration.zero
@@ -99,13 +60,19 @@ class TradeCountdown extends StatelessWidget {
                 style: TextStyle(fontSize: 11, color: book.textTertiary),
               ),
             ),
-            Text(
-              formatTradeCountdown(remaining),
-              style: TextStyle(
-                fontFamily: AppFonts.figures,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: color,
+            CountdownUrgencyAnnouncer(
+              urgent: tone == CountdownTone.urgent,
+              message:
+                  '$label '
+                  '${formatCountdown(remaining, hours: l10n.invoiceCountdownHours)}',
+              child: Text(
+                formatCountdown(remaining, hours: l10n.invoiceCountdownHours),
+                style: TextStyle(
+                  fontFamily: AppFonts.figures,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
             ),
           ],
@@ -122,9 +89,19 @@ class TradeCountdown extends StatelessWidget {
         ),
         if (note != null) ...[
           const SizedBox(height: 8),
-          Text(
-            note!,
-            style: TextStyle(fontSize: 11, height: 1.45, color: book.textFaint),
+          // The note changes while the user watches: at 00:00 it says what
+          // mostrod is about to do (#569). Announced; the figure is not, or
+          // it would be read every second (DS-A11Y-2).
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              note!,
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.45,
+                color: book.textFaint,
+              ),
+            ),
           ),
         ],
       ],

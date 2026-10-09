@@ -51,7 +51,7 @@ void main() {
               widget.properties.identifier == 'invoice.order_id',
         );
         expect(tester.getSemantics(order).getSemanticsData().label, 'order-1');
-        expect(find.text('#order-1'), findsOneWidget);
+        expect(find.text('order-1'), findsOneWidget);
         amounts.add(BigInt.from(999));
         await tester.pump();
         await tester.pump();

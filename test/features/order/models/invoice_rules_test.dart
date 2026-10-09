@@ -4,25 +4,65 @@ import 'package:mostro/src/rust/api/types.dart' as rust_types;
 import 'package:mostro/src/rust/api/types.dart' show InvoiceVerdict;
 
 void main() {
-  group('invoiceOrderTag', () {
-    test('keeps the first eight characters behind a hash', () {
-      expect(invoiceOrderTag('09150348-1a2b-4c3d'), '#09150348');
+  // Issue #720: the invoice screens grouped sats by hand (none up to five
+  // digits, a thin space above) while every other screen used the locale's
+  // separator, so `2439 sats` sat next to `≈ 1.449 sats`.
+  group('formatInvoiceSats', () {
+    test("groups thousands with the locale's separator", () {
+      expect(formatInvoiceSats(2439, 'es'), '2.439');
+      expect(formatInvoiceSats(2439, 'en'), '2,439');
+      expect(formatInvoiceSats(1234567, 'es'), '1.234.567');
+      expect(formatInvoiceSats(300000, 'en'), '300,000');
     });
 
-    test('keeps a short id whole', () {
-      expect(invoiceOrderTag('order-1'), '#order-1');
+    test('leaves three digits or fewer alone', () {
+      expect(formatInvoiceSats(250, 'es'), '250');
+      expect(formatInvoiceSats(0, 'en'), '0');
     });
   });
 
-  group('formatInvoiceSats', () {
-    test('has no separator up to five digits', () {
-      expect(formatInvoiceSats(250), '250');
-      expect(formatInvoiceSats(99999), '99999');
+  group('stepExpiry', () {
+    test('the taker owes the step: the order goes back to the book', () {
+      expect(
+        stepExpiry(buyerStep: true, kind: rust_types.OrderKind.sell),
+        StepExpiry.backToBook,
+      );
+      expect(
+        stepExpiry(buyerStep: false, kind: rust_types.OrderKind.buy),
+        StepExpiry.backToBook,
+      );
     });
 
-    test('groups by a thin space from six digits', () {
-      expect(formatInvoiceSats(300000), '300 000');
-      expect(formatInvoiceSats(1234567), '1 234 567');
+    test('the maker owes the step: the order is cancelled', () {
+      expect(
+        stepExpiry(buyerStep: true, kind: rust_types.OrderKind.buy),
+        StepExpiry.cancelled,
+      );
+      expect(
+        stepExpiry(buyerStep: false, kind: rust_types.OrderKind.sell),
+        StepExpiry.cancelled,
+      );
+    });
+  });
+
+  group('formatInvoiceMsat', () {
+    test('shows whole sats like formatInvoiceSats', () {
+      expect(formatInvoiceMsat(2439000, 'es'), '2.439');
+    });
+
+    test("keeps a sub-sat remainder behind the locale's decimal separator", () {
+      expect(formatInvoiceMsat(2439500, 'es'), '2.439,5');
+      expect(formatInvoiceMsat(2439500, 'en'), '2,439.5');
+      expect(formatInvoiceMsat(250001, 'en'), '250.001');
+    });
+
+    // The verdict carries the invoice's amount as a u64: dividing by 1000 as a
+    // double would round it before NumberFormat sees it.
+    test('keeps every digit of an amount past double precision', () {
+      expect(
+        formatInvoiceMsat(9007199254740993, 'en'),
+        '9,007,199,254,740.993',
+      );
     });
   });
 
@@ -42,52 +82,6 @@ void main() {
       expect(holdInvoiceFee(holdSats: 250, nodeFee: null), isNull);
       expect(holdInvoiceFee(holdSats: 250, nodeFee: double.nan), isNull);
       expect(holdInvoiceFee(holdSats: 0, nodeFee: 0.006), isNull);
-    });
-  });
-
-  group('countdown', () {
-    test('reads mm:ss under an hour and the localized h mm above', () {
-      String hours(String h, String m) => '$h Std. $m';
-      expect(
-        formatInvoiceCountdown(
-          const Duration(minutes: 14, seconds: 38),
-          hours: hours,
-        ),
-        '14:38',
-      );
-      expect(
-        formatInvoiceCountdown(
-          const Duration(hours: 1, minutes: 5),
-          hours: hours,
-        ),
-        '1 Std. 05',
-      );
-      expect(
-        formatInvoiceCountdown(const Duration(seconds: -3), hours: hours),
-        '00:00',
-      );
-    });
-
-    test('turns urgent under a minute', () {
-      expect(isInvoiceCountdownUrgent(const Duration(seconds: 60)), isFalse);
-      expect(isInvoiceCountdownUrgent(const Duration(seconds: 59)), isTrue);
-    });
-
-    test('ticks every second under an hour, on the minute above', () {
-      expect(
-        invoiceCountdownTick(const Duration(minutes: 10)),
-        const Duration(seconds: 1),
-      );
-      // 2:00:15 still reads 2 h 00 at +15 s; it turns 1 h 59 at +16 s.
-      expect(
-        invoiceCountdownTick(const Duration(hours: 2, seconds: 15)),
-        const Duration(seconds: 16),
-      );
-      // 2:00:00 turns 1 h 59 one second later, not a minute later.
-      expect(
-        invoiceCountdownTick(const Duration(hours: 2)),
-        const Duration(seconds: 1),
-      );
     });
   });
 

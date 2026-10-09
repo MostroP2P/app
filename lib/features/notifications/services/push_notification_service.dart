@@ -60,6 +60,13 @@ class PushNotificationService {
   @visibleForTesting
   void Function(String destination)? navigate;
 
+  /// Whether the permission prompt only shows from a user gesture: on the
+  /// web, Safari and Firefox ignore one asked for at startup, and the token
+  /// request after it fails. There the prompt waits for
+  /// [requestPermissionFromGesture]. Test seam.
+  @visibleForTesting
+  bool promptNeedsGesture = kIsWeb;
+
   /// The bridge hand-over, with its retry while storage is not ready.
   final TokenHandoff _handoff = TokenHandoff(
     setToken:
@@ -110,6 +117,15 @@ class PushNotificationService {
     } catch (e) {
       debugPrint('[push] Firebase not available: $e');
       _initStarted = false;
+      return;
+    }
+
+    // A prompt that needs a gesture is never asked for from here: Settings
+    // offers it, and the answer runs this again. Nothing is attached yet.
+    if (await _awaitsGesturePermission()) {
+      debugPrint('[push] permission not asked yet: waiting for a tap');
+      _initStarted = false;
+      await _suspendForPermission();
       return;
     }
 
@@ -312,7 +328,7 @@ class PushNotificationService {
     if (_released) return;
     // Gate refresh callbacks while the current permission is being read.
     _permissionDenied = true;
-    if (await isSystemPermissionDenied()) {
+    if (await isSystemPermissionDenied() || await _awaitsGesturePermission()) {
       await _suspendForPermission();
       return;
     }
@@ -334,6 +350,45 @@ class PushNotificationService {
       await push_api.clearPushToken();
     } catch (e) {
       debugPrint('[push] token not cleared after permission denial: $e');
+    }
+  }
+
+  /// Whether the permission has not been asked for yet and its prompt
+  /// needs a gesture: Settings then offers the tap that asks for it.
+  Future<bool> awaitsPermissionFromGesture() => _awaitsGesturePermission();
+
+  Future<bool> _awaitsGesturePermission() async {
+    if (!promptNeedsGesture || !isSupported) return false;
+    try {
+      final settings = await _fcm.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.notDetermined;
+    } catch (e) {
+      debugPrint('[push] permission status unavailable: $e');
+      return false;
+    }
+  }
+
+  /// Asks for the notification permission, from the tap that calls this,
+  /// and starts push if it is granted.
+  ///
+  /// The request goes out before anything is awaited: a browser shows the
+  /// prompt only while the tap's user activation lasts, so nothing may be
+  /// put in front of it.
+  Future<void> requestPermissionFromGesture() async {
+    if (!isSupported) return;
+    final NotificationSettings settings;
+    try {
+      settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    } catch (e) {
+      debugPrint('[push] permission request failed: $e');
+      return;
+    }
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      await retryInitialize();
     }
   }
 

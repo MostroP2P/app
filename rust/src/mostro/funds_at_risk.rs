@@ -123,6 +123,9 @@ fn severity(reason: &FundsAtRiskReason) -> u8 {
         FundsAtRiskReason::PayoutClaimOpen => 2,
         FundsAtRiskReason::TradeInProgress => 3,
         FundsAtRiskReason::BondInvoicePending => 4,
+        // Not a trade risk: `api::identity::funds_at_risk` lists it after
+        // the ones this module ranks.
+        FundsAtRiskReason::CashuWalletBalance => 5,
     }
 }
 
@@ -157,6 +160,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role,
             counterparty_pubkey: String::new(),

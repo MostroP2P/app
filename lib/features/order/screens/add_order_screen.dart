@@ -27,6 +27,7 @@ import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/order_amount_limits.dart';
 import 'package:mostro/shared/widgets/pill_segmented.dart';
 import 'package:mostro/src/rust/api/orders.dart' as rust_orders;
@@ -128,6 +129,8 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
       final defaultFiat =
           ref.read(settingsProvider).defaultFiatCode ?? 'USD';
       ref.read(selectedFiatCodeProvider.notifier).state = defaultFiat;
+      ref.read(fiatPickedByUserProvider.notifier).state = false;
+      _keepFiatAccepted(ref.read(acceptedFiatCodesProvider));
       ref.read(isMarketPriceProvider.notifier).state = true;
       ref.read(isRangeOrderProvider.notifier).state = false;
       ref.read(premiumValueProvider.notifier).state = 0.0;
@@ -142,6 +145,30 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     _maxController.dispose();
     super.dispose();
   }
+
+  /// Moves the form off a currency the node does not accept ([fiatForNode]),
+  /// but only while the form is untouched: once an amount or a payment
+  /// method is in, switching would reinterpret the amount and drop the
+  /// methods that belong to the old currency, and a currency the user picked
+  /// is theirs to change. The build then shows the
+  /// currency as refused and keeps Publish disabled instead. Only the form's
+  /// currency changes: the default currency in settings is never written.
+  void _keepFiatAccepted(List<String>? accepted) {
+    if (!_untouched) return;
+    final selected = ref.read(selectedFiatCodeProvider.notifier);
+    final next = fiatForNode(selected.state, accepted);
+    if (next != selected.state) selected.state = next;
+  }
+
+  /// No currency picked, and no amount, fixed sats or payment method entered
+  /// yet.
+  bool get _untouched =>
+      !ref.read(fiatPickedByUserProvider) &&
+      _amountController.text.isEmpty &&
+      _minController.text.isEmpty &&
+      _maxController.text.isEmpty &&
+      ref.read(fixedSatsProvider).isEmpty &&
+      ref.read(allPaymentMethodsProvider).isEmpty;
 
   // ── Locale-aware amounts ──────────────────────────────────────────────────
 
@@ -411,9 +438,11 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
         context.push(AppRoute.payBondPath(order.id));
         return;
       }
+      ref.read(mascotCueProvider.notifier).orderPublished();
       context.go(AppRoute.myOrderPath(order.id));
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       // CantDo rejections from Mostro arrive as errors from createOrder.
       // Strip the Rust error prefix for a cleaner message.
       final raw = e.toString();
@@ -441,6 +470,15 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final locale = _locale(context);
     final symbols = _symbols(context);
 
+    // The node's list can land after the form opened, or change with a node
+    // switch: on an untouched form a currency it does not accept gives way to
+    // its first one; otherwise the currency stays and is shown as refused.
+    ref.listen<List<String>?>(
+      acceptedFiatCodesProvider,
+      (_, accepted) => _keepFiatAccepted(accepted),
+    );
+    final accepted = ref.watch(acceptedFiatCodesProvider);
+
     final side = ref.watch(orderSideProvider);
     final methods = ref.watch(allPaymentMethodsProvider);
     final isMarket = ref.watch(isMarketPriceProvider);
@@ -450,6 +488,7 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     final premium = ref.watch(premiumValueProvider);
     final node = ref.watch(mostroNodeProvider).valueOrNull;
     final amounts = _amounts(isRange, symbols);
+    final currencyRefused = fiatRefused(fiatCode, accepted);
 
     final satsRangeError = (!isMarket && !isRange && fixedSatsStr.isNotEmpty)
         ? satsOutOfNodeRange(
@@ -476,13 +515,16 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
           amounts: amounts,
         ) &&
         satsRangeError == null &&
-        fiatRangeError == null;
-    final rangeWarning = _rangeWarning(
-      l10n: l10n,
-      satsRangeError: satsRangeError,
-      fiatRangeError: fiatRangeError,
-      fiatCode: fiatCode,
-    );
+        fiatRangeError == null &&
+        !currencyRefused;
+    final rangeWarning = currencyRefused
+        ? l10n.orderCurrencyNotAccepted(fiatCode)
+        : _rangeWarning(
+            l10n: l10n,
+            satsRangeError: satsRangeError,
+            fiatRangeError: fiatRangeError,
+            fiatCode: fiatCode,
+          );
     // A node that bonds makers asks for a deposit before publishing
     // (docs/ANTI_ABUSE_BOND.md §6.2): said here, before the tap.
     final bondNotice = makerBondApplies(

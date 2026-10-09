@@ -50,8 +50,9 @@ ChatMessage _bubble(String id, dynamic attachment, {required bool isMine}) =>
       isMine: isMine,
       isRead: true,
       hasAttachment: true,
-      // 10:24 UTC; CI renders goldens in UTC.
-      createdAt: 1767954240,
+      // 10:24 on the machine's own clock: the bubble shows local time, so a
+      // fixed epoch only matched the golden in UTC (CI), not on a dev box.
+      createdAt: DateTime(2026, 1, 9, 10, 24).millisecondsSinceEpoch ~/ 1000,
       attachment: attachment,
     );
 

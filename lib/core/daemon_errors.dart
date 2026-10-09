@@ -9,6 +9,30 @@ bool isStatusRejection(Object error) {
       raw.contains('not allowed in the current order status');
 }
 
+/// How Rust words the node refusing an action: what `cant_do_message`
+/// (`rust/src/api/orders.rs`) makes of a daemon `CantDo` — the prose it
+/// still returns for a few reasons, the markers for the ones Dart localizes,
+/// `CantDo:<reason>` for the rest — and the refusals with a marker of their
+/// own.
+const List<String> _refusalMarkers = [
+  'CantDo:',
+  'Order rejected:',
+  'Action rejected:',
+  'Order is already canceled',
+  'MaintenanceMode',
+  'InvalidTradeIndex',
+  // The node refusing a maker's bond cancel, its bond having locked first.
+  'MakerCancelRefused',
+];
+
+/// Whether [error] is the node answering no (a `CantDo`), as opposed to a
+/// failure that never reached it or never came back: a timeout, a relay, a
+/// protocol mismatch, a local check.
+bool isDaemonRefusal(Object error) {
+  final raw = error.toString();
+  return _refusalMarkers.any(raw.contains);
+}
+
 /// Central mapping from the stable error markers the Rust core emits to
 /// localized, actionable messages.
 ///
@@ -46,6 +70,13 @@ String localizedDaemonError(
   // it and retry once (mostro::trade_index), so this is a second refusal.
   if (raw.contains('InvalidTradeIndex')) {
     return l10n.invalidTradeIndexError;
+  }
+  // The node does not list the order's currency in its
+  // `fiat_currencies_accepted`. The picker offers only those, so this is a
+  // list that changed, or arrived, after the currency was picked. Rust
+  // returns it as `CantDo:InvalidFiatCurrency` (`cant_do_message`).
+  if (raw.contains('InvalidFiatCurrency')) {
+    return l10n.invalidFiatCurrencyError;
   }
   // The daemon refused the buyer invoice: wrong amount, too short an expiry
   // for its payout window, or not an invoice at all. The Rust core words the

@@ -395,8 +395,8 @@ flutter build web --release --base-href "/app/" --pwa-strategy=none
 It then verifies the bundle and smoke-tests it in headless Chrome
 ([`test/web/smoke/smoke.mjs`](test/web/smoke/smoke.mjs)): the release bundle is served
 cross-origin isolated under `/app/`, and the test asserts the page is isolated, the Flutter
-view mounted, a Rust bridge call returned, and nothing errored. Static checks alone cannot
-catch that — every blank-page cause below greps perfectly clean.
+view mounted, startup finished (so the Rust bridge answered), and nothing errored. Static
+checks alone cannot catch that — every blank-page cause below greps perfectly clean.
 
 Three things make it work on a static host that cannot set HTTP headers:
 
@@ -615,9 +615,8 @@ To add a new language:
    - `lib/features/settings/widgets/language_selector.dart`: the English and native name in `languageNames` (the picker already lists every `.arb` file; without a name it shows the bare code)
    - `rust/src/api/settings.rs`: the code in `SUPPORTED_LOCALES`, then `./scripts/frb-generate.sh`
    - `web/push_worker_logic.js`: the locale's `pushNewMessageBody` in `CHAT_WAKE_BODIES` (a service worker cannot read `.arb` files)
-   - `lib/features/walkthrough/utils/highlight_config.dart`: the locale's wording of each highlighted onboarding phrase
    - `specs/006-announcement-channel/spec.md`: the locales every announcement must carry, in the rule and in the JSON example
-5. Run `flutter test` and `cargo test`: `test/l10n/locale_lists_test.dart` checks the picker names, the Rust list, the push worker and spec 006 against the `.arb` files, and `highlight_config_test.dart` checks the walkthrough phrases per locale, so a place missed in step 4 fails there
+5. Run `flutter test` and `cargo test`: `test/l10n/locale_lists_test.dart` checks the picker names, the Rust list, the push worker and spec 006 against the `.arb` files, so a place missed in step 4 fails there
 6. Open a PR — translation contributions are always welcome
 
 ---

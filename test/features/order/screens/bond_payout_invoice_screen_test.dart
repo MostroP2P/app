@@ -88,7 +88,7 @@ void main() {
   ) async {
     await withClock(clockAt, () async {
       await _pump(tester, claim: _claim());
-      expect(find.text('1500'), findsOneWidget);
+      expect(find.text('1,500'), findsOneWidget);
       expect(_label(tester, AutomationIds.bondClaimAmount), '1500');
       expect(_label(tester, AutomationIds.bondClaimStatus), 'pending');
       expect(find.textContaining('Claim before'), findsOneWidget);
@@ -268,6 +268,26 @@ void main() {
         expect(_byId(AutomationIds.bondClaimText), findsNothing);
       },
     );
+  });
+
+  // DS-CMP-23: the same hero as the take-order screen.
+  testWidgets('the share is a left-aligned hero under a sentence-case label', (
+    tester,
+  ) async {
+    await withClock(clockAt, () async {
+      await _pump(tester, claim: _claim());
+      expect(find.text('YOUR SHARE'), findsNothing);
+      final label = tester.widget<Text>(find.text('Your share'));
+      expect(label.style?.fontSize, 12);
+      expect(
+        tester.getTopLeft(find.text('Your share')).dx,
+        tester.getTopLeft(find.text('1,500')).dx,
+      );
+      expect(
+        tester.getTopLeft(find.text('sats')).dx,
+        greaterThan(tester.getTopRight(find.text('1,500')).dx),
+      );
+    });
   });
 
   testWidgets('no claim for the order says so', (tester) async {

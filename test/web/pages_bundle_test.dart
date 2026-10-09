@@ -370,6 +370,47 @@ void main() {
     });
   });
 
+  // The order book offers the install once (#778). The browser fires its
+  // install event whenever it likes, often before Flutter has started, so the
+  // page keeps it for Dart; a name changed on one side only means the offer
+  // silently never shows.
+  group('install offer (#778)', () {
+    final dart = File('lib/core/web/pwa_install_web.dart');
+
+    test('index.html keeps the install event, after the shim', () {
+      // Arrange
+      final html = indexHtml.readAsStringSync();
+
+      // Act
+      final shimAt = html.indexOf('<script src="coi-serviceworker.min.js">');
+      final captureAt = html.indexOf("'beforeinstallprompt'");
+      final bootstrapAt = html.indexOf('flutter_bootstrap.js');
+
+      // Assert — preventDefault() is what stops Chrome's own mini-infobar,
+      // so the app decides when to ask.
+      expect(captureAt, greaterThan(shimAt));
+      expect(captureAt, lessThan(bootstrapAt));
+      expect(html, contains('preventDefault()'));
+      expect(html, contains("'appinstalled'"));
+    });
+
+    test('index.html and Dart agree on the global and the event', () {
+      // Arrange
+      final html = indexHtml.readAsStringSync();
+      final source = dart.readAsStringSync();
+      final names =
+          RegExp(
+            r"const kInstall\w+ = '([\w-]+)';",
+          ).allMatches(source).map((m) => m.group(1)!).toList();
+
+      // Act / Assert
+      expect(names, hasLength(2));
+      for (final name in names) {
+        expect(html, contains(name));
+      }
+    });
+  });
+
   group('messaging service worker (docs/PUSH_NOTIFICATIONS.md T4.5)', () {
     final worker = File('web/firebase-messaging-sw.js');
     final logic = File('web/push_worker_logic.js');

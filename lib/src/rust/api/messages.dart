@@ -7,9 +7,9 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `active_chats`, `add_message`, `admin_chat_context`, `advance_cursor`, `attachment_blob`, `attachment_key_for`, `budget_ok`, `cache_attachment_blob`, `chat_closed_at`, `chat_context`, `chat_grace_ends_at`, `chat_is_current`, `chat_running`, `chat_still_relevant_at`, `chat_still_relevant`, `chat_subscription_id`, `claim_chat_locked`, `claim_chat`, `claim_dispute_chat`, `clear`, `conversation_of`, `counterpart_of`, `cursor_key`, `ensure_durable`, `ensure_hydrated`, `forget_identity_chats`, `get_messages`, `guard_key`, `hand_over_dispute_chat`, `handle_chat_event`, `id_prefix`, `insert`, `is_known`, `load_chat_cursor`, `mark_as_read`, `message_store`, `message_type`, `new`, `new`, `new`, `new`, `new`, `next_from`, `notification_backlog`, `notification_candidate_now`, `notification_candidate`, `parse_chat_payload`, `peer_to_wake`, `persisted_chat_closed`, `publish_chat_payload_for`, `publish_chat_payload`, `quota_exceeded`, `rebuild_session`, `reject`, `release_and_close_chat`, `replace_chat_subscription_if_current`, `reset_chat_cursor`, `resubscribe_active_chats`, `run_chat_subscription`, `send_attachment`, `session_or_rebuild`, `set_download_status`, `spawn_peer_chat`, `stop_chat_locked`, `stop_chat_subscription`, `stop_chat_subscriptions`, `store_chat_cursor_if_current`, `store_chat_cursor`, `store_outgoing_admin_message`, `subscribe_incoming_chat`, `try_take`, `unread_count_inner`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTarget`, `BoundedIdSet`, `ChatChannel`, `ChatContext`, `ChatRxState`, `MessageStore`, `PublishedChat`, `TokenBucket`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `eq`, `fmt`, `fmt`
+// These functions are ignored because they are not marked as `pub`: `active_chats`, `add_message`, `admin_chat_context`, `advance_cursor`, `apply_reaction`, `attachment_blob`, `attachment_key_for`, `budget_ok`, `cache_attachment_blob`, `caught_up`, `chat_closed_at`, `chat_context`, `chat_grace_ends_at`, `chat_is_current`, `chat_running`, `chat_still_relevant_at`, `chat_still_relevant`, `chat_subscription_id`, `claim_chat_locked`, `claim_chat`, `claim_dispute_chat`, `clear`, `closed_by`, `connection_of`, `conversation_of`, `counterpart_of`, `cursor_key`, `ensure_durable`, `ensure_hydrated`, `eose_from`, `event_from`, `fold_held_reactions`, `forget_gone_relays`, `forget_identity_chats`, `get_messages`, `guard_key`, `hand_over_dispute_chat`, `handle_chat_event`, `handle_reaction`, `has_unsaved`, `held_floor_at`, `held_floor`, `hold_reaction`, `id_prefix`, `insert`, `is_known`, `load_chat_cursor`, `mark_as_read`, `merge_reaction`, `message_store`, `message_type`, `new`, `new`, `new`, `new`, `new`, `next_from`, `note_durability`, `notification_backlog`, `notification_candidate_now`, `notification_candidate`, `parse_chat_payload`, `peer_to_wake`, `persist_cursor`, `persisted_chat_closed`, `plausible_counterparty`, `publish_chat_payload_for`, `publish_chat_payload`, `publish_delivered_chat_payload_for`, `publish_wrapped`, `quota_exceeded`, `reacted_messages`, `reaction_allowed`, `reaction_time`, `rebuild_session`, `reject`, `relays_holding`, `release_and_close_chat`, `replace_chat_subscription_if_current`, `reset_chat_cursor`, `resubscribe_active_chats`, `run_chat_subscription`, `send_attachment`, `session_or_rebuild`, `set_download_status`, `settle_cursor`, `spawn_peer_chat`, `stop_chat_locked`, `stop_chat_subscription`, `stop_chat_subscriptions`, `store_chat_cursor_if_current`, `store_chat_cursor`, `store_outgoing_admin_message`, `subscribe_incoming_chat`, `try_take`, `unread_count_inner`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTarget`, `BoundedIdSet`, `ChatChannel`, `ChatContext`, `ChatRxState`, `HeldReaction`, `MessageStore`, `PublishedChat`, `ReactionOutcome`, `TokenBucket`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// Send an encrypted text message to the trade counterparty.
 ///
@@ -26,6 +26,26 @@ Future<ChatMessage> sendMessage({
 }) => RustLib.instance.api.crateApiMessagesSendMessage(
   tradeId: tradeId,
   content: content,
+);
+
+/// React to the counterparty's message `message_id` with `emoji`, or withdraw
+/// the reaction with an empty `emoji` (protocol chat.md, "Reactions").
+///
+/// Only a peer-chat message the counterparty wrote takes one. Unlike a
+/// message, a reaction is not kept when no relay takes it — the counterparty
+/// would never see it — and it wakes nobody.
+///
+/// Returns the message with the reaction applied; the same value reaches
+/// `on_message_updated`. Errors carry a stable marker: `ReactionTooLarge`,
+/// `MessageNotFound`, `ReactionNotAllowed` or `SendFailed`.
+Future<ChatMessage> sendReaction({
+  required String tradeId,
+  required String messageId,
+  required String emoji,
+}) => RustLib.instance.api.crateApiMessagesSendReaction(
+  tradeId: tradeId,
+  messageId: messageId,
+  emoji: emoji,
 );
 
 /// Get all messages for a trade, ordered by creation time (oldest first).
@@ -114,6 +134,16 @@ Future<AnyMessageStream> onAnyNewMessage() =>
 Future<UnreadCountStream> onUnreadCountChanged() =>
     RustLib.instance.api.crateApiMessagesOnUnreadCountChanged();
 
+/// Stream that emits a trade's messages again when they change after being
+/// stored: a reaction to one of them, received or sent. Never a new message.
+///
+/// It opens with the trade's messages that carry reactions, read once it is
+/// subscribed: a reaction applied between the caller's history read and the
+/// subscription still arrives. A receiver that lags behind gets the same
+/// snapshot again instead of a gap.
+Future<MessageUpdateStream> onMessageUpdated({required String tradeId}) =>
+    RustLib.instance.api.crateApiMessagesOnMessageUpdated(tradeId: tradeId);
+
 /// Stream that emits attachment upload/download progress (0.0–1.0).
 Future<AttachmentProgressStream> onAttachmentProgress({
   required String messageId,
@@ -133,6 +163,11 @@ abstract class AttachmentProgressStream implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageStream>>
 abstract class MessageStream implements RustOpaqueInterface {
+  Future<ChatMessage?> next();
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageUpdateStream>>
+abstract class MessageUpdateStream implements RustOpaqueInterface {
   Future<ChatMessage?> next();
 }
 

@@ -4,6 +4,8 @@ import 'package:mostro/core/activity_palette.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/models/notification_view_rules.dart';
+import 'package:mostro/features/order/models/order_detail_rules.dart'
+    show shortOrderId;
 import 'package:mostro/features/trades/models/trades_list_rules.dart';
 import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
 import 'package:mostro/features/trades/widgets/trade_card.dart';
@@ -154,37 +156,55 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
+    final book = OrderBookPalette.of(context);
     final pal = ActivityPalette.of(context);
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toString();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    final shortId =
-        fallbackId.length > 8 ? fallbackId.substring(0, 8) : fallbackId;
+    final textSec = book.textSecondary;
+    // DS-CMP-22: the same short form as every other id, without copy.
+    final shortId = shortOrderId(fallbackId);
     final row = this.row;
     final hasTrade = row != null && !row.claimOnly;
 
-    final String title;
-    final String subtitle;
+    // The id is a figure: its own span in the figures face, wherever the
+    // line places it.
+    final idSpan = TextSpan(
+      text: shortId,
+      style: const TextStyle(fontFamily: AppFonts.figures),
+    );
+    final InlineSpan title;
+    final InlineSpan? subtitle;
     if (!hasTrade) {
-      title = '${isDisputeGroup ? l10n.disputeWord : l10n.tradeWord} #$shortId';
-      subtitle = row == null ? '' : paymentMethodLabel(row.paymentMethod);
-    } else {
-      title = tradeAmountSummary(
-        l10n,
-        isSelling: row.isSelling,
-        fiatAmount: row.fiatAmount,
-        fiatAmountMin: row.fiatAmountMin,
-        fiatAmountMax: row.fiatAmountMax,
-        fiatCode: row.fiatCode,
-        sats: row.amountSats,
-        locale: locale,
+      title = TextSpan(
+        children: [
+          TextSpan(
+            text: '${isDisputeGroup ? l10n.disputeWord : l10n.tradeWord} ',
+          ),
+          idSpan,
+        ],
       );
-      subtitle = [
-        paymentMethodLabel(row.paymentMethod),
-        '#$shortId',
-      ].where((s) => s.isNotEmpty).join(' · ');
+      final method = row == null ? '' : paymentMethodLabel(row.paymentMethod);
+      subtitle = method.isEmpty ? null : TextSpan(text: method);
+    } else {
+      title = TextSpan(
+        text: tradeAmountSummary(
+          l10n,
+          isSelling: row.isSelling,
+          fiatAmount: row.fiatAmount,
+          fiatAmountMin: row.fiatAmountMin,
+          fiatAmountMax: row.fiatAmountMax,
+          fiatCode: row.fiatCode,
+          sats: row.amountSats,
+          locale: locale,
+        ),
+      );
+      final method = paymentMethodLabel(row.paymentMethod);
+      subtitle = TextSpan(
+        children: [
+          if (method.isNotEmpty) TextSpan(text: '$method · '),
+          if (shortId.isNotEmpty) idSpan,
+        ],
+      );
     }
     final (icon, iconColor) =
         isDispute
@@ -207,17 +227,17 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              Text.rich(
                 title,
                 style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: book.textPrimary,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (subtitle.isNotEmpty)
-                Text(
+              if (subtitle != null && subtitle.toPlainText().isNotEmpty)
+                Text.rich(
                   subtitle,
                   style: Theme.of(
                     context,
@@ -234,11 +254,11 @@ class _Header extends StatelessWidget {
             width: 20,
             height: 20,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: green, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: book.lime, shape: BoxShape.circle),
             child: Text(
               '$unreadCount',
-              style: const TextStyle(
-                color: Colors.black,
+              style: TextStyle(
+                color: book.onLime,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),

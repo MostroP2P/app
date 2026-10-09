@@ -12,10 +12,10 @@
 //! **not** the same as knowing it speaks Lightning.
 //!
 //! Fail-safe by construction: [`is_cashu_mode`] is the only way to ask whether
-//! Cashu paths may run, and it answers `false` for `Unknown`, for `Lightning`,
-//! and for a node that claims Cashu without publishing a usable mint. A node
-//! that never answers therefore behaves exactly like today's Lightning-only
-//! client.
+//! the wallet and escrow paths may run, and it answers `false` for `Unknown`,
+//! for `Lightning`, and for a Cashu node that does not pin a single mint. A
+//! node that never answers therefore behaves exactly like today's
+//! Lightning-only client.
 
 use std::sync::{OnceLock, RwLock};
 use tokio::sync::broadcast;
@@ -68,13 +68,18 @@ impl EscrowMode {
 /// The Cashu parameters a node publishes alongside `escrow_mode`.
 ///
 /// Every field is optional because each tag is independently absent on an old
-/// daemon. A `Cashu` mode with no `mint_url` is a misconfigured node, and
-/// callers must treat it as unusable rather than guessing a mint — hence
-/// [`CashuNodeConfig::is_usable`].
+/// daemon.
+///
+/// Since MostroP2P/mostro#1047 the maker picks each order's mint, and the node
+/// lists the mints it accepts: several, one, or none — an open node, which
+/// takes any mint whose host is public. Only a node with exactly one mint
+/// names the mint every escrow is locked at, which is what this build's
+/// wallet binds to — hence [`CashuNodeConfig::is_usable`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CashuNodeConfig {
-    /// Mint the node pins for every escrow. There is no per-order negotiation.
-    pub mint_url: Option<String>,
+    /// Mints the node accepts for an escrow, as the `cashu_mint_url` tag lists
+    /// them, without blanks or repeats. Empty: the node accepts any mint.
+    pub mint_urls: Vec<String>,
     /// NUT-11 locktime the seller must set, in days (daemon default 15).
     pub escrow_locktime_days: Option<u32>,
     /// How close to expiry the daemon stops accepting `fiat-sent`, in days.
@@ -82,9 +87,26 @@ pub struct CashuNodeConfig {
 }
 
 impl CashuNodeConfig {
-    /// A Cashu node we can actually trade against needs, at minimum, a mint.
+    /// The mint every escrow on this node is locked at: the only one it
+    /// accepts. `None` when it accepts several or any, where each order names
+    /// its own.
+    pub fn single_mint(&self) -> Option<&str> {
+        match self.mint_urls.as_slice() {
+            [only] => Some(only.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Whether the node lists no mint, and so accepts any whose host is public.
+    pub fn accepts_any_mint(&self) -> bool {
+        self.mint_urls.is_empty()
+    }
+
+    /// Whether this build can fund and lock escrows on the node: its wallet
+    /// binds to one mint, so the node must pin exactly one. Choosing among
+    /// several (or any) per order is not implemented yet.
     pub fn is_usable(&self) -> bool {
-        self.mint_url.as_deref().is_some_and(|u| !u.trim().is_empty())
+        self.single_mint().is_some()
     }
 }
 
@@ -150,7 +172,7 @@ pub struct EscrowModeInputs {
     pub tag_config: CashuNodeConfig,
     /// Developer override.
     pub override_mode: EscrowModeOverride,
-    /// Mint URL override, used when the node publishes none.
+    /// Mint URL override: the node's list becomes this one mint.
     pub mint_url_override: Option<String>,
 }
 
@@ -181,7 +203,7 @@ pub fn resolve(inputs: &EscrowModeInputs) -> ResolvedEscrowMode {
         .map(str::trim)
         .filter(|u| !u.is_empty())
     {
-        config.mint_url = Some(url.to_string());
+        config.mint_urls = vec![url.to_string()];
     }
 
     ResolvedEscrowMode {
@@ -193,8 +215,10 @@ pub fn resolve(inputs: &EscrowModeInputs) -> ResolvedEscrowMode {
 
 /// Read the `escrow_mode` / `cashu_*` tags out of a Kind 38385 event.
 ///
-/// Tags are `["name", "value"]` pairs; anything malformed is skipped with a
-/// warning rather than failing the whole fetch, matching how `fetch_and_set_pow`
+/// Tags are `["name", "value"]` pairs, except `cashu_mint_url`, which carries
+/// every accepted mint as a value of its own (`["cashu_mint_url", m1, m2]`)
+/// and is absent on an open node. Anything malformed is skipped with a warning
+/// rather than failing the whole fetch, matching how `fetch_and_set_pow`
 /// already treats a bad `pow` value. A node is only reported as Cashu when it
 /// says so explicitly.
 pub fn parse_tags(tags: &[Vec<String>]) -> (EscrowMode, CashuNodeConfig) {
@@ -223,11 +247,20 @@ pub fn parse_tags(tags: &[Vec<String>]) -> (EscrowMode, CashuNodeConfig) {
         }
     };
 
+    let mut mint_urls: Vec<String> = Vec::new();
+    let listed = tags
+        .iter()
+        .find(|t| t.first().map(String::as_str) == Some("cashu_mint_url"))
+        .map(|t| &t[1..])
+        .unwrap_or_default();
+    for url in listed.iter().map(|u| u.trim()).filter(|u| !u.is_empty()) {
+        if !mint_urls.iter().any(|known| known == url) {
+            mint_urls.push(url.to_string());
+        }
+    }
+
     let config = CashuNodeConfig {
-        mint_url: value_of("cashu_mint_url")
-            .map(str::trim)
-            .filter(|u| !u.is_empty())
-            .map(str::to_string),
+        mint_urls,
         escrow_locktime_days: days("cashu_escrow_locktime_days"),
         settlement_margin_days: days("cashu_settlement_margin_days"),
     };
@@ -242,8 +275,8 @@ pub fn parse_tags(tags: &[Vec<String>]) -> (EscrowMode, CashuNodeConfig) {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EscrowOverrides {
     pub mode: EscrowModeOverride,
-    /// Mint URL to use instead of the node's. `None` (or blank) leaves the
-    /// node's own value in place — see [`resolve`].
+    /// Mint URL to use instead of the node's list. `None` (or blank) leaves
+    /// the node's own list in place — see [`resolve`].
     pub mint_url: Option<String>,
 }
 
@@ -293,7 +326,7 @@ fn notify() {
 /// what the node said, and refusing to update it would leave the app pinned to
 /// a stale node's mode after any unrelated panic.
 pub fn set_from_tags(mode: EscrowMode, config: CashuNodeConfig) {
-    let mint_url = config.mint_url.clone();
+    let mint_urls = config.mint_urls.clone();
     let changed = {
         let mut guard = TAGS.write().unwrap_or_else(|e| e.into_inner());
         let next = Some((mode, config));
@@ -305,7 +338,7 @@ pub fn set_from_tags(mode: EscrowMode, config: CashuNodeConfig) {
     // reconnect: it wakes nobody, and it does not deserve a log line either.
     if changed {
         log::info!(
-            "[escrow-mode] active node advertises {} (mint={mint_url:?})",
+            "[escrow-mode] active node advertises {} (mints={mint_urls:?})",
             mode.as_marker(),
         );
         notify();
@@ -395,15 +428,16 @@ pub fn clear() {
 /// The one question the rest of the app asks: may a Cashu path run against the
 /// active node?
 ///
-/// Deliberately stricter than [`EscrowMode::is_cashu`]. A node that advertises
-/// `escrow_mode=cashu` but publishes no mint URL is misconfigured, and there is
-/// nothing to connect to — enabling Cashu routing or UI for it would only fail
-/// later and further from the cause. The gate therefore also requires
-/// [`CashuNodeConfig::is_usable`], and the mint override (§4.3) is what makes a
-/// forced Cashu mode usable against a daemon that publishes no mint of its own.
+/// Deliberately stricter than [`EscrowMode::is_cashu`]. The wallet binds to one
+/// mint, so a Cashu node that accepts several mints, or any, leaves it nothing
+/// to bind to until a maker's order names one — enabling the wallet for it
+/// would only fail later and further from the cause. The gate therefore also
+/// requires [`CashuNodeConfig::is_usable`], and the mint override (§4.3) is
+/// what pins a forced Cashu mode to one mint.
 ///
-/// The About screen must *not* use this: it reads [`get_resolved`], so it can
-/// say "cashu, but no mint advertised" instead of silently reading Lightning.
+/// The About and Settings screens must *not* use this: they read
+/// [`get_resolved`], so they can list the node's mints, or say it accepts any,
+/// instead of silently reading Lightning.
 pub fn is_cashu_mode() -> bool {
     get_resolved().is_cashu_usable()
 }
@@ -481,10 +515,83 @@ mod tests {
 
         // Assert
         assert_eq!(mode, EscrowMode::Cashu);
-        assert_eq!(config.mint_url.as_deref(), Some("https://mint.example.com"));
+        assert_eq!(config.single_mint(), Some("https://mint.example.com"));
         assert_eq!(config.escrow_locktime_days, Some(15));
         assert_eq!(config.settlement_margin_days, Some(3));
         assert!(config.is_usable());
+    }
+
+    #[test]
+    fn a_node_lists_every_mint_it_accepts() {
+        // Arrange — mostro#1047: one tag, one value per accepted mint, with a
+        // repeat and a blank the node should not have sent.
+        let tags = vec![
+            tag("escrow_mode", "cashu"),
+            vec![
+                "cashu_mint_url".to_string(),
+                "https://mint.a.com".to_string(),
+                " https://mint.b.com ".to_string(),
+                "https://mint.a.com".to_string(),
+                "  ".to_string(),
+            ],
+        ];
+
+        // Act
+        let (mode, config) = parse_tags(&tags);
+
+        // Assert — every mint, in the node's order; no single mint to bind the
+        // wallet to, so the gate stays shut.
+        assert_eq!(mode, EscrowMode::Cashu);
+        assert_eq!(
+            config.mint_urls,
+            ["https://mint.a.com", "https://mint.b.com"]
+        );
+        assert_eq!(config.single_mint(), None);
+        assert!(!config.accepts_any_mint());
+        assert!(!config.is_usable());
+    }
+
+    #[test]
+    fn a_cashu_node_without_the_mint_tag_accepts_any_mint() {
+        // Arrange — mostro#1047 omits the tag when `mint_urls` is empty.
+        let tags = vec![
+            tag("escrow_mode", "cashu"),
+            tag("cashu_escrow_locktime_days", "15"),
+        ];
+
+        // Act
+        let (mode, config) = parse_tags(&tags);
+
+        // Assert
+        assert_eq!(mode, EscrowMode::Cashu);
+        assert!(config.accepts_any_mint());
+        assert_eq!(config.single_mint(), None);
+        assert!(!config.is_usable());
+        assert_eq!(config.escrow_locktime_days, Some(15));
+    }
+
+    #[test]
+    fn the_mint_override_pins_a_multi_mint_node_to_one_mint() {
+        // Arrange — a node with two mints, and a tester pointing at one.
+        let inputs = EscrowModeInputs {
+            from_tags: EscrowMode::Cashu,
+            tag_config: CashuNodeConfig {
+                mint_urls: vec![
+                    "https://mint.a.com".to_string(),
+                    "https://mint.b.com".to_string(),
+                ],
+                ..Default::default()
+            },
+            mint_url_override: Some("http://localhost:3338".to_string()),
+            ..Default::default()
+        };
+
+        // Act
+        let resolved = resolve(&inputs);
+
+        // Assert
+        assert_eq!(resolved.config.mint_urls, ["http://localhost:3338"]);
+        assert!(resolved.is_cashu_usable());
     }
 
     #[test]
@@ -531,7 +638,7 @@ mod tests {
         // Assert
         assert_eq!(mode, EscrowMode::Cashu);
         assert_eq!(config.escrow_locktime_days, None);
-        assert_eq!(config.mint_url.as_deref(), Some("https://mint.example.com"));
+        assert_eq!(config.single_mint(), Some("https://mint.example.com"));
     }
 
     #[test]
@@ -542,8 +649,9 @@ mod tests {
         // Act
         let (_, config) = parse_tags(&tags);
 
-        // Assert — is_usable() is what stops us from trying to reach "".
-        assert_eq!(config.mint_url, None);
+        // Assert — a blank is no mint: the list is empty, as on an open node,
+        // and the wallet has nothing to reach.
+        assert!(config.mint_urls.is_empty());
         assert!(!config.is_usable());
     }
 
@@ -563,10 +671,7 @@ mod tests {
         // Assert
         assert_eq!(resolved.mode, EscrowMode::Cashu);
         assert!(resolved.is_overridden);
-        assert_eq!(
-            resolved.config.mint_url.as_deref(),
-            Some("http://localhost:3338")
-        );
+        assert_eq!(resolved.config.single_mint(), Some("http://localhost:3338"));
     }
 
     #[test]
@@ -575,7 +680,7 @@ mod tests {
         let inputs = EscrowModeInputs {
             from_tags: EscrowMode::Cashu,
             tag_config: CashuNodeConfig {
-                mint_url: Some("https://mint.example.com".to_string()),
+                mint_urls: vec!["https://mint.example.com".to_string()],
                 escrow_locktime_days: Some(15),
                 settlement_margin_days: Some(3),
             },
@@ -589,7 +694,7 @@ mod tests {
         assert_eq!(resolved.mode, EscrowMode::Cashu);
         assert!(!resolved.is_overridden);
         assert_eq!(
-            resolved.config.mint_url.as_deref(),
+            resolved.config.single_mint(),
             Some("https://mint.example.com")
         );
     }
@@ -600,7 +705,7 @@ mod tests {
         let inputs = EscrowModeInputs {
             from_tags: EscrowMode::Cashu,
             tag_config: CashuNodeConfig {
-                mint_url: Some("https://mint.example.com".to_string()),
+                mint_urls: vec!["https://mint.example.com".to_string()],
                 ..Default::default()
             },
             mint_url_override: Some("http://localhost:3338".to_string()),
@@ -611,10 +716,7 @@ mod tests {
         let resolved = resolve(&inputs);
 
         // Assert
-        assert_eq!(
-            resolved.config.mint_url.as_deref(),
-            Some("http://localhost:3338")
-        );
+        assert_eq!(resolved.config.single_mint(), Some("http://localhost:3338"));
     }
 
     #[test]
@@ -623,7 +725,7 @@ mod tests {
         let inputs = EscrowModeInputs {
             from_tags: EscrowMode::Cashu,
             tag_config: CashuNodeConfig {
-                mint_url: Some("https://mint.example.com".to_string()),
+                mint_urls: vec!["https://mint.example.com".to_string()],
                 ..Default::default()
             },
             mint_url_override: Some("   ".to_string()),
@@ -635,7 +737,7 @@ mod tests {
 
         // Assert
         assert_eq!(
-            resolved.config.mint_url.as_deref(),
+            resolved.config.single_mint(),
             Some("https://mint.example.com")
         );
     }
@@ -690,7 +792,7 @@ mod tests {
 
     #[test]
     fn a_cashu_node_without_a_usable_mint_keeps_the_gate_shut() {
-        // Arrange — a node that says cashu but published no mint URL.
+        // Arrange — a node that says cashu and lists no mint: an open node.
         let _guard = own_the_global();
         let (mode, config) = parse_tags(&[tag("escrow_mode", "cashu"), tag("cashu_mint_url", "  ")]);
         set_from_tags(mode, config);
@@ -784,7 +886,7 @@ mod tests {
         });
         rx.recv().await.unwrap();
         assert_eq!(
-            get_resolved().config.mint_url.as_deref(),
+            get_resolved().config.single_mint(),
             Some("http://localhost:3338")
         );
 
@@ -827,7 +929,7 @@ mod tests {
         let inputs = EscrowModeInputs {
             from_tags: EscrowMode::Cashu,
             tag_config: CashuNodeConfig {
-                mint_url: Some("https://mint.example.com".to_string()),
+                mint_urls: vec!["https://mint.example.com".to_string()],
                 ..Default::default()
             },
             override_mode: EscrowModeOverride::ForceCashu,

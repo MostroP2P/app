@@ -114,6 +114,26 @@ pub const MAX_CONTENT_BYTES: usize = 64 * 1024;
 /// bound the raw event a relay may deliver.
 pub const MAX_OUTER_TAGS: usize = 8;
 
+/// Upper bound on a reaction's `content` (protocol chat.md, "Reactions"): one
+/// emoji, or empty to withdraw it.
+pub const MAX_REACTION_BYTES: usize = 64;
+
+/// An inner event of a kind this client does not implement, returned by
+/// [`mostro_unwrap`] as the error's source (find it with `downcast_ref`). It
+/// passed every check up to the counterparty's own signature, so it is an
+/// extension of the protocol, not abuse: the caller does not count it toward
+/// the flood breaker (chat.md, "Rate limiting").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnsupportedInnerKind(pub u16);
+
+impl std::fmt::Display for UnsupportedInnerKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "UnsupportedInnerKind: inner event is kind {}", self.0)
+    }
+}
+
+impl std::error::Error for UnsupportedInnerKind {}
+
 /// Build the outer kind 14 event carrying an encrypted, trade-key-signed
 /// kind 1 event, per the P2P chat spec.
 ///
@@ -137,10 +157,68 @@ pub async fn mostro_wrap(
     sign: &Keys,
     message: &str,
 ) -> Result<(Event, Event)> {
+    wrap_inner(
+        sender_trade,
+        conv,
+        sign,
+        EventBuilder::new(Kind::TextNote, message),
+        Timestamp::now(),
+    )
+}
+
+/// [`mostro_wrap`] for a reaction to the message whose inner id is `target`:
+/// an inner kind 7 event with that one `e` tag (protocol chat.md,
+/// "Reactions"). An empty `emoji` withdraws the sender's reaction.
+///
+/// `created_at` dates both events. The newest of a sender's reactions to one
+/// message holds, so the caller dates a change after the reaction it replaces
+/// — at most a second ahead, well inside the receivers' clock tolerance.
+pub async fn mostro_wrap_reaction(
+    sender_trade: &Keys,
+    conv: &Keys,
+    sign: &Keys,
+    target: &EventId,
+    emoji: &str,
+    created_at: Timestamp,
+) -> Result<(Event, Event)> {
+    if emoji.len() > MAX_REACTION_BYTES {
+        return Err(anyhow!(
+            "ReactionTooLarge: {} bytes, limit {MAX_REACTION_BYTES}",
+            emoji.len()
+        ));
+    }
+    wrap_inner(
+        sender_trade,
+        conv,
+        sign,
+        EventBuilder::new(Kind::Reaction, emoji).tag(Tag::event(*target)),
+        created_at,
+    )
+}
+
+/// The target of a reaction that [`mostro_unwrap`] accepted: the inner id in
+/// its one `e` tag.
+pub fn reaction_target(inner: &Event) -> Option<EventId> {
+    inner
+        .tags
+        .iter()
+        .find(|t| t.kind() == "e")
+        .and_then(|t| t.content())
+        .and_then(|id| EventId::from_hex(id).ok())
+}
+
+/// The envelope of [`mostro_wrap`] around any inner event: what both the
+/// message and the reaction wrappers build on.
+pub(crate) fn wrap_inner(
+    sender_trade: &Keys,
+    conv: &Keys,
+    sign: &Keys,
+    inner: EventBuilder,
+    now: Timestamp,
+) -> Result<(Event, Event)> {
     // One timestamp for both events: the real moment the message is sent.
     // Recipients reject a mismatch, which is what bounds replays. No NIP-59
     // timestamp tweaking — it would break `since`-based sync.
-    let now = Timestamp::now();
 
     // Signed uniqueness nonce: the inner id is a hash over pubkey, kind,
     // created_at, tags and content — with second-resolution timestamps two
@@ -149,7 +227,7 @@ pub async fn mostro_wrap(
     // silently drop the second one.
     let nonce: [u8; 8] = rand::random();
 
-    let inner = EventBuilder::new(Kind::TextNote, message)
+    let inner = inner
         .tag(Tag::custom("u", [hex::encode(nonce)]))
         .custom_created_at(now)
         .finalize(sender_trade)
@@ -294,8 +372,22 @@ pub fn mostro_unwrap(
             "inner event is signed by a key that is not a party to this order"
         ));
     }
-    if inner.kind != Kind::TextNote {
-        return Err(anyhow!("inner event is not kind 1"));
+    match inner.kind {
+        Kind::TextNote => {}
+        // A reaction names exactly one target, by its inner id. The id itself
+        // is checked by the caller, which holds the conversation.
+        Kind::Reaction => {
+            let targets = inner.tags.iter().filter(|t| t.kind() == "e").count();
+            if targets != 1 || reaction_target(&inner).is_none() {
+                return Err(anyhow!("reaction must name exactly one target"));
+            }
+            if inner.content.len() > MAX_REACTION_BYTES {
+                return Err(anyhow!(
+                    "reaction content exceeds {MAX_REACTION_BYTES} bytes"
+                ));
+            }
+        }
+        other => return Err(UnsupportedInnerKind(other.as_u16()).into()),
     }
 
     // Bounds how far back the caller's durable inner-id dedup has to reach: a
@@ -344,6 +436,131 @@ mod chat_envelope_tests {
             outer,
             Timestamp::now(),
         )
+    }
+
+    #[tokio::test]
+    async fn a_reaction_round_trips_with_its_target() {
+        let c = convo();
+        let target = EventId::from_byte_array([7; 32]);
+        let (outer, _) = mostro_wrap_reaction(
+            &c.bob_trade,
+            &c.conv,
+            &c.sign,
+            &target,
+            "👍",
+            Timestamp::now(),
+        )
+        .await
+        .unwrap();
+
+        let inner = unwrap_now(&c, &outer).unwrap();
+
+        assert_eq!(inner.kind, Kind::Reaction);
+        assert_eq!(inner.content, "👍");
+        assert_eq!(inner.pubkey, c.bob_trade.public_key());
+        assert_eq!(reaction_target(&inner), Some(target));
+    }
+
+    #[tokio::test]
+    async fn an_empty_reaction_withdraws_and_still_unwraps() {
+        let c = convo();
+        let (outer, _) = mostro_wrap_reaction(
+            &c.bob_trade,
+            &c.conv,
+            &c.sign,
+            &EventId::from_byte_array([7; 32]),
+            "",
+            Timestamp::now(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(unwrap_now(&c, &outer).unwrap().content, "");
+    }
+
+    #[tokio::test]
+    async fn the_longest_emoji_sequence_fits_a_reaction() {
+        let c = convo();
+        let couple = "👩🏻‍❤️‍💋‍👨🏼"; // 35 bytes
+        let (outer, _) = mostro_wrap_reaction(
+            &c.bob_trade,
+            &c.conv,
+            &c.sign,
+            &EventId::from_byte_array([7; 32]),
+            couple,
+            Timestamp::now(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(unwrap_now(&c, &outer).unwrap().content, couple);
+    }
+
+    #[tokio::test]
+    async fn a_reaction_over_64_bytes_is_neither_sent_nor_accepted() {
+        let c = convo();
+        let long = "😀".repeat(17); // 68 bytes
+        let sent = mostro_wrap_reaction(
+            &c.bob_trade,
+            &c.conv,
+            &c.sign,
+            &EventId::from_byte_array([7; 32]),
+            &long,
+            Timestamp::now(),
+        )
+        .await;
+        assert!(sent
+            .unwrap_err()
+            .to_string()
+            .starts_with("ReactionTooLarge"));
+
+        let (outer, _) = wrap_inner(
+            &c.bob_trade,
+            &c.conv,
+            &c.sign,
+            EventBuilder::new(Kind::Reaction, long)
+                .tag(Tag::event(EventId::from_byte_array([7; 32]))),
+            Timestamp::now(),
+        )
+        .unwrap();
+        assert!(unwrap_now(&c, &outer).is_err());
+    }
+
+    #[tokio::test]
+    async fn a_reaction_must_name_exactly_one_target() {
+        let c = convo();
+        let none = EventBuilder::new(Kind::Reaction, "👍");
+        let two = EventBuilder::new(Kind::Reaction, "👍")
+            .tag(Tag::event(EventId::from_byte_array([7; 32])))
+            .tag(Tag::event(EventId::from_byte_array([7; 32])));
+        let not_an_id = EventBuilder::new(Kind::Reaction, "👍").tag(Tag::custom("e", ["xyz"]));
+
+        for builder in [none, two, not_an_id] {
+            let (outer, _) =
+                wrap_inner(&c.bob_trade, &c.conv, &c.sign, builder, Timestamp::now()).unwrap();
+            let err = unwrap_now(&c, &outer).unwrap_err().to_string();
+            assert!(err.contains("exactly one target"), "{err}");
+        }
+    }
+
+    #[tokio::test]
+    async fn another_inner_kind_is_reported_as_unsupported() {
+        let c = convo();
+        let (outer, _) = wrap_inner(
+            &c.bob_trade,
+            &c.conv,
+            &c.sign,
+            EventBuilder::new(Kind::Custom(30023), "article"),
+            Timestamp::now(),
+        )
+        .unwrap();
+
+        let err = unwrap_now(&c, &outer).unwrap_err();
+
+        assert_eq!(
+            err.downcast_ref::<UnsupportedInnerKind>(),
+            Some(&UnsupportedInnerKind(30023))
+        );
     }
 
     #[tokio::test]

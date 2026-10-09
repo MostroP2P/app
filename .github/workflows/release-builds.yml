@@ -87,6 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x build/linux/x64/release/bundle/mostro
+          test -x build/linux/x64/release/bundle/install.sh
           mkdir -p dist
           tar -czf "dist/mostro-$TAG-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
 

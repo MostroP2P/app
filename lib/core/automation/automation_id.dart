@@ -85,7 +85,7 @@ class AutomationId extends StatelessWidget {
 /// ```dart
 /// FilledButton(
 ///   onPressed: _submit,
-///   child: Text(l10n.submitButton),
+///   child: Text(l10n.publishOrder),
 /// ).withAutomationId(AutomationIds.orderCreateSubmit)
 /// ```
 ///

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,6 +9,8 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/settings_palette.dart';
+import 'package:mostro/features/install/providers/pwa_install_provider.dart';
+import 'package:mostro/features/install/widgets/pwa_install_action.dart';
 import 'package:mostro/features/about/screens/about_screen.dart'
     show appVersionProvider;
 import 'package:mostro/features/settings/models/settings_rows.dart';
@@ -84,24 +87,33 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => showCurrencySelector(context),
               ),
               _notificationsRow(context, ref, l10n),
+              // Web only, while the browser can install the app: for whoever
+              // answered "Not now" on the order book's card (#778).
+              if (ref.watch(pwaInstallProvider.select((s) => s.canInstall)))
+                SettingsRow(
+                  icon: Icons.install_mobile_outlined,
+                  label: l10n.pwaInstallSettingTitle,
+                  onTap: () => startPwaInstall(context, ref),
+                ),
             ],
           ),
           const SizedBox(height: settingsGroupGap),
           SettingsGroup(
             header: l10n.settingsGroupPayments,
+            // Lightning, NWC and the Cashu wallet are always here, whatever
+            // the active node runs (docs/cashu/README.md §1.2): the node's
+            // escrow mode decides how a trade settles, never which payment
+            // methods the app offers. A Cashu node adds the mints it accepts.
             rows: [
               _lightningAddressRow(context, ref, l10n, settings),
               _walletRow(context, ref, l10n),
-              // Shown only when the active node actually settles over Cashu:
-              // on a Lightning node the feature does not exist as far as the
-              // user is concerned, and an entry point that leads to a
-              // permanently empty wallet would be worse than none.
-              if (ref.watch(isCashuAvailableProvider))
-                SettingsRow(
-                  icon: Icons.savings_outlined,
-                  label: l10n.cashuWalletTitle,
-                  onTap: () => context.push(AppRoute.cashuWallet),
-                ),
+              SettingsRow(
+                icon: Icons.savings_outlined,
+                label: l10n.cashuWalletTitle,
+                onTap: () => context.push(AppRoute.cashuWallet),
+              ),
+              if (ref.watch(isCashuModeProvider))
+                ..._mintRows(context, ref, l10n),
             ],
           ),
           const SizedBox(height: settingsGroupGap),
@@ -154,7 +166,7 @@ class SettingsScreen extends ConsumerWidget {
                   'Mostro',
                   style: TextStyle(fontSize: 11, color: book.textTertiary),
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(width: 8),
                 Text(
                   ref.watch(appVersionProvider).valueOrNull ?? '',
                   style: TextStyle(
@@ -215,6 +227,52 @@ class SettingsScreen extends ConsumerWidget {
           address == null ? SettingsValueTone.warn : SettingsValueTone.neutral,
       onTap: () => _showLightningAddressDialog(context, ref),
     );
+  }
+
+  /// `Mint → mint.cashu.space`, one row per mint the active node accepts
+  /// (MostroP2P/mostro#1047): who may hold the sats while a trade is open.
+  /// The maker picks one per order, so the rows inform rather than edit, and
+  /// a tap copies the full URL. A node that lists none accepts any mint, and
+  /// one row says so.
+  List<Widget> _mintRows(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) {
+    final urls = ref.watch(escrowModeProvider).valueOrNull?.mintUrls ?? [];
+    if (urls.isEmpty) {
+      return [
+        SettingsRow(
+          icon: Icons.account_balance_outlined,
+          label: l10n.settingsMintLabel,
+          // Nothing to copy or open, so no tap and no chevron.
+          value: l10n.cashuAnyMint,
+        ),
+      ];
+    }
+    return [
+      for (final url in urls)
+        SettingsRow(
+          icon: Icons.account_balance_outlined,
+          label: l10n.settingsMintLabel,
+          value: mintDisplayHost(url),
+          valueIsData: true,
+          semanticValue: url,
+          // A copy mark, not the chevron: the row leads nowhere.
+          trailing: Icon(
+            Icons.copy_rounded,
+            size: 14,
+            color: SettingsPalette.of(context).dotOffline,
+          ),
+          onTap: () async {
+            final messenger = ScaffoldMessenger.of(context);
+            await Clipboard.setData(ClipboardData(text: url));
+            messenger.showSnackBar(
+              SnackBar(content: Text(l10n.settingsMintCopied)),
+            );
+          },
+        ),
+    ];
   }
 
   Widget _walletRow(
@@ -370,14 +428,34 @@ class _LightningAddressDialogState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final book = OrderBookPalette.of(context);
+    final pal = SettingsPalette.of(context);
     return MostroDialog(
       title: l10n.lightningAddressDialogTitle,
       content: TextField(
         controller: _controller,
         keyboardType: TextInputType.emailAddress,
+        style: TextStyle(fontSize: 14, color: book.textPrimary),
+        // Every state set here, as `InvoiceInputField` does (DS-CMP-19): left
+        // to the theme, the field would paint v1's filled underline.
         decoration: InputDecoration(
           hintText: l10n.lightningAddressHintText,
+          hintStyle: TextStyle(fontSize: 14, color: pal.placeholder),
           errorText: _errorText,
+          errorStyle: TextStyle(fontSize: 12, color: pal.danger),
+          filled: false,
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.fieldUnderline),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.fieldUnderlineFocus, width: 1.5),
+          ),
+          errorBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.danger),
+          ),
+          focusedErrorBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.danger, width: 1.5),
+          ),
         ),
         onChanged: (_) {
           if (_errorText != null) setState(() => _errorText = null);

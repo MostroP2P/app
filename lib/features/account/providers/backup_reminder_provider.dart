@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -114,12 +116,31 @@ class BackupReminderNotifier extends StateNotifier<bool> {
     // Same guard as showBackupReminder(): a load() still in flight would
     // otherwise re-read the pre-import prefs and re-arm the badge.
     await load();
-    await confirmBackupComplete();
+    await _dismissForGood();
+  }
+
+  final StreamController<void> _verifications =
+      StreamController<void>.broadcast();
+
+  /// An event each time the user verifies their backup, and never for a
+  /// seed import, which writes the same state ([markAlreadyBackedUp]). The
+  /// state alone cannot tell the two apart; the mascot needs to (#770).
+  Stream<void> get verifications => _verifications.stream;
+
+  @override
+  void dispose() {
+    _verifications.close();
+    super.dispose();
   }
 
   /// Permanently dismiss the reminder. Called when the user confirms their
   /// secret words are backed up (ritual verification or legacy checkbox).
   Future<void> confirmBackupComplete() async {
+    await _dismissForGood();
+    _verifications.add(null);
+  }
+
+  Future<void> _dismissForGood() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(kBackupReminderDismissedKey, true);
     await prefs.setBool(kBackupCompletedKey, true);

@@ -16,6 +16,7 @@ import '../../../support/provider_harness.dart';
 EscrowModeInfo _info({String? mintOverride}) => EscrowModeInfo(
       mode: 'lightning',
       mintUrl: null,
+      mintUrls: const [],
       escrowLocktimeDays: null,
       settlementMarginDays: null,
       isOverridden: false,

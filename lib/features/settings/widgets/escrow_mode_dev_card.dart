@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/src/rust/api/types.dart';
@@ -67,15 +68,16 @@ class _EscrowModeDevCardState extends ConsumerState<EscrowModeDevCard> {
   }
 
   String _modeLabel(String marker, AppLocalizations l10n) => switch (marker) {
-        'cashu' => l10n.escrowModeCashu,
-        'lightning' => l10n.escrowModeLightning,
-        _ => l10n.escrowModeUnknown,
-      };
+    'cashu' => l10n.escrowModeCashu,
+    'lightning' => l10n.escrowModeLightning,
+    _ => l10n.escrowModeUnknown,
+  };
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final book = OrderBookPalette.of(context);
+    final pal = SettingsPalette.of(context);
     final info = ref.watch(escrowModeProvider).valueOrNull;
 
     // Seed once when the first value arrives, then follow real changes. Both
@@ -98,25 +100,27 @@ class _EscrowModeDevCardState extends ConsumerState<EscrowModeDevCard> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      // A card as the settings groups draw one (DS-CMP-8).
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.backgroundCard,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        color: book.surface,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.science_outlined, color: colors.mostroGreen, size: 22),
+              Icon(Icons.science_outlined, color: book.limeIcon, size: 22),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Text(
                   l10n.settingsEscrowOverrideTitle,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyLarge
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: book.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -124,26 +128,37 @@ class _EscrowModeDevCardState extends ConsumerState<EscrowModeDevCard> {
           const SizedBox(height: AppSpacing.sm),
           Text(
             l10n.settingsEscrowOverrideSubtitle,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: TextStyle(fontSize: 12, color: book.textSecondary),
           ),
           const SizedBox(height: AppSpacing.md),
-          _effectiveState(info, l10n, colors),
+          _effectiveState(info, l10n, book, pal),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(l10n.settingsForceCashuLabel),
             value: info?.forceCashuOverride ?? false,
-            onChanged: info == null
-                ? null
-                : (value) => ref
-                    .read(escrowOverrideControllerProvider)
-                    .setForceCashu(value),
+            onChanged:
+                info == null
+                    ? null
+                    : (value) => ref
+                        .read(escrowOverrideControllerProvider)
+                        .setForceCashu(value),
           ),
           TextField(
             controller: _mintController,
             enabled: info != null,
             keyboardType: TextInputType.url,
             autocorrect: false,
+            // An underline field (DS-CMP-10), every state set so none falls
+            // back to the v1 theme (DS-CMP-19).
             decoration: InputDecoration(
+              filled: false,
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: pal.fieldUnderline),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: pal.fieldUnderlineFocus),
+              ),
+              labelStyle: TextStyle(color: pal.fieldLabel),
               labelText: l10n.settingsCashuMintOverrideLabel,
               hintText: 'http://localhost:3338',
               suffixIcon: IconButton(
@@ -160,20 +175,26 @@ class _EscrowModeDevCardState extends ConsumerState<EscrowModeDevCard> {
   }
 
   /// The resolution the app actually acts on — mode, effective mint, and
-  /// whether a Cashu path may run at all (Cashu mode with no mint may not).
+  /// whether a Cashu path may run at all (a Cashu node that pins no single
+  /// mint may not).
   Widget _effectiveState(
     EscrowModeInfo? info,
     AppLocalizations l10n,
-    AppColors colors,
+    OrderBookPalette book,
+    SettingsPalette pal,
   ) {
     if (info == null) {
       return Text(
         l10n.escrowModeUnknown,
-        style: TextStyle(color: colors.textSubtle),
+        style: TextStyle(color: book.textSecondary),
       );
     }
 
-    final mint = info.mintUrl ?? l10n.aboutCashuMintNotAdvertised;
+    // The wallet's one mint, else every mint the node accepts, else none
+    // listed: it accepts any.
+    final mint =
+        info.mintUrl ??
+        (info.mintUrls.isEmpty ? l10n.cashuAnyMint : info.mintUrls.join(', '));
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Column(
@@ -181,16 +202,16 @@ class _EscrowModeDevCardState extends ConsumerState<EscrowModeDevCard> {
         children: [
           Text(
             l10n.settingsEscrowEffectiveMode(_modeLabel(info.mode, l10n)),
-            style: TextStyle(color: colors.textSubtle),
+            style: TextStyle(color: book.textSecondary),
           ),
           Text(
             l10n.settingsEscrowEffectiveMint(mint),
-            style: TextStyle(color: colors.textSubtle),
+            style: TextStyle(color: book.textSecondary),
           ),
           if (info.mode == 'cashu' && !info.isCashuAvailable)
             Text(
               l10n.settingsEscrowCashuUnavailable,
-              style: TextStyle(color: colors.destructiveRed),
+              style: TextStyle(color: pal.danger),
             ),
         ],
       ),

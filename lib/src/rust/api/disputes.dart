@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `all`, `apply_admin_took_dispute_from`, `apply_admin_took_dispute`, `apply_admin_verdict`, `clear_dispute_keys`, `cursor_is_unvouched`, `derive_admin_shared_key`, `dispute_node`, `dispute_store`, `forget_identity_disputes`, `get`, `has_dispute_keys`, `is_order_finished`, `is_peer_placeholder`, `is_stale_solver_assignment`, `new`, `note_peer_opened_dispute`, `note_solver_assignment`, `pending_opens`, `persist_admin_pubkey`, `persist_dispute_node`, `persist_dispute_origin`, `persist_solver_assigned_at`, `persisted_order_is_finished`, `persisted_solver_assigned_at`, `record_late_acceptance`, `recorded_solver_assignment`, `rehydrate_disputes_from_storage`, `resolve_dispute`, `resubscribe_active_dispute_chats`, `solver_assigned_at`, `solver_conversation`, `solver_pubkey`, `status_allows_dispute`, `try_insert_if_absent_or_resolved`, `update_conditional`, `upsert_or_update`
+// These functions are ignored because they are not marked as `pub`: `all`, `apply_admin_took_dispute_from`, `apply_admin_took_dispute`, `apply_admin_verdict`, `chat_key_disclosure`, `clear_dispute_keys`, `counterparty_pubkey`, `current_solver`, `cursor_is_unvouched`, `derive_admin_shared_key`, `dispute_node`, `dispute_store`, `forget_identity_disputes`, `forget`, `get`, `has_dispute_keys`, `is_order_finished`, `is_peer_placeholder`, `is_stale_solver_assignment`, `new`, `note_chat_key_share_echo`, `note_peer_opened_dispute`, `note_solver_assignment`, `pending_opens`, `persist_admin_pubkey`, `persist_dispute_node`, `persist_dispute_origin`, `persist_solver_assigned_at`, `persisted_chat_key_share`, `persisted_order_is_finished`, `persisted_solver_assigned_at`, `record_chat_key_share`, `record_late_acceptance`, `recorded_solver_assignment`, `rehydrate_disputes_from_storage`, `resolve_dispute`, `resubscribe_active_dispute_chats`, `solver_assigned_at`, `solver_conversation`, `solver_pubkey`, `status_allows_dispute`, `trade_key_index`, `try_insert_if_absent_or_resolved`, `update_conditional`, `upsert_or_update`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DisputeStore`, `PendingOpenGuard`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `drop`
 
@@ -44,6 +44,32 @@ Future<ChatMessage> submitEvidence({
   tradeId: tradeId,
   text: text,
 );
+
+/// Send the dispute's solver the key of this trade's peer chat, so they can
+/// read what buyer and seller wrote to each other (#415). It replaces copying
+/// the key from the peer chat and pasting it here.
+///
+/// The key is `K_conv`'s secret, as v1 discloses it and as the chat spec
+/// prescribes: it decrypts the conversation, but the outer events are signed
+/// with `K_sign`, so it cannot write into it. Never the raw ECDH secret,
+/// which derives `K_sign` too, and never `Session.shared_key`, a SHA-256 of
+/// that secret from which `K_conv` cannot be derived. The trade keys are
+/// this order's own, so the key opens this conversation and no other.
+///
+/// The message is the usual dispute chat envelope (`submit_evidence`'s path)
+/// and is stored as the user's own. It counts as sent only once a relay took
+/// it; then the share is persisted for the current solver.
+///
+/// A recorded share never refuses another: the user may have sent the key to
+/// a solver who then handed the dispute over (Serbero before a human), or
+/// simply want it sent again. The record only tells the screen.
+///
+/// **Errors**: `NoOpenDispute`, `AdminNotAssigned`, `TradeNotFound`,
+/// `NoSharedKey` (the counterparty is not known), `SendFailed`.
+Future<ChatMessage> shareChatKeyWithSolver({required String tradeId}) => RustLib
+    .instance
+    .api
+    .crateApiDisputesShareChatKeyWithSolver(tradeId: tradeId);
 
 /// Encrypt, upload and send an image or PDF to the solver (#589 phase 3).
 ///

@@ -4,6 +4,130 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.15] - 2026-10-08
+
+### ✨ Features
+
+- **mascot:** each mood wears its sticker from the Mostro set ([#772](https://github.com/MostroP2P/app/pull/772)) by @grunch
+- **mascot:** the same header, mascot centred, in every tab ([#771](https://github.com/MostroP2P/app/pull/771)) by @grunch
+- **cashu:** keep Lightning, NWC and Cashu wallet always available ([#768](https://github.com/MostroP2P/app/pull/768)) by @grunch
+- **walkthrough:** replace the onboarding with the v2 design ([#764](https://github.com/MostroP2P/app/pull/764)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **reputation:** privacy mode can be enabled on native ([#775](https://github.com/MostroP2P/app/pull/775)) by @grunch
+- **restore:** an imported account shows no history, and no stale news ([#773](https://github.com/MostroP2P/app/pull/773)) by @grunch
+- **qr:** paste where there is no camera; Cashu receive takes a pasted token ([#657](https://github.com/MostroP2P/app/pull/657)) by @Forte11Cuba
+- **invoice:** wait for the daemon when the invoice countdown runs out ([#710](https://github.com/MostroP2P/app/pull/710)) by @Catrya
+
+### 📚 Documentation
+
+- keep Lightning, NWC and Cashu always available ([#765](https://github.com/MostroP2P/app/pull/765)) by @grunch
+
+### 🧪 Tests
+
+- **identity:** assert the identity-wipe wiring with doubles ([#565](https://github.com/MostroP2P/app/pull/565)) by @Forte11Cuba
+
+## [2.0.14] - 2026-10-07
+
+### ✨ Features
+
+- **trades:** keep the chat card pinned at the top of the trade screen ([#753](https://github.com/MostroP2P/app/pull/753)) by @Catrya
+- **order:** offer only the currencies the node accepts when creating an order ([#733](https://github.com/MostroP2P/app/pull/733)) by @Catrya
+
+### 🐛 Bug Fixes
+
+- **ui:** an editable value looks editable, a read-only one does not (DS-CMP-27) ([#752](https://github.com/MostroP2P/app/pull/752)) by @grunch
+- **ui:** every countdown is labeled, in the body, on one formatter and tones (DS-CMP-21) ([#751](https://github.com/MostroP2P/app/pull/751)) by @grunch
+- **l10n:** one word per concept — selected payment methods, held sats in plain words (DS-L10N-4) ([#750](https://github.com/MostroP2P/app/pull/750)) by @grunch
+- **ui:** invoice and bond facts use the one label → value row (DS-CMP-24) ([#749](https://github.com/MostroP2P/app/pull/749)) by @grunch
+- **ui:** one left-aligned hero amount on take order and the invoice screens (DS-CMP-23) ([#748](https://github.com/MostroP2P/app/pull/748)) by @grunch
+- **ui:** the range dialog answers "Take order", not "Submit" (DS-CMP-26) ([#747](https://github.com/MostroP2P/app/pull/747)) by @grunch
+- **ui:** currency flags render from a bundled flags font on every platform (DS-TYP-8) ([#746](https://github.com/MostroP2P/app/pull/746)) by @grunch
+- **ui:** explain held sats in one body note led by the lock (DS-CMP-25) ([#745](https://github.com/MostroP2P/app/pull/745)) by @grunch
+- **ui:** amount fields drop the v1 fill and draw one underline (DS-CMP-10, DS-CMP-19) ([#743](https://github.com/MostroP2P/app/pull/743)) by @grunch
+- **ui:** order ids read one short form in an ID row (DS-CMP-22) ([#742](https://github.com/MostroP2P/app/pull/742)) by @grunch
+- **ui:** weigh each way out by what it undoes (DS-CMP-20) ([#741](https://github.com/MostroP2P/app/pull/741)) by @grunch
+- **push:** ask for the web notification permission from a tap ([#740](https://github.com/MostroP2P/app/pull/740)) by @grunch
+- **push:** wake the peer from the web build too ([#739](https://github.com/MostroP2P/app/pull/739)) by @grunch
+- **order:** group invoice and bond amounts by the locale ([#738](https://github.com/MostroP2P/app/pull/738)) by @grunch
+- **order:** group the range amount dialog's figures by the locale ([#737](https://github.com/MostroP2P/app/pull/737)) by @grunch
+- **ui:** button labels set the interface family explicitly ([#736](https://github.com/MostroP2P/app/pull/736)) by @grunch
+- **orders:** a refused take shows a localized reason, never the daemon's raw one ([#735](https://github.com/MostroP2P/app/pull/735)) by @grunch
+- **chat-attachments:** await the temp copy's deletion in the launcher tests ([#734](https://github.com/MostroP2P/app/pull/734)) by @grunch
+- **orders:** the book drops a Kind 38383 revision older than one it applied ([#717](https://github.com/MostroP2P/app/pull/717)) by @grunch
+
+### 🧪 Tests
+
+- **chat:** date the attachment golden on the local clock ([#761](https://github.com/MostroP2P/app/pull/761)) by @grunch
+- **design:** run the pull-request checks outside annotation mode ([#760](https://github.com/MostroP2P/app/pull/760)) by @grunch
+
+### 👷 Build & CI
+
+- **design:** a pull request that touches a screen answers for all of it ([#759](https://github.com/MostroP2P/app/pull/759)) by @grunch
+
+### 🔧 Other Changes
+
+- Chore/bump cdk 0 18 ([#758](https://github.com/MostroP2P/app/pull/758)) by @Forte11Cuba
+
+## [2.0.13] - 2026-10-06
+
+### ✨ Features
+
+- **cashu:** follow the node's mint list (mostro#1047) in settings, about and orders ([#709](https://github.com/MostroP2P/app/pull/709)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **trades:** offer Cancel to both parties of a disputed trade ([#713](https://github.com/MostroP2P/app/pull/713)) by @grunch
+- **disputes:** let the user send the chat key to the solver again ([#707](https://github.com/MostroP2P/app/pull/707)) by @grunch
+- **chat:** give a short message a 48 dp tap target ([#705](https://github.com/MostroP2P/app/pull/705)) by @grunch
+- **design:** check the whole class a change touches, and v1 tokens ([#702](https://github.com/MostroP2P/app/pull/702)) by @grunch
+
+## [2.0.12] - 2026-10-05
+
+### ✨ Features
+
+- **chat:** tap a message to open its menu, as in Telegram ([#697](https://github.com/MostroP2P/app/pull/697)) by @grunch
+- **icon:** gold-ringed icon on Linux, Windows and macOS ([#696](https://github.com/MostroP2P/app/pull/696)) by @grunch
+- ring the v2 icon in gold and add a dark launch screen ([#694](https://github.com/MostroP2P/app/pull/694)) by @grunch
+- **chat:** react to a counterpart's message ([#692](https://github.com/MostroP2P/app/pull/692)) by @grunch
+- **chat:** hold a message for a second to open its menu ([#691](https://github.com/MostroP2P/app/pull/691)) by @grunch
+
+## [2.0.11] - 2026-10-04
+
+### ✨ Features
+
+- **disputes:** send the chat key to the solver in one tap ([#681](https://github.com/MostroP2P/app/pull/681)) by @grunch
+- **disputes:** open the dispute chat with v1's info card ([#683](https://github.com/MostroP2P/app/pull/683)) by @grunch
+- **chat:** real trade and peer info panels ([#678](https://github.com/MostroP2P/app/pull/678)) by @grunch
+- **reputation:** read since and compute the age at display time ([#664](https://github.com/MostroP2P/app/pull/664)) by @grunch
+- **announcements:** parse kind 38387 and hold the author allowlist ([#662](https://github.com/MostroP2P/app/pull/662)) by @grunch
+- **push:** turn web push on from a repository variable, and say when it stops ([#660](https://github.com/MostroP2P/app/pull/660)) by @grunch
+- **web:** make the web build an installable app with Mostro's identity ([#659](https://github.com/MostroP2P/app/pull/659)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **chat:** fit the chat screen at 320 dp with 2x text ([#682](https://github.com/MostroP2P/app/pull/682)) by @grunch
+- **design:** catch v1 by what a widget leaves to the theme ([#673](https://github.com/MostroP2P/app/pull/673)) by @grunch
+- **android:** give notifications a status bar icon instead of a square ([#670](https://github.com/MostroP2P/app/pull/670)) by @Catrya
+- **automation:** remove the dead trade.rate identifier and the test gap that hid it ([#583](https://github.com/MostroP2P/app/pull/583)) by @Catrya
+- **web:** add the worker's tap listener before importing the FCM SDK ([#668](https://github.com/MostroP2P/app/pull/668)) by @grunch
+- **web:** make a replaced chat-wake notice alert again ([#667](https://github.com/MostroP2P/app/pull/667)) by @grunch
+- **web:** run every bridge call on the main thread ([#666](https://github.com/MostroP2P/app/pull/666)) by @grunch
+- **order-book:** offer the payment methods the book actually carries ([#632](https://github.com/MostroP2P/app/pull/632)) by @BBakker26
+
+### ♻️ Refactoring
+
+- **db:** drop get_trade and name the trade row's two identities ([#578](https://github.com/MostroP2P/app/pull/578)) by @Catrya
+
+### 📚 Documentation
+
+- **design:** make the design system a guide UI changes are judged against ([#671](https://github.com/MostroP2P/app/pull/671)) by @grunch
+
+### 👷 Build & CI
+
+- **design:** check UI pull requests against the design guide ([#672](https://github.com/MostroP2P/app/pull/672)) by @grunch
+
 ## [2.0.10] - 2026-10-01
 
 ### ✨ Features

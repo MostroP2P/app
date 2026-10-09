@@ -15,31 +15,8 @@ String shortOrderId(String id, {int head = 8, int tail = 4}) {
 }
 
 // ── Countdown ─────────────────────────────────────────────────────────────────
-
-/// `23:12` (h:mm) above an hour; `12:40` (mm:ss) under it. Seconds above an
-/// hour would force a repaint every second for nothing.
-String formatRemaining(Duration remaining) {
-  final d = remaining.isNegative ? Duration.zero : remaining;
-  String two(int n) => n.toString().padLeft(2, '0');
-  if (d.inHours >= 1) return '${d.inHours}:${two(d.inMinutes % 60)}';
-  return '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
-}
-
-/// How often the countdown should repaint for [remaining].
-Duration countdownTick(Duration remaining) =>
-    remaining.inHours >= 1
-        ? const Duration(minutes: 1)
-        : const Duration(seconds: 1);
-
-/// Urgency of the taker's countdown: calm above an hour, warning under it,
-/// urgent under five minutes (handoff 7a).
-enum CountdownTone { calm, warning, urgent }
-
-CountdownTone countdownTone(Duration remaining) {
-  if (remaining.inHours >= 1) return CountdownTone.calm;
-  if (remaining >= const Duration(minutes: 5)) return CountdownTone.warning;
-  return CountdownTone.urgent;
-}
+// Formatting, ticking and tones live in `lib/shared/utils/countdown.dart`
+// (DS-CMP-21).
 
 /// Share of the order's lifetime already elapsed, in `[0, 1]`. Zero when
 /// the order carries no expiry.

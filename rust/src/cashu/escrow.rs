@@ -821,9 +821,13 @@ mod tests {
     // nutshell:
     //
     //   docker run -p 3338:3338 cashubtc/nutshell:latest poetry run mint
-    //   MOSTRO_TEST_MINT_URL=http://localhost:3338 cargo test -- --ignored
+    //   MOSTRO_TEST_MINT_URL=http://localhost:3338 cargo test --lib cashu:: -- --ignored
     //
-    // The seller wallet must already hold funds; funding is out of band.
+    // or, without Docker, against the public test mint (fake Lightning too):
+    //
+    //   MOSTRO_TEST_MINT_URL=https://testnut.cashu.space cargo test --lib cashu:: -- --ignored
+    //
+    // Each test funds its wallets through `mint_for_test`.
 
     fn test_mint_url() -> String {
         std::env::var("MOSTRO_TEST_MINT_URL")

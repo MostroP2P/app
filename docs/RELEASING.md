@@ -92,7 +92,7 @@ To sign a build locally, create `android/key.properties` (`storeFile`, `storePas
 | `mostro-vX.Y.Z-arm64-v8a.apk` | 64-bit ARMv8-A — modern phones |
 | `mostro-vX.Y.Z-armeabi-v7a.apk` | 32-bit ARMv7-A — old / entry-level phones on a 32-bit Android |
 | `mostro-vX.Y.Z.aab` | Android App Bundle for the Play Console (all ABIs, same key) — not installable on a phone |
-| `mostro-vX.Y.Z-linux-x64.tar.gz` | the Flutter bundle (`mostro`, `lib/`, `data/`), built on Ubuntu 22.04 → glibc 2.35+ |
+| `mostro-vX.Y.Z-linux-x64.tar.gz` | the Flutter bundle (`mostro`, `install.sh`, `lib/`, `data/`), built on Ubuntu 22.04 → glibc 2.35+ |
 | `mostro-vX.Y.Z-windows-x64.zip` | `mostro.exe` and its DLLs — no Authenticode signature (SmartScreen warns) |
 | `mostro-vX.Y.Z-macos-universal.zip` | `mostro.app`, arm64 + x86-64, ad-hoc signed, **not notarized** (Gatekeeper blocks a double click) |
 | `mostro-vX.Y.Z-ios-unsigned.ipa` | **unsigned**, for sideloading tools that re-sign it; push does not work in a re-signed build |

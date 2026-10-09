@@ -8,6 +8,7 @@ import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/add_lightning_invoice_screen.dart';
 import 'package:mostro/features/order/screens/pay_lightning_invoice_screen.dart';
+import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -15,6 +16,59 @@ import 'package:mostro/l10n/app_localizations_en.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
 import '../../../support/fake_trades.dart';
+
+/// Pumps the add-invoice screen ([buyer]) or the pay-invoice one, settled.
+Future<void> _pumpInvoiceScreen(
+  WidgetTester tester, {
+  required bool buyer,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        isWalletConnectedProvider.overrideWithValue(false),
+        tradeAmountProvider.overrideWith(
+          (ref, id) => Stream.value(BigInt.from(1000)),
+        ),
+        tradeInfoStreamProvider.overrideWith(
+          (ref, id) => Stream.value(
+            fakeTrade(
+              id: id,
+              holdInvoice: 'lnbc1000n1holdinvoice',
+              amountSats: BigInt.from(1000),
+            ),
+          ),
+        ),
+        tradeStatusProvider.overrideWith(
+          (ref, id) => const Stream<OrderStatus>.empty(),
+        ),
+        tradeUpdatesProvider.overrideWith(
+          (ref) => const Stream<TradeUpdate>.empty(),
+        ),
+        tradeInfoProvider.overrideWith((ref, id) async => null),
+        invoiceDeadlineProvider.overrideWith((ref, id) async => null),
+        mostroNodeProvider.overrideWith((ref) async => null),
+        activeNodeNameProvider.overrideWithValue(null),
+      ],
+      child: MaterialApp(
+        theme: buildDarkTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        // The empty invoice field pulses until touched; reduced motion
+        // lets pumpAndSettle settle.
+        builder:
+            (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!,
+            ),
+        home:
+            buyer
+                ? const AddLightningInvoiceScreen(orderId: 'order-1')
+                : const PayLightningInvoiceScreen(orderId: 'order-1'),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
 
 /// Both invoice screens only exist before the trade goes active, where
 /// mostrod cancels at once: their cancel dialog must not announce the
@@ -27,54 +81,7 @@ void main() {
     testWidgets(
       '${buyer ? 'add' : 'pay'}-invoice cancel is announced as immediate',
       (tester) async {
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              isWalletConnectedProvider.overrideWithValue(false),
-              tradeAmountProvider.overrideWith(
-                (ref, id) => Stream.value(BigInt.from(1000)),
-              ),
-              tradeInfoStreamProvider.overrideWith(
-                (ref, id) => Stream.value(
-                  fakeTrade(
-                    id: id,
-                    holdInvoice: 'lnbc1000n1holdinvoice',
-                    amountSats: BigInt.from(1000),
-                  ),
-                ),
-              ),
-              tradeStatusProvider.overrideWith(
-                (ref, id) => const Stream<OrderStatus>.empty(),
-              ),
-              tradeUpdatesProvider.overrideWith(
-                (ref) => const Stream<TradeUpdate>.empty(),
-              ),
-              tradeInfoProvider.overrideWith((ref, id) async => null),
-              invoiceDeadlineProvider.overrideWith((ref, id) async => null),
-              mostroNodeProvider.overrideWith((ref) async => null),
-              activeNodeNameProvider.overrideWithValue(null),
-            ],
-            child: MaterialApp(
-              theme: buildDarkTheme(),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              // The empty invoice field pulses until touched; reduced motion
-              // lets pumpAndSettle settle.
-              builder:
-                  (context, child) => MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(disableAnimations: true),
-                    child: child!,
-                  ),
-              home:
-                  buyer
-                      ? const AddLightningInvoiceScreen(orderId: 'order-1')
-                      : const PayLightningInvoiceScreen(orderId: 'order-1'),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
+        await _pumpInvoiceScreen(tester, buyer: buyer);
 
         final cancelId =
             buyer ? AutomationIds.invoiceCancel : AutomationIds.payCancel;
@@ -95,5 +102,20 @@ void main() {
         expect(find.text(l10n.cancelTradeDialogContent), findsNothing);
       },
     );
+  }
+
+  // DS-CMP-20: cancelling the trade undoes something that exists, so the
+  // link is red on both invoice screens, the buyer's included.
+  for (final buyer in [true, false]) {
+    testWidgets('${buyer ? 'add' : 'pay'}-invoice cancel is in danger ink', (
+      tester,
+    ) async {
+      await _pumpInvoiceScreen(tester, buyer: buyer);
+      final link = find.byWidgetPredicate(
+        (w) => w is InvoiceCancelLink && w.label == l10n.invoiceCancelTrade,
+      );
+      expect(link, findsOneWidget);
+      expect(tester.widget<InvoiceCancelLink>(link).danger, isTrue);
+    });
   }
 }

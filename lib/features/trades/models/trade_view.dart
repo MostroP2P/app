@@ -25,8 +25,9 @@ enum TradeSecondaryAction { cancel, dispute, release }
 /// Whose clock the countdown is: sets the `You have` / `They have` label.
 enum TradeTimerOwner { none, user, counterpart, order }
 
-/// The note under the countdown bar.
-enum TradeTimerNote { none, expiresCancels, coordinateInChat, leavesBook }
+/// The note under the countdown bar. [stepOutcome] is what expiry does to
+/// the order, which depends on who owes the step (`stepExpiry`).
+enum TradeTimerNote { none, stepOutcome, coordinateInChat, leavesBook }
 
 /// Number of steps on the timeline.
 const kTradeStepCount = 5;
@@ -91,9 +92,9 @@ class TradeView {
   /// side's pending cooperative-cancel request (protocol `cancel.md`): the
   /// trade goes on until the counterparty also cancels, and asking again is
   /// not an action, so the bar drops `Cancel` and keeps the rest. Only while
-  /// the request can be open — `active` and `fiatSent`: the row keeps the
-  /// flag after a dispute takes over, where the seller's cancel is a
-  /// different action.
+  /// the request can be open — `active`, `fiatSent` and `disputed`: mostrod
+  /// leaves the request in place when a dispute opens, and refuses the
+  /// requester's second cancel there too.
   static TradeView of({
     required TradeStatus status,
     required bool isBuyer,
@@ -108,7 +109,9 @@ class TradeView {
 
   /// The statuses a cooperative-cancel request is open in.
   static bool cancelRequestCanBeOpen(TradeStatus status) =>
-      status == TradeStatus.active || status == TradeStatus.fiatSent;
+      status == TradeStatus.active ||
+      status == TradeStatus.fiatSent ||
+      status == TradeStatus.disputed;
 
   TradeView _withoutCancel() => TradeView(
     step: step,
@@ -173,7 +176,7 @@ class TradeView {
               isBuyer ? TradePrimaryAction.addInvoice : TradePrimaryAction.none,
           secondary: cancelOnly,
           timer: isBuyer ? TradeTimerOwner.user : TradeTimerOwner.counterpart,
-          note: TradeTimerNote.expiresCancels,
+          note: TradeTimerNote.stepOutcome,
           isCompleted: false,
         );
       case TradeStatus.waitingPayment:
@@ -188,7 +191,7 @@ class TradeView {
                   : TradePrimaryAction.payHoldInvoice,
           secondary: cancelOnly,
           timer: isBuyer ? TradeTimerOwner.counterpart : TradeTimerOwner.user,
-          note: TradeTimerNote.expiresCancels,
+          note: TradeTimerNote.stepOutcome,
           isCompleted: false,
         );
       case TradeStatus.waitingBond:
@@ -262,7 +265,8 @@ class TradeView {
         );
       case TradeStatus.disputed:
         // Matches the daemon's own preconditions: only the seller can still
-        // release or cancel once a dispute is open.
+        // release, and either side can still cancel cooperatively — mostrod
+        // treats a cancel in `dispute` as it does one in `active`.
         return TradeView(
           step: -1,
           chip: TradeChip.dispute,
@@ -271,7 +275,7 @@ class TradeView {
           primary: TradePrimaryAction.viewDispute,
           secondary:
               isBuyer
-                  ? const []
+                  ? const [TradeSecondaryAction.cancel]
                   : const [
                     TradeSecondaryAction.release,
                     TradeSecondaryAction.cancel,

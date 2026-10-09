@@ -28,7 +28,7 @@ MostroNodeStats _stats({
   maxOrderAmount: max,
   acceptedCurrencies: accepted,
   escrowMode: 'lightning',
-  cashuMintUrl: null,
+  cashuMintUrls: const [],
   bond: BondPolicyInfo(
     policy: switch (bondRequired) {
       true => BondPolicy.enabled,
@@ -185,6 +185,20 @@ void main() {
       };
       final sorted = sortNodes(entries, stats, 'ARS', _now);
       expect(sorted.map((e) => e.pubkey), [_b, _a]);
+    });
+  });
+
+  group('withNodeFirst', () {
+    test('moves the node to the top and keeps the rest in order', () {
+      final nodes = [_entry(_a), _entry(_b), _entry(_c)];
+      final ordered = withNodeFirst(nodes, _c);
+      expect(ordered.map((e) => e.pubkey), [_c, _a, _b]);
+    });
+
+    test('leaves the list as it is when the node is not in it', () {
+      final nodes = [_entry(_a), _entry(_b)];
+      final ordered = withNodeFirst(nodes, _c);
+      expect(ordered.map((e) => e.pubkey), [_a, _b]);
     });
   });
 

@@ -203,6 +203,27 @@ void main() {
 
       expect(closed, isTrue);
     });
+
+    // Issue #721: a button's textStyle replaces the theme's, so one without a
+    // family renders its label in the platform font instead of Outfit.
+    testWidgets('both buttons render in the interface family', (tester) async {
+      await open(tester);
+      await finish(tester, error: Exception('offline'));
+
+      for (final key in ['restore.retry', 'restore.continue']) {
+        // Through the Text: the retry button's icon is a RichText too.
+        final label = tester.widget<RichText>(
+          find.descendant(
+            of: find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(Text),
+            ),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(label.text.style?.fontFamily, AppFonts.ui, reason: key);
+      }
+    });
   });
 
   group('20d', () {

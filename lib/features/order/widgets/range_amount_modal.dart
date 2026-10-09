@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_theme.dart';
-import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
+import 'package:mostro/core/create_order_palette.dart';
+import 'package:mostro/features/order/widgets/underline_amount_field.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 
@@ -38,11 +40,24 @@ class _RangeAmountDialog extends StatefulWidget {
   State<_RangeAmountDialog> createState() => _RangeAmountDialogState();
 }
 
+/// The amount is typed, shown and bounded the way the take-order card prints
+/// the range: grouped by the locale (`25.000` in `es`), so the dialog never
+/// reads `2000 – 998000` under a card that says `2.000 – 998.000` (#720).
 class _RangeAmountDialogState extends State<_RangeAmountDialog> {
   final _controller = TextEditingController();
   String? _error;
 
-  double? get _parsed => double.tryParse(_controller.text);
+  String get _locale => Localizations.localeOf(context).toString();
+
+  NumberFormat get _fiat => NumberFormat('#,##0.##', _locale);
+
+  /// The typed amount without the grouping the field adds, or null while the
+  /// field is empty. Whole units only: the take sends it as an integer. Zero
+  /// parses, so it gets the range error like any other value under [min].
+  double? get _parsed {
+    final digits = _controller.text.replaceAll(_fiat.symbols.GROUP_SEP, '');
+    return int.tryParse(digits)?.toDouble();
+  }
 
   bool get _isValid {
     final v = _parsed;
@@ -57,15 +72,11 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
       } else if (v < widget.min || v > widget.max) {
         _error = AppLocalizations.of(
           context,
-        ).amountRangeError(_fmt(widget.min), _fmt(widget.max));
+        ).amountRangeError(_fiat.format(widget.min), _fiat.format(widget.max));
       } else {
         _error = null;
       }
     });
-  }
-
-  static String _fmt(double v) {
-    return v == v.truncateToDouble() ? v.toInt().toString() : v.toString();
   }
 
   @override
@@ -76,9 +87,11 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final book = OrderBookPalette.of(context);
+    final palette = CreateOrderPalette.of(context);
     final l10n = AppLocalizations.of(context);
+    final symbols = _fiat.symbols;
+    final error = _error;
 
     return MostroDialog(
       title: l10n.enterAmountTitle,
@@ -86,30 +99,43 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          UnderlineAmountField(
             controller: _controller,
             autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            cursorColor: green,
-            style: Theme.of(context).textTheme.headlineMedium,
-            decoration: InputDecoration(
-              hintText: '0',
-              suffixText: widget.currencyCode,
-              errorText: _error,
-              focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: green, width: 2),
+            hintText: '0',
+            hasError: error != null,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              ThousandsInputFormatter(
+                groupSeparator: symbols.GROUP_SEP,
+                decimalSeparator: symbols.DECIMAL_SEP,
+                allowDecimals: false,
+              ),
+            ],
+            trailing: Text(
+              widget.currencyCode,
+              style: TextStyle(
+                fontFamily: AppFonts.figures,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: book.textTertiary,
               ),
             ),
             onChanged: (_) => _validate(),
-          ).withAutomationId(AutomationIds.orderTakeAmount),
+            automationId: AutomationIds.orderTakeAmount,
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 6),
+            Text(error, style: TextStyle(fontSize: 12, color: palette.error)),
+          ],
           const SizedBox(height: AppSpacing.sm),
           Text(
             l10n.minMaxRangeLabel(
-              _fmt(widget.min),
-              _fmt(widget.max),
+              _fiat.format(widget.min),
+              _fiat.format(widget.max),
               widget.currencyCode,
             ),
-            style: TextStyle(color: colors?.textSubtle, fontSize: 12),
+            style: TextStyle(fontSize: 12, color: book.textTertiary),
           ),
         ],
       ),
@@ -118,7 +144,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
         onPressed: () => Navigator.pop(context),
       ),
       primary: ModalAction(
-        label: l10n.submitButton,
+        label: l10n.rangeAmountTakeAction,
         onPressed: _isValid ? () => Navigator.pop(context, _parsed) : null,
         automationId: AutomationIds.orderTakeAmountConfirm,
       ),

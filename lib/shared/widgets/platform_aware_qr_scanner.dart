@@ -1,18 +1,57 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/input_source_action.dart';
+import 'package:mostro/shared/widgets/paste_field.dart';
+
+/// How [PlatformAwareQrScanner] takes its input on a platform.
+enum QrInput {
+  /// The device camera, through `mobile_scanner`.
+  camera,
+
+  /// A text field the user pastes or types into.
+  paste,
+}
+
+/// Which [QrInput] a platform gets.
+///
+/// Callers pass `kIsWeb` and `defaultTargetPlatform`. `kIsWeb` is a parameter
+/// rather than read here because it is a compile-time constant: a test could
+/// otherwise never reach the web branch.
+QrInput qrInputFor(bool isWeb, TargetPlatform platform) {
+  // On web `platform` is the browser's OS: a phone browser reports android.
+  if (isWeb) return QrInput.paste;
+  return switch (platform) {
+    TargetPlatform.android || TargetPlatform.iOS => QrInput.camera,
+    // mobile_scanner implements Android, iOS, macOS and web only: on Linux
+    // and Windows every channel call is a MissingPluginException and the
+    // scanner renders nothing (#458). macOS has the plugin, but the sandboxed
+    // app lacks `com.apple.security.device.camera` and
+    // `NSCameraUsageDescription`, so it pastes until someone with a Mac
+    // enables and tests the camera there.
+    _ => QrInput.paste,
+  };
+}
+
+/// Whether this build scans with the camera ([qrInputFor] answers
+/// [QrInput.camera]). Where it does not, a Scan QR action is disabled and
+/// says why, rather than opening a second paste field.
+bool canScanQr() => qrInputFor(kIsWeb, defaultTargetPlatform) == QrInput.camera;
 
 /// Platform-aware QR scanner.
 ///
-/// On **iOS, Android, and desktop** (non-web): opens the device camera using
-/// `mobile_scanner`.
-/// On **web**: shows a paste-from-clipboard text field — camera access
-/// requires HTTPS and a user gesture that differs across browsers; clipboard
-/// paste is the reliable fallback.
+/// On **Android and iOS**: opens the device camera using `mobile_scanner`. If
+/// the camera cannot start — no camera, or the permission refused — the paste
+/// field below takes its place.
+/// On **web and desktop**: shows a paste-from-clipboard text field. On web,
+/// camera access requires HTTPS and a user gesture that differs across
+/// browsers; on desktop, see [qrInputFor].
 ///
 /// [onDetected] is called exactly once with the decoded string as soon as a
 /// QR code is scanned or the user submits pasted content.
@@ -26,7 +65,7 @@ class PlatformAwareQrScanner extends StatefulWidget {
   /// Called with the raw string value when a QR code is detected or submitted.
   final void Function(String value) onDetected;
 
-  /// Placeholder text shown in the paste field (web only).
+  /// Placeholder text shown in the paste field.
   final String hint;
 
   @override
@@ -54,7 +93,10 @@ class _PlatformAwareQrScannerState extends State<PlatformAwareQrScanner> {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
     if (text.isEmpty) {
-      if (mounted) setState(() => _errorText = AppLocalizations.of(context).clipboardEmptyError);
+      if (!mounted) return;
+      setState(
+        () => _errorText = AppLocalizations.of(context).clipboardEmptyError,
+      );
       return;
     }
     if (!mounted) return;
@@ -71,56 +113,58 @@ class _PlatformAwareQrScannerState extends State<PlatformAwareQrScanner> {
     _emitOnce(text);
   }
 
+  Widget _pasteForm() {
+    return _PasteFallback(
+      controller: _controller,
+      errorText: _errorText,
+      hint: widget.hint,
+      onChanged: (_) {
+        if (_errorText != null) setState(() => _errorText = null);
+      },
+      onPaste: _pasteFromClipboard,
+      onSubmit: _submit,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
-      return _WebFallback(
-        controller: _controller,
-        errorText: _errorText,
-        hint: widget.hint,
-        onChanged: (_) {
-          if (_errorText != null) setState(() => _errorText = null);
-        },
-        onPaste: _pasteFromClipboard,
-        onSubmit: _submit,
-      );
+    if (!canScanQr()) {
+      return _pasteForm();
     }
-    return _CameraScanner(onDetected: widget.onDetected);
+    return _CameraScanner(onDetected: _emitOnce, onError: _pasteForm);
   }
 }
 
-// ── Camera scanner (native / desktop) ────────────────────────────────────────
+// ── Camera scanner (Android / iOS) ───────────────────────────────────────────
 
-class _CameraScanner extends StatefulWidget {
-  const _CameraScanner({required this.onDetected});
+class _CameraScanner extends StatelessWidget {
+  const _CameraScanner({required this.onDetected, required this.onError});
+
+  /// Guarded by the parent's `_emitOnce`, so a code held in front of the
+  /// camera for several frames is reported once.
   final void Function(String) onDetected;
 
-  @override
-  State<_CameraScanner> createState() => _CameraScannerState();
-}
-
-class _CameraScannerState extends State<_CameraScanner> {
-  bool _detected = false;
+  /// What replaces the preview when the camera cannot start.
+  final Widget Function() onError;
 
   @override
   Widget build(BuildContext context) {
     return MobileScanner(
+      // Without this, a refused permission or a device without a camera shows
+      // mobile_scanner's black error box and nothing else to do.
+      errorBuilder: (_, _) => onError(),
       onDetect: (capture) {
-        if (_detected) return;
         final raw = capture.barcodes.firstOrNull?.rawValue?.trim();
-        if (raw != null && raw.isNotEmpty) {
-          _detected = true;
-          widget.onDetected(raw);
-        }
+        if (raw != null && raw.isNotEmpty) onDetected(raw);
       },
     );
   }
 }
 
-// ── Web fallback (paste / type) ───────────────────────────────────────────────
+// ── Paste fallback (web, desktop, camera unavailable) ────────────────────────
 
-class _WebFallback extends StatelessWidget {
-  const _WebFallback({
+class _PasteFallback extends StatelessWidget {
+  const _PasteFallback({
     required this.controller,
     required this.errorText,
     required this.hint,
@@ -138,50 +182,45 @@ class _WebFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) {
-      throw StateError('AppColors theme extension must be registered');
-    }
+    final book = OrderBookPalette.of(context);
+    final l10n = AppLocalizations.of(context);
 
-    return Padding(
+    // Scrolls because the keyboard is up whenever the field is in use: on a
+    // narrow phone at a large text size the form is taller than what is left.
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            AppLocalizations.of(context).pasteQrCodeHeading,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              hintText: hint,
-              errorText: errorText,
+            l10n.pasteQrCodeHeading,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: book.textPrimary,
             ),
-            autocorrect: false,
-            enableSuggestions: false,
-            onChanged: onChanged,
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPaste,
-                  icon: const Icon(Icons.content_paste),
-                  label: Text(AppLocalizations.of(context).pasteButtonLabel),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: FilledButton(
-                  onPressed: onSubmit,
-                  child: Text(AppLocalizations.of(context).submitButtonLabel),
-                ),
-              ),
-            ],
+          PasteField(
+            controller: controller,
+            hint: hint,
+            errorText: errorText,
+            onChanged: onChanged,
+            // Enter is Submit, under the same rule as the button; on an empty
+            // field it says so and the focus stays put.
+            onEditingComplete: onSubmit,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          InputSourceAction(
+            icon: Icons.content_paste_outlined,
+            label: l10n.pasteButtonLabel,
+            onTap: onPaste,
+          ),
+          const SizedBox(height: 18),
+          OrderPrimaryButton(
+            label: l10n.submitButtonLabel,
+            onPressed: onSubmit,
           ),
         ],
       ),

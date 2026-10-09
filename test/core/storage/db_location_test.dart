@@ -29,4 +29,31 @@ void main() {
       );
     });
   });
+
+  group('openDatabase', () {
+    test('opens the store on the web, by name, without asking for a '
+        'directory (#408)', () async {
+      // Before #408 the web skipped this and every trade vanished on reload.
+      final opened = <String>[];
+      await openDatabase(
+        isWeb: true,
+        dataDir: () async => fail('there is no file system on the web'),
+        initDb: ({required path}) async => opened.add(path),
+      );
+      expect(opened, [webDatabaseName], reason: 'the web store must be opened');
+    });
+
+    test(
+      'opens the SQLite file inside the data directory off the web',
+      () async {
+        final opened = <String>[];
+        await openDatabase(
+          isWeb: false,
+          dataDir: () async => '/data',
+          initDb: ({required path}) async => opened.add(path),
+        );
+        expect(opened, ['/data/mostro.db']);
+      },
+    );
+  });
 }

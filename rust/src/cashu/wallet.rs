@@ -5,7 +5,8 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Result};
 use cdk::amount::SplitTarget;
 use cdk::nuts::nut10::SpendingConditions;
-use cdk::nuts::{CurrencyUnit, Proof, Token};
+use cdk::nuts::{CurrencyUnit, KeySetInfo, Proof, Token};
+use cdk::wallet::types::KeysetLoadPolicy;
 use cdk::wallet::{ReceiveOptions, SendMemo, SendOptions, Wallet};
 use cdk::Amount;
 use cdk_sqlite::WalletSqliteDatabase;
@@ -133,8 +134,12 @@ impl CashuWallet {
             .map_err(|e| anyhow!("CashuMintUnreachable: {e}"))?
             .ok_or_else(|| anyhow!("CashuMintUnreachable: mint published no info"))?;
 
+        // `Refresh`: the mint was just reached for its info, so ask it rather
+        // than trust a keyset list the store kept from an earlier session. cdk
+        // returns every keyset of the wallet's unit, rotated ones included, so
+        // `active` has to be checked here.
         let keysets = wallet
-            .load_mint_keysets()
+            .keysets(KeysetLoadPolicy::Refresh)
             .await
             .map_err(|e| anyhow!("CashuMintUnreachable: {e}"))?;
 
@@ -142,7 +147,9 @@ impl CashuWallet {
             nut07_state_check: info.nuts.nut07.supported,
             nut11_p2pk: info.nuts.nut11.supported,
             nut12_dleq: info.nuts.nut12.supported,
-            has_sat_keyset: keysets.iter().any(|k| k.unit == CurrencyUnit::Sat),
+            has_sat_keyset: keysets
+                .iter()
+                .any(|k| k.unit == CurrencyUnit::Sat && k.active == Some(true)),
         })
     }
 
@@ -162,12 +169,24 @@ impl CashuWallet {
     ///
     /// Needs the mint's keysets — a v4 token identifies its keyset by id — so
     /// this cannot be a free function on the token alone.
+    ///
+    /// Rotated keysets count: a token minted before a rotation is still ecash
+    /// at this mint. That mirrors cdk's own (crate-private) `token_proofs`.
     pub(crate) async fn proofs_of(&self, token: &Token) -> Result<Vec<Proof>> {
-        let keysets = self
+        let keysets: Vec<KeySetInfo> = self
             .inner
-            .load_mint_keysets()
+            .keysets(KeysetLoadPolicy::default())
             .await
-            .map_err(|e| anyhow!("CashuMintUnreachable: {e}"))?;
+            .map_err(|e| anyhow!("CashuMintUnreachable: {e}"))?
+            .into_iter()
+            .map(|k| KeySetInfo {
+                id: k.id,
+                unit: k.unit,
+                active: k.active.unwrap_or(false),
+                input_fee_ppk: k.input_fee_ppk,
+                final_expiry: k.final_expiry,
+            })
+            .collect();
         token
             .proofs(&keysets)
             .map_err(|e| anyhow!("InvalidEscrowToken: unreadable proofs ({e})"))
@@ -196,7 +215,7 @@ impl CashuWallet {
     ///
     /// DLEQ (NUT-12) is verified **here**, before the swap, rather than left to
     /// `cdk`: its receive path verifies a proof only `if proof.dleq.is_some()`
-    /// (`wallet/receive/saga/mod.rs`, cdk 0.17.3), so a token whose proofs carry
+    /// (`wallet/receive/saga/mod.rs`, cdk 0.18.1), so a token whose proofs carry
     /// none is accepted on trust. That is the softer guarantee NUT-12 is a hard
     /// connect requirement to avoid — [`Wallet::verify_token_dleq`] rejects the
     /// missing proof instead of skipping it.
@@ -323,9 +342,14 @@ impl CashuWallet {
     /// no manual step. Without it the integration tests below assert
     /// "fund the wallet first" and can never pass, which makes them
     /// documentation rather than verification.
+    ///
+    /// "Settles itself" is not "settles at once": nutshell marks the quote paid
+    /// before it answers, but a `cdk-mintd` fake backend (testnut) pays it
+    /// about two seconds later, and minting before that fails. So this waits
+    /// for the quote to read `Paid` before minting.
     #[cfg(test)]
     pub(crate) async fn mint_for_test(&self, amount_sats: u64) -> Result<u64> {
-        use cdk::nuts::PaymentMethod;
+        use cdk::nuts::{MintQuoteState, PaymentMethod};
 
         let quote = self
             .inner
@@ -337,6 +361,25 @@ impl CashuWallet {
             )
             .await
             .map_err(|e| anyhow!("CashuMintQuoteFailed: {e}"))?;
+
+        let mut attempts = 0;
+        while self
+            .inner
+            .check_mint_quote_status(&quote.id)
+            .await
+            .map_err(|e| anyhow!("CashuMintQuoteFailed: {e}"))?
+            .state
+            != MintQuoteState::Paid
+        {
+            attempts += 1;
+            if attempts == 20 {
+                bail!(
+                    "CashuMintFailed: quote {} still unpaid after 10 s (is the mint in FakeWallet mode?)",
+                    quote.id
+                );
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
 
         let proofs = self
             .inner
@@ -352,7 +395,7 @@ impl CashuWallet {
     ///
     /// **Housekeeping, not recovery — nothing comes back from this call.** Two
     /// facts about `cdk`'s `check_all_pending_proofs` (`wallet/proofs.rs`,
-    /// cdk 0.17.3) decide that:
+    /// cdk 0.18.1) decide that:
     ///
     /// * it looks only at proofs no operation owns
     ///   (`p.used_by_operation.is_none()`), and `prepare_send` reserves
@@ -376,6 +419,62 @@ impl CashuWallet {
         log::info!("[cashu] swept spent proofs ({unresolved} sat still unresolved)");
         Ok(())
     }
+}
+
+/// The sats held in the proof store at `db_path` — at `mint_url`, or across
+/// every mint when `None` — read without contacting any: what an identity
+/// would leave behind if replaced, or what stays at a mint that is not
+/// answering right now.
+///
+/// Every proof not known spent counts — unspent, reserved for a token nobody
+/// redeemed yet, or in an operation in flight — since each is still the
+/// owner's money. A store that does not exist holds nothing and is not
+/// created.
+///
+/// **Errors**: `CashuStoreUnavailable`.
+pub async fn stored_balance(db_path: &str, mint_url: Option<&str>) -> Result<u64> {
+    use cdk::cdk_database::WalletDatabase;
+    use cdk::nuts::State;
+
+    if !std::path::Path::new(db_path).exists() {
+        return Ok(0);
+    }
+    let mint_url = mint_url
+        .map(cdk::mint_url::MintUrl::from_str)
+        .transpose()
+        .map_err(|e| anyhow!("InvalidMintUrl: {e}"))?;
+    let store = WalletSqliteDatabase::new(db_path)
+        .await
+        .map_err(|e| anyhow!("CashuStoreUnavailable: {e}"))?;
+    store
+        .get_balance(
+            mint_url,
+            Some(CurrencyUnit::Sat),
+            Some(vec![
+                State::Unspent,
+                State::Reserved,
+                State::Pending,
+                State::PendingSpent,
+            ]),
+        )
+        .await
+        .map_err(|e| anyhow!("CashuStoreUnavailable: {e}"))
+}
+
+/// The mint an encoded token was minted at, as the token names it.
+///
+/// Read without contacting any mint: it is how a wallet with no mint set yet
+/// learns which one to bind to from the first token it receives.
+///
+/// **Errors**: `CashuReceiveFailed` when the token does not parse or names no
+/// single mint.
+pub fn token_mint_url(encoded: &str) -> Result<String> {
+    let token = Token::from_str(&normalize_token(encoded))
+        .map_err(|e| anyhow!("CashuReceiveFailed: {e}"))?;
+    let mint = token
+        .mint_url()
+        .map_err(|e| anyhow!("CashuReceiveFailed: {e}"))?;
+    Ok(mint.to_string())
 }
 
 /// Strip whitespace and the `cashu:` URI scheme.
@@ -404,8 +503,18 @@ mod tests {
     ///
     /// ```text
     /// docker run -p 3338:3338 cashubtc/nutshell:latest poetry run mint
-    /// MOSTRO_TEST_MINT_URL=http://localhost:3338 cargo test -- --ignored
+    /// MOSTRO_TEST_MINT_URL=http://localhost:3338 cargo test --lib cashu:: -- --ignored
     /// ```
+    ///
+    /// or, without Docker, at the public test mint, whose Lightning backend is
+    /// fake too:
+    ///
+    /// ```text
+    /// MOSTRO_TEST_MINT_URL=https://testnut.cashu.space cargo test --lib cashu:: -- --ignored
+    /// ```
+    ///
+    /// `cashu::` keeps the run to these tests: an unfiltered `--ignored` also
+    /// starts the NWC and regtest ones, which fail without their own setup.
     ///
     /// They are `#[ignore]` so CI stays green without one. A mock is not an
     /// option here: it would have to fake blind signatures and DLEQ proofs, and
@@ -522,6 +631,63 @@ mod tests {
         assert_eq!(normalize_token("cashuBcashu:inner"), "cashuBcashu:inner");
     }
 
+    #[tokio::test]
+    async fn a_missing_proof_store_holds_nothing_and_is_not_created() {
+        // Asked of every identity before it is replaced, most of which never
+        // opened a wallet: reading must not leave a file behind.
+        let path = temp_db_path();
+
+        assert_eq!(
+            stored_balance(path.to_str().unwrap(), None).await.unwrap(),
+            0
+        );
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn an_empty_proof_store_holds_nothing() {
+        let path = temp_db_path();
+        drop(
+            WalletSqliteDatabase::new(path.to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+
+        assert_eq!(
+            stored_balance(path.to_str().unwrap(), None).await.unwrap(),
+            0
+        );
+        assert_eq!(
+            stored_balance(path.to_str().unwrap(), Some("https://mint.example.com"))
+                .await
+                .unwrap(),
+            0
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_token_names_the_mint_it_was_minted_at() {
+        // Arrange — a token needs no mint to be read, only to be redeemed.
+        let mint = cdk::mint_url::MintUrl::from_str("https://mint.example.com").unwrap();
+        let encoded = Token::new(mint, Vec::new(), None, CurrencyUnit::Sat).to_string();
+
+        // Act / Assert — with or without the URI scheme a wallet may add.
+        assert_eq!(
+            token_mint_url(&encoded).unwrap(),
+            "https://mint.example.com"
+        );
+        assert_eq!(
+            token_mint_url(&format!("cashu:{encoded}")).unwrap(),
+            "https://mint.example.com"
+        );
+        // Something that is not a token names no mint.
+        assert!(token_mint_url("cashuBanything")
+            .unwrap_err()
+            .to_string()
+            .contains("CashuReceiveFailed"));
+    }
+
     #[test]
     fn a_fresh_capability_set_is_unusable() {
         // Assert — the default must fail closed, so a probe that never ran
@@ -626,9 +792,9 @@ mod tests {
         let token = Token::from_str(&encoded).unwrap();
 
         // Act — the same token, minus the evidence that the mint issued it.
-        let keysets = receiver.inner.load_mint_keysets().await.unwrap();
-        let stripped: Vec<_> = token
-            .proofs(&keysets)
+        let stripped: Vec<_> = receiver
+            .proofs_of(&token)
+            .await
             .unwrap()
             .into_iter()
             .map(|mut p| {

@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_info_tags`, `apply_order_counts`, `cached_info_tags`, `count_open_orders`, `dedup_latest`, `empty`, `fraction_to_pct`, `is_open`, `load_info_cache`, `merge_info`, `newest_info`, `normalize_pubkeys`, `parse_accepted_currencies`, `parse_authors`, `parse_u64`, `rows_from_cache`, `store_info_best_effort`, `store_info`, `summarize`, `supersedes`, `supersedes`, `tag_value`
+// These functions are ignored because they are not marked as `pub`: `apply_info_tags`, `apply_order_counts`, `cached_info_tags`, `count_open_orders`, `dedup_latest`, `empty`, `fraction_to_pct`, `info_of`, `is_open`, `load_info_cache`, `merge_info`, `newest_info`, `normalize_pubkeys`, `parse_accepted_currencies`, `parse_authors`, `parse_u64`, `remember_info_event`, `rows_from_cache`, `store_info_best_effort`, `store_info`, `summarize`, `supersedes`, `supersedes`, `tag_value`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CachedNodeInfo`, `Revision`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
 
@@ -109,8 +109,10 @@ class MostroNodeStats {
   /// (see [`escrow_mode::EscrowMode::as_marker`]).
   final String escrowMode;
 
-  /// Mint the node pins for Cashu escrow; only set when the mode is Cashu.
-  final String? cashuMintUrl;
+  /// Mints the node accepts for Cashu escrow (MostroP2P/mostro#1047), in
+  /// its order. On a Cashu node, empty means it accepts any mint; on any
+  /// other node it is always empty.
+  final List<String> cashuMintUrls;
 
   /// The node's full anti-abuse bond policy (`docs/ANTI_ABUSE_BOND.md`
   /// §3.4): three-state, with every parameter gated on `Enabled`.
@@ -140,7 +142,7 @@ class MostroNodeStats {
     this.maxOrderAmount,
     required this.acceptedCurrencies,
     required this.escrowMode,
-    this.cashuMintUrl,
+    required this.cashuMintUrls,
     required this.bond,
     this.bondRequired,
     this.bondPct,
@@ -158,7 +160,7 @@ class MostroNodeStats {
       maxOrderAmount.hashCode ^
       acceptedCurrencies.hashCode ^
       escrowMode.hashCode ^
-      cashuMintUrl.hashCode ^
+      cashuMintUrls.hashCode ^
       bond.hashCode ^
       bondRequired.hashCode ^
       bondPct.hashCode ^
@@ -178,7 +180,7 @@ class MostroNodeStats {
           maxOrderAmount == other.maxOrderAmount &&
           acceptedCurrencies == other.acceptedCurrencies &&
           escrowMode == other.escrowMode &&
-          cashuMintUrl == other.cashuMintUrl &&
+          cashuMintUrls == other.cashuMintUrls &&
           bond == other.bond &&
           bondRequired == other.bondRequired &&
           bondPct == other.bondPct &&

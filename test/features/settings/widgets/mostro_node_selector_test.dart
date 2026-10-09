@@ -57,7 +57,7 @@ MostroNodeStats _stats(
   List<String> accepted = const ['ARS', 'VES'],
   double? feePct = 0.6,
   String escrowMode = 'lightning',
-  String? mint,
+  List<String> mints = const [],
   bool? bondRequired = false,
 }) => MostroNodeStats(
   pubkey: pubkey,
@@ -68,7 +68,7 @@ MostroNodeStats _stats(
   maxOrderAmount: BigInt.from(2000000),
   acceptedCurrencies: accepted,
   escrowMode: escrowMode,
-  cashuMintUrl: mint,
+  cashuMintUrls: mints,
   bond: BondPolicyInfo(
     policy: switch (bondRequired) {
       true => BondPolicy.enabled,
@@ -115,7 +115,7 @@ final _fixtureStats = {
     orders: {'CUP': 6},
     accepted: ['CUP', 'USD'],
     escrowMode: 'cashu',
-    mint: 'https://mint.cashu.space',
+    mints: const ['https://mint.cashu.space'],
   ),
   _customPubkey: _stats(_customPubkey, infoSeenAt: _now, orders: {'ARS': 40}),
 };
@@ -798,12 +798,25 @@ void main() {
       });
     });
 
-    testWidgets('shows the short operator disclaimer', (tester) async {
+    testWidgets('shows the operator disclaimer in full, above the nodes', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(_now), () async {
         await _pump(tester);
+        final disclaimer = find.textContaining(
+          'The Mostro development team is not responsible for how node '
+          'operators use the platform.',
+        );
+        expect(disclaimer, findsOneWidget);
+        // In the list, so it scrolls with the cards instead of taking the
+        // foot's height.
         expect(
-          find.textContaining('Each node is run by an independent third party'),
+          find.descendant(of: find.byType(ListView), matching: disclaimer),
           findsOneWidget,
+        );
+        expect(
+          tester.getTopLeft(disclaimer).dy,
+          lessThan(tester.getTopLeft(find.text('Kmbalache 🇨🇺')).dy),
         );
       });
     });

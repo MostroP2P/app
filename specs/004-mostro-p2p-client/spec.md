@@ -11,21 +11,24 @@
 
 ### User Story 1 — First Launch & Identity Setup (Priority: P1)
 
-A new user opens the app for the first time. The app silently generates a unique cryptographic identity (12-word BIP-39 mnemonic + derived Nostr keypair) in the background — no sign-up, no email, no KYC, no internet connection required. The mnemonic is immediately stored in the platform's secure storage (iOS Keychain / Android Keystore). Once identity creation completes, a permanent backup reminder notification is pinned to the Notifications screen. The user is shown a 6-page illustrated walkthrough explaining the app's privacy model, security guarantees, encrypted chat, and how to trade. Once completed (or skipped), the user lands on the order book.
+A new user opens the app for the first time. The app silently generates a unique cryptographic identity (12-word BIP-39 mnemonic + derived Nostr keypair) in the background — no sign-up, no email, no KYC, no internet connection required. The mnemonic is immediately stored in the platform's secure storage (iOS Keychain / Android Keystore). Once identity creation completes, a permanent backup reminder notification is pinned to the Notifications screen. The user is shown a 6-page illustrated walkthrough explaining the app's privacy model, security guarantees, encrypted chat, and how to trade. Once completed (or skipped), the user chooses the Mostro node to trade on — every trusted node, the default node first, with the operator disclaimer — or skips the choice and keeps the default node; then they land on the order book. The nodes' data (kind 38385 settings, then their open-order counts) downloads while the walkthrough is on screen, so the choice opens filled.
 
 The notification bell in the app bar displays a red dot (no number) as long as the user has not confirmed their backup. The bell plays a subtle left-right shake animation whenever any indicator — red dot or numbered badge — is active. The backup notification is always the first item in the Notifications list until the user explicitly confirms backup via the Account screen. Tapping that notification takes the user directly to the Account screen where the Secret Words card is displayed.
 
 **Why this priority**: Without identity creation and onboarding, no subsequent feature can function. This is the zero-state entry point for every user. Loss of the mnemonic means permanent loss of the account.
 
-**Independent Test**: Can be fully tested by fresh-installing the app and verifying: (a) the 6-slide walkthrough appears only once, (b) subsequent launches skip straight to the order book, (c) the notification bell shows a red dot, shakes, and a backup reminder is pinned as the first notification, (d) tapping the notification lands on the Account screen.
+**Independent Test**: Can be fully tested by fresh-installing the app and verifying: (a) the 6-slide walkthrough and the node choice appear only once, (b) subsequent launches skip straight to the order book, (c) the notification bell shows a red dot, shakes, and a backup reminder is pinned as the first notification, (d) tapping the notification lands on the Account screen.
 
 **Acceptance Scenarios**:
 
 1. **Given** it is the app's very first launch, **When** the app initializes, **Then** a 12-word BIP-39 mnemonic and derived Nostr keypair are generated silently in the background with no user interaction, no UI blocking, and no internet connection required, and the mnemonic is persisted to platform secure storage before any UI is shown.
 2. **Given** identity creation has completed on first launch, **When** the app proceeds, **Then** a backup reminder notification is created and pinned as the first item in the Notifications screen; this notification persists until the user explicitly confirms backup and cannot be dismissed by swiping or marking as read.
 3. **Given** it is the app's first launch, **When** the app opens, **Then** a 6-slide walkthrough is shown covering: welcome, privacy, security, encrypted chat, taking offers, and creating offers.
-4. **Given** the user taps "Done" or "Skip" on the walkthrough, **When** the navigation completes, **Then** the user lands on the order book.
-5. **Given** the user has previously completed the walkthrough, **When** they reopen the app, **Then** they go directly to the order book with no walkthrough.
+4. **Given** the user taps "Done" or "Skip" on the walkthrough, **When** the navigation completes, **Then** the node choice is shown: every node of the registry as a node card (the same card as the Settings selector), the default node first, and the full operator disclaimer ("The Mostro development team is not responsible for how node operators use the platform…").
+4a. **Given** the walkthrough is on screen, **When** the user reaches the node choice, **Then** each card already shows the node's settings (fee, range, currencies — kind 38385, downloaded first) and its open orders (counted from kind 38383, downloaded after the settings); a figure still missing shows a skeleton, never a spinner.
+4b. **Given** the node choice, **When** the user taps a card and then "Use this node", **Then** that node becomes the active node and the user lands on the order book. "Use this node" is disabled until a card is tapped.
+4c. **Given** the node choice, **When** the user taps "Skip" without choosing, **Then** the default node (the global Mostro node) is the active node and the user lands on the order book.
+5. **Given** the user has previously completed the walkthrough and the node choice, **When** they reopen the app, **Then** they go directly to the order book with no walkthrough. A user who quit on the node choice sees the walkthrough again.
 6. **Given** the user has not yet confirmed their backup, **When** they look at the notification bell in the app bar, **Then** a red dot indicator (not a number badge) is visible on the bell icon.
 7. **Given** the notification bell has an active red dot or a numbered unread badge, **When** the indicator first appears or the count changes, **Then** the bell icon plays a left-right shake animation (two oscillations, ~300 ms total, easing in and out).
 8. **Given** the backup reminder notification is pinned, **When** the user taps it in the Notifications screen, **Then** they are navigated directly to the Account screen.
@@ -68,6 +71,8 @@ A user browses available buy/sell offers in the public order book. The list is o
 4. **Given** there are no matching orders for the active filter, **When** the filter is applied, **Then** a "No orders available" empty state is shown.
 5. **Given** the user applied filters, **When** they close the app completely and reopen it, **Then** the same filters are still applied and the Filter chip shows that the book is filtered and how many filters are on (#575).
 6. **Given** filters are applied, **When** the user taps Reset in the Filters dialog or Clear filters in the empty state, **Then** the book is unfiltered and stays unfiltered after the app is reopened.
+7. **Given** the web app open in a phone browser that can install it, not yet installed, **When** the order book has loaded, **Then** a card under the app bar offers to install it (#778): Install opens the browser's own install dialog on Android and the Share → Add to Home Screen steps on iOS, and Not now closes it.
+8. **Given** the user answered the install card either way, **When** they reopen the app on the same device, **Then** the card does not show again, even under a new identity.
 
 ---
 
@@ -149,7 +154,7 @@ A seller (taker of a buy order) completes a trade. They must pay a hold Lightnin
 
 ### User Story 8 — Encrypted P2P Chat (Priority: P1)
 
-During an active trade, both parties communicate privately via an end-to-end encrypted in-app chat. Messages are visible only to the two trade participants. Users can also send encrypted image and file attachments. The chat room shows the peer's avatar, handle, a Trade Information panel, and a User Information panel including the shared encryption key (which can be optionally shared with a dispute admin to grant them read access to the chat history).
+During an active trade, both parties communicate privately via an end-to-end encrypted in-app chat. Messages are visible only to the two trade participants. Users can also send encrypted image and file attachments. The chat room shows the peer's avatar, handle, a Trade Information panel, and a User Information panel with the peer's alias, avatar and public reputation. The shared encryption key is never shown: a user in a dispute can have it sent to the solver (#415).
 
 **Why this priority**: Communication is critical for coordinating fiat payment delivery — trades cannot realistically complete without it.
 
@@ -158,8 +163,8 @@ During an active trade, both parties communicate privately via an end-to-end enc
 **Acceptance Scenarios**:
 
 1. **Given** a trade is active, **When** a user taps "Contact", **Then** they are taken to the chat room showing the peer's avatar, handle, and any existing message history.
-2. **Given** the chat room is open, **When** the user taps "Exchange Information", **Then** a panel shows the order ID, sats and fiat amounts, trade status, payment method, and creation date.
-3. **Given** the chat room is open, **When** the user taps "User Information", **Then** a panel shows the peer's public key and the shared ECDH key, both copyable.
+2. **Given** the chat room is open, **When** the user taps "Exchange Information", **Then** a panel shows the order ID, sats and fiat amounts, trade status (the same status as the trade header above the chat), payment method, and creation date. A figure the trade does not carry yet (sats before a market price resolves, a missing payment method) is left out, never shown as a placeholder.
+3. **Given** the chat room is open, **When** the user taps "User Information", **Then** a panel shows the peer's alias and avatar for this order (the same as the chat header) and their public reputation: the taker's snapshot the daemon sends a maker, or for a taker the maker's rating tag on the order. When neither is known (a full-privacy taker), the panel says the reputation is not available. No key is shown.
 4. **Given** the user sends a message, **When** it is submitted, **Then** it appears immediately in the conversation (before relay confirmation) and is end-to-end encrypted.
 5. **Given** the user attaches an image or file, **When** it is sent, **Then** it uploads encrypted and the recipient can view or download it securely.
 6. **Given** there are unread messages, **When** the user has not opened the chat, **Then** a red dot appears on the Chat tab in the bottom nav and on the specific chat list item.
@@ -168,7 +173,7 @@ During an active trade, both parties communicate privately via an end-to-end enc
 
 ### User Story 9 — Dispute System with Admin Chat (Priority: P2)
 
-Either party can open a dispute during an active trade if they cannot resolve a disagreement. The platform assigns an admin (dispute resolver) who communicates with the user via a separate encrypted admin chat. The user can optionally share the shared key from the P2P chat so the admin can review the trade conversation. The admin can release sats to the buyer or cancel the order and refund the seller. The seller can also voluntarily release at any point during a dispute.
+Either party can open a dispute during an active trade if they cannot resolve a disagreement. The platform assigns an admin (dispute resolver) who communicates with the user via a separate encrypted admin chat. Once a solver takes the dispute, the user can optionally send them the P2P chat key from the dispute chat (a key button in its app bar, behind a confirmation, and again as often as they want, #415), so the solver can read the trade conversation — that one only. The admin can release sats to the buyer or cancel the order and refund the seller. The seller can also voluntarily release at any point during a dispute.
 
 **Why this priority**: Disputes are the safety net that enables users to trust the platform. Without it, fraud cannot be addressed.
 
@@ -183,6 +188,8 @@ Either party can open a dispute during an active trade if they cannot resolve a 
 5. **Given** the admin resolves in the buyer's favor, **When** resolution is processed, **Then** the chat becomes read-only with a lock message and the order completes as success.
 6. **Given** the admin resolves in the seller's favor, **When** resolution is processed, **Then** the hold invoice is canceled, and the chat shows "The administrator canceled the order and refunded you."
 7. **Given** the seller taps "Release" during a dispute, **When** confirmed, **Then** the dispute closes and the order transitions to success without admin involvement.
+8. **Given** the user opens the dispute chat, **When** it renders, **Then** it opens with v1's information card, in v1's wording, which scrolls with the messages: "Dispute with [role]: [handle]" with the dispute's status chip, the full order ID and dispute ID on labelled lines in monospace (wrapped, never shortened, tap to copy), and, while the dispute is open, the status sentence for its status and three instructions. Once the dispute is resolved the card shows neither: the resolved outcome follows it. The card never points to the chat's shared key (#415, #680).
+9. **Given** a trade is in dispute, **When** either party views Trade Detail, **Then** both see "View dispute" and a Cancel button (the seller also sees Release). Cancel is the cooperative cancel mostrod accepts in `dispute` as in `active`: the first party's asks, the other's accepts, ending the trade and closing the dispute as cooperatively canceled. A cancel request made before the dispute opened stays open through it, so its notice stays, the requester gets no second Cancel and the counterparty's reads "Accept cancel".
 
 ---
 
@@ -265,16 +272,20 @@ The user receives in-app notifications for all trade lifecycle events: order tak
 
 Users configure app preferences from the Settings screen: language, default fiat currency, default Lightning address (pre-filled in invoice inputs), NWC wallet connection, relay list with on/off toggles, push notification preferences, Mostro node selection, and access to debug logs.
 
+The app always has all three payment methods: Lightning, NWC and the Cashu wallet. Lightning (invoices and Lightning address) works as it always has, and the NWC wallet and the Cashu wallet stay reachable from Settings whatever Mostro node is active and whichever escrow backend it runs. The active node's escrow mode decides only how a trade on that node settles; it never hides, disables or removes a payment method from the app.
+
 **Why this priority**: Default currency and language settings directly affect usability in each user's local market.
 
 **Independent Test**: Fully testable by changing the default fiat currency to MXN and verifying it is pre-selected on the next Create Order.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user opens Settings, **When** they view the screen, **Then** 8 configuration cards are shown: Language, Default Fiat Currency, Lightning Address, NWC Wallet, Relays, Push Notifications, Log Report, and Mostro Node.
+1. **Given** the user opens Settings, **When** they view the screen, **Then** these configuration entries are shown: Language, Default Fiat Currency, Lightning Address, NWC Wallet, Cashu Wallet, Relays, Push Notifications, Log Report, and Mostro Node.
 2. **Given** the user taps Default Fiat Currency, **When** the currency dialog opens, **Then** they can search by name or code, and selecting one saves it as the default.
 3. **Given** the user has a Lightning address saved, **When** they start a buy trade, **Then** the invoice input is pre-filled with the saved address.
 4. **Given** the user manages relays, **When** they toggle a relay off, **Then** the app stops connecting to that relay.
+5. **Given** any active Mostro node, Lightning or Cashu, **When** the user opens Settings, **Then** the Lightning address, the NWC wallet and the Cashu wallet are all shown and all open. Switching to a node with the other escrow backend shows the same three.
+6. **Given** the web app in a browser that can install it, not yet installed, **When** the user opens Settings, **Then** the App group lists Install app, which installs it as the order book's card does (FR-018a), whether or not that card was answered. Native builds and the installed web app do not list it.
 
 ---
 
@@ -318,6 +329,8 @@ Users manage their cryptographic identity from the Account screen: view their 12
 - **FR-002**: The generated mnemonic MUST be persisted to platform secure storage (iOS Keychain / Android Keystore) immediately after generation, before any UI transition occurs.
 - **FR-002a**: If secure storage persistence fails during first launch, the system MUST: (a) halt onboarding and display a blocking error message instructing the user to check device settings and restart the app; (b) NOT proceed to the walkthrough or any other UI; (c) NOT proceed to the order book in any state where the mnemonic is not durably persisted. Recovery path: the user restarts the app and the system retries persistence on the next launch.
 - **FR-003**: The system MUST display a 6-page illustrated walkthrough on first launch only; it MUST NOT appear on subsequent launches.
+- **FR-003a**: After the walkthrough the system MUST ask which Mostro node to trade on, listing the registry's nodes with the default node first and the operator disclaimer in full. Skipping MUST keep the default node. The first run is complete — and the walkthrough no longer shown — only once a node is chosen or the choice skipped. Installs that completed the first run before this step existed MUST NOT be asked.
+- **FR-003b**: The node choice's data MUST be requested while the walkthrough is shown, in two passes: every node's kind 38385 event (after the relays are connected), then the nodes' open orders. The second pass MUST NOT start before the first has settled.
 - **FR-004**: Upon successful identity generation on first launch, the system MUST create a backup reminder notification and pin it as the first item in the Notifications screen. This notification MUST NOT be dismissible by swipe-to-dismiss or "Mark all as read" — it can only be removed by the user confirming their backup through the 3-step backup's word verification, or by an identity import (FR-013a), which pins no such notification in the first place.
 - **FR-005**: The notification bell icon in the app bar MUST display a red dot indicator (no number) whenever the backup has not yet been confirmed by the user. Once backup is confirmed, the red dot MUST disappear permanently and MUST NOT reappear unless a new identity is generated.
 - **FR-006**: The notification bell MUST display a numbered badge (pill shape, dark gold) showing the count of unread non-backup notifications once the backup is confirmed. The red dot and the numbered badge are mutually exclusive: the red dot takes priority while backup is pending.
@@ -338,6 +351,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
 - **FR-016a**: The order-book filters MUST persist across app restarts, as a device preference (a new identity keeps them). A stored value MUST be validated on load — ranges clamped to the slider bounds, an unreadable control reset to "no filter" on its own — and every selected value MUST stay visible in the Filters dialog even when the currency catalogue or the method list no longer offers it, so it can be deselected. While any filter is on, the Filter chip MUST say so and how many are on (#575).
 - **FR-017**: The system MUST display only orders with "pending" status in the public order book.
 - **FR-018**: Orders in the public order book MUST be sorted by ascending expiration time (soonest expiring first).
+- **FR-018a**: On the web build, the order book MUST offer to install the app once per device (#778), with a card under the app bar shown only when all hold: the browser runs on a phone or tablet (Android or iOS); the page is not already the installed app (`display-mode: standalone`, or `navigator.standalone` on iOS); the browser can install it (Android: it fired `beforeinstallprompt`, which the page keeps and whose own mini-infobar it suppresses; iOS: always, as instructions, since Safari has no install API); the book has loaded; and the user has not answered the card. Install MUST ask for the browser's dialog within the tap, before anything is awaited, since browsers refuse it once the user activation is gone. Install and Not now are both the answer: it MUST be stored as a device preference (`pwaInstallAnswered`; a new identity keeps it), and an ignored card shows again on the next visit. The card MUST show in portrait only: in landscape or a wider-than-tall window the order book's fixed header already fills most of the height, so it waits, and not shown is not answered. It MUST never take more than a third of the screen's height; on a short screen its text scrolls inside it and its answers stay in view. Settings keeps the install available (User Story 14, scenario 6).
 
 **Order Creation**
 
@@ -381,7 +395,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
   - **Dispute chat (UI)**: the same paperclip, bubbles, viewer and hand-off, keyed to the solver (`send_dispute_file`); the attach sheet says only the solver can open the file. The composer shows only once a solver has taken the dispute (#589 phase 3).
   - **Handing off (UI)**: a file of a type v1 sends (JPEG, PNG, PDF, DOC, DOCX, MP4, MOV, AVI — judged by the type Rust reports, not the name; a file declared JPEG, PNG or PDF whose bytes are not is reported as `application/octet-stream`) can also be opened in another app ("Open with…", the default tap on a file card) and shared; any other type can only be saved. Both write a temporary copy, under the app's cache, named from a safe character set with the extension of its type; a copy no app took is deleted at once, one handed off expires after 5 minutes; all are swept at start-up and on an identity change, and those past the 5 minutes when the user returns to the app. These copies and Save are the only ways decrypted content reaches disk.
 - **FR-037**: The chat room MUST display the peer's avatar, handle, and provide access to a Trade Information panel and a User Information panel.
-- **FR-038**: The User Information panel MUST display the shared ECDH encryption key as a copyable value so it can optionally be shared with a dispute admin.
+- **FR-038**: The User Information panel MUST display the peer's alias, avatar and public reputation, and MUST NOT display the peer's trade public key or the shared ECDH key. The shared key reaches a dispute solver only from Rust (#415).
 - **FR-039**: Messages MUST appear optimistically immediately after send, before relay confirmation.
 - **FR-040**: The Chat tab in the bottom navigation MUST show a red dot badge when there are unread messages in any chat room.
 
@@ -417,6 +431,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
 **Settings & Preferences**
 
 - **FR-058**: Users MUST be able to configure: app language (6 languages: EN, ES, IT, FR, DE, NL), default fiat currency, default Lightning address, relay list (add/toggle), push notification preferences, and Mostro node.
+- **FR-058a**: Lightning, NWC and the Cashu wallet MUST always be active in the app. Settings MUST always show the default Lightning address, the NWC wallet and the Cashu wallet, whatever the active node's `escrow_mode` (`lightning`, `cashu` or not advertised). Lightning flows MUST keep working as they always have. The active node's escrow mode selects only the settlement flow of a trade on that node (hold invoice or Cashu escrow); it MUST NOT hide or disable any payment method.
 
 ### Key Entities
 

@@ -24,10 +24,13 @@ Future<void> loadAppFonts() async {
       'Manrope-SemiBold.ttf',
       'Manrope-Bold.ttf',
     ]),
+    // The themes' fallback for flags (DS-TYP-8).
+    ('NotoFlags', ['NotoFlags.ttf']),
   ]) {
     final loader = FontLoader(family);
+    final dir = family == 'NotoFlags' ? 'noto_flags' : family.toLowerCase();
     for (final file in files) {
-      final path = 'assets/fonts/${family.toLowerCase()}/$file';
+      final path = 'assets/fonts/$dir/$file';
       loader.addFont(
         File(path).readAsBytes().then((b) => ByteData.sublistView(b)),
       );

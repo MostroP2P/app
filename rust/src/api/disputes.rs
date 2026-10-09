@@ -35,6 +35,12 @@ impl DisputeStore {
         }
     }
 
+    /// Drop every dispute: they all belong to the identity being deleted
+    /// (issue #533).
+    async fn forget(&self) {
+        self.disputes.write().await.clear();
+    }
+
     #[cfg(test)]
     async fn upsert(&self, dispute: Dispute) {
         {
@@ -193,7 +199,7 @@ pub(crate) async fn solver_pubkey(trade_id: &str) -> Option<String> {
 /// store is in memory by design, so without this the next user keeps seeing
 /// the previous one's disputes until the process restarts.
 pub(crate) async fn forget_identity_disputes() {
-    dispute_store().disputes.write().await.clear();
+    dispute_store().forget().await;
     if let Ok(mut opens) = pending_opens().lock() {
         opens.clear();
     }
@@ -393,6 +399,7 @@ pub async fn open_dispute(trade_id: String, reason: Option<String>) -> Result<Di
         opened_at: unix_now(),
         resolved_at: None,
         is_read: true,
+        chat_key_shared: false,
     };
 
     let stored = dispute_store()
@@ -439,6 +446,163 @@ pub async fn submit_evidence(
     Ok(msg)
 }
 
+/// Prefix of the message that hands the solver the chat key (#415). Fixed
+/// and untranslated: it is what the solver looks for, in whatever language
+/// the parties write.
+const CHAT_KEY_PREFIX: &str = "Shared key: ";
+
+/// Send the dispute's solver the key of this trade's peer chat, so they can
+/// read what buyer and seller wrote to each other (#415). It replaces copying
+/// the key from the peer chat and pasting it here.
+///
+/// The key is `K_conv`'s secret, as v1 discloses it and as the chat spec
+/// prescribes: it decrypts the conversation, but the outer events are signed
+/// with `K_sign`, so it cannot write into it. Never the raw ECDH secret,
+/// which derives `K_sign` too, and never `Session.shared_key`, a SHA-256 of
+/// that secret from which `K_conv` cannot be derived. The trade keys are
+/// this order's own, so the key opens this conversation and no other.
+///
+/// The message is the usual dispute chat envelope (`submit_evidence`'s path)
+/// and is stored as the user's own. It counts as sent only once a relay took
+/// it; then the share is persisted for the current solver.
+///
+/// A recorded share never refuses another: the user may have sent the key to
+/// a solver who then handed the dispute over (Serbero before a human), or
+/// simply want it sent again. The record only tells the screen.
+///
+/// **Errors**: `NoOpenDispute`, `AdminNotAssigned`, `TradeNotFound`,
+/// `NoSharedKey` (the counterparty is not known), `SendFailed`.
+pub async fn share_chat_key_with_solver(
+    trade_id: String,
+) -> Result<crate::api::types::ChatMessage> {
+    let admin_pubkey = current_solver(&trade_id).await?;
+    let trade_index = trade_key_index(&trade_id).await?;
+    let peer = counterparty_pubkey(&trade_id)
+        .await
+        .ok_or_else(|| anyhow!("NoSharedKey: the counterparty of {trade_id} is not known"))?;
+    let trade_keys = crate::api::identity::get_active_trade_keys(trade_index)
+        .await
+        .map_err(|e| anyhow!("TradeNotFound: trade key unavailable: {e}"))?;
+    let text = chat_key_disclosure(&trade_keys, &peer)?;
+
+    let ctx = crate::api::messages::admin_chat_context(trade_index, &admin_pubkey).await?;
+    let inner = crate::api::messages::publish_delivered_chat_payload_for(&ctx, &text).await?;
+    let msg =
+        crate::api::messages::store_outgoing_admin_message(&trade_id, &ctx, &text, &inner).await;
+    record_chat_key_share(&trade_id, &admin_pubkey).await;
+
+    log::info!("[disputes] chat key shared with the solver for trade={trade_id}");
+    Ok(msg)
+}
+
+/// The message that discloses the chat key of `own_trade` and `peer`.
+fn chat_key_disclosure(
+    own_trade: &nostr_sdk::prelude::Keys,
+    peer: &nostr_sdk::prelude::PublicKey,
+) -> Result<String> {
+    let (conv, _sign) = crate::crypto::chat_keys::derive_chat_keys(own_trade, peer)?;
+    Ok(format!("{CHAT_KEY_PREFIX}{}", conv.secret_key().to_secret_hex()))
+}
+
+/// The counterparty's trade pubkey: the live session's, else the trade row's,
+/// which outlives a restart. `None` for one the row says cannot be the peer
+/// (a pre-#334 row names the Mostro node): its key would open no
+/// conversation, and once sent it would count as shared.
+async fn counterparty_pubkey(trade_id: &str) -> Option<nostr_sdk::prelude::PublicKey> {
+    let row = match crate::db::app_db::db() {
+        Some(db) => db.get_trade_by_order_id(trade_id).await.ok().flatten(),
+        None => None,
+    };
+    let from_session = crate::mostro::session::session_manager()
+        .get_session(trade_id)
+        .await
+        .and_then(|session| session.peer_pubkey);
+    let hex = from_session.or_else(|| row.as_ref().map(|t| t.counterparty_pubkey.clone()))?;
+    let plausible = match &row {
+        Some(trade) => crate::api::messages::plausible_counterparty(trade, &hex),
+        None => hex != crate::config::active_mostro_pubkey(),
+    };
+    if !plausible {
+        log::warn!("[disputes] trade={trade_id}: the counterparty on record is the node");
+        return None;
+    }
+    nostr_sdk::prelude::PublicKey::from_hex(&hex).ok()
+}
+
+/// Our own message to `solver` in `trade_id`'s dispute chat, arriving from a
+/// relay: when it is the chat key, sent from another device of this
+/// identity, record the share so this one shows it (#415). Only
+/// for the solver on record: a replayed share with a previous one says
+/// nothing about the current solver.
+pub(crate) async fn note_chat_key_share_echo(
+    trade_id: &str,
+    solver: &nostr_sdk::prelude::PublicKey,
+    text: &str,
+) {
+    let Some(key) = text.strip_prefix(CHAT_KEY_PREFIX) else {
+        return;
+    };
+    if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return;
+    }
+    let on_record = dispute_store()
+        .get(trade_id)
+        .await
+        .and_then(|dispute| dispute.admin_pubkey);
+    if on_record.as_deref() != Some(solver.to_hex().as_str()) {
+        return;
+    }
+    record_chat_key_share(trade_id, solver).await;
+}
+
+/// The solver `order_id`'s chat key was sent to, if any. A read error counts
+/// as none: the worst case is the screen not saying it was sent.
+async fn persisted_chat_key_share(db: &impl Storage, order_id: &str) -> Option<String> {
+    match db
+        .get_setting(&crate::db::settings_keys::dispute_key_shared(order_id))
+        .await
+    {
+        Ok(solver) => solver,
+        Err(e) => {
+            crate::api::logging::blog_warn(
+                "disputes",
+                format!("could not read the chat key share for {order_id}: {e}"),
+            );
+            None
+        }
+    }
+}
+
+/// Mark the chat key of `trade_id` as sent to `solver`: on the record, which
+/// tells the screen, and in storage, which outlives a restart. Best-effort
+/// like the other dispute keys.
+async fn record_chat_key_share(trade_id: &str, solver: &nostr_sdk::prelude::PublicKey) {
+    let solver = solver.to_hex();
+    let solver_on_record = solver.clone();
+    let _ = dispute_store()
+        .update_conditional(trade_id, move |dispute| {
+            // A takeover that landed while the key was on its way: the new
+            // solver did not get it.
+            if dispute.admin_pubkey.as_deref() == Some(solver_on_record.as_str()) {
+                dispute.chat_key_shared = true;
+            }
+            Ok(())
+        })
+        .await;
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    if let Err(e) = db
+        .set_setting(&crate::db::settings_keys::dispute_key_shared(trade_id), &solver)
+        .await
+    {
+        crate::api::logging::blog_warn(
+            "disputes",
+            format!("could not persist the chat key share for {trade_id}: {e}"),
+        );
+    }
+}
+
 /// Encrypt, upload and send an image or PDF to the solver (#589 phase 3).
 ///
 /// The peer chat's `send_file`, keyed to the solver: the file key is the raw
@@ -470,6 +634,13 @@ pub async fn send_dispute_file(
 /// Our trade key index and the solver's pubkey, for a dispute that can still
 /// be written to: open, not resolved, and taken by a solver.
 async fn solver_conversation(trade_id: &str) -> Result<(u32, nostr_sdk::prelude::PublicKey)> {
+    let admin_pubkey = current_solver(trade_id).await?;
+    Ok((trade_key_index(trade_id).await?, admin_pubkey))
+}
+
+/// The solver of a dispute that can still be written to: open, not resolved,
+/// and taken by one.
+async fn current_solver(trade_id: &str) -> Result<nostr_sdk::prelude::PublicKey> {
     let dispute = dispute_store()
         .get(trade_id)
         .await
@@ -491,14 +662,15 @@ async fn solver_conversation(trade_id: &str) -> Result<(u32, nostr_sdk::prelude:
         .as_deref()
         .ok_or_else(|| anyhow!("AdminNotAssigned: dispute has no admin yet"))?;
 
-    let admin_pubkey = nostr_sdk::prelude::PublicKey::from_hex(admin_pubkey_hex)
-        .map_err(|e| anyhow!("invalid admin pubkey: {e}"))?;
+    nostr_sdk::prelude::PublicKey::from_hex(admin_pubkey_hex)
+        .map_err(|e| anyhow!("invalid admin pubkey: {e}"))
+}
 
-    // Look up the trade key index.
-    let trade_index = crate::api::orders::trade_key_for_order(trade_id)
+/// Our trade key index for `trade_id`.
+async fn trade_key_index(trade_id: &str) -> Result<u32> {
+    crate::api::orders::trade_key_for_order(trade_id)
         .await
-        .ok_or_else(|| anyhow!("TradeNotFound: no trade key for {trade_id}"))?;
-    Ok((trade_index, admin_pubkey))
+        .ok_or_else(|| anyhow!("TradeNotFound: no trade key for {trade_id}"))
 }
 
 /// Record a dispute the daemon accepted after `open_dispute` had already
@@ -550,6 +722,7 @@ pub(crate) async fn record_late_acceptance(trade_id: &str, dispute_id: Option<St
                 opened_at: unix_now(),
                 resolved_at: None,
                 is_read: false,
+                chat_key_shared: false,
             },
             move |existing| {
                 if is_peer_placeholder(existing) {
@@ -654,6 +827,7 @@ pub(crate) async fn note_peer_opened_dispute(trade_id: &str, dispute_id: Option<
                 opened_at: unix_now(),
                 resolved_at: None,
                 is_read: false,
+                chat_key_shared: false,
             },
             |_| Ok(()),
         )
@@ -819,6 +993,7 @@ pub(crate) async fn apply_admin_took_dispute_from(
                     opened_at: unix_now(),
                     resolved_at: None,
                     is_read: false,
+                    chat_key_shared: false,
                 }
             },
             move |dispute| {
@@ -842,6 +1017,8 @@ pub(crate) async fn apply_admin_took_dispute_from(
                         }
                         dispute.admin_pubkey = Some(admin_pubkey);
                         dispute.is_read = false;
+                        // The new solver never got the chat key (#415).
+                        dispute.chat_key_shared = false;
                         *solver_changed_in_update = true;
                     }
                     return Ok(());
@@ -1066,8 +1243,8 @@ async fn persist_dispute_origin(order_id: &str) {
     }
 }
 
-/// Drop the persisted dispute keys (solver pubkey, origin marker) for
-/// `order_id`.
+/// Drop the persisted dispute keys (solver pubkey, origin marker, chat key
+/// share) for `order_id`.
 ///
 /// The stored solver is what rehydration reads as "this order has a live
 /// dispute", so it must not outlive the dispute: left behind, every restart
@@ -1091,6 +1268,7 @@ async fn clear_dispute_keys(order_id: &str) {
         crate::db::settings_keys::dispute_admin_at(order_id),
         crate::db::settings_keys::dispute_node(order_id),
         crate::db::settings_keys::dispute_mine(order_id),
+        crate::db::settings_keys::dispute_key_shared(order_id),
     ] {
         if let Err(e) = db.delete_setting(&key).await {
             crate::api::logging::blog_warn("disputes", format!("could not clear {key}: {e}"));
@@ -1303,6 +1481,9 @@ async fn rehydrate_disputes_from_storage() {
             }
         };
 
+        let chat_key_shared =
+            persisted_chat_key_share(db, &order_id).await.as_deref() == Some(admin_hex.as_str());
+
         let make_id = order_id.clone();
         let _ = dispute_store()
             .upsert_or_update(
@@ -1322,6 +1503,7 @@ async fn rehydrate_disputes_from_storage() {
                     // unread so it surfaces rather than being silently marked
                     // as seen.
                     is_read: false,
+                    chat_key_shared,
                 },
                 // Already in memory: at least as fresh as storage, keep it.
                 |_| Ok(()),
@@ -1492,11 +1674,42 @@ mod tests {
             opened_at: unix_now(),
             resolved_at: None,
             is_read: true,
+            chat_key_shared: false,
         };
         dispute_store()
             .try_insert_if_absent_or_resolved(dispute)
             .await
             .expect("seed_dispute: insert failed")
+    }
+
+    /// #533: no dispute of the deleted identity survives its deletion. On a
+    /// store of this test's own, so the process-wide one other tests use is
+    /// never emptied under them.
+    #[tokio::test]
+    async fn forgetting_the_identity_drops_every_dispute() {
+        let store = DisputeStore::new();
+        for trade_id in ["a", "b"] {
+            store
+                .upsert(Dispute {
+                    id: trade_id.to_string(),
+                    trade_id: trade_id.to_string(),
+                    status: DisputeStatus::Open,
+                    initiated_by_me: true,
+                    reason: None,
+                    admin_pubkey: None,
+                    resolution: None,
+                    opened_at: 1,
+                    resolved_at: None,
+                    is_read: true,
+                    chat_key_shared: false,
+                })
+                .await;
+        }
+        assert_eq!(store.all().await.len(), 2);
+
+        store.forget().await;
+
+        assert!(store.all().await.is_empty());
     }
 
     /// #637: the dispute chat labels a solver as the assistant only when the
@@ -1679,6 +1892,7 @@ mod tests {
             opened_at: unix_now(),
             resolved_at: None,
             is_read: true,
+            chat_key_shared: false,
         };
         let err = dispute_store()
             .try_insert_if_absent_or_resolved(dispute)
@@ -1753,6 +1967,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: "peer".into(),
@@ -2651,6 +2866,7 @@ mod tests {
             opened_at: unix_now(),
             resolved_at: None,
             is_read: true,
+            chat_key_shared: false,
         };
         let stored = dispute_store()
             .try_insert_if_absent_or_resolved(own)
@@ -2812,6 +3028,7 @@ mod tests {
             opened_at: unix_now(),
             resolved_at: None,
             is_read: true,
+            chat_key_shared: false,
         };
         let err = dispute_store()
             .try_insert_if_absent_or_resolved(own)
@@ -3010,5 +3227,189 @@ mod tests {
         assert_eq!(d.status, DisputeStatus::Resolved);
         assert_eq!(d.resolution, Some(DisputeResolution::FundsToBuyer));
         assert!(d.resolved_at.is_some());
+    }
+
+    // ── Chat key share (#415) ────────────────────────────────────────────────
+
+    /// What goes to the solver is `K_conv`'s secret: it opens the spec test
+    /// vector's conversation from either side, and it is neither `K_sign`'s
+    /// secret (which would let the solver write) nor the hashed ECDH secret
+    /// the session keeps (from which `K_conv` cannot be derived).
+    #[test]
+    fn the_disclosed_chat_key_is_the_conversation_key() {
+        use nostr_sdk::prelude::{Keys, SecretKey};
+        // Trade keys from the chat spec's test vector (`crypto/chat_keys.rs`).
+        let alice =
+            Keys::parse("548f68890c49fa42f104c60352395e60ff030b0b407e955f1eed1400d6c0347a")
+                .unwrap();
+        let bob = Keys::parse("f258e73f07386d37133718b6127f873dd7c391b8f43b331ff8254034a13d2943")
+            .unwrap();
+
+        let text = chat_key_disclosure(&alice, &bob.public_key()).unwrap();
+
+        let hex = text.strip_prefix("Shared key: ").expect("the fixed prefix");
+        let disclosed = Keys::new(SecretKey::from_hex(hex).unwrap());
+        assert_eq!(
+            disclosed.public_key().to_hex(),
+            "bceb1cd2a8e98ee9729122a1693edcc39c3ace04582ff96a26705c5e4078a6f2",
+            "the disclosed key must be K_conv of the spec test vector"
+        );
+        assert_eq!(chat_key_disclosure(&bob, &alice.public_key()).unwrap(), text);
+        let (_, sign) =
+            crate::crypto::chat_keys::derive_chat_keys(&alice, &bob.public_key()).unwrap();
+        assert_ne!(hex, sign.secret_key().to_secret_hex());
+        let hashed =
+            crate::crypto::ecdh::derive_nip04_shared_key(&alice, &bob.public_key()).unwrap();
+        assert_ne!(hex, hex::encode(hashed));
+    }
+
+    #[tokio::test]
+    async fn the_chat_key_goes_only_to_an_assigned_solver() {
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        let err = share_chat_key_with_solver(trade_id.clone()).await.unwrap_err();
+        assert!(err.to_string().starts_with("NoOpenDispute"), "got: {err}");
+
+        seed_dispute(&trade_id, None).await;
+        let err = share_chat_key_with_solver(trade_id).await.unwrap_err();
+        assert!(err.to_string().starts_with("AdminNotAssigned"), "got: {err}");
+    }
+
+    /// A share is recorded for the solver who got it, yet never refuses
+    /// another: the user may have sent it to the wrong solver (Serbero
+    /// before a human took over) or want it sent again. A takeover clears
+    /// the record, as the new solver never got it.
+    #[tokio::test]
+    async fn the_chat_key_can_be_sent_again_after_a_share() {
+        use nostr_sdk::prelude::Keys;
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        seed_dispute(&trade_id, None).await;
+        let first = Keys::generate().public_key();
+        handle_admin_took_dispute(trade_id.clone(), first.to_hex())
+            .await
+            .unwrap();
+        let taken = get_dispute(trade_id.clone()).await.unwrap().unwrap();
+        assert!(!taken.chat_key_shared);
+
+        record_chat_key_share(&trade_id, &first).await;
+
+        let shared = get_dispute(trade_id.clone()).await.unwrap().unwrap();
+        assert!(shared.chat_key_shared);
+        // Past any share check: what stops it is the trade key this test
+        // never stored.
+        let err = share_chat_key_with_solver(trade_id.clone()).await.unwrap_err();
+        assert!(err.to_string().starts_with("TradeNotFound"), "got: {err}");
+
+        let second = Keys::generate().public_key();
+        handle_admin_took_dispute(trade_id.clone(), second.to_hex())
+            .await
+            .unwrap();
+
+        let taken_over = get_dispute(trade_id.clone()).await.unwrap().unwrap();
+        assert_eq!(taken_over.admin_pubkey, Some(second.to_hex()));
+        assert!(!taken_over.chat_key_shared);
+    }
+
+    /// A share another device of this identity sent reaches this one as our
+    /// own message: it marks the key as shared, but only for the solver on
+    /// record and only for a message that is the key. Like a local share, it
+    /// does not stop this device from sending it again.
+    #[tokio::test]
+    async fn a_chat_key_share_from_another_device_counts_as_shared() {
+        use nostr_sdk::prelude::Keys;
+        let trade_id = format!("t-{}", uuid::Uuid::new_v4());
+        seed_dispute(&trade_id, None).await;
+        let solver = Keys::generate().public_key();
+        handle_admin_took_dispute(trade_id.clone(), solver.to_hex())
+            .await
+            .unwrap();
+        let key = format!("Shared key: {}", "ab".repeat(32));
+
+        note_chat_key_share_echo(&trade_id, &solver, "Shared key: please look").await;
+        note_chat_key_share_echo(&trade_id, &Keys::generate().public_key(), &key).await;
+        let untouched = get_dispute(trade_id.clone()).await.unwrap().unwrap();
+        assert!(!untouched.chat_key_shared, "not the key, or not this solver");
+
+        note_chat_key_share_echo(&trade_id, &solver, &key).await;
+
+        let shared = get_dispute(trade_id.clone()).await.unwrap().unwrap();
+        assert!(shared.chat_key_shared);
+        let err = share_chat_key_with_solver(trade_id).await.unwrap_err();
+        assert!(err.to_string().starts_with("TradeNotFound"), "got: {err}");
+    }
+
+    /// A pre-#334 row names the node that published the order as the
+    /// counterparty. Its key would open no conversation, so none is sent.
+    #[tokio::test]
+    async fn the_chat_key_is_never_derived_with_the_node() {
+        use nostr_sdk::prelude::Keys;
+        let path = std::env::temp_dir()
+            .join(format!("mostro_dispute_key_share_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let Some(db) = crate::db::app_db::db() else {
+            panic!("no store: the trade row cannot be exercised");
+        };
+        let node = Keys::generate().public_key().to_hex();
+        let peer = Keys::generate().public_key();
+        let poisoned = format!("poisoned-{}", uuid::Uuid::new_v4());
+        let sound = format!("sound-{}", uuid::Uuid::new_v4());
+        for (order_id, counterparty) in [(&poisoned, node.clone()), (&sound, peer.to_hex())] {
+            let mut trade = persisted_trade(order_id, OrderStatus::Dispute);
+            trade.order.creator_pubkey = node.clone();
+            trade.counterparty_pubkey = counterparty;
+            db.save_trade(&trade).await.unwrap();
+        }
+
+        assert_eq!(counterparty_pubkey(&poisoned).await, None);
+        assert_eq!(counterparty_pubkey(&sound).await, Some(peer));
+    }
+
+    /// The share outlives a restart for the solver it went to, and goes with
+    /// the other dispute keys once the trade is over.
+    #[tokio::test]
+    async fn the_chat_key_share_survives_a_restart_for_its_solver() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_dispute_key_share_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let Some(db) = crate::db::app_db::db() else {
+            panic!("no store: rehydration cannot be exercised");
+        };
+        let solver = "0000000000000000000000000000000000000000000000000000000000000031";
+        let previous = "0000000000000000000000000000000000000000000000000000000000000032";
+        let shared = format!("shared-{}", uuid::Uuid::new_v4());
+        let taken_over = format!("taken-over-{}", uuid::Uuid::new_v4());
+        let finished = format!("finished-{}", uuid::Uuid::new_v4());
+        for (order_id, status, shared_with) in [
+            (&shared, OrderStatus::Dispute, solver),
+            (&taken_over, OrderStatus::Dispute, previous),
+            (&finished, OrderStatus::SettledByAdmin, solver),
+        ] {
+            db.save_trade(&persisted_trade(order_id, status)).await.unwrap();
+            db.set_setting(
+                &crate::db::settings_keys::dispute_key_shared(order_id),
+                shared_with,
+            )
+            .await
+            .unwrap();
+            db.set_setting(&crate::db::settings_keys::dispute_admin(order_id), solver)
+                .await
+                .unwrap();
+        }
+
+        rehydrate_disputes_from_storage().await;
+
+        let restored = get_dispute(shared).await.unwrap().expect("restored");
+        assert!(restored.chat_key_shared);
+        let restored = get_dispute(taken_over).await.unwrap().expect("restored");
+        assert!(
+            !restored.chat_key_shared,
+            "the key went to the previous solver, not this one"
+        );
+        assert_eq!(
+            db.get_setting(&crate::db::settings_keys::dispute_key_shared(&finished))
+                .await
+                .unwrap(),
+            None,
+            "the share must be cleared with the other dispute keys"
+        );
     }
 }

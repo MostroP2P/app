@@ -549,5 +549,71 @@ void main() {
       // The name appears once, in the card — not also as message text.
       expect(find.text('transfer.pdf'), findsOneWidget);
     });
+
+    testWidgets('holding an attachment opens no message menu', (tester) async {
+      await _pump(
+        tester,
+        MessageBubble(message: bubbleMessage(pdfInfo()), peerColorHue: 200),
+        gateway: FakeAttachmentGateway(),
+      );
+
+      await tester.longPress(find.byType(EncryptedFileMessage));
+      await tester.pumpAndSettle();
+
+      // Its content is the file name: there is nothing to copy.
+      expect(find.text('Copy'), findsNothing);
+    });
+
+    testWidgets('holding a counterpart attachment offers only the reactions', (
+      tester,
+    ) async {
+      final reacted = <String>[];
+      await _pump(
+        tester,
+        MessageBubble(
+          message: bubbleMessage(pdfInfo()),
+          peerColorHue: 200,
+          onReact: (emoji) async => reacted.add(emoji),
+        ),
+        gateway: FakeAttachmentGateway(),
+      );
+
+      await tester.longPress(find.byType(EncryptedFileMessage));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy'), findsNothing);
+      await tester.tap(find.text('👍'));
+      await tester.pumpAndSettle();
+
+      expect(reacted, ['👍']);
+    });
+
+    testWidgets('tapping a counterpart attachment opens it, not the menu', (
+      tester,
+    ) async {
+      final launcher = FakeAttachmentLauncher();
+      await _pump(
+        tester,
+        MessageBubble(
+          message: bubbleMessage(pdfInfo()),
+          peerColorHue: 200,
+          onReact: (_) async {},
+        ),
+        gateway: FakeAttachmentGateway(
+          downloadResult:
+              (_) async => attachmentData(
+                [37, 80, 68, 70],
+                fileName: 'transfer.pdf',
+                mimeType: 'application/pdf',
+              ),
+        ),
+        launcher: launcher,
+      );
+
+      await tester.tap(find.text('transfer.pdf'));
+      await tester.pumpAndSettle();
+
+      expect(launcher.opened, ['transfer.pdf']);
+      expect(find.text('👍'), findsNothing);
+    });
   });
 }

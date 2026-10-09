@@ -10,10 +10,10 @@
 //!
 //! Test-only: it defines no runtime API.
 //!
-//! What is pinned here is exactly what `mostro-core` 0.14.1 defines, and no
-//! more. The **escrow request** (Mostro → seller after a take, carrying
-//! amount/fee/mint_url/`P_B`/`P_M`/locktime) is deliberately absent — see the
-//! last test in this file.
+//! What is pinned here is exactly what `mostro-core` defines, and no more.
+//! The **escrow request** (Mostro → seller after a take) has no type of its
+//! own: it rides on `SmallOrder`, which names the order's mint since 0.17.1 —
+//! see the last test in this file.
 
 #[cfg(test)]
 mod tests {
@@ -234,49 +234,57 @@ mod tests {
         assert!(one.verify());
     }
 
-    /// **The escrow request carries no Cashu-specific fields, by design.**
+    /// **The escrow request names the order's mint, and nothing else Cashu.**
     ///
     /// `docs/cashu/README.md` risk #1 asked how the "Mostro → seller" escrow
-    /// request reaches the client. Resolved in C0 by reading the daemon branch
-    /// `feat/cashu-ta2-take-flow` (`show_cashu_escrow_request` in `src/util.rs`):
-    /// it reuses types that already exist, which is why nothing Cashu-shaped
-    /// was added to `mostro-core` for it.
+    /// request reaches the client. Resolved in C0 by reading the daemon
+    /// (`show_cashu_escrow_request` in `src/util.rs`): it reuses types that
+    /// already exist.
     ///
     /// - seller ← `Action::WaitingSellerToPay` + `Payload::Order(SmallOrder)`,
     ///   with `status = WaitingPayment`, both trade pubkeys set and
     ///   `buyer_invoice = None`;
     /// - buyer  ← `Action::WaitingSellerToPay` with **no** payload.
     ///
-    /// `mint_url`, `P_M` and the locktime are *not* in the request — the client
-    /// takes them from the node's 38385 info tags (C1) and the known Mostro
-    /// pubkey. So C5 classifies by payload shape (§4.4), exactly as planned.
+    /// Since MostroP2P/mostro#1047 (mostro-core 0.17.1) the maker picks the
+    /// mint, so `SmallOrder` carries `cashu_mint_url` and the request names the
+    /// order's mint. It is omitted while `None`, which keeps a Lightning
+    /// order's wire form unchanged. `P_M` and the locktime still come from the
+    /// node (the known Mostro pubkey, the 38385 tags), so C5 still classifies
+    /// by payload shape (§4.4).
     ///
-    /// This test pins the assumption that makes that classification safe: the
-    /// wire `SmallOrder` stays free of Cashu fields. Should upstream add them,
-    /// this fails — the signal to re-read the daemon before touching C5.
+    /// Should upstream add the token or the lock time to `SmallOrder`, this
+    /// fails — the signal to re-read the daemon before touching C5.
     #[test]
-    fn escrow_request_rides_on_an_unmodified_small_order() {
+    fn escrow_request_names_the_order_mint_and_nothing_else_cashu() {
         // Arrange — a SmallOrder as it travels inside Payload::Order.
-        let small = SmallOrder::default();
+        let lightning = SmallOrder::default();
+        let cashu = SmallOrder {
+            cashu_mint_url: Some("https://mint.example.com".to_string()),
+            ..SmallOrder::default()
+        };
 
         // Act
-        let value: serde_json::Value =
-            serde_json::from_str(&serde_json::to_string(&small).unwrap()).unwrap();
+        let lightning: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&lightning).unwrap()).unwrap();
+        let cashu: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&cashu).unwrap()).unwrap();
 
-        // Assert — the Cashu fields live on the daemon-internal `Order` only.
-        // If any appears here, the request shape changed: re-read the daemon
-        // and update docs/cashu/README.md §2 plus C5's classification.
+        // Assert — the mint travels only when set; the rest stays daemon-side.
         assert!(
-            value.get("cashu_mint_url").is_none(),
-            "SmallOrder now carries cashu_mint_url — the escrow request changed; re-read the daemon before touching C5",
+            lightning.get("cashu_mint_url").is_none(),
+            "a Lightning order's wire form must not change",
         );
-        assert!(
-            value.get("cashu_escrow_token").is_none(),
-            "SmallOrder now carries cashu_escrow_token — revisit C5",
-        );
-        assert!(
-            value.get("cashu_escrow_locked_at").is_none(),
-            "SmallOrder now carries cashu_escrow_locked_at — revisit C5",
-        );
+        assert_eq!(cashu["cashu_mint_url"], "https://mint.example.com");
+        for value in [&lightning, &cashu] {
+            assert!(
+                value.get("cashu_escrow_token").is_none(),
+                "SmallOrder now carries cashu_escrow_token — revisit C5",
+            );
+            assert!(
+                value.get("cashu_escrow_locked_at").is_none(),
+                "SmallOrder now carries cashu_escrow_locked_at — revisit C5",
+            );
+        }
     }
 }

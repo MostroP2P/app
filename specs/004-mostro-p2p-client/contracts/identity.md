@@ -47,6 +47,21 @@ disputes.
    bound: the payload lists only non-finalized orders). The counter is only
    ever raised, never lowered; re-asking is idempotent.
 6. Reconstruct local DB from daemon responses.
+7. Keep the history the relays replay out of the app. Widening the kind-14
+   filter to every recovered trade key makes the relays replay the account's
+   whole daemon history, on the restore and on every start after it. A trade
+   at or below the resync floor that the restore did not list is history
+   (`mostro::restore_history`), and an imported account never shows it:
+   - its replayed messages read as a wiped trade's (`RowState::Wiped`): no
+     row, session or subscription is created for it;
+   - a history pass drops any row of it that exists (with the tombstone that
+     mutes later replays), announcing nothing, and `list_trades` leaves such
+     rows out until the pass runs;
+   - every TradeUpdate a replayed event causes is dated by that event —
+     including the payout found on the book and the public `canceled` that
+     drops a never-active trade — so Notifications files it as history, not
+     as "just now", and an invoice request whose step window ran out opens
+     no screen.
 
 **Note**: Recovery only works if identity is NOT in privacy mode.
 

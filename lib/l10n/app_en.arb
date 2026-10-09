@@ -97,24 +97,6 @@
   "@disputeCoopCancelMessage": {
     "description": "Body text in the cooperative-cancel resolved banner"
   },
-  "disputeWithBuyer": "Dispute with Buyer: {handle}",
-  "@disputeWithBuyer": {
-    "description": "Dispute chat screen title when trading as seller (peer is the buyer)",
-    "placeholders": {
-      "handle": {
-        "type": "String"
-      }
-    }
-  },
-  "disputeWithSeller": "Dispute with Seller: {handle}",
-  "@disputeWithSeller": {
-    "description": "Dispute chat screen title when trading as buyer (peer is the seller)",
-    "placeholders": {
-      "handle": {
-        "type": "String"
-      }
-    }
-  },
   "orderLabel": "Order {orderId}",
   "@orderLabel": {
     "description": "Sub-title showing the truncated order/trade ID",
@@ -124,17 +106,79 @@
       }
     }
   },
-  "disputeInitiated": "Initiated",
-  "@disputeInitiated": {
-    "description": "Status chip label for a newly opened dispute"
-  },
-  "disputeInProgress": "In progress",
-  "@disputeInProgress": {
-    "description": "Status chip label for a dispute under admin review"
-  },
   "disputeStatusClosed": "Closed",
   "@disputeStatusClosed": {
-    "description": "Status chip label for a resolved/closed dispute"
+    "description": "Dispute info card chip: the dispute ended without a verdict (e.g. a cooperative cancel)"
+  },
+  "disputeWith": "Dispute with {role}: {counterparty}",
+  "@disputeWith": {
+    "description": "Dispute info card title: the counterparty's role (seller or buyer) and pseudonym",
+    "placeholders": {
+      "role": {
+        "type": "String"
+      },
+      "counterparty": {
+        "type": "String"
+      }
+    }
+  },
+  "seller": "Seller",
+  "@seller": {
+    "description": "Role name for the seller, used inside disputeWith"
+  },
+  "buyer": "Buyer",
+  "@buyer": {
+    "description": "Role name for the buyer, used inside disputeWith"
+  },
+  "disputeStatusInitiated": "Initiated",
+  "@disputeStatusInitiated": {
+    "description": "Dispute info card chip: opened, no solver yet"
+  },
+  "disputeStatusInProgress": "In-progress",
+  "@disputeStatusInProgress": {
+    "description": "Dispute info card chip: a solver has the dispute"
+  },
+  "disputeStatusResolved": "Resolved",
+  "@disputeStatusResolved": {
+    "description": "Dispute info card chip: a solver's verdict ended the dispute"
+  },
+  "disputeInProgress": "This dispute is currently in progress. A solver is reviewing your case.",
+  "@disputeInProgress": {
+    "description": "Dispute info card: status sentence while a solver reviews the dispute (or one has taken it)"
+  },
+  "disputeInstruction1": "Wait for a solver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.",
+  "@disputeInstruction1": {
+    "description": "Dispute info card: first instruction bullet"
+  },
+  "disputeInstruction2": "The final decision will be made based on the evidence presented.",
+  "@disputeInstruction2": {
+    "description": "Dispute info card: second instruction bullet"
+  },
+  "disputeInstruction3": "If you don't respond, the system will assume you don't want to cooperate and you might lose the dispute.",
+  "@disputeInstruction3": {
+    "description": "Dispute info card: third instruction bullet"
+  },
+  "disputeOpenedByYouAgainstSeller": "You opened this dispute against the seller {counterparty}, please read carefully below:",
+  "@disputeOpenedByYouAgainstSeller": {
+    "description": "Dispute info card: status sentence when the user (buyer) opened the dispute and no solver took it yet",
+    "placeholders": {
+      "counterparty": {
+        "type": "String"
+      }
+    }
+  },
+  "disputeOpenedByYouAgainstBuyer": "You opened this dispute against the buyer {counterparty}, please read carefully below:",
+  "@disputeOpenedByYouAgainstBuyer": {
+    "description": "Dispute info card: status sentence when the user (seller) opened the dispute and no solver took it yet",
+    "placeholders": {
+      "counterparty": {
+        "type": "String"
+      }
+    }
+  },
+  "disputeWaitingForAdmin": "Waiting for admin assignment",
+  "@disputeWaitingForAdmin": {
+    "description": "Dispute info card: status sentence when the peer opened the dispute and no solver took it yet"
   },
   "disputeLostFundsToBuyer": "The dispute resolver settled the dispute in the buyer's favour. The sats were released to the buyer.",
   "@disputeLostFundsToBuyer": {
@@ -144,53 +188,125 @@
   "@disputeLostFundsToSeller": {
     "description": "Resolution text shown to the buyer when admin returned funds to the seller"
   },
-  "walkthroughSlideOneTitle": "Trade Bitcoin freely — no KYC",
-  "@walkthroughSlideOneTitle": {
-    "description": "Title for walkthrough slide 1"
+  "walkthroughWelcomeTitle": "P2P Bitcoin, no KYC",
+  "@walkthroughWelcomeTitle": {
+    "description": "Walkthrough slide 1: title"
   },
-  "walkthroughSlideOneBody": "Mostro is a peer-to-peer exchange that lets you trade Bitcoin for any currency and payment method — no KYC, and no need to give your data to anyone. It's built on Nostr, which makes it censorship-resistant. No one can stop you from trading.",
-  "@walkthroughSlideOneBody": {
-    "description": "Body text for walkthrough slide 1"
+  "walkthroughWelcomeBody1": "Mostro is a peer-to-peer exchange that lets you trade Bitcoin for any currency and payment method, with no KYC and no need to give your data to anyone.",
+  "@walkthroughWelcomeBody1": {
+    "description": "Walkthrough slide 1: first paragraph"
   },
-  "walkthroughSlideTwoTitle": "Privacy by default",
-  "@walkthroughSlideTwoTitle": {
-    "description": "Title for walkthrough slide 2"
+  "walkthroughWelcomeBody2": "It's built on Nostr, which makes it censorship-resistant. No one can stop you from trading.",
+  "@walkthroughWelcomeBody2": {
+    "description": "Walkthrough slide 1: second paragraph"
   },
-  "walkthroughSlideTwoBody": "Mostro generates a new identity for every exchange, so your trades can't be linked. You can also decide how private you want to be:\n• Reputation mode – Lets others see your successful trades and trust level.\n• Full privacy mode – No reputation is built, but your activity is completely anonymous.\nSwitch modes anytime from the Account screen, where you should also save your secret words — they're the only way to recover your account.",
-  "@walkthroughSlideTwoBody": {
-    "description": "Body text for walkthrough slide 2"
+  "walkthroughPrivacyTitle": "Privacy by default",
+  "@walkthroughPrivacyTitle": {
+    "description": "Walkthrough slide 2: title"
   },
-  "walkthroughSlideThreeTitle": "Security at every step",
-  "@walkthroughSlideThreeTitle": {
-    "description": "Title for walkthrough slide 3"
+  "walkthroughPrivacyBody1": "Mostro generates a new identity for every trade, so your trades can't be linked.",
+  "@walkthroughPrivacyBody1": {
+    "description": "Walkthrough slide 2: first paragraph"
   },
-  "walkthroughSlideThreeBody": "Mostro uses Hold Invoices: sats stay in the seller's wallet until the end of the trade. This protects both sides. The app is also designed to be intuitive and easy for all kinds of users.",
-  "@walkthroughSlideThreeBody": {
-    "description": "Body text for walkthrough slide 3"
+  "walkthroughPrivacyBody2": "You can also decide how private you want to be:",
+  "@walkthroughPrivacyBody2": {
+    "description": "Walkthrough slide 2: second paragraph"
   },
-  "walkthroughSlideFourTitle": "Fully encrypted chat",
-  "@walkthroughSlideFourTitle": {
-    "description": "Title for walkthrough slide 4"
+  "walkthroughReputationModeName": "Reputation mode",
+  "@walkthroughReputationModeName": {
+    "description": "Walkthrough slide 2: mode card name"
   },
-  "walkthroughSlideFourBody": "Each trade has its own private chat, end-to-end encrypted. Only the two users involved can read it. In case of a dispute, you can give the shared key to a dispute resolver to help resolve the issue.",
-  "@walkthroughSlideFourBody": {
-    "description": "Body text for walkthrough slide 4"
+  "walkthroughReputationModeBody": "Lets others see your successful trades and trust level.",
+  "@walkthroughReputationModeBody": {
+    "description": "Walkthrough slide 2: mode card description"
   },
-  "walkthroughSlideFiveTitle": "Take an offer",
-  "@walkthroughSlideFiveTitle": {
-    "description": "Title for walkthrough slide 5"
+  "walkthroughFullPrivacyModeName": "Full privacy mode",
+  "@walkthroughFullPrivacyModeName": {
+    "description": "Walkthrough slide 2: mode card name"
   },
-  "walkthroughSlideFiveBody": "Browse the order book, choose an offer that works for you, and follow the trade flow step by step. You'll be able to check the other user's profile, chat securely, and complete the trade with ease.",
-  "@walkthroughSlideFiveBody": {
-    "description": "Body text for walkthrough slide 5"
+  "walkthroughFullPrivacyModeBody": "No reputation is built, but your activity is completely anonymous.",
+  "@walkthroughFullPrivacyModeBody": {
+    "description": "Walkthrough slide 2: mode card description"
   },
-  "walkthroughSlideSixTitle": "Can't find what you need?",
-  "@walkthroughSlideSixTitle": {
-    "description": "Title for walkthrough slide 6"
+  "walkthroughPrivacyFooter": "Switch modes anytime from the Account screen. That's also where you should save your secret words. They're the only way to recover your account.",
+  "@walkthroughPrivacyFooter": {
+    "description": "Walkthrough slide 2: paragraph after the mode cards"
   },
-  "walkthroughSlideSixBody": "You can also create your own offer and wait for someone to take it. Set the amount and preferred payment method — Mostro handles the rest.",
-  "@walkthroughSlideSixBody": {
-    "description": "Body text for walkthrough slide 6"
+  "walkthroughHeldTitle": "Security at every step",
+  "@walkthroughHeldTitle": {
+    "description": "Walkthrough slide 3: title"
+  },
+  "walkthroughHeldBody1": "The seller's sats stay locked until the trade ends. This protects both sides.",
+  "@walkthroughHeldBody1": {
+    "description": "Walkthrough slide 3: first paragraph"
+  },
+  "walkthroughHeldBody2": "The app is also designed to be intuitive and easy for all kinds of users.",
+  "@walkthroughHeldBody2": {
+    "description": "Walkthrough slide 3: second paragraph"
+  },
+  "walkthroughChatTitle": "Fully encrypted chat",
+  "@walkthroughChatTitle": {
+    "description": "Walkthrough slide 4: title"
+  },
+  "walkthroughChatBody1": "Each trade has its own private chat, end-to-end encrypted. Only you and your counterpart can read it, unless one of you shares its key.",
+  "@walkthroughChatBody1": {
+    "description": "Walkthrough slide 4: first paragraph"
+  },
+  "walkthroughChatBody2": "In a dispute, sharing that key with a dispute resolver lets them read the chat and help settle it.",
+  "@walkthroughChatBody2": {
+    "description": "Walkthrough slide 4: second paragraph"
+  },
+  "walkthroughTakeTitle": "Take an order",
+  "@walkthroughTakeTitle": {
+    "description": "Walkthrough slide 5: title"
+  },
+  "walkthroughTakeBody1": "Browse the order book, choose an order that works for you, and follow the trade step by step.",
+  "@walkthroughTakeBody1": {
+    "description": "Walkthrough slide 5: first paragraph"
+  },
+  "walkthroughTakeBody2": "You'll be able to check your counterpart's profile, chat securely, and complete the trade with ease.",
+  "@walkthroughTakeBody2": {
+    "description": "Walkthrough slide 5: second paragraph"
+  },
+  "walkthroughMakeTitle": "Can't find what you need?",
+  "@walkthroughMakeTitle": {
+    "description": "Walkthrough slide 6: title"
+  },
+  "walkthroughMakeBody1": "You can also create your own order and wait for someone to take it.",
+  "@walkthroughMakeBody1": {
+    "description": "Walkthrough slide 6: first paragraph"
+  },
+  "walkthroughMakeBody2": "Set the amount and your preferred payment method. Mostro handles the rest.",
+  "@walkthroughMakeBody2": {
+    "description": "Walkthrough slide 6: second paragraph"
+  },
+  "walkthroughNext": "Next",
+  "@walkthroughNext": {
+    "description": "Walkthrough: primary button that moves to the next slide"
+  },
+  "walkthroughStepCounter": "{current} / {total}",
+  "@walkthroughStepCounter": {
+    "description": "Walkthrough: visible slide counter, current slide of total",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "walkthroughStepSemantics": "Step {current} of {total}",
+  "@walkthroughStepSemantics": {
+    "description": "Walkthrough: screen-reader form of the slide counter",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
   },
   "tabBuyBtc": "Buy BTC",
   "@tabBuyBtc": {
@@ -289,10 +405,6 @@
   "comingSoonMessage": "Coming soon",
   "@comingSoonMessage": {
     "description": "Generic coming-soon placeholder message"
-  },
-  "tradeStatusActive": "Active",
-  "@tradeStatusActive": {
-    "description": "Trade status chip label: active"
   },
   "tradeStatusCompleted": "Completed",
   "@tradeStatusCompleted": {
@@ -701,9 +813,21 @@
   "@nodeStatusUnreachableNoSignal": {
     "description": "Availability line of a node card that never answered"
   },
-  "nodeDisclaimerShort": "Each node is run by an independent third party. Mostro is not responsible for their conduct or for your trades.",
-  "@nodeDisclaimerShort": {
-    "description": "Two-line operator disclaimer at the foot of the node selector"
+  "nodeChoiceSubtitle": "Select the Mostro node you want to trade on",
+  "@nodeChoiceSubtitle": {
+    "description": "First-run node choice, under the title: what the screen asks (v1 mostroNodeDescription)"
+  },
+  "nodeOperatorDisclaimer": "The Mostro development team is not responsible for how node operators use the platform. Each operator controls their own Mostro node and is solely responsible for their actions. By using Mostro, you accept full responsibility for your trades and acknowledge that the development team has no control over individual node operators.",
+  "@nodeOperatorDisclaimer": {
+    "description": "First-run node choice: the full operator disclaimer of v1 (communityDisclaimerBody), in a warning note"
+  },
+  "nodeChoiceConfirm": "Use this node",
+  "@nodeChoiceConfirm": {
+    "description": "First-run node choice: primary button, enabled once a node card is picked"
+  },
+  "nodeChoiceSaveFailed": "Couldn't save your choice. Try again.",
+  "@nodeChoiceSaveFailed": {
+    "description": "First-run node choice: snackbar when the choice could not be saved on the device; both actions stay available"
   },
   "nodeVerifyKeyWarning": "Verify the key with the operator. A fake node can see your orders.",
   "@nodeVerifyKeyWarning": {
@@ -1746,10 +1870,10 @@
   "@tradeTimerPendingConsequence": {
     "description": "Timer consequence while the order is pending"
   },
-  "tradeTimerWaitingInvoiceConsequence": "If it expires, the trade is cancelled and the order returns to the book.",
-  "@tradeTimerWaitingInvoiceConsequence": {
-    "description": "Timer consequence for the waiting-invoice/payment state"
-  },
+  "tradeTimerExpiryBackToBook": "If it expires, the order goes back to the book.",
+  "@tradeTimerExpiryBackToBook": {"description": "Trade screen countdown note on a waiting step the taker owes: mostrod puts the order back in the book when it runs out"},
+  "tradeTimerExpiryCancelled": "If it expires, the order is cancelled.",
+  "@tradeTimerExpiryCancelled": {"description": "Trade screen countdown note on a waiting step the maker owes: mostrod cancels the order when it runs out"},
   "tradeStepOrderTaken": "Order taken",
   "@tradeStepOrderTaken": {
     "description": "Timeline step: order taken"
@@ -1871,7 +1995,7 @@
   },
   "orderIdLabel": "Order ID",
   "@orderIdLabel": {
-    "description": "Label for the order ID field"
+    "description": "Dispute info card: label over the order ID"
   },
   "fiatAmountLabel": "Fiat Amount",
   "@fiatAmountLabel": {
@@ -1880,6 +2004,10 @@
   "satsAmountLabel": "Sats Amount",
   "@satsAmountLabel": {
     "description": "Label for the sats amount field"
+  },
+  "peerReputationUnavailable": "This user's reputation is not available",
+  "@peerReputationUnavailable": {
+    "description": "User information panel: the counterparty shared no reputation for this order (full privacy) or it has not arrived yet"
   },
   "statusLabel": "Status",
   "@statusLabel": {
@@ -1893,29 +2021,9 @@
   "@createdLabel": {
     "description": "Label for the created date field"
   },
-  "tradeDetailsPlaceholder": "Details wired when trade provider available (Phase 10+)",
-  "@tradeDetailsPlaceholder": {
-    "description": "Placeholder note in the trade information panel"
-  },
   "userInformationTitle": "User Information",
   "@userInformationTitle": {
     "description": "Title of the user information panel"
-  },
-  "peerPublicKeyLabel": "Peer's Public Key",
-  "@peerPublicKeyLabel": {
-    "description": "Label for the peer public key"
-  },
-  "yourSharedKeyLabel": "Your Shared Key",
-  "@yourSharedKeyLabel": {
-    "description": "Label for the shared key"
-  },
-  "sharedKeyPlaceholder": "Available after bridge integration (Phase 10+)",
-  "@sharedKeyPlaceholder": {
-    "description": "Placeholder note for the shared key"
-  },
-  "sharedKeySafetyNote": "Keep your shared key safe — it is needed for dispute resolution",
-  "@sharedKeySafetyNote": {
-    "description": "Safety note about the shared key"
   },
   "fileTypeVideo": "Video",
   "@fileTypeVideo": {
@@ -1992,9 +2100,9 @@
   "@enterInvoiceManually": {
     "description": "Button to switch to manual invoice entry"
   },
-  "submitButton": "Submit",
-  "@submitButton": {
-    "description": "Generic submit button label"
+  "rangeAmountTakeAction": "Take order",
+  "@rangeAmountTakeAction": {
+    "description": "Answer of the range amount dialog, opened from the take-order button. Same wording as takeOrderButton (DS-CMP-26)."
   },
   "buyerReputation": "Buyer reputation",
   "@buyerReputation": {
@@ -2016,15 +2124,6 @@
   "@daysActiveStatLabel": {
     "description": "Reputation stat label: days active"
   },
-  "timeRemainingLabel": "Time remaining: {time}",
-  "@timeRemainingLabel": {
-    "description": "Countdown label below the take-order timer",
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
   "orderAmountOutOfRange": "Amount must be between {min} and {max} sats for this Mostro node",
   "@orderAmountOutOfRange": {
     "description": "Shown when a fixed-sats order amount is outside the node min/max order amount",
@@ -2034,6 +2133,16 @@
       },
       "max": {
         "type": "int"
+      }
+    }
+  },
+  "orderCurrencyNotAccepted": "This Mostro node does not accept {currency}. Pick another currency",
+  "@orderCurrencyNotAccepted": {
+    "description": "Shown in place of the order preview, with Publish disabled, when the active Mostro node does not list the selected currency in fiat_currencies_accepted and the user already picked that currency or entered an amount or payment methods",
+    "placeholders": {
+      "currency": {
+        "type": "String",
+        "example": "USD"
       }
     }
   },
@@ -2108,9 +2217,9 @@
   "@amountMaxLabel": {
     "description": "Label of the range maximum field (rendered uppercase)"
   },
-  "paymentMethodsChosenCount": "{count, plural, =0{none chosen} =1{1 chosen} other{{count} chosen}}",
+  "paymentMethodsChosenCount": "{count, plural, =0{none selected} =1{1 selected} other{{count} selected}}",
   "@paymentMethodsChosenCount": {
-    "description": "Counter in the payment-methods card header",
+    "description": "Counter in the payment-methods card header. Says \"selected\" (glossary, DS-L10N-4); the key name predates the glossary",
     "placeholders": {
       "count": {
         "type": "int"
@@ -2280,7 +2389,7 @@
   },
   "removePaymentMethod": "Remove {method}",
   "@removePaymentMethod": {
-    "description": "Accessibility label of the × on a chosen payment-method chip",
+    "description": "Accessibility label of the × on a selected payment-method chip",
     "placeholders": {
       "method": {
         "type": "String"
@@ -2368,11 +2477,11 @@
   },
   "disputeDetailsTitle": "Dispute Details",
   "@disputeDetailsTitle": {
-    "description": "Title of the dispute info card"
+    "description": "App bar title of the dispute chat screen once the dispute is found (v1's title)"
   },
   "disputeIdLabel": "Dispute ID",
   "@disputeIdLabel": {
-    "description": "Label for the dispute ID field"
+    "description": "Dispute info card: label over the dispute ID"
   },
   "disputeReasonLabel": "Reason: {reason}",
   "@disputeReasonLabel": {
@@ -2754,10 +2863,6 @@
   "@aboutCashuMintUrlLabel": {
     "description": "About screen — Cashu mint URL row label"
   },
-  "aboutCashuMintNotAdvertised": "Not advertised",
-  "@aboutCashuMintNotAdvertised": {
-    "description": "About screen — shown when a node says it runs Cashu but publishes no mint, which means trades cannot run"
-  },
   "aboutCashuLocktimeLabel": "Escrow locktime",
   "@aboutCashuLocktimeLabel": {
     "description": "About screen — Cashu escrow locktime row label"
@@ -2854,6 +2959,14 @@
   "tradeChatEncrypted": "End-to-end encrypted chat",
   "@tradeChatEncrypted": {
     "description": "Subtitle of the chat card under the counterpart alias"
+  },
+  "tradeChatClosed": "Conversation closed · view messages",
+  "@tradeChatClosed": {
+    "description": "Subtitle of the trade screen's chat card once the conversation has ended (trade cancelled, or completed more than an hour ago); tapping opens the conversation read-only"
+  },
+  "tradeChatClosedAnnouncement": "The conversation is closed. You can still read its messages",
+  "@tradeChatClosedAnnouncement": {
+    "description": "Screen-reader announcement when the trade screen's chat card turns closed while the user is on it (the completed trade's hour ran out); the messages stay readable"
   },
   "tradeBodyWaitingPaymentBuyer": "They're paying the hold invoice. Once the sats are locked, it's your turn to pay the fiat.",
   "@tradeBodyWaitingPaymentBuyer": {
@@ -3165,9 +3278,13 @@
   "@takeOrderUnavailable": {
     "description": "'Take order' once the order was taken by someone else or expired"
   },
+  "takeOrderFailed": "Could not take the order. Please try again.",
+  "@takeOrderFailed": {
+    "description": "Snackbar when a take fails for a reason the app has no specific message for"
+  },
   "takeOrderClosed": "Closed",
   "@takeOrderClosed": {
-    "description": "Replaces the countdown in the app bar once the order is gone"
+    "description": "Value of the take order's countdown row once the order is gone"
   },
   "easterEggWhitepaper": "31 October 2008: nine pages, nobody's permission. Happy Halloween.",
   "@easterEggWhitepaper": {
@@ -3313,6 +3430,14 @@
   "openSystemSettingsAction": "Open settings",
   "@openSystemSettingsAction": {
     "description": "Action of the denied-permission banner"
+  },
+  "notificationsPermissionNotAsked": "This browser has not been allowed to show notifications yet.",
+  "@notificationsPermissionNotAsked": {
+    "description": "Web only: banner above the push settings while the browser has not been asked for the notification permission"
+  },
+  "allowNotificationsAction": "Allow notifications",
+  "@allowNotificationsAction": {
+    "description": "Web only: link in that banner that shows the browser's permission prompt"
   },
   "notificationsPrivacyFootnote": "Notifications carry no amounts and no counterparties. A push travels through Google's or Apple's servers and says only that there is something to see.",
   "@notificationsPrivacyFootnote": {
@@ -3681,7 +3806,7 @@
   "@invoiceLockTitle": {"description": "13b app bar title: the seller pays the hold invoice that locks the sats"},
   "bondTitle": "Anti-abuse deposit",
   "@bondTitle": {"description": "14 app bar title: the anti-abuse bond the taker locks before the trade starts"},
-  "bondRefundableLabel": "REFUNDABLE DEPOSIT",
+  "bondRefundableLabel": "Refundable deposit",
   "@bondRefundableLabel": {"description": "14a hero label above the bond amount"},
   "bondComesBack": "comes back to you when the trade completes",
   "@bondComesBack": {"description": "14a hero context line without a fiat rate"},
@@ -3709,8 +3834,8 @@
   "@bondWhyTitle": {"description": "14 explainer accordion header"},
   "bondWhyCustody": "Mostro does not hold funds, so it cannot penalise whoever abandons a trade; the deposit does that job, and protects every user against scammers.",
   "@bondWhyCustody": {"description": "14b explainer paragraph 1"},
-  "bondWhyHold": "It is a {hold} invoice: your wallet reserves the sats without sending them; when the trade completes, the reservation is cancelled on its own.",
-  "@bondWhyHold": {"description": "14b explainer paragraph 2; hold is the protocol term, rendered bold and left untranslated", "placeholders": {"hold": {"type": "String"}}},
+  "bondWhyHold": "Your wallet holds the sats without sending them; when the trade completes, they are released on their own.",
+  "@bondWhyHold": {"description": "14b explainer paragraph 2: the wallet holds the deposit's sats without sending them. Plain words, no \"hold\" term (DS-L10N-4)"},
   "bondWhyDispute": "If you open a dispute and win, you get it back too. It is only charged when you lose a dispute.",
   "@bondWhyDispute": {"description": "14b explainer paragraph 3 on a node that does not slash on timeout"},
   "bondWhyDisputeTimeout": "If you open a dispute and win, you get it back too. It is only charged when you lose a dispute or let a waiting step time out.",
@@ -3749,6 +3874,14 @@
   "@bondCancelRefusedBody": {"description": "Body of that dialog: an older node, or a deposit just paid; removing only affects this device"},
   "bondRemoveFromDevice": "Remove from this device",
   "@bondRemoveFromDevice": {"description": "Dialog action: drop the order locally (explicit user choice)"},
+  "bondLeaveMakerTitle": "Don't publish this order?",
+  "@bondLeaveMakerTitle": {"description": "Confirm dialog title before a maker drops an order still waiting for its deposit (DS-CMP-20)"},
+  "bondLeaveMakerBody": "The order won't be published and its deposit invoice is cancelled.",
+  "@bondLeaveMakerBody": {"description": "Body of that dialog: what dropping the unpublished order does"},
+  "bondLeaveTakerTitle": "Don't take this order?",
+  "@bondLeaveTakerTitle": {"description": "Confirm dialog title before a taker leaves an order whose deposit is not paid yet (DS-CMP-20)"},
+  "bondLeaveTakerBody": "The order stays in the book for others and the deposit invoice is cancelled.",
+  "@bondLeaveTakerBody": {"description": "Body of that dialog: the order stays available to others"},
   "bondKeepWaiting": "Keep waiting",
   "@bondKeepWaiting": {"description": "Dialog action: keep the order and stay on the deposit screen"},
   "createOrderBondNoticeEstimate": "This node asks you to lock a refundable deposit of ≈ {sats} sats before the order is published; it comes back when the trade ends honestly.",
@@ -3757,7 +3890,7 @@
   "@createOrderBondNotice": {"description": "Create-order preview notice on a node whose bond applies to makers"},
   "bondClaimTitle": "Claim your share",
   "@bondClaimTitle": {"description": "Claim screen title (payout of a slashed bond's counterparty share)"},
-  "bondClaimShareLabel": "YOUR SHARE",
+  "bondClaimShareLabel": "Your share",
   "@bondClaimShareLabel": {"description": "Claim screen hero label, upper case"},
   "bondClaimShareSemantics": "Share of {sats} sats to claim",
   "@bondClaimShareSemantics": {"description": "Semantics of the claim hero", "placeholders": {"sats": {"type": "String"}}},
@@ -3859,8 +3992,6 @@
   "@bondRequestAgain": {"description": "14 action: same-take re-request of the bond bolt11"},
   "bondRequestFailed": "The node did not resend the deposit invoice",
   "@bondRequestFailed": {"description": "Snackbar when the re-request fails"},
-  "invoiceOrderIdCopied": "Order ID copied",
-  "@invoiceOrderIdCopied": {"description": "Snackbar after tapping the order id in the invoice app bar"},
   "invoiceYouReceiveLabel": "You will receive",
   "@invoiceYouReceiveLabel": {"description": "13a hero card label above the amount (rendered uppercase)"},
   "invoiceToPayLabel": "To pay",
@@ -3923,24 +4054,26 @@
   "@invoiceCancelTrade": {"description": "13a/13b cancel link below the actions"},
   "invoiceOpenWallet": "Open in my wallet",
   "@invoiceOpenWallet": {"description": "13b primary action: opens the hold invoice as a lightning: deep link"},
-  "invoiceHoldNote": "This is a {hold} invoice: the sats are held, they don't leave your wallet until you confirm the buyer's payment.",
-  "@invoiceHoldNote": {"description": "13b note explaining the hold invoice; hold is the protocol term 'hold', rendered bold and deliberately left untranslated in every locale (as in 'factura hold') — move the placeholder, do not replace it", "placeholders": {"hold": {"type": "String"}}},
+  "invoiceHoldNote": "The sats are held: they don't leave your wallet until you confirm the buyer's payment.",
+  "@invoiceHoldNote": {"description": "13b note: paying the invoice keeps the sats held in the seller's wallet until they confirm the buyer's payment. Plain words, no \"hold\" term (DS-L10N-4)"},
   "invoiceQrSemantics": "Lightning invoice QR code: {invoice}",
   "@invoiceQrSemantics": {"description": "13b screen reader label of the QR: the whole invoice", "placeholders": {"invoice": {"type": "String"}}},
-  "invoiceExpiredTitle": "The invoice expired",
-  "@invoiceExpiredTitle": {"description": "13b terminal state when the hold invoice ran out"},
-  "invoiceExpiredBody": "It was not paid in time: Mostro cancels the trade and no sats left your wallet.",
-  "@invoiceExpiredBody": {"description": "13b terminal state explanation"},
   "invoiceBackToBook": "Back to the order book",
-  "@invoiceBackToBook": {"description": "13b terminal state action"},
-  "invoiceTimeUpTitle": "Time is up",
-  "@invoiceTimeUpTitle": {"description": "13a terminal state when the buyer's invoice window ran out"},
-  "invoiceTimeUpBody": "The invoice was not sent in time: Mostro cancels the trade. Nothing was committed on your side.",
-  "@invoiceTimeUpBody": {"description": "13a terminal state explanation"},
+  "@invoiceBackToBook": {"description": "Terminal state action of the bond invoice screens"},
+  "invoiceStepElapsed": "Time is up. Mostro will close this step shortly unless it is completed.",
+  "@invoiceStepElapsed": {"description": "Countdown at 00:00 on the invoice screens while the order side is not known yet: the local window ended, the daemon has not acted yet."},
+  "stepElapsedBackToBook": "Time is up. If it is not completed, Mostro will return the order to the book shortly.",
+  "@stepElapsedBackToBook": {"description": "Countdown at 00:00 on a waiting step the taker owes (trade and invoice screens): the daemon has not acted yet"},
+  "stepElapsedCancelled": "Time is up. If it is not completed, Mostro will cancel the order shortly.",
+  "@stepElapsedCancelled": {"description": "Countdown at 00:00 on a waiting step the maker owes (trade and invoice screens): the daemon has not acted yet"},
   "invoiceErrorWrongNetwork": "The invoice is for {invoice}, the node uses {node}",
   "@invoiceErrorWrongNetwork": {"description": "13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet", "placeholders": {"invoice": {"type": "String"}, "node": {"type": "String"}}},
   "invoiceCountdownHours": "{hours} h {minutes}",
-  "@invoiceCountdownHours": {"description": "Invoice time band countdown above one hour; hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence", "placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}},
+  "@invoiceCountdownHours": {"description": "Every countdown above one hour (DS-CMP-21: invoice band, trade step, take order, my order, chat); hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence or a row", "placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}},
+  "countdownExpiresInLabel": "Expires in",
+  "@countdownExpiresInLabel": {"description": "Label of an order's countdown (take order data row, own order status); the figure follows it, e.g. Expires in 23 h 12"},
+  "bondPayWithinLabel": "Pay within",
+  "@bondPayWithinLabel": {"description": "Label above the bond time pill in the compact amount row: the time left to pay the bond invoice"},
   "tradeCardWaitingBuyerInvoiceTitle": "Waiting for the buyer's invoice",
   "@tradeCardWaitingBuyerInvoiceTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
   "tradeCardWaitingBuyerInvoiceMessage": "The trade continues once the buyer adds a Lightning invoice.",
@@ -4017,15 +4150,17 @@
   "@chatCardSolverMessage": {"description": "Notifications chat card body; count is the number of unread messages", "placeholders": {"count": {"type": "int"}}},
   "invalidTradeIndexError": "Your account is out of sync with this Mostro node, so it refused the order. Try again in a moment",
   "@invalidTradeIndexError": {"description": "Error shown when the Mostro node refuses a new order or take with CantDo(InvalidTradeIndex) even after the app resynced its trade-key counter and retried once"},
+  "invalidFiatCurrencyError": "This Mostro node does not accept that currency, so it refused the order. Pick another currency",
+  "@invalidFiatCurrencyError": {"description": "Error shown when the Mostro node refuses a new order with CantDo(InvalidFiatCurrency): its fiat_currencies_accepted list does not include the order's currency"},
   "recoveringTradesMessage": "Account imported. Recovering your trades from Mostro…",
   "@recoveringTradesMessage": {"description": "Snackbar shown on the Account screen right after a mnemonic import, while the app asks Mostro for the identity's trades in progress"},
   "recoveredTradesMessage": "{count, plural, =0{Account imported. You had no trades in progress} =1{Account imported. 1 trade recovered} other{Account imported. {count} trades recovered}}",
   "@recoveredTradesMessage": {"description": "Snackbar shown after a mnemonic import once Mostro returned the identity's trades in progress; count is how many orders and disputes came back", "placeholders": {"count": {"type": "int"}}},
   "recoverTradesFailedMessage": "Account imported, but Mostro did not answer, so your trades in progress were not recovered",
   "@recoverTradesFailedMessage": {"description": "Snackbar shown after a mnemonic import when Mostro did not answer the recovery request; the import itself succeeded"},
-  "paymentMethodsChosenLabel": "Chosen",
-  "@paymentMethodsChosenLabel": {"description": "Label in front of the chips summarising the methods chosen so far on the payment-method picker screen"},
-  "paymentMethodsSelectedCount": "{count, plural, =0{Choose at least one method} =1{1 method selected} other{{count} methods selected}}",
+  "paymentMethodsChosenLabel": "Selected",
+  "@paymentMethodsChosenLabel": {"description": "Label in front of the chips summarising the methods selected so far on the payment-method picker screen (glossary: selected, DS-L10N-4)"},
+  "paymentMethodsSelectedCount": "{count, plural, =0{Select at least one method} =1{1 method selected} other{{count} methods selected}}",
   "@paymentMethodsSelectedCount": {"description": "Count line above the confirm button of the payment-method picker screen", "placeholders": {"count": {"type": "int"}}},
   "paymentMethodsConfirm": "Confirm methods",
   "@paymentMethodsConfirm": {"description": "Button that saves the payment-method selection and closes the picker screen"},
@@ -4051,6 +4186,10 @@
   "@fundsAtRiskTradeInProgress": {"description": "Funds-at-risk list entry: a live trade with none of the user's sats locked"},
   "fundsAtRiskBondInvoicePending": "Bond invoice still payable",
   "@fundsAtRiskBondInvoicePending": {"description": "Funds-at-risk list entry: a bond invoice that has not been paid and has not expired"},
+  "fundsAtRiskCashuBalance": "Ecash in the Cashu wallet",
+  "@fundsAtRiskCashuBalance": {"description": "Funds-at-risk list entry: ecash in the current user's Cashu wallet, stranded if the user is replaced"},
+  "fundsAtRiskCashuHint": "Only this user's words bring it back",
+  "@fundsAtRiskCashuHint": {"description": "Funds-at-risk list entry, second line under the Cashu balance: only the current user's recovery words restore it"},
   "fundsAtRiskKeep": "Keep this user",
   "@fundsAtRiskKeep": {"description": "Safe, primary action of the funds-at-risk warning: abandon the generation or import"},
   "fundsAtRiskContinue": "Continue anyway",
@@ -4169,12 +4308,42 @@
   "@cashuMintLabel": {"description": "Cashu wallet — the mint the wallet is connected to", "placeholders": {"mint": {"type": "String"}}},
   "cashuNotConnected": "Not connected to a mint",
   "@cashuNotConnected": {"description": "Cashu wallet — shown when the wallet could not bind to a mint"},
+  "cashuNoMintSet": "No mint set. Set one, or receive a token to use its mint.",
+  "@cashuNoMintSet": {"description": "Cashu wallet — no mint was ever set; how to get one"},
+  "cashuSetMintButton": "Set mint",
+  "@cashuSetMintButton": {"description": "Cashu wallet — button that sets the wallet's mint when none is set"},
+  "cashuChangeMintButton": "Change mint",
+  "@cashuChangeMintButton": {"description": "Cashu wallet — button that changes the wallet's mint"},
+  "cashuMintDialogTitle": "Cashu mint",
+  "@cashuMintDialogTitle": {"description": "Cashu wallet — title of the dialog where the user enters a mint URL"},
+  "cashuMintFieldLabel": "Mint URL",
+  "@cashuMintFieldLabel": {"description": "Cashu wallet — label of the mint URL field"},
+  "cashuMintFieldHint": "https://mint.example.com",
+  "@cashuMintFieldHint": {"description": "Cashu wallet — example mint URL shown in the empty field; not translated"},
+  "cashuChangeMintTitle": "Change mint?",
+  "@cashuChangeMintTitle": {"description": "Cashu wallet — title of the warning before changing the mint with a balance"},
+  "cashuChangeMintWarning": "Your {sats} sats stay at {mint}. They come back when you connect to that mint again.",
+  "@cashuChangeMintWarning": {"description": "Cashu wallet — the balance stays at the old mint when the wallet changes mint", "placeholders": {"sats": {"type": "String"}, "mint": {"type": "String"}}},
+  "cashuErrorNoMint": "Set a mint in the Cashu wallet first.",
+  "@cashuErrorNoMint": {"description": "Cashu — an action needs the wallet's mint and none is set"},
+  "cashuErrorInvalidMintUrl": "That is not a mint URL you can use. It must start with https://.",
+  "@cashuErrorInvalidMintUrl": {"description": "Cashu wallet — the mint URL is not an https URL with a host (http only for a mint on this device)"},
+  "cashuErrorWalletOnOtherMint": "Your Cashu wallet uses another mint. Switch it to this node's mint in Settings → Cashu wallet, then try again.",
+  "@cashuErrorWalletOnOtherMint": {"description": "Lock escrow — the wallet is bound to another mint than the node's"},
   "cashuReceiveButton": "Receive",
   "@cashuReceiveButton": {"description": "Cashu wallet — button that scans or pastes a token to redeem"},
   "cashuSendButton": "Send",
   "@cashuSendButton": {"description": "Cashu wallet — button that exports ecash as a token"},
   "cashuReceiveHint": "Paste or scan a Cashu token",
   "@cashuReceiveHint": {"description": "Cashu wallet — placeholder in the token scanner"},
+  "cashuReceiveTitle": "Receive a token",
+  "@cashuReceiveTitle": {"description": "Cashu wallet — title of the Receive dialog, which takes the token by pasting or scanning"},
+  "cashuTokenFieldLabel": "Cashu token",
+  "@cashuTokenFieldLabel": {"description": "Cashu wallet — label above the token field in the Receive dialog; shown in capitals"},
+  "cashuPasteTokenHint": "Paste a Cashu token",
+  "@cashuPasteTokenHint": {"description": "Cashu wallet — dimmed placeholder of the token field; disappears once something is pasted or typed"},
+  "qrScanUnavailable": "Not available on this device",
+  "@qrScanUnavailable": {"description": "Tooltip of a disabled Scan QR action (NWC wallet, Cashu wallet) where the device has no usable camera (desktop, web)"},
   "cashuAmountLabel": "Amount in sats",
   "@cashuAmountLabel": {"description": "Cashu wallet — amount field when exporting a token"},
   "cashuReceived": "Received {sats} sats",
@@ -4191,7 +4360,7 @@
   "@cashuCopyToken": {"description": "Cashu wallet — copies the exported token to the clipboard"},
   "cashuTokenCopied": "Token copied",
   "@cashuTokenCopied": {"description": "Cashu wallet — confirmation after copying a token"},
-  "cashuWalletExplanation": "This wallet holds ecash issued by the mint your Mostro node uses. It exists to fund and receive trades on that node — it is not a general-purpose wallet.",
+  "cashuWalletExplanation": "This wallet holds ecash from the mint you choose. It exists to fund and receive Cashu trades — it is not a general-purpose wallet.",
   "@cashuWalletExplanation": {"description": "Cashu wallet — explanation of what the wallet is for"},
   "cashuErrorNotEnabled": "This Mostro node does not settle trades with Cashu.",
   "@cashuErrorNotEnabled": {"description": "Cashu error — the active node is not a Cashu node"},
@@ -4199,7 +4368,7 @@
   "@cashuErrorNotConnected": {"description": "Cashu error — an operation was attempted before connecting"},
   "cashuErrorMintUnreachable": "Could not reach the mint. Check your connection and try again.",
   "@cashuErrorMintUnreachable": {"description": "Cashu error — the mint did not answer"},
-  "cashuErrorMintUnusable": "This node's mint is missing features the escrow needs, so trading is not possible here.",
+  "cashuErrorMintUnusable": "This mint is missing features the wallet needs. Choose another mint.",
   "@cashuErrorMintUnusable": {"description": "Cashu error — the mint answered but lacks a required NUT or keyset"},
   "cashuErrorUnsupportedOnWeb": "The Cashu wallet is not available on the web version yet.",
   "@cashuErrorUnsupportedOnWeb": {"description": "Cashu error — the web build has no proof storage"},
@@ -4223,8 +4392,6 @@
   "@cashuLastTokenDone": {"description": "Cashu wallet \u2014 clears the exported-token reminder"},
   "cashuTokenTooLargeForQr": "This token is too large for a QR code. Copy it instead.",
   "@cashuTokenTooLargeForQr": {"description": "Cashu wallet — shown in place of the QR when the exported token exceeds QR capacity"},
-  "cashuErrorMintChanged": "The active node changed and this wallet is bound to another mint. Go back and open the wallet again.",
-  "@cashuErrorMintChanged": {"description": "Cashu wallet — the node was switched while the wallet was bound to the previous node's mint"},
   "cashuErrorNoMnemonic": "This account was imported from an nsec, so there is no recovery phrase to derive the wallet from. The Cashu wallet needs an account created from a recovery phrase.",
   "@cashuErrorNoMnemonic": {"description": "Cashu wallet — permanent: an nsec-imported identity has no seed"},
   "cashuErrorTokenUnverified": "This token could not be verified: it carries no proof of the mint's signature, so it was not accepted.",
@@ -4273,8 +4440,8 @@
   "@lockEscrowRetry": {"description": "Escrow screen \u2014 resubmits an escrow that was locked but whose message did not reach the node"},
   "lockEscrowPendingSubmission": "Your escrow is locked but the node has not confirmed it. Retrying is safe \u2014 it will not lock a second time.",
   "@lockEscrowPendingSubmission": {"description": "Escrow screen \u2014 shown when a token exists locally but the submission may not have arrived"},
-  "lockEscrowMintUnknown": "This node has not published its mint, so there is nowhere to lock the escrow.",
-  "@lockEscrowMintUnknown": {"description": "Escrow error — the node published no mint (CashuMintUnknown)"},
+  "lockEscrowMintNotSupported": "This node lets each order choose its mint, and this version of the app can only lock an escrow on a node with a single mint.",
+  "@lockEscrowMintNotSupported": {"description": "Escrow error — the node accepts several mints, or any, so each order names its own, and this build can only lock on a node with a single mint (CashuMintNotSupported, MostroP2P/mostro#1047)"},
   "lockEscrowNotRecorded": "The escrow reached the node, but this device could not save a copy of it. The trade can go on, but this device cannot reclaim the escrow.",
   "@lockEscrowNotRecorded": {"description": "Escrow error — submitted, but the device could not save the token (CashuEscrowNotPersisted)"},
   "lockEscrowRejectedToken": "The node did not accept this escrow. It was set aside — it comes back to you when its lock expires — and the next attempt locks a new one.",
@@ -4315,5 +4482,87 @@
   "reputationImportConfirm": "Import into this Mostro",
   "reputationFigures": "{reviews} ratings received, {rating} on average, trading for {days} days",
   "@reputationFigures": {"placeholders": {"reviews": {"type": "int"}, "rating": {"type": "String"}, "days": {"type": "int"}}},
-  "reputationFiguresNote": "Imported reputation is added to the one you have here; your counterparties see them merged."
+  "reputationFiguresNote": "Imported reputation is added to the one you have here; your counterparties see them merged.",
+  "shareChatKeyAction": "Share the chat key with the resolver",
+  "@shareChatKeyAction": {"description": "Dispute chat app bar: tooltip of the action that sends the solver the peer chat key (#415)"},
+  "shareChatKeyTitle": "Share the chat key with the resolver?",
+  "@shareChatKeyTitle": {"description": "Title of the dialog confirming that the peer chat key goes to the dispute solver"},
+  "shareChatKeyBody": "If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterparty in this order, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.",
+  "@shareChatKeyBody": {"description": "Body of the dialog confirming that the peer chat key goes to the dispute solver: what the solver can read, and only that"},
+  "shareChatKeyConfirm": "Share",
+  "@shareChatKeyConfirm": {"description": "Confirm button of the dialog that shares the peer chat key with the solver"},
+  "chatKeySharedIndicator": "Chat key shared with the resolver",
+  "@chatKeySharedIndicator": {"description": "Dispute chat app bar: tooltip of the share-chat-key action once the chat key went to the current solver (it can still be sent again)"},
+  "shareChatKeyUnavailable": "The chat key of this trade is not available on this device.",
+  "@shareChatKeyUnavailable": {"description": "Error in the share-chat-key dialog: the counterparty or trade key of this order is not known on this device"},
+  "moreReactions": "More reactions",
+  "@moreReactions": {
+    "description": "«…» in a chat message's menu, and the title of the sheet with every emoji"
+  },
+  "messageReactionLabel": "Reaction: {emoji}",
+  "@messageReactionLabel": {
+    "description": "Screen-reader label of the reaction shown under a chat message",
+    "placeholders": {
+      "emoji": {
+        "type": "String",
+        "example": "👍"
+      }
+    }
+  },
+  "reactionSendFailed": "Couldn't send the reaction. Please try again.",
+  "@reactionSendFailed": {
+    "description": "Snackbar shown when a reaction to a chat message could not be sent"
+  },
+  "messageMenuHint": "Open the message menu",
+  "@messageMenuHint": {
+    "description": "Screen-reader hint of a chat message: what tapping it (or holding an attachment) opens"
+  },
+  "cashuAnyMint": "Any mint",
+  "@cashuAnyMint": {
+    "description": "Mint of a Cashu node that lists no mint and so accepts any the order's maker picks (MostroP2P/mostro#1047): value in Settings, About and the node selector"
+  },
+  "settingsMintLabel": "Mint",
+  "@settingsMintLabel": {
+    "description": "Settings, Payments group — label of a row naming a Cashu mint the active node accepts (one row per mint); shown only when the node runs Cashu"
+  },
+  "settingsMintCopied": "Mint URL copied",
+  "@settingsMintCopied": {
+    "description": "Snackbar after tapping a mint row in Settings, which copies the mint's full URL"
+  },
+  "pwaInstallTitle": "Install Mostro",
+  "@pwaInstallTitle": {
+    "description": "Title of the card on the order book (web, mobile) that offers to install the app to the home screen"
+  },
+  "pwaInstallBody": "Open it from your home screen, full screen, like any other app.",
+  "@pwaInstallBody": {
+    "description": "Body of the install card: what installing gives the user"
+  },
+  "pwaInstallAction": "Install",
+  "@pwaInstallAction": {
+    "description": "Install card action: installs the app (Android) or shows how to (iOS)"
+  },
+  "pwaInstallNotNow": "Not now",
+  "@pwaInstallNotNow": {
+    "description": "Install card way out: hides the card for good on this device"
+  },
+  "pwaInstallSettingTitle": "Install app",
+  "@pwaInstallSettingTitle": {
+    "description": "Settings row (web only) that installs the app, for whoever dismissed the card"
+  },
+  "pwaInstallStepsTitle": "Add Mostro to your home screen",
+  "@pwaInstallStepsTitle": {
+    "description": "Title of the sheet that explains how to add the app to the iOS home screen"
+  },
+  "pwaInstallStepShare": "Tap the Share button in your browser's toolbar.",
+  "@pwaInstallStepShare": {
+    "description": "Step 1 on iOS: the Share button of Safari or of the browser"
+  },
+  "pwaInstallStepAdd": "Choose “Add to Home Screen”.",
+  "@pwaInstallStepAdd": {
+    "description": "Step 2 on iOS: the Share menu entry, named as iOS names it in this language"
+  },
+  "pwaInstallStepsDone": "Got it",
+  "@pwaInstallStepsDone": {
+    "description": "Closes the iOS install steps sheet"
+  }
 }

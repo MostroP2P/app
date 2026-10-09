@@ -131,7 +131,7 @@ class AttachmentLauncher {
       };
       return outcome;
     } finally {
-      releaseCopy(path, handedOff: outcome == LaunchOutcome.done);
+      unawaited(releaseCopy(path, handedOff: outcome == LaunchOutcome.done));
     }
   }
 
@@ -150,19 +150,18 @@ class AttachmentLauncher {
       // it expires rather than going now, whatever the user picked.
       handedOff = true;
     } finally {
-      releaseCopy(path, handedOff: handedOff);
+      unawaited(releaseCopy(path, handedOff: handedOff));
     }
   }
 
   /// Deletes the copy at [path] now, or after [copyLifetime] when another
-  /// app took it and may still be reading it.
+  /// app took it and may still be reading it. The future completes once a
+  /// copy deleted now is gone, and at once for a handed-off one.
   @visibleForTesting
-  void releaseCopy(String path, {required bool handedOff}) {
-    if (!handedOff) {
-      unawaited(_deleteCopy(path));
-      return;
-    }
+  Future<void> releaseCopy(String path, {required bool handedOff}) {
+    if (!handedOff) return _deleteCopy(path);
     Timer(copyLifetime, () => unawaited(_deleteCopy(path)));
+    return Future.value();
   }
 
   /// Removes a copy with the directory made for it. Never throws: a copy

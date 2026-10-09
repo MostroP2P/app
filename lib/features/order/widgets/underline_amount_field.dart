@@ -215,7 +215,7 @@ class _UnderlineAmountFieldState extends State<UnderlineAmountField> {
             ),
             child: Text(label.toUpperCase()),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
         ],
         AnimatedContainer(
           duration: kThemeChangeDuration,
@@ -248,10 +248,20 @@ class _UnderlineAmountFieldState extends State<UnderlineAmountField> {
                       color: book.textPrimary,
                       height: 1.2,
                     ),
+                    // The underline is the container's, drawn under the
+                    // value and [trailing] alike; the field paints neither a
+                    // fill nor a border, or the theme's v1 ones show
+                    // (DS-CMP-19).
                     decoration: InputDecoration(
                       isDense: true,
                       isCollapsed: true,
+                      filled: false,
                       border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
                       hintText: widget.hintText,
                       hintStyle: TextStyle(
                         fontFamily: AppFonts.figures,

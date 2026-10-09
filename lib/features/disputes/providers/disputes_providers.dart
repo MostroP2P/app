@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/trades/providers/trades_providers.dart';
+import 'package:mostro/shared/providers/peer_nym_provider.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/disputes.dart' as disputes_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
@@ -72,6 +73,7 @@ class DisputeItem {
     this.resolution,
     this.resolvedAt,
     this.isRead = false,
+    this.chatKeyShared = false,
     this.peerHandle,
     this.peerIconIndex = 0,
     this.peerColorHue = 180,
@@ -90,6 +92,9 @@ class DisputeItem {
   final int? resolvedAt;
   final bool isRead;
 
+  /// Whether the current solver already got the peer chat key (#415).
+  final bool chatKeyShared;
+
   // Peer identity (populated from session when available).
   final String? peerHandle;
   final int peerIconIndex;
@@ -107,6 +112,7 @@ class DisputeItem {
     DisputeResolution? resolution,
     int? resolvedAt,
     bool? isRead,
+    bool? chatKeyShared,
     String? peerHandle,
     int? peerIconIndex,
     int? peerColorHue,
@@ -123,6 +129,7 @@ class DisputeItem {
       resolution: resolution ?? this.resolution,
       resolvedAt: resolvedAt ?? this.resolvedAt,
       isRead: isRead ?? this.isRead,
+      chatKeyShared: chatKeyShared ?? this.chatKeyShared,
       peerHandle: peerHandle ?? this.peerHandle,
       peerIconIndex: peerIconIndex ?? this.peerIconIndex,
       peerColorHue: peerColorHue ?? this.peerColorHue,
@@ -181,6 +188,7 @@ class DisputeNotifier extends StateNotifier<List<DisputeItem>> {
       resolution: fromBridge.resolution,
       resolvedAt: fromBridge.resolvedAt,
       isRead: current.isRead,
+      chatKeyShared: fromBridge.chatKeyShared,
       peerHandle: current.peerHandle,
       peerIconIndex: current.peerIconIndex,
       peerColorHue: current.peerColorHue,
@@ -251,6 +259,25 @@ final disputeByTradeIdProvider = Provider.family<DisputeItem?, String>((
       .firstOrNull;
 });
 
+/// Who a dispute is with: the user's side of the trade and the counterpart's
+/// pseudonym, from the trade row (v1 reads the session's peer). Either is
+/// null while the row loads, or when the trade or its peer is unknown.
+typedef DisputeCounterpart = ({bool? isSelling, String? handle});
+
+final disputeCounterpartProvider = Provider.autoDispose
+    .family<DisputeCounterpart, String>((ref, tradeId) {
+      final trade = ref.watch(tradeInfoProvider(tradeId)).valueOrNull;
+      if (trade == null) return (isSelling: null, handle: null);
+      final pubkey = trade.counterpartyPubkey;
+      return (
+        isSelling: trade.role == rust_types.TradeRole.seller,
+        handle:
+            pubkey.isEmpty
+                ? null
+                : ref.watch(peerNymProvider(pubkey)).valueOrNull?.pseudonym,
+      );
+    });
+
 /// The bridge's dispute for a trade, or null. Its own provider so the trade
 /// screen's fallback lookup can be driven in tests without the bridge.
 final disputeLookupProvider =
@@ -288,6 +315,7 @@ DisputeItem disputeItemFromRust(rust_types.Dispute dispute) => DisputeItem(
           ? null
           : platformInt64ToInt(dispute.resolvedAt),
   isRead: dispute.isRead,
+  chatKeyShared: dispute.chatKeyShared,
 );
 
 /// Trade statuses under which the bridge cannot hold a dispute: the trade

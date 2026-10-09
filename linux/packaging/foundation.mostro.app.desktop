@@ -1,0 +1,21 @@
+[Desktop Entry]
+Type=Application
+Name=Mostro
+GenericName=P2P Bitcoin exchange
+GenericName[de]=P2P-Bitcoin-Börse
+GenericName[es]=Exchange P2P de bitcoin
+GenericName[fr]=Exchange P2P de bitcoin
+GenericName[it]=Exchange P2P di bitcoin
+GenericName[nl]=P2P-bitcoinexchange
+Comment=Buy and sell bitcoin peer to peer over Nostr
+Comment[de]=Bitcoin von Peer zu Peer über Nostr kaufen und verkaufen
+Comment[es]=Compra y vende bitcoin de persona a persona sobre Nostr
+Comment[fr]=Achetez et vendez du bitcoin de pair à pair via Nostr
+Comment[it]=Compra e vendi bitcoin peer-to-peer su Nostr
+Comment[nl]=Koop en verkoop bitcoin peer-to-peer via Nostr
+Exec=mostro
+Icon=foundation.mostro.app
+Terminal=false
+StartupNotify=true
+StartupWMClass=foundation.mostro.app
+Categories=Office;Finance;Network;

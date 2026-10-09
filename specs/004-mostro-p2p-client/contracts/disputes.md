@@ -87,7 +87,8 @@ dispute or a daemon-side DB failure is an internal error it merely logs, so
 those surface as `NoDaemonResponse` rather than a precise reason.
 
 **Errors**: `TradeNotDisputable`, `DisputeAlreadyOpen`, `ProtocolError`,
-`NoDaemonResponse`, plus daemon `CantDo` reasons passed through as errors.
+`NoDaemonResponse`, plus daemon `CantDo` reasons passed through as errors, in the
+form `contracts/orders.md` describes ("How a `CantDo` reason reaches the caller").
 `DisputeAlreadyOpen` covers both refusals — a record already exists, or an open
 for this trade is still in flight — and Dart maps the marker to one localized
 message (`localizedDaemonError`).
@@ -105,6 +106,43 @@ resolved, and have a solver (`admin-took-dispute`).
 
 **Errors**: `EvidenceEmpty`, `NoOpenDispute`, `AdminNotAssigned`,
 `TradeNotFound`.
+
+---
+
+### share_chat_key_with_solver(trade_id: String) → ChatMessage
+Send the solver the key of this trade's peer chat, so they can read what buyer
+and seller wrote to each other (#415). It replaces copying the key from the
+peer chat and pasting it into the dispute chat.
+
+The message is plain text, `Shared key: <64 hex>`, with a fixed English prefix
+the solver recognises in any language. The key is `K_conv`'s secret
+(<https://mostro.network/protocol/chat.html>): it decrypts the conversation,
+but the outer events are signed with `K_sign`, so it cannot be used to write
+into it. It is never the raw ECDH secret, which derives `K_sign` too, and
+never the session's NIP-04 shared key, from which `K_conv` cannot be derived.
+The trade keys are the order's own, so it opens this conversation and no
+other. It is derived in Rust from the trade key and the counterparty (the
+session's, else the trade row's) and never crosses the bridge except inside
+the message. A counterparty the trade row says cannot be the peer (a
+pre-#334 row names the Mostro node) is `NoSharedKey`: its key would open no
+conversation.
+
+It goes through the same envelope and storage as `submit_evidence`, but it
+counts as sent only once a relay accepted it: otherwise `SendFailed`, nothing
+stored and nothing recorded, so the user can try again. Once sent, the
+dispute's `chat_key_shared` turns true (told through `on_dispute_updated`) and
+the share is persisted as `dispute_key_shared:<order_id>` = the solver's
+pubkey, so a restart still shows it. It counts for **that** solver only: a
+takeover clears `chat_key_shared`, because the new solver never got the key.
+The record only informs: it never refuses another share, since the user may
+have sent the key to a solver who then handed the dispute over (Serbero
+before a human), or want it sent again. The marker is cleared with the other dispute keys and is identity
+scoped. A share sent from another device of the same identity reaches this
+one as our own message in the dispute chat; when it is the key and the
+solver is the one on record, it is recorded the same way.
+
+**Errors**: `NoOpenDispute`, `AdminNotAssigned`, `TradeNotFound`, `NoSharedKey` (the counterparty is not known, or is the
+node), `SendFailed`.
 
 ---
 
@@ -182,7 +220,8 @@ its own. These facts are persisted anyway:
 trades that have a stored solver, before dispute-chat listeners are re-armed and
 before the replay has had a chance to run. Restored records are `InReview` (a
 stored solver means one took the dispute), `initiated_by_me` from the origin
-marker, `reason: null` (not persisted), and **unread** — the pre-restart read
+marker, `chat_key_shared` when the share marker names the restored solver,
+`reason: null` (not persisted), and **unread** — the pre-restart read
 state is not recoverable and an active dispute must surface. Records already in
 memory win, enforced under the store's single write lock so a concurrent
 `open_dispute` / `admin-took-dispute` is never clobbered. This is what makes
@@ -270,10 +309,9 @@ a resolved record or a finished trade is `NoOpenDispute`.
 with `get_dispute` when it opens and follows `on_dispute_updated`, shows the
 `MessageType::Admin` messages, and writes with `submit_evidence` and
 `send_dispute_file`. The disputes list is still fed on resume only (#397).
-Still to come: one-tap delivery of the P2P
-shared key to the solver (#415): Rust will send it over this channel behind an
-explicit confirmation in the UI, and the key is never exposed to Dart; that
-function and the `Dispute` state it adds are specified when it lands.
+A key button in its app bar sends the solver the P2P chat key after an explicit
+confirmation (`share_chat_key_with_solver`, #415). Once `chat_key_shared` is
+set it turns lime and says the key was shared, and still sends it again.
 
 **Platform limitation (web)**: persistence is native-only today. The Flutter
 shell does not call `init_db` on web, and the IndexedDB store's `list_trades`

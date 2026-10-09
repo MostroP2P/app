@@ -112,8 +112,9 @@ void main() {
         attachmentData([1], fileName: 'a.pdf', mimeType: 'application/pdf'),
       );
 
-      launcher.releaseCopy(path, handedOff: false);
-      await pumpEventQueue();
+      // Awaited, not pumped: the delete is real file I/O, which an event
+      // queue drain does not wait for on a loaded runner.
+      await launcher.releaseCopy(path, handedOff: false);
 
       expect(File(path).parent.existsSync(), isFalse);
     });
@@ -127,7 +128,7 @@ void main() {
         attachmentData([1], fileName: 'a.pdf', mimeType: 'application/pdf'),
       );
 
-      shortLived.releaseCopy(path, handedOff: true);
+      await shortLived.releaseCopy(path, handedOff: true);
       expect(File(path).existsSync(), isTrue);
       // Polled, not slept on: under a loaded test run the timer and the
       // delete can land well after the lifetime.
@@ -144,8 +145,7 @@ void main() {
       final elsewhere = File(p.join(root.path, 'keep', 'x.pdf'))
         ..createSync(recursive: true);
 
-      launcher.releaseCopy(elsewhere.path, handedOff: false);
-      await pumpEventQueue();
+      await launcher.releaseCopy(elsewhere.path, handedOff: false);
 
       expect(elsewhere.existsSync(), isTrue);
     });

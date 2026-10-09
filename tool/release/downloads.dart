@@ -162,6 +162,10 @@ Keep the folder together: the `mostro` binary loads `lib/` and `data/` from
 next to itself. It needs GTK 3 and **libsecret** with a running keyring
 (GNOME Keyring, KWallet) — that is where your keys are stored.
 
+To add Mostro to your application menu, with its icon, run
+`./mostro/install.sh` once (again after moving the folder;
+`--uninstall` removes it). On Wayland the app shows a generic icon until then.
+
 </details>
 ''',
   'windows': '''

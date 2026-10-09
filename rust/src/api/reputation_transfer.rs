@@ -12,7 +12,9 @@
 //! `PrivacyModeEnabled`, `ReputationExportUnsupported`,
 //! `ReputationImportUnsupported`, `NoDaemonResponse`, and the daemon's or the
 //! local check's `CantDoReason` by name (`UntrustedReputationIssuer`,
-//! `ReputationAlreadyImported`, `InvalidReputationAttestation`, …).
+//! `ReputationAlreadyImported`, `InvalidReputationAttestation`, …),
+//! `InvalidPubkey` for a key that is not 64-char hex, and `NoIdentity` when
+//! the identity that asked was deleted or replaced before the node answered.
 
 use anyhow::{bail, Result};
 use mostro_core::message::{Action, MessageKind, Payload, ReputationExportRequest};
@@ -22,6 +24,7 @@ use mostro_core::reputation::{
 };
 use nostr_sdk::prelude::{Keys, PublicKey, Timestamp};
 
+use crate::api::identity::{identity_generation, while_identity_current};
 use crate::api::orders::{ask_daemon_with, fresh_request_id, DaemonAnswer};
 use crate::db::settings_keys::PENDING_REPUTATION_ATTESTATION;
 use crate::db::Storage;
@@ -113,18 +116,26 @@ pub async fn export_reputation(
     let Some(issuer) = reputation_support::get(&node).issuer else {
         bail!("ReputationExportUnsupported: the node does not export reputation");
     };
+    // Checked before the node binds the account: an attestation that cannot
+    // be kept must not be reported as kept.
+    let db = crate::db::app_db::db()
+        .ok_or_else(|| anyhow::anyhow!("StorageUnavailable: the attestation could not be kept"))?;
+    // Taken before the keys: an identity swapped in between reads as a
+    // different generation, never as the one that asked.
+    let generation = identity_generation().await;
     let identity = identity_keys().await?;
     let target = match destination {
-        Some(hex) => PublicKey::from_hex(hex.trim())?.to_hex(),
-        None => identity.public_key().to_hex(),
+        Some(hex) => pubkey(&hex)?,
+        None => identity.public_key(),
     };
     let payload = Payload::ReputationExportRequest(ReputationExportRequest {
-        destination: target.clone(),
+        destination: target.to_hex(),
         rebind,
     });
     let reply = ask(
         &node,
         &identity,
+        generation,
         Action::ExportReputation,
         payload,
         is_export_reply,
@@ -134,13 +145,15 @@ pub async fn export_reputation(
         bail!("InvalidPayload: the node answered without an attestation");
     };
     let attestation = parse(&json)?;
-    if attestation.issuer.to_hex() != issuer || attestation.destination.to_hex() != target {
-        bail!("InvalidReputationAttestation: not the node's issuer key, or another identity");
-    }
-    if let Some(db) = crate::db::app_db::db() {
-        db.set_setting(PENDING_REPUTATION_ATTESTATION, &json)
-            .await?;
-    }
+    check_exported(&attestation, &issuer, &target)?;
+    // The wait above is long enough for the identity to be deleted or
+    // replaced: a write after its wipe would hand this attestation to the
+    // next identity.
+    while_still_current(generation, async {
+        let _slot = pending_slot().lock().await;
+        db.set_setting(PENDING_REPUTATION_ATTESTATION, &json).await
+    })
+    .await?;
     Ok(ReputationAttestationInfo::new(&attestation, json))
 }
 
@@ -152,32 +165,33 @@ pub async fn import_reputation(attestation_json: String) -> Result<ReputationAtt
     let Some(trusted) = reputation_support::get(&node).import_issuers else {
         bail!("ReputationImportUnsupported: the node does not import reputation");
     };
+    let generation = identity_generation().await;
     let identity = identity_keys().await?;
     let attestation = parse(&attestation_json)?;
-    if attestation.destination != identity.public_key() {
-        bail!("ReputationIdentityMismatch: it names another identity");
-    }
-    if !trusted.contains(&attestation.issuer.to_hex()) {
-        bail!("UntrustedReputationIssuer: the node does not trust its issuer");
-    }
+    check_importable(&attestation, &identity.public_key(), &trusted)?;
     ask(
         &node,
         &identity,
+        generation,
         Action::ImportReputation,
         Payload::ReputationAttestation(attestation_json.clone()),
         is_import_reply,
     )
     .await?;
-    if let Some(db) = crate::db::app_db::db() {
-        if db
-            .get_setting(PENDING_REPUTATION_ATTESTATION)
-            .await?
-            .as_deref()
-            == Some(attestation_json.as_str())
-        {
+    // Imported: it is no longer pending. Under the same guard as the export's
+    // write, so a late answer never touches the next identity's slot.
+    while_still_current(generation, async {
+        let Some(db) = crate::db::app_db::db() else {
+            return Ok(());
+        };
+        let _slot = pending_slot().lock().await;
+        let pending = db.get_setting(PENDING_REPUTATION_ATTESTATION).await?;
+        if pending.as_deref().and_then(event_id) == Some(attestation.id.to_hex()) {
             db.delete_setting(PENDING_REPUTATION_ATTESTATION).await?;
         }
-    }
+        Ok(())
+    })
+    .await?;
     Ok(ReputationAttestationInfo::new(
         &attestation,
         attestation_json,
@@ -185,16 +199,38 @@ pub async fn import_reputation(attestation_json: String) -> Result<ReputationAtt
 }
 
 /// The attestation exported last and not imported yet, while still valid.
+/// One slot for all nodes: a later export replaces it. An expired one is
+/// dropped; one refused for another reason (a clock behind the issuer's)
+/// is kept, as it may verify later.
 pub async fn get_pending_reputation_attestation() -> Result<Option<ReputationAttestationInfo>> {
     let Some(db) = crate::db::app_db::db() else {
         return Ok(None);
     };
-    let Some(json) = db.get_setting(PENDING_REPUTATION_ATTESTATION).await? else {
+    let Some(generation) = identity_generation().await else {
         return Ok(None);
     };
-    Ok(parse(&json)
-        .ok()
-        .map(|attestation| ReputationAttestationInfo::new(&attestation, json)))
+    // Read under the identity guard: a wipe that starts meanwhile waits for
+    // it, so the slot read is always the active identity's.
+    let read = while_identity_current(generation, async {
+        // Held from the read to the drop, so the attestation dropped is the
+        // one read, never one an export wrote since.
+        let _slot = pending_slot().lock().await;
+        let Some(json) = db.get_setting(PENDING_REPUTATION_ATTESTATION).await? else {
+            return Ok(None);
+        };
+        match ReputationAttestation::parse_json(&json, Timestamp::now(), ATTESTATION_LIFETIME_SECS)
+        {
+            Ok((attestation, _)) => Ok(Some(ReputationAttestationInfo::new(&attestation, json))),
+            Err(AttestationError::Expired) => {
+                log::info!("[reputation] the pending attestation expired; dropping it");
+                db.delete_setting(PENDING_REPUTATION_ATTESTATION).await?;
+                Ok(None)
+            }
+            Err(_) => Ok(None),
+        }
+    })
+    .await;
+    read.unwrap_or(Ok(None))
 }
 
 /// Sign, with the identity the reputation at `issuer` is bound to now, the
@@ -203,8 +239,8 @@ pub async fn get_pending_reputation_attestation() -> Result<Option<ReputationAtt
 /// lnp2pBot. Valid for an hour.
 pub async fn sign_reputation_rebind(issuer: String, new_identity: String) -> Result<String> {
     let bound = identity_keys().await?;
-    let issuer = PublicKey::from_hex(issuer.trim())?;
-    let new_identity = PublicKey::from_hex(new_identity.trim())?;
+    let issuer = pubkey(&issuer)?;
+    let new_identity = pubkey(&new_identity)?;
     let event = ReputationRebind::build(
         &bound,
         &issuer,
@@ -223,6 +259,70 @@ async fn identity_keys() -> Result<Keys> {
         bail!("PrivacyModeEnabled: reputation portability needs the identity key");
     }
     crate::api::identity::get_active_keys().await
+}
+
+/// Held around every read-and-write of the pending slot. The identity guard
+/// is a shared lock, so without it an export's write could land between a
+/// cleanup's comparison and its delete, and be the one deleted. Always taken
+/// inside the identity guard, never around it.
+fn pending_slot() -> &'static tokio::sync::Mutex<()> {
+    static SLOT: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
+    SLOT.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
+/// Run `write` only while the identity of `generation` is still active;
+/// `NoIdentity` when it was deleted or replaced meanwhile.
+async fn while_still_current(
+    generation: Option<u64>,
+    write: impl std::future::Future<Output = Result<()>>,
+) -> Result<()> {
+    let Some(generation) = generation else {
+        bail!("NoIdentity");
+    };
+    while_identity_current(generation, write)
+        .await
+        .unwrap_or_else(|| bail!("NoIdentity: the identity changed before the node answered"))
+}
+
+/// A hex public key from user input, or the `InvalidPubkey` marker.
+fn pubkey(hex: &str) -> Result<PublicKey> {
+    PublicKey::from_hex(hex.trim()).map_err(|_| anyhow::anyhow!("InvalidPubkey: {}", hex.trim()))
+}
+
+/// The id of the event in `json`, whatever its formatting.
+fn event_id(json: &str) -> Option<String> {
+    nostr_sdk::prelude::Event::from_json(json)
+        .ok()
+        .map(|event| event.id.to_hex())
+}
+
+/// The node's answer to an export is signed by the key it advertises and
+/// names the identity the export was asked for.
+fn check_exported(
+    attestation: &ReputationAttestation,
+    issuer: &str,
+    destination: &PublicKey,
+) -> Result<()> {
+    if attestation.issuer.to_hex() != issuer || attestation.destination != *destination {
+        bail!("InvalidReputationAttestation: not the node's issuer key, or another identity");
+    }
+    Ok(())
+}
+
+/// What can be checked before an import is sent: the attestation names
+/// `identity` and comes from a key the node advertises it trusts.
+fn check_importable(
+    attestation: &ReputationAttestation,
+    identity: &PublicKey,
+    trusted: &[String],
+) -> Result<()> {
+    if attestation.destination != *identity {
+        bail!("ReputationIdentityMismatch: it names another identity");
+    }
+    if !trusted.contains(&attestation.issuer.to_hex()) {
+        bail!("UntrustedReputationIssuer: the node does not trust its issuer");
+    }
+    Ok(())
 }
 
 fn parse(json: &str) -> Result<ReputationAttestation> {
@@ -245,11 +345,23 @@ fn is_import_reply(kind: &MessageKind, request_id: u64) -> bool {
     kind.action == Action::ReputationImported && kind.request_id == Some(request_id)
 }
 
+/// `NoIdentity` unless the identity of generation `asked` is still the active
+/// one `now`. Deletion bumps the generation under the identity write lock, so
+/// an unchanged one means no identity was swapped in between.
+fn same_identity(asked: Option<u64>, now: Option<u64>) -> Result<()> {
+    match (asked, now) {
+        (Some(asked), Some(now)) if asked == now => Ok(()),
+        _ => bail!("NoIdentity: the identity changed before the request was sent"),
+    }
+}
+
 /// Send one reputation request from a fresh trade key with the identity
-/// proof, and wait for the node's answer to it.
+/// proof, and wait for the node's answer to it. `generation` is the one taken
+/// before `identity` was read.
 async fn ask(
     node: &str,
     identity: &Keys,
+    generation: Option<u64>,
     action: Action,
     payload: Payload,
     is_reply: fn(&MessageKind, u64) -> bool,
@@ -257,6 +369,11 @@ async fn ask(
     let mostro_pubkey = PublicKey::from_hex(node)?;
     let trade_key_info = crate::api::identity::derive_trade_key().await?;
     let trade_keys = crate::api::identity::get_active_trade_keys(trade_key_info.index).await?;
+    // The proof and the trade key must come from one identity: a swap since
+    // `identity` was read would sign the request with both. The derivation
+    // takes the identity write lock, so it cannot run under
+    // `while_identity_current`; the generation is checked after it instead.
+    same_identity(generation, identity_generation().await)?;
     let request_id = fresh_request_id();
     let label = format!("{action:?}");
     let event_json = crate::mostro::actions::reputation_request(
@@ -319,6 +436,23 @@ mod tests {
     }
 
     #[test]
+    fn a_request_goes_out_only_from_the_identity_that_asked() {
+        assert!(same_identity(Some(3), Some(3)).is_ok());
+        for (asked, now) in [
+            (Some(3), Some(4)),
+            (Some(3), None),
+            (None, Some(3)),
+            (None, None),
+        ] {
+            let error = same_identity(asked, now).unwrap_err().to_string();
+            assert!(
+                error.starts_with("NoIdentity"),
+                "{asked:?} → {now:?}: {error}"
+            );
+        }
+    }
+
+    #[test]
     fn the_replies_are_matched_by_action_and_nonce() {
         let exported = MessageKind::new(None, Some(9), None, Action::ReputationExported, None);
         assert!(is_export_reply(&exported, 9));
@@ -344,5 +478,137 @@ mod tests {
         assert_eq!(info.since, 1_696_204_800);
         assert_eq!(info.json, json);
         assert_eq!(info.id, v["attestation"]["valid"]["id"].as_str().unwrap());
+    }
+
+    /// A vector event that verifies on its own: the valid one, or a named
+    /// `invalid` case whose refusal is the destination's to make.
+    fn attestation(v: &serde_json::Value, name: &str) -> ReputationAttestation {
+        let event = match name {
+            "valid" => v["attestation"]["valid"]["event"].clone(),
+            _ => v["attestation"]["invalid"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|case| case["name"] == name)
+                .unwrap()["event"]
+                .clone(),
+        };
+        let event = nostr_sdk::prelude::Event::from_json(event.to_string()).unwrap();
+        let now = Timestamp::from(v["context"]["now"].as_u64().unwrap());
+        ReputationAttestation::parse(&event, now, ATTESTATION_LIFETIME_SECS).unwrap()
+    }
+
+    fn proven_identity(v: &serde_json::Value) -> PublicKey {
+        PublicKey::from_hex(v["context"]["proven_identity"].as_str().unwrap()).unwrap()
+    }
+
+    fn trust_list(v: &serde_json::Value) -> Vec<String> {
+        v["context"]["trust_list"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|entry| entry["keys"].as_array().unwrap().clone())
+            .map(|key| key.as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn an_export_answer_must_come_from_the_advertised_issuer_for_the_asked_identity() {
+        // Arrange
+        let v = vectors();
+        let valid = attestation(&v, "valid");
+        let issuer = valid.issuer.to_hex();
+        let identity = proven_identity(&v);
+        let someone_else = Keys::generate().public_key();
+
+        // Act + Assert
+        assert!(check_exported(&valid, &issuer, &identity).is_ok());
+        let wrong_issuer = check_exported(&valid, &someone_else.to_hex(), &identity);
+        assert!(wrong_issuer
+            .unwrap_err()
+            .to_string()
+            .starts_with("InvalidReputationAttestation"));
+        let wrong_identity = check_exported(&valid, &issuer, &someone_else);
+        assert!(wrong_identity
+            .unwrap_err()
+            .to_string()
+            .starts_with("InvalidReputationAttestation"));
+    }
+
+    #[test]
+    fn an_import_is_refused_locally_for_another_identity_or_an_untrusted_issuer() {
+        // Arrange
+        let v = vectors();
+        let identity = proven_identity(&v);
+        let trusted = trust_list(&v);
+
+        // Act + Assert
+        assert!(check_importable(&attestation(&v, "valid"), &identity, &trusted).is_ok());
+        let foreign = check_importable(&attestation(&v, "identity_mismatch"), &identity, &trusted);
+        assert!(foreign
+            .unwrap_err()
+            .to_string()
+            .starts_with("ReputationIdentityMismatch"));
+        let untrusted = check_importable(&attestation(&v, "untrusted_issuer"), &identity, &trusted);
+        assert!(untrusted
+            .unwrap_err()
+            .to_string()
+            .starts_with("UntrustedReputationIssuer"));
+        // A node that imports from nobody yet trusts no issuer.
+        let nobody = check_importable(&attestation(&v, "valid"), &identity, &[]);
+        assert!(nobody
+            .unwrap_err()
+            .to_string()
+            .starts_with("UntrustedReputationIssuer"));
+    }
+
+    #[test]
+    fn a_reformatted_attestation_has_the_same_event_id() {
+        // Arrange: the same event, pretty-printed.
+        let v = vectors();
+        let json = v["attestation"]["valid"]["json"].as_str().unwrap();
+        let reformatted =
+            serde_json::to_string_pretty(&serde_json::from_str::<serde_json::Value>(json).unwrap())
+                .unwrap();
+        assert_ne!(reformatted, json);
+
+        // Act + Assert
+        assert_eq!(event_id(&reformatted), event_id(json));
+        assert_eq!(
+            event_id(json).as_deref(),
+            v["attestation"]["valid"]["id"].as_str()
+        );
+        assert_eq!(event_id("not an event"), None);
+    }
+
+    #[test]
+    fn a_key_that_is_not_hex_is_named_by_the_invalid_pubkey_marker() {
+        let error = pubkey("npub-ish").unwrap_err().to_string();
+        assert!(error.starts_with("InvalidPubkey"), "{error}");
+        let key = Keys::generate().public_key();
+        assert_eq!(pubkey(&format!("  {}\n", key.to_hex())).unwrap(), key);
+    }
+
+    #[tokio::test]
+    async fn a_write_for_an_identity_no_longer_active_is_refused_without_running() {
+        // Arrange: a generation no identity ever reaches, as if the one that
+        // asked had been deleted while the node answered.
+        let mut wrote = false;
+
+        // Act
+        let result = while_still_current(Some(u64::MAX), async {
+            wrote = true;
+            Ok(())
+        })
+        .await;
+
+        // Assert
+        assert!(result.unwrap_err().to_string().starts_with("NoIdentity"));
+        assert!(!wrote);
+        let no_identity = while_still_current(None, async { Ok(()) }).await;
+        assert!(no_identity
+            .unwrap_err()
+            .to_string()
+            .starts_with("NoIdentity"));
     }
 }

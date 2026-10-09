@@ -39,7 +39,10 @@ class BondSlashedNotice extends ConsumerWidget {
             .map((n) => n.bondSlashedAmountSats)
             .whereType<int>()
             .firstOrNull;
-    final sats = formatInvoiceSats(reported ?? bond.amountSats.toInt());
+    final sats = formatInvoiceSats(
+      reported ?? bond.amountSats.toInt(),
+      l10n.localeName,
+    );
     final dispute = switch (trade.order.status) {
       OrderStatus.dispute ||
       OrderStatus.canceledByAdmin ||

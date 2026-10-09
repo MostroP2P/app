@@ -48,16 +48,39 @@ None of this changes the phase order in §6 — the dependency graph is unaffect
 **which phases are optional**, which is why Wave 4 is no longer called "optional
 hardening".
 
+### 1.2 The app always has Lightning, NWC and Cashu
+
+**Lightning, NWC and the Cashu wallet are always active in the app.** This rule
+overrides any other line of this document:
+
+- **Lightning** keeps working as it always has: invoices, the default Lightning
+  address and the hold-invoice flow on Lightning nodes.
+- **NWC** stays reachable from Settings, whatever node is active.
+- **The Cashu wallet** stays reachable from Settings, whatever node is active,
+  including on a Lightning node or a node that does not advertise `escrow_mode`.
+
+The active node's escrow mode (§4) decides one thing only: **how a trade on that node
+settles**, with a hold invoice or a Cashu escrow. It never hides, disables or removes a
+payment method, and switching nodes never changes which of the three the user can open.
+Whether the wallet's mint can lock a given order is checked when locking, not by
+hiding the wallet (§4.1).
+
 ### Non-goals
 
 - No general-purpose Cashu wallet product. The embedded wallet exists to fund/redeem
-  escrows against the node's configured mint; anything beyond that is out of scope.
+  escrows; anything beyond that is out of scope. It is always reachable (§1.2).
   This bounds the wallet's **feature set**, not its quality bar — within that scope it
   handles real money and is held to it.
-- No per-order mint negotiation (upstream constraint: the daemon pins a single `mint_url`).
-- No change of any kind to the Lightning flows. Cashu code is **additive and inert**
-  unless the active Mostro node is in Cashu mode. Lightning stays fully supported: this is
-  a choice offered to users, never a migration imposed on them.
+- No escrow mint of the client's own choosing beyond what the node accepts (the wallet's
+  own mint is the user's choice, C2; an escrow is locked only on the order's mint). Since
+  [MostroP2P/mostro#1047](https://github.com/MostroP2P/mostro/pull/1047) the **maker**
+  picks each order's mint, among the node's `[cashu] mint_urls` (or any public mint when
+  the list is empty), and the taker accepts it by taking. This client reads the list and
+  each order's mint; picking one when creating an order, and a wallet that follows the
+  order's mint, are still to come (see §4.1).
+- No change of any kind to the Lightning flows. Cashu **trade flows** run only on a node
+  in Cashu mode; the Cashu wallet itself is always available (§1.2). Lightning stays fully
+  supported: this is a choice offered to users, never a migration imposed on them.
 
 ---
 
@@ -181,11 +204,12 @@ And the NUT-11 secret the seller's wallet must construct for each escrow proof
 
 ## 3. Client design principles
 
-1. **Off by default, inert until detected.** All Cashu code paths are gated behind the
-   active node's escrow mode. Against a Lightning node (or an old daemon that predates
-   the info tags) the app behaves byte-for-byte as today. This mirrors the daemon's own
-   merge gate: *"every PR must merge without altering existing behavior while Cashu
-   remains disabled."*
+1. **Trade flows follow the node; payment methods are always there.** Cashu **trade
+   flows** (escrow lock, release, cancel, dispute) are gated behind the active node's
+   escrow mode: against a Lightning node (or an old daemon that predates the info tags)
+   every trade runs the Lightning flow, byte-for-byte as today. The payment methods are
+   not gated: Lightning, NWC and the Cashu wallet are always available in Settings
+   (§1.2).
 2. **No crypto in Dart** (repo golden rule). All Cashu operations — mint HTTP calls,
    token construction, NUT-11 conditions, signatures, redemption — live in Rust
    (`rust/src/cashu/`), built on the [`cdk`](https://github.com/cashubtc/cdk) crate.
@@ -207,16 +231,18 @@ And the NUT-11 secret the seller's wallet must construct for each escrow proof
 
 ---
 
-## 4. Mode detection — "only when the node runs Cashu"
+## 4. Mode detection — which flow a trade on the node uses
 
 The client already fetches the daemon's **Kind 38385 instance-info event** (tag
 `z = "info"`) via `fetch_mostro_instance_tags` (`rust/src/api/nostr.rs`) and parses it in
-`MostroInstance.fromTags` (Dart). Today the event advertises LND parameters
-(`lnd_version`, `hold_invoice_*`, …) and the bond policy — **nothing about Cashu yet**.
+`MostroInstance.fromTags` (Dart). A Lightning node advertises its LND parameters
+(`lnd_version`, `hold_invoice_*`, …) and the bond policy; since
+[MostroP2P/mostro#1045](https://github.com/MostroP2P/mostro/pull/1045) every node also
+says which backend it runs.
 
-### 4.1 Upstream proposal (to be PR'd to `mostrod`)
+### 4.1 Upstream tags (shipped in MostroP2P/mostro#1045 and #1047)
 
-Add these tags to the 38385 info event when the daemon boots in Cashu mode:
+The proposal below was for these tags on the 38385 info event of a daemon in Cashu mode:
 
 ```
 ["escrow_mode", "cashu"]                      // absent or "lightning" => Lightning
@@ -225,8 +251,37 @@ Add these tags to the 38385 info event when the daemon boots in Cashu mode:
 ["cashu_settlement_margin_days", "3"]          // Track B FiatSent guard
 ```
 
-This is symmetric with what the daemon already publishes for LND and costs one small
-upstream PR (tags come straight from `Settings::get_cashu()`).
+mostro#1045 shipped the first three: a Lightning node publishes `escrow_mode =
+"lightning"`, and a Cashu node publishes `escrow_mode`, `cashu_mint_url` and
+`cashu_escrow_locktime_days`, without the `lnd_*` and `*invoice*` tags.
+`cashu_settlement_margin_days` is not published; the client reads it as absent (`None`),
+which nothing gates on. A missing `escrow_mode` still means a daemon older than the PR,
+read as Lightning (`Unknown`).
+
+mostro#1047 made the mint per order. The info tag lists **every** mint the node accepts,
+one value each (`["cashu_mint_url", m1, m2]`), and is **absent** on an open node, which
+accepts any mint whose host is public. Each Cashu order event names its mint
+(`["cashu_mint_url", url]` on the 38383), the maker sends it in `new-order`
+(`SmallOrder.cashu_mint_url`, mostro-core 0.17.1), and the escrow request the seller gets
+names it too. What the client does with that today:
+
+- `escrow_mode::CashuNodeConfig.mint_urls` and `MostroInstance.cashuMintUrls` hold the
+  list (trimmed, no blanks or repeats, in the node's order); `OrderInfo.cashu_mint_url`
+  holds an order's mint, from the book tag or the escrow request.
+- The wallet binds to **one** mint, so the escrow lock (`is_cashu_mode`,
+  `isCashuAvailable`) runs only on a node that accepts exactly one (`single_mint()`). On
+  a node that accepts several, or any, the lock fails with `CashuMintNotSupported`, and
+  so does an order whose mint is not the wallet's, before any swap. This gate applies to
+  **locking an escrow**, never to reaching the wallet (§1.2).
+- About describes the node, so it follows the mode: it lists the Cashu group, one Mint
+  row per mint or "Any mint", or the Lightning group (`nodeTechSections`). The node
+  selector shows `mint.a.com +2` or "Any mint".
+- Settings → Payments **always** shows the Lightning address, the NWC wallet and the
+  Cashu wallet, on every node (§1.2). On a Cashu node it also shows the node's mint rows
+  (a tap copies the URL).
+- Still to build: choosing the mint when creating an order (`new-order` sends none, which
+  a node with exactly one mint defaults), and a wallet that locks at the order's mint, so
+  that multi-mint and open nodes can trade.
 
 ### 4.2 Client-side representation
 
@@ -246,9 +301,10 @@ pub enum EscrowMode {
   relay-pool Online and after every `set_active_mostro_node` /
   `refresh_subscriptions_for_active_node`.
 - Exposed to Dart via an FRB getter + change stream; a Riverpod
-  `escrowModeProvider` gates routing and screens.
-- `Unknown` behaves as `Lightning` for all gating (fail-safe: never show Cashu UI
-  unless positively detected).
+  `escrowModeProvider` gates trade routing and trade screens. It never gates the
+  payment methods in Settings (§1.2).
+- `Unknown` behaves as `Lightning` for all trade gating (fail-safe: never start a Cashu
+  trade flow unless positively detected). The Cashu wallet stays reachable either way.
 
 ### 4.3 Testing override (needed before the upstream tags exist)
 
@@ -392,7 +448,7 @@ buyer needs somewhere for redeemed ecash to land — so a minimal embedded walle
 hard prerequisite, not a nice-to-have.
 
 - Add `cdk` + `cdk-sqlite` deps (native); wasm gets a typed "not supported yet" stub
-  (NWC-client pattern, `rust/src/nwc/client.rs`). Pinned at `=0.17.3` — what was
+  (NWC-client pattern, `rust/src/nwc/client.rs`). Pinned at `=0.18.1` — what was
   verified against that version, and how to upgrade, is in
   [`cdk-spike.md`](cdk-spike.md).
 - `rust/src/cashu/mod.rs` — `CashuWallet`:
@@ -407,15 +463,39 @@ hard prerequisite, not a nice-to-have.
     exception here is a send whose `confirm` fails, which revokes its own
     operation rather than leaving the proofs stranded;
   - proof storage via `cdk-sqlite` in the app data dir (own DB file; never mixes with
-    the app's sqlite schema).
+    the app's sqlite schema), **one file per identity** (`cashu-<pubkey>.sqlite`): cdk
+    keys proofs by mint, not by seed, so a shared store would hand one identity's
+    bearer proofs to the next at the same mint. An older install's shared
+    `cashu.sqlite` belongs to the identity the app starts with after the upgrade:
+    it is recorded as the owner (`cashu_legacy_store_owner`) at that first load,
+    before any screen can replace it, and only it adopts the file. The move is
+    restart-safe (`-wal`/`-shm` first, the main file last). Deleting an identity
+    keeps its file, so importing its words again restores the balance.
 - `rust/src/api/cashu.rs` — FRB: `cashu_connect`, `cashu_status`,
   `cashu_disconnect`, `cashu_get_balance`, `cashu_receive_token`,
   `cashu_create_token`, `cashu_sweep_spent_proofs`, `on_cashu_wallet_changed`
-  stream. Every operating call checks that the wallet is still bound to the mint
-  the *active* node resolves to (`CashuMintChanged`), not merely that the node
-  speaks Cashu.
-- Wallet initializes **lazily and only when** resolved mode == Cashu (from C1 when
-  merged; behind a plain function parameter until then — no hard dependency).
+  stream. Plain wallet operations (balance, receive, send) work on any node (§1.2).
+  Escrow operations stay on Cashu nodes (`CashuNotEnabled`) and check, before any
+  swap, that the order's mint is the node's (`CashuMintNotSupported`) and that the
+  wallet is bound to it (`CashuWalletOnOtherMint`).
+- **The wallet's mint belongs to the user, not to the node.** It is persisted in the
+  Rust settings k/v store and survives node switches and restarts. `cashu_connect`
+  takes the mint URL to connect to, and runs the same checks as today (reachability,
+  NUTs 07/11/12, `sat` keyset). The mint is chosen in one of three ways:
+  - on a Cashu node that pins exactly one mint, that mint is offered as the default;
+  - otherwise — a Lightning node, a silent node, or a Cashu node that accepts several
+    or any — the user enters a mint URL (paste or QR scan) in the wallet screen;
+  - receiving a token while no mint is set connects the wallet to the token's mint.
+
+  Changing the mint later is an explicit user action. It never deletes the proofs of
+  the previous mint, which come back when the user connects to that mint again.
+  The mint lives under `cashu_wallet_mint_url` and is written only after the mint
+  answered and proved usable, so a typo never becomes the wallet's mint. With nothing
+  given, set or offered, `cashu_connect` returns `CashuNoMint`, which the wallet screen
+  shows as "set a mint" rather than as an error. A node switch no longer disconnects
+  the wallet.
+- Wallet initializes **lazily**, on first use, on any node — never at app start, and
+  never conditioned on the active node's escrow mode (§1.2).
 - Unit tests against a mocked/local mint where feasible; integration test target
   documented for a local [nutshell](https://github.com/cashubtc/nutshell) container
   (same harness family as daemon CF-3).
@@ -433,13 +513,14 @@ hard prerequisite, not a nice-to-have.
 
 - `lib/features/cashu/`: wallet screen (balance, receive-token via paste/QR-scan —
   reuse `mobile_scanner` + `qr_flutter` already in `pubspec.yaml` — send/export token),
-  route in `lib/core/app_routes.dart`, entry point visible **only when**
-  `escrowModeProvider == cashu` (e.g. next to the existing NWC wallet settings entry).
+  route in `lib/core/app_routes.dart`, entry point **always visible** in Settings next
+  to the existing NWC wallet entry, on every node (§1.2). The screen shows the wallet's
+  mint and lets the user set or change it (the mint-selection rules are in C2).
 - Riverpod providers over the C2 FRB surface; l10n for the 5 locales.
 - Explicitly out of scope: Lightning↔ecash melt/mint, multi-mint, backup UX (C10).
-- **Done when:** with the override on, a tester can fund the wallet from any Cashu
-  wallet (e.g. a nutshell faucet token) and see/export balance. With the override off,
-  no trace of the feature in the UI.
+- **Done when:** a tester can fund the wallet from any Cashu wallet (e.g. a nutshell
+  faucet token) and see/export balance, on a Cashu node and on a Lightning node alike —
+  on a Lightning node after entering a mint URL or by receiving a token.
 - Est. size: S–M (~500–800 lines).
 
 #### C4 — escrow primitives (Rust, no UI)
@@ -529,10 +610,11 @@ departs from the plan above, this is what holds:
   seller's sats to a 1-of-1 lock nobody accounts for. The quote reports a zero fee
   and none is sent; `mostro::node_fee` keeps the `2 * round(fee * amount / 2)`
   formula and its tests for when the daemon collects it.
-- **No terms on the wire.** In Cashu mode the daemon publishes no Kind 38385 at all
-  (its info job skips itself), and the escrow request carries neither mint nor
-  locktime. So the mint must be known (advertised, or the C1b override) or the lock
-  fails with `CashuMintUnknown` — never an empty URL — and the locktime is the
+- **No terms on the wire.** When this was built the daemon published no Kind 38385 in
+  Cashu mode and the escrow request carried neither mint nor locktime. So the lock
+  binds to the node's single mint (advertised since mostro#1045, or the C1b override)
+  or fails with `CashuMintNotSupported` — never an empty URL; since mostro#1047 it also
+  refuses an order whose own mint is another (§4.1) — and the locktime is the
   protocol default, the daemon's own `[cashu] escrow_locktime_days = 15`, plus a
   one-hour margin over its floor.
 - **Correlation.** The submission is answered on its `request_id`: seller ←
@@ -565,8 +647,9 @@ departs from the plan above, this is what holds:
   `sellerFundingPath` (trade card and verb, trade screen, status listener,
   notification, end of the bond window, take flow), decided on the node's **mode**
   (`isCashuModeProvider`), not on whether its mint is usable: a Cashu node sends no
-  hold invoice, so a missing mint shows up on the escrow screen as
-  `CashuMintUnknown`. The wallet itself stays gated on `isCashuAvailableProvider`.
+  hold invoice, so a node without a single mint shows up on the escrow screen as
+  `CashuMintNotSupported`. The wallet itself is not gated: it stays reachable from
+  Settings on every node (§1.2).
 
 - **Done when:** full happy-path segment against a Track-A daemon + nutshell:
   take → seller locks → daemon validates → buyer notified → `fiat-sent` works;
@@ -699,7 +782,7 @@ recoverable failure and lost user money:
 |---|---|---|
 | Unit (Rust) | NUT-11 condition build/verify, key mapping, signature roundtrips, tag parsing, mode resolution | none |
 | Integration (Rust) | wallet + escrow primitives against a real mint | nutshell container (docker), same family as daemon CF-3; CI job optional/nightly at first |
-| Widget (Dart) | gating (no Cashu UI in Lightning mode), lock/redeem screens, error states | existing `flutter test` harness |
+| Widget (Dart) | trade-flow gating (no Cashu trade flow in Lightning mode); Lightning address, NWC and Cashu wallet present in Settings on every node (§1.2); lock/redeem screens, error states | existing `flutter test` harness |
 | E2E manual | phase-by-phase against the matching daemon track branch + nutshell, using the C1 override until the 38385 tags land | documented per phase in this doc's checklists |
 | **Release acceptance** | the paths a user reaches that the phase tests do not: node advertises Cashu with **no override**; funds recovered after reinstall-from-backup; escrow reclaimed after locktime with the daemon offline; every reachable failure shows a localized message with a way out | manual, against a Cashu node on real relays — the gate for §1.1's actual goal |
 | Regression | entire existing suite must pass unmodified in every phase | existing CI |
@@ -708,9 +791,9 @@ recoverable failure and lost user money:
 
 | # | Risk / open question | Mitigation |
 |---|---|---|
-| 1 | ~~**Escrow-request wire form** not yet published~~ — **RESOLVED in C0.** It reuses existing types, which is why nothing was added to `mostro-core` for it. Per daemon branch `feat/cashu-ta2-take-flow` (`show_cashu_escrow_request`, `src/util.rs`): seller ← `Action::WaitingSellerToPay` + `Payload::Order(SmallOrder)` (`status = WaitingPayment`, both trade pubkeys, `buyer_invoice = None`); buyer ← same action, **no payload**. `mint_url` / `P_M` / locktime are *not* in the request — they come from the 38385 tags (C1) and the known Mostro pubkey. | C5 classifies by payload shape (§4.4) as planned: in Lightning the seller gets `PayInvoice` + `PaymentRequest`; in Cashu it gets `WaitingSellerToPay` + `Order`. `cashu_wire.rs::escrow_request_rides_on_an_unmodified_small_order` pins the assumption that makes this safe. Still to confirm when Track A merges: the daemon branch has diverged from its `main`. |
+| 1 | ~~**Escrow-request wire form** not yet published~~ — **RESOLVED in C0.** It reuses existing types, which is why nothing was added to `mostro-core` for it. Per daemon branch `feat/cashu-ta2-take-flow` (`show_cashu_escrow_request`, `src/util.rs`): seller ← `Action::WaitingSellerToPay` + `Payload::Order(SmallOrder)` (`status = WaitingPayment`, both trade pubkeys, `buyer_invoice = None`); buyer ← same action, **no payload**. `P_M` and the locktime are *not* in the request — they come from the known Mostro pubkey and the 38385 tags (C1); since mostro#1047 the request names the order's mint (`SmallOrder.cashu_mint_url`). | C5 classifies by payload shape (§4.4) as planned: in Lightning the seller gets `PayInvoice` + `PaymentRequest`; in Cashu it gets `WaitingSellerToPay` + `Order`. `cashu_wire.rs::escrow_request_names_the_order_mint_and_nothing_else_cashu` pins the assumption that makes this safe. Still to confirm when Track A merges: the daemon branch has diverged from its `main`. |
 | 2 | **cdk wasm compatibility** unknown; cdk is pre-1.0 with a moving API | wasm stub from day one (C2), web deferred to C9; pin exact cdk version in lockfile; upgrade only deliberately |
-| 3 | **38385 cashu tags don't exist upstream yet** | C1 ships the dev override so work can proceed — but the override is a **developer** affordance and users never see it. Per §1.1 the feature is only usable once a node advertises Cashu **itself**, so the upstream PR in §4.1 is a **release blocker**, not a convenience. Land it early; it is a handful of tags read from `Settings::get_cashu()` |
+| 3 | ~~**38385 cashu tags don't exist upstream yet**~~ — **RESOLVED by MostroP2P/mostro#1045 and #1047** (§4.1): a Cashu node advertises itself and the mints it accepts, so detection works without the override. | C1 ships the dev override so work can proceed — but the override is a **developer** affordance and users never see it. Per §1.1 the feature is only usable once a node advertises Cashu **itself**, so the upstream PR in §4.1 is a **release blocker**, not a convenience. Land it early; it is a handful of tags read from `Settings::get_cashu()` |
 | 4 | `mostro-core` 0.13.1 → 0.14.x breakage | isolated in C0, the smallest possible PR |
 | 5 | **Buyer offline at release** — signatures sent P2P while buyer away | NIP-59 events wait on relays; startup scan for unredeemed trades (C6); nothing expires except the (15-day) locktime, and C6's margin guard protects the fiat step |
 | 6 | **Crash between receiving signatures and redeeming** | persist signatures before swap; redeem is retriable until proofs are spent; reconciliation via NUT-07 in C10 |

@@ -27,6 +27,13 @@ const _orderId = 'order-chat';
 /// bottom" by position alone — the case a follow animation must not lose.
 const _tallContent = 'line one\nline two\nline three\nline four\nline five';
 
+rust_types.ChatReaction _reaction(String emoji) => rust_types.ChatReaction(
+  senderPubkey: 'me',
+  emoji: emoji,
+  createdAt: intToPlatformInt64(2000),
+  eventId: 'reaction-$emoji',
+);
+
 rust_types.ChatMessage _peerMessage(int n, {String? id}) =>
     rust_types.ChatMessage(
       id: id ?? 'msg-$n',
@@ -38,6 +45,7 @@ rust_types.ChatMessage _peerMessage(int n, {String? id}) =>
       isRead: false,
       hasAttachment: false,
       createdAt: intToPlatformInt64(1000 + n),
+      reactions: const [],
     );
 
 /// Pumps [ChatRoomScreen] without `RustLib.init()`, following the
@@ -151,6 +159,28 @@ void main() {
       ]);
 
       expect(find.byType(MessageBubble), findsOneWidget);
+      await _leaveRoom(tester);
+    });
+
+    testWidgets('does not scroll under an open message menu', (tester) async {
+      await _pumpChatRoom(tester, incoming);
+      await _receive(tester, incoming, [
+        for (var n = 1; n <= 6; n++) _peerMessage(n),
+      ]);
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.textContaining('#6')),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final offset = _listController(tester).offset;
+
+      await _receive(tester, incoming, [_peerMessage(7)]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copy'), findsOneWidget);
+      expect(_listController(tester).offset, offset);
       await _leaveRoom(tester);
     });
 
@@ -337,6 +367,135 @@ void main() {
 
       final composer = tester.getRect(find.byType(MessageInput));
       expect(composer.bottom, 800 - 300 - AppSpacing.sm);
+      await _leaveRoom(tester);
+    });
+  });
+
+  group('ChatRoomScreen reactions', () {
+    late StreamController<rust_types.ChatMessage> updates;
+
+    setUp(() => updates = StreamController<rust_types.ChatMessage>());
+    tearDown(() => updates.close());
+
+    Future<void> pumpRoom(
+      WidgetTester tester, {
+      ChatGroup group = ChatGroup.active,
+    }) => _pumpChatRoom(
+      tester,
+      incoming,
+      overrides: [
+        messageUpdatesProvider(_orderId).overrideWith((ref) => updates.stream),
+        chatRowStateProvider(_orderId).overrideWithValue(
+          ChatRowState(group: group, tone: ChatAvatarTone.waiting),
+        ),
+      ],
+    );
+
+    Future<void> hold(WidgetTester tester, String text) async {
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text(text)),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    rust_types.ChatMessage shortPeerMessage({
+      List<rust_types.ChatReaction> reactions = const [],
+    }) => rust_types.ChatMessage(
+      id: 'msg-short',
+      tradeId: _orderId,
+      senderPubkey: 'peer',
+      content: 'CBU sent',
+      messageType: rust_types.MessageType.peer,
+      isMine: false,
+      isRead: true,
+      hasAttachment: false,
+      createdAt: intToPlatformInt64(1000),
+      reactions: reactions,
+    );
+
+    testWidgets('a reaction to a message shown lands under it', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await pumpRoom(tester);
+      await _receive(tester, incoming, [shortPeerMessage()]);
+      expect(find.text('👍'), findsNothing);
+
+      updates.add(shortPeerMessage(reactions: [_reaction('👍')]));
+      await tester.pump();
+
+      expect(find.byType(MessageBubble), findsOneWidget);
+      expect(find.text('👍'), findsOneWidget);
+      expect(find.bySemanticsLabel('Reaction: 👍'), findsOneWidget);
+      await _leaveRoom(tester);
+      semantics.dispose();
+    });
+
+    testWidgets('a withdrawn reaction shows nothing', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpRoom(tester);
+      await _receive(tester, incoming, [
+        shortPeerMessage(reactions: [_reaction('')]),
+      ]);
+
+      expect(find.text('CBU sent'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Reaction')), findsNothing);
+      await _leaveRoom(tester);
+      semantics.dispose();
+    });
+
+    testWidgets('an update for a message not shown adds nothing', (
+      tester,
+    ) async {
+      await pumpRoom(tester);
+
+      updates.add(shortPeerMessage(reactions: [_reaction('👍')]));
+      await tester.pump();
+
+      expect(find.byType(MessageBubble), findsNothing);
+      await _leaveRoom(tester);
+    });
+
+    testWidgets('an update that overtakes its message is applied on arrival', (
+      tester,
+    ) async {
+      await pumpRoom(tester);
+
+      updates.add(shortPeerMessage(reactions: [_reaction('👍')]));
+      await tester.pump();
+      await _receive(tester, incoming, [shortPeerMessage()]);
+
+      expect(find.byType(MessageBubble), findsOneWidget);
+      expect(find.text('👍'), findsOneWidget);
+      await _leaveRoom(tester);
+    });
+
+    testWidgets('a closed chat offers Copy and no reactions', (tester) async {
+      await pumpRoom(tester, group: ChatGroup.closed);
+      await _receive(tester, incoming, [shortPeerMessage()]);
+
+      await hold(tester, 'CBU sent');
+
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('❤️'), findsNothing);
+      await _leaveRoom(tester);
+    });
+
+    testWidgets('a reaction that cannot be sent says so', (tester) async {
+      await pumpRoom(tester);
+      await _receive(tester, incoming, [shortPeerMessage()]);
+
+      await hold(tester, 'CBU sent');
+      // No `RustLib.init()`: the bridge call fails like a relay refusal.
+      await tester.tap(find.text('❤️'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text("Couldn't send the reaction. Please try again."),
+        findsOneWidget,
+      );
       await _leaveRoom(tester);
     });
   });

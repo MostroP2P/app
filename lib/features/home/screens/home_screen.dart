@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,18 +15,15 @@ import 'package:mostro/features/home/widgets/order_filter_chip.dart';
 import 'package:mostro/features/home/widgets/order_list_empty.dart';
 import 'package:mostro/features/home/widgets/order_sort_sheet.dart';
 import 'package:mostro/features/home/widgets/side_swipe.dart';
+import 'package:mostro/features/install/widgets/pwa_install_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/add_order_button.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
-import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
 import 'package:mostro/shared/widgets/pill_segmented.dart';
+import 'package:mostro/shared/widgets/tab_app_bar.dart';
 import 'package:mostro/features/home/widgets/order_list_skeleton.dart';
-import 'package:mostro/features/order/providers/trade_state_provider.dart';
-import 'package:mostro/shared/mascot/mostro_mascot.dart';
-import 'package:mostro/shared/mascot/mostro_mood.dart';
-import 'package:mostro/src/rust/api/types.dart' show TradeUpdate;
 
 /// Side margin of every row on the screen (handoff 4b).
 const double _sideInset = 18;
@@ -126,15 +120,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // ── Main content column ───────────────────────────────────────────────────
     final mainContent = Column(
       children: [
-        _OrderBookAppBar(
-          palette: pal,
+        TabAppBar(
           onMenuTap: isDesktop ? null : _toggleDrawer,
+          // Mostro shuffles while the book keeps the user waiting.
+          waiting: book.isLoading,
         ),
-        _SideTabs(
-          palette: pal,
-          selected: orderType,
-          onSelected: selectSide,
-        ),
+        // Offered once the book has loaded: never before the user has seen
+        // the app work (#778). Nothing at all off web and in the installed app.
+        if (book.hasValue) const PwaInstallCard(),
+        _SideTabs(palette: pal, selected: orderType, onSelected: selectSide),
         _FilterRow(
           palette: pal,
           count: filteredOrders.length,
@@ -195,72 +189,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body: body,
         floatingActionButton: const AddOrderButton(),
         bottomNavigationBar: const BottomNavBar(),
-      ),
-    );
-  }
-}
-
-// ── App bar ───────────────────────────────────────────────────────────────────
-
-/// Hamburger left, mascot centred, notification bell right.
-class _OrderBookAppBar extends StatelessWidget {
-  const _OrderBookAppBar({required this.palette, required this.onMenuTap});
-
-  final OrderBookPalette palette;
-
-  /// Null on desktop, where the persistent sidebar replaces the overlay drawer.
-  final VoidCallback? onMenuTap;
-
-  /// Material's minimum touch target.
-  static const double _target = 48;
-
-  /// Space between a 48-dp target and its 22-dp glyph, taken out of the
-  /// mock's paddings so the glyphs — not the targets — sit where it puts them.
-  static const double _glyphInset = (_target - 22) / 2;
-
-  @override
-  Widget build(BuildContext context) {
-    // The mock's 44 includes the status bar; below a taller one keep 12.
-    final top = math.max(44.0, MediaQuery.paddingOf(context).top + 12);
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        _sideInset - _glyphInset,
-        top - _glyphInset,
-        _sideInset - _glyphInset,
-        // The target reaches 1 dp past the mock's 12 below the glyph.
-        math.max(0, 12 - _glyphInset),
-      ),
-      child: SizedBox(
-        height: _target,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            const _HeaderMascot(),
-            Row(
-              children: [
-                if (onMenuTap != null)
-                  IconButton(
-                    onPressed: onMenuTap,
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size.square(_target),
-                      padding: const EdgeInsets.all(_glyphInset),
-                    ),
-                    iconSize: 22,
-                    icon: Icon(Icons.menu_rounded, color: palette.textBody),
-                    tooltip: AppLocalizations.of(context).menuTooltip,
-                  ).withAutomationId(AutomationIds.appBarDrawer),
-                const Spacer(),
-                NotificationBell(
-                  iconColor: palette.textBody,
-                  iconSize: 22,
-                  dotColor: palette.notif,
-                  dotRingColor: palette.bg,
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -463,7 +391,7 @@ class _FilterRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         Icon(
                           Icons.keyboard_arrow_down_rounded,
                           size: 16,
@@ -515,92 +443,5 @@ class _OrderBookError extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── The mascot in the header ──────────────────────────────────────────────────
-
-/// The order book's Mostro: tap it and it reacts, and it picks up the mood of
-/// the app around it.
-///
-/// v1 hid an easter egg in this same logo, so this is where v2 keeps its own.
-/// The ambient moods are deliberately cheap: the book's loading state is
-/// already watched by this screen, and the trade stream is already alive for
-/// the bottom bar's badge, so neither costs a subscription of its own.
-class _HeaderMascot extends ConsumerStatefulWidget {
-  const _HeaderMascot();
-
-  @override
-  ConsumerState<_HeaderMascot> createState() => _HeaderMascotState();
-}
-
-class _HeaderMascotState extends ConsumerState<_HeaderMascot> {
-  /// How long the book may take before Mostro starts shuffling.
-  static const Duration _patienceRunsOut = Duration(seconds: 6);
-
-  /// How long the party lasts after a trade completes.
-  static const Duration _celebration = Duration(milliseconds: 1400);
-
-  static const Set<OrderStatus> _completed = {
-    OrderStatus.success,
-    OrderStatus.settledByAdmin,
-    OrderStatus.completedByAdmin,
-  };
-
-  Timer? _patience;
-  Timer? _party;
-  bool _impatient = false;
-  bool _celebrating = false;
-
-  @override
-  void dispose() {
-    _patience?.cancel();
-    _party?.cancel();
-    super.dispose();
-  }
-
-  /// Starts the clock while the book is loading and stops it when it lands.
-  /// Never calls `setState` itself: it runs from `build`, and the timer's
-  /// callback does not.
-  void _syncPatience(bool loading) {
-    if (loading) {
-      _patience ??= Timer(_patienceRunsOut, () {
-        if (mounted) setState(() => _impatient = true);
-      });
-      return;
-    }
-    _patience?.cancel();
-    _patience = null;
-    if (!_impatient) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _impatient = false);
-    });
-  }
-
-  void _onTradeUpdate(
-    AsyncValue<TradeUpdate>? _,
-    AsyncValue<TradeUpdate> next,
-  ) {
-    final update = next.valueOrNull;
-    if (update == null || !_completed.contains(update.status)) return;
-    _party?.cancel();
-    setState(() => _celebrating = true);
-    _party = Timer(_celebration, () {
-      if (mounted) setState(() => _celebrating = false);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    _syncPatience(ref.watch(orderBookProvider).isLoading);
-    ref.listen(tradeUpdatesProvider, _onTradeUpdate);
-
-    final mood = switch ((_celebrating, _impatient)) {
-      (true, _) => MostroMood.celebrating,
-      (_, true) => MostroMood.impatient,
-      _ => MostroMood.neutral,
-    };
-
-    return MostroMascot(height: 26, mood: mood, interactive: true);
   }
 }

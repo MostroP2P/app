@@ -152,9 +152,10 @@ jobs:
 
   # UI changes are judged against .specify/DESIGN_SYSTEM.md. This runs the
   # rules it marks *auto* (color literals, fonts, sizes, radii, spacing,
-  # breakpoints, icon sizes) on the lines the pull request adds or changes
-  # under lib/, and annotates each break on its line. Older code is the
-  # guide's §14 debt and is reported only once a change touches it. The
+  # breakpoints, icon sizes) on the code the pull request touches under lib/
+  # (a screen file whole, elsewhere each declaration with a changed line) and
+  # annotates each break on its line. Older code is the guide's §14 debt and
+  # is reported only once a change touches it. The
   # checker's own tests run in the flutter job (test/ci/design_check_test.dart).
   design:
     name: Design guide

@@ -20,6 +20,33 @@ bool makerBondApplies({
     policy == BondPolicy.enabled &&
     (applyTo == BondApplyTo.make || applyTo == BondApplyTo.both);
 
+// ── Node's accepted currencies ────────────────────────────────────────────────
+
+/// The codes the currency picker offers: the [catalogue]'s, in its order,
+/// narrowed to [accepted]. An accepted code the catalogue does not know goes
+/// at the end, so the node's list is never cut short. A null [accepted]
+/// offers the whole catalogue.
+List<String> offeredFiatCodes(List<String> catalogue, List<String>? accepted) {
+  if (accepted == null) return catalogue;
+  final allowed = accepted.toSet();
+  final known = catalogue.toSet();
+  return [
+    ...catalogue.where(allowed.contains),
+    ...accepted.where((code) => !known.contains(code)),
+  ];
+}
+
+/// Whether the node refuses [current]: it lists its currencies and [current]
+/// is not among them. A null [accepted] sets no limit.
+bool fiatRefused(String current, List<String>? accepted) =>
+    accepted != null && !accepted.contains(current);
+
+/// The currency the form keeps once the node's list is known: [current] when
+/// the node accepts it or sets no limit, otherwise the first code the node
+/// lists.
+String fiatForNode(String current, List<String>? accepted) =>
+    fiatRefused(current, accepted) ? accepted!.first : current;
+
 // ── Premium colour rule ───────────────────────────────────────────────────────
 
 /// Whom the premium favours, read from the **maker's** side.

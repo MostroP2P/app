@@ -97,7 +97,7 @@ void main() {
                 .label,
             'order-1',
           );
-          expect(find.text('#order-1'), findsOneWidget);
+          expect(find.text('order-1'), findsOneWidget);
           expect(
             id(buyer ? 'invoice.text' : 'pay.invoice.text'),
             findsOneWidget,

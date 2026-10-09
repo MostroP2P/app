@@ -9,8 +9,6 @@ import 'package:mostro/l10n/app_localizations.dart';
 /// languages the app speaks. A few places outside Dart still have to name
 /// every language themselves; each test below holds one of them to the ARB
 /// set, so adding or dropping a language cannot miss one silently.
-///
-/// Walkthrough highlights are checked per locale in highlight_config_test.dart.
 Set<String> _arbLocales() {
   final locales = {
     for (final f in Directory('lib/l10n').listSync())

@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/node_selector_palette.dart';
-import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/settings/models/node_display.dart';
 import 'package:mostro/features/settings/models/node_selector_rules.dart';
@@ -17,6 +17,7 @@ import 'package:mostro/features/settings/providers/node_stats_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/widgets/add_custom_node_dialog.dart';
 import 'package:mostro/features/settings/widgets/node_card.dart';
+import 'package:mostro/features/settings/widgets/node_operator_disclaimer.dart';
 import 'package:mostro/features/settings/widgets/node_switch_confirm_sheet.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -244,7 +245,9 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
       constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
         color: book.bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadius.modal),
+        ),
         border: Border(
           top: BorderSide(color: book.textPrimary.withValues(alpha: 0.08)),
         ),
@@ -277,10 +280,13 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                     : ListView.separated(
                       shrinkWrap: true,
                       padding: const EdgeInsets.symmetric(horizontal: 18),
-                      itemCount: nodes.length,
+                      // The operator disclaimer first, in full and in the
+                      // scroll, as on the first run's node choice.
+                      itemCount: nodes.length + 1,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
-                        final entry = nodes[i];
+                        if (i == 0) return const NodeOperatorDisclaimer();
+                        final entry = nodes[i - 1];
                         final live = stats?[entry.pubkey];
                         return NodeCard(
                           key: ValueKey(entry.pubkey),
@@ -317,40 +323,10 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
               18,
               18 + MediaQuery.viewPaddingOf(context).bottom,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _AddOwnNodeButton(
-                  enabled: _selectingPubkey == null,
-                  onTap: () => showAddCustomNodeDialog(context),
-                ).withAutomationId(AutomationIds.nodeAddCustom),
-                const SizedBox(height: 11),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 1),
-                      child: Icon(
-                        Icons.info_outline,
-                        size: 13,
-                        color: book.textFaint,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        l10n.nodeDisclaimerShort,
-                        style: TextStyle(
-                          fontSize: 10,
-                          height: 1.5,
-                          color: book.textFaint,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            child: _AddOwnNodeButton(
+              enabled: _selectingPubkey == null,
+              onTap: () => showAddCustomNodeDialog(context),
+            ).withAutomationId(AutomationIds.nodeAddCustom),
           ),
         ],
       ),

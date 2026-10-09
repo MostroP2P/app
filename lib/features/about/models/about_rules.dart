@@ -278,15 +278,15 @@ List<TechRow> _bondRows(MostroInstance node, AppLocalizations l10n) {
   ];
 }
 
-/// The mint row is shown even when missing: a Cashu node with no mint is
-/// misconfigured, and saying so beats an empty group. It is never truncated —
-/// the host is the part that matters.
+/// One mint row per mint the node accepts, in its order, never truncated —
+/// the host is the part that matters. A node that lists none accepts any
+/// mint (MostroP2P/mostro#1047), and one row says so.
 List<TechRow> _cashuRows(MostroInstance node, AppLocalizations l10n) => [
-  TechRow(
-    l10n.aboutCashuMintUrlLabel,
-    node.cashuMintUrl ?? l10n.aboutCashuMintNotAdvertised,
-    TechValueStyle.wrapped,
-  ),
+  if (node.cashuMintUrls.isEmpty)
+    TechRow(l10n.aboutCashuMintUrlLabel, l10n.cashuAnyMint, TechValueStyle.text)
+  else
+    for (final mint in node.cashuMintUrls)
+      TechRow(l10n.aboutCashuMintUrlLabel, mint, TechValueStyle.wrapped),
   if (node.cashuEscrowLocktimeDays != null)
     TechRow(
       l10n.aboutCashuLocktimeLabel,

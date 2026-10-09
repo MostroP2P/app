@@ -68,7 +68,7 @@ class MostroInstance {
     this.bondSlashNodeSharePct,
     this.bondPayoutClaimWindowDays,
     this.escrowMode = EscrowMode.unknown,
-    this.cashuMintUrl,
+    this.cashuMintUrls = const [],
     this.cashuEscrowLocktimeDays,
     this.cashuSettlementMarginDays,
   });
@@ -140,11 +140,13 @@ class MostroInstance {
   /// [EscrowMode.unknown]. See [EscrowMode].
   final EscrowMode escrowMode;
 
-  // The three Cashu parameters are non-null only when [escrowMode] is
-  // [EscrowMode.cashu]; otherwise, or on an absent/invalid tag, they are null.
+  // The Cashu parameters are set only when [escrowMode] is [EscrowMode.cashu];
+  // otherwise, or on an absent/invalid tag, they are null (the mints, empty).
 
-  /// Mint this node pins for every escrow. There is no per-order negotiation.
-  final String? cashuMintUrl;
+  /// Mints this node accepts for an escrow, in its order: the maker picks one
+  /// per order (MostroP2P/mostro#1047). On a Cashu node, empty means it lists
+  /// none and accepts any mint.
+  final List<String> cashuMintUrls;
 
   /// NUT-11 locktime the seller must set on the escrow token, in days.
   final int? cashuEscrowLocktimeDays;
@@ -166,6 +168,23 @@ class MostroInstance {
         }
       }
       return null;
+    }
+
+    // Every value of a tag that carries a list (`[name, v1, v2, …]`), trimmed,
+    // without blanks or repeats — as Rust's `escrow_mode::parse_tags` reads
+    // `cashu_mint_url`, so About and the gate list the same mints.
+    List<String> getAll(String name) {
+      for (final tag in tags) {
+        if (tag.isNotEmpty && tag[0] == name) {
+          return tag
+              .skip(1)
+              .map((v) => v.trim())
+              .where((v) => v.isNotEmpty)
+              .toSet()
+              .toList();
+        }
+      }
+      return const [];
     }
 
     // Treats empty/whitespace-only as missing, so an empty `bond_enabled=""`
@@ -300,7 +319,7 @@ class MostroInstance {
       bondPayoutClaimWindowDays:
           isEnabled ? parsePositiveInt('bond_payout_claim_window_days') : null,
       escrowMode: escrowMode,
-      cashuMintUrl: isCashu ? getOptional('cashu_mint_url') : null,
+      cashuMintUrls: isCashu ? getAll('cashu_mint_url') : const [],
       cashuEscrowLocktimeDays:
           isCashu ? parsePositiveInt('cashu_escrow_locktime_days') : null,
       cashuSettlementMarginDays:

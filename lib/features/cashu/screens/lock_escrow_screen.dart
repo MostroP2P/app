@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/cashu/cashu_error_messages.dart';
 import 'package:mostro/features/cashu/providers/cashu_wallet_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
 /// Seller-side escrow funding — phase C5 of `docs/cashu/README.md`.
@@ -50,10 +52,9 @@ class _LockEscrowScreenState extends ConsumerState<LockEscrowScreen> {
     final request = ++_quoteRequest;
     if (clearError) setState(() => _error = null);
     try {
-      // Connect first: the quote reports the balance, and an unconnected wallet
-      // reports zero — which would send the seller off to fund a wallet that is
-      // not actually empty.
-      await ref.read(cashuWalletControllerProvider).connect();
+      // No connect here: the quote connects the wallet itself when it needs
+      // the balance, and a recorded escrow is quoted without the wallet at
+      // all — so an unreachable wallet mint never blocks its re-send.
       final quote =
           await ref.read(cashuEscrowControllerProvider).quote(widget.orderId);
       if (mounted && request == _quoteRequest) setState(() => _quote = quote);
@@ -96,7 +97,8 @@ class _LockEscrowScreenState extends ConsumerState<LockEscrowScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).extension<AppColors>()!;
+    final book = OrderBookPalette.of(context);
+    final pal = SettingsPalette.of(context);
     final quote = _quote;
     final pending = quote?.pendingSubmission ?? false;
     // A recorded escrow re-sends without touching the balance.
@@ -114,21 +116,20 @@ class _LockEscrowScreenState extends ConsumerState<LockEscrowScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.lockEscrowTitle),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop()
-              ? context.pop()
-              : context.go(AppRoute.tradeDetailPath(widget.orderId)),
-        ),
+      backgroundColor: book.bg,
+      appBar: redesignAppBar(
+        context,
+        title: l10n.lockEscrowTitle,
+        onBack: () => context.canPop()
+            ? context.pop()
+            : context.go(AppRoute.tradeDetailPath(widget.orderId)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
           Text(
             l10n.lockEscrowExplanation,
-            style: TextStyle(color: colors.textSecondary),
+            style: TextStyle(fontSize: 14, color: book.textBody),
           ),
           const SizedBox(height: AppSpacing.lg),
           if (quote == null && _error == null)
@@ -148,42 +149,74 @@ class _LockEscrowScreenState extends ConsumerState<LockEscrowScreen> {
             const SizedBox(height: AppSpacing.md),
             Text(
               l10n.lockEscrowMint(quote.mintUrl),
-              style: TextStyle(color: colors.textSubtle, fontSize: 13),
+              style: TextStyle(color: book.textMuted, fontSize: 13),
             ),
             Text(
               l10n.lockEscrowLocktime(quote.locktimeDays),
-              style: TextStyle(color: colors.textSubtle, fontSize: 13),
+              style: TextStyle(color: book.textMuted, fontSize: 13),
             ),
           ],
           if (pending) ...[
             const SizedBox(height: AppSpacing.md),
             Text(
               l10n.lockEscrowPendingSubmission,
-              style: TextStyle(color: colors.textSubtle, fontSize: 13),
+              style: TextStyle(color: book.textMuted, fontSize: 13),
             ),
           ],
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.md),
             Text(
               cashuErrorMessage(_error!, l10n),
-              style: TextStyle(color: colors.destructiveRed),
+              style: TextStyle(fontSize: 14, color: pal.danger),
             ),
           ],
           const SizedBox(height: AppSpacing.xl),
           if (short)
             OutlinedButton.icon(
               onPressed: _fundWallet,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: book.textBody,
+                backgroundColor: pal.buttonFill,
+                side: BorderSide(color: pal.buttonBorder),
+                minimumSize: const Size.fromHeight(50),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: AppFonts.ui,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               icon: const Icon(Icons.account_balance_wallet_outlined),
               label: Text(l10n.lockEscrowFundWallet),
             )
           else
             FilledButton(
               onPressed: quote == null || _locking ? null : _lock,
+              style: FilledButton.styleFrom(
+                backgroundColor: book.lime,
+                foregroundColor: book.onLime,
+                disabledBackgroundColor: pal.ctaDisabledBg,
+                disabledForegroundColor: pal.ctaDisabledInk,
+                minimumSize: const Size.fromHeight(50),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+                textStyle: const TextStyle(
+                  fontFamily: AppFonts.ui,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               child: _locking
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: book.onLime,
+                      ),
                     )
                   : Text(pending
                       ? l10n.lockEscrowRetry

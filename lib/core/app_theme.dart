@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:mostro/core/order_book_palette.dart';
@@ -394,7 +395,24 @@ abstract final class AppFonts {
   /// `fontWeight` unset (400) renders Medium. Set the weight explicitly, or
   /// bundle `Manrope-Regular.ttf` before relying on 400.
   static const String figures = 'Manrope';
+
+  /// Flags only: the flags of Noto Color Emoji, as CBDT bitmaps. Never a
+  /// `fontFamily`; both themes carry it in `fontFamilyFallback`
+  /// ([flagFontFallback], DS-TYP-8).
+  static const String flags = 'NotoFlags';
 }
+
+/// The fallback list that draws flags from [AppFonts.flags] (DS-TYP-8).
+///
+/// Linux and Windows have no flag glyphs of their own, so the OS would print
+/// two boxed letters. On iOS and macOS the engine draws through Core Text,
+/// which cannot draw CBDT bitmaps, and Apple's emoji font has every flag: the
+/// list is null there. On the web the engine draws with its own FreeType,
+/// whatever the device.
+List<String>? flagFontFallback(TargetPlatform platform, {required bool web}) =>
+    !web && (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS)
+        ? null
+        : const [AppFonts.flags];
 
 // ── The accent ────────────────────────────────────────────────────────────────
 
@@ -494,6 +512,7 @@ ThemeData _buildTheme({
   final base = ThemeData(
     brightness: brightness,
     fontFamily: AppFonts.ui,
+    fontFamilyFallback: flagFontFallback(defaultTargetPlatform, web: kIsWeb),
     scaffoldBackgroundColor: scaffold,
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {

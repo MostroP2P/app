@@ -1220,6 +1220,7 @@ mod tests {
             has_attachment: false,
             attachment: None,
             created_at: 2,
+            reactions: Vec::new(),
         };
         storage.save_message(&msg).await.unwrap();
 
@@ -1332,6 +1333,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: String::new(),
@@ -1411,6 +1413,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: String::new(),
@@ -1534,6 +1537,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: String::new(),
@@ -1671,6 +1675,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: String::new(),
@@ -1756,6 +1761,7 @@ mod tests {
                 total_reviews: 0,
                 days_active: 0,
                 maker_since: None,
+                cashu_mint_url: None,
             },
             role: TradeRole::Buyer,
             counterparty_pubkey: counterparty.into(),
@@ -1868,6 +1874,7 @@ mod tests {
                     has_attachment: false,
                     attachment: None,
                     created_at,
+                    reactions: Vec::new(),
                 })
                 .await
                 .unwrap();
@@ -1909,6 +1916,7 @@ mod tests {
                 has_attachment: false,
                 attachment: None,
                 created_at: 1,
+                reactions: Vec::new(),
             })
             .await
             .unwrap();
@@ -2043,6 +2051,7 @@ mod tests {
                 has_attachment: false,
                 attachment: None,
                 created_at: 1,
+                reactions: Vec::new(),
             })
             .await
             .unwrap();
@@ -2361,6 +2370,7 @@ mod tests {
             total_reviews: 0,
             days_active: 0,
             maker_since: None,
+            cashu_mint_url: None,
         };
         storage.save_order(&order).await.unwrap();
         storage
@@ -2405,6 +2415,7 @@ mod tests {
                 has_attachment: false,
                 attachment: None,
                 created_at: 2,
+                reactions: Vec::new(),
             })
             .await
             .unwrap();

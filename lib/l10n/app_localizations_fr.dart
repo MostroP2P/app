@@ -86,28 +86,62 @@ class AppLocalizationsFr extends AppLocalizations {
       'La commande a été annulée coopérativement. Aucun fonds n\'a été transféré.';
 
   @override
-  String disputeWithBuyer(String handle) {
-    return 'Litige avec l\'Acheteur : $handle';
-  }
-
-  @override
-  String disputeWithSeller(String handle) {
-    return 'Litige avec le Vendeur : $handle';
-  }
-
-  @override
   String orderLabel(String orderId) {
     return 'Commande $orderId';
   }
 
   @override
-  String get disputeInitiated => 'Initié';
-
-  @override
-  String get disputeInProgress => 'En cours';
-
-  @override
   String get disputeStatusClosed => 'Fermé';
+
+  @override
+  String disputeWith(String role, String counterparty) {
+    return 'Différend avec $role : $counterparty';
+  }
+
+  @override
+  String get seller => 'Vendeur';
+
+  @override
+  String get buyer => 'Acheteur';
+
+  @override
+  String get disputeStatusInitiated => 'Initié';
+
+  @override
+  String get disputeStatusInProgress => 'En cours';
+
+  @override
+  String get disputeStatusResolved => 'Résolu';
+
+  @override
+  String get disputeInProgress =>
+      'Ce différend est actuellement en cours. Un résolveur examine votre cas.';
+
+  @override
+  String get disputeInstruction1 =>
+      'Attendez qu\'un résolveur prenne votre différend. Une fois qu\'il arrive, partagez toute preuve pertinente pour aider à clarifier la situation.';
+
+  @override
+  String get disputeInstruction2 =>
+      'La décision finale sera prise basée sur les preuves présentées.';
+
+  @override
+  String get disputeInstruction3 =>
+      'Si vous ne répondez pas, le système supposera que vous ne voulez pas coopérer et vous pourriez perdre le différend.';
+
+  @override
+  String disputeOpenedByYouAgainstSeller(String counterparty) {
+    return 'Vous avez ouvert ce différend contre le vendeur $counterparty, veuillez lire attentivement ci-dessous :';
+  }
+
+  @override
+  String disputeOpenedByYouAgainstBuyer(String counterparty) {
+    return 'Vous avez ouvert ce différend contre l\'acheteur $counterparty, veuillez lire attentivement ci-dessous :';
+  }
+
+  @override
+  String get disputeWaitingForAdmin =>
+      'En attente d\'assignation d\'administrateur';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -118,48 +152,102 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le médiateur a annulé la commande et retourné les sats au vendeur. Vous n\'avez pas reçu les sats.';
 
   @override
-  String get walkthroughSlideOneTitle =>
-      'Échangez du Bitcoin librement — sans KYC';
+  String get walkthroughWelcomeTitle => 'Bitcoin en P2P, sans KYC';
 
   @override
-  String get walkthroughSlideOneBody =>
-      'Mostro est un exchange pair-à-pair qui vous permet d\'échanger du Bitcoin contre n\'importe quelle devise et méthode de paiement — sans KYC et sans avoir à communiquer vos données à qui que ce soit. Il est construit sur Nostr, ce qui le rend résistant à la censure. Personne ne peut vous empêcher de trader.';
+  String get walkthroughWelcomeBody1 =>
+      'Mostro est un exchange pair-à-pair qui vous permet d\'échanger du Bitcoin contre n\'importe quelle devise, avec la méthode de paiement de votre choix, sans KYC et sans communiquer vos données à qui que ce soit.';
 
   @override
-  String get walkthroughSlideTwoTitle => 'Confidentialité par défaut';
+  String get walkthroughWelcomeBody2 =>
+      'Il est construit sur Nostr, ce qui le rend résistant à la censure. Personne ne peut vous empêcher d\'échanger.';
 
   @override
-  String get walkthroughSlideTwoBody =>
-      'Mostro génère une nouvelle identité pour chaque échange, de sorte que vos transactions ne peuvent pas être liées. Vous pouvez également décider du niveau de confidentialité souhaité :\n• Mode réputation – Permet aux autres de voir vos échanges réussis et votre niveau de confiance.\n• Mode confidentialité totale – Aucune réputation n\'est construite, mais votre activité est totalement anonyme.\nChangez de mode à tout moment depuis l\'écran Compte, où vous devriez également sauvegarder vos mots secrets — ils sont le seul moyen de récupérer votre compte.';
+  String get walkthroughPrivacyTitle => 'Confidentialité par défaut';
 
   @override
-  String get walkthroughSlideThreeTitle => 'Sécurité à chaque étape';
+  String get walkthroughPrivacyBody1 =>
+      'Mostro génère une nouvelle identité pour chaque transaction : impossible de relier vos transactions entre elles.';
 
   @override
-  String get walkthroughSlideThreeBody =>
-      'Mostro utilise les Hold Invoices (factures retenues) : les sats restent dans le portefeuille du vendeur jusqu\'à la fin de l\'échange. Cela protège les deux parties. L\'application est également conçue pour être intuitive et facile à utiliser pour tous les types d\'utilisateurs.';
+  String get walkthroughPrivacyBody2 =>
+      'Vous pouvez aussi décider de votre niveau de confidentialité :';
 
   @override
-  String get walkthroughSlideFourTitle => 'Chat entièrement chiffré';
+  String get walkthroughReputationModeName => 'Mode réputation';
 
   @override
-  String get walkthroughSlideFourBody =>
-      'Chaque transaction dispose de son propre chat privé, chiffré de bout en bout. Seuls les deux utilisateurs impliqués peuvent le lire. En cas de litige, vous pouvez donner la clé partagée à un médiateur pour l\'aider à résoudre le problème.';
+  String get walkthroughReputationModeBody =>
+      'Les autres voient vos transactions réussies et votre niveau de confiance.';
 
   @override
-  String get walkthroughSlideFiveTitle => 'Prenez une offre';
+  String get walkthroughFullPrivacyModeName => 'Mode confidentialité totale';
 
   @override
-  String get walkthroughSlideFiveBody =>
-      'Parcourez le carnet d\'ordres, choisissez une offre qui vous convient et suivez le déroulement de la transaction étape par étape. Vous pourrez consulter le profil de l\'autre utilisateur, chatter en toute sécurité et finaliser l\'échange facilement.';
+  String get walkthroughFullPrivacyModeBody =>
+      'Aucune réputation n\'est construite, mais votre activité reste totalement anonyme.';
 
   @override
-  String get walkthroughSlideSixTitle =>
+  String get walkthroughPrivacyFooter =>
+      'Changez de mode à tout moment depuis l\'écran Compte. C\'est aussi là que vous devriez sauvegarder vos mots secrets : ils sont le seul moyen de récupérer votre compte.';
+
+  @override
+  String get walkthroughHeldTitle => 'Sécurité à chaque étape';
+
+  @override
+  String get walkthroughHeldBody1 =>
+      'Les sats du vendeur restent bloqués jusqu\'à la fin de la transaction. Cela protège les deux parties.';
+
+  @override
+  String get walkthroughHeldBody2 =>
+      'L\'application est aussi conçue pour être intuitive et simple pour tous les utilisateurs.';
+
+  @override
+  String get walkthroughChatTitle => 'Chat entièrement chiffré';
+
+  @override
+  String get walkthroughChatBody1 =>
+      'Chaque transaction a son propre chat privé, chiffré de bout en bout. Seuls vous et votre contrepartie pouvez le lire, sauf si l\'un de vous partage sa clé.';
+
+  @override
+  String get walkthroughChatBody2 =>
+      'En cas de litige, partager cette clé avec un médiateur lui permet de lire le chat et de vous aider à le régler.';
+
+  @override
+  String get walkthroughTakeTitle => 'Prendre un ordre';
+
+  @override
+  String get walkthroughTakeBody1 =>
+      'Parcourez le carnet d\'ordres, choisissez un ordre qui vous convient et suivez la transaction étape par étape.';
+
+  @override
+  String get walkthroughTakeBody2 =>
+      'Vous pourrez consulter le profil de votre contrepartie, discuter en toute sécurité et finaliser la transaction facilement.';
+
+  @override
+  String get walkthroughMakeTitle =>
       'Vous ne trouvez pas ce qu\'il vous faut ?';
 
   @override
-  String get walkthroughSlideSixBody =>
-      'Vous pouvez également créer votre propre offre et attendre que quelqu\'un la prenne. Définissez le montant et la méthode de paiement souhaitée — Mostro s\'occupe du reste.';
+  String get walkthroughMakeBody1 =>
+      'Vous pouvez aussi créer votre propre ordre et attendre que quelqu\'un le prenne.';
+
+  @override
+  String get walkthroughMakeBody2 =>
+      'Définissez le montant et votre méthode de paiement préférée. Mostro s\'occupe du reste.';
+
+  @override
+  String get walkthroughNext => 'Suivant';
+
+  @override
+  String walkthroughStepCounter(int current, int total) {
+    return '$current / $total';
+  }
+
+  @override
+  String walkthroughStepSemantics(int current, int total) {
+    return 'Étape $current sur $total';
+  }
 
   @override
   String get tabBuyBtc => 'Acheter BTC';
@@ -240,9 +328,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get comingSoonMessage => 'Bientôt disponible';
-
-  @override
-  String get tradeStatusActive => 'Actif';
 
   @override
   String get tradeStatusCompleted => 'Terminé';
@@ -551,8 +636,19 @@ class AppLocalizationsFr extends AppLocalizations {
   String get nodeStatusUnreachableNoSignal => 'Ne répond pas';
 
   @override
-  String get nodeDisclaimerShort =>
-      'Chaque nœud est exploité par un tiers indépendant. Mostro ne répond ni de sa conduite ni de vos opérations.';
+  String get nodeChoiceSubtitle =>
+      'Sélectionnez le nœud Mostro sur lequel vous voulez échanger';
+
+  @override
+  String get nodeOperatorDisclaimer =>
+      'L\'équipe de développement de Mostro n\'est pas responsable de l\'utilisation que font les opérateurs de nœuds de la plateforme. Chaque opérateur contrôle son propre nœud Mostro et est seul responsable de ses actions. En utilisant Mostro, vous acceptez l\'entière responsabilité de vos transactions et reconnaissez que l\'équipe de développement n\'a aucun contrôle sur les opérateurs de nœuds individuels.';
+
+  @override
+  String get nodeChoiceConfirm => 'Utiliser ce nœud';
+
+  @override
+  String get nodeChoiceSaveFailed =>
+      'Impossible d\'enregistrer votre choix. Réessayez.';
 
   @override
   String get nodeVerifyKeyWarning =>
@@ -1392,8 +1488,11 @@ class AppLocalizationsFr extends AppLocalizations {
       'S\'il expire, l\'ordre est retiré du carnet. Cela n\'affectera pas votre réputation.';
 
   @override
-  String get tradeTimerWaitingInvoiceConsequence =>
-      'S\'il expire, la transaction est annulée et l\'ordre retourne au carnet.';
+  String get tradeTimerExpiryBackToBook =>
+      'S\'il expire, l\'ordre retourne au carnet.';
+
+  @override
+  String get tradeTimerExpiryCancelled => 'S\'il expire, l\'ordre est annulé.';
 
   @override
   String get tradeStepOrderTaken => 'Ordre pris';
@@ -1477,13 +1576,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeInformationTitle => 'Informations sur la transaction';
 
   @override
-  String get orderIdLabel => 'ID de l\'ordre';
+  String get orderIdLabel => 'ID de commande';
 
   @override
   String get fiatAmountLabel => 'Montant fiat';
 
   @override
   String get satsAmountLabel => 'Montant en sats';
+
+  @override
+  String get peerReputationUnavailable =>
+      'La réputation de cet utilisateur n\'est pas disponible';
 
   @override
   String get statusLabel => 'Statut';
@@ -1495,25 +1598,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get createdLabel => 'Créé';
 
   @override
-  String get tradeDetailsPlaceholder =>
-      'Détails disponibles lorsque le fournisseur de transactions sera prêt (Phase 10+)';
-
-  @override
   String get userInformationTitle => 'Informations utilisateur';
-
-  @override
-  String get peerPublicKeyLabel => 'Clé publique du pair';
-
-  @override
-  String get yourSharedKeyLabel => 'Votre clé partagée';
-
-  @override
-  String get sharedKeyPlaceholder =>
-      'Disponible après l\'intégration du pont (Phase 10+)';
-
-  @override
-  String get sharedKeySafetyNote =>
-      'Conservez votre clé partagée en sécurité — elle est nécessaire pour la résolution des litiges';
 
   @override
   String get fileTypeVideo => 'Vidéo';
@@ -1573,7 +1658,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get enterInvoiceManually => 'Saisir la facture manuellement';
 
   @override
-  String get submitButton => 'Envoyer';
+  String get rangeAmountTakeAction => 'Prendre l\'ordre';
 
   @override
   String get buyerReputation => 'Réputation de l\'acheteur';
@@ -1591,13 +1676,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get daysActiveStatLabel => 'jours actifs';
 
   @override
-  String timeRemainingLabel(String time) {
-    return 'Temps restant : $time';
+  String orderAmountOutOfRange(int min, int max) {
+    return 'Le montant doit être compris entre $min et $max sats pour ce nœud Mostro';
   }
 
   @override
-  String orderAmountOutOfRange(int min, int max) {
-    return 'Le montant doit être compris entre $min et $max sats pour ce nœud Mostro';
+  String orderCurrencyNotAccepted(String currency) {
+    return 'Ce nœud Mostro n\'accepte pas $currency. Choisissez une autre devise';
   }
 
   @override
@@ -1654,9 +1739,9 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count choisis',
-      one: '1 choisi',
-      zero: 'aucun choisi',
+      other: '$count sélectionnés',
+      one: '1 sélectionné',
+      zero: 'aucun sélectionné',
     );
     return '$_temp0';
   }
@@ -1800,7 +1885,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get disputeDetailsTitle => 'Détails du litige';
 
   @override
-  String get disputeIdLabel => 'ID du litige';
+  String get disputeIdLabel => 'ID du différend';
 
   @override
   String disputeReasonLabel(String reason) {
@@ -2128,9 +2213,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutCashuMintUrlLabel => 'Mint';
 
   @override
-  String get aboutCashuMintNotAdvertised => 'Non annoncé';
-
-  @override
   String get aboutCashuLocktimeLabel => 'Verrouillage du séquestre';
 
   @override
@@ -2212,6 +2294,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeChatEncrypted => 'Chat chiffré de bout en bout';
+
+  @override
+  String get tradeChatClosed => 'Conversation fermée · voir les messages';
+
+  @override
+  String get tradeChatClosedAnnouncement =>
+      'La conversation est fermée. Vous pouvez toujours lire ses messages';
 
   @override
   String get tradeBodyWaitingPaymentBuyer =>
@@ -2446,6 +2535,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get takeOrderUnavailable => 'Plus disponible';
 
   @override
+  String get takeOrderFailed => 'Impossible de prendre l\'ordre. Réessayez.';
+
+  @override
   String get takeOrderClosed => 'Fermée';
 
   @override
@@ -2556,6 +2648,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get openSystemSettingsAction => 'Ouvrir les réglages';
+
+  @override
+  String get notificationsPermissionNotAsked =>
+      'Ce navigateur n\'est pas encore autorisé à afficher des notifications.';
+
+  @override
+  String get allowNotificationsAction => 'Autoriser les notifications';
 
   @override
   String get notificationsPrivacyFootnote =>
@@ -2971,7 +3070,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bondTitle => 'Dépôt de garantie';
 
   @override
-  String get bondRefundableLabel => 'DÉPÔT REMBOURSABLE';
+  String get bondRefundableLabel => 'Dépôt remboursable';
 
   @override
   String get bondComesBack => 'te revient une fois l\'échange terminé';
@@ -3028,9 +3127,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Mostro ne garde pas de fonds, il ne peut donc pas sanctionner qui abandonne un échange ; le dépôt fait ce travail et protège tous les utilisateurs contre les escrocs.';
 
   @override
-  String bondWhyHold(String hold) {
-    return 'C\'est une facture $hold : ton portefeuille réserve les sats sans les envoyer ; à la fin de l\'échange, la réservation est annulée toute seule.';
-  }
+  String get bondWhyHold =>
+      'Ton portefeuille retient les sats sans les envoyer ; à la fin de l\'échange, ils sont libérés tout seuls.';
 
   @override
   String get bondWhyDispute =>
@@ -3107,6 +3205,20 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bondRemoveFromDevice => 'Retirer de cet appareil';
 
   @override
+  String get bondLeaveMakerTitle => 'Ne pas publier cet ordre ?';
+
+  @override
+  String get bondLeaveMakerBody =>
+      'L\'ordre ne sera pas publié et sa facture de dépôt est annulée.';
+
+  @override
+  String get bondLeaveTakerTitle => 'Ne pas prendre cet ordre ?';
+
+  @override
+  String get bondLeaveTakerBody =>
+      'L\'ordre reste dans le carnet pour les autres et la facture de dépôt est annulée.';
+
+  @override
   String get bondKeepWaiting => 'Continuer d\'attendre';
 
   @override
@@ -3122,7 +3234,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bondClaimTitle => 'Réclamer votre part';
 
   @override
-  String get bondClaimShareLabel => 'VOTRE PART';
+  String get bondClaimShareLabel => 'Votre part';
 
   @override
   String bondClaimShareSemantics(String sats) {
@@ -3312,9 +3424,6 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le nœud n\'a pas renvoyé la facture du dépôt';
 
   @override
-  String get invoiceOrderIdCopied => 'ID de l\'ordre copié';
-
-  @override
   String get invoiceYouReceiveLabel => 'Tu vas recevoir';
 
   @override
@@ -3430,9 +3539,8 @@ class AppLocalizationsFr extends AppLocalizations {
   String get invoiceOpenWallet => 'Ouvrir dans mon portefeuille';
 
   @override
-  String invoiceHoldNote(String hold) {
-    return 'C\'est une facture $hold : les sats sont retenus, ils ne quittent pas ton portefeuille tant que tu n\'as pas confirmé le paiement de l\'acheteur.';
-  }
+  String get invoiceHoldNote =>
+      'Les sats sont retenus : ils ne quittent pas ton portefeuille tant que tu n\'as pas confirmé le paiement de l\'acheteur.';
 
   @override
   String invoiceQrSemantics(String invoice) {
@@ -3440,21 +3548,19 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get invoiceExpiredTitle => 'La facture a expiré';
-
-  @override
-  String get invoiceExpiredBody =>
-      'Elle n\'a pas été payée à temps : Mostro annule l\'opération et aucun sat n\'a quitté ton portefeuille.';
-
-  @override
   String get invoiceBackToBook => 'Retour au carnet d\'ordres';
 
   @override
-  String get invoiceTimeUpTitle => 'Le temps est écoulé';
+  String get invoiceStepElapsed =>
+      'Le délai est écoulé. Mostro fermera cette étape sous peu si elle n\'est pas terminée.';
 
   @override
-  String get invoiceTimeUpBody =>
-      'La facture n\'a pas été envoyée à temps : Mostro annule l\'opération. Rien n\'a été engagé de ton côté.';
+  String get stepElapsedBackToBook =>
+      'Le délai est écoulé. Si l\'étape n\'est pas terminée, Mostro remettra l\'ordre dans le carnet sous peu.';
+
+  @override
+  String get stepElapsedCancelled =>
+      'Le délai est écoulé. Si l\'étape n\'est pas terminée, Mostro annulera l\'ordre sous peu.';
 
   @override
   String invoiceErrorWrongNetwork(String invoice, String node) {
@@ -3465,6 +3571,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String invoiceCountdownHours(String hours, String minutes) {
     return '$hours h $minutes';
   }
+
+  @override
+  String get countdownExpiresInLabel => 'Expire dans';
+
+  @override
+  String get bondPayWithinLabel => 'Payer sous';
 
   @override
   String get tradeCardWaitingBuyerInvoiceTitle =>
@@ -3617,6 +3729,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Votre compte n\'est pas synchronisé avec ce nœud Mostro, qui a donc refusé l\'ordre. Réessayez dans un instant';
 
   @override
+  String get invalidFiatCurrencyError =>
+      'Ce nœud Mostro n\'accepte pas cette devise, il a donc refusé l\'ordre. Choisissez une autre devise';
+
+  @override
   String get recoveringTradesMessage =>
       'Compte importé. Récupération de vos échanges depuis Mostro…';
 
@@ -3637,7 +3753,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Compte importé, mais Mostro n\'a pas répondu : vos échanges en cours n\'ont pas été récupérés';
 
   @override
-  String get paymentMethodsChosenLabel => 'Choisis';
+  String get paymentMethodsChosenLabel => 'Sélectionnés';
 
   @override
   String paymentMethodsSelectedCount(int count) {
@@ -3646,7 +3762,7 @@ class AppLocalizationsFr extends AppLocalizations {
       locale: localeName,
       other: '$count méthodes sélectionnées',
       one: '1 méthode sélectionnée',
-      zero: 'Choisis au moins une méthode',
+      zero: 'Sélectionne au moins une méthode',
     );
     return '$_temp0';
   }
@@ -3690,6 +3806,13 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get fundsAtRiskBondInvoicePending =>
       'Facture de caution encore payable';
+
+  @override
+  String get fundsAtRiskCashuBalance => 'Ecash dans le portefeuille Cashu';
+
+  @override
+  String get fundsAtRiskCashuHint =>
+      'Seuls les mots de cet utilisateur permettent de le récupérer';
 
   @override
   String get fundsAtRiskKeep => 'Garder cet utilisateur';
@@ -3929,6 +4052,45 @@ class AppLocalizationsFr extends AppLocalizations {
   String get cashuNotConnected => 'Non connecté à un mint';
 
   @override
+  String get cashuNoMintSet =>
+      'Aucun mint configuré. Choisissez-en un, ou recevez un token pour utiliser son mint.';
+
+  @override
+  String get cashuSetMintButton => 'Choisir un mint';
+
+  @override
+  String get cashuChangeMintButton => 'Changer de mint';
+
+  @override
+  String get cashuMintDialogTitle => 'Mint Cashu';
+
+  @override
+  String get cashuMintFieldLabel => 'URL du mint';
+
+  @override
+  String get cashuMintFieldHint => 'https://mint.example.com';
+
+  @override
+  String get cashuChangeMintTitle => 'Changer de mint ?';
+
+  @override
+  String cashuChangeMintWarning(String sats, String mint) {
+    return 'Vos $sats sats restent sur $mint. Ils reviennent quand vous vous reconnectez à ce mint.';
+  }
+
+  @override
+  String get cashuErrorNoMint =>
+      'Choisissez d\'abord un mint dans le Portefeuille Cashu.';
+
+  @override
+  String get cashuErrorInvalidMintUrl =>
+      'Ce n\'est pas une URL de mint utilisable. Elle doit commencer par https://.';
+
+  @override
+  String get cashuErrorWalletOnOtherMint =>
+      'Votre portefeuille Cashu utilise un autre mint. Passez au mint de ce nœud dans Paramètres → Portefeuille Cashu, puis réessayez.';
+
+  @override
   String get cashuReceiveButton => 'Recevoir';
 
   @override
@@ -3936,6 +4098,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cashuReceiveHint => 'Collez ou scannez un token Cashu';
+
+  @override
+  String get cashuReceiveTitle => 'Recevoir un token';
+
+  @override
+  String get cashuTokenFieldLabel => 'Token Cashu';
+
+  @override
+  String get cashuPasteTokenHint => 'Collez un token Cashu';
+
+  @override
+  String get qrScanUnavailable => 'Non disponible sur cet appareil';
 
   @override
   String get cashuAmountLabel => 'Montant en sats';
@@ -3966,7 +4140,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cashuWalletExplanation =>
-      'Ce portefeuille contient de l\'ecash émis par le mint qu\'utilise votre nœud Mostro. Il sert à financer et à encaisser des échanges sur ce nœud : ce n\'est pas un portefeuille polyvalent.';
+      'Ce portefeuille contient de l\'ecash du mint que vous choisissez. Il sert à financer et à encaisser des échanges Cashu : ce n\'est pas un portefeuille polyvalent.';
 
   @override
   String get cashuErrorNotEnabled =>
@@ -3982,7 +4156,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cashuErrorMintUnusable =>
-      'Il manque au mint de ce nœud des fonctions nécessaires au séquestre ; il n\'est donc pas possible d\'échanger ici.';
+      'Il manque à ce mint des fonctions nécessaires au portefeuille. Choisissez un autre mint.';
 
   @override
   String get cashuErrorUnsupportedOnWeb =>
@@ -4025,10 +4199,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get cashuTokenTooLargeForQr =>
       'Ce token est trop volumineux pour un code QR. Copiez-le à la place.';
-
-  @override
-  String get cashuErrorMintChanged =>
-      'Le nœud actif a changé et ce portefeuille est lié à une autre mint. Revenez en arrière et rouvrez le portefeuille.';
 
   @override
   String get cashuErrorNoMnemonic =>
@@ -4119,8 +4289,8 @@ class AppLocalizationsFr extends AppLocalizations {
       'Votre séquestre est verrouillé mais le nœud ne l\'a pas confirmé. Réessayer est sans risque : il ne sera pas verrouillé une seconde fois.';
 
   @override
-  String get lockEscrowMintUnknown =>
-      'Ce nœud n\'a pas publié son mint : il n\'y a nulle part où verrouiller l\'escrow.';
+  String get lockEscrowMintNotSupported =>
+      'Ce nœud laisse chaque ordre choisir son mint, et cette version de l\'app ne peut verrouiller l\'escrow que sur un nœud à mint unique.';
 
   @override
   String get lockEscrowNotRecorded =>
@@ -4236,4 +4406,77 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get reputationFiguresNote =>
       'La réputation importée s\'ajoute à celle que vous avez ici ; vos contreparties les voient fusionnées.';
+
+  @override
+  String get shareChatKeyAction => 'Partager la clé du chat avec le médiateur';
+
+  @override
+  String get shareChatKeyTitle => 'Partager la clé du chat avec le médiateur ?';
+
+  @override
+  String get shareChatKeyBody =>
+      'Si vous confirmez, le médiateur de ce litige pourra lire l\'intégralité du chat entre vous et votre contrepartie pour cet ordre, et uniquement ce chat : pas ceux de vos transactions passées ou futures. Cette action est irréversible. Le partage est facultatif, mais il aide le médiateur à résoudre le litige plus vite.';
+
+  @override
+  String get shareChatKeyConfirm => 'Partager';
+
+  @override
+  String get chatKeySharedIndicator => 'Clé du chat partagée avec le médiateur';
+
+  @override
+  String get shareChatKeyUnavailable =>
+      'La clé du chat de cette transaction n\'est pas disponible sur cet appareil.';
+
+  @override
+  String get moreReactions => 'Plus de réactions';
+
+  @override
+  String messageReactionLabel(String emoji) {
+    return 'Réaction : $emoji';
+  }
+
+  @override
+  String get reactionSendFailed =>
+      'Impossible d\'envoyer la réaction. Veuillez réessayer.';
+
+  @override
+  String get messageMenuHint => 'Ouvrir le menu du message';
+
+  @override
+  String get cashuAnyMint => 'N\'importe quel mint';
+
+  @override
+  String get settingsMintLabel => 'Mint';
+
+  @override
+  String get settingsMintCopied => 'URL du mint copiée';
+
+  @override
+  String get pwaInstallTitle => 'Installer Mostro';
+
+  @override
+  String get pwaInstallBody =>
+      'Ouvrez-la depuis votre écran d’accueil, en plein écran, comme n’importe quelle autre app.';
+
+  @override
+  String get pwaInstallAction => 'Installer';
+
+  @override
+  String get pwaInstallNotNow => 'Plus tard';
+
+  @override
+  String get pwaInstallSettingTitle => 'Installer l’app';
+
+  @override
+  String get pwaInstallStepsTitle => 'Ajoutez Mostro à votre écran d’accueil';
+
+  @override
+  String get pwaInstallStepShare =>
+      'Appuyez sur le bouton Partager dans la barre de votre navigateur.';
+
+  @override
+  String get pwaInstallStepAdd => 'Choisissez « Sur l’écran d’accueil ».';
+
+  @override
+  String get pwaInstallStepsDone => 'Compris';
 }

@@ -157,7 +157,7 @@ void main() {
 
     expect(await _pulsing(tester), isFalse);
     expect(find.text('LIGHTNING INVOICE'), findsOneWidget);
-    expect(find.text('1850 sats'), findsOneWidget);
+    expect(find.text('1,850 sats'), findsOneWidget);
     await tester.tap(find.text('Replace'));
     expect(h.pastes, 1);
 

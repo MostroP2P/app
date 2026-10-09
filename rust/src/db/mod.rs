@@ -40,10 +40,13 @@ pub mod settings_keys {
     /// history (#614).
     pub const RESTORE_SNAPSHOT: &str = "restore_snapshot";
 
-    /// A reputation attestation the identity exported and has not imported
-    /// yet, as the event JSON it came in (`api::reputation_transfer`).
-    /// Identity-scoped: it names the identity that requested it, and is of
-    /// no use to the next one.
+    /// The reputation attestation the identity exported last and has not
+    /// imported yet, as the event JSON it came in
+    /// (`api::reputation_transfer`). One slot for all nodes. It names the
+    /// requested destination — the identity itself, or another one the user
+    /// carries it to. Identity-scoped: the export bound the source account to
+    /// that destination on this identity's request, so it is of no use to
+    /// the next identity.
     pub const PENDING_REPUTATION_ATTESTATION: &str = "pending_reputation_attestation";
 
     // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────
@@ -86,6 +89,16 @@ pub mod settings_keys {
     /// Developer mint-URL override, pointing Cashu at a local mint instead of
     /// the one the node advertises.
     pub const CASHU_MINT_URL_OVERRIDE: &str = "cashu_mint_url_override";
+
+    /// The mint the Cashu wallet is bound to, chosen by the user. A device
+    /// preference, independent of the active node: a node switch never changes
+    /// it (docs/cashu/README.md §1.2, C2).
+    pub const CASHU_WALLET_MINT_URL: &str = "cashu_wallet_mint_url";
+
+    /// The identity (pubkey hex) an older install's shared Cashu proof store
+    /// belongs to: recorded at the first identity load after the upgrade, so
+    /// only that identity ever adopts it (`api::cashu::claim_legacy_store`).
+    pub const CASHU_LEGACY_STORE_OWNER: &str = "cashu_legacy_store_owner";
 
     /// Per-order chat `since` cursor — the `created_at` (unix seconds, decimal
     /// string) of the newest accepted outer chat event, clamped to the local
@@ -145,6 +158,17 @@ pub mod settings_keys {
     /// alongside and read back by rehydration. Presence is the value.
     pub fn dispute_mine(order_id: &str) -> String {
         format!("{DISPUTE_MINE_PREFIX}{order_id}")
+    }
+
+    /// Per-order marker that this side sent the dispute's solver the chat
+    /// key (#415). The value is the solver's pubkey (hex): a takeover brings
+    /// a solver who never got it, so the marker only counts for that solver.
+    pub const DISPUTE_KEY_SHARED_PREFIX: &str = "dispute_key_shared:";
+
+    /// Build the settings key marking that `order_id`'s chat key went to its
+    /// dispute solver. Persisted so a restart never offers to send it twice.
+    pub fn dispute_key_shared(order_id: &str) -> String {
+        format!("{DISPUTE_KEY_SHARED_PREFIX}{order_id}")
     }
 
     /// Per-order status replay cursor — the `created_at` (unix seconds,
@@ -224,12 +248,13 @@ pub mod settings_keys {
     /// [`super::Storage::clear_identity_data`] drops it with the rows. What
     /// is left in the store is device preference: the active node, custom
     /// nodes, node caches, push token and toggle, developer overrides.
-    pub const IDENTITY_SCOPED_PREFIXES: [&str; 8] = [
+    pub const IDENTITY_SCOPED_PREFIXES: [&str; 9] = [
         CHAT_CURSOR_PREFIX,
         DISPUTE_ADMIN_PREFIX,
         DISPUTE_ADMIN_AT_PREFIX,
         DISPUTE_NODE_PREFIX,
         DISPUTE_MINE_PREFIX,
+        DISPUTE_KEY_SHARED_PREFIX,
         STATUS_CURSOR_PREFIX,
         INVOICE_STEP_PREFIX,
         TRADE_WIPED_PREFIX,

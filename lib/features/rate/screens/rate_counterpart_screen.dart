@@ -9,9 +9,11 @@ import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
 import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
 import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 
@@ -24,11 +26,17 @@ import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 ///
 /// Layout:
 ///   - "RATE" header label (uppercase, gray)
-///   - Green double-lightning-bolt success indicator + "Successful order" text
+///   - Lime double-lightning-bolt success indicator + "Successful order" text
 ///   - [StarRating] widget (5 tappable stars)
 ///   - "X / 5" score display
-///   - SUBMIT button (green filled, disabled until rating > 0)
-///   - CLOSE button (green outline, skips rating)
+///   - SUBMIT button (the lime call to action, disabled until rating > 0)
+///   - CLOSE link (neutral, skips rating)
+/// Screen content inset from the side edges (DS-SPC-1).
+const double _sideInset = 18;
+
+/// An in-page call to action and its outlined sibling (DS-CMP-3, DS-CMP-4).
+const double _ctaRadius = 16;
+
 class RateCounterpartScreen extends ConsumerStatefulWidget {
   const RateCounterpartScreen({super.key, required this.orderId});
 
@@ -79,12 +87,14 @@ class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
       // been disposed by now — and ref, like context, must not be touched
       // after that.
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).rated(_rating);
       // The screen underneath buckets a successful trade as "rate me" until a
       // local rating exists, so refresh it before popping back (#327).
       ref.invalidate(tradeRatingProvider(widget.orderId));
       context.pop();
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -118,20 +128,14 @@ class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
         ref.watch(privacyModeProvider)) {
       return TradeDetailScreen(orderId: widget.orderId);
     }
-    final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) {
-      throw StateError('AppColors theme extension must be registered');
-    }
-
-    final textTheme = Theme.of(context).textTheme;
-    final green = colors.mostroGreen;
+    final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: colors.backgroundDark,
+      backgroundColor: book.bg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          padding: const EdgeInsets.symmetric(horizontal: _sideInset),
           child: Column(
             children: [
               const SizedBox(height: AppSpacing.xl),
@@ -139,10 +143,11 @@ class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
               // ── "RATE" header ─────────────────────────────────────────
               Text(
                 l10n.rateScreenHeader,
-                style: textTheme.labelMedium?.copyWith(
-                  color: colors.textSubtle,
-                  letterSpacing: 2,
+                style: TextStyle(
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: 0.6,
+                  color: book.textTertiary,
                 ),
               ),
 
@@ -152,16 +157,17 @@ class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.bolt, color: green, size: 32),
-                  Icon(Icons.bolt, color: green, size: 32),
+                  Icon(Icons.bolt, color: book.limeIcon, size: 32),
+                  Icon(Icons.bolt, color: book.limeIcon, size: 32),
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 l10n.successfulOrder,
-                style: textTheme.titleMedium?.copyWith(
-                  color: green,
-                  fontWeight: FontWeight.bold,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: book.limeText,
                 ),
               ),
 
@@ -178,9 +184,12 @@ class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
               // ── "X / 5" display ───────────────────────────────────────
               Text(
                 '$_rating / 5',
-                style: textTheme.headlineSmall?.copyWith(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.bold,
+                style: TextStyle(
+                  fontFamily: AppFonts.figures,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: book.textPrimary,
                 ),
               ),
 
@@ -190,48 +199,43 @@ class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
               FilledButton(
                 onPressed: (_rating > 0 && !_isSubmitting) ? _submit : null,
                 style: FilledButton.styleFrom(
-                  backgroundColor: green,
-                  foregroundColor: Colors.black,
-                  disabledBackgroundColor: green.withValues(alpha: 0.35),
-                  disabledForegroundColor: Colors.black54,
+                  backgroundColor: book.lime,
+                  foregroundColor: book.onLime,
+                  disabledBackgroundColor: book.border,
+                  disabledForegroundColor: book.textFaint,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    borderRadius: BorderRadius.circular(_ctaRadius),
+                  ),
+                  textStyle: const TextStyle(
+                    fontFamily: AppFonts.ui,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 child:
                     _isSubmitting
-                        ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                        ? SizedBox(
+                          width: 18,
+                          height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.black54,
+                            color: book.onLime,
                           ),
                         )
-                        : Text(
-                          l10n.submitUppercaseButton,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                        : Text(l10n.submitUppercaseButton),
               ).withAutomationId(AutomationIds.tradeRateSubmit),
 
               const SizedBox(height: AppSpacing.sm),
 
-              // ── CLOSE button (skip rating) ────────────────────────────
-              OutlinedButton(
+              // ── CLOSE link (skip rating) ────────────────────────────
+              // Skipping the rating undoes nothing: a neutral link
+              // (DS-CMP-20).
+              InvoiceCancelLink(
+                label: l10n.closeRatingButton,
+                danger: false,
                 onPressed: () => context.pop(),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: green,
-                  side: BorderSide(color: green),
-                  minimumSize: const Size.fromHeight(48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.button),
-                  ),
-                ),
-                child: Text(
-                  l10n.closeRatingButton,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
               ).withAutomationId(AutomationIds.tradeRateClose),
 
               const SizedBox(height: AppSpacing.lg),

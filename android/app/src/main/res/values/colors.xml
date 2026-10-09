@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#1D212C</color>
+    <!-- Behind the launch screen logo: the app's dark scaffold, in light and
+         dark mode alike, so the logo hands over to the app without a flash. -->
+    <color name="splash_background">#1B1E28</color>
 </resources>

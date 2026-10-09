@@ -87,9 +87,25 @@ void main() {
     expect(find.byType(Text), findsNothing);
   });
 
+  testWidgets('a dispute keeps the request open: the counterparty\'s cancel '
+      'still ends the trade', (tester) async {
+    // mostrod leaves the cooperative-cancel flags alone when a dispute
+    // opens, and cancels from `dispute` the same way it does from `active`.
+    await _pump(
+      tester,
+      trade: fakeTrade(
+        id: '1',
+        status: OrderStatus.dispute,
+        cooperativeCancelState: CooperativeCancelState.requestedByPeer,
+      ),
+      status: OrderStatus.dispute,
+    );
+
+    expect(find.text(_en.tradeCancelRequestedByPeerNotice), findsOneWidget);
+  });
+
   for (final status in [
     OrderStatus.cooperativelyCanceled,
-    OrderStatus.dispute,
     OrderStatus.success,
   ]) {
     testWidgets('nothing once the trade is over, whatever the row remembers '
