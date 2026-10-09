@@ -4312,6 +4312,97 @@ class AppLocalizationsIt extends AppLocalizations {
       'Stanno bloccando i sats nell\'escrow. Una volta bloccato, tocca a te pagare il fiat.';
 
   @override
+  String get reputationNodeDoesNotExport =>
+      'Questo Mostro non esporta la reputazione.';
+
+  @override
+  String get reputationNodeDoesNotImport =>
+      'Questo Mostro non importa la reputazione.';
+
+  @override
+  String get reputationIdentityRequired =>
+      'La reputazione si può spostare solo da un account che la conserva. Disattiva la modalità di privacy totale e riprova.';
+
+  @override
+  String get reputationNotEligible =>
+      'Il tuo account non può ancora esportare la reputazione: servono almeno 10 scambi completati e 5 valutazioni ricevute.';
+
+  @override
+  String get reputationBoundToOtherIdentity =>
+      'La tua reputazione lì è già legata a un\'altra identità. Autorizza lo spostamento dall\'identità a cui è legata.';
+
+  @override
+  String get reputationInvalidRebind =>
+      'L\'autorizzazione a spostare la tua reputazione non è valida o è scaduta. Creane una nuova.';
+
+  @override
+  String get reputationExpiredAttestation =>
+      'Questa reputazione è scaduta. Richiedila di nuovo alla sua origine.';
+
+  @override
+  String get reputationUntrustedIssuer =>
+      'Questo Mostro non accetta reputazione da quell\'origine.';
+
+  @override
+  String get reputationIdentityMismatch =>
+      'Questa reputazione è stata emessa per un\'identità diversa da quella che stai usando.';
+
+  @override
+  String get reputationAlreadyImported =>
+      'Questa reputazione è già stata importata su questo Mostro.';
+
+  @override
+  String get reputationInvalidAttestation =>
+      'Questa non è una reputazione valida. Richiedila di nuovo alla sua origine.';
+
+  @override
+  String get reputationImportTitle => 'Importa reputazione';
+
+  @override
+  String get reputationImportIntro =>
+      'Porta su questo Mostro la reputazione guadagnata su lnp2pBot o su un altro Mostro. L\'importazione collega i due account: l\'origine e questo Mostro sanno che appartengono alla stessa persona.';
+
+  @override
+  String get reputationOpenLnp2pbot => 'Ottienila da lnp2pBot';
+
+  @override
+  String get reputationOpenLnp2pbotFailed =>
+      'Impossibile aprire Telegram. Apri lnp2pBot in Telegram e incolla qui ciò che ti invia.';
+
+  @override
+  String get reputationPasteHint => 'Incolla la reputazione ricevuta';
+
+  @override
+  String get reputationCheck => 'Verifica';
+
+  @override
+  String get reputationImported => 'La tua reputazione è stata importata.';
+
+  @override
+  String get reputationImportConfirm => 'Importa su questo Mostro';
+
+  @override
+  String reputationFigures(int reviews, String rating, int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      reviews,
+      locale: localeName,
+      other: '$reviews valutazioni ricevute',
+      one: '1 valutazione ricevuta',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: 'scambia da $days giorni',
+      one: 'scambia da 1 giorno',
+    );
+    return '$_temp0, $rating di media, $_temp1';
+  }
+
+  @override
+  String get reputationFiguresNote =>
+      'La reputazione importata si somma a quella che hai qui; le tue controparti le vedono unite.';
+
+  @override
   String get shareChatKeyAction =>
       'Condividi la chiave della chat con il mediatore';
 

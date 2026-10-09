@@ -7138,6 +7138,132 @@ abstract class AppLocalizations {
   /// **'They\'re locking the sats in escrow. Once it\'s locked, it\'s your turn to pay the fiat.'**
   String get tradeBodyWaitingPaymentBuyerCashu;
 
+  /// Reputation portability (#674): the active node does not advertise reputation_issuer, so it cannot export
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro does not export reputation.'**
+  String get reputationNodeDoesNotExport;
+
+  /// Import reputation screen, shown up front: the active node does not advertise reputation_import_issuers
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro does not import reputation.'**
+  String get reputationNodeDoesNotImport;
+
+  /// Reputation export/import refused in full privacy mode: both act on the identity key
+  ///
+  /// In en, this message translates to:
+  /// **'Reputation can only be moved from an account that keeps its reputation. Turn off full privacy mode and try again.'**
+  String get reputationIdentityRequired;
+
+  /// The node refused an export: the account is below its minimum of trades and ratings
+  ///
+  /// In en, this message translates to:
+  /// **'Your account cannot export its reputation yet: it needs at least 10 completed trades and 5 ratings received.'**
+  String get reputationNotEligible;
+
+  /// The node refused an export: the source account is already bound to another identity
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation there is already bound to another identity. Authorize the move from the identity it is bound to.'**
+  String get reputationBoundToOtherIdentity;
+
+  /// The authorization to move a reputation to a new identity is invalid or expired
+  ///
+  /// In en, this message translates to:
+  /// **'The authorization to move your reputation is invalid or has expired. Create a new one.'**
+  String get reputationInvalidRebind;
+
+  /// A reputation attestation past its expiration
+  ///
+  /// In en, this message translates to:
+  /// **'This reputation has expired. Request it again from its source.'**
+  String get reputationExpiredAttestation;
+
+  /// The active node does not trust the issuer that signed the attestation
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro does not accept reputation from that source.'**
+  String get reputationUntrustedIssuer;
+
+  /// The attestation names an identity other than the user's
+  ///
+  /// In en, this message translates to:
+  /// **'This reputation was issued for another identity than the one you are using.'**
+  String get reputationIdentityMismatch;
+
+  /// The node refused an import: this attestation was imported before
+  ///
+  /// In en, this message translates to:
+  /// **'This reputation was already imported on this Mostro.'**
+  String get reputationAlreadyImported;
+
+  /// Pasted text that is not a valid reputation attestation
+  ///
+  /// In en, this message translates to:
+  /// **'This is not a valid reputation. Request it again from its source.'**
+  String get reputationInvalidAttestation;
+
+  /// App bar title of the Import reputation screen
+  ///
+  /// In en, this message translates to:
+  /// **'Import reputation'**
+  String get reputationImportTitle;
+
+  /// Import reputation screen: what importing does, including that it links the two accounts
+  ///
+  /// In en, this message translates to:
+  /// **'Bring the reputation you earned on lnp2pBot or on another Mostro to this one. Importing links the two accounts: the source and this Mostro learn they belong to the same person.'**
+  String get reputationImportIntro;
+
+  /// No description provided for @reputationOpenLnp2pbot.
+  ///
+  /// In en, this message translates to:
+  /// **'Get it from lnp2pBot'**
+  String get reputationOpenLnp2pbot;
+
+  /// Shown when the Telegram link could not be opened: the user can still do it by hand
+  ///
+  /// In en, this message translates to:
+  /// **'Telegram could not be opened. Open lnp2pBot in Telegram yourself and paste here what it sends you.'**
+  String get reputationOpenLnp2pbotFailed;
+
+  /// Hint of the field where the user pastes the attestation
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the reputation you received'**
+  String get reputationPasteHint;
+
+  /// Button that verifies the pasted attestation before importing it
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get reputationCheck;
+
+  /// Shown once the node accepted the import
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation was imported.'**
+  String get reputationImported;
+
+  /// Button that sends the checked attestation to the active node; the import is irreversible
+  ///
+  /// In en, this message translates to:
+  /// **'Import into this Mostro'**
+  String get reputationImportConfirm;
+
+  /// Import reputation screen: the figures of a checked attestation. {rating} is already formatted for the locale
+  ///
+  /// In en, this message translates to:
+  /// **'{reviews, plural, =1{1 rating received} other{{reviews} ratings received}}, {rating} on average, {days, plural, =1{trading for 1 day} other{trading for {days} days}}'**
+  String reputationFigures(int reviews, String rating, int days);
+
+  /// Under the figures: imported reputation is merged with the one on this node
+  ///
+  /// In en, this message translates to:
+  /// **'Imported reputation is added to the one you have here; your counterparties see them merged.'**
+  String get reputationFiguresNote;
+
   /// Dispute chat app bar: tooltip of the action that sends the solver the peer chat key (#415)
   ///
   /// In en, this message translates to:

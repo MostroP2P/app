@@ -4327,6 +4327,97 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Gegenseite sperrt die Sats im Escrow. Sobald er gesperrt ist, bist du dran, den Fiat-Betrag zu zahlen.';
 
   @override
+  String get reputationNodeDoesNotExport =>
+      'Dieser Mostro exportiert keine Reputation.';
+
+  @override
+  String get reputationNodeDoesNotImport =>
+      'Dieser Mostro importiert keine Reputation.';
+
+  @override
+  String get reputationIdentityRequired =>
+      'Reputation kann nur von einem Konto übertragen werden, das seine Reputation behält. Schalte den vollständigen Privatsphäre-Modus aus und versuche es erneut.';
+
+  @override
+  String get reputationNotEligible =>
+      'Dein Konto kann seine Reputation noch nicht exportieren: Es braucht mindestens 10 abgeschlossene Trades und 5 erhaltene Bewertungen.';
+
+  @override
+  String get reputationBoundToOtherIdentity =>
+      'Deine Reputation dort ist bereits an eine andere Identität gebunden. Autorisiere den Wechsel mit der Identität, an die sie gebunden ist.';
+
+  @override
+  String get reputationInvalidRebind =>
+      'Die Autorisierung zum Übertragen deiner Reputation ist ungültig oder abgelaufen. Erstelle eine neue.';
+
+  @override
+  String get reputationExpiredAttestation =>
+      'Diese Reputation ist abgelaufen. Fordere sie erneut bei ihrer Quelle an.';
+
+  @override
+  String get reputationUntrustedIssuer =>
+      'Dieser Mostro akzeptiert keine Reputation aus dieser Quelle.';
+
+  @override
+  String get reputationIdentityMismatch =>
+      'Diese Reputation wurde für eine andere Identität ausgestellt als die, die du verwendest.';
+
+  @override
+  String get reputationAlreadyImported =>
+      'Diese Reputation wurde auf diesem Mostro bereits importiert.';
+
+  @override
+  String get reputationInvalidAttestation =>
+      'Das ist keine gültige Reputation. Fordere sie erneut bei ihrer Quelle an.';
+
+  @override
+  String get reputationImportTitle => 'Reputation importieren';
+
+  @override
+  String get reputationImportIntro =>
+      'Bring die Reputation, die du auf lnp2pBot oder einem anderen Mostro verdient hast, auf diesen. Der Import verknüpft die beiden Konten: Die Quelle und dieser Mostro wissen, dass sie derselben Person gehören.';
+
+  @override
+  String get reputationOpenLnp2pbot => 'Von lnp2pBot holen';
+
+  @override
+  String get reputationOpenLnp2pbotFailed =>
+      'Telegram konnte nicht geöffnet werden. Öffne lnp2pBot selbst in Telegram und füge hier ein, was er dir schickt.';
+
+  @override
+  String get reputationPasteHint => 'Füge die erhaltene Reputation ein';
+
+  @override
+  String get reputationCheck => 'Prüfen';
+
+  @override
+  String get reputationImported => 'Deine Reputation wurde importiert.';
+
+  @override
+  String get reputationImportConfirm => 'In diesen Mostro importieren';
+
+  @override
+  String reputationFigures(int reviews, String rating, int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      reviews,
+      locale: localeName,
+      other: '$reviews erhaltene Bewertungen',
+      one: '1 erhaltene Bewertung',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: 'seit $days Tagen am Handeln',
+      one: 'seit 1 Tag am Handeln',
+    );
+    return '$_temp0, im Schnitt $rating, $_temp1';
+  }
+
+  @override
+  String get reputationFiguresNote =>
+      'Importierte Reputation wird zu deiner hiesigen addiert; deine Handelspartner sehen beide zusammen.';
+
+  @override
   String get shareChatKeyAction => 'Chat-Schlüssel mit dem Schlichter teilen';
 
   @override
