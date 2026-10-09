@@ -310,9 +310,7 @@ void main() {
       // Arrange
       BigInt? sats;
       final observed = await observe(tester, tradeAmountProvider('order-1'), [
-        orderReaderProvider.overrideWithValue(
-          (orderId) async => fakeTrade(id: '1', amountSats: sats).order,
-        ),
+        payoutAmountReaderProvider.overrideWithValue((orderId) async => sats),
       ]);
       expect(observed, [null]);
 

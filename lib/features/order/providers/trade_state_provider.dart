@@ -39,9 +39,10 @@ final tradeListReaderProvider = Provider<Future<List<TradeInfo>> Function()>(
   (ref) => orders_api.listTrades,
 );
 
-/// Reads one order's book entry through the bridge; injectable for tests.
-final orderReaderProvider = Provider<Future<OrderInfo?> Function(String)>(
-  (ref) => (orderId) => orders_api.getOrder(orderId: orderId),
+/// Reads the sats the node pays the buyer of an order through the bridge;
+/// injectable for tests.
+final payoutAmountReaderProvider = Provider<Future<BigInt?> Function(String)>(
+  (ref) => (orderId) => orders_api.payoutAmount(orderId: orderId),
 );
 
 /// Emits what [read] returns — at once, again whenever [orderId] is touched
@@ -99,7 +100,8 @@ Stream<T> _followTrade<T>(
   }
 }
 
-/// The trade's sats amount: `null` until the order has one, then done.
+/// The sats the buyer's payout invoice must carry: `null` until known, then
+/// done.
 ///
 /// Useful for the add-invoice screen which needs the sats amount before it
 /// can submit a Lightning invoice.
@@ -107,11 +109,11 @@ final tradeAmountProvider = StreamProvider.family.autoDispose<BigInt?, String>((
   ref,
   orderId,
 ) {
-  final readOrder = ref.watch(orderReaderProvider);
+  final readPayout = ref.watch(payoutAmountReaderProvider);
   return _followTrade<BigInt?>(
     ref,
     orderId,
-    read: () async => (await readOrder(orderId))?.amountSats,
+    read: () => readPayout(orderId),
     isFinal: (sats) => sats != null,
   );
 });

@@ -1128,6 +1128,15 @@ pub async fn get_orders(filters: Option<OrderFilters>) -> Result<Vec<OrderInfo>>
     Ok(order_book().get_orders(filters).await)
 }
 
+/// Public API: the sats the node pays the buyer of `order_id`, the amount the
+/// payout invoice must carry. `None` until it is known.
+pub async fn payout_amount(order_id: String) -> Result<Option<u64>> {
+    Ok(order_book()
+        .get_order(&order_id)
+        .await
+        .and_then(|order| order.amount_sats))
+}
+
 /// Public API: get a single order by ID.
 pub async fn get_order(order_id: String) -> Result<Option<OrderInfo>> {
     let Some(order) = order_book().get_order(&order_id).await else {
