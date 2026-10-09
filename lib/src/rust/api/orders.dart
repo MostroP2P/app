@@ -19,6 +19,9 @@ Future<List<OrderInfo>> getOrders({OrderFilters? filters}) =>
 
 /// Public API: the sats the node pays the buyer of `order_id`, the amount the
 /// payout invoice must carry. `None` until it is known.
+///
+/// Only `add-invoice` and `hold-invoice-payment-accepted` say it: never the
+/// order amount, which the book entry and the row hold.
 Future<BigInt?> payoutAmount({required String orderId}) =>
     RustLib.instance.api.crateApiOrdersPayoutAmount(orderId: orderId);
 

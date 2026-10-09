@@ -361,6 +361,89 @@ fn next_step_start(
     }
 }
 
+/// Record that the daemon message dated `event_ts`, addressed to trade key
+/// `trade_index`, said the node pays the buyer of `order_id` `sats` (called
+/// for `add-invoice` and `hold-invoice-payment-accepted`).
+///
+/// Runs before the status gate of those messages: a replay older than a
+/// restore has its status refused, but the amount it carries is the payout's
+/// only source.
+pub(crate) async fn record_payout_amount(
+    order_id: &str,
+    sats: u64,
+    event_ts: i64,
+    trade_index: u32,
+) {
+    if sats == 0 {
+        return;
+    }
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    let key = crate::db::settings_keys::payout_amount(order_id);
+    let existing = db.get_setting(&key).await.ok().flatten();
+    let Some(value) = next_payout_amount(existing.as_deref(), sats, event_ts, trade_index) else {
+        return;
+    };
+    match db.set_setting(&key, &value).await {
+        Ok(()) => crate::api::trade_touch::touch_trade(order_id),
+        Err(e) => {
+            log::warn!("[invoice] could not record payout amount for order={order_id}: {e}")
+        }
+    }
+}
+
+/// The sats the node pays the buyer of `order_id` on the trade the row is on
+/// now, or `None` until a message said so.
+pub(crate) async fn payout_amount_of(order_id: &str) -> Option<u64> {
+    let db = crate::db::app_db::db()?;
+    let stored = db
+        .get_setting(&crate::db::settings_keys::payout_amount(order_id))
+        .await
+        .ok()
+        .flatten()?;
+    let (sats, _, stored_index) = parse_payout_amount(&stored)?;
+    let row_index = db
+        .get_trade_by_order_id(order_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|trade| trade.trade_key_index);
+    step_start_applies(Some(stored_index), row_index).then_some(sats)
+}
+
+/// The value to store for a payout of `sats` said at `event_ts` on trade key
+/// `trade_index`, or `None` when the stored one stands.
+///
+/// A later take wins, a message for a superseded key says nothing, and within
+/// one take the newest message wins: the node asks for the same amount every
+/// time, so only an earlier take's can differ.
+fn next_payout_amount(
+    existing: Option<&str>,
+    sats: u64,
+    event_ts: i64,
+    trade_index: u32,
+) -> Option<String> {
+    let replaces = match existing.and_then(parse_payout_amount) {
+        None => true,
+        Some((stored_sats, stored_ts, stored_index)) => match trade_index.cmp(&stored_index) {
+            std::cmp::Ordering::Less => false,
+            std::cmp::Ordering::Greater => true,
+            std::cmp::Ordering::Equal => event_ts >= stored_ts && sats != stored_sats,
+        },
+    };
+    replaces.then(|| format!("{sats}:{event_ts}:{trade_index}"))
+}
+
+/// `311:1757712000:100` → (311, 1757712000, 100).
+fn parse_payout_amount(value: &str) -> Option<(u64, i64, u32)> {
+    let mut parts = value.split(':');
+    let sats = parts.next()?.parse().ok()?;
+    let ts = parts.next()?.parse().ok()?;
+    let index = parts.next()?.parse().ok()?;
+    Some((sats, ts, index))
+}
+
 /// `WaitingPayment:1757712000:100` → (`WaitingPayment`, 1757712000, Some(100)),
 /// and the generation-less `WaitingPayment:1757712000` → (…, None).
 ///
@@ -438,6 +521,23 @@ mod tests {
             next_step_start(Some(&first), "WaitingPayment", 900, 7).as_deref(),
             Some("WaitingPayment:900:7")
         );
+    }
+
+    #[test]
+    fn a_payout_amount_follows_the_take_it_was_said_for() {
+        let first = next_payout_amount(None, 311, 1_000, 7).expect("first write");
+        assert_eq!(first, "311:1000:7");
+        // The node asks for the same amount again: nothing to write.
+        assert_eq!(next_payout_amount(Some(&first), 311, 1_500, 7), None);
+        // A later take, priced again, replaces it whatever its date.
+        assert_eq!(
+            next_payout_amount(Some(&first), 290, 900, 8).as_deref(),
+            Some("290:900:8")
+        );
+        // A message for a superseded trade key says nothing.
+        assert_eq!(next_payout_amount(Some("290:900:8"), 311, 2_000, 7), None);
+        // Within one take, an older message never overrides a newer one.
+        assert_eq!(next_payout_amount(Some(&first), 300, 900, 7), None);
     }
 
     #[test]

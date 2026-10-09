@@ -1130,11 +1130,11 @@ pub async fn get_orders(filters: Option<OrderFilters>) -> Result<Vec<OrderInfo>>
 
 /// Public API: the sats the node pays the buyer of `order_id`, the amount the
 /// payout invoice must carry. `None` until it is known.
+///
+/// Only `add-invoice` and `hold-invoice-payment-accepted` say it: never the
+/// order amount, which the book entry and the row hold.
 pub async fn payout_amount(order_id: String) -> Result<Option<u64>> {
-    Ok(order_book()
-        .get_order(&order_id)
-        .await
-        .and_then(|order| order.amount_sats))
+    Ok(crate::api::invoice::payout_amount_of(&order_id).await)
 }
 
 /// Public API: get a single order by ID.
@@ -3453,6 +3453,18 @@ async fn dispatch_mostro_message(
                     )
                     .await;
                 }
+                // A taker-buyer's payout amount arrives in this reply alone.
+                if kind.action == Action::AddInvoice {
+                    if let Some((_, Some(sats))) = add_invoice_sync(&kind.payload) {
+                        crate::api::invoice::record_payout_amount(
+                            &order_id.to_string(),
+                            sats,
+                            event_ts,
+                            trade_index,
+                        )
+                        .await;
+                    }
+                }
             }
             if let Some(tx) = pending.tx {
                 crate::api::logging::blog_info(
@@ -3965,6 +3977,23 @@ async fn dispatch_mostro_message(
             // re-created by `take_order` (lifting the tombstone), and the wipe
             // handed the book entry back to the public view — `pending`, or no
             // entry at all — so the local status it reads passes.
+            //
+            // The buyer's copy carries the payout amount, recorded before the
+            // gate like `add-invoice`'s. The seller's `buyer-took-order`
+            // carries what the seller pays, which is not a payout.
+            if kind.action == Action::HoldInvoicePaymentAccepted {
+                if let Some(mostro_core::message::Payload::Order(o)) = &kind.payload {
+                    if let Ok(sats) = u64::try_from(o.amount) {
+                        crate::api::invoice::record_payout_amount(
+                            &order_id,
+                            sats,
+                            event_ts,
+                            trade_index,
+                        )
+                        .await;
+                    }
+                }
+            }
             if status_write_blocked(&order_id, &kind.action, event_ts).await {
                 return;
             }
@@ -4053,6 +4082,12 @@ async fn dispatch_mostro_message(
                 }
                 return;
             };
+            // Before the status gate: a replay older than a restore has its
+            // status refused, and its amount is still the payout's only source.
+            if let Some(sats) = amount {
+                crate::api::invoice::record_payout_amount(&order_id, sats, event_ts, trade_index)
+                    .await;
+            }
             if status_write_blocked(&order_id, &kind.action, event_ts).await {
                 return;
             }
@@ -6150,21 +6185,29 @@ pub async fn request_bond_invoice_again(
 /// ([`resync_republished_maker_order`]) and, when that message never landed
 /// or was refused as stale, the sweep's `SyncPending`. Both end the step, so
 /// both clear it; anything that learns of it in future must call this too.
+///
+/// The payout amount goes with it: the maker's next take arrives on the same
+/// index, so a stale amount would read as that take's until its own
+/// `add-invoice` lands, and a market-priced order is priced again.
 async fn clear_maker_step_start(db: &impl Storage, order_id: &str) -> bool {
-    if let Err(e) = db
-        .delete_setting(&crate::db::settings_keys::invoice_step_start(order_id))
-        .await
-    {
-        crate::api::logging::blog_warn(
-            "orders",
-            format!(
-                "step start not cleared for republished order={}: {e}",
-                crate::api::logging::short_id(order_id),
-            ),
-        );
-        return false;
+    let keys = [
+        ("step start", crate::db::settings_keys::invoice_step_start(order_id)),
+        ("payout amount", crate::db::settings_keys::payout_amount(order_id)),
+    ];
+    let mut cleared = true;
+    for (what, key) in keys {
+        if let Err(e) = db.delete_setting(&key).await {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "{what} not cleared for republished order={}: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+            cleared = false;
+        }
     }
-    true
+    cleared
 }
 
 /// The statuses a maker's order can be republished out of: a waiting step
@@ -6720,6 +6763,16 @@ async fn wipe_trade_row(
         crate::api::logging::blog_warn(
             "orders",
             format!("step start not cleared for order={order_id}: {e}"),
+        );
+    }
+    // The payout amount belongs to the same row, for the same reason.
+    if let Err(e) = db
+        .delete_setting(&crate::db::settings_keys::payout_amount(order_id))
+        .await
+    {
+        crate::api::logging::blog_warn(
+            "orders",
+            format!("payout amount not cleared for order={order_id}: {e}"),
         );
     }
     release_finished_trade_subscriptions(order_id, Some(wiped_index));
@@ -15219,6 +15272,10 @@ mod tests {
         db.set_setting(&key, "WaitingBuyerInvoice:1000:1")
             .await
             .expect("record a step start");
+        let payout = crate::db::settings_keys::payout_amount(&order_id);
+        db.set_setting(&payout, "311:1000:1")
+            .await
+            .expect("record a payout amount");
 
         // Act
         wipe_trade_row(db, &order_id, 1, 1).await.expect("wipe");
@@ -15228,6 +15285,11 @@ mod tests {
             db.get_setting(&key).await.expect("read back"),
             None,
             "the step start outlived the row it describes"
+        );
+        assert_eq!(
+            db.get_setting(&payout).await.expect("read back"),
+            None,
+            "the payout amount outlived the row it describes"
         );
     }
 
@@ -17039,6 +17101,7 @@ mod tests {
             7,
         )
         .await;
+        crate::api::invoice::record_payout_amount(&order_id, 311, first_take, 7).await;
         // The daemon put it back on the book; the DM never got through.
         order_info.status = crate::api::types::OrderStatus::Pending;
         order_book().upsert_order(order_info).await;
@@ -17048,9 +17111,14 @@ mod tests {
 
         // Assert
         assert_eq!(
-            crate::api::invoice::trade_step_started_at(order_id).await,
+            crate::api::invoice::trade_step_started_at(order_id.clone()).await,
             None,
             "the previous take's start survived the sweep"
+        );
+        assert_eq!(
+            payout_amount(order_id).await.unwrap(),
+            None,
+            "the previous take's payout amount survived the sweep"
         );
     }
 
