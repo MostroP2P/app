@@ -4,6 +4,30 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.0.15] - 2026-10-08
+
+### ✨ Features
+
+- **mascot:** each mood wears its sticker from the Mostro set ([#772](https://github.com/MostroP2P/app/pull/772)) by @grunch
+- **mascot:** the same header, mascot centred, in every tab ([#771](https://github.com/MostroP2P/app/pull/771)) by @grunch
+- **cashu:** keep Lightning, NWC and Cashu wallet always available ([#768](https://github.com/MostroP2P/app/pull/768)) by @grunch
+- **walkthrough:** replace the onboarding with the v2 design ([#764](https://github.com/MostroP2P/app/pull/764)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **reputation:** privacy mode can be enabled on native ([#775](https://github.com/MostroP2P/app/pull/775)) by @grunch
+- **restore:** an imported account shows no history, and no stale news ([#773](https://github.com/MostroP2P/app/pull/773)) by @grunch
+- **qr:** paste where there is no camera; Cashu receive takes a pasted token ([#657](https://github.com/MostroP2P/app/pull/657)) by @Forte11Cuba
+- **invoice:** wait for the daemon when the invoice countdown runs out ([#710](https://github.com/MostroP2P/app/pull/710)) by @Catrya
+
+### 📚 Documentation
+
+- keep Lightning, NWC and Cashu always available ([#765](https://github.com/MostroP2P/app/pull/765)) by @grunch
+
+### 🧪 Tests
+
+- **identity:** assert the identity-wipe wiring with doubles ([#565](https://github.com/MostroP2P/app/pull/565)) by @Forte11Cuba
+
 ## [2.0.14] - 2026-10-07
 
 ### ✨ Features

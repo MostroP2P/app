@@ -9,6 +9,7 @@ import 'package:mostro/features/about/screens/about_screen.dart';
 import 'package:mostro/features/about/screens/node_technical_data_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
+import '../../../support/load_app_fonts.dart';
 import '../../../support/provider_harness.dart';
 
 /// Goldens of the About redesign (`design_handoff_acerca_de`): 12a · About and
@@ -21,6 +22,7 @@ final _node = MostroInstance.fromTags(const [
   ['max_order_amount', '300000'],
   ['fee', '0'],
   ['expiration_hours', '23'],
+  ['fiat_currencies_accepted', 'ARS,BOB,USD'],
   ['max_orders_per_response', '10'],
   ['lnd_node_alias', 'Bitcoin Bolivia'],
   [
@@ -60,6 +62,9 @@ Widget _app(Brightness brightness, Widget home) {
 }
 
 void main() {
+  // 12a picks how many cells fit a row by measuring its figures.
+  setUpAll(loadAppFonts);
+
   for (final (name, brightness) in [
     ('dark', Brightness.dark),
     ('light', Brightness.light),

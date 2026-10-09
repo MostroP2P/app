@@ -20,6 +20,7 @@ import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
 import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
@@ -90,6 +91,7 @@ class _BondPayoutInvoiceScreenState
       ).showSnackBar(SnackBar(content: Text(l10n.bondClaimSent)));
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       if (fromWallet) _manualMode = true;
       ref.invalidate(bondClaimProvider(widget.orderId));
       setState(() {

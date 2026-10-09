@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/about/models/mostro_instance.dart';
 
@@ -318,55 +321,31 @@ void main() {
     });
   });
 
-  group('MostroInstance — percentage formatting', () {
-    test('bond fractions render as percentages', () {
-      final instance = MostroInstance.fromTags(_tagsWith(_enabledBondTags));
-
-      expect(instance.bondAmountPercent, '5%');
-      expect(instance.bondSlashNodeSharePercent, '50%');
+  group('MostroInstance — accepted fiat codes', () {
+    // The cases are shared with Rust's `parse_accepted_currencies`
+    // (`rust/src/api/node_stats.rs`), so About and the create-order picker
+    // read a node's list alike.
+    test('reads the codes as Rust does', () {
+      final cases =
+          jsonDecode(
+                File(
+                  'test/fixtures/accepted_fiat_codes.json',
+                ).readAsStringSync(),
+              )
+              as List<dynamic>;
+      expect(cases, isNotEmpty);
+      for (final c in cases.cast<Map<String, dynamic>>()) {
+        final raw = c['raw'] as String?;
+        final instance = MostroInstance.fromTags([
+          const ['d', 'npub_test'],
+          if (raw != null) ['fiat_currencies_accepted', raw],
+        ]);
+        expect(instance.acceptedFiatCodes, c['codes'], reason: '$raw');
+      }
     });
+  });
 
-    test('a fractional percentage keeps two decimals', () {
-      final instance = MostroInstance.fromTags(
-        _enabledTagsWith({
-          'bond_amount_pct': '0.0125',
-          'bond_slash_node_share_pct': '0.335',
-        }),
-      );
-
-      expect(instance.bondAmountPercent, '1.25%');
-      expect(instance.bondSlashNodeSharePercent, '33.50%');
-    });
-
-    test('percentages are null when the parameters are absent', () {
-      final instance = MostroInstance.fromTags(
-        _tagsWith({'bond_enabled': 'true'}),
-      );
-
-      expect(instance.bondAmountPercent, isNull);
-      expect(instance.bondSlashNodeSharePercent, isNull);
-    });
-
-    test('percentages are null on a disabled node', () {
-      final instance = MostroInstance.fromTags(
-        _tagsWith({..._enabledBondTags, 'bond_enabled': 'false'}),
-      );
-
-      expect(instance.bondAmountPercent, isNull);
-      expect(instance.bondSlashNodeSharePercent, isNull);
-    });
-
-    test('a fraction that overflows when scaled yields null, not a crash', () {
-      // bond_amount_pct is uncapped, so a finite value like 1e308 passes the
-      // parser but overflows to Infinity once multiplied by 100.
-      final instance = MostroInstance.fromTags(
-        _enabledTagsWith({'bond_amount_pct': '1e308'}),
-      );
-
-      expect(instance.bondAmountPct, 1e308);
-      expect(instance.bondAmountPercent, isNull);
-    });
-
+  group('MostroInstance.fromTags — escrow mode', () {
     test('a legacy node without the tag is unknown, not lightning', () {
       // Arrange — today's daemons publish no escrow tags at all.
       final instance = MostroInstance.fromTags(_tagsWith({'pow': '8'}));
@@ -397,12 +376,14 @@ void main() {
     });
 
     test('a cashu node exposes its parameters', () {
-      final instance = MostroInstance.fromTags(_tagsWith({
-        'escrow_mode': '  Cashu ',
-        'cashu_mint_url': 'https://mint.example.com',
-        'cashu_escrow_locktime_days': '15',
-        'cashu_settlement_margin_days': '3',
-      }));
+      final instance = MostroInstance.fromTags(
+        _tagsWith({
+          'escrow_mode': '  Cashu ',
+          'cashu_mint_url': 'https://mint.example.com',
+          'cashu_escrow_locktime_days': '15',
+          'cashu_settlement_margin_days': '3',
+        }),
+      );
 
       expect(instance.escrowMode, EscrowMode.cashu);
       expect(instance.cashuMintUrls, ['https://mint.example.com']);
@@ -412,11 +393,13 @@ void main() {
 
     test('cashu parameters are gated on the mode', () {
       // Arrange — a Lightning node carrying a stale mint tag.
-      final instance = MostroInstance.fromTags(_tagsWith({
-        'escrow_mode': 'lightning',
-        'cashu_mint_url': 'https://mint.example.com',
-        'cashu_escrow_locktime_days': '15',
-      }));
+      final instance = MostroInstance.fromTags(
+        _tagsWith({
+          'escrow_mode': 'lightning',
+          'cashu_mint_url': 'https://mint.example.com',
+          'cashu_escrow_locktime_days': '15',
+        }),
+      );
 
       // Assert — a stale tag is not live data.
       expect(instance.cashuMintUrls, isEmpty);
@@ -453,10 +436,9 @@ void main() {
     });
 
     test('a cashu node with a blank mint lists none', () {
-      final instance = MostroInstance.fromTags(_tagsWith({
-        'escrow_mode': 'cashu',
-        'cashu_mint_url': '   ',
-      }));
+      final instance = MostroInstance.fromTags(
+        _tagsWith({'escrow_mode': 'cashu', 'cashu_mint_url': '   '}),
+      );
 
       expect(instance.escrowMode, EscrowMode.cashu);
       expect(instance.cashuMintUrls, isEmpty);
@@ -493,28 +475,18 @@ void main() {
     });
 
     test('malformed day counts are dropped without costing the mint', () {
-      final instance = MostroInstance.fromTags(_tagsWith({
-        'escrow_mode': 'cashu',
-        'cashu_mint_url': 'https://mint.example.com',
-        'cashu_escrow_locktime_days': 'fifteen',
-        'cashu_settlement_margin_days': '-1',
-      }));
+      final instance = MostroInstance.fromTags(
+        _tagsWith({
+          'escrow_mode': 'cashu',
+          'cashu_mint_url': 'https://mint.example.com',
+          'cashu_escrow_locktime_days': 'fifteen',
+          'cashu_settlement_margin_days': '-1',
+        }),
+      );
 
       expect(instance.cashuEscrowLocktimeDays, isNull);
       expect(instance.cashuSettlementMarginDays, isNull);
       expect(instance.cashuMintUrls, ['https://mint.example.com']);
-    });
-
-    test('fee percentage formatting is unchanged', () {
-      expect(
-        MostroInstance.fromTags(_tagsWith({'fee': '0.006'})).feePercent,
-        '0.60%',
-      );
-      expect(
-        MostroInstance.fromTags(_tagsWith({'fee': '0.01'})).feePercent,
-        '1%',
-      );
-      expect(MostroInstance.fromTags(_tagsWith({})).feePercent, isNull);
     });
   });
 }

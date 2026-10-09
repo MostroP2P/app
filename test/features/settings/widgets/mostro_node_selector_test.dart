@@ -798,12 +798,25 @@ void main() {
       });
     });
 
-    testWidgets('shows the short operator disclaimer', (tester) async {
+    testWidgets('shows the operator disclaimer in full, above the nodes', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(_now), () async {
         await _pump(tester);
+        final disclaimer = find.textContaining(
+          'The Mostro development team is not responsible for how node '
+          'operators use the platform.',
+        );
+        expect(disclaimer, findsOneWidget);
+        // In the list, so it scrolls with the cards instead of taking the
+        // foot's height.
         expect(
-          find.textContaining('Each node is run by an independent third party'),
+          find.descendant(of: find.byType(ListView), matching: disclaimer),
           findsOneWidget,
+        );
+        expect(
+          tester.getTopLeft(disclaimer).dy,
+          lessThan(tester.getTopLeft(find.text('Kmbalache 🇨🇺')).dy),
         );
       });
     });

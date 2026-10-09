@@ -395,8 +395,8 @@ flutter build web --release --base-href "/app/" --pwa-strategy=none
 It then verifies the bundle and smoke-tests it in headless Chrome
 ([`test/web/smoke/smoke.mjs`](test/web/smoke/smoke.mjs)): the release bundle is served
 cross-origin isolated under `/app/`, and the test asserts the page is isolated, the Flutter
-view mounted, a Rust bridge call returned, and nothing errored. Static checks alone cannot
-catch that — every blank-page cause below greps perfectly clean.
+view mounted, startup finished (so the Rust bridge answered), and nothing errored. Static
+checks alone cannot catch that — every blank-page cause below greps perfectly clean.
 
 Three things make it work on a static host that cannot set HTTP headers:
 

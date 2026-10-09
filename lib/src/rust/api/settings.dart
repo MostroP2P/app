@@ -55,7 +55,8 @@ Future<String> getMostroPubkey() =>
 /// Validates the hex pubkey, persists it as the active node's identity,
 /// updates the in-memory override so outgoing events target the new node
 /// immediately, and re-targets the live order-book / Mostro-reply
-/// subscriptions (clearing stale orders and refreshing PoW) to it.
+/// subscriptions (clearing stale orders and refreshing PoW) to it, and asks
+/// it for the user's own reputation in the background.
 ///
 /// Pass `DEFAULT_MOSTRO_PUBKEY` to return to the default node.
 ///

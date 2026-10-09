@@ -1174,11 +1174,29 @@ abstract class AppLocalizations {
   /// **'Not responding'**
   String get nodeStatusUnreachableNoSignal;
 
-  /// Two-line operator disclaimer at the foot of the node selector
+  /// First-run node choice, under the title: what the screen asks (v1 mostroNodeDescription)
   ///
   /// In en, this message translates to:
-  /// **'Each node is run by an independent third party. Mostro is not responsible for their conduct or for your trades.'**
-  String get nodeDisclaimerShort;
+  /// **'Select the Mostro node you want to trade on'**
+  String get nodeChoiceSubtitle;
+
+  /// First-run node choice: the full operator disclaimer of v1 (communityDisclaimerBody), in a warning note
+  ///
+  /// In en, this message translates to:
+  /// **'The Mostro development team is not responsible for how node operators use the platform. Each operator controls their own Mostro node and is solely responsible for their actions. By using Mostro, you accept full responsibility for your trades and acknowledge that the development team has no control over individual node operators.'**
+  String get nodeOperatorDisclaimer;
+
+  /// First-run node choice: primary button, enabled once a node card is picked
+  ///
+  /// In en, this message translates to:
+  /// **'Use this node'**
+  String get nodeChoiceConfirm;
+
+  /// First-run node choice: snackbar when the choice could not be saved on the device; both actions stay available
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your choice. Try again.'**
+  String get nodeChoiceSaveFailed;
 
   /// Warning box in the add-own-node dialog
   ///
@@ -4702,17 +4720,41 @@ abstract class AppLocalizations {
   /// **'Fee'**
   String get aboutFeeCell;
 
-  /// About screen — node fee figure; value is the locale-formatted percentage number
+  /// About screen — node fee figure; value is the locale-formatted percentage number. Keep the non-breaking space (U+00A0) wherever the locale puts a space before the unit, so a line never splits the figure from it
   ///
   /// In en, this message translates to:
   /// **'{value}%'**
   String aboutFeeValue(String value);
 
-  /// About screen redesign (12a/12b)
+  /// Value of the deposit row on the About screen's connected node card when the node asks for no anti-abuse deposit (disabled, or a node that predates deposits)
   ///
   /// In en, this message translates to:
-  /// **'Limits in satoshis per order'**
-  String get aboutLimitsFootnote;
+  /// **'No'**
+  String get aboutNodeDepositNone;
+
+  /// Under the deposit share on the About screen's connected node card: the least the node locks whatever the order's amount (bond_base_amount_sats). amount is the locale-formatted number of sats
+  ///
+  /// In en, this message translates to:
+  /// **'min. {amount} sats'**
+  String aboutNodeDepositFloor(String amount);
+
+  /// Cell label on the About screen's connected node card: the anti-abuse deposit the node asks for (glossary term)
+  ///
+  /// In en, this message translates to:
+  /// **'Deposit'**
+  String get aboutDepositCell;
+
+  /// Cell label on the About screen's connected node card: the fiat currencies the node accepts
+  ///
+  /// In en, this message translates to:
+  /// **'Currencies'**
+  String get aboutCurrenciesCell;
+
+  /// Cell label on the About screen's connected node card: how long an order stays published before it expires
+  ///
+  /// In en, this message translates to:
+  /// **'Expiration'**
+  String get aboutOrderExpiryCell;
 
   /// About screen redesign (12a/12b)
   ///
@@ -4750,10 +4792,10 @@ abstract class AppLocalizations {
   /// **'Waiting timeout'**
   String get aboutWaitingTimeoutLabel;
 
-  /// About screen — a duration in hours, abbreviated
+  /// About screen — a duration in hours, abbreviated. Keep the non-breaking space (U+00A0) between the number and the unit, so a line never splits them
   ///
   /// In en, this message translates to:
-  /// **'{count} h'**
+  /// **'{count} h'**
   String aboutHoursShort(int count);
 
   /// About screen — a duration in seconds, abbreviated
@@ -6304,6 +6346,18 @@ abstract class AppLocalizations {
   /// **'Bond invoice still payable'**
   String get fundsAtRiskBondInvoicePending;
 
+  /// Funds-at-risk list entry: ecash in the current user's Cashu wallet, stranded if the user is replaced
+  ///
+  /// In en, this message translates to:
+  /// **'Ecash in the Cashu wallet'**
+  String get fundsAtRiskCashuBalance;
+
+  /// Funds-at-risk list entry, second line under the Cashu balance: only the current user's recovery words restore it
+  ///
+  /// In en, this message translates to:
+  /// **'Only this user\'s words bring it back'**
+  String get fundsAtRiskCashuHint;
+
   /// Safe, primary action of the funds-at-risk warning: abandon the generation or import
   ///
   /// In en, this message translates to:
@@ -6658,6 +6712,72 @@ abstract class AppLocalizations {
   /// **'Not connected to a mint'**
   String get cashuNotConnected;
 
+  /// Cashu wallet — no mint was ever set; how to get one
+  ///
+  /// In en, this message translates to:
+  /// **'No mint set. Set one, or receive a token to use its mint.'**
+  String get cashuNoMintSet;
+
+  /// Cashu wallet — button that sets the wallet's mint when none is set
+  ///
+  /// In en, this message translates to:
+  /// **'Set mint'**
+  String get cashuSetMintButton;
+
+  /// Cashu wallet — button that changes the wallet's mint
+  ///
+  /// In en, this message translates to:
+  /// **'Change mint'**
+  String get cashuChangeMintButton;
+
+  /// Cashu wallet — title of the dialog where the user enters a mint URL
+  ///
+  /// In en, this message translates to:
+  /// **'Cashu mint'**
+  String get cashuMintDialogTitle;
+
+  /// Cashu wallet — label of the mint URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Mint URL'**
+  String get cashuMintFieldLabel;
+
+  /// Cashu wallet — example mint URL shown in the empty field; not translated
+  ///
+  /// In en, this message translates to:
+  /// **'https://mint.example.com'**
+  String get cashuMintFieldHint;
+
+  /// Cashu wallet — title of the warning before changing the mint with a balance
+  ///
+  /// In en, this message translates to:
+  /// **'Change mint?'**
+  String get cashuChangeMintTitle;
+
+  /// Cashu wallet — the balance stays at the old mint when the wallet changes mint
+  ///
+  /// In en, this message translates to:
+  /// **'Your {sats} sats stay at {mint}. They come back when you connect to that mint again.'**
+  String cashuChangeMintWarning(String sats, String mint);
+
+  /// Cashu — an action needs the wallet's mint and none is set
+  ///
+  /// In en, this message translates to:
+  /// **'Set a mint in the Cashu wallet first.'**
+  String get cashuErrorNoMint;
+
+  /// Cashu wallet — the mint URL is not an https URL with a host (http only for a mint on this device)
+  ///
+  /// In en, this message translates to:
+  /// **'That is not a mint URL you can use. It must start with https://.'**
+  String get cashuErrorInvalidMintUrl;
+
+  /// Lock escrow — the wallet is bound to another mint than the node's
+  ///
+  /// In en, this message translates to:
+  /// **'Your Cashu wallet uses another mint. Switch it to this node\'s mint in Settings → Cashu wallet, then try again.'**
+  String get cashuErrorWalletOnOtherMint;
+
   /// Cashu wallet — button that scans or pastes a token to redeem
   ///
   /// In en, this message translates to:
@@ -6675,6 +6795,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Paste or scan a Cashu token'**
   String get cashuReceiveHint;
+
+  /// Cashu wallet — title of the Receive dialog, which takes the token by pasting or scanning
+  ///
+  /// In en, this message translates to:
+  /// **'Receive a token'**
+  String get cashuReceiveTitle;
+
+  /// Cashu wallet — label above the token field in the Receive dialog; shown in capitals
+  ///
+  /// In en, this message translates to:
+  /// **'Cashu token'**
+  String get cashuTokenFieldLabel;
+
+  /// Cashu wallet — dimmed placeholder of the token field; disappears once something is pasted or typed
+  ///
+  /// In en, this message translates to:
+  /// **'Paste a Cashu token'**
+  String get cashuPasteTokenHint;
+
+  /// Tooltip of a disabled Scan QR action (NWC wallet, Cashu wallet) where the device has no usable camera (desktop, web)
+  ///
+  /// In en, this message translates to:
+  /// **'Not available on this device'**
+  String get qrScanUnavailable;
 
   /// Cashu wallet — amount field when exporting a token
   ///
@@ -6727,7 +6871,7 @@ abstract class AppLocalizations {
   /// Cashu wallet — explanation of what the wallet is for
   ///
   /// In en, this message translates to:
-  /// **'This wallet holds ecash issued by the mint your Mostro node uses. It exists to fund and receive trades on that node — it is not a general-purpose wallet.'**
+  /// **'This wallet holds ecash from the mint you choose. It exists to fund and receive Cashu trades — it is not a general-purpose wallet.'**
   String get cashuWalletExplanation;
 
   /// Cashu error — the active node is not a Cashu node
@@ -6751,7 +6895,7 @@ abstract class AppLocalizations {
   /// Cashu error — the mint answered but lacks a required NUT or keyset
   ///
   /// In en, this message translates to:
-  /// **'This node\'s mint is missing features the escrow needs, so trading is not possible here.'**
+  /// **'This mint is missing features the wallet needs. Choose another mint.'**
   String get cashuErrorMintUnusable;
 
   /// Cashu error — the web build has no proof storage
@@ -6819,12 +6963,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This token is too large for a QR code. Copy it instead.'**
   String get cashuTokenTooLargeForQr;
-
-  /// Cashu wallet — the node was switched while the wallet was bound to the previous node's mint
-  ///
-  /// In en, this message translates to:
-  /// **'The active node changed and this wallet is bound to another mint. Go back and open the wallet again.'**
-  String get cashuErrorMintChanged;
 
   /// Cashu wallet — permanent: an nsec-imported identity has no seed
   ///
@@ -7113,6 +7251,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Mint URL copied'**
   String get settingsMintCopied;
+
+  /// Title of the card on the order book (web, mobile) that offers to install the app to the home screen
+  ///
+  /// In en, this message translates to:
+  /// **'Install Mostro'**
+  String get pwaInstallTitle;
+
+  /// Body of the install card: what installing gives the user
+  ///
+  /// In en, this message translates to:
+  /// **'Open it from your home screen, full screen, like any other app.'**
+  String get pwaInstallBody;
+
+  /// Install card action: installs the app (Android) or shows how to (iOS)
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get pwaInstallAction;
+
+  /// Install card way out: hides the card for good on this device
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get pwaInstallNotNow;
+
+  /// Settings row (web only) that installs the app, for whoever dismissed the card
+  ///
+  /// In en, this message translates to:
+  /// **'Install app'**
+  String get pwaInstallSettingTitle;
+
+  /// Title of the sheet that explains how to add the app to the iOS home screen
+  ///
+  /// In en, this message translates to:
+  /// **'Add Mostro to your home screen'**
+  String get pwaInstallStepsTitle;
+
+  /// Step 1 on iOS: the Share button of Safari or of the browser
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the Share button in your browser\'s toolbar.'**
+  String get pwaInstallStepShare;
+
+  /// Step 2 on iOS: the Share menu entry, named as iOS names it in this language
+  ///
+  /// In en, this message translates to:
+  /// **'Choose “Add to Home Screen”.'**
+  String get pwaInstallStepAdd;
+
+  /// Closes the iOS install steps sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get pwaInstallStepsDone;
+
+  /// Title of the Account card showing the user's own reputation on the active node
+  ///
+  /// In en, this message translates to:
+  /// **'Your reputation'**
+  String get myReputationTitle;
+
+  /// Number of ratings the user has received, on their own reputation card
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 rating} other{{count} ratings}}'**
+  String myReputationReviews(int count);
+
+  /// Date of the user's first trade on their reputation card; date is a localized month and year
+  ///
+  /// In en, this message translates to:
+  /// **'since {date}'**
+  String myReputationSince(String date);
+
+  /// Own reputation card when the node has no ratings for the user
+  ///
+  /// In en, this message translates to:
+  /// **'No ratings yet. Your reputation starts with your first rated trade.'**
+  String get myReputationNoReviews;
+
+  /// Own reputation card in full privacy mode, where no reputation exists
+  ///
+  /// In en, this message translates to:
+  /// **'Full privacy mode keeps no reputation. Choose reputation mode below to build one.'**
+  String get myReputationPrivacyMode;
+
+  /// Own reputation card while the node is asked and nothing is cached
+  ///
+  /// In en, this message translates to:
+  /// **'Asking your node…'**
+  String get myReputationLoading;
+
+  /// Own reputation card when the node has never answered
+  ///
+  /// In en, this message translates to:
+  /// **'Your node has not answered yet.'**
+  String get myReputationUnavailable;
+
+  /// Names the node the reputation belongs to
+  ///
+  /// In en, this message translates to:
+  /// **'On {node}'**
+  String myReputationOnNode(String node);
 }
 
 class _AppLocalizationsDelegate

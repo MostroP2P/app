@@ -690,14 +690,29 @@ mod tests {
         }
     }
 
+    /// The cases are shared with Dart's `MostroInstance.acceptedFiatCodes`
+    /// (`mostro_instance_test.dart`), so About and the create-order picker
+    /// read a node's list alike.
     #[test]
     fn accepted_currencies_are_split_trimmed_uppercased_and_deduped() {
-        assert_eq!(
-            parse_accepted_currencies(Some(" ars, ves ,BRL,ars,, eur")),
-            vec!["ARS", "VES", "BRL", "EUR"]
-        );
-        assert!(parse_accepted_currencies(None).is_empty());
-        assert!(parse_accepted_currencies(Some("")).is_empty());
+        #[derive(serde::Deserialize)]
+        struct Case {
+            raw: Option<String>,
+            codes: Vec<String>,
+        }
+        let cases: Vec<Case> = serde_json::from_str(include_str!(
+            "../../../test/fixtures/accepted_fiat_codes.json"
+        ))
+        .unwrap();
+        assert!(!cases.is_empty());
+        for case in cases {
+            assert_eq!(
+                parse_accepted_currencies(case.raw.as_deref()),
+                case.codes,
+                "{:?}",
+                case.raw
+            );
+        }
     }
 
     #[test]

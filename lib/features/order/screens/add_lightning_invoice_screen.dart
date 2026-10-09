@@ -25,6 +25,7 @@ import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
@@ -460,6 +461,7 @@ class _AddLightningInvoiceScreenState
       context.go(AppRoute.home);
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -511,6 +513,7 @@ class _AddLightningInvoiceScreenState
     try {
       final submit = widget.submitInvoice ?? _bridgeSubmit;
       await submit(widget.orderId, input, sats);
+      if (mounted) ref.read(mascotCueProvider.notifier).invoiceAccepted();
 
       // The status listener may have left already on the same reply.
       if (!mounted || _navigated) return true;
@@ -519,6 +522,7 @@ class _AddLightningInvoiceScreenState
       return true;
     } catch (e) {
       if (!mounted) return true;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       // sendInvoice now waits for the daemon's reply: an error means the
       // invoice was NOT accepted (CantDo, e.g. invalid invoice, or timeout),
       // so stay on this screen. Strip the Rust error prefix for readability.

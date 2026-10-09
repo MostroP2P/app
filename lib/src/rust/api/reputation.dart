@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `forget_identity_ratings`, `get`, `has_mine`, `hydrate_mine_from_db`, `hydrate_mine`, `insert_peer`, `new`, `rating_store`, `remove_mine`, `try_insert_mine`
+// These functions are ignored because they are not marked as `pub`: `forget_identity_ratings`, `forget`, `get`, `has_mine`, `hydrate_mine_from_db`, `hydrate_mine`, `insert_peer`, `new`, `rating_store`, `remove_mine`, `try_insert_mine`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `RatingStore`, `TradeRatings`
 
 /// Submit a star rating for the counterparty of a completed trade.
@@ -36,7 +36,9 @@ Future<bool> getPrivacyMode() =>
 /// When enabled, no reputation data is sent or received in future trades and
 /// session recovery becomes unavailable.
 ///
-/// **Errors**: `NoIdentity` (identity check deferred to Phase 14+ bridge).
+/// Non-async on purpose, and it must stay free of anything that needs a
+/// runtime: on native, FRB runs it on its thread pool, where no Tokio runtime
+/// exists, and a spawn there panicked before the flag was stored (#774).
 Future<void> setPrivacyMode({required bool enabled}) =>
     RustLib.instance.api.crateApiReputationSetPrivacyMode(enabled: enabled);
 

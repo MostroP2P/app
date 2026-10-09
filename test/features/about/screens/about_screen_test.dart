@@ -62,9 +62,8 @@ Widget _app(ProviderContainer container, Widget home) =>
       ),
     );
 
-/// Pumps [home] with the node fetch, node name and app version overridden, so
-/// no Rust bridge call is made. The surface is tall enough to keep every row
-/// of 12b built without scrolling.
+/// Pumps [home] with the node fetch, node name and app version overridden, so no Rust bridge call is made. The surface is tall
+/// enough to keep every row of 12b built without scrolling.
 Future<ProviderContainer> _pump(
   WidgetTester tester,
   Widget home, {
@@ -120,9 +119,11 @@ void main() {
         home: const AboutScreen(),
       );
 
-      expect(find.text('500'), findsOneWidget);
-      expect(find.text('300,000'), findsOneWidget);
+      // The unit sits in each amount's cell, not in a footnote.
+      expect(find.text('500 sats'), findsOneWidget);
+      expect(find.text('300,000 sats'), findsOneWidget);
       expect(find.text('0.6%'), findsOneWidget);
+      expect(find.text('Limits in satoshis per order'), findsNothing);
       // Public key, fiat currencies and bond status.
       expect(find.text('3 fields'), findsOneWidget);
       expect(find.text('Mostro'), findsWidgets);
@@ -155,8 +156,83 @@ void main() {
       );
 
       expect(find.text('CONNECTED NODE'), findsOneWidget);
-      // Three limit cells plus the field count.
-      expect(find.text('—'), findsNWidgets(4));
+      // Three limit cells, the three facts under them and the field count.
+      expect(find.text('—'), findsNWidgets(7));
+      // A missing amount gets no unit.
+      expect(find.textContaining('sats'), findsNothing);
+    });
+
+    testWidgets('sums up the deposit, currencies and order expiry', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const AboutScreen(),
+        overrides: [
+          mostroNodeProvider.overrideWith(
+            (ref) async => MostroInstance.fromTags(
+              _tags({
+                ..._enabledBondTags,
+                'expiration_hours': '24',
+                'fiat_currencies_accepted': 'ARS,EUR,USD',
+              }),
+            ),
+          ),
+        ],
+      );
+
+      expect(find.text('Deposit'), findsOneWidget);
+      // The floor follows the share as one unbreakable piece.
+      expect(find.text('5% min.\u00A01,000\u00A0sats'), findsOneWidget);
+      expect(find.text('Currencies'), findsOneWidget);
+      expect(find.text('ARS, EUR, USD'), findsOneWidget);
+      expect(find.text('Expiration'), findsOneWidget);
+      expect(find.text('24\u00A0h'), findsOneWidget);
+      // The rest of the policy stays in the technical data.
+      for (final label in _parameterLabels) {
+        expect(find.text(label), findsNothing, reason: label);
+      }
+    });
+
+    testWidgets('the currencies follow the node info as it is fetched again', (
+      tester,
+    ) async {
+      var accepted = 'ARS';
+      final container = await _pump(
+        tester,
+        const AboutScreen(),
+        overrides: [
+          mostroNodeProvider.overrideWith(
+            (ref) async => MostroInstance.fromTags(
+              _tags({'fiat_currencies_accepted': accepted}),
+            ),
+          ),
+        ],
+      );
+      expect(find.text('ARS'), findsOneWidget);
+
+      accepted = 'ARS,VES';
+      // A retry, or About's own fetch landing: one frame to rerun the
+      // fetch, one to resolve it, one to build the card from it.
+      container.invalidate(mostroNodeProvider);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('ARS, VES'), findsOneWidget);
+    });
+
+    testWidgets('a node with no deposit, or every currency, says so', (
+      tester,
+    ) async {
+      await _pumpWithNode(
+        tester,
+        MostroInstance.fromTags(_tags({'bond_enabled': 'false'})),
+        home: const AboutScreen(),
+      );
+
+      expect(find.text('No'), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
     });
 
     testWidgets('counts the price source among the technical fields', (
@@ -181,7 +257,7 @@ void main() {
       await _pumpWithNode(tester, null, home: const AboutScreen());
 
       expect(find.text('Retry'), findsOneWidget);
-      expect(find.text('—'), findsNWidgets(3));
+      expect(find.text('—'), findsNWidgets(6));
     });
   });
 

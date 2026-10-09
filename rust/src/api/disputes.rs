@@ -35,6 +35,12 @@ impl DisputeStore {
         }
     }
 
+    /// Drop every dispute: they all belong to the identity being deleted
+    /// (issue #533).
+    async fn forget(&self) {
+        self.disputes.write().await.clear();
+    }
+
     #[cfg(test)]
     async fn upsert(&self, dispute: Dispute) {
         {
@@ -193,7 +199,7 @@ pub(crate) async fn solver_pubkey(trade_id: &str) -> Option<String> {
 /// store is in memory by design, so without this the next user keeps seeing
 /// the previous one's disputes until the process restarts.
 pub(crate) async fn forget_identity_disputes() {
-    dispute_store().disputes.write().await.clear();
+    dispute_store().forget().await;
     if let Ok(mut opens) = pending_opens().lock() {
         opens.clear();
     }
@@ -1674,6 +1680,36 @@ mod tests {
             .try_insert_if_absent_or_resolved(dispute)
             .await
             .expect("seed_dispute: insert failed")
+    }
+
+    /// #533: no dispute of the deleted identity survives its deletion. On a
+    /// store of this test's own, so the process-wide one other tests use is
+    /// never emptied under them.
+    #[tokio::test]
+    async fn forgetting_the_identity_drops_every_dispute() {
+        let store = DisputeStore::new();
+        for trade_id in ["a", "b"] {
+            store
+                .upsert(Dispute {
+                    id: trade_id.to_string(),
+                    trade_id: trade_id.to_string(),
+                    status: DisputeStatus::Open,
+                    initiated_by_me: true,
+                    reason: None,
+                    admin_pubkey: None,
+                    resolution: None,
+                    opened_at: 1,
+                    resolved_at: None,
+                    is_read: true,
+                    chat_key_shared: false,
+                })
+                .await;
+        }
+        assert_eq!(store.all().await.len(), 2);
+
+        store.forget().await;
+
+        assert!(store.all().await.is_empty());
     }
 
     /// #637: the dispute chat labels a solver as the assistant only when the

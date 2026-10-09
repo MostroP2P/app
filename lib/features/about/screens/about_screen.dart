@@ -96,7 +96,6 @@ class AboutScreen extends ConsumerWidget {
       body: SafeArea(
         top: false,
         child: AboutFillViewport(
-          footer: _TechnicalDataCard(nodeAsync: nodeAsync),
           children: [
             _BrandCard(appVersion: appVersion),
             AboutGroupHeader(l10n.aboutAppSection),
@@ -119,6 +118,10 @@ class AboutScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            // The node before the documentation, so the way into its
+            // technical data never sits below the fold.
+            AboutGroupHeader(l10n.aboutConnectedNodeTitle),
+            _ConnectedNodeCard(nodeAsync: nodeAsync),
             AboutGroupHeader(l10n.aboutDocumentationTitle),
             AboutCard(
               child: AboutRowList(
@@ -144,8 +147,6 @@ class AboutScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            AboutGroupHeader(l10n.aboutConnectedNodeTitle),
-            _ConnectedNodeCard(nodeAsync: nodeAsync),
           ],
         ),
       ),
@@ -332,16 +333,19 @@ class _ConnectedNodeCard extends ConsumerWidget {
         node != null ? node.pubKey : ref.watch(activeMostroPubkeyProvider);
     final name = ref.watch(activeNodeNameProvider) ?? l10n.aboutMostroNodeTitle;
     final limits = NodeLimits.of(node, l10n);
-
+    // The unit sits with each amount; a missing figure gets none.
+    String? sats(String figure) =>
+        figure == missingFigure ? null : l10n.satsUnitLabel;
+    final summary = NodeSummary.of(node, l10n);
     return AboutCard(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // The copy icon keeps a 44 dp target, which sets this row's height
           // and supplies its right-hand inset.
           Padding(
-            padding: const EdgeInsets.only(left: 14),
+            padding: const EdgeInsets.only(left: aboutCardInset),
             child: SizedBox(
               height: aboutMinTapTarget,
               child: Row(
@@ -392,68 +396,48 @@ class _ConnectedNodeCard extends ConsumerWidget {
               ),
             ),
           ),
+          // The limits, then what a trader weighs before choosing this
+          // node; the whole policy stays in the technical data.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: [
-                Expanded(child: _LimitCell(l10n.aboutMinOrderCell, limits.min)),
-                const SizedBox(width: 8),
-                Expanded(child: _LimitCell(l10n.aboutMaxOrderCell, limits.max)),
-                const SizedBox(width: 8),
-                Expanded(child: _LimitCell(l10n.aboutFeeCell, limits.fee)),
+            padding: const EdgeInsets.symmetric(horizontal: aboutCardInset),
+            child: AboutFactGrid(
+              // The card's border and this inset, on each side.
+              inset: aboutCardBorder + aboutCardInset,
+              facts: [
+                AboutFact(
+                  l10n.aboutMinOrderCell,
+                  limits.min,
+                  unit: sats(limits.min),
+                ),
+                AboutFact(
+                  l10n.aboutMaxOrderCell,
+                  limits.max,
+                  unit: sats(limits.max),
+                ),
+                AboutFact(l10n.aboutFeeCell, limits.fee),
+                AboutFact(
+                  l10n.aboutDepositCell,
+                  summary.deposit,
+                  unit: summary.depositUnit,
+                ),
+                AboutFact(l10n.aboutCurrenciesCell, summary.currencies),
+                AboutFact(l10n.aboutOrderExpiryCell, summary.orderLifetime),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+          // The card's last row, under a hairline like a row list's. The
+          // padding is AboutCard's own, which the row had as a card of its own.
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Text(
-              l10n.aboutLimitsFootnote,
-              style: TextStyle(fontSize: 10, color: pal.groupHeader),
+            padding: const EdgeInsets.symmetric(
+              horizontal: aboutCardInset,
+              vertical: 1,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LimitCell extends StatelessWidget {
-  const _LimitCell(this.label, this.value);
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final book = OrderBookPalette.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AboutPalette.of(context).cell,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 10, color: book.textSecondary),
-          ),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontFamily: AppFonts.figures,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: book.textStrong,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: pal.rowDivider)),
               ),
+              child: _TechnicalDataRow(nodeAsync: nodeAsync),
             ),
           ),
         ],
@@ -463,8 +447,8 @@ class _LimitCell extends StatelessWidget {
 }
 
 /// Leads to 12b once the node answered; retries the fetch when it did not.
-class _TechnicalDataCard extends ConsumerWidget {
-  const _TechnicalDataCard({required this.nodeAsync});
+class _TechnicalDataRow extends ConsumerWidget {
+  const _TechnicalDataRow({required this.nodeAsync});
 
   final AsyncValue<MostroInstance?> nodeAsync;
 
@@ -488,19 +472,17 @@ class _TechnicalDataCard extends ConsumerWidget {
             ? l10n.aboutNodeRetry
             : missingFigure;
 
-    return AboutCard(
-      child: AboutNavRow(
-        icon: Icons.dns_outlined,
-        label: l10n.aboutNodeTechnicalDataRow,
-        value: value,
-        trailing: AboutRowTrailing.chevron,
-        onTap:
-            node != null
-                ? () => context.push(AppRoute.aboutTechnical)
-                : unavailable
-                ? () => ref.invalidate(mostroNodeProvider)
-                : null,
-      ),
+    return AboutNavRow(
+      icon: Icons.dns_outlined,
+      label: l10n.aboutNodeTechnicalDataRow,
+      value: value,
+      trailing: AboutRowTrailing.chevron,
+      onTap:
+          node != null
+              ? () => context.push(AppRoute.aboutTechnical)
+              : unavailable
+              ? () => ref.invalidate(mostroNodeProvider)
+              : null,
     );
   }
 }

@@ -7,6 +7,7 @@ pub mod identity;
 pub mod invoice;
 pub mod logging;
 pub mod messages;
+pub mod my_reputation;
 pub mod node_stats;
 pub mod nodes;
 pub mod nostr;

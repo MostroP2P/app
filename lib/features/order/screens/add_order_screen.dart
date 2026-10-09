@@ -27,6 +27,7 @@ import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/order_amount_limits.dart';
 import 'package:mostro/shared/widgets/pill_segmented.dart';
 import 'package:mostro/src/rust/api/orders.dart' as rust_orders;
@@ -437,9 +438,11 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
         context.push(AppRoute.payBondPath(order.id));
         return;
       }
+      ref.read(mascotCueProvider.notifier).orderPublished();
       context.go(AppRoute.myOrderPath(order.id));
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       // CantDo rejections from Mostro arrive as errors from createOrder.
       // Strip the Rust error prefix for a cleaner message.
       final raw = e.toString();

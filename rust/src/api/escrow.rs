@@ -46,8 +46,9 @@ fn snapshot() -> EscrowModeInfo {
 ///
 /// Deliberately strict: the mint override exists to point a tester at a local
 /// nutshell, and a typo that silently became the "mint" would surface much
-/// later, as a connection failure with no obvious cause.
-fn validate_mint_url(url: &str) -> Result<()> {
+/// later, as a connection failure with no obvious cause. The wallet's own mint
+/// (`api::cashu`), which a user types or scans, is held to the same rule.
+pub(crate) fn validate_mint_url(url: &str) -> Result<()> {
     // `Url` comes from nostr-sdk's re-export of the `url` crate — no new
     // dependency for one validation.
     let parsed = nostr_sdk::prelude::Url::parse(url)

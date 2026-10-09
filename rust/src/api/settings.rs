@@ -215,7 +215,8 @@ pub fn get_mostro_pubkey() -> String {
 /// Validates the hex pubkey, persists it as the active node's identity,
 /// updates the in-memory override so outgoing events target the new node
 /// immediately, and re-targets the live order-book / Mostro-reply
-/// subscriptions (clearing stale orders and refreshing PoW) to it.
+/// subscriptions (clearing stale orders and refreshing PoW) to it, and asks
+/// it for the user's own reputation in the background.
 ///
 /// Pass `DEFAULT_MOSTRO_PUBKEY` to return to the default node.
 ///
@@ -240,6 +241,8 @@ pub async fn set_active_mostro_node(pubkey: String) -> Result<()> {
         crate::api::bond::retain_previous_node(&previous).await;
     }
     crate::api::orders::refresh_subscriptions_for_active_node().await;
+    // Each node keeps its own users: the reputation shown is the new node's.
+    crate::api::my_reputation::spawn_refresh("node switch");
     // Selecting a node is the user's "try again" for a push-server refusal
     // of that node (docs/PUSH_NOTIFICATIONS.md §7.1).
     crate::api::push::clear_node_refusal(&pubkey).await;
@@ -461,6 +464,31 @@ mod tests {
 
         assert!(normalized < persisted.expect("persists the key"));
         assert!(normalized < activated.expect("activates the key"));
+    }
+
+    /// Each node keeps its own users, so a switch asks the new node for the
+    /// user's reputation (issue #755) — after the key is active, or the
+    /// request would go to the node being left.
+    #[test]
+    fn the_node_switch_refreshes_the_users_reputation() {
+        let source = include_str!("settings.rs");
+        let production = source
+            .split("\n#[cfg(test)]\nmod tests {")
+            .next()
+            .expect("split always yields a first chunk");
+        let start = production
+            .find("pub async fn set_active_mostro_node")
+            .expect("the node switch exists");
+        let body = &production[start..];
+        let body = &body[..body.find("\n}\n").expect("the node switch ends")];
+
+        let activated = body
+            .find("set_active_mostro_pubkey(Some(pubkey")
+            .expect("activates the key");
+        let refreshed = body
+            .find("crate::api::my_reputation::spawn_refresh(")
+            .expect("refreshes the user's reputation");
+        assert!(activated < refreshed);
     }
 
     /// A node switch empties the process-wide order book and rewrites the

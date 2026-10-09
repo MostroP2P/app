@@ -12,6 +12,7 @@ import 'package:mostro/core/storage/app_data_dir.dart'
 import 'package:mostro/core/app.dart';
 import 'package:mostro/core/font_licenses.dart';
 import 'package:mostro/core/mostro_defaults.dart';
+import 'package:mostro/core/startup_sequence.dart';
 import 'package:mostro/core/services/identity_service.dart';
 import 'package:mostro/core/test_environment.dart';
 import 'package:mostro/core/lifecycle/app_lifecycle_service.dart';
@@ -47,6 +48,7 @@ import 'package:mostro/features/notifications/providers/notifications_provider.d
 import 'package:mostro/features/notifications/services/event_cards.dart';
 import 'package:mostro/core/app_routes.dart' show appRouter;
 import 'package:mostro/src/rust/api/messages.dart' as messages_api;
+import 'package:mostro/src/rust/api/my_reputation.dart' as my_reputation_api;
 
 /// Starts the application.
 ///
@@ -60,63 +62,98 @@ import 'package:mostro/src/rust/api/messages.dart' as messages_api;
 /// defaults gone, an unreachable local relay fails the test instead of
 /// silently succeeding against a public one.
 Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
+  // Outside the guard on purpose: the rescue below paints through runApp, which
+  // needs the binding too. Catching a failure here would only let us try to
+  // render a screen that cannot render, so this one is honestly unguarded.
   WidgetsFlutterBinding.ensureInitialized();
-  registerFontLicenses();
 
-  // Three independent platform round trips, started together rather than
-  // one after the other: all of this runs before the first frame. The record
-  // `wait` listens to every future from the start, so a failure in one is
-  // never an unhandled error while another is still being awaited.
+  await runGuarded((startup) => _startup(startup, seedRelays: seedRelays));
+}
+
+Future<void> _startup(
+  StartupSequence startup, {
+  List<String> seedRelays = const [],
+}) async {
+  // The three platform round trips of startup — push notifications, the Rust
+  // engine and the saved preferences — started together rather than one after
+  // the other, since all of them run before the first frame (#494, which cut
+  // cold start to runApp from 2.3 s to 0.5-0.8 s).
   //
-  // SharedPreferences is pre-read so providers start with synchronous initial
-  // values — eliminates the AsyncValue.loading() race that caused the router
-  // to show the home screen before redirecting to /walkthrough on first launch.
-  final SharedPreferences prefs;
-  try {
-    (_, _, prefs) =
-        await (
-          _initFirebase(),
-          RustLib.init(),
-          SharedPreferences.getInstance(),
-        ).wait;
-  } on ParallelWaitError<
-    Object?,
-    (AsyncError?, AsyncError?, AsyncError?)
-  > catch (e) {
-    // Startup still dies on any of these, as it did when they ran in turn —
-    // but with the failure itself, not a wrapper around three slots, so a
-    // crash report names the bridge panic or the platform error directly.
-    final first = e.errors.$1 ?? e.errors.$2 ?? e.errors.$3!;
-    Error.throwWithStackTrace(first.error, first.stackTrace);
-  }
-  final firstRunComplete = prefs.getBool(kFirstRunCompleteKey) ?? false;
-  final backupDismissed = prefs.getBool(kBackupReminderDismissedKey) ?? false;
-  final backupActive = prefs.getBool(kBackupReminderActiveKey) ?? false;
-  final backupPending = backupActive && !backupDismissed;
-  final savedSettings = AppSettingsState.fromPrefs(prefs);
+  // Each one is awaited below inside its own named step, so a failure still
+  // names the stretch it belongs to: `StartupSequence.currentStep` is a single
+  // field, and three steps running under it at once would leave a failure
+  // naming whichever of them was set last.
+  //
+  // `ignore()` is what makes that late await honest. A future that fails while
+  // another is still being awaited has no listener yet, and Dart reports it as
+  // an unhandled async error before we ever reach its step; `ignore()` marks
+  // the error handled without consuming it, and the `await` below still throws.
+  final firebase = _initFirebase()..ignore();
+  final engine = RustLib.init()..ignore();
+  final preferences = SharedPreferences.getInstance()..ignore();
+
+  // The bundled fonts ship under the SIL Open Font License, which allows it
+  // only alongside their notices; this adds them to Flutter's license page.
+  // It registers a loader rather than reading the files, and a failure leaves
+  // that page two entries short — no reason to stop the app from opening.
+  await startup.optional('registering font licenses', () async {
+    registerFontLicenses();
+  });
+
+  // Push notifications only — the app trades, chats and settles without them.
+  // Optional on purpose: `_initFirebase` already swallows "not configured"
+  // (Linux has no Firebase options, see lib/firebase_options.dart), so what
+  // can still fail here is a real Firebase error, and that must not stop the
+  // app from opening.
+  await startup.optional('setting up notifications', () => firebase);
+
+  await startup.required('loading the engine', () => engine);
+
+  final (
+    prefs,
+    firstRunComplete,
+    backupPending,
+    savedSettings,
+  ) = await startup.required('reading your settings', () async {
+    final prefs = await preferences;
+    final backupDismissed = prefs.getBool(kBackupReminderDismissedKey) ?? false;
+    final backupActive = prefs.getBool(kBackupReminderActiveKey) ?? false;
+    return (
+      prefs,
+      prefs.getBool(kFirstRunCompleteKey) ?? false,
+      backupActive && !backupDismissed,
+      AppSettingsState.fromPrefs(prefs),
+    );
+  });
 
   // Before any startup work below, so a failure in it is captured at the
   // verbosity the user asked for rather than the default.
-  await settings_api.setLoggingEnabled(enabled: savedSettings.loggingEnabled);
+  await startup.optional('applying your log settings', () async {
+    await settings_api.setLoggingEnabled(enabled: savedSettings.loggingEnabled);
+  });
   // The Rust settings store starts empty at every launch, and the take flow
   // reads the address from it.
-  await syncLightningAddressToCore(savedSettings.defaultLightningAddress);
+  await startup.optional('syncing your Lightning address', () async {
+    await syncLightningAddressToCore(savedSettings.defaultLightningAddress);
+  });
 
-  // Initialize the persistent store (SQLite file off the web, IndexedDB
-  // database on it). Must come before any trade / order operations that read
-  // or write trade keys and trade records.
-  try {
-    final location = databaseLocation(
+  // The persistent store (a SQLite file off the web, an IndexedDB database on
+  // it, #408). Must come before any trade / order operation that reads or
+  // writes trade keys and trade records.
+  //
+  // Optional, and it was already written that way before this guard existed:
+  // without it the session is memory-only — trade keys and roles do not
+  // survive a restart — but orders still browse and relay messages still
+  // arrive, and every Rust caller handles a missing database. Runs on the web
+  // too: since #408 that is where web persistence lives. With this step
+  // broken, a trade taken in Chrome is gone after a reload.
+  await startup.optional('opening the local database', () async {
+    await openDatabase(
       isWeb: kIsWeb,
-      dataDir: kIsWeb ? null : await appDataDirPath(),
+      dataDir: appDataDirPath,
+      initDb: rust_api.initDb,
     );
-    await rust_api.initDb(path: location);
-  } catch (e, st) {
-    // DB init failure is non-fatal: trade-key and role persistence won't
-    // work for this session, but the app can still browse orders and relay
-    // messages.  All Rust callers already handle db() == None gracefully.
-    debugPrint('[main] DB init failed — running in memory-only mode: $e\n$st');
-  }
+  });
 
   // Load the persisted active Mostro node into the Rust override before the
   // relay pool starts, so the first subscription targets the user's selected
@@ -125,9 +162,13 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   // active node on launch.
   //
   // This is also the first call that proves the Rust bridge is alive end to
-  // end, so its outcome doubles as the web readiness probe CI waits on — see
-  // lib/core/web/bridge_probe.dart (no-op off web).
+  // end, so a failure here is reported to the web probe CI reads — see
+  // lib/core/web/bridge_probe.dart (no-op off web). Success is reported only
+  // at the end of startup, below.
   String activeMostroPubkey = defaultMostroPubkey;
+  // Named here rather than through a helper: the catch below does more than
+  // record the failure — it tells the web bridge probe, and CI reads that.
+  startup.currentStep = 'selecting the Mostro node';
   try {
     await settings_api.rehydrateActiveMostroNode();
     activeMostroPubkey = await settings_api.getMostroPubkey();
@@ -155,7 +196,6 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
       await settings_api.setTestOrderExpiry(secs: BigInt.from(orderExpiry));
       debugPrint('[main] Mortsom build: orders expire after ${orderExpiry}s');
     }
-    markBridgeReady();
     // Only when the smoke test asks (SMOKE_BOND_STORE=1), and not awaited:
     // it seeds bond rows and checks they come back through the bridge — see
     // lib/core/web/store_probe.dart. A normal launch skips it entirely.
@@ -179,6 +219,9 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   // Guarded like every other optional startup step: if the bridge is broken
   // the mirror is simply absent — the database copy is still the primary
   // record — rather than taking startup down before the UI renders.
+  // Named here rather than through a helper: this block keeps its own handler
+  // and its own log prefix, which the identity work is grouped under.
+  startup.currentStep = 'mirroring trade key indices';
   try {
     _mirrorTradeKeyIndex(await identity_api.onTradeKeyIndexChanged());
   } catch (e) {
@@ -187,6 +230,8 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
 
   // Initialize identity: creates on first launch, reloads on subsequent launches.
   // Must run before Nostr init so the identity key is available for relay auth.
+  // Named here rather than through a helper, for the same reason as above.
+  startup.currentStep = 'loading your identity';
   try {
     await IdentityService.initialize();
   } catch (e, st) {
@@ -198,90 +243,140 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   // Subscribe to bond-slashed notices BEFORE relay delivery starts, so the
   // Tokio broadcast channel buffers any notice arriving during startup rather
   // than dropping it (a receiver must exist at send time).
-  final bondSlashedStream = await bond_api.onBondSlashed();
-  final bondClaimStream = await bond_api.onBondClaimUpdated();
+  bond_api.BondSlashedStream? bondSlashedStream;
+  await startup.optional('subscribing to bond notices', () async {
+    bondSlashedStream = await bond_api.onBondSlashed();
+  });
+  // The other side of a slash: a share of a confiscated bond that is yours to
+  // claim, and the payout arriving. Optional for the same reason as the line
+  // above, and a claim missed here is not lost — My Trades and the trade
+  // detail read claims from the core, not from this stream.
+  bond_api.BondClaimStream? bondClaimStream;
+  await startup.optional('subscribing to bond claim updates', () async {
+    bondClaimStream = await bond_api.onBondClaimUpdated();
+  });
   // Same reason for the Notifications cards (issue #474): the startup replay
   // of the node's history is what tells the user what happened while away.
-  final tradeUpdateStream = await orders_api.onTradeUpdated();
-  final chatMessageStream = await messages_api.onAnyNewMessage();
+  // Optional like the bond notices: these streams feed only the cards. Trade
+  // screens and chat open their own subscriptions (trade_state_provider,
+  // chat_providers), so without these the app works and only the cards are
+  // missing for the session.
+  orders_api.TradeUpdatesStream? tradeUpdateStream;
+  await startup.optional('subscribing to trade updates', () async {
+    tradeUpdateStream = await orders_api.onTradeUpdated();
+  });
+  messages_api.AnyMessageStream? chatMessageStream;
+  await startup.optional('subscribing to chat messages', () async {
+    chatMessageStream = await messages_api.onAnyNewMessage();
+  });
 
   // Initialize the Nostr relay pool. `null` means the compiled-in defaults
   // (config.rs); a non-empty seed list replaces them entirely.
   // This must happen before any Nostr/order API calls.
+  // Optional — measured with this step forced to fail. The app opens, and the
+  // secret words can still be viewed and backed up: they come from secure
+  // storage, not from relays, and that is the one thing worth keeping
+  // reachable when the network cannot start. A launch that reuses a live
+  // process (Android destroyed the activity, not the process) finds the pool
+  // already running; Rust re-attaches to it rather than fail.
   //
-  // Guarded like the steps above: this runs before `runApp`, and an escaping
-  // error here left the app on its splash screen for good. A launch that
-  // reuses a live process (Android destroyed the activity, not the process)
-  // finds the pool already running; Rust re-attaches to it rather than fail.
-  try {
+  // Nothing that needs relays works, though. Adding a relay in Settings fails,
+  // because the relay API goes through a pool that never started; the order
+  // book spins with no message, and My Trades shows empty although the trades
+  // are stored. Those screens have no "disconnected" state yet — that is what
+  // makes this degradation confusing, not the decision to open.
+  await startup.optional('connecting to the network', () async {
     await nostr_api.initialize(relays: seedRelays.isEmpty ? null : seedRelays);
+  });
 
-    // Log initial relay state for diagnostics.
+  // Log initial relay state for diagnostics.
+  await startup.optional('reading relay status', () async {
     final relays = await nostr_api.getRelays();
     final connState = await nostr_api.getConnectionState();
     debugPrint(
       '[main] relay pool initialized — state=$connState relays=${relays.map((r) => '${r.url}:${r.status}').join(', ')}',
     );
-  } catch (e, st) {
-    debugPrint('[main] relay pool init failed: $e\n$st');
-  }
+  });
 
-  // Watch for connection state changes in background (logs appear in flutter output).
-  _watchConnectionState();
+  // Assembling the container, restoring the wallet and starting the watchers
+  // are one stretch with no natural place to stop. Unlabelled, they ran under
+  // the name of whichever optional step finished last, so a failure here named
+  // a step that had already succeeded.
+  //
+  // runApp stays outside the wrapper, still under the 'building the interface'
+  // label. The guard catches only what runApp throws at once: the first frame
+  // (MostroApp.build, the first provider reads, the router's initial redirect)
+  // is painted later, and a failure there bypasses the guard and the ready
+  // flag below alike. Tracked in its own issue.
+  final container = await startup.required('building the interface', () async {
+    // Logs every relay connection state change (debug builds only).
+    _watchConnectionState();
 
-  final nodeInfoWarmed = _warmNodeInfoCache();
+    final nodeInfoWarmed = _warmNodeInfoCache();
+    unawaited(_refreshMyReputation());
 
-  final container = ProviderContainer(
-    overrides: [
-      firstRunProvider.overrideWith(
-        (ref) => FirstRunNotifier(initialValue: firstRunComplete),
+    final container = ProviderContainer(
+      overrides: [
+        firstRunProvider.overrideWith(
+          (ref) => FirstRunNotifier(initialValue: firstRunComplete),
+        ),
+        backupReminderProvider.overrideWith(
+          (ref) => BackupReminderNotifier(initialValue: backupPending),
+        ),
+        settingsProvider.overrideWith(
+          (ref) => SettingsNotifier(prefs: prefs, initial: savedSettings),
+        ),
+        nwcProvider.overrideWith((ref) => NwcNotifier(prefs: prefs)),
+        mostroPubkeyProvider.overrideWith((ref) => activeMostroPubkey),
+        nodeInfoWarmUpProvider.overrideWith((ref) => nodeInfoWarmed),
+      ],
+    );
+
+    // A form opened before the warm-up landed read an empty cache: reread it.
+    unawaited(
+      nodeInfoWarmed.then(
+        (_) => container.invalidate(activeNodeCurrenciesProvider),
       ),
-      backupReminderProvider.overrideWith(
-        (ref) => BackupReminderNotifier(initialValue: backupPending),
-      ),
-      settingsProvider.overrideWith(
-        (ref) => SettingsNotifier(prefs: prefs, initial: savedSettings),
-      ),
-      nwcProvider.overrideWith((ref) => NwcNotifier(prefs: prefs)),
-      mostroPubkeyProvider.overrideWith((ref) => activeMostroPubkey),
-    ],
-  );
+    );
 
-  // A form opened before the warm-up landed read an empty cache: reread it.
-  unawaited(
-    nodeInfoWarmed.then(
-      (_) => container.invalidate(activeNodeCurrenciesProvider),
-    ),
-  );
+    // Restore NWC wallet connection if a URI was saved from a previous session.
+    final savedNwcUri = prefs.getString(kNwcUriKey);
+    if (savedNwcUri != null) {
+      _restoreNwcConnection(savedNwcUri, container);
+    }
 
-  // Restore NWC wallet connection if a URI was saved from a previous session.
-  final savedNwcUri = prefs.getString(kNwcUriKey);
-  if (savedNwcUri != null) {
-    _restoreNwcConnection(savedNwcUri, container);
-  }
+    final slashed = bondSlashedStream;
+    if (slashed != null) _consumeBondSlashed(slashed, container);
+    final claims = bondClaimStream;
+    if (claims != null) _consumeBondClaims(claims, container);
 
-  _consumeBondSlashed(bondSlashedStream, container);
-  _consumeBondClaims(bondClaimStream, container);
+    final eventCards = EventCards(
+      notifications: () => container.read(notificationsProvider.notifier),
+      // Read from disk, not the prefs provider: its first load is async, and
+      // the startup replay must not slip cards past a toggle that is off.
+      isEnabled: (event) => prefs.getBool(event.prefsKey) ?? true,
+      identityCreatedAt: IdentityService.createdAt,
+      currentLocation: _currentLocation,
+      disputeIdForTrade:
+          (tradeId) => container.read(disputeByTradeIdProvider(tradeId))?.id,
+    );
+    final trades = tradeUpdateStream;
+    if (trades != null) {
+      pumpEvents('trade-cards', trades.next, eventCards.onTradeUpdate);
+    }
+    final chats = chatMessageStream;
+    if (chats != null) {
+      pumpEvents('chat-cards', chats.next, eventCards.onChatMessage);
+    }
 
-  final eventCards = EventCards(
-    notifications: () => container.read(notificationsProvider.notifier),
-    // Read from disk, not the prefs provider: its first load is async, and
-    // the startup replay must not slip cards past a toggle that is off.
-    isEnabled: (event) => prefs.getBool(event.prefsKey) ?? true,
-    identityCreatedAt: IdentityService.createdAt,
-    currentLocation: _currentLocation,
-    disputeIdForTrade:
-        (tradeId) => container.read(disputeByTradeIdProvider(tradeId))?.id,
-  );
-  pumpEvents('trade-cards', tradeUpdateStream.next, eventCards.onTradeUpdate);
-  pumpEvents('chat-cards', chatMessageStream.next, eventCards.onChatMessage);
-
-  // Resume = resync in Rust, then re-hydrate every notifier from the bridge
-  // (issue #308, docs/PUSH_NOTIFICATIONS.md §10). Attached before runApp so
-  // the first suspension is observed too.
-  AppLifecycleService(
-    onResume: ResumeResync(container: container).run,
-  ).attach();
+    // Resume = resync in Rust, then re-hydrate every notifier from the bridge
+    // (issue #308, docs/PUSH_NOTIFICATIONS.md §10). Attached before runApp so
+    // the first suspension is observed too.
+    AppLifecycleService(
+      onResume: ResumeResync(container: container).run,
+    ).attach();
+    return container;
+  });
 
   // Copies of attachments handed to another app ("open with…", share):
   // whatever an earlier run left behind goes now, and a resume clears those
@@ -298,6 +393,10 @@ Future<void> bootstrapAndRun({List<String> seedRelays = const []}) async {
   runApp(
     UncontrolledProviderScope(container: container, child: const MostroApp()),
   );
+  // Last, not at the first Rust call: the smoke test stops watching once this
+  // is set, so anything that failed after it went unseen. A
+  // failure before here never reaches it and the guard reports the cause.
+  markBridgeReady();
 }
 
 /// Initialize Firebase (no-op if firebase_options.dart is the placeholder).
@@ -308,7 +407,7 @@ Future<void> _initFirebase() async {
     );
   } on UnsupportedError catch (e) {
     debugPrint(
-      '[main] Firebase not configured: $e — push notifications disabled.',
+      '[startup] Firebase not configured: $e — push notifications disabled.',
     );
   }
 }
@@ -351,6 +450,16 @@ void _mirrorTradeKeyIndex(identity_api.TradeKeyIndexStream stream) {
 Future<void> _warmNodeInfoCache() =>
     node_stats_api.refreshMostroNodeInfoCache().catchError((Object e) {
       debugPrint('[main] node info warm-up failed: $e');
+    });
+
+/// Ask the active node for the user's own reputation (`user-info`, #755), so
+/// Account opens on a fresh answer. Never awaited: Rust keeps it, the screen
+/// asks again when it opens, and full privacy mode sends nothing.
+Future<void> _refreshMyReputation() => my_reputation_api
+    .refreshMyReputation()
+    .then<void>((_) {})
+    .catchError((Object e) {
+      debugPrint('[main] own reputation refresh failed: $e');
     });
 
 /// Reconnect a previously saved NWC wallet in the background.

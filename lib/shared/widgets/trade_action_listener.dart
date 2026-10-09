@@ -1,13 +1,16 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart';
 import 'package:mostro/features/cashu/seller_funding_route.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
 
 /// Pushes [destination] unless it is already the screen on top.
 ///
@@ -81,7 +84,22 @@ class _TradeActionListenerState extends ConsumerState<TradeActionListener> {
   static void _routerNavigate(String destination) =>
       pushUnlessVisible(appRouter, destination);
 
+  /// Whether an invoice request's step window has already run out. The
+  /// startup replay, and a restore's, re-emit every old request with its
+  /// own time (#474); opening those screens bounced the user through a
+  /// trade that ended weeks ago, and no invoice on them could be acted on.
+  bool _expiredRequest(TradeUpdate update) {
+    final at = DateTime.fromMillisecondsSinceEpoch(
+      platformInt64ToInt(update.occurredAt) * 1000,
+    );
+    return clock.now().difference(at) > ref.read(invoiceStepWindowProvider);
+  }
+
   Future<void> _handle(TradeUpdate update) async {
+    final isInvoiceStep =
+        update.status == OrderStatus.waitingBuyerInvoice ||
+        update.status == OrderStatus.waitingPayment;
+    if (isInvoiceStep && _expiredRequest(update)) return;
     final destination = switch (update.status) {
       OrderStatus.waitingBuyerInvoice => AppRoute.addInvoicePath(
         update.orderId,

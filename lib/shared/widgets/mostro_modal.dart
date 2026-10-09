@@ -63,11 +63,18 @@ class ModalLink {
     required this.label,
     required this.onPressed,
     this.automationId,
+    this.tooltip,
   });
 
   final String label;
+
+  /// Null disables the link, in the faint ink.
   final VoidCallback? onPressed;
   final String? automationId;
+
+  /// Shown on hover or long press, and read by screen readers: why a
+  /// disabled link cannot be used.
+  final String? tooltip;
 }
 
 /// Opens [MostroDialog] and resolves to what the action passed to
@@ -369,18 +376,25 @@ class ModalFooter extends StatelessWidget {
               children: [
                 for (final link in links)
                   _withId(
-                    TextButton(
-                      onPressed: link.onPressed,
-                      style: TextButton.styleFrom(
-                        foregroundColor: book.limeText,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        textStyle: const TextStyle(
-                          fontFamily: AppFonts.ui,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                    _withTooltip(
+                      TextButton(
+                        onPressed: link.onPressed,
+                        style: TextButton.styleFrom(
+                          foregroundColor: book.limeText,
+                          // Left unset, a disabled link takes Material's
+                          // default, the v1 theme's onSurface at 38%: a link
+                          // colors its label from the palette (DS-CMP-17).
+                          disabledForegroundColor: book.textFaint,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          textStyle: const TextStyle(
+                            fontFamily: AppFonts.ui,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
+                        child: Text(link.label),
                       ),
-                      child: Text(link.label),
+                      link.tooltip,
                     ),
                     link.automationId,
                   ),
@@ -562,6 +576,9 @@ Color _inkOf(OrderBookPalette book, ModalTone tone) => switch (tone) {
   ModalTone.normal => book.onLime,
   ModalTone.destructive => book.onSell,
 };
+
+Widget _withTooltip(Widget child, String? message) =>
+    message == null ? child : Tooltip(message: message, child: child);
 
 Widget _withId(Widget child, String? id) =>
     id == null ? child : child.withAutomationId(id);

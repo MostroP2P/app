@@ -278,9 +278,7 @@ names it too. What the client does with that today:
   selector shows `mint.a.com +2` or "Any mint".
 - Settings → Payments **always** shows the Lightning address, the NWC wallet and the
   Cashu wallet, on every node (§1.2). On a Cashu node it also shows the node's mint rows
-  (a tap copies the URL). *As first merged, this group showed either the Cashu rows or
-  the Lightning address and NWC rows, never both; that contradicts §1.2 and has to
-  change.*
+  (a tap copies the URL).
 - Still to build: choosing the mint when creating an order (`new-order` sends none, which
   a node with exactly one mint defaults), and a wallet that locks at the order's mint, so
   that multi-mint and open nodes can trade.
@@ -465,13 +463,21 @@ hard prerequisite, not a nice-to-have.
     exception here is a send whose `confirm` fails, which revokes its own
     operation rather than leaving the proofs stranded;
   - proof storage via `cdk-sqlite` in the app data dir (own DB file; never mixes with
-    the app's sqlite schema).
+    the app's sqlite schema), **one file per identity** (`cashu-<pubkey>.sqlite`): cdk
+    keys proofs by mint, not by seed, so a shared store would hand one identity's
+    bearer proofs to the next at the same mint. An older install's shared
+    `cashu.sqlite` belongs to the identity the app starts with after the upgrade:
+    it is recorded as the owner (`cashu_legacy_store_owner`) at that first load,
+    before any screen can replace it, and only it adopts the file. The move is
+    restart-safe (`-wal`/`-shm` first, the main file last). Deleting an identity
+    keeps its file, so importing its words again restores the balance.
 - `rust/src/api/cashu.rs` — FRB: `cashu_connect`, `cashu_status`,
   `cashu_disconnect`, `cashu_get_balance`, `cashu_receive_token`,
   `cashu_create_token`, `cashu_sweep_spent_proofs`, `on_cashu_wallet_changed`
   stream. Plain wallet operations (balance, receive, send) work on any node (§1.2).
-  Escrow operations check that the wallet's mint is the order's
-  (`CashuMintNotSupported`).
+  Escrow operations stay on Cashu nodes (`CashuNotEnabled`) and check, before any
+  swap, that the order's mint is the node's (`CashuMintNotSupported`) and that the
+  wallet is bound to it (`CashuWalletOnOtherMint`).
 - **The wallet's mint belongs to the user, not to the node.** It is persisted in the
   Rust settings k/v store and survives node switches and restarts. `cashu_connect`
   takes the mint URL to connect to, and runs the same checks as today (reachability,
@@ -483,11 +489,11 @@ hard prerequisite, not a nice-to-have.
 
   Changing the mint later is an explicit user action. It never deletes the proofs of
   the previous mint, which come back when the user connects to that mint again.
-  *As first merged, `cashu_connect()` took no argument and derived the mint from the
-  active node (`single_mint()`), `ensure_enabled` refused every call off a Cashu node
-  (`CashuNotEnabled`), and every operating call checked that the wallet was still
-  bound to the active node's mint (`CashuMintChanged`). All three tie the wallet to the
-  node and have to change for §1.2.*
+  The mint lives under `cashu_wallet_mint_url` and is written only after the mint
+  answered and proved usable, so a typo never becomes the wallet's mint. With nothing
+  given, set or offered, `cashu_connect` returns `CashuNoMint`, which the wallet screen
+  shows as "set a mint" rather than as an error. A node switch no longer disconnects
+  the wallet.
 - Wallet initializes **lazily**, on first use, on any node — never at app start, and
   never conditioned on the active node's escrow mode (§1.2).
 - Unit tests against a mocked/local mint where feasible; integration test target
@@ -515,8 +521,6 @@ hard prerequisite, not a nice-to-have.
 - **Done when:** a tester can fund the wallet from any Cashu wallet (e.g. a nutshell
   faucet token) and see/export balance, on a Cashu node and on a Lightning node alike —
   on a Lightning node after entering a mint URL or by receiving a token.
-  *As first merged, the entry point showed only with Cashu detected (or the override
-  on); that contradicts §1.2 and has to change.*
 - Est. size: S–M (~500–800 lines).
 
 #### C4 — escrow primitives (Rust, no UI)

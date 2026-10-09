@@ -139,6 +139,17 @@ List<MostroNodeEntry> sortNodes(
   return [for (final (_, e) in indexed) e];
 }
 
+/// [nodes] with the node whose pubkey is [pubkey] moved to the top, the rest
+/// in their order. The first run's node choice opens on the default node,
+/// the one it falls back to when the user picks none.
+List<MostroNodeEntry> withNodeFirst(
+  List<MostroNodeEntry> nodes,
+  String pubkey,
+) => [
+  ...nodes.where((e) => e.pubkey == pubkey),
+  ...nodes.where((e) => e.pubkey != pubkey),
+];
+
 // ── Currency chips ────────────────────────────────────────────────────────────
 
 /// Every currency the node accepts, the user's first, then the node's order.

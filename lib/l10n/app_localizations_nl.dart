@@ -635,8 +635,19 @@ class AppLocalizationsNl extends AppLocalizations {
   String get nodeStatusUnreachableNoSignal => 'Reageert niet';
 
   @override
-  String get nodeDisclaimerShort =>
-      'Elke node wordt beheerd door een zelfstandige derde partij. Mostro is niet verantwoordelijk voor hun handelen of voor jouw trades.';
+  String get nodeChoiceSubtitle =>
+      'Kies de Mostro-node waarop je wilt handelen';
+
+  @override
+  String get nodeOperatorDisclaimer =>
+      'Het ontwikkelteam van Mostro is niet verantwoordelijk voor wat node-beheerders met het platform doen. Elke beheerder bestuurt een eigen Mostro-node en is als enige verantwoordelijk voor wat daar gebeurt. Door Mostro te gebruiken neem je de volledige verantwoordelijkheid voor je eigen trades, en erken je dat het ontwikkelteam geen zeggenschap heeft over afzonderlijke node-beheerders.';
+
+  @override
+  String get nodeChoiceConfirm => 'Deze node gebruiken';
+
+  @override
+  String get nodeChoiceSaveFailed =>
+      'Je keuze kon niet worden opgeslagen. Probeer het opnieuw.';
 
   @override
   String get nodeVerifyKeyWarning =>
@@ -2787,7 +2798,21 @@ class AppLocalizationsNl extends AppLocalizations {
   }
 
   @override
-  String get aboutLimitsFootnote => 'Grenzen in satoshi per order';
+  String get aboutNodeDepositNone => 'Nee';
+
+  @override
+  String aboutNodeDepositFloor(String amount) {
+    return 'min. $amount sats';
+  }
+
+  @override
+  String get aboutDepositCell => 'Borg';
+
+  @override
+  String get aboutCurrenciesCell => 'Valuta';
+
+  @override
+  String get aboutOrderExpiryCell => 'Verloop';
 
   @override
   String get aboutNodeTechnicalDataRow => 'Technische gegevens van de node';
@@ -2817,7 +2842,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String aboutHoursShort(int count) {
-    return '$count u';
+    return '$count u';
   }
 
   @override
@@ -3794,6 +3819,13 @@ class AppLocalizationsNl extends AppLocalizations {
   String get fundsAtRiskBondInvoicePending => 'Borgfactuur nog te betalen';
 
   @override
+  String get fundsAtRiskCashuBalance => 'Ecash in de Cashu-portemonnee';
+
+  @override
+  String get fundsAtRiskCashuHint =>
+      'Alleen de woorden van deze gebruiker brengen het terug';
+
+  @override
   String get fundsAtRiskKeep => 'Deze gebruiker houden';
 
   @override
@@ -4012,6 +4044,45 @@ class AppLocalizationsNl extends AppLocalizations {
   String get cashuNotConnected => 'Niet verbonden met een mint';
 
   @override
+  String get cashuNoMintSet =>
+      'Geen mint ingesteld. Stel er een in, of ontvang een token om de mint daarvan te gebruiken.';
+
+  @override
+  String get cashuSetMintButton => 'Mint instellen';
+
+  @override
+  String get cashuChangeMintButton => 'Mint wijzigen';
+
+  @override
+  String get cashuMintDialogTitle => 'Cashu-mint';
+
+  @override
+  String get cashuMintFieldLabel => 'Mint-URL';
+
+  @override
+  String get cashuMintFieldHint => 'https://mint.example.com';
+
+  @override
+  String get cashuChangeMintTitle => 'Mint wijzigen?';
+
+  @override
+  String cashuChangeMintWarning(String sats, String mint) {
+    return 'Je $sats sats blijven bij $mint. Ze komen terug zodra je weer met die mint verbindt.';
+  }
+
+  @override
+  String get cashuErrorNoMint =>
+      'Stel eerst een mint in de Cashu-portemonnee in.';
+
+  @override
+  String get cashuErrorInvalidMintUrl =>
+      'Dat is geen bruikbare mint-URL. Hij moet beginnen met https://.';
+
+  @override
+  String get cashuErrorWalletOnOtherMint =>
+      'Je Cashu-portemonnee gebruikt een andere mint. Schakel in Instellingen → Cashu-portemonnee over naar de mint van deze node en probeer het opnieuw.';
+
+  @override
   String get cashuReceiveButton => 'Ontvangen';
 
   @override
@@ -4019,6 +4090,18 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuReceiveHint => 'Plak of scan een Cashu-token';
+
+  @override
+  String get cashuReceiveTitle => 'Token ontvangen';
+
+  @override
+  String get cashuTokenFieldLabel => 'Cashu-token';
+
+  @override
+  String get cashuPasteTokenHint => 'Plak een Cashu-token';
+
+  @override
+  String get qrScanUnavailable => 'Niet beschikbaar op dit apparaat';
 
   @override
   String get cashuAmountLabel => 'Bedrag in sats';
@@ -4049,7 +4132,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuWalletExplanation =>
-      'Deze portemonnee bewaart ecash die is uitgegeven door de mint die je Mostro-node gebruikt. Hij dient om trades op die node te financieren en te ontvangen — het is geen portemonnee voor algemeen gebruik.';
+      'Deze portemonnee bewaart ecash van de mint die je kiest. Hij dient om Cashu-trades te financieren en te ontvangen — het is geen portemonnee voor algemeen gebruik.';
 
   @override
   String get cashuErrorNotEnabled =>
@@ -4065,7 +4148,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorMintUnusable =>
-      'De mint van deze node mist functies die de escrow nodig heeft, dus handelen is hier niet mogelijk.';
+      'Deze mint mist functies die de portemonnee nodig heeft. Kies een andere mint.';
 
   @override
   String get cashuErrorUnsupportedOnWeb =>
@@ -4108,10 +4191,6 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String get cashuTokenTooLargeForQr =>
       'Deze token is te groot voor een QR-code. Kopieer hem in plaats daarvan.';
-
-  @override
-  String get cashuErrorMintChanged =>
-      'De actieve node is gewijzigd en deze portemonnee hoort bij een andere mint. Ga terug en open de portemonnee opnieuw.';
 
   @override
   String get cashuErrorNoMnemonic =>
@@ -4289,4 +4368,71 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get settingsMintCopied => 'Mint-URL gekopieerd';
+
+  @override
+  String get pwaInstallTitle => 'Mostro installeren';
+
+  @override
+  String get pwaInstallBody =>
+      'Open hem vanaf je beginscherm, schermvullend, zoals elke andere app.';
+
+  @override
+  String get pwaInstallAction => 'Installeren';
+
+  @override
+  String get pwaInstallNotNow => 'Niet nu';
+
+  @override
+  String get pwaInstallSettingTitle => 'App installeren';
+
+  @override
+  String get pwaInstallStepsTitle => 'Zet Mostro op je beginscherm';
+
+  @override
+  String get pwaInstallStepShare =>
+      'Tik op de deelknop in de balk van je browser.';
+
+  @override
+  String get pwaInstallStepAdd => 'Kies ‘Zet op beginscherm’.';
+
+  @override
+  String get pwaInstallStepsDone => 'Begrepen';
+
+  @override
+  String get myReputationTitle => 'Jouw reputatie';
+
+  @override
+  String myReputationReviews(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count beoordelingen',
+      one: '1 beoordeling',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String myReputationSince(String date) {
+    return 'sinds $date';
+  }
+
+  @override
+  String get myReputationNoReviews =>
+      'Nog geen beoordelingen. Je reputatie begint bij je eerste beoordeelde ruil.';
+
+  @override
+  String get myReputationPrivacyMode =>
+      'De volledige privacymodus houdt geen reputatie bij. Kies hieronder de reputatiemodus om er een op te bouwen.';
+
+  @override
+  String get myReputationLoading => 'Je node wordt gevraagd…';
+
+  @override
+  String get myReputationUnavailable => 'Je node heeft nog niet geantwoord.';
+
+  @override
+  String myReputationOnNode(String node) {
+    return 'Op $node';
+  }
 }

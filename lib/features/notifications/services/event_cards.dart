@@ -9,7 +9,9 @@
 ///
 /// Three filters keep the list about news:
 /// - the event predates the current identity (a restore replays history
-///   the user already lived through elsewhere);
+///   the user already lived through elsewhere), or Rust only re-states a
+///   status, dated now ([TradeUpdateReason.replayed]: a restore filing an
+///   old trade, a re-read after the peer's reputation);
 /// - its toggle in Settings → Notifications is off;
 /// - it is the user's own doing (their own messages, their own cancel, the
 ///   maker bond of their own order) or not a trade state at all (the public
@@ -80,6 +82,9 @@ class EventCards {
     final event = tradeCardEvent(update.status);
     if (event == null) return;
     if (update.reason == TradeUpdateReason.userCanceled) return;
+    // Dated now, so the identity's date cannot filter it, and on a fresh
+    // install no card exists to dedupe it against (#770).
+    if (update.reason == TradeUpdateReason.replayed) return;
     if (!isEnabled(event)) return;
     final at = _secondsToDate(update.occurredAt);
     if (await _predatesIdentity(at)) return;

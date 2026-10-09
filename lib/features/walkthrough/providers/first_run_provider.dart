@@ -8,22 +8,25 @@ export 'package:mostro/features/account/providers/backup_reminder_provider.dart'
 /// SharedPreferences key for the first-run flag.
 const kFirstRunCompleteKey = 'firstRunComplete';
 
-/// `true` once the user has completed (or skipped) the walkthrough.
+/// `true` once the user has finished the first run: the walkthrough, then the
+/// node choice (picked a node or skipped to the default one).
 ///
 /// Loaded asynchronously from SharedPreferences. Defaults to `false`
 /// (first launch) when the key is absent.
 final firstRunProvider =
     StateNotifierProvider<FirstRunNotifier, AsyncValue<bool>>(
-  (ref) => FirstRunNotifier(),
-);
+      (ref) => FirstRunNotifier(),
+    );
 
 class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
   /// When [initialValue] is provided the notifier starts with a synchronous
   /// [AsyncValue.data] so the router never enters the loading state.
   FirstRunNotifier({bool? initialValue})
-      : super(initialValue != null
+    : super(
+        initialValue != null
             ? AsyncValue.data(initialValue)
-            : const AsyncValue.loading()) {
+            : const AsyncValue.loading(),
+      ) {
     if (initialValue == null) _load();
   }
 
@@ -38,7 +41,8 @@ class FirstRunNotifier extends StateNotifier<AsyncValue<bool>> {
     }
   }
 
-  /// Mark the walkthrough as completed. Called by both "Done" and "Skip".
+  /// Mark the first run as completed. Called by the node choice, on both
+  /// "Use this node" and "Skip" — not by the walkthrough, which leads to it.
   ///
   /// Callers should separately activate the backup reminder:
   ///   `ref.read(backupReminderProvider.notifier).showBackupReminder()`

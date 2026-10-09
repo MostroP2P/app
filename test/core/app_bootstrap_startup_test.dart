@@ -16,15 +16,21 @@ void main() {
     final call = source.indexOf('await nostr_api.initialize(');
     final runApp = source.indexOf('runApp(');
     final lastTry = source.lastIndexOf('try {', call);
+    final lastStep = source.lastIndexOf('startup.optional(', call);
 
     // Assert
     expect(call, greaterThan(-1), reason: 'initialize call not found');
     expect(call, lessThan(runApp), reason: 'initialize runs before runApp');
-    expect(lastTry, greaterThan(-1), reason: 'initialize is not in a try');
+    // Either form catches what initialize throws: a try whose catch is still
+    // ahead of the call, or an optional startup step whose body is still open.
+    final inTry =
+        lastTry > -1 && !source.substring(lastTry, call).contains('} catch');
+    final inOptionalStep =
+        lastStep > -1 && !source.substring(lastStep, call).contains('});');
     expect(
-      source.substring(lastTry, call).contains('} catch'),
-      isFalse,
-      reason: 'the nearest try before initialize closes before it',
+      inTry || inOptionalStep,
+      isTrue,
+      reason: 'initialize is neither in a try nor in an optional startup step',
     );
   });
 }

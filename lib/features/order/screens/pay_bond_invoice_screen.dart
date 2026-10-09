@@ -27,6 +27,7 @@ import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
@@ -131,6 +132,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     } catch (e) {
       // A lock that beat the cancel was already told by the listener.
       if (!mounted || _navigated) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       if (maker && e.toString().contains('MakerCancelRefused')) {
         await _offerRemoval();
         return;
@@ -183,6 +185,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       context.go(AppRoute.home);
     } catch (e) {
       if (!mounted || _navigated) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -205,6 +208,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       refreshTrades(ref);
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

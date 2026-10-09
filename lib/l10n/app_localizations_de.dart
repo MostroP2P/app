@@ -637,8 +637,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get nodeStatusUnreachableNoSignal => 'Antwortet nicht';
 
   @override
-  String get nodeDisclaimerShort =>
-      'Jeder Knoten wird von einem unabhängigen Dritten betrieben. Mostro haftet weder für dessen Verhalten noch für deine Geschäfte.';
+  String get nodeChoiceSubtitle =>
+      'Wähle den Mostro-Node, auf dem du handeln möchtest';
+
+  @override
+  String get nodeOperatorDisclaimer =>
+      'Das Mostro-Entwicklungsteam ist nicht verantwortlich für die Nutzung der Plattform durch Node-Betreiber. Jeder Betreiber kontrolliert seinen eigenen Mostro-Node und ist allein verantwortlich für seine Handlungen. Mit der Nutzung von Mostro akzeptierst du die volle Verantwortung für deine Transaktionen und erkennst an, dass das Entwicklungsteam keine Kontrolle über einzelne Node-Betreiber hat.';
+
+  @override
+  String get nodeChoiceConfirm => 'Diesen Node verwenden';
+
+  @override
+  String get nodeChoiceSaveFailed =>
+      'Deine Auswahl konnte nicht gespeichert werden. Versuche es erneut.';
 
   @override
   String get nodeVerifyKeyWarning =>
@@ -2797,11 +2808,25 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String aboutFeeValue(String value) {
-    return '$value %';
+    return '$value %';
   }
 
   @override
-  String get aboutLimitsFootnote => 'Limits in Satoshis pro Auftrag';
+  String get aboutNodeDepositNone => 'Nein';
+
+  @override
+  String aboutNodeDepositFloor(String amount) {
+    return 'mind. $amount Sats';
+  }
+
+  @override
+  String get aboutDepositCell => 'Einlage';
+
+  @override
+  String get aboutCurrenciesCell => 'Währungen';
+
+  @override
+  String get aboutOrderExpiryCell => 'Ablauf';
 
   @override
   String get aboutNodeTechnicalDataRow => 'Technische Knotendaten';
@@ -2831,7 +2856,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String aboutHoursShort(int count) {
-    return '$count h';
+    return '$count h';
   }
 
   @override
@@ -3812,6 +3837,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get fundsAtRiskBondInvoicePending => 'Kautionsrechnung noch zahlbar';
 
   @override
+  String get fundsAtRiskCashuBalance => 'E-Cash in der Cashu-Wallet';
+
+  @override
+  String get fundsAtRiskCashuHint =>
+      'Nur die Wörter dieses Nutzers stellen es wieder her';
+
+  @override
   String get fundsAtRiskKeep => 'Diesen Benutzer behalten';
 
   @override
@@ -4033,6 +4065,45 @@ class AppLocalizationsDe extends AppLocalizations {
   String get cashuNotConnected => 'Mit keiner Mint verbunden';
 
   @override
+  String get cashuNoMintSet =>
+      'Keine Mint festgelegt. Leg eine fest oder empfange einen Token, um dessen Mint zu verwenden.';
+
+  @override
+  String get cashuSetMintButton => 'Mint festlegen';
+
+  @override
+  String get cashuChangeMintButton => 'Mint wechseln';
+
+  @override
+  String get cashuMintDialogTitle => 'Cashu-Mint';
+
+  @override
+  String get cashuMintFieldLabel => 'Mint-URL';
+
+  @override
+  String get cashuMintFieldHint => 'https://mint.example.com';
+
+  @override
+  String get cashuChangeMintTitle => 'Mint wechseln?';
+
+  @override
+  String cashuChangeMintWarning(String sats, String mint) {
+    return 'Deine $sats Sats bleiben bei $mint. Sie sind wieder da, sobald du dich erneut mit dieser Mint verbindest.';
+  }
+
+  @override
+  String get cashuErrorNoMint =>
+      'Leg zuerst eine Mint in der Cashu-Wallet fest.';
+
+  @override
+  String get cashuErrorInvalidMintUrl =>
+      'Das ist keine nutzbare Mint-URL. Sie muss mit https:// beginnen.';
+
+  @override
+  String get cashuErrorWalletOnOtherMint =>
+      'Deine Cashu-Wallet nutzt eine andere Mint. Wechsle unter Einstellungen → Cashu-Wallet zur Mint dieses Nodes und versuch es erneut.';
+
+  @override
   String get cashuReceiveButton => 'Empfangen';
 
   @override
@@ -4040,6 +4111,18 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get cashuReceiveHint => 'Cashu-Token einfügen oder scannen';
+
+  @override
+  String get cashuReceiveTitle => 'Token empfangen';
+
+  @override
+  String get cashuTokenFieldLabel => 'Cashu-Token';
+
+  @override
+  String get cashuPasteTokenHint => 'Cashu-Token einfügen';
+
+  @override
+  String get qrScanUnavailable => 'Auf diesem Gerät nicht verfügbar';
 
   @override
   String get cashuAmountLabel => 'Betrag in Sats';
@@ -4070,7 +4153,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get cashuWalletExplanation =>
-      'Diese Wallet hält E-Cash der Mint, die dein Mostro-Node verwendet. Sie dient dazu, Trades auf diesem Node zu finanzieren und zu vereinnahmen – sie ist keine Allzweck-Wallet.';
+      'Diese Wallet hält E-Cash der Mint, die du wählst. Sie dient dazu, Cashu-Trades zu finanzieren und zu vereinnahmen – sie ist keine Allzweck-Wallet.';
 
   @override
   String get cashuErrorNotEnabled =>
@@ -4086,7 +4169,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get cashuErrorMintUnusable =>
-      'Der Mint dieses Nodes fehlen Funktionen, die die Treuhand braucht – hier kann nicht gehandelt werden.';
+      'Dieser Mint fehlen Funktionen, die die Wallet braucht. Wähle eine andere Mint.';
 
   @override
   String get cashuErrorUnsupportedOnWeb =>
@@ -4129,10 +4212,6 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get cashuTokenTooLargeForQr =>
       'Dieses Token ist zu groß für einen QR-Code. Kopiere es stattdessen.';
-
-  @override
-  String get cashuErrorMintChanged =>
-      'Der aktive Node hat gewechselt und diese Wallet ist an eine andere Mint gebunden. Geh zurück und öffne die Wallet erneut.';
 
   @override
   String get cashuErrorNoMnemonic =>
@@ -4311,4 +4390,72 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsMintCopied => 'Mint-URL kopiert';
+
+  @override
+  String get pwaInstallTitle => 'Mostro installieren';
+
+  @override
+  String get pwaInstallBody =>
+      'Öffne sie vom Home-Bildschirm aus, im Vollbild, wie jede andere App.';
+
+  @override
+  String get pwaInstallAction => 'Installieren';
+
+  @override
+  String get pwaInstallNotNow => 'Nicht jetzt';
+
+  @override
+  String get pwaInstallSettingTitle => 'App installieren';
+
+  @override
+  String get pwaInstallStepsTitle => 'Mostro zum Home-Bildschirm hinzufügen';
+
+  @override
+  String get pwaInstallStepShare =>
+      'Tippe in der Leiste deines Browsers auf „Teilen“.';
+
+  @override
+  String get pwaInstallStepAdd => 'Wähle „Zum Home-Bildschirm“.';
+
+  @override
+  String get pwaInstallStepsDone => 'Verstanden';
+
+  @override
+  String get myReputationTitle => 'Deine Reputation';
+
+  @override
+  String myReputationReviews(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Bewertungen',
+      one: '1 Bewertung',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String myReputationSince(String date) {
+    return 'seit $date';
+  }
+
+  @override
+  String get myReputationNoReviews =>
+      'Noch keine Bewertungen. Deine Reputation beginnt mit deinem ersten bewerteten Handel.';
+
+  @override
+  String get myReputationPrivacyMode =>
+      'Im vollständigen Privatsphäre-Modus wird keine Reputation geführt. Wähle unten den Reputationsmodus, um eine aufzubauen.';
+
+  @override
+  String get myReputationLoading => 'Dein Knoten wird gefragt…';
+
+  @override
+  String get myReputationUnavailable =>
+      'Dein Knoten hat noch nicht geantwortet.';
+
+  @override
+  String myReputationOnNode(String node) {
+    return 'Auf $node';
+  }
 }

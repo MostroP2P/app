@@ -1,0 +1,9 @@
+[
+  { "raw": null, "codes": [] },
+  { "raw": "", "codes": [] },
+  { "raw": " ", "codes": [] },
+  { "raw": ",,", "codes": [] },
+  { "raw": "ARS,VES,BRL", "codes": ["ARS", "VES", "BRL"] },
+  { "raw": " ars, ves ,BRL,ars,, eur", "codes": ["ARS", "VES", "BRL", "EUR"] },
+  { "raw": "usd,USD,Usd", "codes": ["USD"] }
+]

@@ -187,4 +187,37 @@ void main() {
       'generic',
     );
   });
+
+  group('isDaemonRefusal', () {
+    test('reads every answer cant_do_message words, wrapped or not', () {
+      for (final raw in const [
+        'CantDo:InvalidOrderStatus',
+        'CantDo:InvalidFiatCurrency',
+        'Order rejected: sats amount is out of the allowed range.',
+        'Order rejected: invalid Lightning invoice.',
+        'Action rejected: not allowed in the current order status.',
+        'Order is already canceled.',
+        'MaintenanceMode',
+        'InvalidTradeIndex',
+        'MakerCancelRefused',
+        'AnyhowException(ProtocolError: CantDo:IsNotYourDispute)',
+      ]) {
+        expect(isDaemonRefusal(raw), isTrue, reason: raw);
+      }
+    });
+
+    test('does not mistake a local failure for the node saying no', () {
+      for (final raw in const [
+        'NoDaemonResponse',
+        'NoRelayAccepted',
+        'UnsupportedNodeProtocol',
+        'NodeCapabilitiesUnknown',
+        'StorageUnavailable',
+        'InvoiceSubmitInFlight',
+        'SocketException: Connection refused',
+      ]) {
+        expect(isDaemonRefusal(raw), isFalse, reason: raw);
+      }
+    });
+  });
 }

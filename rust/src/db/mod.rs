@@ -40,6 +40,12 @@ pub mod settings_keys {
     /// history (#614).
     pub const RESTORE_SNAPSHOT: &str = "restore_snapshot";
 
+    /// The user's own reputation as each node last reported it (`user-info`),
+    /// JSON map of node pubkey (hex) →
+    /// [`crate::api::my_reputation::MyReputation`] with the identity that
+    /// asked. Identity-scoped: it is that identity's reputation.
+    pub const MY_REPUTATION: &str = "my_reputation";
+
     // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────
 
     /// The master toggle, `"true"` / `"false"`; absent reads as enabled.
@@ -80,6 +86,16 @@ pub mod settings_keys {
     /// Developer mint-URL override, pointing Cashu at a local mint instead of
     /// the one the node advertises.
     pub const CASHU_MINT_URL_OVERRIDE: &str = "cashu_mint_url_override";
+
+    /// The mint the Cashu wallet is bound to, chosen by the user. A device
+    /// preference, independent of the active node: a node switch never changes
+    /// it (docs/cashu/README.md §1.2, C2).
+    pub const CASHU_WALLET_MINT_URL: &str = "cashu_wallet_mint_url";
+
+    /// The identity (pubkey hex) an older install's shared Cashu proof store
+    /// belongs to: recorded at the first identity load after the upgrade, so
+    /// only that identity ever adopts it (`api::cashu::claim_legacy_store`).
+    pub const CASHU_LEGACY_STORE_OWNER: &str = "cashu_legacy_store_owner";
 
     /// Per-order chat `since` cursor — the `created_at` (unix seconds, decimal
     /// string) of the newest accepted outer chat event, clamped to the local
@@ -222,9 +238,8 @@ pub mod settings_keys {
     /// canceled order can be legitimately re-taken (`persist_trade_row`).
     pub const TRADE_WIPED_PREFIX: &str = "trade_wiped:";
 
-    /// Every per-order key family above. The single identity-scoped keys —
-    /// [`BOND_CLAIM_RETAINED_NODES`] and [`RESTORE_SNAPSHOT`] — are dropped
-    /// by name next to them.
+    /// Every per-order key family above. The single identity-scoped keys
+    /// ([`IDENTITY_SCOPED_KEYS`]) are dropped by name next to them.
     /// All of it describes trades of the identity that wrote it, so
     /// [`super::Storage::clear_identity_data`] drops it with the rows. What
     /// is left in the store is device preference: the active node, custom
@@ -240,6 +255,12 @@ pub mod settings_keys {
         INVOICE_STEP_PREFIX,
         TRADE_WIPED_PREFIX,
     ];
+
+    /// The single keys that describe the identity, not the device, dropped
+    /// with [`IDENTITY_SCOPED_PREFIXES`] by
+    /// [`super::Storage::clear_identity_data`].
+    pub const IDENTITY_SCOPED_KEYS: [&str; 3] =
+        [BOND_CLAIM_RETAINED_NODES, RESTORE_SNAPSHOT, MY_REPUTATION];
 
     /// Build the settings key marking `order_id`'s trade row as wiped.
     pub fn trade_wiped(order_id: &str) -> String {
@@ -333,8 +354,8 @@ pub trait Storage: Send + Sync {
     /// messages and their cached attachments, payout claims, the outbound
     /// queue, the cached order book
     /// (its `is_mine` marks are the identity's) and the per-order settings
-    /// ([`settings_keys::IDENTITY_SCOPED_PREFIXES`] and the retained-nodes
-    /// map). Used on identity deletion, next to [`Self::clear_trade_keys`]:
+    /// ([`settings_keys::IDENTITY_SCOPED_PREFIXES`] and
+    /// [`settings_keys::IDENTITY_SCOPED_KEYS`]). Used on identity deletion, next to [`Self::clear_trade_keys`]:
     /// a new user must start as on a fresh install (issue #533). Relays,
     /// the node choice and preferences stay — they belong to the device.
     async fn clear_identity_data(&self) -> Result<()>;

@@ -1,14 +1,19 @@
 //! Cashu wallet surface for the UI — phase C2 of `docs/cashu/README.md`.
 //!
-//! Holds the single process-wide wallet, gates every entry point on the escrow
-//! mode, and broadcasts changes so the UI never polls.
+//! Holds the single process-wide wallet and broadcasts changes so the UI never
+//! polls.
 //!
-//! **Nothing here runs on a Lightning node.** Every function returns
-//! `CashuNotEnabled` unless [`crate::mostro::escrow_mode::is_cashu_mode`] is
-//! true, which requires the active node to have advertised Cashu *and* a usable
-//! mint. That gate is the whole reason this module is inert by default.
+//! **The wallet is always available** (docs/cashu/README.md §1.2): it runs on
+//! every node, Lightning ones included, and its mint is the user's — persisted
+//! as a device preference, never changed by a node switch. A Cashu node that
+//! pins one mint only offers that mint as the default.
 //!
-//! Errors are stable markers (`CashuNotEnabled`, `CashuNotConnected`,
+//! **The escrow is not.** [`cashu_escrow_quote`] and [`lock_escrow`] decide how
+//! a trade settles, which is the node's call: they return `CashuNotEnabled`
+//! unless [`crate::mostro::escrow_mode::is_cashu_mode`] is true, and lock only
+//! from a wallet bound to the node's mint.
+//!
+//! Errors are stable markers (`CashuNoMint`, `CashuNotConnected`,
 //! `CashuMintUnreachable`, …); Dart maps them to localized strings.
 
 use anyhow::{bail, Result};
@@ -18,7 +23,7 @@ use tokio::sync::{broadcast, RwLock};
 
 use crate::api::types::CashuWalletStatus;
 use crate::cashu::CashuWallet;
-use crate::db::Storage;
+use crate::db::{settings_keys, Storage};
 use crate::mostro::escrow_mode;
 
 // ── Global wallet ─────────────────────────────────────────────────────────────
@@ -28,9 +33,68 @@ use crate::mostro::escrow_mode;
 /// would park a waiting `cashu_disconnect` in tokio's write-preferring queue,
 /// and every `cashu_status` behind it — a frozen screen for as long as the mint
 /// takes to answer.
-fn wallet_lock() -> &'static RwLock<Option<Arc<CashuWallet>>> {
-    static WALLET: OnceLock<RwLock<Option<Arc<CashuWallet>>>> = OnceLock::new();
+fn wallet_lock() -> &'static RwLock<Option<BoundWallet>> {
+    static WALLET: OnceLock<RwLock<Option<BoundWallet>>> = OnceLock::new();
     WALLET.get_or_init(|| RwLock::new(None))
+}
+
+/// The bound wallet, with the identity whose seed it was built from.
+#[derive(Clone)]
+struct BoundWallet {
+    wallet: Arc<CashuWallet>,
+    identity: String,
+}
+
+/// The public key of the identity loaded now, or `None` before one is.
+async fn current_identity() -> Option<String> {
+    crate::api::identity::get_identity()
+        .await
+        .ok()
+        .flatten()
+        .map(|identity| identity.public_key)
+}
+
+/// May a wallet built for `bound_to` serve the identity loaded now?
+///
+/// Only that same identity. The wallet derives its ecash from one identity's
+/// seed, and it outlives node switches on purpose; after an identity is
+/// deleted, created or imported, the previous one's wallet must not serve the
+/// next user.
+fn serves(bound_to: &str, current: Option<&str>) -> bool {
+    current == Some(bound_to)
+}
+
+/// The bound wallet, if it was built for the identity loaded now.
+async fn live_wallet() -> Option<Arc<CashuWallet>> {
+    let bound = wallet_lock().read().await.clone()?;
+    serves(&bound.identity, current_identity().await.as_deref()).then_some(bound.wallet)
+}
+
+/// Build a wallet at `target` for the identity loaded now, without installing
+/// it. The caller holds [`lifecycle_lock`].
+async fn open_wallet(target: &str) -> Result<BoundWallet> {
+    let identity = current_identity()
+        .await
+        .ok_or_else(|| anyhow::anyhow!("NoIdentity"))?;
+    let seed = crate::api::identity::current_bip39_seed().await?;
+    // The seed must be this identity's: one swapped in between would build a
+    // wallet labelled with the wrong owner.
+    if current_identity().await.as_deref() != Some(identity.as_str()) {
+        bail!("NoIdentity");
+    }
+    let db_path = proof_store_path(&identity)?;
+    // Finishes a move the identity load could not, for its recorded owner only.
+    #[cfg(not(target_arch = "wasm32"))]
+    settle_legacy_store(&identity, false).await?;
+    let wallet = CashuWallet::connect(target, seed, &db_path).await?;
+    Ok(BoundWallet {
+        wallet: Arc::new(wallet),
+        identity,
+    })
+}
+
+async fn install(bound: BoundWallet) {
+    *wallet_lock().write().await = Some(bound);
 }
 
 fn changes() -> &'static broadcast::Sender<CashuWalletStatus> {
@@ -38,21 +102,130 @@ fn changes() -> &'static broadcast::Sender<CashuWalletStatus> {
     CHANGES.get_or_init(|| broadcast::channel(32).0)
 }
 
-/// Where the proof store lives: a sibling of the app database, never inside it.
+/// Where `identity`'s proof store lives: a sibling of the app database, never
+/// inside it, and one file per identity.
 ///
 /// `cdk` owns that file's schema and migrations; mixing it into the app's would
-/// put two migration systems on one file.
-fn proof_store_path() -> Result<String> {
-    sibling_store_path(crate::db::app_db::app_db_path())
+/// put two migration systems on one file. And it keys proofs by mint, not by
+/// seed: a store shared between identities would hand one user's bearer proofs
+/// to the next one at the same mint. Deleting an identity keeps its file, so
+/// importing its words again brings the balance back.
+fn proof_store_path(identity: &str) -> Result<String> {
+    sibling_store_path(
+        crate::db::app_db::app_db_path(),
+        &identity_store_name(identity),
+    )
 }
 
-/// The proof store that belongs next to `app_db`, or `CashuStoreUnavailable`
-/// when the app database was never opened.
+/// The store every identity shared before stores were per identity.
+#[cfg(not(target_arch = "wasm32"))]
+const LEGACY_STORE_NAME: &str = "cashu.sqlite";
+
+fn identity_store_name(identity: &str) -> String {
+    format!("cashu-{identity}.sqlite")
+}
+
+/// Settle an older install's shared proof store on the identity `identity`
+/// was loaded as, at an identity load (`may_record`) or a wallet open.
+///
+/// Called on every identity load (`api::identity`); never fails the load —
+/// a store that cannot move yet is logged and retried at the next one.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) async fn claim_legacy_store(identity: &str) {
+    if let Err(e) = settle_legacy_store(identity, true).await {
+        log::error!("[cashu] the shared proof store could not move yet: {e}");
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) async fn claim_legacy_store(_identity: &str) {}
+
+/// Whose an older install's shared store is, and whether `identity` takes it
+/// now. The first identity loaded after the upgrade — the one the app starts
+/// with, before any screen can replace it — is recorded as its owner; only
+/// that identity ever adopts it, so switching identities first cannot hand
+/// one user's bearer proofs to another. Returns `(record, adopt)`.
+#[cfg(not(target_arch = "wasm32"))]
+fn legacy_store_decision(owner: Option<&str>, identity: &str, may_record: bool) -> (bool, bool) {
+    match owner {
+        Some(owner) => (false, owner == identity),
+        None => (may_record, may_record),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn settle_legacy_store(identity: &str, may_record: bool) -> Result<()> {
+    let legacy = sibling_store_path(crate::db::app_db::app_db_path(), LEGACY_STORE_NAME)?;
+    if !["", "-wal", "-shm"]
+        .iter()
+        .any(|suffix| std::path::Path::new(&format!("{legacy}{suffix}")).exists())
+    {
+        return Ok(());
+    }
+    let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("CashuStoreUnavailable"))?;
+    let owner = db
+        .get_setting(settings_keys::CASHU_LEGACY_STORE_OWNER)
+        .await?;
+    let (record, adopt) = legacy_store_decision(owner.as_deref(), identity, may_record);
+    if record {
+        db.set_setting(settings_keys::CASHU_LEGACY_STORE_OWNER, identity)
+            .await?;
+    }
+    if adopt {
+        move_legacy_store(&legacy, &proof_store_path(identity)?)?;
+    }
+    Ok(())
+}
+
+/// Move the shared store to `own`, restart-safe. The `-wal` and `-shm`
+/// companions go first and the main file last: until the main file has moved,
+/// the next attempt still finds it under the shared name and completes the
+/// move, and once it has, every companion is already beside it — SQLite never
+/// opens the main file without the WAL holding its latest commits. A store
+/// the identity already has is never merged with the shared one.
+#[cfg(not(target_arch = "wasm32"))]
+fn move_legacy_store(legacy: &str, own: &str) -> Result<()> {
+    let exists = |path: &str| std::path::Path::new(path).exists();
+    if exists(own) && exists(legacy) {
+        log::warn!("[cashu] the identity already has a proof store; the shared one stays");
+        return Ok(());
+    }
+    for suffix in ["-wal", "-shm", ""] {
+        let from = format!("{legacy}{suffix}");
+        let to = format!("{own}{suffix}");
+        if exists(&from) && !exists(&to) {
+            std::fs::rename(&from, &to)
+                .map_err(|e| anyhow::anyhow!("CashuStoreUnavailable: {e}"))?;
+        }
+    }
+    log::info!("[cashu] the shared proof store now belongs to its owner identity");
+    Ok(())
+}
+
+/// The Cashu sats the loaded identity would leave behind if it were replaced,
+/// or `None` when there are none.
+///
+/// Read from its proof store without contacting a mint; an older install's
+/// shared store has already moved to its owner at that identity's load. Each
+/// identity's store opens only under its own key, so these sats come back only
+/// by importing that identity's words again.
+///
+/// **Errors**: `CashuStoreUnavailable`.
+pub(crate) async fn identity_balance_at_risk() -> Result<Option<u64>> {
+    let Some(identity) = current_identity().await else {
+        return Ok(None);
+    };
+    let sats = crate::cashu::stored_balance(&proof_store_path(&identity)?, None).await?;
+    Ok((sats > 0).then_some(sats))
+}
+
+/// The file `name` next to `app_db`, or `CashuStoreUnavailable` when the app
+/// database was never opened.
 ///
 /// Split from [`proof_store_path`] so it can be tested on its argument instead
 /// of on a process-wide `OnceLock` that any other test in this binary may have
 /// set — two of them in `api::escrow` and `api::reputation` call `init_db`.
-fn sibling_store_path(app_db: Option<&str>) -> Result<String> {
+fn sibling_store_path(app_db: Option<&str>, name: &str) -> Result<String> {
     let app_db = app_db.ok_or_else(|| anyhow::anyhow!("CashuStoreUnavailable"))?;
 
     // `init_db`'s argument is a filesystem path on native and an IndexedDB
@@ -64,12 +237,12 @@ fn sibling_store_path(app_db: Option<&str>) -> Result<String> {
         .filter(|p| !p.as_os_str().is_empty());
 
     Ok(match parent {
-        Some(dir) => dir.join("cashu.sqlite").to_string_lossy().into_owned(),
-        None => "cashu.sqlite".to_string(),
+        Some(dir) => dir.join(name).to_string_lossy().into_owned(),
+        None => name.to_string(),
     })
 }
 
-/// Serializes wallet lifecycle changes: connect and disconnect.
+/// Serializes wallet lifecycle changes: connect, a change of mint, disconnect.
 ///
 /// Without it two connects both open the proof store and both hit the mint, and
 /// — worse — a disconnect issued during a connect clears an empty slot which the
@@ -79,17 +252,12 @@ fn lifecycle_lock() -> &'static tokio::sync::Mutex<()> {
     LIFECYCLE.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
-/// Is a wallet bound to `bound_to` still the right wallet for the active node?
+/// Is the wallet bound to `bound_to` at the mint `resolved_now` names?
 ///
-/// Only if that node still resolves to the same mint. A node switch makes the
-/// wallet stale — the funds it manages belong to the previous node's mint — and
-/// that is true both of a wallet about to be installed and of one already
-/// running, so both paths ask this question.
-///
-/// Also how an order's own mint is matched against the wallet's. Both compare
-/// in the daemon's canonical form ([`canonical_mint`]): the node lists its
-/// mints as configured but publishes an order's mint canonicalised, so the
-/// same mint can arrive spelled two ways.
+/// Asked of the mint a connect requests, of the node's mint before an escrow,
+/// and of an order's own mint. All compare in the daemon's canonical form
+/// ([`canonical_mint`]): the node lists its mints as configured but publishes
+/// an order's mint canonicalised, so the same mint can arrive spelled two ways.
 fn same_mint(bound_to: &str, resolved_now: Option<&str>) -> bool {
     resolved_now
         .map(|current| canonical_mint(current) == canonical_mint(bound_to))
@@ -108,41 +276,109 @@ fn canonical_mint(url: &str) -> String {
     }
 }
 
-/// A handle to the live wallet, once it is established that it is the wallet
-/// the *active* node should be using.
-///
-/// Every operating entry point goes through here rather than reading the lock
-/// itself: `is_cashu_mode()` says the node speaks Cashu, not that it pins the
-/// mint this wallet is bound to. Without the second check, switching node A → B
-/// keeps spending and receiving at A's mint.
+/// A handle to the bound wallet.
 ///
 /// The `Arc` is cloned out and the guard dropped, so the mint round trip that
-/// follows holds no lock.
+/// follows holds no lock. Not gated on the node: the wallet works on every
+/// node (docs/cashu/README.md §1.2).
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`, `CashuMintChanged`.
+/// **Errors**: `CashuNotConnected`.
 async fn active_wallet() -> Result<Arc<CashuWallet>> {
-    ensure_enabled()?;
-
-    let wallet = wallet_lock()
-        .read()
+    live_wallet()
         .await
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("CashuNotConnected"))?;
-
-    let resolved = escrow_mode::get_resolved();
-    if !same_mint(wallet.mint_url(), resolved.config.single_mint()) {
-        log::warn!(
-            "[cashu] wallet is bound to {}, the active node resolves to {:?}",
-            wallet.mint_url(),
-            resolved.config.single_mint()
-        );
-        bail!("CashuMintChanged");
-    }
-
-    Ok(wallet)
+        .ok_or_else(|| anyhow::anyhow!("CashuNotConnected"))
 }
 
-/// Fail closed unless the active node was positively identified as Cashu.
+/// The marker [`cashu_connect`] returns when it has no mint to bind to.
+const NO_MINT: &str = "CashuNoMint";
+
+/// Which mint [`cashu_connect`] binds the wallet to: the one the user asks for,
+/// else the one they set before, else the node's default. The wallet's mint
+/// belongs to the user; a node only offers a default and never changes it.
+///
+/// **Errors**: `InvalidMintUrl` for a request that is not an `http(s)` URL with
+/// a host, `CashuNoMint` when there is nothing to go on.
+fn wallet_mint_target(
+    requested: Option<&str>,
+    stored: Option<&str>,
+    node_default: Option<&str>,
+) -> Result<String> {
+    fn given(value: Option<&str>) -> Option<&str> {
+        value.map(str::trim).filter(|v| !v.is_empty())
+    }
+    if let Some(url) = given(requested) {
+        validate_wallet_mint_url(url)?;
+        return Ok(url.to_string());
+    }
+    given(stored)
+        .or(given(node_default))
+        .map(str::to_string)
+        .ok_or_else(|| anyhow::anyhow!(NO_MINT))
+}
+
+/// A mint the wallet may bind to on the user's say-so: an `http(s)` URL with a
+/// host, over HTTPS unless it is this device. Proofs are bearer money, and
+/// cleartext HTTP to a remote mint hands them to anyone on the path; a local
+/// test mint (`http://localhost:3338`) is the one exception.
+///
+/// **Errors**: `InvalidMintUrl`.
+fn validate_wallet_mint_url(url: &str) -> Result<()> {
+    crate::api::escrow::validate_mint_url(url)?;
+    let parsed = nostr_sdk::prelude::Url::parse(url)?;
+    let loopback = match parsed.host() {
+        Some(nostr_sdk::prelude::url::Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(nostr_sdk::prelude::url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(nostr_sdk::prelude::url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    };
+    if parsed.scheme() == "http" && !loopback {
+        bail!("InvalidMintUrl: '{url}' must use https");
+    }
+    Ok(())
+}
+
+/// The mint a Cashu node that pins exactly one offers as the wallet's default.
+///
+/// Held to the same rule as a mint the user types: a node that names a remote
+/// `http://` mint offers no default, and the user is asked for a mint instead.
+fn node_default_mint() -> Option<String> {
+    if !escrow_mode::is_cashu_mode() {
+        return None;
+    }
+    let mint_url = escrow_mode::get_resolved()
+        .config
+        .single_mint()
+        .map(str::to_string)?;
+    validate_wallet_mint_url(&mint_url).ok()?;
+    Some(mint_url)
+}
+
+/// The wallet's mint as the user last set it, or `None` on a fresh install.
+///
+/// An unreadable store is an error, never "unset": read as unset, the next
+/// connect would bind elsewhere and overwrite the mint the user chose.
+///
+/// **Errors**: `CashuStoreUnavailable`.
+async fn stored_wallet_mint() -> Result<Option<String>> {
+    let Some(db) = crate::db::app_db::db() else {
+        return Ok(None);
+    };
+    db.get_setting(settings_keys::CASHU_WALLET_MINT_URL)
+        .await
+        .map_err(|e| anyhow::anyhow!("CashuStoreUnavailable: {e}"))
+}
+
+async fn store_wallet_mint(mint_url: &str) -> Result<()> {
+    let Some(db) = crate::db::app_db::db() else {
+        log::warn!("[cashu] no DB — the wallet's mint applies to this session only");
+        return Ok(());
+    };
+    db.set_setting(settings_keys::CASHU_WALLET_MINT_URL, mint_url)
+        .await
+}
+
+/// The escrow gate: fail closed unless the active node was positively
+/// identified as Cashu. Wallet operations never pass through here.
 fn ensure_enabled() -> Result<()> {
     if escrow_mode::is_cashu_mode() {
         return Ok(());
@@ -160,7 +396,7 @@ fn ensure_enabled() -> Result<()> {
 async fn snapshot() -> CashuWalletStatus {
     // Cloned out so the balance read below — which can reach the store — runs
     // with no lock held.
-    let wallet = wallet_lock().read().await.clone();
+    let wallet = live_wallet().await;
     match wallet.as_ref() {
         Some(wallet) => CashuWalletStatus {
             connected: true,
@@ -183,15 +419,35 @@ async fn snapshot() -> CashuWalletStatus {
                 .map(str::to_string)
                 .collect(),
         },
-        None => CashuWalletStatus {
-            connected: false,
-            mint_url: None,
-            // Not connected is a known state, and a wallet with no binding
-            // genuinely holds nothing spendable here.
-            balance_sats: Some(0),
-            missing_capabilities: Vec::new(),
-        },
+        None => {
+            // Not bound, but a mint may be set that is not answering right
+            // now: it is named, with what it holds read from disk, so a user
+            // about to replace it sees what stays behind there. With no mint
+            // set, a wallet genuinely holds nothing — a known zero.
+            let mint_url = stored_wallet_mint().await.ok().flatten();
+            let balance_sats = match &mint_url {
+                Some(mint_url) => offline_balance(mint_url).await,
+                None => Some(0),
+            };
+            CashuWalletStatus {
+                connected: false,
+                mint_url,
+                balance_sats,
+                missing_capabilities: Vec::new(),
+            }
+        }
     }
+}
+
+/// What the loaded identity's proof store holds at `mint_url`, without
+/// contacting it; `None` when that cannot be read — unknown, never zero.
+async fn offline_balance(mint_url: &str) -> Option<u64> {
+    let identity = current_identity().await?;
+    let path = proof_store_path(&identity).ok()?;
+    crate::cashu::stored_balance(&path, Some(mint_url))
+        .await
+        .map_err(|e| log::warn!("[cashu] offline balance unreadable: {e}"))
+        .ok()
 }
 
 async fn notify() {
@@ -200,107 +456,129 @@ async fn notify() {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/// Connect the wallet to the mint the active node pins, unless already connected.
+/// Bind the wallet to a mint, unless it is already bound to it.
 ///
-/// Lazy by design: nothing connects at startup, so a Lightning user never opens
-/// a proof store or contacts a mint. Repeat calls are cheap — an already
-/// connected wallet is returned as is rather than reconnected.
+/// `mint_url` is the mint the user chose; it becomes the wallet's mint once the
+/// mint has proven usable, and stays it across node switches and restarts.
+/// `None` keeps the mint set before, or — on a fresh install — takes the
+/// default of a Cashu node that pins exactly one ([`wallet_mint_target`]).
+/// Binding another mint never deletes the proofs of the previous one: they stay
+/// in the proof store and come back when the wallet is bound to it again.
 ///
-/// **Errors**: `CashuNotEnabled` when the node is not a usable Cashu node,
-/// `NoIdentity` before an identity is loaded, `CashuNoMnemonic` for an
-/// nsec-imported identity (there is no seed to derive), plus the markers from
-/// [`CashuWallet::connect`].
-pub async fn cashu_connect() -> Result<CashuWalletStatus> {
-    ensure_enabled()?;
-
+/// Lazy by design: nothing connects at startup, so a user who never opens the
+/// wallet never opens a proof store or contacts a mint.
+///
+/// **Errors**: `CashuNoMint` when no mint was given, set or offered,
+/// `InvalidMintUrl`, `NoIdentity` before an identity is loaded,
+/// `CashuNoMnemonic` for an nsec-imported identity (there is no seed to
+/// derive), plus the markers from [`CashuWallet::connect`].
+pub async fn cashu_connect(mint_url: Option<String>) -> Result<CashuWalletStatus> {
     // One lifecycle change at a time — see [`lifecycle_lock`].
     let _lifecycle = lifecycle_lock().lock().await;
 
-    // An already connected wallet is reused — but only while it is still bound
-    // to the mint the active node pins. After a node switch it is the previous
-    // node's wallet, and returning it here would be the same stale-binding bug
-    // the install check below guards against, just one call later.
+    let stored = stored_wallet_mint().await?;
+    let target = wallet_mint_target(
+        mint_url.as_deref(),
+        stored.as_deref(),
+        node_default_mint().as_deref(),
+    )?;
+
+    // A wallet already bound to that mint is reused as is.
+    let live = live_wallet().await;
+    if live.is_some_and(|wallet| same_mint(wallet.mint_url(), Some(&target))) {
+        return Ok(snapshot().await);
+    }
+
+    let bound = open_wallet(&target).await?;
+
+    // Remembered only once the mint has answered and proven usable, so a typo
+    // never becomes the wallet's mint — and before installing, so a store that
+    // refuses leaves the previous wallet and its mint as they were.
+    if !stored
+        .as_deref()
+        .is_some_and(|stored| same_mint(stored, Some(&target)))
     {
-        let live = wallet_lock().read().await.clone();
-        if let Some(wallet) = live {
-            let resolved = escrow_mode::get_resolved();
-            if same_mint(wallet.mint_url(), resolved.config.single_mint()) {
-                return Ok(snapshot().await);
-            }
-            log::info!(
-                "[cashu] dropping the wallet bound to {}: the active node now resolves to {:?}",
-                wallet.mint_url(),
-                resolved.config.single_mint()
-            );
-            *wallet_lock().write().await = None;
-        }
+        store_wallet_mint(&target).await?;
     }
-
-    // The gate above implies a mint URL, but a concurrent node switch could
-    // have cleared it — handled rather than unwrapped.
-    let mint_url = escrow_mode::get_resolved()
-        .config
-        .single_mint()
-        .map(str::to_string)
-        .ok_or_else(|| anyhow::anyhow!("CashuNotEnabled"))?;
-
-    let seed = crate::api::identity::current_bip39_seed().await?;
-
-    let db_path = proof_store_path()?;
-    let wallet = CashuWallet::connect(&mint_url, seed, &db_path).await?;
-
-    // Re-check before installing. Holding the lifecycle lock keeps a
-    // `cashu_disconnect` from interleaving, but the *escrow mode* is not under
-    // that lock: a node switch during the mint round trip changes which mint we
-    // should be bound to, and installing anyway would leave the wallet pointing
-    // at the previous node's mint.
-    let resolved_now = escrow_mode::get_resolved();
-    if !same_mint(&mint_url, resolved_now.config.single_mint()) {
-        log::warn!(
-            "[cashu] discarding a wallet for {mint_url}: the active node now resolves to {:?}",
-            resolved_now.config.single_mint()
-        );
-        bail!("CashuNotEnabled");
-    }
-
-    {
-        let mut guard = wallet_lock().write().await;
-        if guard.is_none() {
-            *guard = Some(Arc::new(wallet));
-        }
-    }
+    install(bound).await;
 
     notify().await;
     Ok(snapshot().await)
 }
 
-/// Current wallet status. Safe to call on any node — a Lightning node simply
-/// reports "not connected".
+/// Current wallet status: "not connected" until the wallet is bound to a mint.
 pub async fn cashu_status() -> Result<CashuWalletStatus> {
     Ok(snapshot().await)
 }
 
 /// Spendable balance in satoshis.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`.
+/// **Errors**: `CashuNotConnected`.
 pub async fn cashu_get_balance() -> Result<u64> {
     active_wallet().await?.balance().await
 }
 
 /// Redeem an encoded Cashu token into the wallet, returning the amount received.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`, `CashuReceiveFailed`
-/// (wrong mint, already spent, malformed).
+/// An unbound wallet binds first, to the mint set before (or the node's
+/// default) — and with no mint set at all, to the mint the token names. A mint
+/// is adopted only by a receive that succeeds: a token that turns out spent or
+/// worthless leaves the wallet unbound and nothing remembered.
+///
+/// **Errors**: `CashuReceiveFailed` (wrong mint, already spent, malformed),
+/// `CashuTokenUnverified`, plus the markers from [`cashu_connect`].
 pub async fn cashu_receive_token(encoded: String) -> Result<u64> {
-    let amount = active_wallet().await?.receive_token(&encoded).await?;
+    let amount = match live_wallet().await {
+        Some(wallet) => wallet.receive_token(&encoded).await?,
+        None => receive_unbound(&encoded).await?,
+    };
     notify().await;
+    Ok(amount)
+}
+
+/// Receive into a wallet that is not bound yet, binding it only if the receive
+/// succeeds.
+async fn receive_unbound(encoded: &str) -> Result<u64> {
+    let _lifecycle = lifecycle_lock().lock().await;
+
+    let stored = stored_wallet_mint().await?;
+    let target = match wallet_mint_target(None, stored.as_deref(), node_default_mint().as_deref()) {
+        Ok(target) => target,
+        Err(e) if e.to_string() == NO_MINT => {
+            // The token names its mint; it is held to the same rule as one the
+            // user types, before anything contacts it.
+            let mint_url = crate::cashu::token_mint_url(encoded)?;
+            validate_wallet_mint_url(&mint_url)?;
+            mint_url
+        }
+        Err(e) => return Err(e),
+    };
+
+    // Bound by another call while this one waited for the lock.
+    if let Some(wallet) = live_wallet().await {
+        if same_mint(wallet.mint_url(), Some(&target)) {
+            return wallet.receive_token(encoded).await;
+        }
+    }
+
+    let bound = open_wallet(&target).await?;
+    let amount = bound.wallet.receive_token(encoded).await?;
+
+    // The sats are in the proof store now, keyed by this mint, so a store that
+    // refuses costs only the binding across a restart — not the funds.
+    if stored.is_none() {
+        if let Err(e) = store_wallet_mint(&target).await {
+            log::warn!("[cashu] received at {target}, but the mint was not remembered: {e}");
+        }
+    }
+    install(bound).await;
     Ok(amount)
 }
 
 /// Export `amount_sats` from the wallet as an encoded token.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`, `CashuAmountZero`,
-/// `CashuSendFailed` (insufficient funds included).
+/// **Errors**: `CashuNotConnected`, `CashuAmountZero`, `CashuSendFailed`
+/// (insufficient funds included).
 pub async fn cashu_create_token(amount_sats: u64) -> Result<String> {
     let token = active_wallet().await?.create_token(amount_sats).await?;
     notify().await;
@@ -316,25 +594,22 @@ pub async fn cashu_create_token(amount_sats: u64) -> Result<String> {
 /// otherwise; see [`CashuWallet::sweep_spent_proofs`]. Getting an abandoned
 /// token back is phase C10.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`, `CashuMintChanged`.
+/// **Errors**: `CashuNotConnected`.
 pub async fn cashu_sweep_spent_proofs() -> Result<()> {
     active_wallet().await?.sweep_spent_proofs().await?;
     notify().await;
     Ok(())
 }
 
-/// Drop the in-memory wallet. Proofs stay on disk — this is a disconnect, not a
-/// wipe. Called when the active node changes, so a wallet bound to one node's
-/// mint never serves another's.
+/// Drop the in-memory wallet. Proofs stay on disk and the wallet's mint stays
+/// set — this is a disconnect, not a wipe. A node switch does **not** call it:
+/// the wallet's mint is the user's, not the node's.
 pub async fn cashu_disconnect() -> Result<()> {
     // Shares the lifecycle lock with `cashu_connect`, so a disconnect issued
     // during a connect waits for it and then clears the slot, instead of
     // clearing an empty slot and having the connect fill it back in.
     let _lifecycle = lifecycle_lock().lock().await;
-    {
-        let mut guard = wallet_lock().write().await;
-        *guard = None;
-    }
+    *wallet_lock().write().await = None;
     notify().await;
     Ok(())
 }
@@ -351,7 +626,8 @@ pub async fn cashu_disconnect() -> Result<()> {
 /// protocol default, never to a guess.
 ///
 /// **Errors**: `CashuNotEnabled`, `CashuOrderAmountUnknown`, `CashuMintNotSupported`,
-/// `CashuNotConnected`, `CashuBalanceUnknown`.
+/// `CashuWalletOnOtherMint`, `CashuNotConnected`, `CashuBalanceUnknown`, plus the
+/// markers from [`cashu_connect`].
 pub async fn cashu_escrow_quote(order_id: String) -> Result<crate::api::types::CashuEscrowQuote> {
     ensure_enabled()?;
 
@@ -376,47 +652,79 @@ pub async fn cashu_escrow_quote(order_id: String) -> Result<crate::api::types::C
         .map(str::to_string)
         .ok_or_else(|| anyhow::anyhow!("CashuMintNotSupported"))?;
     // The order names its own mint (mostro#1047), and the node refuses a
-    // token locked anywhere else only after the swap: an order on a mint the
-    // wallet is not bound to stops here.
+    // token locked anywhere else only after the swap: an order on a mint
+    // other than the node's stops here. The wallet's own mint is checked
+    // against the node's below, by `ensure_wallet_at`.
     if let Some(order_mint) = trade.order.cashu_mint_url.as_deref() {
         if !same_mint(&mint_url, Some(order_mint)) {
             log::warn!(
-                "[cashu] order {order_id} escrows at {order_mint}, the wallet's mint is {mint_url}"
+                "[cashu] order {order_id} escrows at {order_mint}, the node's mint is {mint_url}"
             );
             bail!("CashuMintNotSupported");
         }
+    }
+
+    let locktime_days = resolved
+        .config
+        .escrow_locktime_days
+        .unwrap_or(PROTOCOL_DEFAULT_LOCKTIME_DAYS);
+    let quote = |balance_sats: u64, mint_url: String, pending_submission: bool| {
+        crate::api::types::CashuEscrowQuote {
+            order_id: order_id.clone(),
+            amount_sats,
+            fee_sats,
+            total_sats: amount_sats.saturating_add(fee_sats),
+            balance_sats,
+            mint_url,
+            locktime_days,
+            pending_submission,
+        }
+    };
+
+    // An escrow already swapped — on the row, or held because the row could
+    // not be written — is re-sent as is by `lock_escrow`, at the mint it was
+    // locked at, without the wallet. So the wallet's mint must not stand in
+    // the way of that retry: a user who changed it since still gets a quote.
+    let recorded = trade
+        .cashu_escrow_token
+        .as_deref()
+        .map(|token| (trade.cashu_mint_url.as_deref().unwrap_or(&mint_url), token));
+    if let Some((locked_at, _)) = recorded_or_held_escrow(&order_id, recorded) {
+        let balance = match live_wallet().await {
+            Some(wallet) => wallet.balance().await.unwrap_or(0),
+            None => 0,
+        };
+        return Ok(quote(balance, locked_at, true));
     }
 
     // Connect before reading the balance. An unconnected wallet reports zero,
     // and a quote that reports zero turns into "insufficient funds" on a wallet
     // that is fully funded — the screen connects first, but a retry from
     // anywhere else would not.
-    cashu_connect().await?;
+    cashu_connect(None).await?;
+    let wallet = active_wallet().await?;
+    // The wallet's mint is the user's and may not be this node's: the escrow
+    // is locked from the wallet's proofs, so the two must match.
+    ensure_wallet_at(wallet.mint_url(), &mint_url)?;
 
-    let balance = {
-        let guard = wallet_lock().read().await;
-        match guard.as_ref() {
-            Some(wallet) => wallet
-                .balance()
-                .await
-                .map_err(|e| anyhow::anyhow!("CashuBalanceUnknown: {e}"))?,
-            None => bail!("CashuNotConnected"),
-        }
-    };
+    let balance = wallet
+        .balance()
+        .await
+        .map_err(|e| anyhow::anyhow!("CashuBalanceUnknown: {e}"))?;
 
-    Ok(crate::api::types::CashuEscrowQuote {
-        order_id,
-        amount_sats,
-        fee_sats,
-        total_sats: amount_sats.saturating_add(fee_sats),
-        balance_sats: balance,
-        mint_url,
-        locktime_days: resolved
-            .config
-            .escrow_locktime_days
-            .unwrap_or(PROTOCOL_DEFAULT_LOCKTIME_DAYS),
-        pending_submission: trade.cashu_escrow_token.is_some(),
-    })
+    Ok(quote(balance, mint_url, false))
+}
+
+/// Refuse an escrow from a wallet bound to another mint than `mint_url`, before
+/// any swap: the node rejects a token locked elsewhere only after it.
+///
+/// **Errors**: `CashuWalletOnOtherMint`.
+fn ensure_wallet_at(wallet_mint: &str, mint_url: &str) -> Result<()> {
+    if same_mint(wallet_mint, Some(mint_url)) {
+        return Ok(());
+    }
+    log::warn!("[cashu] the wallet is bound to {wallet_mint}, the escrow needs {mint_url}");
+    bail!("CashuWalletOnOtherMint")
 }
 
 /// The escrow locktime a node that states none is held to: the daemon's own
@@ -512,7 +820,8 @@ const RECORD_ATTEMPTS: usize = 3;
 ///    [`settle_escrow_rejection`] turns into the next step.
 ///
 /// **Errors** (stable markers): `CashuNotEnabled`, `CashuNotConnected`,
-/// `CashuMintNotSupported`, `CashuInsufficientFunds`, `NotTheSeller`,
+/// `CashuMintNotSupported`, `CashuWalletOnOtherMint`, `CashuInsufficientFunds`,
+/// `NotTheSeller`,
 /// `CashuEscrowOrderMovedOn`,
 /// `CashuEscrowRequestMissing`, `CashuWrongTradeKey`, `DeviceClockInvalid`,
 /// `CashuEscrowNotPersisted`, `CashuEscrowRejected: <reason>`,
@@ -652,10 +961,10 @@ async fn build_and_record_escrow(
         .saturating_add(u64::from(quote.locktime_days).saturating_mul(SECONDS_PER_DAY))
         .saturating_add(LOCKTIME_SUBMISSION_MARGIN_SECS);
 
-    let guard = wallet_lock().read().await;
-    let wallet = guard
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("CashuNotConnected"))?;
+    // The mint can change between the quote and here; the escrow is built
+    // from the wallet's proofs, so it is checked again.
+    let wallet = active_wallet().await?;
+    ensure_wallet_at(wallet.mint_url(), &quote.mint_url)?;
     let escrow = wallet
         .build_escrow_token(quote.amount_sats, parties, locktime)
         .await?;
@@ -924,23 +1233,26 @@ mod tests {
         escrow_mode::lock_globals_for_test()
     }
 
+    /// No wallet bound and no mint remembered: a fresh install.
+    async fn forget_wallet_mint() {
+        cashu_disconnect().await.unwrap();
+        if let Some(db) = crate::db::app_db::db() {
+            db.delete_setting(crate::db::settings_keys::CASHU_WALLET_MINT_URL)
+                .await
+                .unwrap();
+        }
+    }
+
     #[tokio::test]
-    async fn every_entry_point_is_shut_on_a_lightning_node() {
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
+    async fn the_escrow_entry_points_stay_shut_on_a_lightning_node() {
         // Arrange — the default state: nothing fetched, so not Cashu.
         let _g = escrow_lock();
 
-        // Act / Assert — the gate is the whole safety story, so check every
-        // door rather than trusting one of them.
+        // Act / Assert — these move real money into a Cashu escrow, which only
+        // a Cashu node takes. The node decides how a trade settles.
         for err in [
-            cashu_connect().await.unwrap_err(),
-            cashu_get_balance().await.unwrap_err(),
-            cashu_receive_token("cashuBanything".to_string())
-                .await
-                .unwrap_err(),
-            cashu_create_token(1).await.unwrap_err(),
-            cashu_sweep_spent_proofs().await.unwrap_err(),
-            // The escrow entry points too: these move real money, and the
-            // seller reaches them from a trade screen rather than a wallet one.
             cashu_escrow_quote("any-order".to_string())
                 .await
                 .unwrap_err(),
@@ -948,15 +1260,243 @@ mod tests {
         ] {
             assert!(
                 err.to_string().contains("CashuNotEnabled"),
-                "expected the gate to close, got {err}"
+                "expected the escrow gate to close, got {err}"
             );
         }
     }
 
     #[tokio::test]
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
+    async fn the_wallet_does_not_depend_on_the_node() {
+        // Arrange — a Lightning node, no wallet bound, no mint remembered.
+        let _g = escrow_lock();
+        forget_wallet_mint().await;
+
+        // Act / Assert — the wallet is always available (docs/cashu/README.md
+        // §1.2): on a Lightning node it asks for a mint instead of refusing as
+        // "not Cashu", and the operations that need a bound wallet say so.
+        let connect = cashu_connect(None).await.unwrap_err();
+        assert_eq!(connect.to_string(), "CashuNoMint");
+        for err in [
+            cashu_get_balance().await.unwrap_err(),
+            cashu_create_token(1).await.unwrap_err(),
+            cashu_sweep_spent_proofs().await.unwrap_err(),
+        ] {
+            assert!(
+                err.to_string().contains("CashuNotConnected"),
+                "expected an unbound wallet, got {err}"
+            );
+        }
+        // With no mint set, receiving takes the token's mint; a token that
+        // does not parse names none, and nothing is bound or remembered.
+        let receive = cashu_receive_token("cashuBanything".to_string())
+            .await
+            .unwrap_err();
+        assert!(
+            receive.to_string().contains("CashuReceiveFailed"),
+            "got {receive}"
+        );
+        assert!(!cashu_status().await.unwrap().connected);
+    }
+
+    #[tokio::test]
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
+    async fn a_mint_url_that_is_not_one_is_refused_before_any_connection() {
+        // Arrange
+        let _g = escrow_lock();
+        forget_wallet_mint().await;
+
+        // Act — nothing here may reach the network or the store.
+        let err = cashu_connect(Some("ftp://mint.example.com".to_string()))
+            .await
+            .unwrap_err();
+
+        // Assert — refused, and not remembered as the wallet's mint.
+        assert!(err.to_string().contains("InvalidMintUrl"), "got {err}");
+        assert_eq!(stored_wallet_mint().await.unwrap(), None);
+    }
+
+    #[test]
+    fn a_remote_mint_must_use_https() {
+        // Bearer proofs over cleartext HTTP are anyone's on the path.
+        assert!(validate_wallet_mint_url("https://mint.example.com").is_ok());
+        for remote in ["http://mint.example.com", "http://203.0.113.7:3338"] {
+            assert!(
+                validate_wallet_mint_url(remote)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("InvalidMintUrl"),
+                "{remote} must be refused"
+            );
+        }
+        // A test mint on this device is the exception.
+        for local in [
+            "http://localhost:3338",
+            "http://127.0.0.1:3338",
+            "http://[::1]:3338",
+        ] {
+            assert!(validate_wallet_mint_url(local).is_ok(), "{local} is local");
+        }
+        // And a user's request goes through the same rule.
+        assert!(
+            wallet_mint_target(Some("http://mint.example.com"), None, None)
+                .unwrap_err()
+                .to_string()
+                .contains("InvalidMintUrl")
+        );
+    }
+
+    #[test]
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
+    fn a_node_offers_no_cleartext_remote_mint_as_the_default() {
+        let _g = escrow_lock();
+        let node_on = |mint: &str| {
+            escrow_mode::set_from_tags(
+                escrow_mode::EscrowMode::Cashu,
+                escrow_mode::CashuNodeConfig {
+                    mint_urls: vec![mint.to_string()],
+                    ..Default::default()
+                },
+            );
+            node_default_mint()
+        };
+
+        assert_eq!(
+            node_on("https://mint.a.com"),
+            Some("https://mint.a.com".to_string())
+        );
+        assert_eq!(node_on("http://mint.a.com"), None);
+    }
+
+    #[tokio::test]
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
+    async fn a_recorded_escrow_is_quoted_without_the_wallet() {
+        // Arrange — a single-mint node and a seller row whose escrow was
+        // swapped at that mint; no wallet is bound (the user may have moved
+        // it to another mint since).
+        let _g = escrow_lock();
+        forget_wallet_mint().await;
+        escrow_mode::set_from_tags(
+            escrow_mode::EscrowMode::Cashu,
+            escrow_mode::CashuNodeConfig {
+                mint_urls: vec!["https://mint.a.com".to_string()],
+                ..Default::default()
+            },
+        );
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let db = store().await;
+        let mut trade = seller_trade(&order_id, Some("02"), "");
+        trade.cashu_escrow_token = Some(format!("cashuB-{order_id}"));
+        trade.cashu_mint_url = Some("https://mint.a.com".to_string());
+        db.save_trade(&trade).await.unwrap();
+
+        // Act
+        let quote = cashu_escrow_quote(order_id).await.unwrap();
+
+        // Assert — the retry stays possible, at the mint the token lives at.
+        assert!(quote.pending_submission);
+        assert_eq!(quote.mint_url, "https://mint.a.com");
+    }
+
+    #[test]
+    fn a_wallet_serves_only_the_identity_it_was_built_for() {
+        // The wallet outlives node switches, so nothing else resets it when
+        // the user deletes their identity or imports another: its seed is the
+        // previous user's, and so is the ecash it would spend.
+        assert!(serves("npub-a", Some("npub-a")));
+        assert!(!serves("npub-a", Some("npub-b")));
+        assert!(!serves("npub-a", None));
+    }
+
+    #[test]
+    fn an_escrow_needs_the_wallet_at_the_nodes_mint() {
+        // The wallet's mint is the user's and may not be the node's; the
+        // escrow is built from the wallet's proofs, so the two must match
+        // before any swap.
+        assert!(ensure_wallet_at("https://mint.a.com", "https://mint.a.com/").is_ok());
+        assert_eq!(
+            ensure_wallet_at("https://mint.b.com", "https://mint.a.com")
+                .unwrap_err()
+                .to_string(),
+            "CashuWalletOnOtherMint"
+        );
+    }
+
+    #[test]
+    fn the_wallet_mint_is_the_users_and_the_node_only_offers_a_default() {
+        let user = "https://mint.user.com";
+        let stored = "https://mint.stored.com";
+        let node = "https://mint.node.com";
+
+        // A mint the user asks for wins over everything.
+        assert_eq!(
+            wallet_mint_target(Some(user), Some(stored), Some(node)).unwrap(),
+            user
+        );
+        // Then the mint they set before: a node switch never changes it.
+        assert_eq!(
+            wallet_mint_target(None, Some(stored), Some(node)).unwrap(),
+            stored
+        );
+        // Then the node's own mint, when a Cashu node pins exactly one.
+        assert_eq!(wallet_mint_target(None, None, Some(node)).unwrap(), node);
+        // A blank request is no request.
+        assert_eq!(
+            wallet_mint_target(Some("  "), Some(stored), None).unwrap(),
+            stored
+        );
+        // Nothing to go on — a Lightning node on a fresh install.
+        assert_eq!(
+            wallet_mint_target(None, None, None)
+                .unwrap_err()
+                .to_string(),
+            "CashuNoMint"
+        );
+        // A request that is not an http(s) URL with a host is refused.
+        assert!(wallet_mint_target(Some("mint.example.com"), None, None)
+            .unwrap_err()
+            .to_string()
+            .contains("InvalidMintUrl"));
+    }
+
+    #[tokio::test]
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
+    async fn a_set_mint_that_is_not_bound_is_still_named() {
+        // Arrange — a mint is set but the wallet is not bound (the mint did
+        // not answer when the wallet opened), and no identity is loaded here.
+        let _g = escrow_lock();
+        forget_wallet_mint().await;
+        let db = store().await;
+        db.set_setting(
+            crate::db::settings_keys::CASHU_WALLET_MINT_URL,
+            "https://mint.example.com",
+        )
+        .await
+        .unwrap();
+
+        // Act
+        let status = cashu_status().await.unwrap();
+
+        // Assert — the mint is named, so replacing it is never blind, and
+        // what it holds is unknown here rather than a zero.
+        assert!(!status.connected);
+        assert_eq!(status.mint_url.as_deref(), Some("https://mint.example.com"));
+        assert_eq!(status.balance_sats, None);
+        forget_wallet_mint().await;
+    }
+
+    #[tokio::test]
+    // The globals lock must span the calls it guards.
+    #[allow(clippy::await_holding_lock)]
     async fn status_is_answerable_on_any_node_and_reports_disconnected() {
         // Arrange
         let _g = escrow_lock();
+        forget_wallet_mint().await;
 
         // Act — status is deliberately ungated: the UI asks before it knows
         // anything, and "not connected" is truthful everywhere.
@@ -970,14 +1510,11 @@ mod tests {
     }
 
     #[test]
-    fn a_wallet_serves_only_the_node_whose_mint_it_is_bound_to() {
-        // Two scenarios, one question. A connect awaiting the mint when the
-        // user switches node would otherwise store a wallet bound to the
-        // *previous* node's mint; an already-connected wallet would otherwise
-        // keep serving that mint after the switch. Both ask this.
+    fn mints_are_compared_in_the_daemons_canonical_form() {
+        // The wallet's mint against the one asked for, the node's, or an
+        // order's: the same mint can arrive spelled two ways.
         let mint = "https://mint.example.com";
 
-        // Still the active mint — keep it.
         assert!(same_mint(mint, Some(mint)));
         // Trailing slashes are a formatting difference, not a different mint.
         assert!(same_mint(mint, Some("https://mint.example.com/")));
@@ -992,9 +1529,9 @@ mod tests {
         // A port that is not the default is a different mint.
         assert!(!same_mint(mint, Some("https://mint.example.com:8443")));
 
-        // The node switched to a different Cashu node — drop it.
+        // Another host is another mint.
         assert!(!same_mint(mint, Some("https://other.example.com")));
-        // The node switched to Lightning, or the mode was cleared — drop it.
+        // No mint to compare against is never a match.
         assert!(!same_mint(mint, None));
     }
 
@@ -1277,7 +1814,7 @@ mod tests {
         // path behind it is a process-wide `OnceLock`, and other tests in this
         // binary (`api::escrow`, `api::reputation`) call `init_db`, so the
         // global answer depends on which test ran first.
-        let err = sibling_store_path(None).unwrap_err();
+        let err = sibling_store_path(None, LEGACY_STORE_NAME).unwrap_err();
 
         // Assert
         assert!(
@@ -1291,13 +1828,99 @@ mod tests {
         // Arrange / Act / Assert — a native path gets a sibling file, never a
         // second schema inside the app's own database.
         assert_eq!(
-            sibling_store_path(Some("/data/app/mostro.sqlite")).unwrap(),
-            "/data/app/cashu.sqlite"
+            sibling_store_path(Some("/data/app/mostro.sqlite"), "cashu-ab.sqlite").unwrap(),
+            "/data/app/cashu-ab.sqlite"
         );
 
         // On web `init_db` is given an IndexedDB *name*, which has no parent
         // directory. Joining onto `""` would put a stray relative file next to
         // the process's cwd, so the bare name is used instead.
-        assert_eq!(sibling_store_path(Some("mostro")).unwrap(), "cashu.sqlite");
+        assert_eq!(
+            sibling_store_path(Some("mostro"), "cashu-ab.sqlite").unwrap(),
+            "cashu-ab.sqlite"
+        );
+    }
+
+    #[test]
+    fn each_identity_has_its_own_proof_store() {
+        // cdk keys proofs by mint, not by seed: a shared store would hand one
+        // user's bearer proofs to the next at the same mint.
+        assert_ne!(identity_store_name("aa"), identity_store_name("bb"));
+        assert_ne!(identity_store_name("aa"), LEGACY_STORE_NAME);
+    }
+
+    #[test]
+    fn only_the_identity_loaded_at_the_upgrade_takes_the_shared_store() {
+        // The first load after the upgrade records its owner and takes it.
+        assert_eq!(legacy_store_decision(None, "a", true), (true, true));
+        // A wallet open never claims an unowned store.
+        assert_eq!(legacy_store_decision(None, "a", false), (false, false));
+        // The owner takes it at any later load or open; nobody else ever does,
+        // even after switching identities before the move completed.
+        assert_eq!(legacy_store_decision(Some("a"), "a", false), (false, true));
+        assert_eq!(legacy_store_decision(Some("a"), "b", true), (false, false));
+    }
+
+    /// A temporary directory holding an older install's shared store.
+    fn shared_store_dir() -> (std::path::PathBuf, impl Fn(&str) -> String) {
+        let dir = std::env::temp_dir().join(format!("mostro_cashu_move_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let root = dir.clone();
+        (dir, move |name: &str| {
+            root.join(name).to_string_lossy().into_owned()
+        })
+    }
+
+    #[test]
+    fn the_shared_store_moves_with_its_wal() {
+        // Arrange
+        let (dir, path) = shared_store_dir();
+        std::fs::write(path(LEGACY_STORE_NAME), b"proofs").unwrap();
+        std::fs::write(format!("{}-wal", path(LEGACY_STORE_NAME)), b"wal").unwrap();
+
+        // Act
+        move_legacy_store(&path(LEGACY_STORE_NAME), &path("cashu-a.sqlite")).unwrap();
+
+        // Assert
+        assert_eq!(std::fs::read(path("cashu-a.sqlite")).unwrap(), b"proofs");
+        assert_eq!(
+            std::fs::read(format!("{}-wal", path("cashu-a.sqlite"))).unwrap(),
+            b"wal"
+        );
+        assert!(!std::path::Path::new(&path(LEGACY_STORE_NAME)).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_move_cut_short_is_completed_by_the_next_attempt() {
+        // Arrange — the WAL moved, then the app stopped before the main file.
+        let (dir, path) = shared_store_dir();
+        std::fs::write(path(LEGACY_STORE_NAME), b"proofs").unwrap();
+        std::fs::write(format!("{}-wal", path("cashu-a.sqlite")), b"wal").unwrap();
+
+        // Act
+        move_legacy_store(&path(LEGACY_STORE_NAME), &path("cashu-a.sqlite")).unwrap();
+
+        // Assert — the main file joins its WAL; nothing is left behind.
+        assert_eq!(std::fs::read(path("cashu-a.sqlite")).unwrap(), b"proofs");
+        assert_eq!(
+            std::fs::read(format!("{}-wal", path("cashu-a.sqlite"))).unwrap(),
+            b"wal"
+        );
+        assert!(!std::path::Path::new(&path(LEGACY_STORE_NAME)).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_store_the_identity_already_has_is_never_merged() {
+        let (dir, path) = shared_store_dir();
+        std::fs::write(path(LEGACY_STORE_NAME), b"shared").unwrap();
+        std::fs::write(path("cashu-a.sqlite"), b"own").unwrap();
+
+        move_legacy_store(&path(LEGACY_STORE_NAME), &path("cashu-a.sqlite")).unwrap();
+
+        assert_eq!(std::fs::read(path("cashu-a.sqlite")).unwrap(), b"own");
+        assert_eq!(std::fs::read(path(LEGACY_STORE_NAME)).unwrap(), b"shared");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

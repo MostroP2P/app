@@ -1027,6 +1027,11 @@ enum FundsAtRiskReason {
 
   /// A bond invoice that can still be paid: nothing is locked yet.
   bondInvoicePending,
+
+  /// Ecash in this identity's Cashu wallet. Its proof store opens only
+  /// under this identity, so only these words bring it back. Not tied to an
+  /// order: `order_id` is empty.
+  cashuWalletBalance,
 }
 
 class IdentityInfo {
@@ -2009,15 +2014,16 @@ class TradeInfo {
   /// [`Self::peer_days`].
   final PlatformInt64? peerSince;
 
-  /// Durable "the local user rated this trade" marker (unix seconds), set
-  /// after `submit_rating` publishes (issue #339).
+  /// Durable "the local user rated this trade" marker (unix seconds): set
+  /// after `submit_rating` publishes (issue #339), and when the daemon's
+  /// `rate-received` — sent to the rater alone — arrives or is replayed,
+  /// dated by it: a rating made on another device closes the step here too.
   ///
-  /// Whether we rated a counterparty is local knowledge: the daemon's kind
-  /// 38383 tag carries the peer's *aggregate* reputation, and its one-shot
-  /// `rate-received` is not re-sent on reconnect — so nothing on the wire can
-  /// rebuild it. Persisting the timestamp here lets the rated state survive a
-  /// restart and keeps the duplicate-rating guard armed. The score itself is
-  /// deliberately not stored — the rated UI shows only a label, not the note.
+  /// The daemon's kind 38383 tag carries the peer's *aggregate* reputation
+  /// only, and `rate-received` lives only as long as the relays keep it, so
+  /// the marker is persisted here: the closed state survives a restart and
+  /// keeps the duplicate-rating guard armed. The score itself is
+  /// deliberately not stored — the closed UI shows only a label, not the note.
   /// `#[serde(default)]` keeps trade rows written before this field existed
   /// deserializable.
   final PlatformInt64? ratedAt;
@@ -2265,6 +2271,14 @@ enum TradeUpdateReason {
   /// The counterparty asked to cancel; this side decides whether to
   /// cancel too. Emitted on `cooperative-cancel-initiated-by-peer`.
   cooperativeCancelRequestedByPeer,
+
+  /// Not a step this client just learned of: a status Rust re-states so
+  /// the screens read the trade again: a restore filing an old trade, a
+  /// re-read after the peer's reputation arrived. A restore's is dated by
+  /// the local clock, so its `occurred_at` cannot tell it from news; this
+  /// does (#770). Not the startup sweep's cancel: that is the daemon's
+  /// `Canceled` learned late, news like the message it stands in for.
+  replayed,
 }
 
 enum WalletStatus { connected, disconnected, connecting, error }

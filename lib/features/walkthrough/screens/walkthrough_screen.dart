@@ -10,7 +10,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/features/order/widgets/order_detail_cards.dart';
-import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
+import 'package:mostro/features/walkthrough/providers/node_prefetch_provider.dart';
 import 'package:mostro/features/walkthrough/walkthrough_slides.dart';
 import 'package:mostro/features/walkthrough/widgets/walkthrough_art.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -19,9 +19,10 @@ import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 /// First-run walkthrough: six slides explaining Mostro.
 ///
 /// Shown once, while `firstRunComplete` is `false`. Done (last slide) and
-/// Skip (any other) mark the first run complete, arm the backup reminder and
-/// go home. Next and Back, a horizontal swipe and the arrow keys move between
-/// slides.
+/// Skip (any other) lead to the node choice ([AppRoute.chooseNode]), which
+/// completes the first run. Next and Back, a horizontal swipe and the arrow
+/// keys move between slides. Meanwhile the nodes' data downloads in the
+/// background ([firstRunNodePrefetchProvider]), so that choice opens filled.
 class WalkthroughScreen extends ConsumerStatefulWidget {
   const WalkthroughScreen({super.key});
 
@@ -48,7 +49,6 @@ const _cardRadius = BorderRadius.all(Radius.circular(18));
 class _WalkthroughScreenState extends ConsumerState<WalkthroughScreen> {
   int _index = 0;
   double _dragDx = 0;
-  bool _finishing = false;
 
   void _go(int index, int count) {
     if (index < 0 || index >= count || index == _index) return;
@@ -62,23 +62,11 @@ class _WalkthroughScreenState extends ConsumerState<WalkthroughScreen> {
     _dragDx = 0;
   }
 
-  Future<void> _finish() async {
-    if (_finishing) return;
-    _finishing = true;
-    final reminder = ref.read(backupReminderProvider.notifier);
-    try {
-      await ref.read(firstRunProvider.notifier).markFirstRunComplete();
-    } catch (_) {
-      // A failed write must not leave Done and Skip dead: let a retry in.
-      _finishing = false;
-      rethrow;
-    }
-    reminder.showBackupReminder();
-    if (mounted) context.go(AppRoute.home);
-  }
+  void _finish() => context.go(AppRoute.chooseNode);
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(firstRunNodePrefetchProvider);
     final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
     final slides = walkthroughSlides(l10n);

@@ -8,10 +8,9 @@ import 'package:mostro/src/rust/api/types.dart';
 /// Emits the current status immediately, then on every change: connect,
 /// receive, send, reclaim, disconnect.
 ///
-/// Safe to watch on any node. On a Lightning one Rust answers "not connected"
-/// and nothing else happens — no mint is contacted and no proof store opens.
-/// Whether the *UI* should exist at all is a separate question, answered by
-/// `isCashuAvailableProvider`.
+/// Safe to watch on any node: until the wallet is bound to a mint Rust answers
+/// "not connected" and nothing else happens — no mint is contacted and no
+/// proof store opens.
 ///
 /// Not `autoDispose`, unlike `mostroNodeProvider`, on purpose: the stream and
 /// its Rust handle live for the process, so reopening the wallet shows the
@@ -35,12 +34,15 @@ final cashuWalletProvider = StreamProvider<CashuWalletStatus>((ref) async* {
 class CashuWalletController {
   const CashuWalletController();
 
-  /// Bind the wallet to the mint the active node pins, if it is not already.
+  /// Bind the wallet to [mintUrl], the mint the user chose, or — when `null` —
+  /// to the mint set before (on a fresh install, the default of a Cashu node
+  /// that pins one). Works on any node: the wallet's mint is the user's.
   ///
-  /// Throws `CashuNotEnabled` on a node that does not run Cashu, `NoIdentity`
-  /// before an identity is loaded, or a `CashuMint*` marker when the mint is
-  /// unreachable or unusable.
-  Future<CashuWalletStatus> connect() => cashu_api.cashuConnect();
+  /// Throws `CashuNoMint` when there is no mint to bind to, `InvalidMintUrl`,
+  /// `NoIdentity` before an identity is loaded, or a `CashuMint*` marker when
+  /// the mint is unreachable or unusable.
+  Future<CashuWalletStatus> connect({String? mintUrl}) =>
+      cashu_api.cashuConnect(mintUrl: mintUrl);
 
   /// Redeem a token into the wallet, returning the amount received in sats.
   Future<BigInt> receiveToken(String encoded) =>

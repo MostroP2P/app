@@ -25,6 +25,7 @@ import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -141,6 +142,7 @@ class _PayLightningInvoiceScreenState
       context.go(AppRoute.home);
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

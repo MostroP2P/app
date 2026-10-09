@@ -16,6 +16,8 @@ import 'package:mostro/features/account/screens/account_screen.dart';
 import 'package:mostro/features/account/widgets/backup_widgets.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
+import '../../support/my_reputation_fixtures.dart';
+
 const _words = <String>[
   'prefer',
   'olympic',
@@ -52,6 +54,8 @@ Future<void> _pumpAccount(
   WidgetTester tester, {
   required bool backedUp,
   Future<String?> Function()? publicKey,
+  bool privacyMode = false,
+  List<Override> reputation = const [],
 }) async {
   tester.view.physicalSize = const Size(360, 760);
   tester.view.devicePixelRatio = 1.0;
@@ -60,6 +64,7 @@ Future<void> _pumpAccount(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        ...(reputation.isEmpty ? myReputationOverrides() : reputation),
         backupCompletedProvider.overrideWith(
           (ref) => BackupCompletedNotifier(initialValue: backedUp),
         ),
@@ -67,7 +72,7 @@ Future<void> _pumpAccount(
           (ref) => BackupReminderNotifier(initialValue: !backedUp),
         ),
         privacyModeProvider.overrideWith(
-          (ref) => PrivacyModeNotifier(initialValue: false),
+          (ref) => PrivacyModeNotifier(initialValue: privacyMode),
         ),
       ],
       child: MaterialApp(
@@ -88,6 +93,53 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     l10n = await AppLocalizations.delegate.load(const Locale('en'));
+  });
+
+  group('own reputation (#755)', () {
+    testWidgets('shows the node\'s last answer', (tester) async {
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        reputation: myReputationOverrides(
+          cached: sampleMyReputation,
+          nodeName: 'Mostro P2P',
+        ),
+      );
+
+      expect(find.text(l10n.myReputationTitle), findsOneWidget);
+      expect(find.text('4.8'), findsOneWidget);
+      expect(find.text(l10n.myReputationOnNode('Mostro P2P')), findsOneWidget);
+    });
+
+    testWidgets('opening the screen asks the node again', (tester) async {
+      var asked = 0;
+
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        reputation: myReputationOverrides(onRefresh: () => asked++),
+      );
+
+      expect(asked, 1);
+    });
+
+    testWidgets('full privacy asks nothing and says why', (tester) async {
+      var asked = 0;
+
+      await _pumpAccount(
+        tester,
+        backedUp: true,
+        privacyMode: true,
+        reputation: myReputationOverrides(
+          cached: sampleMyReputation,
+          onRefresh: () => asked++,
+        ),
+      );
+
+      expect(asked, 0);
+      expect(find.text(l10n.myReputationPrivacyMode), findsOneWidget);
+      expect(find.text('4.8'), findsNothing);
+    });
   });
 
   group('not backed up (15a)', () {

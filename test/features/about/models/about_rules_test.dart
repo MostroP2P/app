@@ -59,12 +59,25 @@ void main() {
       expect(splitTagList(null), isEmpty);
     });
 
-    test('formatFee follows the locale and rejects unusable values', () {
-      expect(formatFee(0.006, _en), '0.6%');
-      expect(formatFee(0.006, _es), '0,6 %');
-      expect(formatFee(0, _en), '0%');
-      expect(formatFee(double.infinity, _en), isNull);
-      expect(formatFee(null, _en), isNull);
+    test('formatPercent follows the locale and rejects unusable values', () {
+      expect(formatPercent(0.006, _en), '0.6%');
+      expect(formatPercent(0.006, _es), '0,6\u00A0%');
+      expect(formatPercent(0.335, _en), '33.5%');
+      expect(formatPercent(0, _en), '0%');
+      expect(formatPercent(double.infinity, _en), isNull);
+      // A finite fraction the parser accepts (bond_amount_pct is uncapped)
+      // that overflows once scaled to a percentage.
+      expect(formatPercent(1e308, _en), isNull);
+      expect(formatPercent(null, _en), isNull);
+    });
+
+    test('a figure and its unit never split, in every locale', () {
+      for (final locale in AppLocalizations.supportedLocales) {
+        final l10n = lookupAppLocalizations(locale);
+        for (final text in [l10n.aboutFeeValue('1'), l10n.aboutHoursShort(1)]) {
+          expect(text, isNot(contains(' ')), reason: '$locale: "$text"');
+        }
+      }
     });
   });
 
@@ -151,7 +164,175 @@ void main() {
     });
   });
 
+  group('NodeSummary', () {
+    const node = MostroInstance(
+      pubKey: 'node',
+      expirationHours: 24,
+      bondPolicy: BondPolicy.enabled,
+      bondAmountPct: 0.015,
+    );
+
+    test('a node that asks for a deposit reads its share, in the locale', () {
+      expect(NodeSummary.of(node, _en).deposit, '1.5%');
+      expect(NodeSummary.of(node, _es).deposit, '1,5\u00A0%');
+    });
+
+    test('a floor goes under the share, in the locale', () {
+      const floored = MostroInstance(
+        pubKey: 'node',
+        bondPolicy: BondPolicy.enabled,
+        bondAmountPct: 0.01,
+        bondBaseAmountSats: 1000,
+      );
+      final en = NodeSummary.of(floored, _en);
+      final es = NodeSummary.of(floored, _es);
+
+      expect((en.deposit, en.depositUnit), ('1%', 'min. 1,000 sats'));
+      expect((es.deposit, es.depositUnit), ('1\u00A0%', 'mín. 1.000 sats'));
+    });
+
+    test('a zero share reads as the floor it locks, not 0%', () {
+      final summary = NodeSummary.of(
+        const MostroInstance(
+          pubKey: 'node',
+          bondPolicy: BondPolicy.enabled,
+          bondAmountPct: 0,
+          bondBaseAmountSats: 1000,
+        ),
+        _en,
+      );
+
+      expect((summary.deposit, summary.depositUnit), ('1,000', 'sats'));
+    });
+
+    test(
+      'a share the node did not send usably reads as the floor it locks',
+      () {
+        // bond_amount_pct negative or malformed: the parser drops it, and the
+        // daemon, reading it as zero, locks the floor alone.
+        final summary = NodeSummary.of(
+          const MostroInstance(
+            pubKey: 'node',
+            bondPolicy: BondPolicy.enabled,
+            bondBaseAmountSats: 1000,
+          ),
+          _en,
+        );
+
+        expect((summary.deposit, summary.depositUnit), ('1,000', 'sats'));
+      },
+    );
+
+    test('no share and no floor lock nothing, so read no', () {
+      for (final pct in const [0.0, null]) {
+        final summary = NodeSummary.of(
+          MostroInstance(
+            pubKey: 'node',
+            bondPolicy: BondPolicy.enabled,
+            bondAmountPct: pct,
+            bondBaseAmountSats: 0,
+          ),
+          _en,
+        );
+
+        expect(summary.deposit, _en.aboutNodeDepositNone, reason: '$pct');
+        expect(summary.depositUnit, isNull, reason: '$pct');
+      }
+    });
+
+    test('a share too large to show reads a dash, not the floor', () {
+      final summary = NodeSummary.of(
+        const MostroInstance(
+          pubKey: 'node',
+          bondPolicy: BondPolicy.enabled,
+          bondAmountPct: 1e308,
+          bondBaseAmountSats: 1000,
+        ),
+        _en,
+      );
+
+      expect((summary.deposit, summary.depositUnit), (missingFigure, null));
+    });
+
+    test('a share with no floor goes alone', () {
+      final summary = NodeSummary.of(
+        const MostroInstance(
+          pubKey: 'node',
+          bondPolicy: BondPolicy.enabled,
+          bondAmountPct: 0.01,
+          bondBaseAmountSats: 0,
+        ),
+        _en,
+      );
+
+      expect((summary.deposit, summary.depositUnit), ('1%', null));
+    });
+
+    test('a node with no deposit, or one that predates them, reads no', () {
+      for (final policy in [BondPolicy.disabled, BondPolicy.unsupported]) {
+        final summary = NodeSummary.of(
+          MostroInstance(pubKey: 'node', bondPolicy: policy),
+          _en,
+        );
+        expect(summary.deposit, _en.aboutNodeDepositNone, reason: '$policy');
+        expect(summary.depositUnit, isNull, reason: '$policy');
+      }
+    });
+
+    test('lists the accepted currencies, or all when the node sets none', () {
+      String currencies(String? accepted) =>
+          NodeSummary.of(
+            MostroInstance(pubKey: 'node', fiatCurrenciesAccepted: accepted),
+            _en,
+          ).currencies;
+
+      expect(currencies('ARS,EUR,USD'), 'ARS, EUR, USD');
+      expect(currencies('ARS,BRL,CUP,EUR,USD,VES'), 'ARS, BRL +4');
+      expect(currencies(null), _en.aboutFiatCurrenciesAll);
+      expect(currencies(''), _en.aboutFiatCurrenciesAll);
+    });
+
+    test('says how long an order stays published', () {
+      expect(NodeSummary.of(node, _en).orderLifetime, '24\u00A0h');
+    });
+
+    test('reads a dash for what the node did not send', () {
+      final summary = NodeSummary.of(
+        const MostroInstance(pubKey: 'node', bondPolicy: BondPolicy.enabled),
+        _en,
+      );
+      expect(summary.deposit, missingFigure);
+      expect(summary.orderLifetime, missingFigure);
+    });
+
+    test('reads a dash for every fact while the node is missing', () {
+      final summary = NodeSummary.of(null, _en);
+      expect([
+        summary.deposit,
+        summary.currencies,
+        summary.orderLifetime,
+      ], everyElement(missingFigure));
+    });
+  });
+
   group('nodeTechSections', () {
+    test('the deposit reads the same on About and in the technical data', () {
+      const node = MostroInstance(
+        pubKey: 'node',
+        bondPolicy: BondPolicy.enabled,
+        bondAmountPct: 0.015,
+        bondSlashNodeSharePct: 0.335,
+      );
+      final sections = nodeTechSections(node, _es);
+
+      expect(_row(sections, _es.aboutBondAmountLabel).value, '1,5\u00A0%');
+      expect(
+        _row(sections, _es.aboutBondAmountLabel).value,
+        NodeSummary.of(node, _es).deposit,
+      );
+      expect(_row(sections, _es.aboutBondNodeShareLabel).value, '33,5\u00A0%');
+    });
+
     test('the handoff node lists its rows in the handoff order', () {
       final sections = nodeTechSections(_handoffNode, _en);
 

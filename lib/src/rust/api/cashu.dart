@@ -7,44 +7,55 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `active_wallet`, `build_and_record_escrow`, `canonical_mint`, `changes`, `ensure_enabled`, `escrow_op_lock`, `forget_held_escrow`, `held_escrows`, `hold_unrecorded_escrow`, `lifecycle_lock`, `load_trade`, `notify`, `now_secs`, `proof_store_path`, `record_escrow_token`, `recorded_or_held_escrow`, `resubmit_pending_escrows`, `retire_escrow_token`, `same_mint`, `settle_escrow_rejection`, `sibling_store_path`, `snapshot`, `submit_escrow`, `wallet_lock`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `SubmitError`
+// These functions are ignored because they are not marked as `pub`: `active_wallet`, `build_and_record_escrow`, `canonical_mint`, `changes`, `claim_legacy_store`, `current_identity`, `ensure_enabled`, `ensure_wallet_at`, `escrow_op_lock`, `forget_held_escrow`, `held_escrows`, `hold_unrecorded_escrow`, `identity_balance_at_risk`, `identity_store_name`, `install`, `legacy_store_decision`, `lifecycle_lock`, `live_wallet`, `load_trade`, `move_legacy_store`, `node_default_mint`, `notify`, `now_secs`, `offline_balance`, `open_wallet`, `proof_store_path`, `receive_unbound`, `record_escrow_token`, `recorded_or_held_escrow`, `resubmit_pending_escrows`, `retire_escrow_token`, `same_mint`, `serves`, `settle_escrow_rejection`, `settle_legacy_store`, `sibling_store_path`, `snapshot`, `store_wallet_mint`, `stored_wallet_mint`, `submit_escrow`, `validate_wallet_mint_url`, `wallet_lock`, `wallet_mint_target`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BoundWallet`, `SubmitError`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 
-/// Connect the wallet to the mint the active node pins, unless already connected.
+/// Bind the wallet to a mint, unless it is already bound to it.
 ///
-/// Lazy by design: nothing connects at startup, so a Lightning user never opens
-/// a proof store or contacts a mint. Repeat calls are cheap — an already
-/// connected wallet is returned as is rather than reconnected.
+/// `mint_url` is the mint the user chose; it becomes the wallet's mint once the
+/// mint has proven usable, and stays it across node switches and restarts.
+/// `None` keeps the mint set before, or — on a fresh install — takes the
+/// default of a Cashu node that pins exactly one ([`wallet_mint_target`]).
+/// Binding another mint never deletes the proofs of the previous one: they stay
+/// in the proof store and come back when the wallet is bound to it again.
 ///
-/// **Errors**: `CashuNotEnabled` when the node is not a usable Cashu node,
-/// `NoIdentity` before an identity is loaded, `CashuNoMnemonic` for an
-/// nsec-imported identity (there is no seed to derive), plus the markers from
-/// [`CashuWallet::connect`].
-Future<CashuWalletStatus> cashuConnect() =>
-    RustLib.instance.api.crateApiCashuCashuConnect();
+/// Lazy by design: nothing connects at startup, so a user who never opens the
+/// wallet never opens a proof store or contacts a mint.
+///
+/// **Errors**: `CashuNoMint` when no mint was given, set or offered,
+/// `InvalidMintUrl`, `NoIdentity` before an identity is loaded,
+/// `CashuNoMnemonic` for an nsec-imported identity (there is no seed to
+/// derive), plus the markers from [`CashuWallet::connect`].
+Future<CashuWalletStatus> cashuConnect({String? mintUrl}) =>
+    RustLib.instance.api.crateApiCashuCashuConnect(mintUrl: mintUrl);
 
-/// Current wallet status. Safe to call on any node — a Lightning node simply
-/// reports "not connected".
+/// Current wallet status: "not connected" until the wallet is bound to a mint.
 Future<CashuWalletStatus> cashuStatus() =>
     RustLib.instance.api.crateApiCashuCashuStatus();
 
 /// Spendable balance in satoshis.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`.
+/// **Errors**: `CashuNotConnected`.
 Future<BigInt> cashuGetBalance() =>
     RustLib.instance.api.crateApiCashuCashuGetBalance();
 
 /// Redeem an encoded Cashu token into the wallet, returning the amount received.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`, `CashuReceiveFailed`
-/// (wrong mint, already spent, malformed).
+/// An unbound wallet binds first, to the mint set before (or the node's
+/// default) — and with no mint set at all, to the mint the token names. A mint
+/// is adopted only by a receive that succeeds: a token that turns out spent or
+/// worthless leaves the wallet unbound and nothing remembered.
+///
+/// **Errors**: `CashuReceiveFailed` (wrong mint, already spent, malformed),
+/// `CashuTokenUnverified`, plus the markers from [`cashu_connect`].
 Future<BigInt> cashuReceiveToken({required String encoded}) =>
     RustLib.instance.api.crateApiCashuCashuReceiveToken(encoded: encoded);
 
 /// Export `amount_sats` from the wallet as an encoded token.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`, `CashuAmountZero`,
-/// `CashuSendFailed` (insufficient funds included).
+/// **Errors**: `CashuNotConnected`, `CashuAmountZero`, `CashuSendFailed`
+/// (insufficient funds included).
 Future<String> cashuCreateToken({required BigInt amountSats}) =>
     RustLib.instance.api.crateApiCashuCashuCreateToken(amountSats: amountSats);
 
@@ -57,13 +68,13 @@ Future<String> cashuCreateToken({required BigInt amountSats}) =>
 /// otherwise; see [`CashuWallet::sweep_spent_proofs`]. Getting an abandoned
 /// token back is phase C10.
 ///
-/// **Errors**: `CashuNotEnabled`, `CashuNotConnected`, `CashuMintChanged`.
+/// **Errors**: `CashuNotConnected`.
 Future<void> cashuSweepSpentProofs() =>
     RustLib.instance.api.crateApiCashuCashuSweepSpentProofs();
 
-/// Drop the in-memory wallet. Proofs stay on disk — this is a disconnect, not a
-/// wipe. Called when the active node changes, so a wallet bound to one node's
-/// mint never serves another's.
+/// Drop the in-memory wallet. Proofs stay on disk and the wallet's mint stays
+/// set — this is a disconnect, not a wipe. A node switch does **not** call it:
+/// the wallet's mint is the user's, not the node's.
 Future<void> cashuDisconnect() =>
     RustLib.instance.api.crateApiCashuCashuDisconnect();
 
@@ -77,7 +88,8 @@ Future<void> cashuDisconnect() =>
 /// protocol default, never to a guess.
 ///
 /// **Errors**: `CashuNotEnabled`, `CashuOrderAmountUnknown`, `CashuMintNotSupported`,
-/// `CashuNotConnected`, `CashuBalanceUnknown`.
+/// `CashuWalletOnOtherMint`, `CashuNotConnected`, `CashuBalanceUnknown`, plus the
+/// markers from [`cashu_connect`].
 Future<CashuEscrowQuote> cashuEscrowQuote({required String orderId}) =>
     RustLib.instance.api.crateApiCashuCashuEscrowQuote(orderId: orderId);
 
@@ -99,7 +111,8 @@ Future<CashuEscrowQuote> cashuEscrowQuote({required String orderId}) =>
 ///    [`settle_escrow_rejection`] turns into the next step.
 ///
 /// **Errors** (stable markers): `CashuNotEnabled`, `CashuNotConnected`,
-/// `CashuMintNotSupported`, `CashuInsufficientFunds`, `NotTheSeller`,
+/// `CashuMintNotSupported`, `CashuWalletOnOtherMint`, `CashuInsufficientFunds`,
+/// `NotTheSeller`,
 /// `CashuEscrowOrderMovedOn`,
 /// `CashuEscrowRequestMissing`, `CashuWrongTradeKey`, `DeviceClockInvalid`,
 /// `CashuEscrowNotPersisted`, `CashuEscrowRejected: <reason>`,

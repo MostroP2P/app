@@ -46,6 +46,7 @@ import 'package:mostro/features/trades/widgets/bond_claim_banner.dart';
 import 'package:mostro/features/trades/widgets/bond_slashed_notice.dart';
 import 'package:mostro/features/trades/widgets/cancel_request_notice.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/countdown.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
@@ -469,6 +470,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
         score: _selectedRating,
       );
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).rated(_selectedRating);
       ref.invalidate(tradeRatingProvider(widget.orderId));
     } catch (e, st) {
       debugPrint('[TradeDetailScreen] submitRating error: $e\n$st');
@@ -479,6 +481,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
 
   void _showFailure(Object e, String Function(AppLocalizations) fallback) {
     if (!mounted) return;
+    ref.read(mascotCueProvider.notifier).daemonRefused(e);
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1226,7 +1229,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     String? alias,
   ) {
     final rating = ref.watch(tradeRatingProvider(widget.orderId)).valueOrNull;
-    final mine = rating != null && rating.isMine ? rating.score : null;
+    final mine = myRatingScore(rating);
     final picking = status == TradeStatus.pendingRating && canRate;
     return TradeCompletedCard(
       amount: amount,

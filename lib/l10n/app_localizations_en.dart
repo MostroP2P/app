@@ -631,8 +631,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nodeStatusUnreachableNoSignal => 'Not responding';
 
   @override
-  String get nodeDisclaimerShort =>
-      'Each node is run by an independent third party. Mostro is not responsible for their conduct or for your trades.';
+  String get nodeChoiceSubtitle =>
+      'Select the Mostro node you want to trade on';
+
+  @override
+  String get nodeOperatorDisclaimer =>
+      'The Mostro development team is not responsible for how node operators use the platform. Each operator controls their own Mostro node and is solely responsible for their actions. By using Mostro, you accept full responsibility for your trades and acknowledge that the development team has no control over individual node operators.';
+
+  @override
+  String get nodeChoiceConfirm => 'Use this node';
+
+  @override
+  String get nodeChoiceSaveFailed => 'Couldn\'t save your choice. Try again.';
 
   @override
   String get nodeVerifyKeyWarning =>
@@ -2764,7 +2774,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get aboutLimitsFootnote => 'Limits in satoshis per order';
+  String get aboutNodeDepositNone => 'No';
+
+  @override
+  String aboutNodeDepositFloor(String amount) {
+    return 'min. $amount sats';
+  }
+
+  @override
+  String get aboutDepositCell => 'Deposit';
+
+  @override
+  String get aboutCurrenciesCell => 'Currencies';
+
+  @override
+  String get aboutOrderExpiryCell => 'Expiration';
 
   @override
   String get aboutNodeTechnicalDataRow => 'Node technical data';
@@ -2794,7 +2818,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String aboutHoursShort(int count) {
-    return '$count h';
+    return '$count h';
   }
 
   @override
@@ -3764,6 +3788,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fundsAtRiskBondInvoicePending => 'Bond invoice still payable';
 
   @override
+  String get fundsAtRiskCashuBalance => 'Ecash in the Cashu wallet';
+
+  @override
+  String get fundsAtRiskCashuHint => 'Only this user\'s words bring it back';
+
+  @override
   String get fundsAtRiskKeep => 'Keep this user';
 
   @override
@@ -3978,6 +4008,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cashuNotConnected => 'Not connected to a mint';
 
   @override
+  String get cashuNoMintSet =>
+      'No mint set. Set one, or receive a token to use its mint.';
+
+  @override
+  String get cashuSetMintButton => 'Set mint';
+
+  @override
+  String get cashuChangeMintButton => 'Change mint';
+
+  @override
+  String get cashuMintDialogTitle => 'Cashu mint';
+
+  @override
+  String get cashuMintFieldLabel => 'Mint URL';
+
+  @override
+  String get cashuMintFieldHint => 'https://mint.example.com';
+
+  @override
+  String get cashuChangeMintTitle => 'Change mint?';
+
+  @override
+  String cashuChangeMintWarning(String sats, String mint) {
+    return 'Your $sats sats stay at $mint. They come back when you connect to that mint again.';
+  }
+
+  @override
+  String get cashuErrorNoMint => 'Set a mint in the Cashu wallet first.';
+
+  @override
+  String get cashuErrorInvalidMintUrl =>
+      'That is not a mint URL you can use. It must start with https://.';
+
+  @override
+  String get cashuErrorWalletOnOtherMint =>
+      'Your Cashu wallet uses another mint. Switch it to this node\'s mint in Settings → Cashu wallet, then try again.';
+
+  @override
   String get cashuReceiveButton => 'Receive';
 
   @override
@@ -3985,6 +4053,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cashuReceiveHint => 'Paste or scan a Cashu token';
+
+  @override
+  String get cashuReceiveTitle => 'Receive a token';
+
+  @override
+  String get cashuTokenFieldLabel => 'Cashu token';
+
+  @override
+  String get cashuPasteTokenHint => 'Paste a Cashu token';
+
+  @override
+  String get qrScanUnavailable => 'Not available on this device';
 
   @override
   String get cashuAmountLabel => 'Amount in sats';
@@ -4015,7 +4095,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cashuWalletExplanation =>
-      'This wallet holds ecash issued by the mint your Mostro node uses. It exists to fund and receive trades on that node — it is not a general-purpose wallet.';
+      'This wallet holds ecash from the mint you choose. It exists to fund and receive Cashu trades — it is not a general-purpose wallet.';
 
   @override
   String get cashuErrorNotEnabled =>
@@ -4031,7 +4111,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cashuErrorMintUnusable =>
-      'This node\'s mint is missing features the escrow needs, so trading is not possible here.';
+      'This mint is missing features the wallet needs. Choose another mint.';
 
   @override
   String get cashuErrorUnsupportedOnWeb =>
@@ -4074,10 +4154,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cashuTokenTooLargeForQr =>
       'This token is too large for a QR code. Copy it instead.';
-
-  @override
-  String get cashuErrorMintChanged =>
-      'The active node changed and this wallet is bound to another mint. Go back and open the wallet again.';
 
   @override
   String get cashuErrorNoMnemonic =>
@@ -4254,4 +4330,71 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsMintCopied => 'Mint URL copied';
+
+  @override
+  String get pwaInstallTitle => 'Install Mostro';
+
+  @override
+  String get pwaInstallBody =>
+      'Open it from your home screen, full screen, like any other app.';
+
+  @override
+  String get pwaInstallAction => 'Install';
+
+  @override
+  String get pwaInstallNotNow => 'Not now';
+
+  @override
+  String get pwaInstallSettingTitle => 'Install app';
+
+  @override
+  String get pwaInstallStepsTitle => 'Add Mostro to your home screen';
+
+  @override
+  String get pwaInstallStepShare =>
+      'Tap the Share button in your browser\'s toolbar.';
+
+  @override
+  String get pwaInstallStepAdd => 'Choose “Add to Home Screen”.';
+
+  @override
+  String get pwaInstallStepsDone => 'Got it';
+
+  @override
+  String get myReputationTitle => 'Your reputation';
+
+  @override
+  String myReputationReviews(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ratings',
+      one: '1 rating',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String myReputationSince(String date) {
+    return 'since $date';
+  }
+
+  @override
+  String get myReputationNoReviews =>
+      'No ratings yet. Your reputation starts with your first rated trade.';
+
+  @override
+  String get myReputationPrivacyMode =>
+      'Full privacy mode keeps no reputation. Choose reputation mode below to build one.';
+
+  @override
+  String get myReputationLoading => 'Asking your node…';
+
+  @override
+  String get myReputationUnavailable => 'Your node has not answered yet.';
+
+  @override
+  String myReputationOnNode(String node) {
+    return 'On $node';
+  }
 }

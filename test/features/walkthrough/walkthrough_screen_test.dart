@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
+import 'package:mostro/features/walkthrough/providers/node_prefetch_provider.dart';
 import 'package:mostro/features/walkthrough/screens/walkthrough_screen.dart';
 import 'package:mostro/features/walkthrough/walkthrough_slides.dart';
 import 'package:mostro/features/walkthrough/widgets/walkthrough_art.dart';
@@ -14,7 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/load_app_fonts.dart';
 
-const _home = 'home screen';
+const _chooseNode = 'node choice screen';
 
 ProviderContainer _container() {
   final container = ProviderContainer(
@@ -22,14 +23,16 @@ ProviderContainer _container() {
       firstRunProvider.overrideWith(
         (ref) => FirstRunNotifier(initialValue: false),
       ),
+      // The prefetch asks the relays through the Rust bridge.
+      firstRunNodePrefetchProvider.overrideWith((ref) {}),
     ],
   );
   addTearDown(container.dispose);
   return container;
 }
 
-/// Pumps the walkthrough under a router whose home is a plain marker, so a
-/// finished walkthrough shows [_home].
+/// Pumps the walkthrough under a router whose node choice is a plain marker,
+/// so a finished walkthrough shows [_chooseNode].
 Future<ProviderContainer> _pumpWalkthrough(
   WidgetTester tester, {
   Locale locale = const Locale('en'),
@@ -41,8 +44,8 @@ Future<ProviderContainer> _pumpWalkthrough(
     initialLocation: AppRoute.walkthrough,
     routes: [
       GoRoute(
-        path: AppRoute.home,
-        builder: (_, __) => const Scaffold(body: Text(_home)),
+        path: AppRoute.chooseNode,
+        builder: (_, __) => const Scaffold(body: Text(_chooseNode)),
       ),
       GoRoute(
         path: AppRoute.walkthrough,
@@ -97,33 +100,38 @@ void main() {
     expect(find.text(l10n.skip).hitTestable(), findsOneWidget);
   });
 
-  testWidgets('Next walks every slide in order and Done finishes', (
-    tester,
-  ) async {
-    final container = await _pumpWalkthrough(tester);
-    final l10n = _en();
-    final titles = walkthroughSlides(l10n).map((s) => s.title).toList();
+  testWidgets(
+    'Next walks every slide in order and Done leads to the node choice',
+    (tester) async {
+      final container = await _pumpWalkthrough(tester);
+      final l10n = _en();
+      final titles = walkthroughSlides(l10n).map((s) => s.title).toList();
 
-    for (var i = 0; i < titles.length; i++) {
-      expect(find.text(titles[i]), findsOneWidget, reason: 'slide ${i + 1}');
-      expect(find.text(l10n.walkthroughStepCounter(i + 1, 6)), findsOneWidget);
-      if (i < titles.length - 1) {
-        await tester.tap(find.text(l10n.walkthroughNext));
-        await tester.pumpAndSettle();
+      for (var i = 0; i < titles.length; i++) {
+        expect(find.text(titles[i]), findsOneWidget, reason: 'slide ${i + 1}');
+        expect(
+          find.text(l10n.walkthroughStepCounter(i + 1, 6)),
+          findsOneWidget,
+        );
+        if (i < titles.length - 1) {
+          await tester.tap(find.text(l10n.walkthroughNext));
+          await tester.pumpAndSettle();
+        }
       }
-    }
 
-    // The last slide answers Done, and there is nothing left to skip.
-    expect(find.text(l10n.walkthroughNext), findsNothing);
-    expect(find.text(l10n.skip).hitTestable(), findsNothing);
+      // The last slide answers Done, and there is nothing left to skip.
+      expect(find.text(l10n.walkthroughNext), findsNothing);
+      expect(find.text(l10n.skip).hitTestable(), findsNothing);
 
-    await tester.tap(find.text(l10n.done));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.done));
+      await tester.pumpAndSettle();
 
-    expect(find.text(_home), findsOneWidget);
-    expect(container.read(firstRunProvider), const AsyncData<bool>(true));
-    expect(container.read(backupReminderProvider), isTrue);
-  });
+      // The node choice comes next and completes the first run, not this.
+      expect(find.text(_chooseNode), findsOneWidget);
+      expect(container.read(firstRunProvider), const AsyncData<bool>(false));
+      expect(container.read(backupReminderProvider), isFalse);
+    },
+  );
 
   testWidgets('Back returns to the previous slide', (tester) async {
     await _pumpWalkthrough(tester);
@@ -138,7 +146,7 @@ void main() {
     expect(find.text(l10n.walkthroughWelcomeTitle), findsOneWidget);
   });
 
-  testWidgets('Skip finishes the walkthrough from a middle slide', (
+  testWidgets('Skip leads to the node choice from a middle slide', (
     tester,
   ) async {
     final container = await _pumpWalkthrough(tester);
@@ -149,9 +157,10 @@ void main() {
     await tester.tap(find.text(l10n.skip));
     await tester.pumpAndSettle();
 
-    expect(find.text(_home), findsOneWidget);
-    expect(container.read(firstRunProvider), const AsyncData<bool>(true));
-    expect(container.read(backupReminderProvider), isTrue);
+    // The node choice comes next and completes the first run, not this.
+    expect(find.text(_chooseNode), findsOneWidget);
+    expect(container.read(firstRunProvider), const AsyncData<bool>(false));
+    expect(container.read(backupReminderProvider), isFalse);
   });
 
   testWidgets('a swipe left goes forward and a swipe right goes back', (
@@ -184,16 +193,15 @@ void main() {
     expect(find.text(_en().walkthroughWelcomeTitle), findsOneWidget);
   });
 
-  testWidgets('a double tap on Skip finishes once', (tester) async {
-    final container = await _pumpWalkthrough(tester);
+  testWidgets('a double tap on Skip leaves once', (tester) async {
+    await _pumpWalkthrough(tester);
     final skip = find.text(_en().skip);
 
     await tester.tap(skip);
     await tester.tap(skip, warnIfMissed: false);
     await tester.pumpAndSettle();
 
-    expect(find.text(_home), findsOneWidget);
-    expect(container.read(firstRunProvider), const AsyncData<bool>(true));
+    expect(find.text(_chooseNode), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

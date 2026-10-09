@@ -13,6 +13,7 @@ import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/rate/widgets/star_rating.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/src/rust/api/types.dart' show OrderStatus;
 import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 
@@ -86,12 +87,14 @@ class _RateCounterpartScreenState extends ConsumerState<RateCounterpartScreen> {
       // been disposed by now — and ref, like context, must not be touched
       // after that.
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).rated(_rating);
       // The screen underneath buckets a successful trade as "rate me" until a
       // local rating exists, so refresh it before popping back (#327).
       ref.invalidate(tradeRatingProvider(widget.orderId));
       context.pop();
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

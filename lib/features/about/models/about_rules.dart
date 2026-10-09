@@ -85,9 +85,10 @@ List<String> splitTagList(String? raw) => (raw ?? '')
 String formatSats(int sats, String locale) =>
     NumberFormat.decimalPattern(locale).format(sats);
 
-/// The node fee (a fraction, `0.006`) as `0.6%` in the locale's style, or
-/// `null` when the node sent nothing usable.
-String? formatFee(double? fraction, AppLocalizations l10n) {
+/// A fraction the node sends (`0.006`) as `0.6%` in the locale's style, or
+/// `null` when the node sent nothing usable: its fee, its deposit and the
+/// share of a slashed deposit it keeps, alike on 12a and 12b.
+String? formatPercent(double? fraction, AppLocalizations l10n) {
   if (fraction == null) return null;
   final pct = fraction * 100;
   if (!pct.isFinite || pct < 0) return null;
@@ -110,7 +111,7 @@ class NodeLimits {
     return NodeLimits(
       min: min == null ? missingFigure : formatSats(min, l10n.localeName),
       max: max == null ? missingFigure : formatSats(max, l10n.localeName),
-      fee: formatFee(node?.fee, l10n) ?? missingFigure,
+      fee: formatPercent(node?.fee, l10n) ?? missingFigure,
     );
   }
 
@@ -132,6 +133,87 @@ const _priceSourceNames = {
 
 /// A price provider by its published name (`coingecko` → `CoinGecko`).
 String priceSourceName(String id) => _priceSourceNames[id.toLowerCase()] ?? id;
+
+/// The facts the connected-node card lists under its limits: whether the
+/// node asks for a deposit and how much, the currencies it accepts, and how
+/// long an order stays published. [missingFigure] for what the node did not
+/// send, and for all three while [MostroInstance] is `null`.
+@immutable
+class NodeSummary {
+  const NodeSummary({
+    required this.deposit,
+    this.depositUnit,
+    required this.currencies,
+    required this.orderLifetime,
+  });
+
+  /// The currencies are the node's accepted list
+  /// ([MostroInstance.acceptedFiatCodes]), `All` when it sets no limit. A
+  /// cell holds up to three codes; a longer list shows its first two and how
+  /// many more (`ARS, EUR +5`), whole in the technical data.
+  factory NodeSummary.of(MostroInstance? node, AppLocalizations l10n) {
+    if (node == null) {
+      return const NodeSummary(
+        deposit: missingFigure,
+        currencies: missingFigure,
+        orderLifetime: missingFigure,
+      );
+    }
+    final hours = node.expirationHours;
+    final currencies = node.acceptedFiatCodes;
+    final (deposit, depositUnit) = _deposit(node, l10n);
+    return NodeSummary(
+      deposit: deposit,
+      depositUnit: depositUnit,
+      currencies: switch (currencies) {
+        [] => l10n.aboutFiatCurrenciesAll,
+        _ when currencies.length <= 3 => currencies.join(', '),
+        _ => '${currencies.take(2).join(', ')} +${currencies.length - 2}',
+      },
+      orderLifetime:
+          hours == null ? missingFigure : l10n.aboutHoursShort(hours),
+    );
+  }
+
+  /// The daemon locks the larger of the share of the order and the floor
+  /// (`bond_base_amount_sats`), and only the floor when the share is not
+  /// above zero. So a floor goes with the share (`1%` over `min. 1,000
+  /// sats`), alone when there is no share (`1,000` `sats`), and with neither
+  /// the node locks nothing (`No`). A share the parser dropped (negative,
+  /// malformed) is no share: the daemon reads it as zero. `—` only when the
+  /// node sent neither, or a share too large to show. A node that predates
+  /// deposits asks for none either.
+  static (String, String?) _deposit(
+    MostroInstance node,
+    AppLocalizations l10n,
+  ) {
+    if (node.bondPolicy != BondPolicy.enabled) {
+      return (l10n.aboutNodeDepositNone, null);
+    }
+    final pct = node.bondAmountPct;
+    final floor = node.bondBaseAmountSats;
+    if (pct == null && floor == null) return (missingFigure, null);
+    final sats = formatSats(floor ?? 0, l10n.localeName);
+    if (pct == null || pct == 0) {
+      return (floor ?? 0) == 0
+          ? (l10n.aboutNodeDepositNone, null)
+          : (sats, l10n.satsUnitLabel);
+    }
+    final share = formatPercent(pct, l10n);
+    if (share == null) return (missingFigure, null);
+    return (floor ?? 0) == 0
+        ? (share, null)
+        : (share, l10n.aboutNodeDepositFloor(sats));
+  }
+
+  final String deposit;
+
+  /// What follows [deposit] in its cell: the floor beside a share, or the
+  /// unit of a floor shown alone.
+  final String? depositUnit;
+  final String currencies;
+  final String orderLifetime;
+}
 
 // ── 12b · sections ────────────────────────────────────────────────────────────
 
@@ -192,7 +274,7 @@ int nodeFieldCount(List<TechSection> nodeSections) =>
     nodeSections.fold(0, (sum, s) => sum + s.rows.length);
 
 List<TechRow> _mostroRows(MostroInstance node, AppLocalizations l10n) {
-  final fiat = node.fiatCurrenciesAccepted?.trim() ?? '';
+  final fiat = node.acceptedFiatCodes;
   return [
     TechRow(l10n.aboutPublicKeyLabel, node.pubKey, TechValueStyle.key),
     if (node.mostroVersion != null)
@@ -222,7 +304,7 @@ List<TechRow> _mostroRows(MostroInstance node, AppLocalizations l10n) {
       ),
     TechRow(
       l10n.aboutFiatCurrenciesLabel,
-      fiat.isEmpty ? l10n.aboutFiatCurrenciesAll : fiat,
+      fiat.isEmpty ? l10n.aboutFiatCurrenciesAll : fiat.join(', '),
       TechValueStyle.text,
     ),
     if (node.expirationSeconds != null)
@@ -272,12 +354,8 @@ List<TechRow> _bondRows(MostroInstance node, AppLocalizations l10n) {
     TechRow(l10n.aboutBondStatusLabel, status, TechValueStyle.text),
     if (applyTo != null)
       TechRow(l10n.aboutBondAppliesToLabel, applyTo, TechValueStyle.text),
-    if (node.bondAmountPercent != null)
-      TechRow(
-        l10n.aboutBondAmountLabel,
-        node.bondAmountPercent!,
-        TechValueStyle.figure,
-      ),
+    if (formatPercent(node.bondAmountPct, l10n) case final amount?)
+      TechRow(l10n.aboutBondAmountLabel, amount, TechValueStyle.figure),
     if (node.bondBaseAmountSats != null)
       TechRow(
         l10n.aboutBondBaseAmountLabel,
@@ -285,12 +363,8 @@ List<TechRow> _bondRows(MostroInstance node, AppLocalizations l10n) {
         '${l10n.aboutSatoshisSuffix}',
         TechValueStyle.figure,
       ),
-    if (node.bondSlashNodeSharePercent != null)
-      TechRow(
-        l10n.aboutBondNodeShareLabel,
-        node.bondSlashNodeSharePercent!,
-        TechValueStyle.figure,
-      ),
+    if (formatPercent(node.bondSlashNodeSharePct, l10n) case final share?)
+      TechRow(l10n.aboutBondNodeShareLabel, share, TechValueStyle.figure),
     if (node.bondSlashOnWaitingTimeout != null)
       TechRow(
         l10n.aboutBondSlashOnTimeoutLabel,

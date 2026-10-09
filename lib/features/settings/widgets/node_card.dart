@@ -193,25 +193,27 @@ class _IdentityRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              // A wrap, not a row: a long badge (German) at large text moves
+              // under the name instead of overflowing a 320 dp card.
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Flexible(
-                    child: Text(
-                      nodeDisplayName(entry),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: book.textPrimary,
-                      ),
+                  Text(
+                    nodeDisplayName(entry),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: book.textPrimary,
                     ),
                   ),
-                  if (entry.isTrusted) ...[
-                    const SizedBox(width: 6),
+                  if (entry.isTrusted)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
+                        horizontal: 8,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
@@ -224,14 +226,13 @@ class _IdentityRow extends StatelessWidget {
                       child: Text(
                         l10n.trustedBadgeLabel.toUpperCase(),
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.36,
                           color: pal.trustedInk,
                         ),
                       ),
                     ),
-                  ],
                 ],
               ),
               const SizedBox(height: 2),
