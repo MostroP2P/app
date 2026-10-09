@@ -556,6 +556,7 @@ impl Storage for SqliteStorage {
         for key in [
             settings_keys::BOND_CLAIM_RETAINED_NODES,
             settings_keys::RESTORE_SNAPSHOT,
+            settings_keys::PENDING_REPUTATION_ATTESTATION,
         ] {
             sqlx::query("DELETE FROM settings WHERE key = ?")
                 .bind(key)
@@ -2440,6 +2441,7 @@ mod tests {
             settings_keys::trade_wiped("order-a"),
             settings_keys::BOND_CLAIM_RETAINED_NODES.to_string(),
             settings_keys::RESTORE_SNAPSHOT.to_string(),
+            settings_keys::PENDING_REPUTATION_ATTESTATION.to_string(),
         ] {
             storage.set_setting(&key, "1").await.unwrap();
         }
@@ -2473,6 +2475,7 @@ mod tests {
             settings_keys::trade_wiped("order-a"),
             settings_keys::BOND_CLAIM_RETAINED_NODES.to_string(),
             settings_keys::RESTORE_SNAPSHOT.to_string(),
+            settings_keys::PENDING_REPUTATION_ATTESTATION.to_string(),
         ] {
             assert_eq!(
                 storage.get_setting(&key).await.unwrap(),

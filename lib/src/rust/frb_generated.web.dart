@@ -22,6 +22,7 @@ import 'api/nwc.dart';
 import 'api/orders.dart';
 import 'api/push.dart';
 import 'api/reputation.dart';
+import 'api/reputation_transfer.dart';
 import 'api/restore_progress.dart';
 import 'api/settings.dart';
 import 'api/trade_touch.dart';
@@ -720,6 +721,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayInfo dco_decode_box_autoadd_relay_info(dynamic raw);
 
   @protected
+  ReputationAttestationInfo dco_decode_box_autoadd_reputation_attestation_info(
+    dynamic raw,
+  );
+
+  @protected
   RestoreProgress dco_decode_box_autoadd_restore_progress(dynamic raw);
 
   @protected
@@ -965,6 +971,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayInfo? dco_decode_opt_box_autoadd_relay_info(dynamic raw);
 
   @protected
+  ReputationAttestationInfo?
+  dco_decode_opt_box_autoadd_reputation_attestation_info(dynamic raw);
+
+  @protected
   RestoreProgress? dco_decode_opt_box_autoadd_restore_progress(dynamic raw);
 
   @protected
@@ -1043,6 +1053,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RelayStatus dco_decode_relay_status(dynamic raw);
+
+  @protected
+  ReputationAttestationInfo dco_decode_reputation_attestation_info(dynamic raw);
+
+  @protected
+  ReputationSupportInfo dco_decode_reputation_support_info(dynamic raw);
 
   @protected
   RestoreProgress dco_decode_restore_progress(dynamic raw);
@@ -1713,6 +1729,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RelayInfo sse_decode_box_autoadd_relay_info(SseDeserializer deserializer);
 
   @protected
+  ReputationAttestationInfo sse_decode_box_autoadd_reputation_attestation_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RestoreProgress sse_decode_box_autoadd_restore_progress(
     SseDeserializer deserializer,
   );
@@ -2016,6 +2037,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ReputationAttestationInfo?
+  sse_decode_opt_box_autoadd_reputation_attestation_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RestoreProgress? sse_decode_opt_box_autoadd_restore_progress(
     SseDeserializer deserializer,
   );
@@ -2112,6 +2139,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RelayStatus sse_decode_relay_status(SseDeserializer deserializer);
+
+  @protected
+  ReputationAttestationInfo sse_decode_reputation_attestation_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReputationSupportInfo sse_decode_reputation_support_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RestoreProgress sse_decode_restore_progress(SseDeserializer deserializer);
@@ -2923,6 +2960,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_reputation_attestation_info(
+    ReputationAttestationInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_restore_progress(
     RestoreProgress self,
     SseSerializer serializer,
@@ -3334,6 +3377,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_reputation_attestation_info(
+    ReputationAttestationInfo? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_restore_progress(
     RestoreProgress? self,
     SseSerializer serializer,
@@ -3443,6 +3492,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_relay_status(RelayStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reputation_attestation_info(
+    ReputationAttestationInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reputation_support_info(
+    ReputationSupportInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_restore_progress(

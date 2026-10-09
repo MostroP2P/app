@@ -907,6 +907,9 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
             // the person who takes a case over (#637). A fetch without the tag
             // retracts an older announcement. See mostro::serbero.
             crate::mostro::serbero::set_from_tags(&mostro_pubkey_hex, &tags);
+            // Whether it exports or imports reputation; a fetch without the
+            // tags retracts an older answer. See mostro::reputation_support.
+            crate::mostro::reputation_support::set_from_tags(&mostro_pubkey_hex, &tags);
             // The service fee. Only Cashu mode needs it client-side — there the
             // seller funds the whole fee as its own token — but it rides in the
             // same event, so reading it here costs nothing.
@@ -928,6 +931,7 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
             crate::mostro::bond_policy::clear();
             // Nor a Serbero: retract an older announcement of this node.
             crate::mostro::serbero::set_from_tags(&mostro_pubkey_hex, &[]);
+            crate::mostro::reputation_support::set_from_tags(&mostro_pubkey_hex, &[]);
         }
         Err(e) => {
             log::warn!("[nostr] failed to fetch Kind 38385 for node capabilities: {e}");
@@ -941,6 +945,8 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
             // Same reasoning: a stale bond policy would pre-warn (or fail to
             // pre-warn) for the wrong node.
             crate::mostro::bond_policy::clear();
+            // Nor send reputation requests the node may not understand.
+            crate::mostro::reputation_support::set_from_tags(&mostro_pubkey_hex, &[]);
         }
     }
 }
@@ -1108,6 +1114,34 @@ mod tests {
         // Assert: had it been written, the single policy slot would now hold
         // this node's answer in place of the active node's.
         assert_eq!(crate::mostro::bond_policy::get_for(&left_behind), None);
+    }
+
+    #[test]
+    fn every_capability_fetch_outcome_rewrites_the_reputation_support() {
+        // Arrange: the store is per node and process-wide, so applying a
+        // fetch for the active node here would race the tests that read it;
+        // the three arms are read from the source instead.
+        let source = include_str!("nostr.rs");
+        let start = source
+            .find("fn apply_node_capabilities(")
+            .expect("apply_node_capabilities exists");
+        let body = &source[start..];
+        let body = &body[..body.find("\n}\n").expect("apply_node_capabilities ends")];
+        let some = body.find("Ok(Some(tags)) =>").expect("the tags arm");
+        let none = body.find("Ok(None) =>").expect("the no-event arm");
+        let err = body.find("Err(e) =>").expect("the failure arm");
+        assert!(some < none && none < err, "arms in the expected order");
+
+        // Act
+        let (tags_arm, none_arm, err_arm) = (&body[some..none], &body[none..err], &body[err..]);
+
+        // Assert: a fetch records the tags; no info event, or a failed fetch,
+        // retracts an older answer so no request goes to a node that would
+        // not understand it.
+        assert!(tags_arm.contains("reputation_support::set_from_tags(&mostro_pubkey_hex, &tags)"));
+        for arm in [none_arm, err_arm] {
+            assert!(arm.contains("reputation_support::set_from_tags(&mostro_pubkey_hex, &[])"));
+        }
     }
 
     /// The body of `on_pool_online`, up to the next top-level item.
