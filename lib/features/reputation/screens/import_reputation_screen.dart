@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/core/settings_palette.dart';
+import 'package:mostro/core/trade_palette.dart';
 import 'package:mostro/features/reputation/lnp2pbot.dart';
 import 'package:mostro/features/reputation/reputation_api.dart';
 import 'package:mostro/features/reputation/reputation_errors.dart';
@@ -31,20 +32,33 @@ class ImportReputationScreen extends ConsumerStatefulWidget {
 class _ImportReputationScreenState
     extends ConsumerState<ImportReputationScreen> {
   final _input = TextEditingController();
+
+  /// The node does not advertise `reputation_import_issuers`.
+  late final bool _unsupported;
+
+  /// Full privacy mode: no identity key to import into, nor to send the bot.
+  bool _privacy = false;
+
+  /// What Check last answered for [_checkedText]: the attestation, or why it
+  /// was refused. Both are withdrawn as soon as the text changes, so Import
+  /// only ever sends the attestation that is in the field.
   ReputationAttestationInfo? _attestation;
   String? _error;
+  String? _checkedText;
+
+  String? _botError;
   bool _busy = false;
   bool _imported = false;
+
+  bool get _blocked => _unsupported || _privacy;
 
   @override
   void initState() {
     super.initState();
-    // An attestation exported from another Mostro waits to be imported.
-    ref.read(reputationApiProvider).pending().then((pending) {
-      if (!mounted || pending == null || _input.text.isNotEmpty) return;
-      _input.text = pending.json;
-      _check();
-    }, onError: (_) {});
+    _unsupported =
+        ref.read(reputationApiProvider).support().importIssuers == null;
+    _input.addListener(_onTextChanged);
+    _load();
   }
 
   @override
@@ -53,28 +67,64 @@ class _ImportReputationScreenState
     super.dispose();
   }
 
-  void _check() {
+  Future<void> _load() async {
+    final api = ref.read(reputationApiProvider);
+    final privacy = await api.privacyMode().catchError((_) => false);
+    if (!mounted) return;
+    setState(() => _privacy = privacy);
+    if (_blocked) return;
+    // An attestation exported from another Mostro waits to be imported.
+    final pending = await api.pending().catchError(
+      (_) => null as ReputationAttestationInfo?,
+    );
+    if (!mounted || pending == null || _input.text.isNotEmpty) return;
+    _input.text = pending.json;
+    await _check();
+  }
+
+  void _onTextChanged() {
+    if (_checkedText == null || _input.text == _checkedText) return;
+    setState(() {
+      _attestation = null;
+      _error = null;
+      _imported = false;
+      _checkedText = null;
+    });
+  }
+
+  Future<void> _check() async {
     final l10n = AppLocalizations.of(context);
-    final json = extractAttestationJson(_input.text);
+    final text = _input.text;
+    final json = extractAttestationJson(text);
     setState(() {
       _attestation = null;
       _imported = false;
-      _error = null;
-      if (json == null) {
-        _error = l10n.reputationInvalidAttestation;
-        return;
-      }
-      try {
-        _attestation = ref.read(reputationApiProvider).parse(json);
-      } catch (e) {
-        _error = localizedReputationError(l10n, e);
-      }
+      _error = json == null ? l10n.reputationInvalidAttestation : null;
+      _checkedText = json == null ? text : null;
+      _busy = json != null;
+    });
+    if (json == null) return;
+    ReputationAttestationInfo? info;
+    String? error;
+    try {
+      info = await ref.read(reputationApiProvider).check(json);
+    } catch (e) {
+      error = localizedReputationError(l10n, e);
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      // The text changed while the core checked it: the answer is stale.
+      if (_input.text != text) return;
+      _attestation = info;
+      _error = error;
+      _checkedText = text;
     });
   }
 
   Future<void> _import() async {
     final attestation = _attestation;
-    if (attestation == null) return;
+    if (attestation == null || _input.text != _checkedText) return;
     final l10n = AppLocalizations.of(context);
     setState(() => _busy = true);
     try {
@@ -88,13 +138,16 @@ class _ImportReputationScreenState
   }
 
   Future<void> _openBot() async {
-    final identity = await ref.read(reputationApiProvider).identity();
+    if (_blocked) return;
+    final l10n = AppLocalizations.of(context);
+    final api = ref.read(reputationApiProvider);
+    setState(() => _botError = null);
+    final identity = await api.identity().catchError((_) => null);
     final uri = identity == null ? null : lnp2pbotExportUri(identity);
-    if (uri == null) return;
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      // No app for the link: the user can still paste what they received.
+    final opened = uri != null && await api.openExternal(uri);
+    if (!opened && mounted) {
+      // The user can still open the bot by hand and paste what it sends.
+      setState(() => _botError = l10n.reputationOpenLnp2pbotFailed);
     }
   }
 
@@ -127,15 +180,28 @@ class _ImportReputationScreenState
             l10n.reputationImportIntro,
             style: TextStyle(color: book.textMuted, fontSize: 13),
           ),
+          if (_blocked) ...[
+            const SizedBox(height: 14),
+            _Notice(
+              _unsupported
+                  ? l10n.reputationNodeDoesNotImport
+                  : l10n.reputationIdentityRequired,
+            ),
+          ],
           const SizedBox(height: 14),
           ReputationSecondaryButton(
             icon: Icons.send_outlined,
             label: l10n.reputationOpenLnp2pbot,
-            onPressed: _openBot,
+            onPressed: _blocked || _busy ? null : _openBot,
           ).withAutomationId(AutomationIds.reputationImportOpenBot),
+          if (_botError != null) ...[
+            const SizedBox(height: 8),
+            Text(_botError!, style: TextStyle(color: book.sell, fontSize: 12)),
+          ],
           const SizedBox(height: 14),
           TextField(
             controller: _input,
+            enabled: !_blocked,
             minLines: 3,
             maxLines: 6,
             style: TextStyle(color: book.textPrimary, fontSize: 12),
@@ -144,6 +210,10 @@ class _ImportReputationScreenState
               hintStyle: TextStyle(color: settings.placeholder, fontSize: 12),
               filled: false,
               enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: settings.fieldUnderline),
+              ),
+              disabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: settings.fieldUnderline),
               ),
@@ -159,7 +229,7 @@ class _ImportReputationScreenState
           const SizedBox(height: 8),
           ReputationPrimaryButton(
             label: l10n.reputationCheck,
-            onPressed: _busy ? null : _check,
+            onPressed: _blocked || _busy ? null : _check,
           ).withAutomationId(AutomationIds.reputationImportCheck),
           if (_error != null) ...[
             const SizedBox(height: 12),
@@ -188,6 +258,27 @@ class _ImportReputationScreenState
   }
 }
 
+/// Why the screen cannot import here, said before the user goes to the bot.
+class _Notice extends StatelessWidget {
+  final String text;
+
+  const _Notice(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final trade = TradePalette.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: trade.warnBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: trade.warnBorder),
+      ),
+      child: Text(text, style: TextStyle(color: trade.warnInk, fontSize: 13)),
+    );
+  }
+}
+
 class _Figures extends StatelessWidget {
   final ReputationAttestationInfo attestation;
 
@@ -197,11 +288,19 @@ class _Figures extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final book = OrderBookPalette.of(context);
+    final locale = Localizations.localeOf(context).toString();
     final since = DateTime.fromMillisecondsSinceEpoch(
       platformInt64ToInt(attestation.since) * 1000,
       isUtc: true,
     );
     final days = DateTime.now().toUtc().difference(since).inDays;
+    // The core sends the average as text with two decimals ("4.87"); shown
+    // like the order book's ratings, for the locale (DS-L10N-3).
+    final average = double.tryParse(attestation.rating);
+    final rating =
+        average == null
+            ? attestation.rating
+            : NumberFormat('0.##', locale).format(average);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -215,7 +314,7 @@ class _Figures extends StatelessWidget {
           Text(
             l10n.reputationFigures(
               attestation.reviews,
-              attestation.rating,
+              rating,
               days < 0 ? 0 : days,
             ),
             style: TextStyle(color: book.textPrimary, fontSize: 15),

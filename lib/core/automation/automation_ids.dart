@@ -25,13 +25,6 @@ class AutomationIds {
   // App bar / navigation
   static const String appBarDrawer = 'appbar.drawer';
   static const String appBarBack = 'appbar.back';
-
-  // Reputation portability (#674)
-  static const String reputationImportOpenBot = 'reputation.import.open_bot';
-  static const String reputationImportInput = 'reputation.import.input';
-  static const String reputationImportCheck = 'reputation.import.check';
-  static const String reputationImportFigures = 'reputation.import.figures';
-  static const String reputationImportConfirm = 'reputation.import.confirm';
   static const String navOrderBook = 'nav.order_book';
   static const String navTrades = 'nav.trades';
   static const String navChat = 'nav.chat';
@@ -309,4 +302,11 @@ class AutomationIds {
   static const String payOrderId = 'pay.order_id';
   static const String payNwc = 'pay.nwc';
   static const String payCancel = 'pay.cancel';
+
+  // Reputation portability (#674)
+  static const String reputationImportOpenBot = 'reputation.import.open_bot';
+  static const String reputationImportInput = 'reputation.import.input';
+  static const String reputationImportCheck = 'reputation.import.check';
+  static const String reputationImportFigures = 'reputation.import.figures';
+  static const String reputationImportConfirm = 'reputation.import.confirm';
 }

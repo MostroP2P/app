@@ -4322,6 +4322,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reputationOpenLnp2pbot => 'Get it from lnp2pBot';
 
   @override
+  String get reputationOpenLnp2pbotFailed =>
+      'Telegram could not be opened. Open lnp2pBot in Telegram yourself and paste here what it sends you.';
+
+  @override
   String get reputationPasteHint => 'Paste the reputation you received';
 
   @override
@@ -4335,7 +4339,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String reputationFigures(int reviews, String rating, int days) {
-    return '$reviews ratings received, $rating on average, trading for $days days';
+    String _temp0 = intl.Intl.pluralLogic(
+      reviews,
+      locale: localeName,
+      other: '$reviews ratings received',
+      one: '1 rating received',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: 'trading for $days days',
+      one: 'trading for 1 day',
+    );
+    return '$_temp0, $rating on average, $_temp1';
   }
 
   @override

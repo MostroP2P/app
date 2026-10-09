@@ -4366,6 +4366,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get reputationOpenLnp2pbot => 'Ottienila da lnp2pBot';
 
   @override
+  String get reputationOpenLnp2pbotFailed =>
+      'Impossibile aprire Telegram. Apri lnp2pBot in Telegram e incolla qui ciò che ti invia.';
+
+  @override
   String get reputationPasteHint => 'Incolla la reputazione ricevuta';
 
   @override
@@ -4379,7 +4383,19 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String reputationFigures(int reviews, String rating, int days) {
-    return '$reviews valutazioni ricevute, $rating di media, scambia da $days giorni';
+    String _temp0 = intl.Intl.pluralLogic(
+      reviews,
+      locale: localeName,
+      other: '$reviews valutazioni ricevute',
+      one: '1 valutazione ricevuta',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: 'scambia da $days giorni',
+      one: 'scambia da 1 giorno',
+    );
+    return '$_temp0, $rating di media, $_temp1';
   }
 
   @override
